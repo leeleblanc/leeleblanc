@@ -4,62 +4,51 @@
 -- =====================================================================
 -- 09-17-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.237.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.239.0
 -- =====================================================================
 
--- NEW IN 6.237.0 — 🆔 A FINDER DRAG HANDS BACK A REFERENCE, NOT A PATH
---                  (modules/music_player.lua):
---   LL's card is the whole artefact: "⚠️ .15194583 is not an audio file
---      this can play", over an empty queue. By 6.235.0 the READING worked
---      — what it read was never a path. macOS puts FILE REFERENCE URLs on
---      a drag pasteboard — file:///.file/id=6571367.15194583 — which name
---      a file by volume and inode and carry no name and no extension at
---      all. This module read the inode as a file type.
---   🔗 A BOOKMARK RESOLVES ONE, and realpath does NOT — checked in Libc's
---      own source (stdlib/FreeBSD/realpath.c), not remembered: realpath
---      walks a path a component at a time and REPLACES each with the real
---      NAME getattrlist answers, so it hands back "/.file/Max McNown - A
---      Lot More Free.mp3" — the right name in a folder that holds nothing,
---      ending in .mp3, which would have filled the queue with rows that
---      look perfect and cannot open. An answer that is itself a reference
---      is refused, and that has its own row.
---   📁 The plain-path flavour is asked FIRST: NSFilenamesPboardType is a
---      plist ARRAY OF POSIX PATHS, so where macOS still offers it nothing
---      needs resolving at all. The report names which reader answered and
---      what became of the references.
---   🔑 Escapes are undone for a file:// URL and NOT for a POSIX path —
---      "50%25 off.mp3" is a real file name, and decoding one makes a path
---      that is not there.
---   🔔 A reference this Mac cannot resolve is REFUSED BY NAME. A true
---      sentence about a string that was never a name is the one answer he
---      cannot act on.
---      · 9,501 -> 9,522 checks · eleven mutations.
+-- NEW IN 6.239.0 — ⏪ ← → SEEK (modules/music_player.lua):
+--   LL, with the win: "I need an arrow keys left/right as seek". v1 shipped
+--      without seek on his own answers; this is him asking. ← and → move 5
+--      seconds, ⇧← and ⇧→ move 30, and the footer says so.
+--   🔗 `hs.sound:currentTime(n)` IS a setter — checked in
+--      extensions/sound/libsound.m, which calls [NSSound setCurrentTime:],
+--      rather than remembered.
+--   🔒 `mp.seekTo(cur, delta, dur)` is PURE and answers the position AND
+--      why: never below 0, never past the end, and a track whose LENGTH
+--      macOS would not answer does not seek forward at all — a duration of
+--      0 is "not known", not "zero seconds", and seeking into it jumps to
+--      silence with no way back. ← still works there.
+--   🚨 The belt clock is RE-ANCHORED with it (`mp.startedAt`), or the next
+--      tick drags the time back to where it was; its own check.
+--      · 9,522 -> 9,556 checks · fourteen mutations across both suites.
 --
--- NEW IN 6.236.1 — 🚨 A READER'S ERROR MESSAGE IS NOT A FILE
---                  (modules/music_player.lua):
---   Caught by the gate, before LL ever ran it, and only because the gate
---      runs a suite from an ABSOLUTE path. 6.235.0's readers were written
---      `mp.joinLines(select(2, pcall(f)))` — and `select(2, pcall(f))` is
---      the RESULT when f returns and the ERROR MESSAGE when it raises. A
---      Lua error begins with its chunk name, so on a Mac it reads
---      "/Users/…/music_player.lua:612: …", which starts with a slash,
---      which `pathsFromURIList` accepts as a plain-text drag. A reader
---      that FAILED handed its own traceback back as a track to play.
---   🔒 That is CLAUDE.md's own 6.179.0 rule — read THREE values, because
---      reading two makes a refusal look like success — broken in new code
---      by the person who wrote the rule down. `ask()` reads ok first.
---   🧪 And the check on it passed at first for the wrong reason: `error(msg)`
---      PREPENDS "file:line:" unless it is raised at level 0, so the fake
---      failure did not have the shape the real one has. It raises at level
---      0 now and the message is exactly what the test asked for.
---      · 9,500 -> 9,501 checks.
+-- NEW IN 6.238.0 — 🪟 A PUSH INTO A PAGE THAT HAS NOT LOADED IS DROPPED IN
+--                  SILENCE (modules/music_player.lua):
+--   LL: "I was playing a song in the first screenshot but I closed the
+--      window and it didn't show but then opened again it did." His card
+--      read "nothing playing · QUEUE EMPTY" over music that was still
+--      playing — and the progress bar was nearly FULL on that empty card,
+--      which is the whole diagnosis in one photograph.
+--   🪟 `view:html()` returns long before WebKit has parsed the document, so
+--      the `draw(...)` pushed on the next line found no `draw` function and
+--      went nowhere; the page then ran its OWN `draw(S)` over the empty
+--      default. The CLOCK kept landing because the tick pushes one every
+--      half second — hence a full bar over an empty queue.
+--   🔑 THE PAGE ASKS NOW: `say({a:'ready'})` is the last line of its
+--      script, so everything it promises exists by the time Lua hears it,
+--      and Lua answers with a redraw. The blind push stays as the belt.
+--   🔎 COUNTED APART, because a push that was dropped must not read like
+--      one that landed: the report says how many draws landed since the
+--      page spoke and how many were pushed before it existed.
+--      · 9,522 -> 9,556 checks.
 --
--- (6.236.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.237.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.237.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.239.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -156,7 +145,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.237.0"
+_G.configVersion = "6.239.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the

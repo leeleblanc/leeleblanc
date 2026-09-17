@@ -91,6 +91,8 @@ function M.setup(core)
         maxHistory = 400,             -- the BOUND, not the rule; days decide
         historyDays = 30,             -- LL: "remember 30 days of history"
         historyShow = 40,             -- how many the card draws
+        seekStep    = 5,              -- ← → seconds (LL asked for seek)
+        seekBigStep = 30,             -- ⇧← ⇧→ seconds
         saveDelay = 0.3,
         -- 🎧 WHAT NSSound PLAYS. Not a guess and not a wish list: these are
         -- the container/codec pairs AVFoundation decodes on a stock Mac.
@@ -120,6 +122,9 @@ function M.setup(core)
         dragSeen  = "no drag yet this session",
         dropReader = nil,             -- which pasteboard reader answered
         dropRefs  = "nothing read yet",
+        pageReady = false,            -- has the page said its script ran?
+        seeks     = 0,                -- how many times ← → moved a track
+        draws     = { landed = 0, early = 0 },
     }
 
     -- ---- PURE. Every rule about WHAT PLAYS and WHAT COMES NEXT lives
@@ -264,6 +269,36 @@ function M.setup(core)
             end
         end
         return out, added, refused
+    end
+
+    -- ⏪ SEEK (6.239.0, LL: "I need an arrow keys left/right as seek").
+    -- PURE, so every edge is proven with numbers and no sound card: the
+    -- position never goes below 0, never past the end, and a duration this
+    -- Mac could not read is NOT a licence to seek into nothing. Answers the
+    -- new position AND why, because "nothing happened" is the one answer a
+    -- person cannot act on (6.195.0 — two silent returns in halveTo cost a
+    -- release).
+    function mp.seekTo(cur, delta, dur)
+        cur   = tonumber(cur) or 0
+        delta = tonumber(delta) or 0
+        dur   = tonumber(dur) or 0
+        local want = cur + delta
+        if want < 0 then
+            return 0, (cur <= 0) and "already at the start" or "back to the start"
+        end
+        if dur > 0 and want > dur then
+            -- Seeking past the end is the same as letting the track finish:
+            -- it parks at the end and the next one starts by itself.
+            return dur, "the end of the track"
+        end
+        if dur <= 0 and delta > 0 then
+            -- 🔔 A duration of 0 means macOS did not answer, NOT a
+            -- zero-length track. Seeking forward into a length nobody knows
+            -- would jump to silence with no way back.
+            return cur, "this track's length is not known — cannot seek forward"
+        end
+        return want, (delta < 0 and "back " or "forward ")
+                     .. math.floor(math.abs(delta)) .. "s"
     end
 
     -- 🆔 A FINDER DRAG HANDS BACK A REFERENCE, NOT A PATH (6.237.0, LL's
@@ -553,6 +588,31 @@ function M.setup(core)
         return true
     end
 
+    -- ⏪ The thin half: hs.sound:currentTime(n) IS a setter — checked in
+    -- extensions/sound/libsound.m, which calls [NSSound setCurrentTime:],
+    -- not remembered. The belt clock is RE-ANCHORED with it or the next
+    -- tick drags the time back to where it was (mp.startedAt is what the
+    -- tick falls back on when the sound will not answer).
+    function mp.seekBy(delta)
+        if not (mp.sound and mp.queue[mp.index]) then
+            say("nothing is playing — nothing to seek")
+            return false, "nothing is playing"
+        end
+        local okC, cur = pcall(function() return mp.sound:currentTime() end)
+        if not (okC and tonumber(cur)) then cur = mp.elapsed end
+        local want, why = mp.seekTo(cur, delta, mp.duration)
+        local okS = pcall(function() mp.sound:currentTime(want) end)
+        if not okS then
+            return degrade("this Mac would not move the playing position")
+        end
+        mp.elapsed = want
+        if mp.startedAt then mp.startedAt = os.time() - math.floor(want) end
+        mp.seeks = mp.seeks + 1
+        mp.drawClock()
+        say("seek — " .. why)
+        return true, why
+    end
+
     -- 🔔 THE BELT. hs.sound's callback is the documented way to hear a
     -- track end; this is what happens when it does not arrive. The tick is
     -- running anyway to draw the clock, so the check is free — and the two
@@ -634,8 +694,21 @@ function M.setup(core)
         end)
     end
 
+    -- 🪟 A PUSH INTO A PAGE THAT HAS NOT LOADED IS DROPPED IN SILENCE
+    -- (6.238.0, LL: "I was playing a song … I closed the window and it
+    -- didn't show but then opened again it did"). `view:html()` returns
+    -- long before WebKit has parsed the document, so the draw sent on the
+    -- next line finds no `draw` function and goes nowhere — and the page
+    -- then runs its OWN `draw(S)` over the empty default, which is the
+    -- "nothing playing · QUEUE EMPTY" card he photographed over music that
+    -- was still playing. The clock kept landing (the tick pushes one every
+    -- half second) which is exactly why the bar was full on an empty card.
+    -- COUNTED APART, because a push that is dropped must not read like one
+    -- that landed.
     function mp.render()
         if not mp.webview then return end
+        if mp.pageReady then mp.draws.landed = mp.draws.landed + 1
+        else mp.draws.early = mp.draws.early + 1 end
         pcall(function()
             mp.webview:evaluateJavaScript("draw(" .. mp.rowsJson() .. ");")
         end)
@@ -699,11 +772,12 @@ footer { padding:5px 10px; font-size:%dpx; color:#7d7f89;
     <button id="clr" title="Empty the queue">clear</button>
   </div>
   <div id="wrap"><div id="list"></div></div>
-  <footer id="ft">&#8593;&#8595; pick &#183; &#8629; play &#183; space pause &#183; &#8984;1-9</footer>
+  <footer id="ft">&#8593;&#8595; pick &#183; &#8592;&#8594; seek &#183; &#8629; play &#183; space pause &#183; &#8984;1-9</footer>
 </div>
 <div id="drop">drop to add</div>
 <script>
 var S = { rows: [], hist: [], sel: 1, mode: 'off', playing: false, refused: [] };
+var STEP = %d, BIGSTEP = %d;
 var dz;
 function say(m){ try { webkit.messageHandlers.musicPlayer.postMessage(m); } catch(e){} }
 function el(id){ return document.getElementById(id); }
@@ -827,6 +901,10 @@ document.addEventListener('keydown', function(e){
   if (e.metaKey && k >= '1' && k <= '9') { e.preventDefault(); say({a:'pick', i:+k}); return; }
   if (k === 'ArrowDown' || (e.altKey && k === 'ArrowDown')) { e.preventDefault(); say({a:'sel', d:1}); return; }
   if (k === 'ArrowUp'   || (e.altKey && k === 'ArrowUp'))   { e.preventDefault(); say({a:'sel', d:-1}); return; }
+  /* ⏪ ← → SEEK, ⇧ for a bigger step. These are free in this card: ↑↓ walk
+     the list and nothing here scrolls sideways. */
+  if (k === 'ArrowRight') { e.preventDefault(); say({a:'seek', d: e.shiftKey ? BIGSTEP : STEP}); return; }
+  if (k === 'ArrowLeft')  { e.preventDefault(); say({a:'seek', d: -(e.shiftKey ? BIGSTEP : STEP)}); return; }
   if (k === 'Enter') { e.preventDefault(); say({a:'pick', i: S.sel}); return; }
   if (k === ' ')     { e.preventDefault(); say({a:'play'}); return; }
   if (k === 'Backspace' || k === 'Delete') { e.preventDefault(); say({a:'remove', i:S.sel}); return; }
@@ -836,7 +914,13 @@ document.addEventListener('keyup', function(e){
   if (e.key === 'F18' || e.keyCode === 79) say({a:'f18'});
 });
 draw(S);
-</script></body></html>]]):format(fs, fs, fs2, fs2, fs1, fs2, fs2, fs1, fs2)
+/* 🪟 LAST LINE ON PURPOSE: everything above exists by the time Lua hears
+   this, so the answer to it cannot be dropped the way the push that
+   arrives before this line is. */
+say({a:'ready'});
+</script></body></html>]]):format(fs, fs, fs2, fs2, fs1, fs2, fs2, fs1, fs2,
+        math.max(1, math.floor(tonumber(mp.seekStep) or 5)),
+        math.max(1, math.floor(tonumber(mp.seekBigStep) or 30)))
     end
 
     -- 🚚 ONE DOOR FOR A DROP, whichever way it arrived — the window's own
@@ -884,6 +968,14 @@ draw(S);
             if _G.hyperReleaseSeen then pcall(_G.hyperReleaseSeen, "musicPlayer") end
             return
         end
+        -- 🪟 THE PAGE ASKS, LUA ANSWERS. The page posts this as the last
+        -- line of its script, so it cannot arrive before `draw` exists.
+        if a == "ready" then
+            mp.pageReady = true
+            mp.render()
+            say("the page is ready — the card was redrawn")
+            return
+        end
         if a == "esc"    then mp.hide() return end
         -- 🪟 The title strip drags with a BARE click — the header rule
         -- (6.89.0): a header is safe by construction, because there is
@@ -899,6 +991,7 @@ draw(S);
             end
             return
         end
+        if a == "seek"   then mp.seekBy(tonumber(b.d) or 0) return end
         if a == "play"   then mp.togglePlay() return end
         if a == "next"   then advance(true) return end
         if a == "prev"   then
@@ -1309,6 +1402,8 @@ draw(S);
         if (tonumber(mp.alpha) or 1) < 1 then
             pcall(function() view:alpha(tonumber(mp.alpha)) end)
         end
+        mp.pageReady = false
+        mp.draws = { landed = 0, early = 0 }
         pcall(function() view:html(buildHtml()) end)
         pcall(function() view:show() end)
         pcall(function() view:bringToFront(true) end)
@@ -1403,6 +1498,14 @@ draw(S);
         line("   ↳ " .. tostring(mp.dropRefs)
              .. ((hs.fs and hs.fs.pathToBookmark) and ""
                  or " · ⚠️ this Hammerspoon has no hs.fs.pathToBookmark"))
+        line("   page     : " .. (mp.webview and (mp.pageReady
+             and (mp.draws.landed .. " draw(s) landed since the page said "
+                  .. "it was ready")
+             or "⚠️ the page has NOT said it is ready — the bridge is down "
+                .. "or the document never finished loading")
+             or "closed"))
+        line("   ↳ " .. mp.draws.early .. " draw(s) were pushed before the "
+             .. "page existed — WebKit drops those in silence")
         line("   window   : " .. (function()
                 local f = mp.webview and mp.webview:frame()
                 local at = f and ("at %d,%d"):format(math.floor(f.x),
@@ -1414,6 +1517,9 @@ draw(S);
         if not (_G.movablePanels and #_G.movablePanels > 0) then
             line("   ⚠️ window_move is not loaded — neither grip works")
         end
+        line("   seek     : \u{2190}\u{2192} " .. tostring(mp.seekStep)
+             .. " s · \u{21E7}\u{2190}\u{2192} " .. tostring(mp.seekBigStep)
+             .. " s · " .. mp.seeks .. " this session")
         line("   volume   : none here, on purpose — the Mac's own keys")
         line("   last     : " .. tostring(mp.lastWhy))
         line("   off      : settings = { music_player = { enabled = false } }")

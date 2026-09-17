@@ -1,5 +1,5 @@
 ========================================================================
-RESOLVED FEATURE REQUESTS — Hammerspoon config 6.237.0
+RESOLVED FEATURE REQUESTS — Hammerspoon config 6.239.0
 Every feature and how to use it. Generated from the modules' own
 cheat sheets (the rows ⇪/ draws), so it is never out of date.
 ⇪ = Caps Lock held (the hyper key). ⇪⇧X = Caps Lock + Shift + X.
@@ -756,6 +756,8 @@ In the Console, _G.<tool>Report() prints any tool's own report.
 
 📜 RELEASE INDEX — newest first, one line per release (the full story of each is in CHANGELOG.md)
 ------------------------------------------------------------------------
+  6.239.0  ⏪ ← → SEEK (modules/music_player.lua)
+  6.238.0  🪟 A PUSH INTO A PAGE THAT HAS NOT LOADED IS DROPPED IN
   6.237.0  🆔 A FINDER DRAG HANDS BACK A REFERENCE, NOT A PATH
   6.236.1  🚨 A READER'S ERROR MESSAGE IS NOT A FILE
   6.236.0  🖥 A PANEL OPENS WHERE YOU ARE LOOKING, AND `mainWindow`

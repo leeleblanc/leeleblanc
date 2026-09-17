@@ -336,6 +336,41 @@ work Mac.
   test pcall'd its own call (6.186.0), and the "no hs.fs" check passed
   with the guard deleted because `pcall(nil, p)` is already false — it
   takes hs.fs away ENTIRELY now, which is what the guard is for.
+  🪟 A PUSH INTO A PAGE THAT HAS NOT LOADED IS DROPPED IN SILENCE (6.238.0,
+  LL: "I was playing a song … I closed the window and it didn't show but
+  then opened again it did"). `view:html()` RETURNS BEFORE WEBKIT HAS
+  PARSED THE DOCUMENT, so the `draw(...)` pushed on the next line of show()
+  finds no `draw` function and goes nowhere; the page then runs its own
+  `draw(S)` over the empty default and nothing redraws until the next state
+  change. HIS PHOTOGRAPH CARRIED THE DIAGNOSIS: the card said QUEUE EMPTY
+  with the progress bar nearly FULL — the clock kept landing because the
+  tick pushes one every half second, by which time the page is up. Two
+  pushes into one page, one lost and one not, half a second apart.
+  🔑 THE PAGE ASKS: `say({a:'ready'})` as the LAST line of its script (sent
+  any earlier it promises something that is not there yet), Lua answers
+  with a render, and the blind push stays as the BELT. COUNT THEM APART —
+  the report says how many draws landed since the page spoke and how many
+  were pushed before it existed, and a page that has never spoken reads as
+  a fault, not as health. GENERAL, and it applies to every panel in this
+  config that pushes state into a page it has just created: a page tells
+  Lua when it exists; Lua does not guess.
+  ⏪ ← → SEEK (6.239.0, LL asking with the win: "I need an arrow keys
+  left/right as seek" — v1 shipped without it on his own answers). ← →
+  5 s, ⇧← ⇧→ 30 s, both from the config (the page is GIVEN the numbers; a
+  check moves the config and requires the page to move with it, because
+  asserting the shipped default passes when the number is typed in twice).
+  `hs.sound:currentTime(n)` IS a setter — extensions/sound/libsound.m,
+  [NSSound setCurrentTime:]. `mp.seekTo(cur, delta, dur)` is PURE and
+  answers the position AND why: never below 0, never past the end, and a
+  duration of 0 means MACOS DID NOT ANSWER, not a zero-length track — so ←
+  works there and → does not, because seeking forward into a length nobody
+  knows lands in silence with no way back.
+  🚨 AND THE BELT CLOCK IS RE-ANCHORED (`mp.startedAt`), or the next tick
+  drags the time back to where it was. Any state a fallback derives from a
+  START TIME moves when the thing it measures is moved.
+  🧪 The test sound's currentTime was a GETTER ONLY, so every seek would
+  have "succeeded" while moving nothing — 6.227.0's selectedRow exactly,
+  THIRD time a getter-only stub has hidden a whole feature.
   🧪 AND THE MUTATION HARNESS LEFT A MUTATION IN THE TREE mid-release,
   which produced a suite that passed standalone and failed under the gate
   — a symptom with no honest explanation, and forty minutes spent
@@ -1756,7 +1791,7 @@ THE METHOD, when something breaks after a stacked zip:
    6.216.0 6f06071 · 6.217.0 a475bef · 6.218.0 41b002b · 6.219.0 862c177
    · 6.220.0 ac3975e · 6.221.0 ead07d9 · 6.222.0 1842ca7 · 6.223.0
    86ac82b · 6.224.0 67957ea · 6.225.0 98434fe · 6.226.0 304f1f9 ·
-   6.227.0 14e953a · 6.228.0 2aa3dfe · 6.229.0 a1318e1 · 6.230.0 0740c07 · 6.231.0 c1921af · 6.231.1 5a5c298 · 6.232.0 1ca3f6f · 6.233.0 2328c8c · 6.234.0 57f78d0 · 6.235.0 52e5b21 · 6.236.0 34cff8b · 6.236.1 fdce771 · 6.237.0 adf9256.
+   6.227.0 14e953a · 6.228.0 2aa3dfe · 6.229.0 a1318e1 · 6.230.0 0740c07 · 6.231.0 c1921af · 6.231.1 5a5c298 · 6.232.0 1ca3f6f · 6.233.0 2328c8c · 6.234.0 57f78d0 · 6.235.0 52e5b21 · 6.236.0 34cff8b · 6.236.1 fdce771 · 6.237.0 adf9256 · 6.238.0 <sha238> · 6.239.0 <sha239>.
    Keep this list current: one line per release, appended at ceremony
    time.
 4. A BISECT IS AN OPTION, NOT THE FIRST MOVE — it costs him an install
@@ -1827,12 +1862,25 @@ as the fix when a loss lands.
 | 6.236.1 | 🚨 a reader's error message is not a file — `select(2, pcall(f))` is the error when it raises, and a Lua error begins with a path (caught by the gate, never reached him) | pending |
 | 6.236.0 | 🖥 a panel opens on the monitor you are looking at — the pointer outranks the front app's `mainWindow`, which is routinely the other display | pending |
 | 6.235.0 | 🔒 the drop lit up blue and did nothing: a `table.concat` on a list of objects threw inside the dragging callback, where a throw is a silence — plus a `public.file-url` reader and a report that names what the drag carried | LOSS — LL: "Same results on music player", with the card reading "⚠️ .15194583 is not an audio file this can play". The reading WORKED; what it read was a file reference URL, not a path → fix 6.237.0 |
-| 6.237.0 | 🆔 a Finder drag hands back `file:///.file/id=6571367.15194583` — a volume and an inode, no name and no extension — and a bookmark turns it back into the file (realpath does not) | pending |
+| 6.237.0 | 🆔 a Finder drag hands back `file:///.file/id=6571367.15194583` — a volume and an inode, no name and no extension — and a bookmark turns it back into the file (realpath does not) | **WIN** — LL: "Music player works!" (2026-09-17). Seven releases and three losses to get the drop working; the artefact that ended it was his own card |
+| 6.238.0 | 🪟 the card reopens showing what is playing — the page says when it is ready instead of Lua pushing into a document WebKit has not parsed | pending |
+| 6.239.0 | ⏪ ← → seek 5 s, ⇧← ⇧→ 30 s — his ask, in the same message as the win | pending |
 
-Running total: 14 wins · 8 losses · 21 pending (6.215.0, 6.217.0, 6.218.0,
+Running total: 15 wins · 8 losses · 22 pending (6.215.0, 6.217.0, 6.218.0,
 6.219.0, 6.220.0, 6.221.0, 6.222.0, 6.223.0, 6.224.0, 6.225.0, 6.226.0,
 6.227.0, 6.228.0, 6.229.0, 6.230.0, 6.231.1, 6.232.0, 6.234.0, 6.236.0,
-6.236.1, 6.237.0).
+6.236.1, 6.238.0, 6.239.0).
+🏁 6.237.0 CLOSED THE MUSIC DROP: 6.231.0 → 6.237.0, three losses, and
+every one of them at the boundary with macOS where the gate is blind
+(webview cannot take a drop · a throw in a dragging callback is silent ·
+Finder hands over an inode). THE METHOD THAT ENDED IT, both times it was
+used: ask for the artefact and put the cause IN THE CARD. His screenshot
+named the inode; his screenshot named the empty redraw. NEW HABIT, owed to
+him and stated to him (2026-09-17): every release is labelled KNOWN GROUND
+(the gate can see it — expect it to work) or NEW GROUND (a macOS surface
+this config has not touched — expect a round), and on new ground the FIRST
+release is the probe that prints what macOS actually answered, never a fix
+built on a belief.
 6.208.0's stall guard was FIELD-PROVEN 2026-09-13: a ⇪Y Chrome-history
 search beachballed the Air 72 s, the guard killed and relaunched it, the
 next boot announced it (LL: "fortunately hammerspoon caught itself"). LL is on
@@ -2114,6 +2162,34 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.239.0 verify with LL — ⏪ SEEK (KNOWN GROUND): install (carries
+  6.238.0). Play a track. → jumps forward 5 seconds, ← back 5, and the time
+  and the bar move with it. ⇧→ and ⇧← jump 30. ↑↓ still walk the list —
+  they live one line apart in the same handler.
+  → held at the end parks at the end and the next track starts, which is
+  the same as letting it finish. ← at the start says "already at the start"
+  rather than doing nothing.
+  Console: `_G.musicReport()` — "seek : ←→ 5 s · ⇧←→ 30 s · N this session".
+  Both numbers are settings, no release:
+  `settings = { music_player = { seekStep = 10, seekBigStep = 60 } }`.
+  🔎 If a track ever seeks and then jumps BACK a second later, paste the
+  line — that is the fallback clock, and it has its own check.
+
+- 6.238.0 verify with LL — 🪟 THE CARD REOPENS ON WHAT IS PLAYING (KNOWN
+  GROUND): install. Play a track, ⇪⇧pad. to close the card, ⇪⇧pad. to open
+  it again — the track, the queue and the history are all there the FIRST
+  time, not the second.
+  🔎 WHAT IT WAS, and your photograph diagnosed it: the card said QUEUE
+  EMPTY while the progress bar was nearly FULL. Opening the window hands
+  the page to WebKit and returns before WebKit has read it, so the draw
+  sent on the next line went nowhere — while the clock, pushed half a
+  second later, landed. The page says when it is ready now and the card is
+  drawn then.
+  Console: `_G.musicReport()` — a new "page :" line. "N draw(s) landed
+  since the page said it was ready" is healthy. If it ever reads "⚠️ the
+  page has NOT said it is ready", paste it: the bridge is down and that is
+  a different bug.
+
 - 6.237.0 verify with LL — 🆔 THE DROP, AND YOUR OWN CARD NAMED IT:
   install. ⇪⇧pad. Drag the same mp3s onto the card. They play.
   🔎 WHAT IT WAS: your card said "⚠️ .15194583 is not an audio file this can

@@ -80,6 +80,11 @@ function load() {
   const env = makeEnv();
   const ctx = vm.createContext(env.sandbox);
   vm.runInContext(scripts[0], ctx, { filename: "music_player-page.js" });
+  // 🪟 What the page says AS IT LOADS is its own fact (6.238.0's 'ready'
+  // handshake) and is kept apart, so every check below still measures what
+  // an INTERACTION sent rather than counting from one message further on.
+  env.loadSent = env.sent.slice();
+  env.sent.length = 0;
   env.call = (expr) => vm.runInContext(expr, ctx);
   env.draw = (json) => vm.runInContext("draw(" + json + ");", ctx);
   env.click = (id) => (env.listeners.el[id + ":click"] || (() => {}))({});
@@ -392,6 +397,52 @@ console.log("── Music player: page JavaScript, executed ──");
   env.call("clock('0:12', 0);");
   check("a clock tick with an empty queue leaves the invitation alone",
         env.byId.sub.textContent === "drop music here", env.byId.sub.textContent);
+}
+
+// ---- 🪟 the page tells Lua it exists ---------------------------------
+// 6.238.0. LL's card came up "nothing playing · QUEUE EMPTY" over music
+// that was playing: view:html() returns before WebKit has parsed the
+// document, so the draw pushed on the next line went nowhere and the
+// page drew its own empty default. The page ASKS now, as its last act.
+{
+  const env = load();
+  const msgs = env.loadSent.filter((m) => m && m.a === "ready");
+  check("🪟 the page posts 'ready' when its script has run",
+        msgs.length === 1, JSON.stringify(env.loadSent));
+  check("...and it is the LAST thing it sends while loading — sent any "
+        + "earlier it would promise something that is not there yet",
+        env.loadSent.length > 0
+        && env.loadSent[env.loadSent.length - 1].a === "ready",
+        JSON.stringify(env.loadSent));
+  check("...and nothing else is posted at load — a card that talks while "
+        + "it draws would fire an action nobody asked for",
+        env.loadSent.length === 1, JSON.stringify(env.loadSent));
+}
+
+// ---- ⏪ ← → seek ------------------------------------------------------
+{
+  const env = load();
+  env.key("ArrowRight");
+  check("⏪ → asks Lua to seek forward by the step",
+        at(env, 0).a === "seek" && at(env, 0).d === 5,
+        JSON.stringify(env.sent[0]));
+  env.key("ArrowLeft");
+  check("⏪ ← seeks back by the same step",
+        at(env, 1).a === "seek" && at(env, 1).d === -5,
+        JSON.stringify(env.sent[1]));
+  env.key("ArrowRight", { shiftKey: true });
+  check("⇧→ is the bigger step", at(env, 2).d === 30,
+        JSON.stringify(env.sent[2]));
+  env.key("ArrowLeft", { shiftKey: true });
+  check("⇧← too, and negative", at(env, 3).d === -30,
+        JSON.stringify(env.sent[3]));
+  // 🚨 ↑↓ must NOT have become a seek — they walk the list, and the two
+  // pairs live one line apart in the same handler.
+  const n = env.sent.length;
+  env.key("ArrowDown");
+  check("🚨 ↓ still walks the list — it did not become a seek",
+        at(env, n).a === "sel" && at(env, n).d === 1,
+        JSON.stringify(env.sent[n]));
 }
 
 // =====================================================================

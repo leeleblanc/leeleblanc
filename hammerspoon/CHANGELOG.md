@@ -5,6 +5,76 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.239.0 — ⏪ ← → SEEK (modules/music_player.lua):
+  LL, in the same message as the win: "I need an arrow keys left/right as
+  seek." v1 shipped without seek and without volume on his own answers
+  ("native volume keys work"), with both left as his call afterwards. This
+  is the call.
+
+  ← and → move 5 seconds, ⇧← and ⇧→ move 30, and the footer teaches both —
+  a shortcut nobody is told about is not a feature. Both numbers are
+  config: settings = { music_player = { seekStep = 10 } }, and the page
+  gets them from Lua rather than holding literals (its own check, because
+  asserting the shipped default passes just as happily when the number is
+  typed into the page twice).
+
+  🔗 `hs.sound:currentTime(n)` IS a setter — checked in
+  extensions/sound/libsound.m, which calls [NSSound setCurrentTime:] when a
+  number is passed and returns the position when it is not. Named, not
+  remembered.
+
+  🔒 `mp.seekTo(cur, delta, dur)` is PURE and answers the position AND WHY:
+  never below 0 ("back to the start", and "already at the start" when it
+  was there), never past the end, and a track whose length macOS would not
+  answer does NOT seek forward — a duration of 0 means "not known", not
+  "zero seconds", and seeking into it lands in silence with no way back.
+  ← still works there, because going back is always safe.
+
+  🚨 AND THE BELT CLOCK MOVES WITH IT. `mp.startedAt` is what the tick falls
+  back on when the sound will not answer its position; left where it was, the
+  next tick drags the time straight back. Its own check.
+
+  🔔 Nothing playing is a sentence, not a silence; a Mac that refuses to
+  move the position takes the degrade door and is named. `_G.musicReport()`
+  gains a "seek :" line with both steps and the count.
+
+  🧪 The test sound's currentTime was a GETTER ONLY — so every seek would
+  have "succeeded" while moving nothing, which is 6.227.0's selectedRow
+  exactly, third time. It is both now, and it can refuse.
+  · 9,522 -> 9,556 checks.
+
+NEW IN 6.238.0 — 🪟 A PUSH INTO A PAGE THAT HAS NOT LOADED IS DROPPED IN
+                 SILENCE (modules/music_player.lua):
+  LL: "I was playing a song in the first screenshot but I closed the window
+  and it didn't show but then opened again it did." His photograph carries
+  the whole diagnosis: the card read "nothing playing · drop music here ·
+  QUEUE EMPTY" and the progress bar was nearly FULL.
+
+  `view:html()` returns long before WebKit has parsed the document. The
+  `draw(...)` pushed on the very next line of mp.show() therefore arrives at
+  a page where `draw` does not exist yet, and WebKit drops it in silence
+  (6.204.0's rule about a script that cannot be parsed, one step earlier).
+  The page then runs its own `draw(S)` over its empty default, and nothing
+  redraws until the next state change. The CLOCK kept landing all the while
+  — the tick pushes one every half second, and by then the page is up —
+  which is why the bar was full over an empty queue. Two pushes into one
+  page, one lost and one not, and the difference was half a second.
+
+  🔑 THE PAGE ASKS NOW. `say({a:'ready'})` is the LAST line of its script,
+  so everything it promises exists by the time Lua hears it, and Lua answers
+  with a render. The blind push stays where it was as the belt — it costs
+  nothing when it is dropped and it is the only thing left if the bridge
+  ever fails.
+
+  🔎 COUNTED APART: a push that was dropped must not read like one that
+  landed. The report says how many draws have landed since the page spoke,
+  and how many were pushed before it existed — and a card whose page has
+  never spoken says so rather than reading as healthy.
+
+  🧪 And the page suite keeps what the page says AT LOAD separate from what
+  an interaction sends, so twenty existing checks still measure the message
+  they were written for. · 9,522 -> 9,556 checks.
+
 NEW IN 6.237.0 — 🆔 A FINDER DRAG HANDS BACK A REFERENCE, NOT A PATH
                  (modules/music_player.lua):
   LL's card is the whole artefact, and it named the cause itself:

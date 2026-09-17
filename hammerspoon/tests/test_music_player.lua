@@ -38,6 +38,7 @@ local SOUNDS    = {}     -- every hs.sound handed out
 local TIMERS    = {}
 local ALERTS, PRINTED, DEGRADED = {}, {}, {}
 local JS        = {}     -- every script pushed into the page
+NO_SEEK         = false  -- a Mac that refuses to move the playing position
 local WEBVIEWS  = {}
 local NO_WEBVIEW, NO_SOUND = false, false
 local WRITES    = {}     -- path → the bytes written
@@ -142,6 +143,7 @@ hs = {
 -- be an older Hammerspoon that has no draggingCallback at all, or one
 -- whose canvas refuses to show, because both are real Macs.
 CANVASES, NO_CANVAS, NO_DRAGCB = {}, false, false
+    NO_SEEK = false
 hs.canvas = {
     windowLevels = { dragging = 500, screenSaver = 1000, floating = 3 },
     new = function(rect)
@@ -245,7 +247,16 @@ hs.sound = {
         function s:resume() self.playing = true ; return true end
         function s:stop() self.playing = false ; self.stops = self.stops + 1 ; return true end
         function s:isPlaying() return self.playing end
-        function s:currentTime() return self.t end
+        -- 🧪 A GETTER AND A SETTER, because the real one is both
+        -- ([NSSound setCurrentTime:] — libsound.m). A getter-only stub is
+        -- how 6.227.0's restore "succeeded" while moving nothing, twice.
+        function s:currentTime(n)
+            if n == nil then return self.t end
+            if NO_SEEK then error("this sound will not seek", 0) end
+            self.t = n
+            self.seeks = (self.seeks or 0) + 1
+            return self
+        end
         function s:duration() return DURATION[path] or 180 end
         function s:setCallback(fn) self.cb = fn ; return self end
         SOUNDS[#SOUNDS + 1] = s
@@ -330,6 +341,7 @@ local function reset()
     mp.pos, mp.posWhy = nil, "not opened yet"
     SCREENS = { { x = 0, y = 0, w = 1440, h = 900 } }
     CANVASES, NO_CANVAS, NO_DRAGCB = {}, false, false
+    NO_SEEK = false
     PB = { url = nil, str = nil, contents = nil, uti = nil, types = nil,
            plist = nil, throw = {}, throwMsg = nil }
     BOOKMARKS, NO_BOOKMARK, BOOKMARK_THROW = {}, false, false
@@ -1550,10 +1562,164 @@ check("...and one without the bookmark functions is NAMED in the report, "
       r19b:find("pathToBookmark", 1, true) ~= nil)
 hs.fs.pathToBookmark = realToBookmark
 
+-- ---- §20 the card reopened empty over music that was playing ----------
+-- 🪟 6.238.0. LL: "I was playing a song in the first screenshot but I closed
+-- the window and it didn't show but then opened again it did." `view:html()`
+-- returns before WebKit has parsed the document, so the draw pushed on the
+-- next line finds no `draw` function and is dropped in SILENCE; the page then
+-- runs its own draw(S) over the empty default. The clock kept landing —
+-- the tick pushes one every half second — which is why his card showed a
+-- full progress bar over "QUEUE EMPTY".
+
+reset() ; mp.queue = { { path = "/m/a.mp3", title = "A" } }
+mp.index, mp.playing = 1, true
+JS = {}
+mp.show()
+check("🪟 a card just opened has NOT heard from its page yet",
+      mp.pageReady == false)
+check("...and the draw it pushed anyway is counted as EARLY — a push into "
+      .. "a page that does not exist is dropped in silence, and must not "
+      .. "read like one that landed",
+      mp.draws.early >= 1 and mp.draws.landed == 0,
+      mp.draws.early .. " early / " .. mp.draws.landed .. " landed")
+local r20 = report()
+check("...and the report says so rather than calling the card healthy",
+      r20:find("NOT said it is ready", 1, true) ~= nil,
+      r20:match("[^\n]*ready[^\n]*") or "no line")
+
+-- the page speaks, and the card is drawn with what is actually playing
+JS = {}
+-- through the real bridge, the way the page sends it (6.203.0)
+local okReady = post({ a = "ready" })
+check("🪟 THE PAGE ASKS AND LUA ANSWERS — the queue is drawn again once "
+      .. "the page exists", okReady and (function()
+          for _, j in ipairs(JS) do
+              if j:find("draw(", 1, true) and j:find('"A"', 1, true) then
+                  return true
+              end
+          end
+          return false
+      end)(), table.concat(JS, " | "))
+check("...and that draw is counted as LANDED",
+      mp.pageReady == true and mp.draws.landed >= 1,
+      tostring(mp.pageReady) .. " " .. mp.draws.landed)
+local r20b = report()
+check("...and the report changes with it",
+      r20b:find("since the page said", 1, true) ~= nil)
+
+-- 🧪 The page must say it LAST. Said before draw() is defined it proves
+-- nothing, which is the whole bug one level up.
+local html20 = mp.buildHtml()
+check("🪟 the page posts 'ready' as the last thing its script does",
+      (function()
+          local rd = html20:find("say({a:'ready'})", 1, true)
+          local dr = html20:find("\ndraw(S);", 1, true)
+          return rd ~= nil and dr ~= nil and rd > dr
+      end)(), tostring(html20:find("say({a:'ready'})", 1, true)))
+
+-- 🔒 a reopened card starts the count again, or yesterday's numbers answer
+-- today's question
+mp.hide() ; JS = {} ; mp.show()
+check("🔒 reopening the card resets the handshake and the counts",
+      mp.pageReady == false and mp.draws.landed == 0,
+      tostring(mp.pageReady) .. " " .. mp.draws.landed)
+
+-- ---- §21 ← → seek ------------------------------------------------------
+-- ⏪ 6.239.0, LL: "I need an arrow keys left/right as seek". v1 shipped
+-- without it on his own answers; this is him asking for it.
+
+check("⏪ forward moves by the step", mp.seekTo(10, 5, 200) == 15)
+check("...and back", mp.seekTo(10, -5, 200) == 5)
+check("🔒 never below zero — and it SAYS which", (function()
+        local at, why = mp.seekTo(2, -5, 200)
+        return at == 0 and why:find("start", 1, true) ~= nil
+      end)())
+check("...and pressing ← again at the start says so rather than nothing",
+      select(2, mp.seekTo(0, -5, 200)):find("already", 1, true) ~= nil,
+      select(2, mp.seekTo(0, -5, 200)))
+check("🔒 never past the end", (function()
+        local at, why = mp.seekTo(198, 30, 200)
+        return at == 200 and why:find("end", 1, true) ~= nil
+      end)())
+-- 🔔 duration 0 is "macOS did not answer", NOT a zero-length track. The
+-- difference decides whether → jumps into silence with no way back.
+check("🔔 a track whose length is unknown does not seek FORWARD, and the "
+      .. "answer names why", (function()
+        local at, why = mp.seekTo(10, 5, 0)
+        return at == 10 and why:find("not known", 1, true) ~= nil
+      end)(), select(2, mp.seekTo(10, 5, 0)))
+check("...but ← still works there — going back is always safe",
+      mp.seekTo(10, -5, 0) == 5)
+
+-- live, through the page's own key
+reset() ; mp.show()
+FILES["/m/a.mp3"] = true
+mp.queue = { { path = "/m/a.mp3", title = "A" } }
+mp.playAt(1, "test")
+lastSound().duration = 200
+mp.duration = 200
+lastSound().t = 30
+post({ a = "seek", d = 5 })
+check("⏪ → SEEKS THE PLAYING TRACK — through the page's own message",
+      lastSound().t == 35 and mp.elapsed == 35,
+      tostring(lastSound().t) .. " / " .. tostring(mp.elapsed))
+check("...and the sound was really told to move, not just the clock",
+      (lastSound().seeks or 0) >= 1, tostring(lastSound().seeks))
+-- 🚨 THE BELT CLOCK IS RE-ANCHORED. mp.startedAt is what the tick falls
+-- back on when the sound will not answer; left alone it drags the time
+-- straight back to where it was on the next tick.
+check("🚨 the fallback clock moves with the seek — or the next tick undoes "
+      .. "it", math.abs((os.time() - mp.startedAt) - 35) <= 1,
+      tostring(os.time() - mp.startedAt))
+post({ a = "seek", d = -5 })
+check("⏪ ← seeks back", lastSound().t == 30, tostring(lastSound().t))
+check("...and the report counts them",
+      report():find("2 this session", 1, true) ~= nil,
+      report():match("[^\n]*seek[^\n]*") or "no line")
+
+-- nothing playing is a SENTENCE, never a silence
+reset() ; mp.show()
+local okSeek = mp.seekBy(5)
+check("🔔 seeking with nothing playing says so and changes nothing",
+      okSeek == false and tostring(mp.lastWhy):find("nothing is playing",
+      1, true) ~= nil, tostring(mp.lastWhy))
+
+-- a Mac that refuses to move the position takes the 🔔 door
+reset() ; mp.show()
+FILES["/m/b.mp3"] = true
+mp.queue = { { path = "/m/b.mp3", title = "B" } }
+mp.playAt(1, "test")
+mp.duration = 200
+DEGRADED = {}
+NO_SEEK = true
+local okRefuse = pcall(mp.seekBy, 5)
+NO_SEEK = false
+check("🔔 a sound that refuses to seek does not throw, and is NAMED",
+      okRefuse == true and #DEGRADED > 0, table.concat(DEGRADED, " | "))
+
+-- the page sends it, and ⇧ is the big step
+local html21 = mp.buildHtml()
+check("⏪ the page binds ← and → and nothing else moved",
+      html21:find("a:'seek'", 1, true) ~= nil
+      and html21:find("ArrowLeft", 1, true) ~= nil)
+check("...⇧ asks for the bigger step",
+      html21:find("shiftKey ? BIGSTEP : STEP", 1, true) ~= nil)
+-- 🧪 The numbers must FOLLOW the config. Asserting the shipped defaults
+-- passes just as happily when they are typed into the page as literals —
+-- so the config is moved and the page has to move with it.
+mp.seekStep, mp.seekBigStep = 9, 45
+local html21b = mp.buildHtml()
+mp.seekStep, mp.seekBigStep = 5, 30
+check("...and the steps are the CONFIG's numbers, not literals in the page",
+      html21b:find("var STEP = 9, BIGSTEP = 45;", 1, true) ~= nil,
+      html21b:match("var STEP[^\n]*") or "no line")
+check("...the footer teaches the key, because a shortcut nobody is told "
+      .. "about is not a feature", html21:find("seek", 1, true) ~= nil)
+
 -- 🚨 The section asserts its own check count (6.186.0): a throw would
 -- delete every check after it while the run still said "0 failed".
 check("🚨 the suite asserted every check it was written to make",
-      (pass + fail) >= 200, pass + fail)
+      (pass + fail) >= 225, pass + fail)
 
 os.execute("true")
 realPrint(table.concat(PRINTED, "\n"))
