@@ -4,9 +4,33 @@
 -- =====================================================================
 -- 09-16-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.233.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.234.0
 -- =====================================================================
 
+-- NEW IN 6.234.0 — 🕘 THIRTY DAYS OF HISTORY, ONE ROW PER FILE
+--                  (modules/music_player.lua):
+--   LL: "it's best if we have it remember 30 days of music track history.
+--      But, if it's the same file it should only be listed once."
+--   🕘 `mp.noteHistory(list, row, now, days, max)` is PURE and carries the
+--      whole rule, so the clock is an argument and the gate proves every
+--      edge without waiting: the played track goes to the FRONT, any older
+--      row for the SAME FILE is removed rather than left behind, and
+--      anything past the window is dropped. Day 29 is inside, day 31 is
+--      not — the edge is a real edge.
+--   🔒 THE CAP IS NOW A BOUND, NOT THE RULE. It was 60 rows and that WAS
+--      the memory; `historyDays` (30) decides now and `maxHistory` (400)
+--      only stops a runaway list, keeping the newest.
+--   🗂 PRUNED AT THE LOADER TOO, which is its own branch and its own
+--      check: a Mac left off for six weeks would otherwise come back with
+--      six weeks of rows and lose them one play at a time.
+--   👁 And the card draws 40 of them rather than 12 — a month it cannot
+--      show is a month it may as well not remember.
+--      · 9,451 -> 9,470 checks · nine mutations.
+--   🧪 RULE PAID AGAIN (6.219.0): the store-shape check in §11 was built on
+--      a history row stamped `at = 5`, which this release prunes — it
+--      would have gone on passing for the wrong reason. Re-armed in the
+--      same release with a recent stamp.
+--
 -- NEW IN 6.233.0 — 🚚 A DRAGGED FILE LANDS ON THE MUSIC CARD, AND IT NEVER
 --                  COULD BEFORE (modules/music_player.lua):
 --   LL: "Can't drop a file on the music player, a drag just puts it behind
@@ -42,47 +66,12 @@
 --      whose canvas cannot take drags · a drop carrying no path.
 --      · 9,424 -> 9,451 checks · sixteen mutations.
 --
--- NEW IN 6.232.0 — 🪟 THE MUSIC CARD MOVES LIKE EVERY OTHER PANEL
---                  (modules/music_player.lua):
---   LL: "I need to be able to move the music player like any other
---      window." He was not describing a preference — the card was the one
---      panel this config draws that never registered itself in
---      _G.movablePanels, so NEITHER grip could reach it: not window_move's
---      ⌘-drag, and not the bare drag a title strip gets. Eleven panels are
---      in that table; this was the twelfth and it was missing, which is a
---      thing no test could see because the table is a global other modules
---      fill in. There is a check now.
---   🪟 BOTH GRIPS, because both already exist and neither is new: ⌘-drag
---      anywhere on the card (window_move's tap, no page involvement), and
---      a BARE press on the title strip, which posts dragStart and lets Lua
---      do the moving — a page cannot move the window it is drawn in. The
---      strip is safe by construction (6.89.0's header rule): there is
---      nothing on it a click could have meant instead. The card is NOT
---      `plain`, deliberately — a bare press on a ROW picks that track.
---   📍 AND IT STAYS WHERE HE PUTS IT. Both grips write the spot, it rides
---      in the player's own local store, and `mp.placeFor` is PURE: it
---      answers the rect AND why, so the report can tell "you moved it
---      here" from "back in the corner because that spot is on a monitor
---      you have unplugged". 6.196.0's cheat-sheet rule applies — a
---      remembered position on no current screen is DROPPED for the
---      default, never clamped onto the edge of a screen it was never on —
---      and a spot that would leave the strip off the bottom is nudged
---      back on, because a grip you cannot reach is the bug this fixes.
---   🧪 Twelve mutations on the Lua side, five on the page's.
---      · 9,391 -> 9,424 checks.
---      🚨 AND THE SUITE DIED INSTEAD OF FAILING under the very first one:
---      deleting the registration left `entry.frame` indexing a nil.
---      6.186.0's rule, paid by this module twice now — the stand-in
---      answers falsely instead. A cursor check also passed with the
---      cursor overridden (the LAST declaration in a CSS rule wins), so
---      it reads the rule now.
---
--- (6.231.1 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.232.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.233.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.234.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -179,7 +168,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.233.0"
+_G.configVersion = "6.234.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the

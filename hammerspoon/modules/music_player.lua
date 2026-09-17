@@ -88,7 +88,9 @@ function M.setup(core)
         fontSize  = 13,
         tickEvery = 0.5,              -- how often the elapsed time redraws
         maxQueue  = 200,
-        maxHistory = 60,
+        maxHistory = 400,             -- the BOUND, not the rule; days decide
+        historyDays = 30,             -- LL: "remember 30 days of history"
+        historyShow = 40,             -- how many the card draws
         saveDelay = 0.3,
         -- 🎧 WHAT NSSound PLAYS. Not a guess and not a wish list: these are
         -- the container/codec pairs AVFoundation decodes on a stock Mac.
@@ -180,6 +182,39 @@ function M.setup(core)
         end
         if i < n then return i + 1 end
         return nil
+    end
+
+    -- 🕘 THIRTY DAYS, AND ONE ROW PER FILE (6.234.0, LL: "it's best if we
+    -- have it remember 30 days of music track history. But, if it's the
+    -- same file it should only be listed once"). PURE, so the whole rule
+    -- is provable with no Mac and no clock: the row goes to the FRONT, any
+    -- older row for the SAME FILE is removed rather than left behind, and
+    -- anything past the window is dropped. The cap stays as a bound — a
+    -- runaway list is still a runaway list — but the DAYS are the rule.
+    function mp.noteHistory(list, row, now, days, max)
+        local out = {}
+        now = tonumber(now) or 0
+        days = tonumber(days) or 30
+        max = math.max(1, math.floor(tonumber(max) or 400))
+        local cutoff = now - (days * 86400)
+        if type(row) == "table" and type(row.path) == "string" and row.path ~= "" then
+            out[1] = { path = row.path, title = row.title,
+                       at = tonumber(row.at) or now }
+        end
+        for _, t in ipairs(type(list) == "table" and list or {}) do
+            if type(t) == "table" and type(t.path) == "string" and t.path ~= "" then
+                local at = tonumber(t.at) or 0
+                -- SAME FILE = the same row, moved up. The path is the whole
+                -- of "the same file" here: the queue is built from paths and
+                -- nothing renames one behind our back.
+                local dup = (out[1] and out[1].path == t.path)
+                if not dup and at >= cutoff then
+                    out[#out + 1] = { path = t.path, title = t.title, at = at }
+                end
+            end
+        end
+        while #out > max do table.remove(out) end
+        return out
     end
 
     function mp.prevIndex(i, n)
@@ -295,7 +330,12 @@ function M.setup(core)
                               at = tonumber(t.at) or 0 }
             end
         end
-        mp.queue, mp.history = q, h
+        -- Pruned at the LOADER as well as at the insert: a Mac left off for
+        -- six weeks would otherwise come back with six weeks of rows and
+        -- lose them only one play at a time.
+        mp.queue = q
+        mp.history = mp.noteHistory(h, nil, os.time(),
+                                    mp.historyDays, mp.maxHistory)
         -- 🗂 6.198.1: the shape is checked here, once. A store written by
         -- an older build has no pos at all, and one hand-edited may hold
         -- anything — either way the card opens in the corner rather than
@@ -316,7 +356,7 @@ function M.setup(core)
         local q = {}
         for _, t in ipairs(mp.queue) do q[#q + 1] = { path = t.path } end
         local h = {}
-        for i = 1, math.min(#mp.history, tonumber(mp.maxHistory) or 60) do
+        for i = 1, math.min(#mp.history, tonumber(mp.maxHistory) or 400) do
             h[#h + 1] = { path = mp.history[i].path, at = mp.history[i].at }
         end
         local ok, raw = pcall(function()
@@ -413,11 +453,9 @@ function M.setup(core)
             return false, row.bad
         end
         mp.playing, mp.startedAt = true, os.time()
-        table.insert(mp.history, 1, { path = row.path, title = row.title,
-                                      at = os.time() })
-        while #mp.history > (tonumber(mp.maxHistory) or 60) do
-            table.remove(mp.history)
-        end
+        mp.history = mp.noteHistory(mp.history,
+                                    { path = row.path, title = row.title },
+                                    os.time(), mp.historyDays, mp.maxHistory)
         saveSoon()
         mp.render()
         say("playing " .. row.title .. (why and (" (" .. why .. ")") or ""))
@@ -506,7 +544,7 @@ function M.setup(core)
             }
         end
         local hist = {}
-        for i = 1, math.min(#mp.history, 12) do
+        for i = 1, math.min(#mp.history, tonumber(mp.historyShow) or 40) do
             hist[#hist + 1] = { n = mp.history[i].title, p = mp.history[i].path }
         end
         local ok, raw = pcall(function()
@@ -1187,7 +1225,11 @@ draw(S);
         else
             line("   refused  : none from the last drop")
         end
-        line("   history  : " .. #mp.history .. " track(s) remembered")
+        line("   history  : " .. #mp.history .. " track(s) over the last "
+             .. tostring(mp.historyDays) .. " day(s) — one row per file"
+             .. (#mp.history > 0 and (", oldest "
+                 .. os.date("%b %d", tonumber(mp.history[#mp.history].at) or 0))
+                 or ""))
         line("   store    : " .. tostring(mp.storeFile))
         line("   ↳ LOCAL, never OneDrive — a half-played queue is not")
         line("     cross-Mac data, and a cloud write costs a wake-up")

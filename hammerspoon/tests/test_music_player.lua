@@ -701,7 +701,12 @@ reset()
 READABLE[mp.storeFile] = "{}"
 _G.FAKE_DECODE = { queue = { { path = "/m/good.mp3" }, "not a table",
                              { nope = true }, { path = 42 } },
-                   history = { { path = "/m/h.mp3", at = 5 }, 7 },
+                   -- 🧪 `at` is RECENT on purpose: 6.234.0 prunes by age at
+                   -- the loader, so a 1970 timestamp here would make this
+                   -- check pass for the wrong reason (6.219.0's rule — a
+                   -- test built on one behaviour is retired by a change to
+                   -- it, so re-arm it in the same release).
+                   history = { { path = "/m/h.mp3", at = os.time() }, 7 },
                    mode = "all" }
 mp.loaded = false
 mp.loadStore()
@@ -1097,10 +1102,113 @@ local rd = report()
 check("📋 the report says the catcher is up and what it last saw",
       rd:find("catcher up", 1, true) and rd:find("dropped", 1, true), rd)
 
+-- ---- §17 thirty days, one row per file ---------------------------------
+-- 🕘 6.234.0. PURE, so the clock is an argument and nothing here waits.
+local NOW = 1000000000
+local DAY = 86400
+-- 🧪 6.186.0, third time in this suite: a mutation that empties the list
+-- must FAIL these checks, not die on h[1].path.
+local function row(list, i)
+    return (type(list) == "table" and type(list[i]) == "table") and list[i]
+           or { path = "<none>", at = -1 }
+end
+
+local h = mp.noteHistory({}, { path = "/m/a.mp3", title = "a" }, NOW, 30, 400)
+check("🕘 a track played goes into the history", #h == 1 and h[1].path == "/m/a.mp3")
+check("...stamped with when it played", row(h, 1).at == NOW)
+
+h = mp.noteHistory(h, { path = "/m/b.mp3", title = "b" }, NOW + 10, 30, 400)
+check("...and the newest is FIRST, which is the order the card draws",
+      row(h, 1).path == "/m/b.mp3" and row(h, 2).path == "/m/a.mp3", #h)
+
+-- 🚨 THE ROW HE ASKED FOR
+h = mp.noteHistory(h, { path = "/m/a.mp3", title = "a" }, NOW + 20, 30, 400)
+check("🚨 THE SAME FILE IS LISTED ONCE — playing it again MOVES it up "
+      .. "rather than adding a second row (his ask, word for word)",
+      #h == 2, #h)
+check("...at the top, with the new time",
+      row(h, 1).path == "/m/a.mp3" and row(h, 1).at == NOW + 20)
+check("...and the other track is still there, not lost to the de-duplicate",
+      row(h, 2).path == "/m/b.mp3")
+
+-- the window
+local old30 = {
+    { path = "/m/yesterday.mp3", title = "y", at = NOW - DAY },
+    { path = "/m/lastweek.mp3",  title = "w", at = NOW - (7 * DAY) },
+    { path = "/m/day29.mp3",     title = "n", at = NOW - (29 * DAY) },
+    { path = "/m/day31.mp3",     title = "o", at = NOW - (31 * DAY) },
+    { path = "/m/lastyear.mp3",  title = "l", at = NOW - (400 * DAY) },
+}
+h = mp.noteHistory(old30, nil, NOW, 30, 400)
+check("🕘 thirty days is the rule: everything inside the window stays",
+      #h == 3, #h)
+check("...and day 29 is INSIDE it", row(h, 3).path == "/m/day29.mp3",
+      row(h, 3).path)
+check("🚨 ...and day 31 is not — the edge is a real edge, not a rounding",
+      (function()
+          for _, t in ipairs(h) do if t.path == "/m/day31.mp3" then return false end end
+          return true
+      end)())
+check("...nor is last year", #h == 3)
+
+h = mp.noteHistory(old30, nil, NOW, 365, 400)
+check("...and the window is a NUMBER, not a hard-coded thirty — at 365 "
+      .. "days the day-31 row comes back, and last year's still does not",
+      #h == 4 and row(h, 4).path == "/m/day31.mp3",
+      #h .. " " .. row(h, 4).path)
+
+-- the bound is still a bound
+local many = {}
+for i = 1, 50 do many[i] = { path = "/m/t" .. i .. ".mp3", at = NOW - i } end
+h = mp.noteHistory(many, nil, NOW, 30, 10)
+check("🔒 the cap is still a bound — days decide, but a runaway list is "
+      .. "still a runaway list", #h == 10, #h)
+check("...and it keeps the NEWEST ten, never the oldest",
+      row(h, 1).path == "/m/t1.mp3")
+
+-- it never throws on a store somebody else wrote
+check("🗂 a history list full of nonsense is dropped, not fatal",
+      #mp.noteHistory({ "x", 7, { nope = true }, { path = "" } }, nil,
+                      NOW, 30, 400) == 0)
+check("...and a nil list is an empty history",
+      #mp.noteHistory(nil, nil, NOW, 30, 400) == 0)
+
+-- 🕘 AND THE LOADER PRUNES, which is its own branch: a Mac left off for
+-- six weeks must not come back with six weeks of rows and lose them one
+-- play at a time.
+reset()
+READABLE[mp.storeFile] = "{}"
+_G.FAKE_DECODE = { queue = {}, mode = "off", history = {
+    { path = "/m/fresh.mp3", at = os.time() - DAY },
+    { path = "/m/stale.mp3", at = os.time() - (60 * DAY) },
+} }
+mp.loaded = false
+mp.loadStore()
+check("🕘 a store holding a row older than the window is pruned AT THE "
+      .. "LOADER, not on the next play",
+      #mp.history == 1 and row(mp.history, 1).path == "/m/fresh.mp3",
+      #mp.history .. " " .. row(mp.history, 1).path)
+_G.FAKE_DECODE = nil
+
+-- through the real player
+reset()
+FILES["/m/one.mp3"], FILES["/m/two.mp3"] = true, true
+mp.show()
+drop("file:///m/one.mp3\nfile:///m/two.mp3")
+mp.playAt(2, "test") ; mp.playAt(1, "test") ; mp.playAt(2, "test")
+check("🕘 four plays over two files leave TWO history rows",
+      #mp.history == 2, #mp.history)
+check("...the most recent play at the top",
+      row(mp.history, 1).path == "/m/two.mp3", row(mp.history, 1).path)
+
+local rh = report()
+check("📋 the report says the window, not just a count",
+      rh:find("30 day", 1, true) and rh:find("one row per file", 1, true), rh)
+
 -- 🚨 The section asserts its own check count (6.186.0): a throw would
 -- delete every check after it while the run still said "0 failed".
 check("🚨 the suite asserted every check it was written to make",
-      (pass + fail) >= 140, pass + fail)
+      (pass + fail) >= 165, pass + fail)
 
 os.execute("true")
 realPrint(table.concat(PRINTED, "\n"))

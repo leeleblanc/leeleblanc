@@ -288,6 +288,19 @@ work Mac.
   no binary, identical on the work Mac; "a full Apple Keyboard" on both →
   ⇪⇧pad. needs no fallback; "native volume keys work" → NO volume and NO
   seek in the player, stated as a decision rather than left as a gap.
+  🕘 THIRTY DAYS, ONE ROW PER FILE (6.234.0, LL: "remember 30 days of
+  music track history. But, if it's the same file it should only be listed
+  once"). `mp.noteHistory(list, row, now, days, max)` is PURE and carries
+  all of it, so the clock is an ARGUMENT and every edge is proven without
+  waiting: to the front, stamped; an older row for the same PATH removed
+  rather than left behind; past the window dropped; day 29 in, day 31 out.
+  THE CAP IS A BOUND NOW, NOT THE RULE — 60 rows WAS the memory and is why
+  he could not have a month; `historyDays` (30) decides and `maxHistory`
+  (400) only stops a runaway list, keeping the NEWEST (its own check,
+  because keeping the oldest is the easy way to write it wrong). Pruned at
+  the LOADER too, its own branch and its own check: a Mac left off six
+  weeks must not come back holding six weeks. The card draws 40, not 12 —
+  a month it cannot show is a month it may as well not remember.
   🔤 A TRACK IS NAMED BY ITS FILE, AND A FILE MAY BE CALLED ANYTHING
   (6.231.1). Every name went into `innerHTML` unescaped and a Lua `esc()`
   written for exactly that was NEVER CALLED. THE ESCAPING BELONGS IN THE
@@ -1658,7 +1671,7 @@ THE METHOD, when something breaks after a stacked zip:
    6.216.0 6f06071 · 6.217.0 a475bef · 6.218.0 41b002b · 6.219.0 862c177
    · 6.220.0 ac3975e · 6.221.0 ead07d9 · 6.222.0 1842ca7 · 6.223.0
    86ac82b · 6.224.0 67957ea · 6.225.0 98434fe · 6.226.0 304f1f9 ·
-   6.227.0 14e953a · 6.228.0 2aa3dfe · 6.229.0 a1318e1 · 6.230.0 0740c07 · 6.231.0 c1921af · 6.231.1 5a5c298 · 6.232.0 1ca3f6f · 6.233.0 PENDING.
+   6.227.0 14e953a · 6.228.0 2aa3dfe · 6.229.0 a1318e1 · 6.230.0 0740c07 · 6.231.0 c1921af · 6.231.1 5a5c298 · 6.232.0 1ca3f6f · 6.233.0 2328c8c · 6.234.0 PENDING.
    Keep this list current: one line per release, appended at ceremony
    time.
 4. A BISECT IS AN OPTION, NOT THE FIRST MOVE — it costs him an install
@@ -1725,10 +1738,11 @@ as the fix when a loss lands.
 | 6.231.1 | 🔤 the player's page is RUN by the gate now (stage 3e, 55 checks, 12 mutations) — and it found a track name with an & or a < in it losing half of itself | pending |
 | 6.232.0 | 🪟 the music card moves: ⌘-drag anywhere or a bare drag on its title strip, and it reopens where he left it (it was never in `_G.movablePanels`) | pending — LL: "Shortcuts fixed", which is not his win sentence and does not name the drag; ask |
 | 6.233.0 | 🚚 a dragged file lands on the card — a canvas catcher under it, because hs.webview cannot take a drop and hs.canvas can (the opposite of what 6.231.0 believed) | pending |
+| 6.234.0 | 🕘 thirty days of history, one row per file — the 60-row cap was the memory; days decide now, and the card shows 40 | pending |
 
-Running total: 14 wins · 6 losses · 18 pending (6.215.0, 6.217.0, 6.218.0,
+Running total: 14 wins · 6 losses · 19 pending (6.215.0, 6.217.0, 6.218.0,
 6.219.0, 6.220.0, 6.221.0, 6.222.0, 6.223.0, 6.224.0, 6.225.0, 6.226.0,
-6.227.0, 6.228.0, 6.229.0, 6.230.0, 6.231.1, 6.232.0, 6.233.0).
+6.227.0, 6.228.0, 6.229.0, 6.230.0, 6.231.1, 6.232.0, 6.233.0, 6.234.0).
 6.208.0's stall guard was FIELD-PROVEN 2026-09-13: a ⇪Y Chrome-history
 search beachballed the Air 72 s, the guard killed and relaunched it, the
 next boot announced it (LL: "fortunately hammerspoon caught itself"). LL is on
@@ -2010,6 +2024,17 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.234.0 verify with LL — 🕘 THIRTY DAYS, ONE ROW PER FILE: install
+  (carries 6.233.0). Play a track, then play it AGAIN, then play a second
+  one and come back to the first. The 🕘 history at the bottom of the card
+  must show TWO rows, not four — each file once, most recent at the top.
+  Console: `_G.musicReport()` — the "history :" line now reads "N track(s)
+  over the last 30 day(s) — one row per file, oldest <date>".
+  It keeps a month now rather than the last 60 plays, and the card shows
+  40 of them instead of 12. Nothing you have already is lost — old rows
+  simply age out at 30 days from when they played.
+  `settings = { music_player = { historyDays = 90 } }` if a month is short.
+
 - 6.233.0 verify with LL — 🚚 THE DROP, WHICH NEVER WORKED: install
   (carries 6.232.0). ⇪⇧pad. Open Finder on a music folder, select five or
   six mp3/m4a files and DRAG THEM ONTO THE CARD. As the pointer crosses it

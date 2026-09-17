@@ -5,6 +5,54 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.234.0 — 🕘 THIRTY DAYS OF HISTORY, ONE ROW PER FILE
+                 (modules/music_player.lua):
+  LL: "it's best if we have it remember 30 days of music track history.
+  But, if it's the same file it should only be listed once."
+
+  Two rules, and the second is the one that makes the first usable: a
+  month of plays with a row per PLAY is a list of the same four albums
+  over and over, and the thing he would actually look for — what did I
+  have on last Tuesday — is buried in it.
+
+  🕘 `mp.noteHistory(list, row, now, days, max)` is PURE and carries all
+  of it, so the clock is an argument and the gate proves every edge
+  without waiting a day for anything:
+
+     the played track goes to the FRONT, stamped with when
+     an older row for the SAME FILE is REMOVED, not left behind
+     anything past the window is dropped
+     day 29 is inside · day 31 is not — the edge is a real edge
+
+  "The same file" is the PATH, and that is a decision rather than an
+  accident: the queue is built from paths, nothing renames one behind our
+  back, and two copies of the same song in two folders are two files he
+  may well want to tell apart.
+
+  🔒 THE CAP IS A BOUND NOW, NOT THE RULE. It was 60 rows, and that 60 WAS
+  the memory — the reason he could not have thirty days. `historyDays`
+  (30) decides, and `maxHistory` (400) exists only so a runaway list is
+  still a runaway list; it keeps the NEWEST, which has its own check
+  because keeping the oldest is the easy way to write it wrong.
+
+  🗂 PRUNED AT THE LOADER AS WELL, its own branch and its own check: a Mac
+  left off for six weeks would otherwise come back holding six weeks of
+  rows and shed them one play at a time.
+
+  👁 And the card draws 40 rather than 12. A month it cannot show is a
+  month it may as well not remember; `historyShow` is the knob.
+
+  🧪 RULE PAID AGAIN, and it is 6.219.0's: §11's store-shape check was
+  built on a history row stamped `at = 5`, which this release prunes. It
+  would have gone on passing for the wrong reason — the row dropped for
+  its AGE rather than for its shape — so it is re-armed in the same
+  release with a recent stamp. When a test leans on a behaviour you are
+  changing, re-arm it before the change ships, not after it lies.
+
+  9,451 -> 9,470 checks. Nine mutations.
+
+  Settings: `settings = { music_player = { historyDays = 90 } }`.
+
 NEW IN 6.233.0 — 🚚 A DRAGGED FILE LANDS ON THE MUSIC CARD, AND IT NEVER
                  COULD BEFORE (modules/music_player.lua):
   LL: "Can't drop a file on the music player, a drag just puts it behind the
