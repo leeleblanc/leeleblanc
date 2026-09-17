@@ -5,6 +5,67 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.241.0 — 🎯 THE CLOUD FOLDER IS WATCHED BY ITS CHILDREN
+                 (modules/file_tracker.lua):
+  6.229.0 wrote the rule: "an exclusion that runs after the expensive thing
+  has happened is not a filter, it is a receipt." Two receipts were left
+  behind in that same file. fileTrackerExcludedPath discards the WHOLE Logs
+  folder — and Logs lives inside OneDrive-Personal, which 6.229.0 then added
+  BACK by name as a watched root, because skipping ~/Library would otherwise
+  have taken it. So every store this config writes — the clipboard poll, the
+  OCR log, the boot-cost row, the master log, and this module's own CSV —
+  woke this module, handed it a path, and had that path thrown away in Lua,
+  after the wake-up it had already cost. The module was waking itself,
+  all day, to discard its own writes.
+
+  The cloud folder is watched by its CHILDREN now. `ft.cloudRoots` is PURE
+  and answers the kept child paths, what was skipped and why, or NIL AND A
+  REASON when narrowing would be worse than not narrowing at all — a Mac
+  that cannot list the folder, a listing with nothing left to keep, or more
+  folders than `ft.maxCloudRoots` (40) budgets. In every one of those the
+  cloud folder is watched WHOLE, exactly as before this release, and the
+  report says which happened rather than quietly doing less.
+
+  🚨 AND IT RUNS AFTER THE DEDUPE, which is the whole trick and was nearly
+  got wrong. ~/OneDrive is a symlink to that folder (6.230.0), so at the
+  moment ft.watchRoots is building its list there are TWO names for one tree
+  and only ft.dedupeRoots knows it. Expanding before the dedupe puts the
+  children in the list and then has the dedupe drop every one of them as
+  "inside" the link's own whole-tree watcher — this release doing nothing at
+  all, quietly, on the exact Mac it was written for. So the cloud folder
+  wins its slot first, by whichever name, and `ft.expandCloud` swaps that
+  slot for its children afterwards. Both halves are PURE and both have their
+  own checks; the end-to-end runs through the link, not around it.
+  GENERAL: when a fix and a de-duplication both rewrite the same list, the
+  one that RESOLVES NAMES goes first — otherwise the other one is working on
+  names that do not mean what it thinks they mean.
+
+  🔒 `Logs` AND NOTHING MORE, deliberately. The exclusions also drop
+  <cloud>/Backups/Hammerspoon/ — but they KEEP the rest of Backups, so
+  skipping the whole Backups folder here would quietly un-decide something
+  the exclusions decided, which is 6.229.0's own rule about ~/.hammerspoon
+  in the other direction. NAMED, NOT FIXED (a consequence you decide not to
+  act on is one you are obliged to name): the nightly backup and the
+  30-minute store mirror still wake this module and are still discarded in
+  Lua. Narrowing those needs a second level of the same trick and this
+  release changes one thing.
+
+  🔎 THE CSV LINE IS READ, NOT CLAIMED. Whether this module's own folder is
+  still watched is a FACT about the list two lines above it, so the report
+  walks that list rather than asserting the outcome of the release that
+  changed it — `settings = { file_tracker = { folders = { ... } } }` can put
+  the Logs folder back under a watcher, and the report says so when it does.
+  A release that asserts its own outcome cannot notice being overridden.
+
+  📏 STILL NOT DONE, and still correct to wait: the CSV write is synchronous
+  and on the main thread. 49 writes and 42 ms across a day is not his
+  problem today, and the measured cost was always FREQUENCY.
+
+  · 9,558 -> 9,589 checks · two mutations, each with its own row: with the
+  skip list emptied the Logs folder is watched again (so the rows above
+  measure the SKIP, not merely that children are listed), and past the
+  budget the whole folder is watched with the count named.
+
 NEW IN 6.240.0 — 💡 THE SHORTCUT HINT CARD IS OFF (init.lua's profiles):
   LL asked for the card off. This release is two settings lines and not one
   line of module code, and that is worth writing down rather than shrugging

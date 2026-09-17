@@ -1074,9 +1074,17 @@ check("...and a non-string is not an error either",
 -- ~/Library, and a link to it at the top of the home folder.
 wipe8()
 DEGRADES = {}
-_G.FAKE_TREE  = { [H8] = { ".", "..", "Documents", "OneDrive", "Library" } }
+-- 6.241.0: a real Mac can list its cloud folder, and this fixture is meant
+-- to be a real Mac — without the listing the module now takes the degrade
+-- door and the "nothing degraded" check below would be measuring a fixture
+-- gap. One folder inside it, so this section still counts two watchers and
+-- goes on being about the DEDUPE rather than about the narrowing.
+_G.FAKE_TREE  = { [H8] = { ".", "..", "Documents", "OneDrive", "Library" },
+                  [H8 .. "/Library/CloudStorage/OneDrive-Personal"] =
+                      { ".", "..", "Files" } }
 _G.FAKE_DIRS  = { [H8 .. "/Documents"] = true, [H8 .. "/Library"] = true,
-                  [H8 .. "/Library/CloudStorage/OneDrive-Personal"] = true }
+                  [H8 .. "/Library/CloudStorage/OneDrive-Personal"] = true,
+                  [H8 .. "/Library/CloudStorage/OneDrive-Personal/Files"] = true }
 _G.FAKE_LINKS = { [H8 .. "/OneDrive"] = H8 .. "/Library/CloudStorage/OneDrive-Personal" }
 local M20 = boot228({ cloudDir = H8 .. "/Library/CloudStorage/OneDrive-Personal" })
 if type(M20.warm) == "function" then pcall(M20.warm) end
@@ -1146,6 +1154,256 @@ end
 check("🚨 ...and it asserted every check it was written to make (a throw "
       .. "deletes the rest while the run still says 0 failed)",
       (pass + fail) - before230 >= 21, (pass + fail) - before230)
+
+-- =====================================================================
+-- 🎯 6.241.0 — THE CLOUD FOLDER IS WATCHED BY ITS CHILDREN
+-- =====================================================================
+-- 6.229.0's rule, one level down and in this very file. Two Lua exclusions
+-- were left behind: fileTrackerExcludedPath discards the whole Logs folder,
+-- and Logs sits INSIDE the cloud folder that 6.229.0 then added back as a
+-- watched root. So every store this config writes — the clipboard poll, the
+-- OCR log, the boot-cost row, the master log and this module's own CSV —
+-- woke this module, handed it a path, and had that path thrown away in Lua,
+-- after the wake-up it cost. An exclusion that runs after the expensive
+-- thing has happened is not a filter, it is a receipt.
+--
+-- ft.cloudRoots is PURE, so the whole rule is proven here with no Mac.
+--
+-- 🚨 THE SECTION WRAPS ITSELF AND COUNTS ITS OWN CHECKS (6.186.0).
+out("\n=== 🎯 6.241.0 — the cloud folder is watched by its children ===\n")
+local before241 = pass + fail
+local ok241, err241 = pcall(function()
+
+local MC = boot228()
+local ftc = MC.config
+local H     = "/Users/lee"
+local CLOUD = H .. "/Library/CloudStorage/OneDrive-Personal"
+local REAL  = { "Applications", "Desktop", "Documents", "Downloads",
+                "Library", "Movies", "Music", "Pictures", ".hammerspoon" }
+local INSIDE_CLOUD = { ".", "..", "Documents", "Pictures", "Logs",
+                       ".git", "Backups" }
+
+local function has(list, want)
+    for _, v in ipairs(list) do if v == want then return true end end
+    return false
+end
+local function named(list, want)
+    for _, v in ipairs(list or {}) do if v.name == want then return v end end
+    return nil
+end
+
+-- ---- ft.cloudRoots, PURE ---------------------------------------------
+local ck, cs, cwhy = ftc.cloudRoots(CLOUD, INSIDE_CLOUD, { "Logs" }, 40)
+check("🎯 the cloud folder's own folders become the watch roots",
+      ck ~= nil and has(ck, CLOUD .. "/Documents")
+      and has(ck, CLOUD .. "/Pictures"), ck and table.concat(ck, " "))
+check("🚨 ...and Logs is NOT one of them — that is the whole release",
+      ck ~= nil and not has(ck, CLOUD .. "/Logs"), ck and table.concat(ck, " "))
+check("...and it is NAMED as skipped, with the reason, never silently gone",
+      (function()
+           local e = named(cs, "Logs")
+           return e ~= nil and e.why:find("own stores", 1, true) ~= nil
+       end)(), (function() local e = named(cs, "Logs")
+                return e and e.why or "not skipped at all" end)())
+check("...hidden folders inside it are skipped too",
+      ck ~= nil and not has(ck, CLOUD .. "/.git") and named(cs, ".git") ~= nil)
+check("...and . and .. are never watch roots",
+      ck ~= nil and not has(ck, CLOUD .. "/.") and not has(ck, CLOUD .. "/.."))
+check("...a narrowed answer has no fallback reason — it did not fall back",
+      cwhy == nil, tostring(cwhy))
+
+-- 🚨 Backups is KEPT on purpose. The exclusions drop <cloud>/Backups/
+-- Hammerspoon/ and keep the rest, so skipping the whole folder here would
+-- quietly un-decide something the exclusions decided — 6.229.0's own rule
+-- about ~/.hammerspoon, in the other direction.
+check("🔒 Backups is still watched — the exclusions only drop OUR subfolder "
+      .. "of it, and narrowing must not un-decide that",
+      ck ~= nil and has(ck, CLOUD .. "/Backups"), ck and table.concat(ck, " "))
+
+-- 🔎 "COULD NOT LIST" AND "NOTHING THERE" MUST NOT READ THE SAME, and
+-- neither may become "watch nothing" — the feature gone, silently.
+local n1, _, w1 = ftc.cloudRoots(CLOUD, nil, { "Logs" }, 40)
+check("🔎 a Mac that cannot list the cloud folder answers nil AND a reason",
+      n1 == nil and type(w1) == "string"
+      and w1:find("could not list", 1, true) ~= nil, tostring(w1))
+local n2, _, w2 = ftc.cloudRoots(CLOUD, { ".", "..", "Logs" }, { "Logs" }, 40)
+check("🚨 ...and a listing with nothing left to keep falls back too, rather "
+      .. "than watching NONE of his cloud files and reading as normal",
+      n2 == nil and type(w2) == "string"
+      and w2:find("nothing inside", 1, true) ~= nil, tostring(w2))
+
+-- 📏 A BUDGET, because a hundred pathwatchers to save one is not a saving.
+local many = {}
+for i = 1, 41 do many[i] = "Folder" .. i end
+local n3, _, w3 = ftc.cloudRoots(CLOUD, many, { "Logs" }, 40)
+check("📏 past the budget it watches the cloud folder whole, and SAYS the "
+      .. "count rather than quietly doing either thing",
+      n3 == nil and type(w3) == "string" and w3:find("41", 1, true) ~= nil,
+      tostring(w3))
+local n4 = ftc.cloudRoots(CLOUD, many, { "Logs" }, 41)
+check("...and one under the budget is narrowed", n4 ~= nil and #n4 == 41,
+      n4 and #n4)
+
+-- ---- ft.expandCloud, PURE, and it runs AFTER the dedupe --------------
+-- 🚨 THE ORDER IS THE WHOLE TRICK. ~/OneDrive is a LINK to the cloud folder
+-- on LL's Mac (6.230.0), so while watchRoots is building its list there are
+-- two names for that tree and only ft.dedupeRoots knows it. Expanding
+-- BEFORE the dedupe puts the children in and then has the dedupe drop every
+-- one of them as "inside" the link's own whole-tree watcher — this release
+-- doing nothing at all, quietly, on the exact Mac it was written for.
+local ROOTS = { H .. "/Documents", CLOUD, H .. "/Desktop" }
+local kids  = { CLOUD .. "/Documents", CLOUD .. "/Pictures" }
+local ex, rep0 = ftc.expandCloud(ROOTS, CLOUD, kids)
+check("🎯 the cloud folder's slot is swapped for its children",
+      rep0 == true and not has(ex, CLOUD) and has(ex, CLOUD .. "/Pictures"),
+      table.concat(ex, " "))
+check("...and every other root is left exactly where it was",
+      has(ex, H .. "/Documents") and has(ex, H .. "/Desktop") and #ex == 4,
+      table.concat(ex, " "))
+local ex2, rep2 = ftc.expandCloud({ H .. "/Documents" }, CLOUD, kids)
+check("...a list with no cloud slot is unchanged, and SAYS it did not swap",
+      rep2 == false and #ex2 == 1, table.concat(ex2, " "))
+check("...a trailing slash is not a different folder",
+      select(2, ftc.expandCloud({ CLOUD .. "/" }, CLOUD, kids)) == true)
+check("...and nothing to swap in is not a swap — never an empty watch list",
+      select(2, ftc.expandCloud(ROOTS, CLOUD, {})) == false
+      and select(2, ftc.expandCloud(ROOTS, nil, kids)) == false)
+
+-- ---- end to end, on the shape LL's Mac actually has ------------------
+-- The CSV lives in <cloud>/Logs — which is what made the module wake itself
+-- every time it wrote a row — and ~/OneDrive is a link to that cloud folder.
+local CL8 = H8 .. "/Library/CloudStorage/OneDrive-Personal"
+local function cloudBoot(tree, links)
+    os.execute("rm -rf '" .. D8 .. "' && mkdir -p '" .. H8 .. "/Documents' '"
+               .. CL8 .. "/Logs' '" .. CL8 .. "/Pictures'")
+    _G.fileTrackerWatchers = {}
+    _G.FAKE_TREE  = tree
+    _G.FAKE_DIRS  = { [H8 .. "/Documents"] = true, [H8 .. "/Library"] = true,
+                      [CL8 .. "/Logs"] = true, [CL8 .. "/Pictures"] = true }
+    _G.FAKE_LINKS = links
+    DEGRADES = {}
+    return boot228({ cloudDir = CL8, logsDir = CL8 .. "/Logs" })
+end
+-- The folder lines under "watching :" — six spaces each — and nothing else.
+-- A match written to stop at the next "   " stopped at the FIRST folder and
+-- made three checks pass by looking at one line.
+local function watchedList(report)
+    local out, on = {}, false
+    for line in (report .. "\n"):gmatch("([^\n]*)\n") do
+        if line:find("^   watching :") then
+            on = true
+        elseif on then
+            if line:find("^      ") then out[#out + 1] = line else break end
+        end
+    end
+    -- A trailing newline, so a check can ask for a WHOLE line: without it
+    -- the last folder in the list can never be matched exactly, and a test
+    -- for "the cloud folder itself" would pass on any child of it.
+    return table.concat(out, "\n") .. "\n"
+end
+
+local TREE41 = { [H8] = { ".", "..", "Documents", "OneDrive", "Library" },
+                 [CL8] = { ".", "..", "Logs", "Pictures" } }
+local M41 = cloudBoot(TREE41, { [H8 .. "/OneDrive"] = CL8 })
+if type(M41.warm) == "function" then pcall(M41.warm) end
+printed = {}
+_G.fileTrackerReport()
+local rep41 = table.concat(printed, "\n")
+local watch41 = watchedList(rep41)
+check("🎯 end to end, through the link: the Logs folder holding the CSV is "
+      .. "NOT watched", watch41:find(CL8 .. "/Logs", 1, true) == nil, watch41)
+check("...nor is the cloud folder itself, by either of its two names",
+      watch41:find(CL8 .. "\n", 1, true) == nil
+      and watch41:find(H8 .. "/OneDrive", 1, true) == nil, watch41)
+check("...while the cloud folder's other folders ARE",
+      watch41:find(CL8 .. "/Pictures", 1, true) ~= nil, watch41)
+check("...the report names the state in a cloud line",
+      rep41:find("cloud    : by its", 1, true) ~= nil,
+      rep41:match("cloud[^\n]*") or "no cloud line")
+check("...and names what it stopped watching, and why",
+      rep41:find("not here : Logs", 1, true) ~= nil
+      and rep41:find("AFTER the wake%-up it cost") ~= nil,
+      rep41:match("not here[^\n]*") or "no not-here line")
+check("🔎 ...and the csv line no longer claims a self-wake that has stopped",
+      rep41:find("no longer wakes this module", 1, true) ~= nil,
+      rep41:match("csv[^\n]*") or "no csv line")
+check("...and nothing degraded doing it — this is the normal path on his Mac",
+      #DEGRADES == 0, table.concat(DEGRADES, " | "))
+
+-- 🚨 THE MUTATION THIS SECTION EXISTS FOR: with nothing in the skip list the
+-- expansion still happens, and Logs is watched again — so the rows above
+-- measure the SKIP rather than merely the fact that children are listed.
+local M41b = cloudBoot(TREE41, { [H8 .. "/OneDrive"] = CL8 })
+M41b.config.cloudSkip = {}
+if type(M41b.warm) == "function" then pcall(M41b.warm) end
+printed = {}
+_G.fileTrackerReport()
+check("🚨 with nothing skipped, the Logs folder IS watched again",
+      watchedList(table.concat(printed, "\n")):find(CL8 .. "/Logs", 1, true) ~= nil,
+      watchedList(table.concat(printed, "\n")))
+
+-- 📏 Past the budget, the cloud folder is watched whole and the report says
+-- the count — a hundred pathwatchers to save one is not a saving.
+local bigTree = { [H8] = { ".", "..", "Documents", "Library" }, [CL8] = {} }
+for i = 1, 41 do bigTree[CL8][i] = "Folder" .. i end
+local M41c = cloudBoot(bigTree, nil)
+for i = 1, 41 do _G.FAKE_DIRS[CL8 .. "/Folder" .. i] = true end
+if type(M41c.warm) == "function" then pcall(M41c.warm) end
+printed = {}
+_G.fileTrackerReport()
+local rep41c = table.concat(printed, "\n")
+check("📏 over the budget it watches the cloud folder whole",
+      watchedList(rep41c):find(CL8 .. "\n", 1, true) ~= nil, watchedList(rep41c))
+check("...and the report says the count rather than quietly doing either",
+      (rep41c:match("cloud[^\n]*") or ""):find("41", 1, true) ~= nil,
+      rep41c:match("cloud[^\n]*"))
+
+-- 🔎 AND THE CSV LINE IS READ, NOT CLAIMED. A settings `folders` list can
+-- put the Logs folder back under a watcher, and the report must say so — a
+-- release that asserts its own outcome cannot notice being overridden.
+local M42 = cloudBoot(TREE41, nil)
+M42.config.folders = { CL8 }
+if type(M42.warm) == "function" then pcall(M42.warm) end
+printed = {}
+_G.fileTrackerReport()
+local rep42 = table.concat(printed, "\n")
+check("🔎 with the cloud folder watched whole again, the csv line says the "
+      .. "module IS still woken by its own writes",
+      rep42:find("still woken by its own writes", 1, true) ~= nil,
+      rep42:match("csv[^\n]*\n[^\n]*\n[^\n]*") or "no csv block")
+check("...and the cloud line says the folders list decided it, not a fallback",
+      (rep42:match("cloud[^\n]*") or ""):find("own folders list", 1, true) ~= nil,
+      rep42:match("cloud[^\n]*"))
+
+-- 🔔 A Mac that cannot list the cloud folder keeps the old, wide watch —
+-- degraded, and SAID, because the wake-ups go on being paid.
+local M43 = cloudBoot({ [H8] = { ".", "..", "Documents", "Library" } }, nil)
+if type(M43.warm) == "function" then pcall(M43.warm) end
+printed = {}
+_G.fileTrackerReport()
+local rep43 = table.concat(printed, "\n")
+check("🔔 a cloud folder this Mac cannot list takes the degrade door",
+      (function()
+           for _, d in ipairs(DEGRADES) do
+               if d:find("could not list", 1, true) then return true end
+           end
+           return false
+       end)(), table.concat(DEGRADES, " | "))
+check("...and the whole cloud folder is watched, as before this release",
+      (rep43:match("cloud[^\n]*") or ""):find("the WHOLE folder", 1, true) ~= nil,
+      rep43:match("cloud[^\n]*") or "no cloud line")
+
+wipe8()
+_G.FAKE_LINKS = nil
+
+end)
+if not ok241 then
+    check("🚨 the 6.241.0 section ran to the end without throwing", false,
+          tostring(err241))
+end
+check("🚨 ...and it asserted every check it was written to make (a throw "
+      .. "deletes the rest while the run still says 0 failed)",
+      (pass + fail) - before241 >= 28, (pass + fail) - before241)
 
 os.execute("rm -rf '" .. DIR .. "'")
 

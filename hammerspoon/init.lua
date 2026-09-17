@@ -4,9 +4,38 @@
 -- =====================================================================
 -- 09-17-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.240.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.241.0
 -- =====================================================================
 
+-- NEW IN 6.241.0 — 🎯 THE CLOUD FOLDER IS WATCHED BY ITS CHILDREN
+--                  (modules/file_tracker.lua):
+--   6.229.0's rule, one level down, and the receipts were in that same
+--      file: fileTrackerExcludedPath discards the WHOLE Logs folder — and
+--      Logs is inside OneDrive-Personal, which 6.229.0 then added BACK as
+--      a watched root. So every store this config writes (the clipboard
+--      poll, the OCR log, the boot-cost row, the master log and this
+--      module's own CSV) woke this module, handed it a path, and had that
+--      path thrown away in Lua, after the wake-up it had already cost.
+--      The module was waking itself to discard its own writes.
+--   🎯 `ft.cloudRoots` is PURE: the cloud folder's own folders, minus
+--      `ft.cloudSkip` ({ "Logs" }), bounded by `ft.maxCloudRoots` (40).
+--   🚨 AND IT RUNS AFTER THE DEDUPE, which is the whole trick. ~/OneDrive
+--      is a LINK to that folder (6.230.0), so while the list is being
+--      built there are two names for one tree and only ft.dedupeRoots
+--      knows it. Expanding first would add the children and then have the
+--      dedupe drop every one as "inside" the link's own whole-tree
+--      watcher — this release doing nothing, quietly, on the exact Mac it
+--      was written for. `ft.expandCloud` swaps the slot afterwards.
+--   🔒 `Logs` AND NOTHING MORE: the exclusions drop <cloud>/Backups/
+--      Hammerspoon/ but KEEP the rest of Backups, so skipping the whole
+--      Backups folder would un-decide something the exclusions decided.
+--      Named, not fixed: the nightly backup and the 30-minute store
+--      mirror still wake this module and are still discarded in Lua.
+--   🔎 THE CSV LINE IS READ, NOT CLAIMED — whether this module's own
+--      folder is still watched is a fact about the list two lines above,
+--      so a `folders` override that puts Logs back is reported honestly.
+--      · 9,558 -> 9,589 checks · two mutations, each with its own row.
+--
 -- NEW IN 6.240.0 — 💡 THE SHORTCUT HINT CARD IS OFF (init.lua's profiles):
 --   LL asked for it off. This release is two settings lines and NOT ONE
 --      LINE OF MODULE CODE, which is the whole point of it being written
@@ -28,28 +57,12 @@
 --      Back on, no release: enabled = true in the profile.
 --      · 9,556 -> 9,558 checks.
 --
--- NEW IN 6.239.0 — ⏪ ← → SEEK (modules/music_player.lua):
---   LL, with the win: "I need an arrow keys left/right as seek". v1 shipped
---      without seek on his own answers; this is him asking. ← and → move 5
---      seconds, ⇧← and ⇧→ move 30, and the footer says so.
---   🔗 `hs.sound:currentTime(n)` IS a setter — checked in
---      extensions/sound/libsound.m, which calls [NSSound setCurrentTime:],
---      rather than remembered.
---   🔒 `mp.seekTo(cur, delta, dur)` is PURE and answers the position AND
---      why: never below 0, never past the end, and a track whose LENGTH
---      macOS would not answer does not seek forward at all — a duration of
---      0 is "not known", not "zero seconds", and seeking into it jumps to
---      silence with no way back. ← still works there.
---   🚨 The belt clock is RE-ANCHORED with it (`mp.startedAt`), or the next
---      tick drags the time back to where it was; its own check.
---      · 9,522 -> 9,556 checks · fourteen mutations across both suites.
---
--- (6.238.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.239.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.240.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.241.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -146,7 +159,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.240.0"
+_G.configVersion = "6.241.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the

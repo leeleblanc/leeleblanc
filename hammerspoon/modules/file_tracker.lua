@@ -235,9 +235,39 @@ function M.setup(core)
     -- exclusions already made.
     ft.keepHidden = { ".hammerspoon" }
 
-    ft.skipped  = {}
-    ft.dropped  = {}
-    ft.watchWhy = "not worked out yet"
+    -- 🎯 6.241.0 — AND THE SAME RULE, ONE LEVEL DOWN, INSIDE THE CLOUD
+    -- FOLDER. 6.229.0 moved the ~/Library exclusion from Lua to the WATCH
+    -- because "an exclusion that runs after the expensive thing has
+    -- happened is not a filter, it is a receipt". Two receipts were left
+    -- behind in this very file: fileTrackerExcludedPath discards the whole
+    -- Logs folder, and Logs is inside OneDrive-Personal — which 6.229.0
+    -- then added BACK by name as a watched root. So every store this
+    -- config writes (the clipboard poll, the OCR log, the boot cost row,
+    -- the master log, and this module's OWN CSV) woke this module, handed
+    -- it a path, and had that path thrown away in Lua. The module was
+    -- waking itself, thousands of times a day, to discard its own writes.
+    --
+    -- The cloud folder is watched by its CHILDREN now, minus these names.
+    --
+    -- 🚨 `Logs` AND NOTHING MORE, deliberately. The exclusions also drop
+    -- <cloud>/Backups/Hammerspoon/ — but they keep the REST of Backups, so
+    -- skipping the whole `Backups` folder here would quietly un-decide
+    -- something the exclusions decided (6.229.0's own rule about ~/.hammer-
+    -- spoon, in the other direction). The nightly backup and the 30-minute
+    -- store mirror still wake this module and are still discarded in Lua:
+    -- named, not fixed, because narrowing those needs a second level of
+    -- the same trick and this release changes one thing.
+    ft.cloudSkip     = { "Logs" }
+    ft.maxCloudRoots = 40   -- past this many folders inside the cloud folder,
+                            -- watch it whole instead: a hundred pathwatchers
+                            -- to save one is not a saving, and the report
+                            -- says which of the two happened.
+
+    ft.skipped      = {}
+    ft.dropped      = {}
+    ft.cloudSkipped = {}
+    ft.cloudWhy     = "not worked out yet"
+    ft.watchWhy     = "not worked out yet"
 
     -- Does `root` already cover `path`? Two pathwatchers over the same tree
     -- means macOS wakes us TWICE for one file event — the exact cost this
@@ -369,6 +399,78 @@ function M.setup(core)
         return kept, dropped
     end
 
+    -- 🎯 6.241.0 — WHICH FOLDERS INSIDE THE CLOUD FOLDER ARE WATCHED.
+    -- PURE. Answers the kept child paths, what was skipped and why, or
+    -- NIL AND A REASON when narrowing would be worse than not narrowing —
+    -- the caller then watches the cloud folder whole, exactly as before
+    -- this release, and the report says so rather than quietly doing less.
+    function ft.cloudRoots(cloud, names, skipNames, max)
+        if type(cloud) ~= "string" or cloud == "" then return nil, nil, nil end
+        cloud = cloud:gsub("/+$", "")
+        -- nil is "this Mac could not answer", which is NOT an empty folder —
+        -- ft.homeDirs' rule, and the cost of confusing them here is watching
+        -- none of his cloud files while the report reads perfectly normal.
+        if names == nil then
+            return nil, nil, "could not list " .. cloud
+        end
+        max = tonumber(max) or 40
+        local skip = {}
+        for _, n in ipairs(skipNames or {}) do
+            if type(n) == "string" then skip[n:lower()] = true end
+        end
+        local kept, skipped = {}, {}
+        for _, n in ipairs(names) do
+            if type(n) == "string" and n ~= "" and n ~= "." and n ~= ".." then
+                local low = n:lower()
+                if skip[low] then
+                    skipped[#skipped + 1] = { name = n,
+                        why = "this config's own stores — every write in here"
+                              .. " was waking the module that wrote it" }
+                elseif n:sub(1, 1) == "." then
+                    skipped[#skipped + 1] = { name = n, why = "hidden" }
+                else
+                    kept[#kept + 1] = cloud .. "/" .. n
+                end
+            end
+        end
+        if #kept == 0 then
+            return nil, skipped, "nothing inside " .. cloud .. " to watch"
+        end
+        if #kept > max then
+            return nil, skipped, #kept .. " folder(s) inside " .. cloud
+                   .. " — more than the " .. max .. " this budgets"
+        end
+        return kept, skipped, nil
+    end
+
+    -- 🎯 6.241.0 — AND THE SWAP ITSELF, PURE, AND IT RUNS AFTER THE DEDUPE
+    -- ON PURPOSE. ~/OneDrive is a LINK to the cloud folder (6.230.0), so at
+    -- the moment watchRoots builds its list there are two names for that
+    -- tree and only ft.dedupeRoots knows it. Expanding before that runs
+    -- would put the children in the list and then have the dedupe drop
+    -- every one of them as "inside" the link's own whole-tree watcher —
+    -- this release doing nothing at all, quietly, on the exact Mac it was
+    -- written for. So the cloud folder wins its slot first, by whichever
+    -- name, and the slot is swapped for its children here.
+    -- → the new list, and whether the swap actually happened.
+    function ft.expandCloud(roots, cloudReal, children)
+        if type(roots) ~= "table" or type(children) ~= "table"
+           or #children == 0 or type(cloudReal) ~= "string" or cloudReal == "" then
+            return roots, false
+        end
+        cloudReal = cloudReal:gsub("/+$", "")
+        local out, replaced = {}, false
+        for _, r in ipairs(roots) do
+            if (type(r) == "string" and r:gsub("/+$", "") == cloudReal) then
+                replaced = true
+                for _, c in ipairs(children) do out[#out + 1] = c end
+            else
+                out[#out + 1] = r
+            end
+        end
+        return out, replaced
+    end
+
     -- PURE, and that is the point: every rule about WHAT IS WATCHED is
     -- decided here, off a plain list of names, so the gate proves the whole
     -- of it with no Mac and no file system. `names` is the top-level
@@ -450,6 +552,8 @@ function M.setup(core)
                 if type(f) == "string" and f ~= "" then list[#list + 1] = f end
             end
             if #list > 0 then
+                ft.cloudWhy, ft.cloudSkipped =
+                    "your own folders list — nothing is added or narrowed", {}
                 -- Deduped too: his list is honoured verbatim in REACH, but a
                 -- folder named twice (or named once by a link and once by its
                 -- real path) is still one tree and still one watcher.
@@ -472,11 +576,59 @@ function M.setup(core)
                 wide[#wide + 1] = core.cloudDir
             end
             local wideOne, wideGone = ft.dedupeRoots(wide)
+            ft.cloudWhy, ft.cloudSkipped =
+                "the WHOLE folder — the home folder could not be listed either", {}
             return wideOne, {}, "⚠️ " .. why, wideGone
         end
         local kept, skipped = ft.watchRoots(core.homeDir, core.cloudDir, names)
         local one, gone = ft.dedupeRoots(kept)
+        one = ft.narrowCloud(one)
         return one, skipped, "your folders, one watcher each — ~/Library is not one of them", gone
+    end
+
+    -- 🎯 6.241.0 — THE IO HALF OF THE CLOUD NARROWING, and the only place
+    -- ft.cloudWhy / ft.cloudSkipped are decided. Three states, and they must
+    -- not read alike: narrowed to the cloud folder's own folders · watched
+    -- whole with the reason · no cloud folder at all.
+    function ft.narrowCloud(roots)
+        ft.cloudSkipped = {}
+        if not core.cloudDir then
+            ft.cloudWhy = "no cloud folder on this Mac"
+            return roots
+        end
+        -- The SAME lister the home folder uses, asked about the cloud folder.
+        local cloudNames = ft.homeDirs(core.cloudDir)
+        local children, cskip, why =
+            ft.cloudRoots(core.cloudDir, cloudNames, ft.cloudSkip, ft.maxCloudRoots)
+        ft.cloudSkipped = cskip or {}
+        if not children then
+            ft.cloudWhy = "the WHOLE folder — " .. (why or "not narrowed")
+            -- A Mac that cannot list its own cloud folder is a BREAK, not a
+            -- preference: the wake-ups this release exists to cut go on
+            -- being paid, so it is seen rather than only logged.
+            if cloudNames == nil then
+                local cwhy = "could not list " .. tostring(core.cloudDir)
+                    .. " — watching the whole cloud folder, so this config's"
+                    .. " own writes in it still wake this module"
+                if type(core.degrade) == "function" then
+                    pcall(core.degrade, "File tracker", cwhy)
+                else
+                    print("⚠️ File tracker: " .. cwhy)
+                end
+            end
+            return roots
+        end
+        local out, replaced = ft.expandCloud(roots, ft.realOf(core.cloudDir), children)
+        if replaced then
+            ft.cloudWhy = "by its " .. #children .. " folder(s), not whole"
+            return out
+        end
+        -- Not in the list at all: a cloud folder that lives inside a folder
+        -- already being watched was never added as its own root (6.229.0),
+        -- so there is no slot to swap and its Logs folder is still covered.
+        ft.cloudWhy = "inside a folder already watched — not narrowed, so its"
+                      .. " Logs folder is still under a watcher"
+        return roots
     end
 
     local fileTrackerFolders = { core.homeDir }
@@ -1057,11 +1209,38 @@ function M.setup(core)
         end
         line("   ↳ a loose file at the top of ~ is not watched now, and a NEW")
         line("     folder there is picked up at the next reload")
+        -- 🎯 6.241.0 — THREE STATES, and they must not read alike: narrowed
+        -- to the cloud folder's children · watched whole with the reason ·
+        -- no cloud folder at all.
+        line("   cloud    : " .. tostring(ft.cloudWhy))
+        if #(ft.cloudSkipped or {}) > 0 then
+            local cn = {}
+            for _, sk in ipairs(ft.cloudSkipped) do cn[#cn + 1] = sk.name end
+            line("   not here : " .. table.concat(cn, ", "))
+            line("   ↳ this config's own stores live there. Every row it wrote")
+            line("     used to wake the module that wrote it, and the path was")
+            line("     then discarded in Lua — AFTER the wake-up it cost.")
+        end
         line("   csv      : " .. tostring(fileTrackerFile))
         if core.cloudDir and tostring(fileTrackerFile):sub(1, #core.cloudDir)
                              == core.cloudDir then
-            line("   ↳ ⚠️ that is INSIDE OneDrive — every row is a synchronous")
-            line("        write to a cloud-synced folder, on the main thread")
+            -- 🔎 ASKED, NOT CLAIMED. Whether this file's own folder is still
+            -- watched is a FACT about the list two lines above, so it is read
+            -- off that list rather than asserted by the release that changed
+            -- it — a settings `folders` line can put Logs back under a
+            -- watcher, and the report must say so when it does.
+            local selfWatched = false
+            for _, f in ipairs(fileTrackerFolders) do
+                if ft.covers(f, fileTrackerFile) then selfWatched = true ; break end
+            end
+            line("   ↳ it is INSIDE OneDrive, and each row is still a synchronous")
+            if selfWatched then
+                line("     write on the main thread — AND its folder is watched, so")
+                line("     this module is still woken by its own writes")
+            else
+                line("     write on the main thread — but its folder is NOT watched,")
+                line("     so the write no longer wakes this module (6.241.0)")
+            end
         end
         line("   rows     : " .. #(_G.fileTrackerLog or {}) .. " in memory · kept "
              .. tostring(fileTrackerRetentionDays) .. " days")

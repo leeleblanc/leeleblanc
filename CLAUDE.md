@@ -1791,7 +1791,7 @@ THE METHOD, when something breaks after a stacked zip:
    6.216.0 6f06071 · 6.217.0 a475bef · 6.218.0 41b002b · 6.219.0 862c177
    · 6.220.0 ac3975e · 6.221.0 ead07d9 · 6.222.0 1842ca7 · 6.223.0
    86ac82b · 6.224.0 67957ea · 6.225.0 98434fe · 6.226.0 304f1f9 ·
-   6.227.0 14e953a · 6.228.0 2aa3dfe · 6.229.0 a1318e1 · 6.230.0 0740c07 · 6.231.0 c1921af · 6.231.1 5a5c298 · 6.232.0 1ca3f6f · 6.233.0 2328c8c · 6.234.0 57f78d0 · 6.235.0 52e5b21 · 6.236.0 34cff8b · 6.236.1 fdce771 · 6.237.0 adf9256 · 6.238.0 3adad4f · 6.239.0 3adad4f (one commit, two releases) · 6.240.0 SHA240.
+   6.227.0 14e953a · 6.228.0 2aa3dfe · 6.229.0 a1318e1 · 6.230.0 0740c07 · 6.231.0 c1921af · 6.231.1 5a5c298 · 6.232.0 1ca3f6f · 6.233.0 2328c8c · 6.234.0 57f78d0 · 6.235.0 52e5b21 · 6.236.0 34cff8b · 6.236.1 fdce771 · 6.237.0 adf9256 · 6.238.0 3adad4f · 6.239.0 3adad4f (one commit, two releases) · 6.240.0 8f44bec · 6.241.0 SHA241.
    Keep this list current: one line per release, appended at ceremony
    time.
 4. A BISECT IS AN OPTION, NOT THE FIRST MOVE — it costs him an install
@@ -1866,6 +1866,7 @@ as the fix when a loss lands.
 | 6.238.0 | 🪟 the card reopens showing what is playing — the page says when it is ready instead of Lua pushing into a document WebKit has not parsed | pending |
 | 6.239.0 | ⏪ ← → seek 5 s, ⇧← ⇧→ 30 s — his ask, in the same message as the win | pending |
 | 6.240.0 | 💡 the shortcut hint card off on both Macs — two settings lines, no module code | pending |
+| 6.241.0 | 🎯 the cloud folder is watched by its children — this config's own Logs folder was waking the module that writes to it | pending |
 
 Running total: 15 wins · 8 losses · 22 pending (6.215.0, 6.217.0, 6.218.0,
 6.219.0, 6.220.0, 6.221.0, 6.222.0, 6.223.0, 6.224.0, 6.225.0, 6.226.0,
@@ -2032,12 +2033,38 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   The session was too young to measure anything else (61 wake-ups, 65
   paths, 0 rows — a boot, not a day), so the hours-later report is STILL
   THE TEST and still owed.
-  🔬 AND ONE MORE, NAMED NOT FIXED: the CSV, and every other store, lives
-  in OneDrive-Personal, which is now a watched folder — so this config's
-  own writes wake this module, and are then excluded in LUA, after the
-  wake-up. The same wrong-place-filtering class as 6.229.0, one level
-  down. `localFirst` (6.190.0) already moves the stores out of OneDrive
-  and is the candidate fix; it is fix (a)'s other half and waits its turn.
+  🎯 6.241.0 — AND THAT ONE WAS THE CLOUD FOLDER'S CHILDREN, not a store
+  move. The CSV and every other store live in <OneDrive>/Logs, which
+  6.229.0 added back as a watched root, so this config's own writes woke
+  this module and were then excluded in LUA, after the wake-up: 6.229.0's
+  class exactly, one level down and in the same file. The cloud folder is
+  watched by its CHILDREN now, minus `ft.cloudSkip` ({ "Logs" }), bounded
+  by `ft.maxCloudRoots` (40); `ft.cloudRoots` is PURE and answers nil AND
+  A REASON rather than an empty list, so a Mac that cannot list the folder
+  keeps the old whole-folder watch and takes the 🔔 door.
+  🚨 AND THE EXPANSION RUNS AFTER THE DEDUPE. ~/OneDrive is a link to that
+  folder, so while the list is being built there are two names for one
+  tree and only `ft.dedupeRoots` knows it; expanding first would add the
+  children and then have the dedupe drop every one as "inside" the link's
+  own whole-tree watcher — the release doing nothing, quietly, on the Mac
+  it was written for. `ft.expandCloud` swaps the slot afterwards, both
+  halves PURE. GENERAL: when a fix and a de-duplication rewrite the same
+  list, the one that RESOLVES NAMES goes first — otherwise the other is
+  working on names that do not mean what it thinks they mean.
+  🔒 `Logs` AND NOTHING MORE: the exclusions drop <cloud>/Backups/
+  Hammerspoon/ but KEEP the rest of Backups, so skipping the whole Backups
+  folder would un-decide what the exclusions decided. NAMED NOT FIXED: the
+  nightly backup and the 30-minute mirror still wake it.
+  🔎 THE CSV LINE IS READ, NOT CLAIMED — the report walks the watch list to
+  decide whether this module's own folder is still under a watcher, so a
+  `folders` override that puts Logs back is reported honestly. A release
+  that asserts its own outcome cannot notice being overridden.
+  🚫 `localFirst` (6.190.0) WAS THE OBVIOUS FIX AND IS THE WRONG ONE, and
+  this is why: it moves EVERY store local, and the 30-minute mirror pushes
+  to <backupDir>/Logs, which is PER-HOST — so after the seed the two Macs
+  never read each other's stores again. autocorrect.csv is one of them, and
+  "what ⇪Z learns is permanent, CROSS-MACHINE" is a promise this config
+  makes in writing. Do not flip that flag to fix a wake-up problem.
 - 🐞 ⇪Y CHROME HISTORY BEACHBALL (2026-09-13, LL: "Searching Chrome
   history: caused a beachball"; the stall guard relaunched at 72 s).
   NOT diagnosed. The export copies each profile's History DB and
@@ -2163,6 +2190,27 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.241.0 verify with LL — 🎯 IT WAS WAKING ITSELF (KNOWN GROUND):
+  install. FIRST, Console: `_G.fileTrackerReport()`.
+  The "watching :" list must now name folders INSIDE OneDrive —
+  `…/OneDrive-Personal/<your folders>` — and `…/OneDrive-Personal/Logs` must
+  NOT be one of them, nor `…/OneDrive-Personal` itself. A new "cloud :" line
+  reads "by its N folder(s), not whole", and "not here : Logs" names what
+  stopped waking it. The "csv :" line now ends "so the write no longer wakes
+  this module".
+  THEN THE MEASUREMENT, and it is the same one as 6.229.0: use the Mac for a
+  few hours and run it again. Compare "events" — 6.228.0's day was 60,115
+  wake-up(s) · 204,662 path(s) · 49 row(s). Every store this config writes
+  lives in that Logs folder, so its own writes were part of that number.
+  AND THE FEATURE MUST STILL WORK: move a file in Finder, then ⌃⌥⇧F.
+  🔎 IF THE CLOUD LINE SAYS "the WHOLE folder", paste it — it names which of
+  three reasons (could not list it · nothing inside it · more than 40 folders
+  in it), and the fix is different for each.
+  📏 KNOWN AND NOT FIXED, so it is not a surprise: the nightly backup and the
+  30-minute store mirror write into <OneDrive>/Backups/Hammerspoon/, which is
+  still watched and still discarded in Lua. And the CSV write is still
+  synchronous on the main thread — 49 writes a day was never the cost.
+
 - 6.240.0 verify with LL — 💡 THE HINT CARD IS OFF (KNOWN GROUND):
   install. Press any ⇪ key you use often — ⇪T, ⇪V, ⇪D. NO card appears in
   the top-right corner. Everything the key itself does is unchanged.
