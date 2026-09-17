@@ -4,9 +4,37 @@
 -- =====================================================================
 -- 09-16-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.235.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.236.0
 -- =====================================================================
 
+-- NEW IN 6.236.0 — 🖥 A PANEL OPENS WHERE YOU ARE LOOKING, AND
+--                  `mainWindow` LOSES ITS PLACE (init.lua §1.5):
+--   LL, for the second time: "the cheat sheet appears on the monitor that
+--      was active and not the monitor where the mouse/active app resides,
+--      entirely on a different desktop." 6.196.0 answered one half of that
+--      — a remembered position is an OFFSET INTO ITS SCREEN, not a pair of
+--      desktop coordinates — and left the half that picks the screen
+--      untouched. This is that half.
+--   🖱 `frontApp:focusedWindow() or frontApp:mainWindow()` was the order.
+--      mainWindow() is NOT "the window he is using": it is the window the
+--      APP calls primary, which for a multi-window app across two monitors
+--      is routinely the other one, and for an app whose windows sit on
+--      another Space is a window he cannot see. A stale monitor, which is
+--      the word he used. THE POINTER OUTRANKS IT NOW — a focused window
+--      still wins, but with none the MOUSE decides, because the pointer is
+--      where the person is looking and is never ambiguous about which
+--      display that is. His own sentence treats the two as one place.
+--   🔒 `_G.baseScreenPick(facts)` is PURE and answers the screen AND WHICH
+--      RULE decided, so the order is proven with no Mac and lifted out of
+--      this file by the gate rather than retyped there. Eighteen modules
+--      and the cheat sheet place their panels through resolveBaseScreen,
+--      so the order is one rule in one place on purpose.
+--   🖥 `_G.screenReport()` names the rule that placed the last panel and
+--      what each candidate would answer right now — asked because this has
+--      been reported twice and neither report could say which screen the
+--      config had chosen or why.
+--      · eight mutations.
+--
 -- NEW IN 6.235.0 — 🔒 THE DROP THAT LIT UP BLUE AND DID NOTHING
 --                  (modules/music_player.lua):
 --   LL on 6.234.0: "Turns highlighted blue so it seems to see the file but
@@ -33,36 +61,12 @@
 --      only repeat "it did not work"; with it, one line names the cause.
 --      · 9,470 -> 9,487 checks · six mutations.
 --
--- NEW IN 6.234.0 — 🕘 THIRTY DAYS OF HISTORY, ONE ROW PER FILE
---                  (modules/music_player.lua):
---   LL: "it's best if we have it remember 30 days of music track history.
---      But, if it's the same file it should only be listed once."
---   🕘 `mp.noteHistory(list, row, now, days, max)` is PURE and carries the
---      whole rule, so the clock is an argument and the gate proves every
---      edge without waiting: the played track goes to the FRONT, any older
---      row for the SAME FILE is removed rather than left behind, and
---      anything past the window is dropped. Day 29 is inside, day 31 is
---      not — the edge is a real edge.
---   🔒 THE CAP IS NOW A BOUND, NOT THE RULE. It was 60 rows and that WAS
---      the memory; `historyDays` (30) decides now and `maxHistory` (400)
---      only stops a runaway list, keeping the newest.
---   🗂 PRUNED AT THE LOADER TOO, which is its own branch and its own
---      check: a Mac left off for six weeks would otherwise come back with
---      six weeks of rows and lose them one play at a time.
---   👁 And the card draws 40 of them rather than 12 — a month it cannot
---      show is a month it may as well not remember.
---      · 9,451 -> 9,470 checks · nine mutations.
---   🧪 RULE PAID AGAIN (6.219.0): the store-shape check in §11 was built on
---      a history row stamped `at = 5`, which this release prunes — it
---      would have gone on passing for the wrong reason. Re-armed in the
---      same release with a recent stamp.
---
--- (6.233.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.234.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.235.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.236.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -159,7 +163,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.235.0"
+_G.configVersion = "6.236.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the
@@ -952,24 +956,120 @@ _G.popupOffset = { x = 0, y = 0 }  -- pixel offset from nudging, stacks on
 -- it here. Always nil unless something is mid-flight.
 _G.popupScreenOverride = nil
 
+-- 🖥 WHICH SCREEN A PANEL OPENS ON, AND WHY `mainWindow` LOST ITS PLACE
+-- (6.236.0). LL, twice now: "the cheat sheet appears on the monitor that
+-- was active and not the monitor where the mouse/active app resides,
+-- entirely on a different desktop." 6.196.0 fixed one half of that — a
+-- remembered position is an offset into its screen — and left the half
+-- that picks the screen alone.
+--
+-- `frontApp:focusedWindow() or frontApp:mainWindow()` is the half that was
+-- left. mainWindow() is NOT "the window he is using": it is the window the
+-- app considers primary, which for a multi-window app across two monitors
+-- is routinely the other one, and for an app whose windows are on another
+-- Space is a window he cannot even see. That is exactly a STALE monitor,
+-- which is exactly the word he used.
+--
+-- 🖱 SO THE POINTER OUTRANKS IT. A focused window is still the best signal
+-- and still wins; but when there is no focused window the MOUSE decides,
+-- because the pointer is where the person is looking and it is never
+-- ambiguous about which display that is. His own sentence treats the two
+-- as the same place. mainWindow() survives only below both, above a bare
+-- mainScreen().
+--
+-- `_G.baseScreenPick` is PURE — it takes the four candidates and answers
+-- WHICH RULE decided — so the whole order is provable with no Mac, and
+-- `_G.screenReport()` can name the rule that placed the last panel.
+function _G.baseScreenPick(facts)
+    facts = type(facts) == "table" and facts or {}
+    if facts.override then return facts.override, "an explicit override" end
+    if facts.focused then return facts.focused, "the focused window's screen" end
+    if facts.mouse   then return facts.mouse,   "the screen the pointer is on" end
+    if facts.main    then return facts.main,    "the frontmost app's main window" end
+    if facts.mainScreen then
+        return facts.mainScreen, "the main screen — nothing else answered"
+    end
+    return nil, "no screen at all"
+end
+
+_G.lastBaseScreen = { why = "nothing has been placed yet", at = nil }
+
 local function resolveBaseScreen()
-    if _G.popupScreenOverride then return _G.popupScreenOverride end
-    local ok, frontApp = pcall(hs.application.frontmostApplication)
-    if ok and frontApp then
-        local win = frontApp:focusedWindow() or frontApp:mainWindow()
-        if win then
-            local ok2, scr = pcall(function() return win:screen() end)
-            if ok2 and scr then return scr end
+    local facts = { override = _G.popupScreenOverride }
+
+    local okA, frontApp = pcall(hs.application.frontmostApplication)
+    if okA and frontApp then
+        local okW, win = pcall(function() return frontApp:focusedWindow() end)
+        if okW and win then
+            local okS, scr = pcall(function() return win:screen() end)
+            if okS and scr then facts.focused = scr end
+        end
+        if not facts.focused then
+            local okM, mw = pcall(function() return frontApp:mainWindow() end)
+            if okM and mw then
+                local okS2, scr2 = pcall(function() return mw:screen() end)
+                if okS2 and scr2 then facts.main = scr2 end
+            end
         end
     end
 
-    local ok3, focused = pcall(hs.window.focusedWindow)
-    if ok3 and focused then
-        local ok4, scr = pcall(function() return focused:screen() end)
-        if ok4 and scr then return scr end
+    if not facts.focused then
+        local okF, focused = pcall(hs.window.focusedWindow)
+        if okF and focused then
+            local okS3, scr3 = pcall(function() return focused:screen() end)
+            if okS3 and scr3 then facts.focused = scr3 end
+        end
     end
 
-    return hs.screen.mainScreen()
+    local okMo, ms = pcall(function() return hs.mouse.getCurrentScreen() end)
+    if okMo and ms then facts.mouse = ms end
+
+    local okMs, main = pcall(hs.screen.mainScreen)
+    if okMs and main then facts.mainScreen = main end
+
+    local screen, why = _G.baseScreenPick(facts)
+    _G.lastBaseScreen = { why = why, at = os.time() }
+    return screen or hs.screen.mainScreen()
+end
+
+-- 🖥 Which rule placed the last panel, and what each one would answer
+-- right now — asked because this has been reported twice and neither
+-- report could say which screen the config had chosen or why.
+function _G.screenReport()
+    local L = {}
+    local function line(t) L[#L + 1] = t end
+    local function name(scr)
+        if not scr then return "—" end
+        local okN, n = pcall(function() return scr:name() end)
+        local okF, f = pcall(function() return scr:frame() end)
+        return (okN and n or "a screen")
+               .. (okF and f and (" (" .. math.floor(f.x) .. ","
+                                  .. math.floor(f.y) .. " "
+                                  .. math.floor(f.w) .. "x"
+                                  .. math.floor(f.h) .. ")") or "")
+    end
+    line("🖥 BASE SCREEN — where a panel opens")
+    line("   last     : " .. tostring(_G.lastBaseScreen.why)
+         .. (_G.lastBaseScreen.at
+             and (" at " .. os.date("%H:%M:%S", _G.lastBaseScreen.at)) or ""))
+    local okA, app = pcall(hs.application.frontmostApplication)
+    local appName = "—"
+    if okA and app then
+        local okN, n = pcall(function() return app:name() end)
+        appName = okN and n or "—"
+    end
+    line("   front    : " .. appName)
+    local okW, win = pcall(hs.window.focusedWindow)
+    line("   focused  : " .. ((okW and win)
+         and name(select(2, pcall(function() return win:screen() end))) or "none"))
+    local okMo, ms = pcall(function() return hs.mouse.getCurrentScreen() end)
+    line("   pointer  : " .. name(okMo and ms or nil))
+    line("   main     : " .. name(select(2, pcall(hs.screen.mainScreen))))
+    line("   rule     : focused window · then the POINTER · then the front")
+    line("              app's main window · then the main screen")
+    line("   ↳ resolveBaseScreen() would answer: "
+         .. name(resolveBaseScreen()) .. " — " .. tostring(_G.lastBaseScreen.why))
+    print(table.concat(L, "\n"))
 end
 
 -- hs.chooser:show() accepts an optional top-left point, which is what

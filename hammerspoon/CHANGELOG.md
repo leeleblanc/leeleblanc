@@ -5,6 +5,61 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.236.0 — 🖥 A PANEL OPENS WHERE YOU ARE LOOKING, AND `mainWindow`
+                 LOSES ITS PLACE (init.lua §1.5):
+  LL, for the second time: "the cheat sheet appears on the monitor that was
+  active and not the monitor where the mouse/active app resides, entirely on
+  a different desktop."
+
+  6.196.0 ANSWERED ONE HALF OF THAT SENTENCE and I read it as the whole
+  thing. A remembered position became an OFFSET INTO ITS SCREEN rather than
+  a pair of desktop coordinates, which was a real bug really fixed — and it
+  only governs where the sheet sits ONCE THE SCREEN IS CHOSEN. The choosing
+  was never touched. That is 6.198.0's lesson in a new costume: a correct
+  fix for a real bug is not evidence that you found THE bug.
+
+  🖱 THE ORDER WAS:
+
+     frontApp:focusedWindow() or frontApp:mainWindow()
+
+  and `mainWindow()` is not "the window he is using". It is the window the
+  APP calls primary. For a multi-window app spread across two monitors that
+  is routinely the other one; for an app whose windows sit on another Space
+  it is a window he cannot see at all. A stale monitor — which is the word
+  he used, twice.
+
+  THE POINTER OUTRANKS IT NOW. A focused window still wins, because it is
+  the best signal there is. With none, the MOUSE decides: the pointer is
+  where the person is looking and it is never ambiguous about which display
+  that is. His own sentence treats the two as the same place ("the mouse /
+  active app"), and that is the right reading. mainWindow survives below
+  both, above a bare mainScreen.
+
+  🔒 `_G.baseScreenPick(facts)` is PURE and answers the screen AND WHICH
+  RULE DECIDED, so the whole order is proven with no Mac — and the gate
+  lifts the function out of init.lua's own source rather than keeping a
+  retyped copy that could drift from the file that actually runs.
+
+  Eighteen modules and the cheat sheet place their panels through
+  resolveBaseScreen. One rule, one place, deliberately: this is the kind of
+  ordering that gets copied and then diverges.
+
+  🖥 `_G.screenReport()` names the rule that placed the last panel and what
+  every candidate would answer right now. It exists because this has been
+  reported twice and neither report could say which screen the config had
+  chosen, or why — and "which monitor did it pick" is not a question he
+  should have to answer by moving windows around.
+
+  🧪 TWO SOURCE SENTRIES THAT PASSED THE MUTATION THEY EXIST TO CATCH, both
+  fixed: one grepped the whole function for `if not facts.focused` while a
+  SECOND such guard exists further down, so opening the mainWindow branch
+  right up went unnoticed — it reads the 140 characters before the
+  mainWindow call now. The other looked for "function _G.screenReport" and
+  passed when the function was renamed to screenReportRenamed, because the
+  old name is a PREFIX of the new one. Match the parens.
+
+  Eight mutations.
+
 NEW IN 6.235.0 — 🔒 THE DROP THAT LIT UP BLUE AND DID NOTHING
                  (modules/music_player.lua):
   LL on 6.234.0: "Turns highlighted blue so it seems to see the file but

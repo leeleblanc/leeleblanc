@@ -1943,6 +1943,87 @@ do
     os.execute("rm -rf '" .. DIR .. "'")
 end
 
+-- =====================================================================
+-- 🖥 WHICH SCREEN A PANEL OPENS ON (6.236.0)
+-- =====================================================================
+-- LL, twice: "the cheat sheet appears on the monitor that was active and
+-- not the monitor where the mouse/active app resides." 6.196.0 fixed the
+-- remembered POSITION; this is the half that picks the SCREEN. The rule
+-- is pure and lifted out of init.lua's own source so the order cannot
+-- drift from the file that runs.
+do
+    local f = io.open(HS .. "/init.lua", "r")
+    local init = f and f:read("*a") or ""
+    if f then f:close() end
+
+    local src = init:match("(function _G%.baseScreenPick%(facts%).-\nend)")
+    check("🖥 the screen rule was lifted out of init.lua", src ~= nil)
+    local pick
+    if src then
+        local chunk = load(src .. "\nreturn _G.baseScreenPick")
+        if chunk then pick = chunk() end
+    end
+    -- A stand-in that answers falsely rather than throwing, so a mutation
+    -- FAILS these checks instead of killing the run (6.186.0).
+    pick = pick or function() return nil, "the rule could not be read" end
+
+    local FOC, MOUSE, MAIN, SCREEN, OVER =
+        "focused", "mouse", "mainWindow", "mainScreen", "override"
+
+    local scr, why = pick({ focused = FOC, mouse = MOUSE, main = MAIN,
+                            mainScreen = SCREEN })
+    check("a focused window still wins — it is the best signal there is",
+          scr == FOC and why:find("focused", 1, true) ~= nil, tostring(why))
+
+    scr, why = pick({ mouse = MOUSE, main = MAIN, mainScreen = SCREEN })
+    check("🖱 🚨 WITH NO FOCUSED WINDOW THE POINTER DECIDES, not the front "
+          .. "app's mainWindow — mainWindow is the window the APP calls "
+          .. "primary, which on two monitors is routinely the other one "
+          .. "and is exactly the stale screen LL reported",
+          scr == MOUSE and why:find("pointer", 1, true) ~= nil, tostring(why))
+
+    scr = pick({ main = MAIN, mainScreen = SCREEN })
+    check("...mainWindow is still there, below the pointer", scr == MAIN)
+
+    scr = pick({ mainScreen = SCREEN })
+    check("...and the main screen is the floor", scr == SCREEN)
+
+    scr, why = pick({ override = OVER, focused = FOC, mouse = MOUSE })
+    check("🔒 an explicit override still beats everything — App Lock "
+          .. "parks the locked app's screen there before hiding it",
+          scr == OVER and why:find("override", 1, true) ~= nil)
+
+    scr, why = pick({})
+    check("nothing at all is answered, not guessed", scr == nil)
+    scr, why = pick(nil)
+    check("...and a nil table does not throw", scr == nil and why ~= nil)
+
+    check("every answer names the RULE that decided, or the report cannot",
+          select(2, pick({ focused = FOC })) ~=
+          select(2, pick({ mouse = MOUSE })))
+
+    -- the source, because the order lives in two places otherwise
+    local body = init:match("local function resolveBaseScreen%(%).-\nend")
+    check("🔒 resolveBaseScreen goes THROUGH the rule rather than keeping "
+          .. "its own copy of the order",
+          body ~= nil and body:find("_G.baseScreenPick", 1, true) ~= nil)
+    -- 🧪 The guard must be the one WRAPPING the mainWindow call, not just
+    -- present somewhere in the function — there is a second `not
+    -- facts.focused` further down and a check that only greps for the
+    -- words passes with this one opened right up.
+    local mwAt = body and body:find("mainWindow", 1, true)
+    local before = (body and mwAt) and body:sub(math.max(1, mwAt - 140), mwAt) or ""
+    check("🚨 ...and it only asks for mainWindow when there is no focused "
+          .. "window, so the fallback can never outrank one",
+          before:find("if not facts.focused then", 1, true) ~= nil, before)
+    check("🖱 ...and it asks the pointer every time, or the rule above it "
+          .. "has nothing to choose",
+          body ~= nil and body:find("getCurrentScreen", 1, true) ~= nil)
+    check("🖥 and there is a report, because this has been reported twice "
+          .. "and neither report could say which screen was chosen",
+          init:find("function _G.screenReport()", 1, true) ~= nil)
+end
+
 realPrint(table.concat(printed, "\n"))
 out("\n")
 if fail > 0 then

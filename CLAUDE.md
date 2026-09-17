@@ -1380,6 +1380,31 @@ key caster and ⇪'s fallback are all gone — the row said "window features
 inactive" and LL read straight past it on a boot where most of the config
 was dead. It also says QUIT AND RELAUNCH, not reload: taps are built at
 launch, so re-granting mid-session changes nothing.
+🖥 A PANEL OPENS WHERE YOU ARE LOOKING — AND `mainWindow` IS NOT THAT
+(6.236.0, init.lua §1.5, LL for the SECOND time: "the cheat sheet appears
+on the monitor that was active and not the monitor where the mouse/active
+app resides, entirely on a different desktop"). 6.196.0 below answered the
+POSITION half and I read it as the whole sentence; the half that picks the
+SCREEN was never touched — 6.198.0's rule again, a correct fix for a real
+bug is not evidence that you found THE bug. The order was
+`frontApp:focusedWindow() or frontApp:mainWindow()`, and mainWindow() is
+the window the APP calls primary: on two monitors routinely the other one,
+on another Space one he cannot see — a STALE monitor, his word. THE
+POINTER OUTRANKS IT NOW: a focused window still wins, then the MOUSE (it
+is where the person is looking and is never ambiguous about the display),
+then mainWindow, then mainScreen. `_G.baseScreenPick(facts)` is PURE and
+answers the screen AND WHICH RULE decided; the gate LIFTS it out of
+init.lua's source rather than retyping the order. Eighteen modules plus the
+cheat sheet place panels through resolveBaseScreen — one rule, one place.
+`_G.screenReport()` names the rule that placed the last panel and what each
+candidate answers now.
+🧪 TWO SOURCE SENTRIES PASSED THE MUTATION THEY EXIST TO CATCH: one
+grepped the WHOLE function for `if not facts.focused` while a second such
+guard exists further down (it reads the 140 chars before the mainWindow
+call now), and one looked for "function _G.screenReport" and passed on
+"screenReportRenamed" because the old name is a PREFIX of the new. RULE:
+a name sentry matches the parens, and a guard sentry reads the text
+AROUND the thing it guards, never the function it lives in.
 🖥 A REMEMBERED PANEL POSITION IS AN OFFSET INTO ITS SCREEN (6.196.0,
 core/cheatsheet.lua): stored as dx/dy from the resolved screen's origin,
 so the sheet stays where LL put it ON THE MONITOR HE IS WORKING ON.
@@ -1688,7 +1713,7 @@ THE METHOD, when something breaks after a stacked zip:
    6.216.0 6f06071 · 6.217.0 a475bef · 6.218.0 41b002b · 6.219.0 862c177
    · 6.220.0 ac3975e · 6.221.0 ead07d9 · 6.222.0 1842ca7 · 6.223.0
    86ac82b · 6.224.0 67957ea · 6.225.0 98434fe · 6.226.0 304f1f9 ·
-   6.227.0 14e953a · 6.228.0 2aa3dfe · 6.229.0 a1318e1 · 6.230.0 0740c07 · 6.231.0 c1921af · 6.231.1 5a5c298 · 6.232.0 1ca3f6f · 6.233.0 2328c8c · 6.234.0 57f78d0 · 6.235.0 PENDING.
+   6.227.0 14e953a · 6.228.0 2aa3dfe · 6.229.0 a1318e1 · 6.230.0 0740c07 · 6.231.0 c1921af · 6.231.1 5a5c298 · 6.232.0 1ca3f6f · 6.233.0 2328c8c · 6.234.0 57f78d0 · 6.235.0 52e5b21 · 6.236.0 PENDING.
    Keep this list current: one line per release, appended at ceremony
    time.
 4. A BISECT IS AN OPTION, NOT THE FIRST MOVE — it costs him an install
@@ -1756,12 +1781,13 @@ as the fix when a loss lands.
 | 6.232.0 | 🪟 the music card moves: ⌘-drag anywhere or a bare drag on its title strip, and it reopens where he left it (it was never in `_G.movablePanels`) | pending — LL: "Shortcuts fixed", which is not his win sentence and does not name the drag; ask |
 | 6.233.0 | 🚚 a dragged file lands on the card — a canvas catcher under it, because hs.webview cannot take a drop and hs.canvas can (the opposite of what 6.231.0 believed) | LOSS — LL: "Turns highlighted blue so it seems to see the file but drop doesn't work." The catcher was right; the read after it threw → fix 6.235.0 |
 | 6.234.0 | 🕘 thirty days of history, one row per file — the 60-row cap was the memory; days decide now, and the card shows 40 | pending |
+| 6.236.0 | 🖥 a panel opens on the monitor you are looking at — the pointer outranks the front app's `mainWindow`, which is routinely the other display | pending |
 | 6.235.0 | 🔒 the drop lit up blue and did nothing: a `table.concat` on a list of objects threw inside the dragging callback, where a throw is a silence — plus a `public.file-url` reader and a report that names what the drag carried | pending |
 
-Running total: 14 wins · 7 losses · 19 pending (6.215.0, 6.217.0, 6.218.0,
+Running total: 14 wins · 7 losses · 20 pending (6.215.0, 6.217.0, 6.218.0,
 6.219.0, 6.220.0, 6.221.0, 6.222.0, 6.223.0, 6.224.0, 6.225.0, 6.226.0,
 6.227.0, 6.228.0, 6.229.0, 6.230.0, 6.231.1, 6.232.0, 6.233.0, 6.234.0,
-6.235.0).
+6.235.0, 6.236.0).
 6.208.0's stall guard was FIELD-PROVEN 2026-09-13: a ⇪Y Chrome-history
 search beachballed the Air 72 s, the guard killed and relaunched it, the
 next boot announced it (LL: "fortunately hammerspoon caught itself"). LL is on
@@ -2043,6 +2069,21 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.236.0 verify with LL — 🖥 THE RIGHT MONITOR: install (carries
+  6.235.0). Work in an app on one monitor, then press ⇪/. The sheet opens
+  on THAT monitor. Do it again from the other one. Then the case that was
+  actually broken: click into an app that has no focused window (or one
+  whose other windows live on the other display) and press ⇪/ — it now
+  follows your POINTER rather than that app's main window.
+  Console: `_G.screenReport()` — it names the rule that placed the last
+  panel ("the focused window's screen" / "the screen the pointer is on"),
+  the front app, and what each candidate would answer right now. If a
+  panel still opens on the wrong monitor, paste that: it says which rule
+  chose and what it chose, which neither of your two reports could.
+  🚨 THIS CHANGES EVERY PANEL, not just the cheat sheet — ⇪D, ⇪space, the
+  pickers, the pomodoro, all of them place through the same rule. That is
+  deliberate; say if any of them now opens somewhere you did not expect.
+
 - 6.235.0 verify with LL — 🔒 THE DROP, SECOND TRY: install (carries
   6.234.0). Drag files onto the card exactly as before. The blue is
   already proof the card SEES the drag; what changed is everything after
