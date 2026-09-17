@@ -4,9 +4,44 @@
 -- =====================================================================
 -- 09-16-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.231.1
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.232.0
 -- =====================================================================
 
+-- NEW IN 6.232.0 — 🪟 THE MUSIC CARD MOVES LIKE EVERY OTHER PANEL
+--                  (modules/music_player.lua):
+--   LL: "I need to be able to move the music player like any other
+--      window." He was not describing a preference — the card was the one
+--      panel this config draws that never registered itself in
+--      _G.movablePanels, so NEITHER grip could reach it: not window_move's
+--      ⌘-drag, and not the bare drag a title strip gets. Eleven panels are
+--      in that table; this was the twelfth and it was missing, which is a
+--      thing no test could see because the table is a global other modules
+--      fill in. There is a check now.
+--   🪟 BOTH GRIPS, because both already exist and neither is new: ⌘-drag
+--      anywhere on the card (window_move's tap, no page involvement), and
+--      a BARE press on the title strip, which posts dragStart and lets Lua
+--      do the moving — a page cannot move the window it is drawn in. The
+--      strip is safe by construction (6.89.0's header rule): there is
+--      nothing on it a click could have meant instead. The card is NOT
+--      `plain`, deliberately — a bare press on a ROW picks that track.
+--   📍 AND IT STAYS WHERE HE PUTS IT. Both grips write the spot, it rides
+--      in the player's own local store, and `mp.placeFor` is PURE: it
+--      answers the rect AND why, so the report can tell "you moved it
+--      here" from "back in the corner because that spot is on a monitor
+--      you have unplugged". 6.196.0's cheat-sheet rule applies — a
+--      remembered position on no current screen is DROPPED for the
+--      default, never clamped onto the edge of a screen it was never on —
+--      and a spot that would leave the strip off the bottom is nudged
+--      back on, because a grip you cannot reach is the bug this fixes.
+--   🧪 Twelve mutations on the Lua side, five on the page's.
+--      · 9,391 -> 9,424 checks.
+--      🚨 AND THE SUITE DIED INSTEAD OF FAILING under the very first one:
+--      deleting the registration left `entry.frame` indexing a nil.
+--      6.186.0's rule, paid by this module twice now — the stand-in
+--      answers falsely instead. A cursor check also passed with the
+--      cursor overridden (the LAST declaration in a CSS rule wins), so
+--      it reads the rule now.
+--
 -- NEW IN 6.231.1 — 🔤 A TRACK IS NAMED BY ITS FILE, AND A FILE MAY BE
 --                  CALLED ANYTHING (modules/music_player.lua):
 --   6.231.0's card was never run. Its 93 Lua checks prove what PLAYS —
@@ -40,48 +75,12 @@
 --      · 9,332 -> 9,391 checks · 78 -> 79 stages.
 --      RULE, general: a page this config draws is a page the gate runs.
 --
--- NEW IN 6.231.0 — 🎵 A MINI MUSIC PLAYER YOU DROP FILES ON (⇪⇧pad., modules/music_player.lua):
---   LL asked for it on 2026-09-13 and answered its three questions the
---      next day, which is what decided the scope: "just mp3, m4a" (so the
---      engine is hs.sound — macOS's own, no binary, identical on the work
---      Mac where nothing can be brewed); "Both macs use a full Apple
---      Keyboard" (so ⇪⇧pad. needs no fallback key); and "Native volume
---      keys work" (so there is NO volume slider here, and no seek, because
---      he did not ask for one — both are his to add afterwards).
---   WHAT IT IS: a card in the top-right corner, like the 3-month calendar
---      he compared it to. Drop files on it and the first plays with the
---      rest queued underneath; ↑↓ walks, ⏎ plays, ⌘1–9 jumps, space
---      pauses, ⌫ removes. Repeat off / all / one. Elapsed time with a
---      progress line. A history of what has played, click to play again.
---   🚚 A DROPPED FILE'S PATH DOES NOT COME FROM dataTransfer.files —
---      WebKit does not hand a page a file's path, so `files[0].name` is a
---      NAME and nothing this can open. The path comes from the drag's
---      text/uri-list, percent-escapes undone (a track called "Ain't It
---      Fun.mp3" arrives as Ain%27t%20It%20Fun.mp3). A drop that carries no
---      uri-list is NOT silently ignored: the names are listed with what is
---      missing beside them, because a card that swallowed the drop would
---      read as broken.
---   🔁 REPEAT GOVERNS AN ENDING, NOT AN ASK. A track that ENDS under
---      repeat-one plays again; pressing ⏭ under repeat-one moves ON. A
---      mode says what the player does on its own — it never refuses an
---      instruction. `mp.nextIndex` is PURE and carries both.
---   🔔 AND THE END-OF-TRACK CALLBACK HAS A BELT: a callback this module
---      cannot prove fires is a playlist that stops after one song with no
---      error anywhere to see, so the tick that draws the clock also asks
---      whether the sound stopped. Both are COUNTED separately, so the
---      report can say which half this Mac is using.
---   📁 The queue and history are stored LOCALLY, never in OneDrive — a
---      half-played queue is not cross-Mac data, and 6.229.0 taught this
---      config what a write into a watched cloud folder costs.
---   `_G.musicReport()` · `settings = { music_player = { enabled = false } }`
---      · 71 -> 72 modules · 9,239 -> 9,332 checks.
---
--- (6.230.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.231.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.231.1
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.232.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -178,7 +177,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.231.1"
+_G.configVersion = "6.232.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the

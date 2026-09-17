@@ -1,5 +1,5 @@
 ========================================================================
-RESOLVED FEATURE REQUESTS — Hammerspoon config 6.231.1
+RESOLVED FEATURE REQUESTS — Hammerspoon config 6.232.0
 Every feature and how to use it. Generated from the modules' own
 cheat sheets (the rows ⇪/ draws), so it is never out of date.
 ⇪ = Caps Lock held (the hyper key). ⇪⇧X = Caps Lock + Shift + X.
@@ -589,6 +589,7 @@ In the Console, _G.<tool>Report() prints any tool's own report.
   🔂 · 🔁 Repeat one · repeat all · off — click to cycle
   🕘      History: the last tracks played, click one to play it again
   ⌫       Take the highlighted track out of the queue
+  drag      Move the card: grab its title strip — or ⌘-drag anywhere on it. It reopens where you left it
   volume    Use the Mac's own volume keys — this player has none, by design
   Console   _G.musicReport()
 
@@ -755,6 +756,7 @@ In the Console, _G.<tool>Report() prints any tool's own report.
 
 📜 RELEASE INDEX — newest first, one line per release (the full story of each is in CHANGELOG.md)
 ------------------------------------------------------------------------
+  6.232.0  🪟 THE MUSIC CARD MOVES LIKE EVERY OTHER PANEL
   6.231.1  🔤 A TRACK IS NAMED BY ITS FILE, AND A FILE MAY BE CALLED
   6.231.0  🎵 A MINI MUSIC PLAYER YOU DROP FILES ON (⇪⇧pad., modules/music_player.lua)
   6.230.0  🔗 TWO NAMES FOR ONE TREE IS ONE WATCHER (modules/file_tracker.lua)

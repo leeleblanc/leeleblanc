@@ -5,6 +5,84 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.232.0 — 🪟 THE MUSIC CARD MOVES LIKE EVERY OTHER PANEL
+                 (modules/music_player.lua):
+  LL: "I need to be able to move the music player like any other window.
+  Also, i thought I could click and drag a window like the cheat sheet
+  window without having to hold command."
+
+  HE IS RIGHT ON BOTH COUNTS, and the second half is the more useful
+  report. The cheat sheet does drag with a bare click — "grab anywhere, it
+  reopens where you left it" is on its own sheet — and the Scorp Pad, the
+  screenshot editor and unified search all drag by their headers with no
+  modifier. So "I thought I could" was not a misremembering; it was a
+  description of what every other panel here does.
+
+  🪟 THE CAUSE, and it is a one-word one: the card never registered itself
+  in `_G.movablePanels`. Eleven panels are in that table — the pomodoro,
+  the calendar, the pad, the editor, the key caster, unified search, the
+  task form, the OCR window, recent docs, the note pad, the vault — and
+  window_move reads nothing else. A panel not in it is not movable by any
+  means at all: not ⌘-drag, not a header grip, nothing. The music player
+  was the twelfth and it was absent, and no test could see it, because the
+  table is a global that other modules fill in and no one was counting.
+  There is a check now, in this module's own suite.
+
+  🪟 BOTH GRIPS, neither of them new:
+
+     ⌘-drag anywhere on the card     window_move's tap; the page is not
+                                     involved and needs no cooperation
+     a bare press on the title strip the strip posts `dragStart` and Lua
+                                     does the moving — a page cannot move
+                                     the window it is drawn in
+
+  The strip is safe by construction, which is 6.89.0's header rule: there
+  is nothing on it that a click could have meant instead. The card is
+  deliberately NOT registered `plain` — `plain` gives the bare click to the
+  WHOLE panel, and on this one a bare press on a row picks that track.
+
+  📍 AND IT STAYS WHERE HE PUTS IT, because a card that jumps back to the
+  corner on every ⇪⇧pad. is a card he has to move again every time. Both
+  grips write the spot; it rides in the player's own local store beside the
+  queue. `mp.placeFor(pos, screen, screens)` is PURE and answers the rect
+  AND WHY, so the report can tell three states apart:
+
+     moved                                  where he left it
+     moved — nudged back onto the screen    it would have hung off an edge
+     corner — the remembered spot is on     that monitor is unplugged
+     no screen now
+
+  6.196.0's cheat-sheet rule decided the third: a remembered position that
+  falls on no current screen is DROPPED for the default, never clamped onto
+  the edge of a screen it was never on. The nudge exists for the same
+  reason this release does — a grip you cannot reach is not a grip.
+
+  🧪 Twelve mutations on the Lua side and five on the page's, all biting.
+  🚨 AND THE SUITE DIED INSTEAD OF FAILING under the very first one. Delete
+  the registration and `entry.frame()` indexes a nil: the run ended with "0
+  failed" never printed. That is 6.186.0's rule and this module has now
+  paid it twice in two releases — a test helper answers falsely rather than
+  indexing a nil, so a mutation fails a check instead of killing the run.
+  A second check was weak in a quieter way: it searched the page for
+  "cursor:grab", and passed with `cursor:default` written after it, because
+  the LAST declaration in a CSS rule is the one that wins. It reads the
+  rule now.
+
+  🖱 ASKED, NOT ANSWERED — "trackpad click and move jumps me to another
+  desktop entirely." Nothing here can jump a Space, and no code in this
+  release was written for it. The likeliest cause is macOS's own
+  three-finger drag (System Settings › Accessibility › Pointer Control ›
+  Trackpad Options): with it on, three fingers on something that will not
+  be dragged falls through to the swipe-between-Spaces gesture, which is
+  exactly "it jumps me to another desktop". If that is what is happening,
+  this release fixes it by making the card draggable — the gesture now
+  lands on something. Stated as a guess, because it is one.
+
+  9,391 -> 9,424 checks.
+
+  RULE, general: a panel this config draws is a panel _G.movablePanels
+  knows about. It is the only register, and absence from it is invisible.
+
 NEW IN 6.231.1 — 🔤 A TRACK IS NAMED BY ITS FILE, AND A FILE MAY BE CALLED
                  ANYTHING (modules/music_player.lua, tests/test_music_js.js):
   LL, on the 6.231.0 zip, before installing it: "Did you do a full

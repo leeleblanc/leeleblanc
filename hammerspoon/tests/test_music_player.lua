@@ -19,6 +19,9 @@ local HS = (arg and arg[1]) or os.getenv("HAMMERSPOON_DIR")
            or ((os.getenv("HOME") or ".") .. "/.hammerspoon")
 
 local pass, fail, failures = 0, 0, {}
+-- The screens this stub Mac has. §15 changes it.
+SCREENS = { { x = 0, y = 0, w = 1440, h = 900 } }
+
 local function check(label, cond, extra)
     if cond then pass = pass + 1
     else fail = fail + 1
@@ -89,9 +92,20 @@ hs = {
         mkdir = function() return true end,
     },
     alert  = { show = function(m) ALERTS[#ALERTS + 1] = tostring(m) end },
-    screen = { mainScreen = function()
-        return { frame = function() return { x = 0, y = 0, w = 1440, h = 900 } end }
-    end },
+    screen = {
+        mainScreen = function()
+            return { frame = function() return { x = 0, y = 0, w = 1440, h = 900 } end }
+        end,
+        -- Two screens on purpose: the second is where a remembered spot
+        -- that belongs to an unplugged monitor is proven to be refused.
+        allScreens = function()
+            local out = {}
+            for _, f in ipairs(SCREENS) do
+                out[#out + 1] = { frame = function() return f end }
+            end
+            return out
+        end,
+    },
     drawing = { windowLevels = { floating = 5 } },
     json = {
         encode = function(t)
@@ -165,7 +179,15 @@ hs.webview = {
         function v:show() self.shown = true ; return self end
         function v:bringToFront() return self end
         function v:delete() self.deleted = true ; return self end
-        function v:frame() return self.rect end
+        -- 🧪 A REAL GETTER *AND* SETTER, because hs.webview's frame() is
+        -- both: a getter-only stub lets every move succeed while moving
+        -- nothing, and no mutation of the drag could ever be caught
+        -- (6.227.0's selectedRow, in a new costume).
+        function v:frame(r)
+            if r == nil then return self.rect end
+            self.rect = { x = r.x, y = r.y, w = r.w, h = r.h }
+            return self
+        end
         function v:evaluateJavaScript(s) JS[#JS + 1] = s ; return self end
         WEBVIEWS[#WEBVIEWS + 1] = v
         return v
@@ -211,6 +233,8 @@ local function reset()
     mp.advances = { callback = 0, belt = 0, manual = 0 }
     mp.loaded, mp.enabled = true, true
     mp.tickTimer, mp.saveTimer = nil, nil
+    mp.pos, mp.posWhy = nil, "not opened yet"
+    SCREENS = { { x = 0, y = 0, w = 1440, h = 900 } }
 end
 
 local function drop(uri, names)
@@ -722,10 +746,157 @@ check("...and what it does answer still carries the fields the page reads",
 check("...and the queue itself is untouched — the drawing failed, "
       .. "not the music", #mp.queue == 1 and mp.playing == true)
 
+-- ---- §15 the window moves ----------------------------------------------
+-- 🪟 6.232.0. The card was the one panel this config draws that never
+-- registered itself in _G.movablePanels, so neither grip reached it: not
+-- window_move's ⌘-drag, and not the bare drag on a title strip.
+
+-- PURE first, with no Mac: where does it open?
+local SF = { x = 0, y = 0, w = 1440, h = 900 }
+local ONE = { SF }
+local TWO = { SF, { x = 1440, y = 0, w = 1920, h = 1080 } }
+
+local corner = mp.frameFor(SF)
+local r, why = mp.placeFor(nil, SF, ONE)
+check("🪟 a card that has never been moved opens in the corner",
+      r.x == corner.x and r.y == corner.y and why == "corner", why)
+
+r, why = mp.placeFor({ x = 200, y = 300 }, SF, ONE)
+check("...and one he moved opens where he left it",
+      r.x == 200 and r.y == 300 and why == "moved", why)
+check("...at the same size as ever", r.w == corner.w and r.h == corner.h)
+
+r, why = mp.placeFor({ x = 2000, y = 200 }, SF, ONE)
+check("🚨 a spot on a monitor that is NOT attached now is refused for the "
+      .. "corner — never clamped onto the edge of a screen it was never on",
+      r.x == corner.x and r.y == corner.y
+      and why:find("no screen now", 1, true) ~= nil, why)
+
+r, why = mp.placeFor({ x = 2000, y = 200 }, SF, TWO)
+check("...and the same spot is kept once that monitor is back",
+      r.x == 2000 and r.y == 200 and why == "moved", why)
+
+r, why = mp.placeFor({ x = 1430, y = 880 }, SF, ONE)
+check("a card remembered three-quarters off the bottom right is nudged "
+      .. "back on, because a grip you cannot reach is the bug this fixes",
+      r.x == SF.w - corner.w and r.y == SF.h - corner.h
+      and why:find("nudged", 1, true) ~= nil, why)
+check("...and the nudge SAYS so rather than reading as an exact restore",
+      why ~= "moved")
+
+r = mp.placeFor({ x = "over there" }, SF, ONE)
+check("a store holding nonsense for a position opens in the corner",
+      r.x == corner.x and r.y == corner.y)
+
+-- the registration, and the two grips
+reset()
+local entry
+for _, e in ipairs(_G.movablePanels or {}) do
+    if e.name == "music player" then entry = e end
+end
+check("🪟 the card is listed in _G.movablePanels, which is the ONLY way "
+      .. "window_move can reach it", entry ~= nil)
+-- 🧪 6.186.0, and this suite has now paid it twice: the mutation that
+-- deletes the registration must FAIL these checks, not kill the run on
+-- `entry.frame`. The stand-in answers falsely instead.
+local grip = entry or { frame = function() return nil end,
+                        move  = function() end }
+check("...with a frame and a move, the two things window_move calls",
+      entry and type(entry.frame) == "function"
+            and type(entry.move) == "function")
+check("🚨 ...and NOT as plain — a bare click on this card picks a track, "
+      .. "so only the title strip may take one",
+      entry and not entry.plain)
+
+mp.show()
+local view = WEBVIEWS[#WEBVIEWS]
+check("the frame it reports is the window's own",
+      grip.frame() ~= nil and grip.frame().w == view.rect.w)
+
+grip.move(120, 240)
+check("🪟 moving it moves the WINDOW",
+      view.rect.x == 120 and view.rect.y == 240,
+      view.rect.x .. "," .. view.rect.y)
+check("...and keeps its size", view.rect.w == corner.w and view.rect.h == corner.h)
+check("...and remembers the spot", mp.pos and mp.pos.x == 120 and mp.pos.y == 240)
+
+-- it comes back where he put it
+mp.hide()
+mp.show()
+local v2 = WEBVIEWS[#WEBVIEWS]
+check("🚨 ...so ⇪⇧pad. opens it where he left it, not back in the corner",
+      v2.rect.x == 120 and v2.rect.y == 240,
+      v2.rect.x .. "," .. v2.rect.y)
+
+-- and the spot survives a reload, through the store — both ways
+for _, t in ipairs(TIMERS) do if not t.every then t.fn() end end
+check("💾 the spot is written to the store",
+      (WRITES[mp.storeFile] or ""):find("120", 1, true) ~= nil,
+      WRITES[mp.storeFile])
+
+reset()
+READABLE[mp.storeFile] = "{}"
+_G.FAKE_DECODE = { queue = {}, history = {}, mode = "off",
+                   pos = { x = 300, y = 400 } }
+mp.loaded = false
+mp.loadStore()
+check("...and read back on the next boot",
+      mp.pos and mp.pos.x == 300 and mp.pos.y == 400,
+      mp.pos and (mp.pos.x .. "," .. mp.pos.y) or "nil")
+
+reset()
+READABLE[mp.storeFile] = "{}"
+_G.FAKE_DECODE = { queue = {}, history = {}, pos = "somewhere" }
+mp.loaded = false
+mp.loadStore()
+check("🗂 ...and a store whose position is not a position is DROPPED at "
+      .. "the loader, never handed to the window",
+      mp.pos == nil, tostring(mp.pos))
+_G.FAKE_DECODE = nil
+
+-- the header's bare drag
+reset()
+mp.show()
+_G.PICKED_UP = nil
+_G.beginPanelDrag = function(n) _G.PICKED_UP = n ; return true end
+post({ a = "dragStart" })
+check("🪟 a press on the title strip asks window_move to pick the card up",
+      _G.PICKED_UP == "music player", tostring(_G.PICKED_UP))
+
+-- 🔔 and with window_move absent it says so instead of doing nothing
+reset()
+mp.show()
+_G.beginPanelDrag = nil
+local okDrag = pcall(post, { a = "dragStart" })
+check("🚨 with window_move not loaded the press does not throw",
+      okDrag == true)
+check("...and the reason is recorded rather than swallowed",
+      tostring(mp.lastWhy):find("window_move", 1, true) ~= nil,
+      tostring(mp.lastWhy))
+_G.beginPanelDrag = function(n) _G.PICKED_UP = n ; return true end
+
+-- the page carries the grip
+reset()
+mp.show()
+local page = WEBVIEWS[#WEBVIEWS].htmlText or ""
+check("🚨 ...and it is the HEADER that listens, not the whole card — a "
+      .. "press on a row must still pick a track",
+      page:find("hd.addEventListener('mousedown'", 1, true) ~= nil)
+
+-- the report
+reset()
+mp.show()
+grip.move(75, 85)
+local rw = report()
+check("📋 the report says where the card is and why it is there",
+      rw:find("window", 1, true) and rw:find("75,85", 1, true), rw)
+check("...and names both grips, because neither is discoverable",
+      rw:find("⌘-drag", 1, true) ~= nil)
+
 -- 🚨 The section asserts its own check count (6.186.0): a throw would
 -- delete every check after it while the run still said "0 failed".
 check("🚨 the suite asserted every check it was written to make",
-      (pass + fail) >= 94, pass + fail)
+      (pass + fail) >= 117, pass + fail)
 
 os.execute("true")
 realPrint(table.concat(PRINTED, "\n"))

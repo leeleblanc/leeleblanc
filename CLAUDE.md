@@ -269,6 +269,30 @@ work Mac.
   through) and the page then threw on `S.rows.length` and never redrew
   again. The refusal takes the door; `draw()` reads every list by length
   off a payload that may be missing anything.
+  🪟 A PANEL THIS CONFIG DRAWS IS A PANEL `_G.movablePanels` KNOWS ABOUT
+  (6.232.0, LL: "I need to be able to move the music player like any other
+  window"). That table is the ONLY register window_move reads, and a panel
+  absent from it is movable by NO means — not ⌘-drag, not a header grip.
+  The card was the twelfth panel and the only one missing, and nothing
+  could see it because the table is a global other modules fill in; there
+  is a check in this module's suite now. TWO GRIPS, neither new: ⌘-drag
+  anywhere (window_move's tap, no page involvement) and a BARE press on the
+  title strip, which posts `dragStart` → `_G.beginPanelDrag` because a page
+  cannot move the window it is drawn in. The strip is safe by construction
+  (6.89.0's header rule); the card is deliberately NOT `plain`, which would
+  give the bare click to the whole panel where a press on a row picks a
+  track. 📍 BOTH GRIPS REMEMBER (6.93.0): the spot rides in the player's
+  own local store and `mp.placeFor` is PURE, answering the rect AND why —
+  moved · nudged back onto the screen · corner, the remembered spot is on
+  no screen now. 6.196.0's cheat-sheet rule decides the third (a position
+  on no current screen is DROPPED for the default, never clamped onto a
+  screen it was never on) and the nudge exists because a grip you cannot
+  reach is the bug being fixed.
+  🧪 THE SUITE DIED INSTEAD OF FAILING, AGAIN, two releases running: the
+  mutation that deletes the registration left `entry.frame()` indexing a
+  nil. And a check that searched the page for "cursor:grab" passed with
+  `cursor:default` written after it — the LAST declaration in a CSS rule
+  wins, so assert the RULE, never the presence of a string in it.
   🧪 AND THE PAGE HAD NO SUITE AT ALL, which is why none of that was
   known: 6.231.0's 93 Lua checks prove what PLAYS, and the drawing, the
   drop and ↑↓/⏎/space live in the page. tests/dump_music_html.lua +
@@ -1603,7 +1627,7 @@ THE METHOD, when something breaks after a stacked zip:
    6.216.0 6f06071 · 6.217.0 a475bef · 6.218.0 41b002b · 6.219.0 862c177
    · 6.220.0 ac3975e · 6.221.0 ead07d9 · 6.222.0 1842ca7 · 6.223.0
    86ac82b · 6.224.0 67957ea · 6.225.0 98434fe · 6.226.0 304f1f9 ·
-   6.227.0 14e953a · 6.228.0 2aa3dfe · 6.229.0 a1318e1 · 6.230.0 0740c07 · 6.231.0 c1921af · 6.231.1 5a5c298.
+   6.227.0 14e953a · 6.228.0 2aa3dfe · 6.229.0 a1318e1 · 6.230.0 0740c07 · 6.231.0 c1921af · 6.231.1 5a5c298 · 6.232.0 PENDING.
    Keep this list current: one line per release, appended at ceremony
    time.
 4. A BISECT IS AN OPTION, NOT THE FIRST MOVE — it costs him an install
@@ -1668,10 +1692,11 @@ as the fix when a loss lands.
 | 6.230.0 | 🔗 a symlink is not a second folder: ~/OneDrive and the CloudStorage folder are one tree and one watcher (his 6.229.0 report named it in 47 seconds) | pending |
 | 6.231.0 | 🎵 the mini music player, ⇪⇧pad. — drop files on a corner card, ↑↓ / ⌘1–9 / space, repeat one or all, elapsed time, history | pending |
 | 6.231.1 | 🔤 the player's page is RUN by the gate now (stage 3e, 55 checks, 12 mutations) — and it found a track name with an & or a < in it losing half of itself | pending |
+| 6.232.0 | 🪟 the music card moves: ⌘-drag anywhere or a bare drag on its title strip, and it reopens where he left it (it was never in `_G.movablePanels`) | pending |
 
-Running total: 14 wins · 5 losses · 17 pending (6.215.0, 6.217.0, 6.218.0,
+Running total: 14 wins · 5 losses · 18 pending (6.215.0, 6.217.0, 6.218.0,
 6.219.0, 6.220.0, 6.221.0, 6.222.0, 6.223.0, 6.224.0, 6.225.0, 6.226.0,
-6.227.0, 6.228.0, 6.229.0, 6.230.0, 6.231.0, 6.231.1).
+6.227.0, 6.228.0, 6.229.0, 6.230.0, 6.231.0, 6.231.1, 6.232.0).
 6.208.0's stall guard was FIELD-PROVEN 2026-09-13: a ⇪Y Chrome-history
 search beachballed the Air 72 s, the guard killed and relaunched it, the
 next boot announced it (LL: "fortunately hammerspoon caught itself"). LL is on
@@ -1953,6 +1978,28 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.232.0 verify with LL — 🪟 THE CARD MOVES: install (carries 6.231.1).
+  ⇪⇧pad. Then press on the card's TITLE STRIP — the top part, where the
+  track name and the time are — and drag. No ⌘. The card follows. Let go,
+  press ⇪⇧pad. twice: it reopens where you put it, not back in the corner.
+  Then ⌘-drag from anywhere on it, including over the track list — same
+  thing. A bare press on a ROW must still play that track, not move the
+  window; that is the line between the two grips.
+  Console: `_G.musicReport()` — the new "window :" line reads
+  "at 120,240 · moved". Drag it mostly off the bottom of the screen and
+  reopen: it comes back on screen and the line says "nudged back onto the
+  screen". If you move it onto a second monitor and later unplug that
+  monitor, it opens in the corner and the line says why.
+  🖱 THE DESKTOP JUMP, and I am guessing — nothing in this config can
+  change a Space, and I wrote no code for it. Check System Settings ›
+  Accessibility › Pointer Control › Trackpad Options: if "Use trackpad for
+  dragging" with "Three finger drag" is ON, then three fingers on
+  something that will not be dragged falls through to macOS's own
+  swipe-between-Spaces. That would be exactly what you saw, and making the
+  card draggable would fix it by giving the gesture something to land on.
+  Tell me whether that setting is on — it decides whether there is a
+  second bug here or not.
+
 - 6.231.1 verify with LL — 🔤 A NAME WITH AN & OR A < IN IT: install
   (carries 6.231.0, so run THAT block first — it is the whole feature).
   Then the one thing this release changed that you can see: take a track

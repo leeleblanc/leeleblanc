@@ -68,6 +68,7 @@ local M = {
             { "🔂 · 🔁",  "Repeat one · repeat all · off — click to cycle" },
             { "🕘",       "History: the last tracks played, click one to play it again" },
             { "⌫",       "Take the highlighted track out of the queue" },
+            { "drag",    "Move the card: grab its title strip — or ⌘-drag anywhere on it. It reopens where you left it" },
             { "volume",  "Use the Mac's own volume keys — this player has none, by design" },
             { "Console", "_G.musicReport()" },
         },
@@ -110,6 +111,8 @@ function M.setup(core)
         advances  = { callback = 0, belt = 0, manual = 0 },
         refused   = {},               -- { path=, why= } — named, never silent
         loaded    = false,
+        pos       = nil,              -- where he last dragged it, or nil
+        posWhy    = "not opened yet",
     }
 
     -- ---- PURE. Every rule about WHAT PLAYS and WHAT COMES NEXT lives
@@ -289,6 +292,14 @@ function M.setup(core)
             end
         end
         mp.queue, mp.history = q, h
+        -- 🗂 6.198.1: the shape is checked here, once. A store written by
+        -- an older build has no pos at all, and one hand-edited may hold
+        -- anything — either way the card opens in the corner rather than
+        -- at a coordinate nobody can read.
+        local sp = data.pos
+        if type(sp) == "table" and tonumber(sp.x) and tonumber(sp.y) then
+            mp.pos = { x = tonumber(sp.x), y = tonumber(sp.y) }
+        end
         if type(data.mode) == "string"
            and (data.mode == "off" or data.mode == "one" or data.mode == "all") then
             mp.mode = data.mode
@@ -305,7 +316,8 @@ function M.setup(core)
             h[#h + 1] = { path = mp.history[i].path, at = mp.history[i].at }
         end
         local ok, raw = pcall(function()
-            return hs.json.encode({ queue = q, history = h, mode = mp.mode })
+            return hs.json.encode({ queue = q, history = h, mode = mp.mode,
+                                    pos = mp.pos })
         end)
         if not (ok and type(raw) == "string") then
             say("could not encode the queue — nothing was written")
@@ -541,8 +553,9 @@ html, body { margin:0; padding:0; height:100%%; overflow:hidden;
   background:#15161a; color:#e7e7ea;
   font:%dpx -apple-system, "Helvetica Neue", sans-serif; }
 #card { display:flex; flex-direction:column; height:100%%; }
-header { padding:8px 10px 6px; -webkit-user-select:none; cursor:default;
+header { padding:8px 10px 6px; -webkit-user-select:none; cursor:grab;
   border-bottom:1px solid #2a2c33; }
+header.dragging { cursor:grabbing; background:#1b1d23; }
 #now { font-size:%dpx; font-weight:600; white-space:nowrap;
   overflow:hidden; text-overflow:ellipsis; }
 #sub { font-size:%dpx; color:#9a9aa4; margin-top:2px; }
@@ -656,6 +669,18 @@ function clock(text, pct){
   el('fill').style.width = (pct || 0) + '%%';
 }
 
+/* 🪟 The title strip is the grip: press and move, no modifier. Lua drives
+   the move from here (window_move's _G.beginPanelDrag), because a page
+   cannot move the window it is drawn in. ⌘-drag anywhere on the card
+   works too and needs nothing from this page. */
+var hd = el('hd');
+hd.addEventListener('mousedown', function(ev){
+  if (ev.preventDefault) ev.preventDefault();
+  hd.classList.add('dragging');
+  say({a:'dragStart'});
+});
+document.addEventListener('mouseup', function(){ hd.classList.remove('dragging'); });
+
 el('prev').addEventListener('click', function(){ say({a:'prev'}); });
 el('next').addEventListener('click', function(){ say({a:'next'}); });
 el('play').addEventListener('click', function(){ say({a:'play'}); });
@@ -719,6 +744,20 @@ draw(S);
             return
         end
         if a == "esc"    then mp.hide() return end
+        -- 🪟 The title strip drags with a BARE click — the header rule
+        -- (6.89.0): a header is safe by construction, because there is
+        -- nothing on it a click could have meant instead.
+        if a == "dragStart" then
+            if _G.beginPanelDrag then
+                if not _G.beginPanelDrag("music player") then
+                    say("the card could not be picked up")
+                end
+            else
+                say("window_move is off — the header cannot drag "
+                    .. "(⌘-drag needs it too)")
+            end
+            return
+        end
         if a == "play"   then mp.togglePlay() return end
         if a == "next"   then advance(true) return end
         if a == "prev"   then
@@ -842,6 +881,37 @@ draw(S);
         return { x = sf.x + sf.w - w - gap, y = sf.y + gap, w = w, h = h }
     end
 
+    -- 🪟 WHERE THE CARD GOES, AND IT IS A REMEMBERED SPOT OR THE CORNER.
+    -- PURE: given a remembered top-left, the screen it must live on and
+    -- every screen attached right now, it answers the rect AND why — so
+    -- the report can say "you moved it here" apart from "back in the
+    -- corner because that spot is on a monitor you have unplugged".
+    -- 6.196.0's rule for the cheat sheet, applied: a remembered position
+    -- that does not fall on a screen is DROPPED for the default, never
+    -- clamped onto the edge of a screen it was never on.
+    function mp.placeFor(pos, sf, screens)
+        local base = mp.frameFor(sf)
+        if type(pos) ~= "table" then return base, "corner" end
+        local x, y = tonumber(pos.x), tonumber(pos.y)
+        if not (x and y) then return base, "corner" end
+        for _, f in ipairs(screens or {}) do
+            if type(f) == "table" and tonumber(f.x) and tonumber(f.w)
+               and x >= f.x and x < f.x + f.w
+               and y >= f.y and y < f.y + f.h then
+                -- Clamped to fit that screen WHOLE. A card remembered
+                -- three-quarters off the bottom is a card whose header
+                -- cannot be grabbed again, and the grip is the fix for
+                -- the thing this release exists to fix.
+                local cx = math.max(f.x, math.min(x, f.x + f.w - base.w))
+                local cy = math.max(f.y, math.min(y, f.y + f.h - base.h))
+                return { x = cx, y = cy, w = base.w, h = base.h },
+                       (cx == x and cy == y) and "moved"
+                       or "moved — nudged back onto the screen"
+            end
+        end
+        return base, "corner — the remembered spot is on no screen now"
+    end
+
     function mp.show()
         if mp.webview then mp.hide() return true end
         if not mp.enabled then
@@ -856,7 +926,15 @@ draw(S);
         local screen = (core.resolveBaseScreen and core.resolveBaseScreen())
                        or hs.screen.mainScreen()
         local sf = (screen and screen:frame()) or { x = 0, y = 0, w = 1440, h = 900 }
-        local rect = mp.frameFor(sf)
+        local all = {}
+        local okS, list = pcall(function() return hs.screen.allScreens() end)
+        for _, sc in ipairs((okS and list) or {}) do
+            local okF, f = pcall(function() return sc:frame() end)
+            if okF and type(f) == "table" then all[#all + 1] = f end
+        end
+        if #all == 0 then all = { sf } end
+        local rect, why = mp.placeFor(mp.pos, sf, all)
+        mp.posWhy = why
 
         local okUc, uc = pcall(hs.webview.usercontent.new, "musicPlayer")
         if not (okUc and uc) then
@@ -965,6 +1043,17 @@ draw(S);
             end)())
         line("   ↳ .flac and .ogg do NOT play through macOS's own audio —")
         line("     each refused file says so by name")
+        line("   window   : " .. (function()
+                local f = mp.webview and mp.webview:frame()
+                local at = f and ("at %d,%d"):format(math.floor(f.x),
+                                                     math.floor(f.y))
+                           or "closed"
+                return at .. " · " .. tostring(mp.posWhy)
+            end)())
+        line("   ↳ drag the title strip, or ⌘-drag anywhere on the card")
+        if not (_G.movablePanels and #_G.movablePanels > 0) then
+            line("   ⚠️ window_move is not loaded — neither grip works")
+        end
         line("   volume   : none here, on purpose — the Mac's own keys")
         line("   last     : " .. tostring(mp.lastWhy))
         line("   off      : settings = { music_player = { enabled = false } }")
@@ -986,6 +1075,26 @@ draw(S);
             function() return mp.webview ~= nil end,
             function() mp.hide() end)
     end
+
+    -- 🪟 Movable like every other panel this config draws: ⌘-drag
+    -- anywhere on the card (window_move's tap), and a bare drag on the
+    -- title strip through the dragStart message above. move() is where
+    -- the spot is written down, so BOTH grips remember (6.93.0).
+    _G.movablePanels = _G.movablePanels or {}
+    table.insert(_G.movablePanels, {
+        name  = "music player",
+        frame = function() return mp.webview and mp.webview:frame() end,
+        move  = function(x, y)
+            local f = mp.webview and mp.webview:frame()
+            if not f then return end
+            mp.webview:frame({ x = x, y = y, w = f.w, h = f.h })
+            mp.pos = { x = x, y = y }
+            mp.posWhy = "moved"
+            -- Debounced: this runs on every tick of the drag, not once
+            -- when the button comes up.
+            saveSoon()
+        end,
+    })
 
     _G.musicPlayer = mp
     M.mp     = mp

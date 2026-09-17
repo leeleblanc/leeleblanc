@@ -41,16 +41,24 @@ function makeEnv() {
   const sent = [];
   const listeners = { document: {}, el: {} };
   const dropClasses = [];
-  const mk = (id) => ({
-    id, innerHTML: "", textContent: "", className: "",
-    style: {},
-    classList: { add: (c) => dropClasses.push("+" + c),
-                 remove: (c) => dropClasses.push("-" + c) },
-    addEventListener: (ev, fn) => { listeners.el[id + ":" + ev] = fn; },
-  });
+  const classes = {};
+  const mk = (id) => {
+    classes[id] = [];
+    return {
+      id, innerHTML: "", textContent: "", className: "",
+      style: {},
+      classList: {
+        add: (c) => { classes[id].push("+" + c);
+                      if (id === "drop") dropClasses.push("+" + c); },
+        remove: (c) => { classes[id].push("-" + c);
+                         if (id === "drop") dropClasses.push("-" + c); },
+      },
+      addEventListener: (ev, fn) => { listeners.el[id + ":" + ev] = fn; },
+    };
+  };
   const byId = {};
   for (const id of ["list", "play", "rep", "now", "sub", "fill",
-                    "prev", "next", "clr", "drop"]) byId[id] = mk(id);
+                    "prev", "next", "clr", "drop", "hd"]) byId[id] = mk(id);
   let scrolled = 0;
   const sandbox = {
     document: {
@@ -64,7 +72,7 @@ function makeEnv() {
     },
     webkit: { messageHandlers: { musicPlayer: { postMessage: (m) => sent.push(m) } } },
   };
-  return { sandbox, sent, listeners, byId, dropClasses,
+  return { sandbox, sent, listeners, byId, dropClasses, classes,
            scrolledCount: () => scrolled };
 }
 
@@ -318,7 +326,56 @@ console.log("── Music player: page JavaScript, executed ──");
 }
 
 // =====================================================================
-// 8. the clock
+// 8. the title strip is the grip
+// =====================================================================
+// 🪟 6.232.0. A page cannot move the window it is drawn in, so the strip
+// reports the press and Lua does the moving. A bare press — no modifier —
+// because a header is safe by construction: there is nothing on it a
+// click could have meant instead.
+{
+  // 🧪 THE LAST DECLARATION IN THE RULE WINS, so a string search for
+  // "cursor:grab" passes with `cursor:default` written after it — the
+  // mutation that proved it is why this reads the rule instead.
+  const rule = (html.match(/(^|\})\s*header\s*\{([^}]*)\}/) || [])[2] || "";
+  const cursors = rule.match(/cursor\s*:\s*([a-z-]+)/g) || [];
+  check("the title strip's pointer says it can be grabbed",
+        cursors.length > 0 &&
+        cursors[cursors.length - 1].replace(/\s/g, "") === "cursor:grab",
+        JSON.stringify(cursors));
+}
+{
+  const env = load();
+  env.draw(ROWS);
+  const md = env.listeners.el["hd:mousedown"];
+  check("the title strip listens for a press at all", typeof md === "function");
+  let prevented = false;
+  (md || (() => {}))({ preventDefault: () => { prevented = true; } });
+  check("a press on the strip asks Lua to pick the window up",
+        at(env, 0).a === "dragStart", JSON.stringify(env.sent[0]));
+  check("…with no modifier held — it is a bare drag", env.sent.length === 1);
+  check("…and the page keeps the event, so nothing else acts on it",
+        prevented === true);
+  check("…and the pointer says it is being dragged",
+        (env.classes.hd || []).indexOf("+dragging") !== -1,
+        JSON.stringify(env.classes.hd));
+  (env.listeners.document.mouseup || (() => {}))({});
+  check("…until the button comes up", 
+        (env.classes.hd || []).indexOf("-dragging") !== -1);
+}
+{
+  const env = load();
+  env.draw(ROWS);
+  const row = (attrs) => ({ target: { closest: () => ({
+    getAttribute: (k) => (k in attrs ? attrs[k] : null) }) } });
+  env.listeners.el["list:click"](row({ "data-i": "2" }));
+  check("🚨 a press on a ROW still picks the track — the grip is the strip, "
+        + "never the whole card",
+        at(env, 0).a === "pick" && at(env, 0).i === 2,
+        JSON.stringify(env.sent[0]));
+}
+
+// =====================================================================
+// 9. the clock
 // =====================================================================
 {
   const env = load();
