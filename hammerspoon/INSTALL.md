@@ -317,9 +317,11 @@ Run it from the **unpacked zip, before Step 3**, not from `~/.hammerspoon`
 copy it reports every Lua stage as missing. That is a skip, not a pass,
 but it is also not a check.
 
-Syntax on `init.lua`, `core/` and all 72 modules, seventy-one Lua suites, then the
-Capture Pad's page JavaScript **executed** against a DOM stub. One exit
-code. A skipped stage is reported as a skip, never as a pass.
+Syntax on `init.lua`, `core/` and all 72 modules, seventy-two Lua suites, then
+five more that **execute** the page JavaScript of the Capture Pad, the
+screenshot editor, unified search, the vault and the music player against a
+DOM stub. One exit code. A skipped stage is reported as a skip, never as a
+pass.
 
 Needs `lua` and `node`, neither of which ships with macOS — so this is a
 personal-Mac tool (`brew install lua node`). On the work Mac use
