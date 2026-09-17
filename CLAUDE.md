@@ -1791,7 +1791,7 @@ THE METHOD, when something breaks after a stacked zip:
    6.216.0 6f06071 · 6.217.0 a475bef · 6.218.0 41b002b · 6.219.0 862c177
    · 6.220.0 ac3975e · 6.221.0 ead07d9 · 6.222.0 1842ca7 · 6.223.0
    86ac82b · 6.224.0 67957ea · 6.225.0 98434fe · 6.226.0 304f1f9 ·
-   6.227.0 14e953a · 6.228.0 2aa3dfe · 6.229.0 a1318e1 · 6.230.0 0740c07 · 6.231.0 c1921af · 6.231.1 5a5c298 · 6.232.0 1ca3f6f · 6.233.0 2328c8c · 6.234.0 57f78d0 · 6.235.0 52e5b21 · 6.236.0 34cff8b · 6.236.1 fdce771 · 6.237.0 adf9256 · 6.238.0 3adad4f · 6.239.0 3adad4f (one commit, two releases) · 6.240.0 8f44bec · 6.241.0 SHA241.
+   6.227.0 14e953a · 6.228.0 2aa3dfe · 6.229.0 a1318e1 · 6.230.0 0740c07 · 6.231.0 c1921af · 6.231.1 5a5c298 · 6.232.0 1ca3f6f · 6.233.0 2328c8c · 6.234.0 57f78d0 · 6.235.0 52e5b21 · 6.236.0 34cff8b · 6.236.1 fdce771 · 6.237.0 adf9256 · 6.238.0 3adad4f · 6.239.0 3adad4f (one commit, two releases) · 6.240.0 8f44bec · 6.241.0 dce517e · 6.242.0 SHA242.
    Keep this list current: one line per release, appended at ceremony
    time.
 4. A BISECT IS AN OPTION, NOT THE FIRST MOVE — it costs him an install
@@ -1867,6 +1867,7 @@ as the fix when a loss lands.
 | 6.239.0 | ⏪ ← → seek 5 s, ⇧← ⇧→ 30 s — his ask, in the same message as the win | pending |
 | 6.240.0 | 💡 the shortcut hint card off on both Macs — two settings lines, no module code | pending |
 | 6.241.0 | 🎯 the cloud folder is watched by its children — this config's own Logs folder was waking the module that writes to it | pending |
+| 6.242.0 | 🧭 `_G.groundReport()` — what THIS Mac answers about the six surfaces the next releases need, with the release each answer decides | pending |
 
 Running total: 15 wins · 8 losses · 22 pending (6.215.0, 6.217.0, 6.218.0,
 6.219.0, 6.220.0, 6.221.0, 6.222.0, 6.223.0, 6.224.0, 6.225.0, 6.226.0,
@@ -1891,6 +1892,38 @@ next boot announced it (LL: "fortunately hammerspoon caught itself"). LL is on
 built. The work Mac's storm report is still owed, on 6.215.0 now.
 
 ## Open items — update as they move
+
+- 🧭 THE GROUND PROBE IS THE INSTRUMENT FOR THE NEW-GROUND HABIT
+  (6.242.0, modules/ground_probe.lua, no key). `_G.groundReport()` asks
+  what THIS Mac answers about six surfaces and writes the RELEASE each
+  answer decides beside it — Accessibility · Secure Input · the focused
+  element's role / AXSelectedTextRange / AXBoundsForRange · a bounded
+  walk of the front window's clickable elements · whether Spotlight
+  still holds ⌘Space · whether a flagsChanged tap can be made. It
+  changes nothing: no key, no store, no tap left running, and the only
+  boot work is one `defaults read` in a task on a held timer.
+  🟥 THE ROW THAT DECIDES A FEATURE OUTRIGHT is AXBoundsForRange, and
+  ITS ANSWER IS PER APP: no rectangle means a pink underline cannot be
+  painted in that app and the alert is the whole feature there. Ask for
+  the report from Chrome, Asana and Mail before building the doubled
+  word — one answer is not the answer.
+  🚨 AN ABSENT HOTKEY IS NOT A DISABLED ONE: macOS writes a shortcut
+  into com.apple.symbolichotkeys only when it is CHANGED, so a Mac
+  nobody has touched has no 64 block and Spotlight still owns ⌘Space.
+  Three answers, not two. `gp.parseSpotlight` is PURE and reads 64's OWN
+  block, stopping at the next key — and the first check on that used a
+  fixture where both implementations agree, passed, and proved nothing
+  (6.230.0's one-hop chain, in a parser). A 64 entry with no flag of its
+  own is the only fixture that tells them apart.
+  📏 `gp.axCount` is bounded four ways (elements · depth · ms · children
+  per element) and NAMES which bound bit, because it walks the AX tree
+  on the main thread; a count taken under a bound prints as a FLOOR
+  (6.197.2). Every bound is driven in the suite by a tree bigger than it
+  — a check that a budget EXISTS is not a check that it BITES.
+  🔒 It never re-probes Secure Input: core/capabilities.lua owns that and
+  asks in a held task, and a source sentry fails if this module ever
+  grows its own ioreg. GENERAL: a probe module reads what other modules
+  already know and asks only what nobody has asked.
 
 - 🧭 THE SEQUENCE (LL, 2026-09-13: "Do bluetooth then the best
   sequence you determine" — his seven asks, my order, one per
@@ -2190,6 +2223,28 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.242.0 verify with LL — 🧭 THE GROUND PROBE (KNOWN GROUND — it only
+  READS): install. Console: `_G.groundReport()` — PASTE THE WHOLE THING.
+  It changes nothing. It binds no key, writes no file and leaves no tap
+  running; it exists so the next four releases are aimed instead of guessed.
+  🟥 THEN RUN IT THREE MORE TIMES, and this is the part only you can do:
+  click the caret INTO a Chrome text box and run it · into an Asana task
+  field and run it · into Mail and run it. Paste all three. The "bounds :"
+  line is the one that matters — "AXBoundsForRange ANSWERED" means a pink
+  underline can be drawn under a doubled word IN THAT APP; "⚠️ no rectangle"
+  means it cannot, and there the feature is the alert. The answer is per
+  app, which is why one run does not answer it.
+  🖱 The "clicks :" line says how many elements the front window has and how
+  many are clickable — that is how many click hints ⇪X would draw, and what
+  asking cost. If it says it stopped at a bound, paste that: the number is a
+  floor, not a total.
+  ⌘space: it should read "Spotlight STILL HAS IT" today. Turn Spotlight's
+  shortcut off (System Settings › Keyboard › Keyboard Shortcuts › Spotlight),
+  run it again, and it must read FREE. That is the gate on the ⌘Space
+  launcher — I will not bind it until this line says FREE on both Macs.
+  WORK MAC TOO: the same report. "access", "secure" and "⌘⌘ / ⌥⌥" are the
+  rows most likely to differ there, and they decide three features.
+
 - 6.241.0 verify with LL — 🎯 IT WAS WAKING ITSELF (KNOWN GROUND):
   install. FIRST, Console: `_G.fileTrackerReport()`.
   The "watching :" list must now name folders INSIDE OneDrive —

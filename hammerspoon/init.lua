@@ -4,9 +4,36 @@
 -- =====================================================================
 -- 09-17-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.241.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.242.0
 -- =====================================================================
 
+-- NEW IN 6.242.0 — 🧭 THE GROUND PROBE (modules/ground_probe.lua, no key):
+--   The instrument behind the habit written down on 2026-09-17, after
+--      6.231.0 → 6.237.0 cost three losses in a row: every release is
+--      labelled KNOWN GROUND or NEW GROUND, and on new ground the FIRST
+--      release is a probe that prints what macOS actually answered.
+--      All three of those losses were at a boundary the gate is blind to
+--      — hs.webview cannot take a drop · a throw in a dragging callback
+--      is silent · Finder hands over an inode — and all three ended the
+--      moment something PRINTED what macOS had said.
+--   🧭 `_G.groundReport()` asks six questions and writes the RELEASE each
+--      answer decides beside it: Accessibility · Secure Input (READ from
+--      capabilities.lua, never re-probed) · the focused element's role,
+--      AXSelectedTextRange and AXBoundsForRange · a bounded walk of the
+--      front window's clickable elements · whether Spotlight still holds
+--      ⌘Space · whether a flagsChanged tap can be made.
+--   🟥 THE ROW THAT DECIDES A FEATURE OUTRIGHT: AXBoundsForRange. With no
+--      rectangle there is nowhere to draw a pink underline, and the
+--      doubled-word alert is the whole feature in that app. The answer is
+--      PER APP, and the report says to run it in each.
+--   🚨 BOUNDED THREE WAYS AND IT SAYS WHICH BOUND BIT — elements, depth,
+--      milliseconds (plus children per element). It walks the AX tree on
+--      the main thread, in the config whose subject is what that costs,
+--      so a count taken under a bound is printed as a FLOOR (6.197.2).
+--   🔒 It changes nothing: no key, no store, no tap left running, and the
+--      only boot work is one `defaults read` in a task on a held timer.
+--      · 9,589 -> 9,646 checks · seven mutations, seven bites.
+--
 -- NEW IN 6.241.0 — 🎯 THE CLOUD FOLDER IS WATCHED BY ITS CHILDREN
 --                  (modules/file_tracker.lua):
 --   6.229.0's rule, one level down, and the receipts were in that same
@@ -36,33 +63,12 @@
 --      so a `folders` override that puts Logs back is reported honestly.
 --      · 9,558 -> 9,589 checks · two mutations, each with its own row.
 --
--- NEW IN 6.240.0 — 💡 THE SHORTCUT HINT CARD IS OFF (init.lua's profiles):
---   LL asked for it off. This release is two settings lines and NOT ONE
---      LINE OF MODULE CODE, which is the whole point of it being written
---      down: `hint.enabled` is read at PRESS time inside _G.shortcutHint,
---      never captured at setup, so the switch modules/shortcut_hints.lua
---      already documents simply works. Nothing is hidden — with it false
---      no canvas is built, no dismiss tap is created and no timer is held.
---   🔌 THAT IS THE 6.228.0 RULE PAYING OFF: a switch is only real if the
---      thing it governs starts AFTER setup. This one does, so there was
---      nothing to fix; window_move's `wm.enabled` is the counter-example
---      and is still decorative for exactly that reason.
---   📍 THE SCALE STAYS BESIDE THE SWITCH on the Air. 1.5 is his own
---      6.167.0 measurement for the LG, and deleting it while the card is
---      off would cost him that tuning the day he turns it back on.
---   🔎 Proven where it lives: test_shortcut_hints already shows that
---      enabled = false draws no card, so the new checks read init.lua's
---      OWN source and count the switch in BOTH named profiles — a
---      settings-only release can be proven nowhere else.
---      Back on, no release: enabled = true in the profile.
---      · 9,556 -> 9,558 checks.
---
--- (6.239.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.240.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.241.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.242.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -159,7 +165,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.241.0"
+_G.configVersion = "6.242.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the
@@ -3060,6 +3066,7 @@ local BASE = {
     "app_kill",           -- 💀 ⇪⇧; end a process, politely then not · macOS's own 🔒
     "power_tools",        -- 🧰 ⇪;  type the clipboard · count · grayscale · free keys
     "shortcut_hints",     -- 💡 after a ⇪ key, a card of the group's other keys (no key)
+    "ground_probe",       -- 🧭 6.242.0 what THIS Mac answers about the surfaces the next releases need (no key)
     "scratch_pad",        -- 📝 the SCORP PAD — ⇪N tabs (⇪1 until 6.182.0), saved as you type, history under the text, 4 PM task
     "vault",              -- 🕸 HAMSIDIAN — ⇪3 linked Markdown notes in OneDrive, backlinks, graph (6.172.0)
     "anchors",            -- 🔗 6.180.0 ⇪⇧U links the front document or tab to a vault note

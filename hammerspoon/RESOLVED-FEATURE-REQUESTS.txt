@@ -1,5 +1,5 @@
 ========================================================================
-RESOLVED FEATURE REQUESTS — Hammerspoon config 6.241.0
+RESOLVED FEATURE REQUESTS — Hammerspoon config 6.242.0
 Every feature and how to use it. Generated from the modules' own
 cheat sheets (the rows ⇪/ draws), so it is never out of date.
 ⇪ = Caps Lock held (the hyper key). ⇪⇧X = Caps Lock + Shift + X.
@@ -724,6 +724,12 @@ In the Console, _G.<tool>Report() prints any tool's own report.
   proof     LaunchServices is read back before the change is believed, twice
   check     _G.defaultAppsReport() — every change this session, with verdicts
 
+🧭 GROUND PROBE (no key — a Console report)   [modules/ground_probe.lua]
+  Console   _G.groundReport() — what macOS answers here, with the release each answer decides
+  reads     Accessibility · Secure Input · the focused text element · the front window's clickable elements · ⌘Space · a modifier tap
+  safe      It changes nothing, binds nothing and writes nothing. Every AX read is timed and the walk is bounded three ways
+  why       On NEW GROUND the first release is a probe that prints what macOS actually said, never a fix built on a belief
+
 ⚙️ RUNS ITSELF — nothing to press, listed so you know it is there
 ------------------------------------------------------------------------
   App Watcher            Notices apps starting and quitting, for the trackers
@@ -756,6 +762,7 @@ In the Console, _G.<tool>Report() prints any tool's own report.
 
 📜 RELEASE INDEX — newest first, one line per release (the full story of each is in CHANGELOG.md)
 ------------------------------------------------------------------------
+  6.242.0  🧭 THE GROUND PROBE (modules/ground_probe.lua, no key)
   6.241.0  🎯 THE CLOUD FOLDER IS WATCHED BY ITS CHILDREN
   6.240.0  💡 THE SHORTCUT HINT CARD IS OFF (init.lua's profiles)
   6.239.0  ⏪ ← → SEEK (modules/music_player.lua)

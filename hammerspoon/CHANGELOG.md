@@ -5,6 +5,78 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.242.0 — 🧭 THE GROUND PROBE (modules/ground_probe.lua, no key):
+  The instrument behind the habit written down on 2026-09-17, and owed to
+  him rather than promised: every release is labelled KNOWN GROUND (the gate
+  can see it — expect it to work) or NEW GROUND (a macOS surface this config
+  has not touched — expect a round), and on new ground the FIRST release is
+  a probe that prints what macOS actually answered, never a fix built on a
+  belief.
+
+  That habit was bought with 6.231.0 → 6.237.0: three losses, and every one
+  of them at a boundary the gate is blind to. hs.webview cannot take a
+  dragged file at all. A throw inside a dragging callback is a silence.
+  Finder hands over `file:///.file/id=6571367.15194583`, an inode, not a
+  path. None of the three could be found by reading Lua, and all three ended
+  within an evening of something PRINTING what macOS had said — twice, that
+  something was LL's own photograph of the card.
+
+  So `_G.groundReport()` asks the questions the NEXT releases depend on and
+  writes the release each answer decides beside it:
+
+    · ACCESSIBILITY — the floor under every tap. Without it hs.eventtap
+      cannot even be CREATED (6.196.0), and a re-grant needs a RELAUNCH, not
+      a reload. Said in those words.
+    · SECURE INPUT — READ from core/capabilities.lua, never re-probed. That
+      module owns the question and asks it in a held task; a second opinion
+      about something the platform already answers is deleted, not tuned
+      (6.202.0). A source check keeps it that way — this module must never
+      grow its own ioreg.
+    · THE FOCUSED ELEMENT — its role, whether it answers
+      AXSelectedTextRange, and whether AXBoundsForRange hands back a
+      RECTANGLE. 🟥 That last one decides the doubled-word mark outright:
+      with no rect there is nowhere to paint a pink underline and the alert
+      is the whole feature in that app. It also bounds what 💾 the draft
+      keeper can see. THE ANSWER IS PER APP — the report says to run it with
+      the caret in Chrome, in Asana and in Mail, because one answer is not
+      the answer.
+    · THE CLICKABLE ELEMENTS — a bounded walk of the front window, counting
+      elements and clickable roles, timed. 🖱 That is click hints: how many
+      hints this window would grow, and what asking costs the main thread —
+      the number 6.228.0 taught this project to fear.
+    · ⌘SPACE — whether Spotlight's own shortcut is still enabled, read out
+      of com.apple.symbolichotkeys in a task.
+    · A flagsChanged TAP — created, started, stopped again. ⌘⌘ and ⌥⌥ are
+      double-taps of a MODIFIER and need that event type or they need
+      nothing.
+
+  🚨 AN ABSENT HOTKEY IS NOT A DISABLED ONE. macOS writes a shortcut into
+  com.apple.symbolichotkeys when it is CHANGED, so a Mac nobody has touched
+  has no 64 block at all — and Spotlight certainly still owns ⌘Space there.
+  Reading "absent" as "off" would report the key as free on the one Mac
+  where it is not. Three answers, not two, and `gp.parseSpotlight` is PURE
+  so all three are proven with no Mac. It reads 64's OWN block and stops at
+  the next key: the first version of that check used a fixture where both
+  implementations agree, passed, and proved nothing — 6.230.0's one-hop
+  chain in a parser. A 64 entry with no flag of its own is what tells them
+  apart.
+
+  🚨 BOUNDED THREE WAYS, AND IT SAYS WHICH BOUND BIT. `gp.axCount` stops on
+  elements, on milliseconds, or descends no deeper, and counts children per
+  element as a fourth. It walks the AX tree ON THE MAIN THREAD, in the
+  config whose whole subject is what the main thread costs, so a count taken
+  under a bound is printed as a FLOOR rather than a total (6.197.2). Every
+  bound is driven in the suite by a tree bigger than it: a check that a
+  budget EXISTS is not a check that it BITES, and that one has been paid for
+  twice already.
+
+  🔒 IT CHANGES NOTHING, and the gate holds it to that: no hyper key, no
+  hs.hotkey, no io.open, no hs.settings, no tap left running. The only work
+  on the boot path is one `defaults read` in a task on a held timer after
+  warm, so his first report has an answer instead of the word "asking".
+
+  · 9,589 -> 9,646 checks · a new suite, seven mutations, seven bites.
+
 NEW IN 6.241.0 — 🎯 THE CLOUD FOLDER IS WATCHED BY ITS CHILDREN
                  (modules/file_tracker.lua):
   6.229.0 wrote the rule: "an exclusion that runs after the expensive thing
