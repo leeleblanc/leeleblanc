@@ -5,6 +5,61 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.235.0 — 🔒 THE DROP THAT LIT UP BLUE AND DID NOTHING
+                 (modules/music_player.lua):
+  LL on 6.234.0: "Turns highlighted blue so it seems to see the file but
+  drop doesn't work."
+
+  THE BLUE IS EVIDENCE AND IT CLEARS HALF THE FEATURE. The veil is drawn
+  from the catcher's "enter" message, so the catcher IS being offered the
+  drag: the canvas exists, its window level is low enough, its
+  mouseCallback is there, and it is registered for dragged types. Every
+  one of those was a guess two days ago and all four are now confirmed by
+  a blue rectangle. Whatever is wrong is in the half AFTER the veil.
+
+  🧷 AND THAT HALF COULD THROW, which is the worst shape a failure can
+  have here. The reader looked like this:
+
+     local ok, u = pcall(hs.pasteboard.readURL, pbName, true)
+     if type(u) == "table" then return table.concat(u, "\n") end
+
+  The pcall wraps the READ. The concat is outside it — and
+  `table.concat` raises on a list holding anything that is not a string
+  or a number. hs.pasteboard's readers answer with whatever LuaSkin made
+  of the objects on that pasteboard, so a list of objects is an ordinary
+  thing to get back, and the raise happened inside a dragging callback,
+  where there is no pcall, no error dialog and nothing in the Console
+  that names the card. The callback simply stopped. The veil had already
+  been taken down by the line above. From the outside: it turns blue and
+  nothing happens.
+
+  `mp.joinLines(v)` is PURE and takes any of it — a string, a list of
+  strings, numbers, or objects carrying a url / path / absoluteString —
+  and skips what it cannot read instead of dying on it.
+
+  🔒 EVERY READER IS NOW WRAPPED WHOLE, not just its hs call, and so is
+  the receive branch itself. A dragging callback that throws does nothing
+  and says nothing, which is indistinguishable from a drop macOS never
+  delivered — so the guard records the throw and takes the degrade door.
+  The check that proves the outer guard makes something AFTER the readers
+  throw, because each reader is already guarded on its own and a pcall in
+  the harness would pass either way (6.212.0: assert what only the branch
+  can do).
+
+  🚚 A FOURTH READER, asked for by name: `public.file-url`, which is the
+  type a Finder drag actually carries. It may well be the whole answer.
+
+  🔎 AND WHEN NOTHING READS, THE REPORT NAMES WHAT THE DRAG WAS CARRYING
+  (`hs.pasteboard.pasteboardTypes`). This is the part that matters if the
+  release does not fix it: without the types, the next report can only
+  say "it did not work" again; with them, one line names the cause.
+
+  📋 SO THE ASK IS ONE LINE EITHER WAY. `_G.musicReport()`'s "drop :"
+  block says whether a drop arrived, which reader answered, and — when
+  none did — what was on the pasteboard.
+
+  9,470 -> 9,487 checks. Six mutations.
+
 NEW IN 6.234.0 — 🕘 THIRTY DAYS OF HISTORY, ONE ROW PER FILE
                  (modules/music_player.lua):
   LL: "it's best if we have it remember 30 days of music track history.

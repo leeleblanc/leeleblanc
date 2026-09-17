@@ -276,6 +276,23 @@ work Mac.
   → getContents), first answer wins, and the report NAMES which: a drop
   that works on one Mac and not the other is otherwise unanswerable. Both
   doors — the catcher and the page's own handler — end in `mp.takeDrop`.
+  🔒 AND A CALLBACK THAT THROWS DOES NOTHING AND SAYS NOTHING (6.235.0,
+  LL: "Turns highlighted blue so it seems to see the file but drop doesn't
+  work"). The blue is EVIDENCE and it cleared half the feature: the veil is
+  drawn from "enter", so the catcher, its level, its mouseCallback and its
+  registration are all confirmed right. What remained could THROW —
+  `table.concat(u, "\n")` raises on a list holding anything that is not a
+  string or a number, hs.pasteboard's readers answer with whatever LuaSkin
+  made of the objects on the pasteboard, and the concat sat OUTSIDE the
+  pcall that wrapped the read, inside a dragging callback where a raise is
+  invisible. `mp.joinLines` is PURE and takes a string, strings, numbers or
+  objects carrying a url; every reader is wrapped WHOLE and so is the
+  receive. GENERAL: inside any platform callback — dragging, tap, timer,
+  task — a throw is a silence, so the guard goes around the WHOLE body, and
+  the check that proves it makes something throw that is not already
+  guarded on its own.
+  🔎 AND WHEN NOTHING READS, NAME WHAT WAS THERE: `pasteboardTypes` rides
+  into the report, because a second "it did not work" is not an artefact.
   🧪 AND THE MUTATION HARNESS LEFT A MUTATION IN THE TREE mid-release,
   which produced a suite that passed standalone and failed under the gate
   — a symptom with no honest explanation, and forty minutes spent
@@ -1671,7 +1688,7 @@ THE METHOD, when something breaks after a stacked zip:
    6.216.0 6f06071 · 6.217.0 a475bef · 6.218.0 41b002b · 6.219.0 862c177
    · 6.220.0 ac3975e · 6.221.0 ead07d9 · 6.222.0 1842ca7 · 6.223.0
    86ac82b · 6.224.0 67957ea · 6.225.0 98434fe · 6.226.0 304f1f9 ·
-   6.227.0 14e953a · 6.228.0 2aa3dfe · 6.229.0 a1318e1 · 6.230.0 0740c07 · 6.231.0 c1921af · 6.231.1 5a5c298 · 6.232.0 1ca3f6f · 6.233.0 2328c8c · 6.234.0 57f78d0.
+   6.227.0 14e953a · 6.228.0 2aa3dfe · 6.229.0 a1318e1 · 6.230.0 0740c07 · 6.231.0 c1921af · 6.231.1 5a5c298 · 6.232.0 1ca3f6f · 6.233.0 2328c8c · 6.234.0 57f78d0 · 6.235.0 PENDING.
    Keep this list current: one line per release, appended at ceremony
    time.
 4. A BISECT IS AN OPTION, NOT THE FIRST MOVE — it costs him an install
@@ -1737,12 +1754,14 @@ as the fix when a loss lands.
 | 6.231.0 | 🎵 the mini music player, ⇪⇧pad. — drop files on a corner card, ↑↓ / ⌘1–9 / space, repeat one or all, elapsed time, history | LOSS — LL: "Can't drop a file on the music player, a drag just puts it behind the player window." The drop — the whole feature — could never have worked: hs.webview has no drag-and-drop at all, and the card was built as a webview because a durable note said the opposite → fix 6.233.0 |
 | 6.231.1 | 🔤 the player's page is RUN by the gate now (stage 3e, 55 checks, 12 mutations) — and it found a track name with an & or a < in it losing half of itself | pending |
 | 6.232.0 | 🪟 the music card moves: ⌘-drag anywhere or a bare drag on its title strip, and it reopens where he left it (it was never in `_G.movablePanels`) | pending — LL: "Shortcuts fixed", which is not his win sentence and does not name the drag; ask |
-| 6.233.0 | 🚚 a dragged file lands on the card — a canvas catcher under it, because hs.webview cannot take a drop and hs.canvas can (the opposite of what 6.231.0 believed) | pending |
+| 6.233.0 | 🚚 a dragged file lands on the card — a canvas catcher under it, because hs.webview cannot take a drop and hs.canvas can (the opposite of what 6.231.0 believed) | LOSS — LL: "Turns highlighted blue so it seems to see the file but drop doesn't work." The catcher was right; the read after it threw → fix 6.235.0 |
 | 6.234.0 | 🕘 thirty days of history, one row per file — the 60-row cap was the memory; days decide now, and the card shows 40 | pending |
+| 6.235.0 | 🔒 the drop lit up blue and did nothing: a `table.concat` on a list of objects threw inside the dragging callback, where a throw is a silence — plus a `public.file-url` reader and a report that names what the drag carried | pending |
 
-Running total: 14 wins · 6 losses · 19 pending (6.215.0, 6.217.0, 6.218.0,
+Running total: 14 wins · 7 losses · 19 pending (6.215.0, 6.217.0, 6.218.0,
 6.219.0, 6.220.0, 6.221.0, 6.222.0, 6.223.0, 6.224.0, 6.225.0, 6.226.0,
-6.227.0, 6.228.0, 6.229.0, 6.230.0, 6.231.1, 6.232.0, 6.233.0, 6.234.0).
+6.227.0, 6.228.0, 6.229.0, 6.230.0, 6.231.1, 6.232.0, 6.233.0, 6.234.0,
+6.235.0).
 6.208.0's stall guard was FIELD-PROVEN 2026-09-13: a ⇪Y Chrome-history
 search beachballed the Air 72 s, the guard killed and relaunched it, the
 next boot announced it (LL: "fortunately hammerspoon caught itself"). LL is on
@@ -2024,6 +2043,19 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.235.0 verify with LL — 🔒 THE DROP, SECOND TRY: install (carries
+  6.234.0). Drag files onto the card exactly as before. The blue is
+  already proof the card SEES the drag; what changed is everything after
+  it. If the tracks land, that is the whole test.
+  🔎 IF IT STILL DOES NOT, one line answers it — Console:
+  `_G.musicReport()`, and paste the two "drop :" lines. When no reader can
+  read the drag they now NAME WHAT IT WAS CARRYING ("nothing readable —
+  the drag carried: public.tiff, …"), and that list is the cause. There is
+  no third guess after that.
+  WHAT THIS WAS: a `table.concat` over a list of objects, which raises,
+  inside a dragging callback — where a raise is a silence. The card lit up
+  and the handler died on the next line.
+
 - 6.234.0 verify with LL — 🕘 THIRTY DAYS, ONE ROW PER FILE: install
   (carries 6.233.0). Play a track, then play it AGAIN, then play a second
   one and come back to the first. The 🕘 history at the bottom of the card

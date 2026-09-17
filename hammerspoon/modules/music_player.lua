@@ -925,38 +925,77 @@ draw(S);
     -- does not register dragged types is SKIPPED by the drag, so the only
     -- thing that ever reaches the catcher is a drag the card refused —
     -- clicks, keys and the scroll wheel still belong to the page.
+    -- 🧷 JOIN WHAT A READER ANSWERED, WHATEVER IT ANSWERED WITH. This is
+    -- the bug LL saw as "it turns blue but the drop does nothing": a bare
+    -- `table.concat(u, "\n")` THROWS on a list holding anything that is
+    -- not a string or a number, and hs.pasteboard's readers answer with
+    -- whatever LuaSkin made of the objects on that pasteboard. The throw
+    -- happened INSIDE a dragging callback, where there is nothing to catch
+    -- it and nothing to see — the veil had already been taken down.
+    function mp.joinLines(v)
+        if type(v) == "string" then return v end
+        if type(v) ~= "table" then return nil end
+        local out = {}
+        for _, item in ipairs(v) do
+            if type(item) == "string" then
+                out[#out + 1] = item
+            elseif type(item) == "number" then
+                out[#out + 1] = tostring(item)
+            elseif type(item) == "table" then
+                -- Some readers answer with a table per item; the url is
+                -- whatever string is in it.
+                for _, k in ipairs({ "url", "path", "absoluteString", 1 }) do
+                    if type(item[k]) == "string" then
+                        out[#out + 1] = item[k] ; break
+                    end
+                end
+            end
+        end
+        if #out == 0 then return nil end
+        return table.concat(out, "\n")
+    end
+
     function mp.dropPaths(pbName)
         -- Every reader macOS might answer on, first that yields a path
         -- wins, and the report names WHICH — a drop that fails on one Mac
         -- and works on another is otherwise unanswerable.
+        if pbName == false then pbName = nil end
         local tries = {
             { "readURL", function()
-                local ok, u = pcall(hs.pasteboard.readURL, pbName, true)
-                if not (ok and u) then return nil end
-                if type(u) == "string" then return u end
-                if type(u) == "table" then return table.concat(u, "\n") end
-                return nil
+                return mp.joinLines(select(2, pcall(hs.pasteboard.readURL,
+                                                    pbName, true)))
+            end },
+            -- public.file-url is the type a Finder drag actually carries,
+            -- asked for by name in case the object readers do not see it.
+            { "file-url", function()
+                return mp.joinLines(select(2, pcall(hs.pasteboard.readDataForUTI,
+                                                    pbName, "public.file-url")))
             end },
             { "readString", function()
-                local ok, t = pcall(hs.pasteboard.readString, pbName, true)
-                if not (ok and t) then return nil end
-                if type(t) == "string" then return t end
-                if type(t) == "table" then return table.concat(t, "\n") end
-                return nil
+                return mp.joinLines(select(2, pcall(hs.pasteboard.readString,
+                                                    pbName, true)))
             end },
             { "getContents", function()
-                local ok, t = pcall(hs.pasteboard.getContents, pbName)
-                return (ok and type(t) == "string") and t or nil
+                return mp.joinLines(select(2, pcall(hs.pasteboard.getContents,
+                                                    pbName)))
             end },
         }
         for _, t in ipairs(tries) do
-            local raw = t[2]()
-            if raw and raw ~= "" then
+            -- 🔒 EVERY READER IS WRAPPED WHOLE, not just its hs call. A
+            -- throw here reaches a dragging callback, and a callback that
+            -- throws does nothing and says nothing.
+            local okR, raw = pcall(t[2])
+            if okR and raw and raw ~= "" then
                 local paths = mp.pathsFromURIList(raw)
                 if #paths > 0 then return paths, t[1] end
             end
         end
-        return {}, "nothing readable"
+        -- 🔎 NOTHING ANSWERED — so say what the drag was actually CARRYING.
+        -- Without this the next report can only repeat "it did not work".
+        local okT, types = pcall(hs.pasteboard.pasteboardTypes, pbName)
+        local list = okT and mp.joinLines(types) or nil
+        return {}, "nothing readable" .. (list
+               and (" — the drag carried: " .. list:gsub("\n", ", ")) or "")
     end
 
     function mp.startCatcher(rect)
@@ -1005,11 +1044,23 @@ draw(S);
                     pcall(function()
                         mp.webview:evaluateJavaScript("dropShow(false);")
                     end)
-                    local pb = type(details) == "table" and details.pasteboard
-                    local paths, how = mp.dropPaths(pb)
-                    mp.dropReader = how
-                    mp.dragSeen = #paths .. " file(s) dropped on the card"
-                    mp.takeDrop(paths, nil)
+                    -- 🔒 THE WHOLE RECEIVE IS WRAPPED. A dragging callback
+                    -- that throws does nothing at all and says nothing at
+                    -- all, which is indistinguishable from a drop macOS
+                    -- never delivered — and that is exactly the shape LL
+                    -- reported: the card lit up and then nothing happened.
+                    local okR, err = pcall(function()
+                        local pb = type(details) == "table"
+                                   and details.pasteboard or nil
+                        local paths, how = mp.dropPaths(pb)
+                        mp.dropReader = how
+                        mp.dragSeen = #paths .. " file(s) dropped on the card"
+                        mp.takeDrop(paths, nil)
+                    end)
+                    if not okR then
+                        mp.dragSeen = "a drop arrived and the handler threw"
+                        degrade("the drop could not be read — " .. tostring(err))
+                    end
                     return true
                 end
                 return true

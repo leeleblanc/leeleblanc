@@ -163,17 +163,31 @@ hs.canvas = {
 }
 -- The drag pasteboard. macOS answers on whichever reader it feels like,
 -- so each can be silenced independently and the ORDER is what is proven.
-PB = { url = nil, str = nil, contents = nil }
+-- 🧪 AND EVERY READER CAN BE MADE TO THROW, because macOS's do: the bug
+-- this suite could not see was a throw inside a dragging callback, where
+-- nothing catches it and nothing is printed.
+PB = { url = nil, str = nil, contents = nil, uti = nil, types = nil,
+       throw = {} }
 hs.pasteboard = {
     readURL = function(name, all)
+        if PB.throw.url then error("readURL blew up") end
         if PB.url == nil then return nil end
         return all and PB.url or PB.url[1]
     end,
+    readDataForUTI = function(name, uti)
+        if PB.throw.uti then error("readDataForUTI blew up") end
+        return PB.uti
+    end,
     readString = function(name, all)
+        if PB.throw.str then error("readString blew up") end
         if PB.str == nil then return nil end
         return all and PB.str or PB.str[1]
     end,
-    getContents = function(name) return PB.contents end,
+    getContents = function(name)
+        if PB.throw.contents then error("getContents blew up") end
+        return PB.contents
+    end,
+    pasteboardTypes = function(name) return PB.types end,
 }
 
 -- 🔊 hs.sound, and it can be made to behave badly on purpose.
@@ -275,7 +289,8 @@ local function reset()
     mp.pos, mp.posWhy = nil, "not opened yet"
     SCREENS = { { x = 0, y = 0, w = 1440, h = 900 } }
     CANVASES, NO_CANVAS, NO_DRAGCB = {}, false, false
-    PB = { url = nil, str = nil, contents = nil }
+    PB = { url = nil, str = nil, contents = nil, uti = nil, types = nil,
+           throw = {} }
     mp.catcher, mp.dropReader = nil, nil
     mp.dropWhy, mp.dragSeen = "not opened yet", "no drag yet this session"
 end
@@ -1205,10 +1220,108 @@ local rh = report()
 check("📋 the report says the window, not just a count",
       rh:find("30 day", 1, true) and rh:find("one row per file", 1, true), rh)
 
+-- ---- §18 the drop that lit up and did nothing --------------------------
+-- 🚚 6.235.0. LL on 6.234.0: "Turns highlighted blue so it seems to see the
+-- file but drop doesn't work." The blue proves the catcher IS being offered
+-- the drag — registration, level and mouseCallback are all right — so the
+-- failure is in the half AFTER it, and a throw in there is invisible: the
+-- callback dies, the veil is already down, and nothing is printed anywhere.
+
+-- 🧷 PURE: joining whatever a reader answered with
+check("🧷 a reader that answers with one string is taken as it is",
+      mp.joinLines("file:///m/a.mp3") == "file:///m/a.mp3")
+check("...a list of strings becomes lines",
+      mp.joinLines({ "a", "b" }) == "a\nb")
+check("🚨 ...AND A LIST HOLDING A TABLE DOES NOT THROW — this is the bug: "
+      .. "table.concat blows up on anything that is not a string, inside a "
+      .. "callback with nothing to catch it",
+      (function()
+          local ok, v = pcall(mp.joinLines, { { url = "file:///m/a.mp3" } })
+          return ok and v == "file:///m/a.mp3"
+      end)())
+check("...and a table it cannot read a url out of is skipped, not fatal",
+      (function()
+          local ok, v = pcall(mp.joinLines, { { nope = true }, "file:///m/b.mp3" })
+          return ok and v == "file:///m/b.mp3"
+      end)())
+check("...nothing usable answers nil rather than an empty string",
+      mp.joinLines({}) == nil and mp.joinLines({ true }) == nil)
+check("...and a number is a line, not a crash", mp.joinLines({ 7 }) == "7")
+check("...a non-table, non-string is nil", mp.joinLines(nil) == nil)
+
+-- 🚨 THE SHAPE THAT BIT: a reader answering with OBJECTS, not strings.
+-- A bare table.concat over this throws, and the throw is inside a
+-- dragging callback where nothing catches it.
+reset() ; mp.show()
+FILES["/m/obj.mp3"] = true
+PB.url = { { url = "file:///m/obj.mp3" } }
+drag("receive")
+check("🚚 a pasteboard reader that answers with objects still lands the "
+      .. "file — this is the drop that lit up blue and did nothing",
+      #mp.queue == 1 and mp.queue[1].path == "/m/obj.mp3",
+      #mp.queue .. " " .. tostring(mp.queue[1] and mp.queue[1].path))
+
+-- a reader that throws must not end the drop
+reset() ; mp.show()
+FILES["/m/ok.mp3"] = true
+PB.throw.url = true
+PB.str = { "file:///m/ok.mp3" }
+drag("receive")
+check("🔒 a reader that THROWS is stepped over, and the next one answers",
+      #mp.queue == 1 and mp.dropReader == "readString", tostring(mp.dropReader))
+
+-- the file-url reader, which is the type a Finder drag really carries
+reset() ; mp.show()
+FILES["/m/u.mp3"] = true
+PB.uti = "file:///m/u.mp3"
+drag("receive")
+check("🚚 public.file-url is asked for BY NAME — it is the type a Finder "
+      .. "drag actually carries", #mp.queue == 1 and mp.dropReader == "file-url",
+      tostring(mp.dropReader))
+
+-- every reader throwing is a NAMED state, never a silent nothing
+reset() ; mp.show()
+PB.throw = { url = true, uti = true, str = true, contents = true }
+local okDrag = pcall(drag, "receive")
+check("🔔 every reader throwing does not throw out of the callback",
+      okDrag == true)
+check("...and the card says a drop arrived and could not be read",
+      #mp.refused == 1, #mp.refused)
+-- 🧪 pcall around the harness's own call cannot prove the WRAP — it
+-- catches the throw either way, and every READER is already guarded on
+-- its own. What the outer guard exists for is everything AFTER them, so
+-- that is what is made to throw (6.212.0: assert what only the branch
+-- can do).
+reset() ; mp.show()
+local realTake = mp.takeDrop
+mp.takeDrop = function() error("filing blew up") end
+PB.url = { "file:///m/a.mp3" }
+local okOuter = pcall(drag, "receive")
+mp.takeDrop = realTake
+check("🔒 a throw AFTER the readers does not escape the callback either",
+      okOuter == true)
+check("...and the guard records it, where a bare callback would record "
+      .. "nothing at all", tostring(mp.dragSeen):find("threw", 1, true) ~= nil,
+      tostring(mp.dragSeen))
+check("...through the 🔔 door, so it is not a silence he has to notice",
+      #DEGRADED > 0, table.concat(DEGRADED, " | "))
+
+-- 🔎 and when nothing is readable, the report says what the drag CARRIED
+reset() ; mp.show()
+PB.types = { "public.tiff", "com.apple.pasteboard.promised-file-url" }
+drag("receive")
+check("🔎 a drop nothing could read NAMES THE TYPES it was carrying — "
+      .. "without that the next report can only repeat 'it did not work'",
+      tostring(mp.dropReader):find("public.tiff", 1, true) ~= nil,
+      tostring(mp.dropReader))
+local r18 = report()
+check("...and the report carries it to him",
+      r18:find("public.tiff", 1, true) ~= nil, r18)
+
 -- 🚨 The section asserts its own check count (6.186.0): a throw would
 -- delete every check after it while the run still said "0 failed".
 check("🚨 the suite asserted every check it was written to make",
-      (pass + fail) >= 165, pass + fail)
+      (pass + fail) >= 180, pass + fail)
 
 os.execute("true")
 realPrint(table.concat(PRINTED, "\n"))

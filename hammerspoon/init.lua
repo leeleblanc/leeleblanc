@@ -4,9 +4,35 @@
 -- =====================================================================
 -- 09-16-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.234.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.235.0
 -- =====================================================================
 
+-- NEW IN 6.235.0 — 🔒 THE DROP THAT LIT UP BLUE AND DID NOTHING
+--                  (modules/music_player.lua):
+--   LL on 6.234.0: "Turns highlighted blue so it seems to see the file but
+--      drop doesn't work." The blue is evidence, and it clears half the
+--      feature outright: the catcher IS being offered the drag, so the
+--      canvas, its window level, its mouseCallback and its registration
+--      are all right. Everything left is in the half AFTER the veil.
+--   🧷 AND THAT HALF COULD THROW. `table.concat(u, "\n")` blows up on a
+--      list holding anything that is not a string or a number, and
+--      hs.pasteboard's readers answer with whatever LuaSkin made of the
+--      objects on that pasteboard. The concat sat OUTSIDE the pcall that
+--      wrapped the read, inside a dragging callback — where a throw is
+--      invisible: the callback dies, the veil is already down, and
+--      nothing is printed anywhere. `mp.joinLines` is PURE and takes a
+--      string, a list of strings, numbers, or objects carrying a url;
+--      anything it cannot read is skipped rather than fatal.
+--   🔒 EVERY READER IS WRAPPED WHOLE now, and so is the receive itself —
+--      a callback that throws does nothing and says nothing, which is
+--      indistinguishable from a drop macOS never delivered.
+--   🚚 A FOURTH READER: `public.file-url` asked for by name, which is the
+--      type a Finder drag actually carries.
+--   🔎 AND WHEN NOTHING READS, THE REPORT NAMES WHAT THE DRAG CARRIED
+--      (hs.pasteboard.pasteboardTypes). Without it the next report can
+--      only repeat "it did not work"; with it, one line names the cause.
+--      · 9,470 -> 9,487 checks · six mutations.
+--
 -- NEW IN 6.234.0 — 🕘 THIRTY DAYS OF HISTORY, ONE ROW PER FILE
 --                  (modules/music_player.lua):
 --   LL: "it's best if we have it remember 30 days of music track history.
@@ -31,47 +57,12 @@
 --      would have gone on passing for the wrong reason. Re-armed in the
 --      same release with a recent stamp.
 --
--- NEW IN 6.233.0 — 🚚 A DRAGGED FILE LANDS ON THE MUSIC CARD, AND IT NEVER
---                  COULD BEFORE (modules/music_player.lua):
---   LL: "Can't drop a file on the music player, a drag just puts it behind
---      the player window." That last clause is the diagnosis — the drag was
---      not being refused, it was passing THROUGH, which is what macOS does
---      to a window that has not registered for dragged types.
---   🚨 AND 6.231.0 BELIEVED THE EXACT OPPOSITE. Its own note reads "hs.canvas
---      has NO drop target at all — anything droppable in this config must be
---      a webview", and that is backwards. Checked in the source this time,
---      not remembered: extensions/webview/libwebview.m contains the string
---      "dragg" ZERO times — hs.webview has no drag-and-drop of any kind —
---      while extensions/canvas/libcanvas.m has `hs.canvas:draggingCallback`,
---      NSDraggingDestination methods and registerForDraggedTypes. The card
---      was built as a webview BECAUSE of that false fact, and the one
---      feature he was told to test could never have worked on any Mac.
---   🎯 THE CATCHER SITS UNDER THE CARD. An invisible canvas at the card's
---      exact frame, at `windowLevels.dragging` with a placeholder
---      mouseCallback — both conditions hs.canvas's own documentation states.
---      The webview stays above it at bringToFront(true), and a window that
---      does not register dragged types is SKIPPED, so the only thing that
---      ever reaches the catcher is a drag the card refused: clicks, keys and
---      the wheel still belong to the page. It moves with the card and is
---      deleted with it.
---   📋 THE PASTEBOARD IS ASKED THREE WAYS (readURL → readString →
---      getContents), first that answers wins, and the report NAMES which —
---      a drop that works on one Mac and not the other is otherwise
---      unanswerable. The paths go through `mp.pathsFromURIList`, the same
---      parser as before, so the percent-escaping is already proven.
---   🚪 ONE DOOR: both the catcher and the page's own HTML5 handler end in
---      `mp.takeDrop`, or the two behaviours drift and only one is tested.
---   🔔 Four ways it can fail, each its own state and each through the door:
---      no hs.canvas at all · a canvas that will not be made · a Hammerspoon
---      whose canvas cannot take drags · a drop carrying no path.
---      · 9,424 -> 9,451 checks · sixteen mutations.
---
--- (6.232.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.233.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.234.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.235.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -168,7 +159,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.234.0"
+_G.configVersion = "6.235.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the
