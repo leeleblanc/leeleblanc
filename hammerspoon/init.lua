@@ -1921,7 +1921,7 @@ local function hyperPauseWrap(combo, fn, record)
             -- keyboard instead of showing a gap.
             if record and _G.keyTrailRecord then
                 -- named by the module that OWNS the key, not by the pause:
-                -- "⇪1 · scratch pad · ⏸ paused" is the row that explains
+                -- "⇪N · Scorp Pad · ⏸ paused" is the row that explains
                 -- itself. hyperBind filed that owner under the combo.
                 pcall(_G.keyTrailRecord, combo,
                       (_G.hyperBound and _G.hyperBound[combo]) or "paused", 0, "paused")
@@ -3025,7 +3025,7 @@ local BASE = {
     -- 6.103.0
     "window_return",      -- 🔁 dock back in, windows go back (no key)
     -- 6.104.0 win_pin (⇪⇧U) lived here until 6.166.0 — LL: "remove the
-    -- Window Pin since we have this tool now" (the ⇪1 scratch pad's 📌).
+    -- Window Pin since we have this tool now" (the Scorp Pad's 📌, ⇪N).
     -- 6.105.0
     "ocr_engine",         -- 🔍 ⇪O search · ⇪⇧O edit (was §2 of this file)
     "daily_rollup",       -- 📊 16:01 card over the tracker and the pad
@@ -3046,8 +3046,8 @@ local BASE = {
     "app_kill",           -- 💀 ⇪⇧; end a process, politely then not · macOS's own 🔒
     "power_tools",        -- 🧰 ⇪;  type the clipboard · count · grayscale · free keys
     "shortcut_hints",     -- 💡 after a ⇪ key, a card of the group's other keys (no key)
-    "scratch_pad",        -- 📝 ⇪N tabs (⇪1 until 6.182.0), saved as you type, history under the text, 4 PM task
-    "vault",              -- 🕸 ⇪3 linked Markdown notes in OneDrive, backlinks, graph (6.172.0)
+    "scratch_pad",        -- 📝 the SCORP PAD — ⇪N tabs (⇪1 until 6.182.0), saved as you type, history under the text, 4 PM task
+    "vault",              -- 🕸 HAMSIDIAN — ⇪3 linked Markdown notes in OneDrive, backlinks, graph (6.172.0)
     "anchors",            -- 🔗 6.180.0 ⇪⇧U links the front document or tab to a vault note
     "stall_guard",        -- 🧊 6.208.0 a second process relaunches a beach-balled Hammerspoon (no key)
     "hyper_storm",        -- 🌩 6.214.1 a latched ⇪ running your typing as shortcuts releases itself and writes a report (no key)
