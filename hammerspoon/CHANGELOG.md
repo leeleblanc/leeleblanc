@@ -5,6 +5,68 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.237.0 — 🆔 A FINDER DRAG HANDS BACK A REFERENCE, NOT A PATH
+                 (modules/music_player.lua):
+  LL's card is the whole artefact, and it named the cause itself:
+
+     ⚠️ .15194583 is not an audio file this can play
+
+  over an empty queue, on a drag of eleven mp3s out of Finder. By 6.235.0
+  the READING was working — what it read was never a path. macOS puts FILE
+  REFERENCE URLs on a drag pasteboard:
+
+     file:///.file/id=6571367.15194583
+
+  which names a file by its volume and its inode and carries no name and no
+  extension at all. `mp.extOf` took the digits after the last dot for a file
+  type, and `playableFor` said, truthfully and uselessly, that .15194583 is
+  not an audio file. Two screenshots, two different inodes — which is what
+  said "time or inode" rather than "a bug in one file".
+
+  🔗 A BOOKMARK RESOLVES ONE. realpath does NOT, and that was CHECKED IN THE
+  SOURCE rather than assumed (Libc, stdlib/FreeBSD/realpath.c): realpath
+  walks a path one component at a time and REPLACES each component with the
+  real NAME that getattrlist answers for it. So realpath("/.file/id=…")
+  comes back as "/.file/Max McNown - A Lot More Free.mp3" — the right name
+  in a folder that holds nothing. It even ends in .mp3, so the obvious fix
+  would have filled the queue with rows that look perfect and cannot open,
+  and the next report would have been "it says it is playing and there is no
+  sound". `hs.fs.pathToBookmark` + `hs.fs.pathFromBookmark` is the round
+  trip that does resolve it: making a bookmark records where the file
+  actually is, and reading it back answers that path.
+
+  `mp.isRefPath` and `mp.resolveRefs(paths, resolve)` are PURE — the
+  resolver is an ARGUMENT, so every branch is proven with a table and no
+  Mac. An answer is only taken when it is ABSOLUTE and is not itself a
+  reference; realpath's own answer has its own row, because that is the
+  plausible wrong answer, not an imaginary one. A resolver that throws
+  keeps the path: this runs inside a dragging callback, where a throw is a
+  silence (6.235.0).
+
+  📁 AND THE PLAIN-PATH FLAVOUR IS ASKED FIRST. NSFilenamesPboardType is a
+  plist ARRAY OF POSIX PATHS, so where macOS still offers it the whole
+  problem never arises. Five readers now, in order — filenames, readURL,
+  public.file-url, readString, getContents — and the report names which one
+  answered and what became of the references, because a drop that works on
+  one Mac and not the other is otherwise unanswerable.
+
+  🔑 THE ESCAPES BELONG TO THE URL, NOT TO THE PATH. Percent-decoding now
+  happens only for a line that came from a file:// URL. A plain POSIX path
+  may legally hold a % and two hex digits — "50%25 off.mp3" is a real file
+  name — and decoding one makes a path that is not there.
+
+  🔔 A reference this Mac cannot resolve is REFUSED BY NAME: "macOS handed a
+  file reference, not a path — this Mac could not turn it back into a
+  file". A true sentence about a string that was never a name is the one
+  answer he cannot act on.
+
+  🧪 Eleven mutations, eleven bites, and two of them were paid for twice:
+  the throwing-resolver check KILLED the suite instead of failing it until
+  the test pcall'd its own call (6.186.0, again), and the "no hs.fs" check
+  passed with the guard deleted because `pcall(nil, p)` is already false —
+  it takes hs.fs away ENTIRELY now, which is the case the guard is really
+  for. · 9,501 -> 9,522 checks.
+
 NEW IN 6.236.1 — 🚨 A READER'S ERROR MESSAGE IS NOT A FILE
                  (modules/music_player.lua):
   Caught by the gate before LL ever ran it, and only because the gate runs

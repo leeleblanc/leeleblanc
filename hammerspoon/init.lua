@@ -2,11 +2,39 @@
 -- * Working VERSION *
 -- =====================================================================
 -- =====================================================================
--- 09-16-26 using Claude          ← EDITED date. Bumped with every release.
+-- 09-17-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.236.1
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.237.0
 -- =====================================================================
 
+-- NEW IN 6.237.0 — 🆔 A FINDER DRAG HANDS BACK A REFERENCE, NOT A PATH
+--                  (modules/music_player.lua):
+--   LL's card is the whole artefact: "⚠️ .15194583 is not an audio file
+--      this can play", over an empty queue. By 6.235.0 the READING worked
+--      — what it read was never a path. macOS puts FILE REFERENCE URLs on
+--      a drag pasteboard — file:///.file/id=6571367.15194583 — which name
+--      a file by volume and inode and carry no name and no extension at
+--      all. This module read the inode as a file type.
+--   🔗 A BOOKMARK RESOLVES ONE, and realpath does NOT — checked in Libc's
+--      own source (stdlib/FreeBSD/realpath.c), not remembered: realpath
+--      walks a path a component at a time and REPLACES each with the real
+--      NAME getattrlist answers, so it hands back "/.file/Max McNown - A
+--      Lot More Free.mp3" — the right name in a folder that holds nothing,
+--      ending in .mp3, which would have filled the queue with rows that
+--      look perfect and cannot open. An answer that is itself a reference
+--      is refused, and that has its own row.
+--   📁 The plain-path flavour is asked FIRST: NSFilenamesPboardType is a
+--      plist ARRAY OF POSIX PATHS, so where macOS still offers it nothing
+--      needs resolving at all. The report names which reader answered and
+--      what became of the references.
+--   🔑 Escapes are undone for a file:// URL and NOT for a POSIX path —
+--      "50%25 off.mp3" is a real file name, and decoding one makes a path
+--      that is not there.
+--   🔔 A reference this Mac cannot resolve is REFUSED BY NAME. A true
+--      sentence about a string that was never a name is the one answer he
+--      cannot act on.
+--      · 9,501 -> 9,522 checks · eleven mutations.
+--
 -- NEW IN 6.236.1 — 🚨 A READER'S ERROR MESSAGE IS NOT A FILE
 --                  (modules/music_player.lua):
 --   Caught by the gate, before LL ever ran it, and only because the gate
@@ -26,40 +54,12 @@
 --      0 now and the message is exactly what the test asked for.
 --      · 9,500 -> 9,501 checks.
 --
--- NEW IN 6.236.0 — 🖥 A PANEL OPENS WHERE YOU ARE LOOKING, AND
---                  `mainWindow` LOSES ITS PLACE (init.lua §1.5):
---   LL, for the second time: "the cheat sheet appears on the monitor that
---      was active and not the monitor where the mouse/active app resides,
---      entirely on a different desktop." 6.196.0 answered one half of that
---      — a remembered position is an OFFSET INTO ITS SCREEN, not a pair of
---      desktop coordinates — and left the half that picks the screen
---      untouched. This is that half.
---   🖱 `frontApp:focusedWindow() or frontApp:mainWindow()` was the order.
---      mainWindow() is NOT "the window he is using": it is the window the
---      APP calls primary, which for a multi-window app across two monitors
---      is routinely the other one, and for an app whose windows sit on
---      another Space is a window he cannot see. A stale monitor, which is
---      the word he used. THE POINTER OUTRANKS IT NOW — a focused window
---      still wins, but with none the MOUSE decides, because the pointer is
---      where the person is looking and is never ambiguous about which
---      display that is. His own sentence treats the two as one place.
---   🔒 `_G.baseScreenPick(facts)` is PURE and answers the screen AND WHICH
---      RULE decided, so the order is proven with no Mac and lifted out of
---      this file by the gate rather than retyped there. Eighteen modules
---      and the cheat sheet place their panels through resolveBaseScreen,
---      so the order is one rule in one place on purpose.
---   🖥 `_G.screenReport()` names the rule that placed the last panel and
---      what each candidate would answer right now — asked because this has
---      been reported twice and neither report could say which screen the
---      config had chosen or why.
---      · eight mutations.
---
--- (6.235.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.236.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.236.1
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.237.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -156,7 +156,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.236.1"
+_G.configVersion = "6.237.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the

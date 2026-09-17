@@ -167,7 +167,7 @@ hs.canvas = {
 -- this suite could not see was a throw inside a dragging callback, where
 -- nothing catches it and nothing is printed.
 PB = { url = nil, str = nil, contents = nil, uti = nil, types = nil,
-       throw = {} }
+       plist = nil, throw = {} }
 hs.pasteboard = {
     readURL = function(name, all)
         -- level 0: no "file:line:" prefix, so the message is EXACTLY what
@@ -194,7 +194,42 @@ hs.pasteboard = {
         return PB.contents
     end,
     pasteboardTypes = function(name) return PB.types end,
+    -- 📁 NSFilenamesPboardType — a plist ARRAY OF POSIX PATHS, which is
+    -- the flavour that never needed resolving at all.
+    readPListForUTI = function(name, uti)
+        if PB.throw.plist then error("readPListForUTI blew up") end
+        if uti ~= "NSFilenamesPboardType" then return nil end
+        return PB.plist
+    end,
 }
+
+-- 🔗 hs.fs, for the bookmark round-trip that turns a file reference back
+-- into a file. BOOKMARKS is the stub Mac's own record of where each
+-- reference really points; a reference not in it resolves to nothing, the
+-- way a file that has gone would.
+BOOKMARKS = {}
+NO_BOOKMARK = false
+BOOKMARK_THROW = false
+hs.fs.pathToBookmark = function(path)
+    if NO_BOOKMARK then error("no bookmark here", 0) end
+    if BOOKMARKS[path] == nil then return nil end
+    return "bookmark:" .. path
+end
+-- 🧪 It answers `nil, why` on a failure, exactly as the real one does — a
+-- stub that simply returns nothing cannot see a caller reading two values
+-- where there are three (6.193.0, 6.179.0).
+hs.fs.pathFromBookmark = function(data)
+    -- 🧪 A REAL FAILURE'S MESSAGE BEGINS WITH A PATH (6.236.1), and level 0
+    -- so the fake has the shape the real one has.
+    if BOOKMARK_THROW then
+        error("/m/its-own-traceback.mp3:99: resolving blew up", 0)
+    end
+    if type(data) ~= "string" then return nil, "not bookmark data" end
+    local path = data:match("^bookmark:(.*)$")
+    local real = path and BOOKMARKS[path]
+    if not real then return nil, "could not resolve" end
+    return real
+end
 
 -- 🔊 hs.sound, and it can be made to behave badly on purpose.
 hs.sound = {
@@ -296,9 +331,11 @@ local function reset()
     SCREENS = { { x = 0, y = 0, w = 1440, h = 900 } }
     CANVASES, NO_CANVAS, NO_DRAGCB = {}, false, false
     PB = { url = nil, str = nil, contents = nil, uti = nil, types = nil,
-           throw = {}, throwMsg = nil }
+           plist = nil, throw = {}, throwMsg = nil }
+    BOOKMARKS, NO_BOOKMARK, BOOKMARK_THROW = {}, false, false
     mp.catcher, mp.dropReader = nil, nil
     mp.dropWhy, mp.dragSeen = "not opened yet", "no drag yet this session"
+    mp.dropRefs = "nothing read yet"
 end
 
 -- 🧪 The catcher, and the drag that reaches it. Both answer falsely
@@ -1345,10 +1382,178 @@ local r18 = report()
 check("...and the report carries it to him",
       r18:find("public.tiff", 1, true) ~= nil, r18)
 
+-- ---- §19 a Finder drag hands back a reference, not a path -------------
+-- 🆔 6.237.0, and LL's card is the whole artefact: "⚠️ .15194583 is not an
+-- audio file this can play" over an empty queue. By 6.235.0 the read was
+-- working — what it read was file:///.file/id=6571367.15194583, a FILE
+-- REFERENCE URL, which names a file by volume and inode and carries no
+-- name and no extension. This module took the inode for a file type.
+
+check("🆔 a reference path is recognised",
+      mp.isRefPath("/.file/id=6571367.15194583") == true)
+check("...and an ordinary path is not",
+      mp.isRefPath("/Users/lee/Music/a.mp3") == false)
+check("...and neither is a nil or a name that merely mentions it",
+      mp.isRefPath(nil) == false and mp.isRefPath("/m/.file-notes.mp3") == false)
+
+-- 🔤 THE MESSAGE HE ACTUALLY SAW. A true sentence about a string that was
+-- never a name is the one answer he cannot act on.
+local refWhy = select(2, mp.playableFor("/.file/id=6571367.15194583"))
+check("🔔 a reference names ITSELF in the refusal — not the inode as a "
+      .. "file type, which is what the card said",
+      refWhy:find("file reference", 1, true) ~= nil
+      and refWhy:find("15194583", 1, true) == nil, refWhy)
+
+-- 🧷 PURE, given the resolver
+local asked = {}
+local function fakeResolve(p)
+    asked[#asked + 1] = p
+    return ({ ["/.file/id=1.2"] = "/m/Real Name.mp3" })[p]
+end
+local rp, fixed, stuck = mp.resolveRefs({ "/.file/id=1.2", "/m/plain.mp3" },
+                                        fakeResolve)
+check("🔗 a reference is turned back into the file it points at",
+      rp[1] == "/m/Real Name.mp3" and fixed == 1 and stuck == 0,
+      table.concat(rp, " | "))
+check("...an ordinary path is passed through untouched",
+      rp[2] == "/m/plain.mp3")
+check("...and is never handed to the resolver at all — a plain path has "
+      .. "nothing to resolve and a bookmark costs a file read",
+      #asked == 1 and asked[1] == "/.file/id=1.2", #asked)
+
+-- 🚨 THE ANSWER realpath GIVES, AND WHY IT IS REFUSED. Libc's realpath
+-- (stdlib/FreeBSD/realpath.c, checked in the source) replaces each
+-- component with the real NAME from getattrlist, so it answers
+-- "/.file/Max McNown - A Lot More Free.mp3" — the right name in a folder
+-- that holds nothing. It even ends in .mp3, so a queue would fill with
+-- rows that look perfect and cannot open.
+local rp2, f2, s2 = mp.resolveRefs({ "/.file/id=1.2" }, function()
+    return "/.file/Max McNown - A Lot More Free.mp3"
+end)
+check("🚨 an answer that is ITSELF a reference is refused, however much "
+      .. "it looks like a file — this is realpath's answer",
+      rp2[1] == "/.file/id=1.2" and f2 == 0 and s2 == 1, rp2[1])
+local rp3, f3, s3 = mp.resolveRefs({ "/.file/id=1.2" }, function()
+    return "Max.mp3"
+end)
+check("...and so is a relative one", rp3[1] == "/.file/id=1.2" and s3 == 1)
+-- 🧪 pcall'd HERE so a missing guard fails a check instead of ending the
+-- run with "0 failed" never printed (6.186.0).
+local ok4, rp4, f4, s4 = pcall(mp.resolveRefs, { "/.file/id=1.2" }, function()
+    error("resolving blew up")
+end)
+check("🔒 a resolver that THROWS keeps the path and does not escape — "
+      .. "this runs inside a dragging callback",
+      ok4 and rp4[1] == "/.file/id=1.2" and s4 == 1 and f4 == 0,
+      tostring(ok4) .. " " .. tostring(rp4))
+
+-- 🚚 LIVE, THROUGH THE DRAG
+reset() ; mp.show()
+FILES["/m/Max McNown - A Lot More Free.mp3"] = true
+BOOKMARKS["/.file/id=6571367.15194583"] = "/m/Max McNown - A Lot More Free.mp3"
+PB.url = { "file:///.file/id=6571367.15194583" }
+drag("receive")
+check("🚚 A DRAG THAT CARRIES ONLY A FILE REFERENCE NOW LANDS THE TRACK — "
+      .. "LL's own drop, end to end",
+      #mp.queue == 1 and mp.queue[1].path == "/m/Max McNown - A Lot More Free.mp3",
+      #mp.queue .. " " .. tostring(mp.queue[1] and mp.queue[1].path))
+check("...and it is named by its file, not by an inode",
+      mp.queue[1] and mp.queue[1].title == "Max McNown - A Lot More Free",
+      tostring(mp.queue[1] and mp.queue[1].title))
+
+-- and the Mac that cannot resolve it says so in words he can act on
+reset() ; mp.show()
+NO_BOOKMARK = true
+PB.url = { "file:///.file/id=6571367.15194583" }
+drag("receive")
+check("🔔 a reference this Mac cannot resolve is REFUSED BY NAME",
+      #mp.refused == 1 and tostring(mp.refused[1].why):find("file reference",
+      1, true) ~= nil, tostring(mp.refused[1] and mp.refused[1].why))
+check("...and never as '.15194583 is not an audio file', which was true "
+      .. "and useless", tostring(mp.refused[1].why):find("15194583", 1,
+      true) == nil, tostring(mp.refused[1].why))
+NO_BOOKMARK = false
+
+-- 📁 the plain-path flavour is asked FIRST, so where macOS still offers it
+-- nothing needs resolving at all
+reset() ; mp.show()
+FILES["/m/plain.mp3"] = true
+PB.plist = { "/m/plain.mp3" }
+PB.url = { "file:///.file/id=6571367.15194583" }
+drag("receive")
+check("📁 NSFilenamesPboardType is read first — real paths, no reference "
+      .. "to resolve", #mp.queue == 1 and mp.queue[1].path == "/m/plain.mp3"
+      and mp.dropReader == "filenames", tostring(mp.dropReader))
+
+-- 🔑 and a plain path is NOT percent-decoded
+reset() ; mp.show()
+FILES["/m/50%25 off.mp3"] = true
+PB.plist = { "/m/50%25 off.mp3" }
+drag("receive")
+check("🔑 a POSIX path keeps its %25 — the escapes belong to a URL, and "
+      .. "decoding one here makes a path that is not there",
+      #mp.queue == 1 and mp.queue[1].path == "/m/50%25 off.mp3",
+      tostring(mp.queue[1] and mp.queue[1].path))
+
+-- ...while a file:// URL still is
+reset() ; mp.show()
+FILES["/m/Ain't It.mp3"] = true
+PB.url = { "file:///m/Ain%27t%20It.mp3" }
+drag("receive")
+check("🔑 ...and a file:// URL still has its escapes undone",
+      #mp.queue == 1 and mp.queue[1].path == "/m/Ain't It.mp3",
+      tostring(mp.queue[1] and mp.queue[1].path))
+
+-- the report carries the state, both ways
+reset() ; mp.show()
+FILES["/m/r.mp3"] = true
+BOOKMARKS["/.file/id=9.9"] = "/m/r.mp3"
+PB.url = { "file:///.file/id=9.9" }
+drag("receive")
+local r19 = report()
+check("🔎 the report says how many references were turned back into files",
+      r19:find("1 file reference(s) turned back into files, 0", 1, true) ~= nil,
+      r19:match("[^\n]*reference[^\n]*") or "no line")
+
+-- 🔌 a Hammerspoon with no bookmark functions degrades, never throws
+-- 🚨 A BOOKMARK THAT RAISES MUST NOT BECOME A TRACK. `select(2, pcall(f))`
+-- is the error message when f raises, and a real Lua error begins with a
+-- path — so a resolver written the short way hands its own traceback back
+-- as an absolute path and the card plays it. 6.236.1's rule, in the new
+-- code, closed at the point where the new code could break it.
+reset() ; mp.show()
+BOOKMARKS["/.file/id=7.7"] = "/m/r.mp3"
+FILES["/m/r.mp3"], FILES["/m/its-own-traceback.mp3"] = true, true
+BOOKMARK_THROW = true
+PB.url = { "file:///.file/id=7.7" }
+local okThrow = pcall(drag, "receive")
+check("🚨 a bookmark read that RAISES resolves nothing — never its own "
+      .. "error message, which begins with a path and would be taken for "
+      .. "one", okThrow and #mp.queue == 0,
+      tostring(okThrow) .. " " .. #mp.queue)
+BOOKMARK_THROW = false
+
+-- 🔌 a Hammerspoon with no hs.fs at all degrades, never throws
+local realFs = hs.fs
+hs.fs = nil
+local okNoFs, gotNoFs = pcall(mp.refResolver, "/.file/id=1.2")
+hs.fs = realFs
+check("🔌 a Hammerspoon without hs.fs answers nothing and does NOT throw "
+      .. "— this runs inside a dragging callback",
+      okNoFs == true and gotNoFs == nil,
+      tostring(okNoFs) .. " " .. tostring(gotNoFs))
+local realToBookmark = hs.fs.pathToBookmark
+hs.fs.pathToBookmark = nil
+local r19b = report()
+check("...and one without the bookmark functions is NAMED in the report, "
+      .. "so a drop that fails there is answerable",
+      r19b:find("pathToBookmark", 1, true) ~= nil)
+hs.fs.pathToBookmark = realToBookmark
+
 -- 🚨 The section asserts its own check count (6.186.0): a throw would
 -- delete every check after it while the run still said "0 failed".
 check("🚨 the suite asserted every check it was written to make",
-      (pass + fail) >= 180, pass + fail)
+      (pass + fail) >= 200, pass + fail)
 
 os.execute("true")
 realPrint(table.concat(PRINTED, "\n"))

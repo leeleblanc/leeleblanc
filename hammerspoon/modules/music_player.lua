@@ -119,6 +119,7 @@ function M.setup(core)
         dropWhy   = "not opened yet",
         dragSeen  = "no drag yet this session",
         dropReader = nil,             -- which pasteboard reader answered
+        dropRefs  = "nothing read yet",
     }
 
     -- ---- PURE. Every rule about WHAT PLAYS and WHAT COMES NEXT lives
@@ -143,6 +144,14 @@ function M.setup(core)
     function mp.playableFor(path)
         if type(path) ~= "string" or path == "" then
             return false, "not a path"
+        end
+        -- 🆔 A REFERENCE macOS WOULD NOT TURN BACK INTO A FILE. Reading the
+        -- inode off the end of it as a file type is how the card came to
+        -- say ".15194583 is not an audio file this can play" — a true
+        -- sentence about a string that was never a name.
+        if mp.isRefPath(path) then
+            return false, "macOS handed a file reference, not a path — this "
+                          .. "Mac could not turn it back into a file"
         end
         local ext = mp.extOf(path)
         if ext == "" then return false, "no file extension" end
@@ -257,6 +266,49 @@ function M.setup(core)
         return out, added, refused
     end
 
+    -- 🆔 A FINDER DRAG HANDS BACK A REFERENCE, NOT A PATH (6.237.0, LL's
+    -- own artefact: the card read "⚠️ .15194583 is not an audio file this
+    -- can play" over an empty queue). macOS puts FILE REFERENCE URLs on a
+    -- drag pasteboard — file:///.file/id=6571367.15194583 — which name a
+    -- file by volume and inode and carry no name and no extension at all.
+    -- The read was working by then; what came back was never a path.
+    function mp.isRefPath(p)
+        return type(p) == "string" and p:sub(1, 7) == "/.file/"
+    end
+
+    -- PURE given the resolver, so every branch is proven with a table and
+    -- no Mac. Answers the paths, how many references were turned back into
+    -- files, and how many were NOT — a reference we could not resolve is
+    -- kept and named, never dropped in silence.
+    function mp.resolveRefs(paths, resolve)
+        local out, fixed, stuck = {}, 0, 0
+        for _, p in ipairs(type(paths) == "table" and paths or {}) do
+            if mp.isRefPath(p) then
+                local got
+                if type(resolve) == "function" then
+                    local ok, v = pcall(resolve, p)
+                    -- An answer is only an answer if it is an ABSOLUTE path
+                    -- that is not itself a reference — realpath hands this
+                    -- one straight back (see mp.refResolver).
+                    if ok and type(v) == "string" and v:sub(1, 1) == "/"
+                       and not mp.isRefPath(v) then
+                        got = v
+                    end
+                end
+                if got then
+                    fixed = fixed + 1
+                    out[#out + 1] = got
+                else
+                    stuck = stuck + 1
+                    out[#out + 1] = p
+                end
+            else
+                out[#out + 1] = p
+            end
+        end
+        return out, fixed, stuck
+    end
+
     -- 🚚 A DROP ARRIVES AS text/uri-list, one file:// URL per line. Blank
     -- lines and the format's own "#" comment lines are skipped, and the
     -- percent-escapes are undone — a track called "Ain't  It.mp3" arrives
@@ -267,14 +319,19 @@ function M.setup(core)
         for line in (text .. "\n"):gmatch("([^\r\n]*)[\r\n]") do
             line = line:match("^%s*(.-)%s*$")
             if line ~= "" and line:sub(1, 1) ~= "#" then
-                local p = line:match("^file://(.*)$") or
-                          (line:sub(1, 1) == "/" and line or nil)
-                if p then
+                -- 🔑 THE ESCAPES BELONG TO THE URL, NOT TO THE PATH. A
+                -- plain POSIX path (NSFilenamesPboardType hands those over
+                -- whole) may legally hold a % and two hex digits — "50%25
+                -- off.mp3" is a real file name — and decoding one makes a
+                -- path that is not there.
+                local u = line:match("^file://(/.*)$")
+                local p = u or (line:sub(1, 1) == "/" and line or nil)
+                if u then
                     p = p:gsub("%%(%x%x)", function(h)
                         return string.char(tonumber(h, 16))
                     end)
-                    out[#out + 1] = p
                 end
+                if p and p ~= "" then out[#out + 1] = p end
             end
         end
         return out
@@ -955,6 +1012,27 @@ draw(S);
         return table.concat(out, "\n")
     end
 
+    -- 🔗 THE ONE THING THAT RESOLVES A FILE REFERENCE, and it is NOT
+    -- realpath. CHECKED IN THE SOURCE (Libc, stdlib/FreeBSD/realpath.c):
+    -- realpath walks a path component by component and REPLACES each with
+    -- the real NAME that getattrlist answers — so /.file/id=6571367.15194583
+    -- comes back as "/.file/Max McNown - A Lot More Free.mp3", the right
+    -- name in a folder that holds nothing, which would have filled the
+    -- queue with plausible rows that cannot open. A BOOKMARK does resolve
+    -- it: making one records where the file actually IS, and reading it
+    -- back answers that path. Degrades to nil — never throws, because this
+    -- runs inside a dragging callback.
+    function mp.refResolver(p)
+        if not (hs.fs and hs.fs.pathToBookmark and hs.fs.pathFromBookmark) then
+            return nil
+        end
+        local okB, data = pcall(hs.fs.pathToBookmark, p)
+        if not (okB and type(data) == "string" and data ~= "") then return nil end
+        local okP, got = pcall(hs.fs.pathFromBookmark, data)
+        if not (okP and type(got) == "string" and got ~= "") then return nil end
+        return got
+    end
+
     function mp.dropPaths(pbName)
         -- Every reader macOS might answer on, first that yields a path
         -- wins, and the report names WHICH — a drop that fails on one Mac
@@ -975,6 +1053,13 @@ draw(S);
             return mp.joinLines(v)
         end
         local tries = {
+            -- 📁 THE PLAIN-PATH FLAVOUR IS ASKED FIRST. NSFilenamesPboardType
+            -- is a plist ARRAY OF POSIX PATHS, so where macOS still offers
+            -- it the reference-URL problem below never arises at all.
+            { "filenames", function()
+                return ask(hs.pasteboard.readPListForUTI, pbName,
+                           "NSFilenamesPboardType")
+            end },
             { "readURL", function()
                 return ask(hs.pasteboard.readURL, pbName, true)
             end },
@@ -997,7 +1082,15 @@ draw(S);
             local okR, raw = pcall(t[2])
             if okR and raw and raw ~= "" then
                 local paths = mp.pathsFromURIList(raw)
-                if #paths > 0 then return paths, t[1] end
+                if #paths > 0 then
+                    local fixed, stuck
+                    paths, fixed, stuck = mp.resolveRefs(paths, mp.refResolver)
+                    mp.dropRefs = (fixed + stuck == 0)
+                        and "no file references — plain paths"
+                        or (fixed .. " file reference(s) turned back into "
+                            .. "files, " .. stuck .. " could not be")
+                    return paths, t[1]
+                end
             end
         end
         -- 🔎 NOTHING ANSWERED — so say what the drag was actually CARRYING.
@@ -1307,6 +1400,9 @@ draw(S);
              .. "file lands on the card" or ("⚠️ " .. tostring(mp.dropWhy))))
         line("   ↳ " .. tostring(mp.dragSeen)
              .. (mp.dropReader and (" · read by " .. mp.dropReader) or ""))
+        line("   ↳ " .. tostring(mp.dropRefs)
+             .. ((hs.fs and hs.fs.pathToBookmark) and ""
+                 or " · ⚠️ this Hammerspoon has no hs.fs.pathToBookmark"))
         line("   window   : " .. (function()
                 local f = mp.webview and mp.webview:frame()
                 local at = f and ("at %d,%d"):format(math.floor(f.x),

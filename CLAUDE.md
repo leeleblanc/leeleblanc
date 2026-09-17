@@ -306,6 +306,36 @@ work Mac.
   bite.
   🔎 AND WHEN NOTHING READS, NAME WHAT WAS THERE: `pasteboardTypes` rides
   into the report, because a second "it did not work" is not an artefact.
+  🆔 AND WHAT IT WAS CARRYING WAS NOT A PATH (6.237.0, LL's card: "⚠️
+  .15194583 is not an audio file this can play" over an empty queue). By
+  6.235.0 the READING worked; macOS puts FILE REFERENCE URLs on a drag
+  pasteboard — `file:///.file/id=6571367.15194583` — which name a file by
+  VOLUME AND INODE and carry no name and no extension, so `extOf` read the
+  inode as a file type and said something true and useless. TWO SHOTS, TWO
+  DIFFERENT NUMBERS is what named it: a number that changes per file is an
+  inode or a clock, never a bug in one file.
+  🔗 A BOOKMARK RESOLVES ONE AND realpath DOES NOT — checked in Libc's own
+  source (stdlib/FreeBSD/realpath.c), which walks a path a component at a
+  time and REPLACES each with the real NAME getattrlist answers: it hands
+  back "/.file/Max McNown - A Lot More Free.mp3", the right name in a
+  folder that holds nothing, ENDING IN .mp3 — so the obvious fix would
+  have filled the queue with rows that look perfect and cannot open. That
+  answer has its own check, because the plausible wrong answer is the one
+  worth a row. `hs.fs.pathToBookmark` → `hs.fs.pathFromBookmark` is the
+  round trip that works. `mp.resolveRefs(paths, resolve)` is PURE (the
+  resolver is an ARGUMENT); an answer counts only if it is ABSOLUTE and is
+  not itself a reference; a resolver that throws keeps the path.
+  📁 THE PLAIN-PATH FLAVOUR IS ASKED FIRST — NSFilenamesPboardType is a
+  plist ARRAY OF POSIX PATHS, so where macOS still offers it none of this
+  arises; the report names the reader AND what became of the references.
+  🔑 ESCAPES BELONG TO THE URL, NOT THE PATH: percent-decode only a line
+  that came from `file://`. "50%25 off.mp3" is a real file name and
+  decoding it makes a path that is not there.
+  🧪 TWO CHECKS WERE PAID FOR TWICE, both old rules in new costumes: the
+  throwing-resolver check KILLED the suite instead of failing it until the
+  test pcall'd its own call (6.186.0), and the "no hs.fs" check passed
+  with the guard deleted because `pcall(nil, p)` is already false — it
+  takes hs.fs away ENTIRELY now, which is what the guard is for.
   🧪 AND THE MUTATION HARNESS LEFT A MUTATION IN THE TREE mid-release,
   which produced a suite that passed standalone and failed under the gate
   — a symptom with no honest explanation, and forty minutes spent
@@ -1726,7 +1756,7 @@ THE METHOD, when something breaks after a stacked zip:
    6.216.0 6f06071 · 6.217.0 a475bef · 6.218.0 41b002b · 6.219.0 862c177
    · 6.220.0 ac3975e · 6.221.0 ead07d9 · 6.222.0 1842ca7 · 6.223.0
    86ac82b · 6.224.0 67957ea · 6.225.0 98434fe · 6.226.0 304f1f9 ·
-   6.227.0 14e953a · 6.228.0 2aa3dfe · 6.229.0 a1318e1 · 6.230.0 0740c07 · 6.231.0 c1921af · 6.231.1 5a5c298 · 6.232.0 1ca3f6f · 6.233.0 2328c8c · 6.234.0 57f78d0 · 6.235.0 52e5b21 · 6.236.0 34cff8b · 6.236.1 fdce771.
+   6.227.0 14e953a · 6.228.0 2aa3dfe · 6.229.0 a1318e1 · 6.230.0 0740c07 · 6.231.0 c1921af · 6.231.1 5a5c298 · 6.232.0 1ca3f6f · 6.233.0 2328c8c · 6.234.0 57f78d0 · 6.235.0 52e5b21 · 6.236.0 34cff8b · 6.236.1 fdce771 · 6.237.0 <sha>.
    Keep this list current: one line per release, appended at ceremony
    time.
 4. A BISECT IS AN OPTION, NOT THE FIRST MOVE — it costs him an install
@@ -1796,12 +1826,13 @@ as the fix when a loss lands.
 | 6.234.0 | 🕘 thirty days of history, one row per file — the 60-row cap was the memory; days decide now, and the card shows 40 | pending |
 | 6.236.1 | 🚨 a reader's error message is not a file — `select(2, pcall(f))` is the error when it raises, and a Lua error begins with a path (caught by the gate, never reached him) | pending |
 | 6.236.0 | 🖥 a panel opens on the monitor you are looking at — the pointer outranks the front app's `mainWindow`, which is routinely the other display | pending |
-| 6.235.0 | 🔒 the drop lit up blue and did nothing: a `table.concat` on a list of objects threw inside the dragging callback, where a throw is a silence — plus a `public.file-url` reader and a report that names what the drag carried | pending |
+| 6.235.0 | 🔒 the drop lit up blue and did nothing: a `table.concat` on a list of objects threw inside the dragging callback, where a throw is a silence — plus a `public.file-url` reader and a report that names what the drag carried | LOSS — LL: "Same results on music player", with the card reading "⚠️ .15194583 is not an audio file this can play". The reading WORKED; what it read was a file reference URL, not a path → fix 6.237.0 |
+| 6.237.0 | 🆔 a Finder drag hands back `file:///.file/id=6571367.15194583` — a volume and an inode, no name and no extension — and a bookmark turns it back into the file (realpath does not) | pending |
 
-Running total: 14 wins · 7 losses · 21 pending (6.215.0, 6.217.0, 6.218.0,
+Running total: 14 wins · 8 losses · 21 pending (6.215.0, 6.217.0, 6.218.0,
 6.219.0, 6.220.0, 6.221.0, 6.222.0, 6.223.0, 6.224.0, 6.225.0, 6.226.0,
-6.227.0, 6.228.0, 6.229.0, 6.230.0, 6.231.1, 6.232.0, 6.233.0, 6.234.0,
-6.235.0, 6.236.0, 6.236.1).
+6.227.0, 6.228.0, 6.229.0, 6.230.0, 6.231.1, 6.232.0, 6.234.0, 6.236.0,
+6.236.1, 6.237.0).
 6.208.0's stall guard was FIELD-PROVEN 2026-09-13: a ⇪Y Chrome-history
 search beachballed the Air 72 s, the guard killed and relaunched it, the
 next boot announced it (LL: "fortunately hammerspoon caught itself"). LL is on
@@ -2083,6 +2114,20 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.237.0 verify with LL — 🆔 THE DROP, AND YOUR OWN CARD NAMED IT:
+  install. ⇪⇧pad. Drag the same mp3s onto the card. They play.
+  🔎 WHAT IT WAS: your card said "⚠️ .15194583 is not an audio file this can
+  play" — and that was this config reading an INODE as a file type. Finder
+  does not hand over a path; it hands over
+  `file:///.file/id=6571367.15194583`, which names a file by volume and
+  inode and carries no name and no extension at all. Two of your shots, two
+  different numbers — that is what named it.
+  Console: `_G.musicReport()` — under "drop :" a new line reads "N file
+  reference(s) turned back into files, 0 could not be". If any say "could
+  not be", paste it: that Mac refused the bookmark and the report says so.
+  A file called "50%25 off.mp3" — a real % in the name — must also land now.
+  🚨 NOTHING ELSE CHANGED in this release, deliberately.
+
 - 6.236.0 verify with LL — 🖥 THE RIGHT MONITOR: install (carries
   6.235.0). Work in an app on one monitor, then press ⇪/. The sheet opens
   on THAT monitor. Do it again from the other one. Then the case that was
