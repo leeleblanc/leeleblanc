@@ -113,6 +113,10 @@ function M.setup(core)
         loaded    = false,
         pos       = nil,              -- where he last dragged it, or nil
         posWhy    = "not opened yet",
+        catcher   = nil,              -- the canvas that takes the drop
+        dropWhy   = "not opened yet",
+        dragSeen  = "no drag yet this session",
+        dropReader = nil,             -- which pasteboard reader answered
     }
 
     -- ---- PURE. Every rule about WHAT PLAYS and WHAT COMES NEXT lives
@@ -605,8 +609,10 @@ footer { padding:5px 10px; font-size:%dpx; color:#7d7f89;
 <div id="drop">drop to add</div>
 <script>
 var S = { rows: [], hist: [], sel: 1, mode: 'off', playing: false, refused: [] };
+var dz;
 function say(m){ try { webkit.messageHandlers.musicPlayer.postMessage(m); } catch(e){} }
 function el(id){ return document.getElementById(id); }
+dz = el('drop');
 /* 🔤 A TRACK IS NAMED BY ITS FILE, AND A FILE MAY BE CALLED ANYTHING.
    Every name below is written with innerHTML, so "AC/DC <Live> & More.mp3"
    would lose half of itself. The name is NOT escaped on the Lua side: the
@@ -659,6 +665,11 @@ function draw(s){
   var sel = document.querySelector('.row.sel');
   if (sel && sel.scrollIntoView) sel.scrollIntoView({ block: 'nearest' });
 }
+/* 🚚 The veil is driven from LUA now: the window's dragging callback is
+   what actually sees a Finder drag (the page never does). The page's own
+   dragover/drop handlers below are kept — they cost nothing and are the
+   door a WebKit that CAN drop would use. */
+function dropShow(on){ dz.classList[on ? 'add' : 'remove']('show'); }
 function clock(text, pct){
   var b = el('sub');
   if (b && S.rows.length) {
@@ -696,7 +707,6 @@ el('list').addEventListener('click', function(e){
 /* 🚚 The path comes from text/uri-list. dataTransfer.files gives NAMES
    only — WebKit does not hand a page a file's path — so a drop with no
    uri-list reports the names it saw and says what is missing. */
-var dz = el('drop');
 document.addEventListener('dragover', function(e){
   e.preventDefault(); dz.classList.add('show');
 });
@@ -732,6 +742,42 @@ document.addEventListener('keyup', function(e){
 });
 draw(S);
 </script></body></html>]]):format(fs, fs, fs2, fs2, fs1, fs2, fs2, fs1, fs2)
+    end
+
+    -- 🚚 ONE DOOR FOR A DROP, whichever way it arrived — the window's own
+    -- dragging callback (the only one that works, 6.233.0) or the page's
+    -- HTML5 handler. Two doors into one function, or the two behaviours
+    -- drift and only one of them is ever tested.
+    function mp.takeDrop(paths, names)
+        paths = type(paths) == "table" and paths or {}
+        if #paths == 0 then
+            -- NOT silent. A drop that carries no path is the one case
+            -- where the card looks broken and is not.
+            local seen = {}
+            for _, n in ipairs(type(names) == "table" and names or {}) do
+                seen[#seen + 1] = tostring(n)
+            end
+            mp.refused = { { path = "", why = (#seen > 0)
+                and ("macOS did not hand over the path for "
+                     .. table.concat(seen, ", ") .. " — drag from Finder")
+                or "that drop carried no files" } }
+            mp.render()
+            say(mp.refused[1].why)
+            return false
+        end
+        local wasEmpty = (#mp.queue == 0)
+        local q, added, refused = mp.addPaths(mp.queue, paths)
+        mp.queue, mp.refused = q, refused
+        saveSoon() ; mp.render()
+        say(#added .. " added, " .. #refused .. " refused")
+        -- "the first plays, the rest form a playlist under it" — his
+        -- words, and only when nothing was already going.
+        if #added > 0 and (wasEmpty or not mp.playing) then
+            for i, t in ipairs(mp.queue) do
+                if t.path == added[1].path then mp.playAt(i, "dropped") break end
+            end
+        end
+        return true
     end
 
     -- ---- the bridge -------------------------------------------------------
@@ -818,35 +864,140 @@ draw(S);
             return
         end
         if a == "drop" then
-            local paths = mp.pathsFromURIList(b.uri)
-            if #paths == 0 then
-                -- NOT silent. A drop that carries no path is the one case
-                -- where the card looks broken and is not.
-                local names = {}
-                for _, n in ipairs(type(b.names) == "table" and b.names or {}) do
-                    names[#names + 1] = tostring(n)
-                end
-                mp.refused = { { path = "", why = (#names > 0)
-                    and ("macOS did not hand over the path for "
-                         .. table.concat(names, ", ") .. " — drag from Finder")
-                    or "that drop carried no files" } }
-                mp.render()
-                say(mp.refused[1].why)
-                return
-            end
-            local wasEmpty = (#mp.queue == 0)
-            local q, added, refused = mp.addPaths(mp.queue, paths)
-            mp.queue, mp.refused = q, refused
-            saveSoon() ; mp.render()
-            say(#added .. " added, " .. #refused .. " refused")
-            -- "the first plays, the rest form a playlist under it" — his
-            -- words, and only when nothing was already going.
-            if #added > 0 and (wasEmpty or not mp.playing) then
-                for i, t in ipairs(mp.queue) do
-                    if t.path == added[1].path then mp.playAt(i, "dropped") break end
-                end
-            end
+            mp.takeDrop(mp.pathsFromURIList(b.uri), b.names)
             return
+        end
+    end
+
+    -- ---- THE DROP CATCHER -------------------------------------------------
+    -- 🚚 6.233.0, AND IT IS THE OPPOSITE OF WHAT 6.231.0 BELIEVED.
+    -- CHECKED IN THE SOURCE, not remembered: extensions/webview/libwebview.m
+    -- contains the string "dragg" exactly ZERO times — hs.webview has no
+    -- drag-and-drop of any kind, so this card could never have received a
+    -- file, and a drag over it fell through to whatever was behind. That
+    -- is LL's report word for word. hs.canvas is the one that CAN:
+    -- `hs.canvas:draggingCallback(fn)`, with two conditions its own docs
+    -- state — the window must be at `windowLevels.dragging` or LOWER, and
+    -- it must accept mouse events, which means a mouseCallback must exist
+    -- even as a placeholder.
+    --
+    -- 🎯 SO THE CATCHER SITS UNDER THE CARD. An invisible canvas at the
+    -- card's exact frame, at the dragging level; the webview is at
+    -- bringToFront(true) (≈ screenSaver) and stays above it. A window that
+    -- does not register dragged types is SKIPPED by the drag, so the only
+    -- thing that ever reaches the catcher is a drag the card refused —
+    -- clicks, keys and the scroll wheel still belong to the page.
+    function mp.dropPaths(pbName)
+        -- Every reader macOS might answer on, first that yields a path
+        -- wins, and the report names WHICH — a drop that fails on one Mac
+        -- and works on another is otherwise unanswerable.
+        local tries = {
+            { "readURL", function()
+                local ok, u = pcall(hs.pasteboard.readURL, pbName, true)
+                if not (ok and u) then return nil end
+                if type(u) == "string" then return u end
+                if type(u) == "table" then return table.concat(u, "\n") end
+                return nil
+            end },
+            { "readString", function()
+                local ok, t = pcall(hs.pasteboard.readString, pbName, true)
+                if not (ok and t) then return nil end
+                if type(t) == "string" then return t end
+                if type(t) == "table" then return table.concat(t, "\n") end
+                return nil
+            end },
+            { "getContents", function()
+                local ok, t = pcall(hs.pasteboard.getContents, pbName)
+                return (ok and type(t) == "string") and t or nil
+            end },
+        }
+        for _, t in ipairs(tries) do
+            local raw = t[2]()
+            if raw and raw ~= "" then
+                local paths = mp.pathsFromURIList(raw)
+                if #paths > 0 then return paths, t[1] end
+            end
+        end
+        return {}, "nothing readable"
+    end
+
+    function mp.startCatcher(rect)
+        mp.stopCatcher()
+        if not (hs.canvas and hs.canvas.new) then
+            mp.dropWhy = "this Hammerspoon has no hs.canvas — nothing can "
+                         .. "catch a dragged file"
+            return degrade(mp.dropWhy)
+        end
+        local okC, cv = pcall(hs.canvas.new, rect)
+        if not (okC and cv) then
+            mp.dropWhy = "the drop catcher could not be created"
+            return degrade(mp.dropWhy)
+        end
+        -- A surface, not a picture: it lives behind an opaque card and is
+        -- never seen. What matters is that the VIEW exists at this frame.
+        pcall(function()
+            cv[1] = { type = "rectangle", action = "fill",
+                      fillColor = { red = 0, green = 0, blue = 0, alpha = 0 } }
+        end)
+        -- REQUIRED by hs.canvas: no mouse events, no drags. Placeholder is
+        -- what the documentation itself calls for.
+        pcall(function() cv:mouseCallback(function() end) end)
+        local okL = pcall(function()
+            cv:level(hs.canvas.windowLevels.dragging)
+        end)
+        if not okL then
+            mp.dropWhy = "this Hammerspoon has no dragging window level"
+            pcall(function() cv:delete() end)
+            return degrade(mp.dropWhy)
+        end
+        local okD = pcall(function()
+            cv:draggingCallback(function(_, msg, details)
+                if msg == "enter" then
+                    mp.dragSeen = "a drag came over the card"
+                    pcall(function()
+                        mp.webview:evaluateJavaScript("dropShow(true);")
+                    end)
+                    return true
+                elseif msg == "exit" then
+                    pcall(function()
+                        mp.webview:evaluateJavaScript("dropShow(false);")
+                    end)
+                    return true
+                elseif msg == "receive" then
+                    pcall(function()
+                        mp.webview:evaluateJavaScript("dropShow(false);")
+                    end)
+                    local pb = type(details) == "table" and details.pasteboard
+                    local paths, how = mp.dropPaths(pb)
+                    mp.dropReader = how
+                    mp.dragSeen = #paths .. " file(s) dropped on the card"
+                    mp.takeDrop(paths, nil)
+                    return true
+                end
+                return true
+            end)
+        end)
+        if not okD then
+            mp.dropWhy = "this Hammerspoon's hs.canvas cannot accept drags"
+            pcall(function() cv:delete() end)
+            return degrade(mp.dropWhy)
+        end
+        pcall(function() cv:show() end)
+        mp.catcher = cv
+        mp.dropWhy = "ready"
+        return true
+    end
+
+    function mp.stopCatcher()
+        if mp.catcher then
+            pcall(function() mp.catcher:delete() end)
+            mp.catcher = nil
+        end
+    end
+
+    function mp.moveCatcher(f)
+        if mp.catcher and type(f) == "table" then
+            pcall(function() mp.catcher:frame(f) end)
         end
     end
 
@@ -858,6 +1009,7 @@ draw(S);
 
     function mp.hide()
         mp.stopTick()
+        mp.stopCatcher()
         if mp.webview then
             pcall(function() mp.webview:delete() end)
             mp.webview = nil
@@ -972,6 +1124,10 @@ draw(S);
         if _G.hyperExpectRelease then
             pcall(_G.hyperExpectRelease, 1.5, "musicPlayer")
         end
+        -- 🚚 The card cannot take a dragged file itself; the catcher does.
+        -- Started AFTER the window exists, because it is placed at the
+        -- window's frame and reports through the window's page.
+        pcall(function() mp.startCatcher(rect) end)
         mp.startTick()
         mp.render()
         say("card opened")
@@ -1043,6 +1199,10 @@ draw(S);
             end)())
         line("   ↳ .flac and .ogg do NOT play through macOS's own audio —")
         line("     each refused file says so by name")
+        line("   drop     : " .. (mp.catcher and "catcher up — a dragged "
+             .. "file lands on the card" or ("⚠️ " .. tostring(mp.dropWhy))))
+        line("   ↳ " .. tostring(mp.dragSeen)
+             .. (mp.dropReader and (" · read by " .. mp.dropReader) or ""))
         line("   window   : " .. (function()
                 local f = mp.webview and mp.webview:frame()
                 local at = f and ("at %d,%d"):format(math.floor(f.x),
@@ -1088,6 +1248,10 @@ draw(S);
             local f = mp.webview and mp.webview:frame()
             if not f then return end
             mp.webview:frame({ x = x, y = y, w = f.w, h = f.h })
+            -- The catcher IS the card's drop area, so it goes where the
+            -- card goes — a catcher left behind is a dead zone over the
+            -- old spot and no drop at the new one.
+            mp.moveCatcher({ x = x, y = y, w = f.w, h = f.h })
             mp.pos = { x = x, y = y }
             mp.posWhy = "moved"
             -- Debounced: this runs on every tick of the drag, not once

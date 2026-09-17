@@ -5,6 +5,79 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.233.0 — 🚚 A DRAGGED FILE LANDS ON THE MUSIC CARD, AND IT NEVER
+                 COULD BEFORE (modules/music_player.lua):
+  LL: "Can't drop a file on the music player, a drag just puts it behind the
+  player window."
+
+  THE SECOND CLAUSE IS THE DIAGNOSIS. A drag that lands BEHIND a window is
+  not a drag that was refused; it is a drag the window never saw. That is
+  precisely what macOS does with a window that has not registered for
+  dragged types: it skips it and offers the drag to whatever is underneath.
+
+  🚨 AND 6.231.0 BELIEVED THE EXACT OPPOSITE OF THE TRUTH. Its own note,
+  repeated into CLAUDE.md as a durable rule, reads:
+
+     "hs.canvas has NO drop target at all — anything droppable in this
+      config must be a webview."
+
+  Backwards, both halves. Checked in the source this time rather than
+  remembered:
+
+     extensions/webview/libwebview.m   the string "dragg" appears ZERO times
+     extensions/canvas/libcanvas.m     hs.canvas:draggingCallback, the
+                                       NSDraggingDestination methods, and
+                                       registerForDraggedTypes
+
+  hs.webview has no drag-and-drop of any kind. hs.canvas is the one that
+  does. The card was built as a webview BECAUSE of that false fact, which
+  means the feature LL was handed a verify block for — "drag five or six
+  mp3s onto the card, that is the whole feature" — could never have worked
+  on any Mac, and two releases went by before he tried it.
+
+  🎯 THE FIX IS A CATCHER UNDER THE CARD, not a rewrite of it. An invisible
+  canvas at the card's exact frame, at `hs.canvas.windowLevels.dragging`
+  with a placeholder `mouseCallback` — both conditions that the hs.canvas
+  documentation states outright, and both mutation-proven here because
+  neither is visible in the result when it is missing. The webview stays
+  above it at bringToFront(true).
+
+  The elegance is the part worth keeping: a window that does not register
+  dragged types is SKIPPED, so the ONLY thing that ever reaches the catcher
+  is a drag the card refused. Clicks, keys, the scroll wheel and the ⌘-drag
+  all still belong to the page. The catcher moves when the card moves and is
+  deleted when it closes — a catcher left behind is a dead zone over the old
+  spot and no drop at the new one.
+
+  📋 THE PASTEBOARD IS ASKED THREE WAYS. `hs.pasteboard.readURL` first, then
+  `readString`, then `getContents`; the first that yields a path wins and the
+  report NAMES which one answered. That is not belt and braces for its own
+  sake: a drop that works on one Mac and not on the other is otherwise an
+  unanswerable question, and this makes the next report say it in one word.
+  The paths then go through `mp.pathsFromURIList` — the same parser as
+  before, so the percent-escaping ("Ain%27t%20It.mp3") is already proven.
+
+  🚪 ONE DOOR. The catcher and the page's own HTML5 drop handler both end in
+  `mp.takeDrop`. The page's handler is KEPT, deliberately: it costs nothing,
+  it is the door a WebKit that could drop would use, and one function means
+  the two can never drift into two behaviours with one of them tested.
+
+  🔔 FOUR WAYS IT CAN FAIL, each its own state, each through the degrade
+  door so he sees it at the moment it happens: no hs.canvas at all; a canvas
+  that will not be created; a Hammerspoon whose canvas cannot take drags;
+  and a drop that carries no path. The first two must not read alike
+  (6.196.1) and a check proves they do not.
+
+  🧪 AND THE MUTATION HARNESS LEFT A MUTATION IN THE TREE. Mid-release, a
+  runner that edits the module in place failed to restore it, and the next
+  forty minutes were spent diagnosing a bug in code nobody had written —
+  the suite passing standalone and failing under the gate, which is a
+  symptom with no honest explanation. The runner verifies the restore
+  against a SHA now and refuses to continue if it does not match. RULE: a
+  harness that edits the working tree proves it put it back.
+
+  9,424 -> 9,451 checks. Sixteen mutations.
+
 NEW IN 6.232.0 — 🪟 THE MUSIC CARD MOVES LIKE EVERY OTHER PANEL
                  (modules/music_player.lua):
   LL: "I need to be able to move the music player like any other window.

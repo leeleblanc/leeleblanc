@@ -4,9 +4,44 @@
 -- =====================================================================
 -- 09-16-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.232.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.233.0
 -- =====================================================================
 
+-- NEW IN 6.233.0 — 🚚 A DRAGGED FILE LANDS ON THE MUSIC CARD, AND IT NEVER
+--                  COULD BEFORE (modules/music_player.lua):
+--   LL: "Can't drop a file on the music player, a drag just puts it behind
+--      the player window." That last clause is the diagnosis — the drag was
+--      not being refused, it was passing THROUGH, which is what macOS does
+--      to a window that has not registered for dragged types.
+--   🚨 AND 6.231.0 BELIEVED THE EXACT OPPOSITE. Its own note reads "hs.canvas
+--      has NO drop target at all — anything droppable in this config must be
+--      a webview", and that is backwards. Checked in the source this time,
+--      not remembered: extensions/webview/libwebview.m contains the string
+--      "dragg" ZERO times — hs.webview has no drag-and-drop of any kind —
+--      while extensions/canvas/libcanvas.m has `hs.canvas:draggingCallback`,
+--      NSDraggingDestination methods and registerForDraggedTypes. The card
+--      was built as a webview BECAUSE of that false fact, and the one
+--      feature he was told to test could never have worked on any Mac.
+--   🎯 THE CATCHER SITS UNDER THE CARD. An invisible canvas at the card's
+--      exact frame, at `windowLevels.dragging` with a placeholder
+--      mouseCallback — both conditions hs.canvas's own documentation states.
+--      The webview stays above it at bringToFront(true), and a window that
+--      does not register dragged types is SKIPPED, so the only thing that
+--      ever reaches the catcher is a drag the card refused: clicks, keys and
+--      the wheel still belong to the page. It moves with the card and is
+--      deleted with it.
+--   📋 THE PASTEBOARD IS ASKED THREE WAYS (readURL → readString →
+--      getContents), first that answers wins, and the report NAMES which —
+--      a drop that works on one Mac and not the other is otherwise
+--      unanswerable. The paths go through `mp.pathsFromURIList`, the same
+--      parser as before, so the percent-escaping is already proven.
+--   🚪 ONE DOOR: both the catcher and the page's own HTML5 handler end in
+--      `mp.takeDrop`, or the two behaviours drift and only one is tested.
+--   🔔 Four ways it can fail, each its own state and each through the door:
+--      no hs.canvas at all · a canvas that will not be made · a Hammerspoon
+--      whose canvas cannot take drags · a drop carrying no path.
+--      · 9,424 -> 9,451 checks · sixteen mutations.
+--
 -- NEW IN 6.232.0 — 🪟 THE MUSIC CARD MOVES LIKE EVERY OTHER PANEL
 --                  (modules/music_player.lua):
 --   LL: "I need to be able to move the music player like any other
@@ -42,45 +77,12 @@
 --      cursor overridden (the LAST declaration in a CSS rule wins), so
 --      it reads the rule now.
 --
--- NEW IN 6.231.1 — 🔤 A TRACK IS NAMED BY ITS FILE, AND A FILE MAY BE
---                  CALLED ANYTHING (modules/music_player.lua):
---   6.231.0's card was never run. Its 93 Lua checks prove what PLAYS —
---      what comes next, what a drop yielded, how long a track has run —
---      and every one of them is honest, but the drawing, the drop and
---      ↑↓/⏎/space live in the PAGE, and the page had no suite. Four other
---      pages in this config have one (stages 3, 3b, 3c, 3d); this one was
---      simply missing, and asking for it found a bug in the first minute.
---   🔤 THE BUG: every track name went into innerHTML unescaped, so
---      "Simon & Garfunkel - The Sound of <Silence>.mp3" lost the half of
---      itself the browser read as a tag. A Lua `esc()` had been written
---      for exactly this and was NEVER CALLED — dead code with a comment
---      on it. The escaping belongs in the PAGE, not in Lua, and that is
---      not a preference: the header writes the same string with
---      textContent, where an entity would be read out literally. So the
---      row escapes and the header does not, from one source string.
---   🔔 AND A NAME THE CARD CANNOT ENCODE IS NOT AN EMPTY QUEUE. rowsJson
---      answered "{}" when hs.json refused, which drew an empty card over
---      a queue that was still playing and said so to nobody — and the
---      page then THREW on `S.rows.length` and never redrew again for the
---      rest of the session. Both halves are closed: the refusal takes the
---      🔔 door and answers a payload that still names what happened, and
---      draw() reads every list by length off a payload that may be
---      missing anything.
---   🧪 WHAT THIS RELEASE REALLY IS: tests/dump_music_html.lua +
---      tests/test_music_js.js, stage 3e, 55 checks, TWELVE mutations and
---      twelve bites — and the payload they draw is `mp.rowsJson()`'s own
---      output over a queue of names a music folder is really allowed to
---      hold, because a harness that hand-builds the message the page
---      receives cannot see a bug in the sending (6.203.0).
---      · 9,332 -> 9,391 checks · 78 -> 79 stages.
---      RULE, general: a page this config draws is a page the gate runs.
---
--- (6.231.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.231.1 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.232.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.233.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -177,7 +179,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.232.0"
+_G.configVersion = "6.233.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the

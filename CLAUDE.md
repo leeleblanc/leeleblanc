@@ -248,8 +248,39 @@ work Mac.
   nothing openable. It comes from the drag's `text/uri-list` (Finder
   fills it with file:// URLs), percent-escapes UNDONE or every track with
   a space or an apostrophe in its name is silently unopenable. A drop
-  with no uri-list is NAMED, never swallowed. And hs.canvas has NO drop
-  target at all — anything droppable in this config must be a webview.
+  with no uri-list is NAMED, never swallowed.
+  🚨 AND THE LINE THAT USED TO SIT HERE WAS BACKWARDS, WHICH COST THE
+  WHOLE FEATURE (corrected 6.233.0). It read "hs.canvas has NO drop
+  target at all — anything droppable in this config must be a webview".
+  The truth, checked in the source rather than remembered:
+  extensions/webview/libwebview.m contains the string "dragg" ZERO times
+  — **hs.webview has no drag-and-drop of any kind** — while
+  extensions/canvas/libcanvas.m has `hs.canvas:draggingCallback`, the
+  NSDraggingDestination methods and registerForDraggedTypes. **hs.canvas
+  is the ONLY thing in Hammerspoon that can accept a dragged file.** The
+  card was made a webview BECAUSE of the false line, so LL's drop could
+  never have worked on any Mac and he was handed a verify block for it
+  twice. GENERAL RULE, and it is the expensive one: A PLATFORM FACT THAT
+  DECIDES AN ARCHITECTURE IS CHECKED IN THE SOURCE, WITH THE FILE NAMED
+  — 6.202.0 said "checked, not assumed names the file" about a bug; this
+  says it about a design.
+  🎯 THE CATCHER SITS UNDER THE CARD (6.233.0): an invisible canvas at
+  the card's frame, at `windowLevels.dragging` with a placeholder
+  `mouseCallback` — BOTH conditions hs.canvas documents, and neither is
+  visible in the result when missing, so both have their own mutation. A
+  window that has not registered dragged types is SKIPPED by the drag
+  (which is exactly LL's "a drag just puts it behind the player"), so the
+  only thing reaching the catcher is a drag the card refused — clicks,
+  keys and the wheel still belong to the page. It moves with the card and
+  dies with it. The pasteboard is asked three ways (readURL → readString
+  → getContents), first answer wins, and the report NAMES which: a drop
+  that works on one Mac and not the other is otherwise unanswerable. Both
+  doors — the catcher and the page's own handler — end in `mp.takeDrop`.
+  🧪 AND THE MUTATION HARNESS LEFT A MUTATION IN THE TREE mid-release,
+  which produced a suite that passed standalone and failed under the gate
+  — a symptom with no honest explanation, and forty minutes spent
+  diagnosing code nobody had written. RULE: a harness that edits the
+  working tree VERIFIES the restore (a SHA) rather than assuming it.
   📁 Its store is LOCAL (~/Library/Application Support/Hammerspoon/music),
   never OneDrive: a half-played queue is not cross-Mac data and 6.229.0
   priced a write into a watched cloud folder. Mutation-proven.
@@ -1627,7 +1658,7 @@ THE METHOD, when something breaks after a stacked zip:
    6.216.0 6f06071 · 6.217.0 a475bef · 6.218.0 41b002b · 6.219.0 862c177
    · 6.220.0 ac3975e · 6.221.0 ead07d9 · 6.222.0 1842ca7 · 6.223.0
    86ac82b · 6.224.0 67957ea · 6.225.0 98434fe · 6.226.0 304f1f9 ·
-   6.227.0 14e953a · 6.228.0 2aa3dfe · 6.229.0 a1318e1 · 6.230.0 0740c07 · 6.231.0 c1921af · 6.231.1 5a5c298 · 6.232.0 1ca3f6f.
+   6.227.0 14e953a · 6.228.0 2aa3dfe · 6.229.0 a1318e1 · 6.230.0 0740c07 · 6.231.0 c1921af · 6.231.1 5a5c298 · 6.232.0 1ca3f6f · 6.233.0 PENDING.
    Keep this list current: one line per release, appended at ceremony
    time.
 4. A BISECT IS AN OPTION, NOT THE FIRST MOVE — it costs him an install
@@ -1690,13 +1721,14 @@ as the fix when a loss lands.
 | 6.228.0 | 🕵️ the file tracker is timed (wake-up vs write, apart), alerts past 120 ms, and can be switched off | pending |
 | 6.229.0 | 🎯 the file tracker watches the folders inside his home folder, one watcher each — ~/Library is not one of them (60,115 wake-ups a day to keep 49 rows) | pending |
 | 6.230.0 | 🔗 a symlink is not a second folder: ~/OneDrive and the CloudStorage folder are one tree and one watcher (his 6.229.0 report named it in 47 seconds) | pending |
-| 6.231.0 | 🎵 the mini music player, ⇪⇧pad. — drop files on a corner card, ↑↓ / ⌘1–9 / space, repeat one or all, elapsed time, history | pending |
+| 6.231.0 | 🎵 the mini music player, ⇪⇧pad. — drop files on a corner card, ↑↓ / ⌘1–9 / space, repeat one or all, elapsed time, history | LOSS — LL: "Can't drop a file on the music player, a drag just puts it behind the player window." The drop — the whole feature — could never have worked: hs.webview has no drag-and-drop at all, and the card was built as a webview because a durable note said the opposite → fix 6.233.0 |
 | 6.231.1 | 🔤 the player's page is RUN by the gate now (stage 3e, 55 checks, 12 mutations) — and it found a track name with an & or a < in it losing half of itself | pending |
-| 6.232.0 | 🪟 the music card moves: ⌘-drag anywhere or a bare drag on its title strip, and it reopens where he left it (it was never in `_G.movablePanels`) | pending |
+| 6.232.0 | 🪟 the music card moves: ⌘-drag anywhere or a bare drag on its title strip, and it reopens where he left it (it was never in `_G.movablePanels`) | pending — LL: "Shortcuts fixed", which is not his win sentence and does not name the drag; ask |
+| 6.233.0 | 🚚 a dragged file lands on the card — a canvas catcher under it, because hs.webview cannot take a drop and hs.canvas can (the opposite of what 6.231.0 believed) | pending |
 
-Running total: 14 wins · 5 losses · 18 pending (6.215.0, 6.217.0, 6.218.0,
+Running total: 14 wins · 6 losses · 18 pending (6.215.0, 6.217.0, 6.218.0,
 6.219.0, 6.220.0, 6.221.0, 6.222.0, 6.223.0, 6.224.0, 6.225.0, 6.226.0,
-6.227.0, 6.228.0, 6.229.0, 6.230.0, 6.231.0, 6.231.1, 6.232.0).
+6.227.0, 6.228.0, 6.229.0, 6.230.0, 6.231.1, 6.232.0, 6.233.0).
 6.208.0's stall guard was FIELD-PROVEN 2026-09-13: a ⇪Y Chrome-history
 search beachballed the Air 72 s, the guard killed and relaunched it, the
 next boot announced it (LL: "fortunately hammerspoon caught itself"). LL is on
@@ -1978,6 +2010,26 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.233.0 verify with LL — 🚚 THE DROP, WHICH NEVER WORKED: install
+  (carries 6.232.0). ⇪⇧pad. Open Finder on a music folder, select five or
+  six mp3/m4a files and DRAG THEM ONTO THE CARD. As the pointer crosses it
+  the card goes blue and says "drop to add"; let go and the first track
+  plays with the rest queued under it. That blue veil is the tell — it
+  means the window is seeing the drag at all, which it never did before.
+  Console: `_G.musicReport()` — the new "drop :" line must read "catcher up"
+  and the line under it names how many files and WHICH reader macOS
+  answered on ("read by readURL"). If a drop still does nothing, paste
+  those two lines: "⚠️" there names which of the four ways it failed.
+  Then move the card (drag its title strip) and drop onto it at the new
+  spot — the catcher follows the window, and this is the thing most likely
+  to be wrong if the first drop works and a later one does not.
+  🚨 WHAT THIS WAS: hs.webview cannot accept a dragged file at all — the
+  drag passed straight through to whatever was behind, which is exactly
+  what you saw. hs.canvas can, so there is now an invisible canvas at the
+  card's frame, underneath it, catching only what the card refuses.
+  6.231.0 is scored a LOSS: the feature you were asked to test could not
+  have worked on any Mac.
+
 - 6.232.0 verify with LL — 🪟 THE CARD MOVES: install (carries 6.231.1).
   ⇪⇧pad. Then press on the card's TITLE STRIP — the top part, where the
   track name and the time are — and drag. No ⌘. The card follows. Let go,

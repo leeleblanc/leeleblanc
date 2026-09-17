@@ -137,6 +137,45 @@ hs = {
     },
 }
 
+-- 🚚 hs.canvas — the ONE thing on this Mac that can accept a dragged
+-- file (checked in libcanvas.m, not remembered). The stub can be made to
+-- be an older Hammerspoon that has no draggingCallback at all, or one
+-- whose canvas refuses to show, because both are real Macs.
+CANVASES, NO_CANVAS, NO_DRAGCB = {}, false, false
+hs.canvas = {
+    windowLevels = { dragging = 500, screenSaver = 1000, floating = 3 },
+    new = function(rect)
+        if NO_CANVAS then return nil end
+        local c = { rect = rect, elements = {} }
+        function c:level(l) if l == nil then return self.lvl end self.lvl = l return self end
+        function c:mouseCallback(f) self.mouseCb = f return self end
+        function c:show() self.shown = true return self end
+        function c:hide() self.shown = false return self end
+        function c:delete() self.deleted = true return self end
+        function c:frame(f) if f == nil then return self.rect end self.rect = f return self end
+        if not NO_DRAGCB then
+            function c:draggingCallback(f) self.dragCb = f return self end
+        end
+        setmetatable(c, { __newindex = function(t, k, v) rawset(t, k, v) end })
+        CANVASES[#CANVASES + 1] = c
+        return c
+    end,
+}
+-- The drag pasteboard. macOS answers on whichever reader it feels like,
+-- so each can be silenced independently and the ORDER is what is proven.
+PB = { url = nil, str = nil, contents = nil }
+hs.pasteboard = {
+    readURL = function(name, all)
+        if PB.url == nil then return nil end
+        return all and PB.url or PB.url[1]
+    end,
+    readString = function(name, all)
+        if PB.str == nil then return nil end
+        return all and PB.str or PB.str[1]
+    end,
+    getContents = function(name) return PB.contents end,
+}
+
 -- 🔊 hs.sound, and it can be made to behave badly on purpose.
 hs.sound = {
     getByFile = function(path)
@@ -235,6 +274,21 @@ local function reset()
     mp.tickTimer, mp.saveTimer = nil, nil
     mp.pos, mp.posWhy = nil, "not opened yet"
     SCREENS = { { x = 0, y = 0, w = 1440, h = 900 } }
+    CANVASES, NO_CANVAS, NO_DRAGCB = {}, false, false
+    PB = { url = nil, str = nil, contents = nil }
+    mp.catcher, mp.dropReader = nil, nil
+    mp.dropWhy, mp.dragSeen = "not opened yet", "no drag yet this session"
+end
+
+-- 🧪 The catcher, and the drag that reaches it. Both answer falsely
+-- rather than indexing a nil (6.186.0), so a mutation FAILS a check.
+local function catcher()
+    return CANVASES[#CANVASES] or { lvl = nil, rect = nil, mouseCb = nil }
+end
+local function drag(msg, pb)
+    local c = CANVASES[#CANVASES]
+    if not (c and c.dragCb) then return false end
+    return c.dragCb(c, msg, { pasteboard = pb or "drag-pb", sequence = 1 })
 end
 
 local function drop(uri, names)
@@ -893,10 +947,160 @@ check("📋 the report says where the card is and why it is there",
 check("...and names both grips, because neither is discoverable",
       rw:find("⌘-drag", 1, true) ~= nil)
 
+-- ---- §16 a dragged file lands on the card ------------------------------
+-- 🚚 6.233.0, and it is the release that made the feature exist. hs.webview
+-- has NO drag-and-drop (checked in libwebview.m: the string "dragg" appears
+-- zero times), so the drop LL was told to test could never have worked — the
+-- drag fell through to whatever was behind the card, which is his report.
+-- hs.canvas is the one that can, under two conditions its own docs state.
+
+reset()
+FILES["/m/a.mp3"], FILES["/m/b.mp3"] = true, true
+mp.show()
+local cat = catcher()
+check("🚚 opening the card puts a drop catcher up — without it nothing "
+      .. "can accept a dragged file at all", CANVASES[1] ~= nil)
+check("...at the card's own frame, or the drop lands somewhere else",
+      cat.rect and cat.rect.w == mp.frameFor(SF).w, cat.rect and cat.rect.w)
+check("🚨 ...at the DRAGGING window level, which hs.canvas REQUIRES — "
+      .. "anything higher and macOS never offers it the drag",
+      cat.lvl == hs.canvas.windowLevels.dragging, tostring(cat.lvl))
+check("🚨 ...and with a mouseCallback, the second documented condition — "
+      .. "a canvas that takes no mouse events takes no drags either",
+      type(cat.mouseCb) == "function")
+
+-- the drag itself
+JS = {}
+drag("enter")
+check("a drag coming over the card shows the drop veil",
+      table.concat(JS, " "):find("dropShow(true)", 1, true) ~= nil,
+      table.concat(JS, " "))
+JS = {}
+drag("exit")
+check("...and taking it away again hides it",
+      table.concat(JS, " "):find("dropShow(false)", 1, true) ~= nil)
+
+JS = {}
+PB.url = { "file:///m/a.mp3", "file:///m/b.mp3" }
+drag("receive")
+check("🚚 DROPPING TWO FILES PUTS THEM IN THE QUEUE — the whole feature",
+      #mp.queue == 2 and mp.queue[1].path == "/m/a.mp3",
+      #mp.queue)
+check("...and the first one starts playing, as he described it",
+      mp.playing == true and mp.index == 1)
+check("...and the veil is taken down", 
+      table.concat(JS, " "):find("dropShow(false)", 1, true) ~= nil)
+check("...and the report names which reader macOS answered on",
+      mp.dropReader == "readURL", tostring(mp.dropReader))
+
+-- the readers, in order, because macOS answers on whichever it likes
+reset() ; mp.show()
+PB.url = nil
+PB.str = { "file:///m/c.mp3" }
+FILES["/m/c.mp3"] = true
+drag("receive")
+check("a Mac that answers on readString instead is still read",
+      #mp.queue == 1 and mp.dropReader == "readString", tostring(mp.dropReader))
+
+reset() ; mp.show()
+PB.url, PB.str = nil, nil
+PB.contents = "file:///m/d.mp3"
+FILES["/m/d.mp3"] = true
+drag("receive")
+check("...and one that only answers on getContents too",
+      #mp.queue == 1 and mp.dropReader == "getContents", tostring(mp.dropReader))
+
+reset() ; mp.show()
+PB.url = { "file:///m/first.mp3" }
+PB.str = { "file:///m/second.mp3" }
+FILES["/m/first.mp3"], FILES["/m/second.mp3"] = true, true
+drag("receive")
+check("🚨 the FIRST reader that answers decides — the order is the rule, "
+      .. "not a preference", mp.queue[1] and mp.queue[1].path == "/m/first.mp3",
+      mp.queue[1] and mp.queue[1].path)
+
+-- a drop that carries nothing is NAMED
+reset() ; mp.show()
+PB.url, PB.str, PB.contents = nil, nil, nil
+drag("receive")
+check("🔔 a drop macOS hands over with no path in it is NAMED, never "
+      .. "swallowed", #mp.refused == 1 and mp.refused[1].why ~= "",
+      mp.refused[1] and mp.refused[1].why)
+check("...and the queue is untouched", #mp.queue == 0)
+
+-- the catcher follows the card, and goes with it
+reset() ; mp.show()
+local entry2
+for _, e in ipairs(_G.movablePanels or {}) do
+    if e.name == "music player" then entry2 = e end
+end
+;(entry2 or { move = function() end }).move(400, 500)
+check("🪟 moving the card moves the catcher with it — a catcher left "
+      .. "behind is a dead zone over the old spot",
+      catcher().rect and catcher().rect.x == 400,
+      catcher().rect and catcher().rect.x)
+local was = catcher()
+mp.hide()
+check("...and closing the card takes the catcher down",
+      was.deleted == true and mp.catcher == nil)
+
+-- 🔔 the degrades, both of them, and they must not read alike
+reset()
+local realCanvas = hs.canvas
+hs.canvas = nil
+local okNoCv = mp.show()
+check("🔔 a Hammerspoon with NO hs.canvas at all still OPENS the card",
+      okNoCv == true and mp.webview ~= nil)
+check("...and says so, rather than the card looking broken",
+      tostring(mp.dropWhy):find("no hs.canvas", 1, true) ~= nil,
+      tostring(mp.dropWhy))
+check("...through the 🔔 door, so he sees it at the moment it happens",
+      #DEGRADED > 0, table.concat(DEGRADED, " | "))
+check("...and the report names that state, never 'ready'",
+      report():find("⚠️", 1, true) ~= nil and mp.catcher == nil)
+hs.canvas = realCanvas
+
+reset()
+NO_CANVAS = true
+mp.show()
+check("🔔 ...and a Mac whose hs.canvas REFUSES to make the window is a "
+      .. "DIFFERENT state, which must not read the same (6.196.1)",
+      tostring(mp.dropWhy):find("could not be created", 1, true) ~= nil
+      and tostring(mp.dropWhy):find("no hs.canvas", 1, true) == nil,
+      tostring(mp.dropWhy))
+check("🔔 ...and THAT one takes the door too — every way the drop can "
+      .. "fail is a break he is shown, not one he finds later",
+      #DEGRADED > 0, table.concat(DEGRADED, " | "))
+
+reset()
+NO_DRAGCB = true
+mp.show()
+check("🔔 a Hammerspoon whose canvas cannot take drags is its OWN state",
+      mp.catcher == nil and tostring(mp.dropWhy):find("cannot accept drags",
+                                                      1, true) ~= nil,
+      tostring(mp.dropWhy))
+check("...and the canvas it made is cleaned up, not left on screen",
+      catcher().deleted == true)
+
+-- the page's own door still reaches the same function
+reset() ; mp.show()
+FILES["/m/z.mp3"] = true
+drop("file:///m/z.mp3")
+check("🚚 the page's own drop handler goes through the SAME door, so the "
+      .. "two can never drift", #mp.queue == 1)
+
+-- the report
+reset() ; mp.show()
+PB.url = { "file:///m/a.mp3" }
+drag("receive")
+local rd = report()
+check("📋 the report says the catcher is up and what it last saw",
+      rd:find("catcher up", 1, true) and rd:find("dropped", 1, true), rd)
+
 -- 🚨 The section asserts its own check count (6.186.0): a throw would
 -- delete every check after it while the run still said "0 failed".
 check("🚨 the suite asserted every check it was written to make",
-      (pass + fail) >= 117, pass + fail)
+      (pass + fail) >= 140, pass + fail)
 
 os.execute("true")
 realPrint(table.concat(PRINTED, "\n"))
