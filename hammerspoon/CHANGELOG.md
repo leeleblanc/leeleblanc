@@ -5,6 +5,42 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.240.0 — 💡 THE SHORTCUT HINT CARD IS OFF (init.lua's profiles):
+  LL asked for the card off. This release is two settings lines and not one
+  line of module code, and that is worth writing down rather than shrugging
+  at: modules/shortcut_hints.lua reads `hint.enabled` at PRESS time, inside
+  _G.shortcutHint, rather than capturing it at setup — so the off switch it
+  has documented since 6.163.0 simply works, and a profile override is the
+  whole mechanism.
+
+  Nothing is hidden and nothing is left running. With enabled = false no
+  canvas is built, no dismiss tap is created and no timer is held: the card
+  is never made, not made and suppressed.
+
+  🔌 THE 6.228.0 RULE, PAYING OFF. "A switch is only real if the thing it
+  governs starts AFTER setup" was learned the hard way in file_tracker,
+  where the watchers started inside setup and the flag was written and
+  never read again. This one was already the right shape, so there was
+  nothing to build. window_move's `wm.enabled` is still the counter-example
+  and is still decorative for exactly that reason — it gets fixed when that
+  module is next opened, not here.
+
+  📍 THE SCALE STAYS BESIDE THE SWITCH on the Air: `{ enabled = false,
+  scale = 1.5 }`. 1.5 is his own 6.167.0 measurement for the LG at full
+  points, and deleting it while the card is off would quietly cost him that
+  tuning on the day he turns the card back on.
+
+  🔎 PROVEN WHERE IT CAN BE. test_shortcut_hints already showed that
+  enabled = false draws no card and adds no canvas, so the mechanism needed
+  no new check. What was unproven is that his two Macs actually carry the
+  switch, and there is only one place that can be read: init.lua's own
+  source. test_integration counts the switch in the profile block and wants
+  TWO, so removing it from either Mac bites; test_shortcut_hints asserts it
+  sits inside the Air's entry with the scale still beside it.
+
+  Back on, no release: enabled = true in the profile.
+  · 9,556 -> 9,558 checks.
+
 NEW IN 6.239.0 — ⏪ ← → SEEK (modules/music_player.lua):
   LL, in the same message as the win: "I need an arrow keys left/right as
   seek." v1 shipped without seek and without volume on his own answers

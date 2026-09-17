@@ -390,9 +390,20 @@ do
     -- this reads the SETTING inside the Air's entry, not one line's layout.
     local air = src:find('["Lees-MacBook-Air"] = profileFrom{ settings = {', 1, true)
     local work = air and src:find('["Lees-Work-MacBook"]', air, true)
-    local scale = air and src:find('shortcut_hints = { scale = 1.5 }', air, true)
+    -- 6.240.0: the card is OFF now and the knob sits beside the switch
+    -- (`{ enabled = false, scale = 1.5 }`), so this reads the SETTING
+    -- inside the Air's entry rather than one line's exact layout — which
+    -- is what the 6.213.2 note above already said it meant to do.
+    local scale = air and src:find('scale = 1.5', air, true)
     check("Lees-MacBook-Air profile carries settings.shortcut_hints.scale = 1.5",
           air ~= nil and scale ~= nil and work ~= nil and scale < work)
+    -- 💡 6.240.0 — AND IT IS PINNED WHILE THE CARD IS OFF, deliberately:
+    -- the scale is his own 6.167.0 measurement for the LG, and it must
+    -- survive being switched off or turning the card back on costs him
+    -- that tuning a second time.
+    local off = air and src:find('shortcut_hints = { enabled = false', air, true)
+    check("💡 the card is off in the Air's profile, with the scale kept beside it",
+          off ~= nil and work ~= nil and off < work and scale ~= nil)
 end
 
 print = realPrint

@@ -1791,7 +1791,7 @@ THE METHOD, when something breaks after a stacked zip:
    6.216.0 6f06071 · 6.217.0 a475bef · 6.218.0 41b002b · 6.219.0 862c177
    · 6.220.0 ac3975e · 6.221.0 ead07d9 · 6.222.0 1842ca7 · 6.223.0
    86ac82b · 6.224.0 67957ea · 6.225.0 98434fe · 6.226.0 304f1f9 ·
-   6.227.0 14e953a · 6.228.0 2aa3dfe · 6.229.0 a1318e1 · 6.230.0 0740c07 · 6.231.0 c1921af · 6.231.1 5a5c298 · 6.232.0 1ca3f6f · 6.233.0 2328c8c · 6.234.0 57f78d0 · 6.235.0 52e5b21 · 6.236.0 34cff8b · 6.236.1 fdce771 · 6.237.0 adf9256 · 6.238.0 3adad4f · 6.239.0 3adad4f (one commit, two releases).
+   6.227.0 14e953a · 6.228.0 2aa3dfe · 6.229.0 a1318e1 · 6.230.0 0740c07 · 6.231.0 c1921af · 6.231.1 5a5c298 · 6.232.0 1ca3f6f · 6.233.0 2328c8c · 6.234.0 57f78d0 · 6.235.0 52e5b21 · 6.236.0 34cff8b · 6.236.1 fdce771 · 6.237.0 adf9256 · 6.238.0 3adad4f · 6.239.0 3adad4f (one commit, two releases) · 6.240.0 SHA240.
    Keep this list current: one line per release, appended at ceremony
    time.
 4. A BISECT IS AN OPTION, NOT THE FIRST MOVE — it costs him an install
@@ -1865,6 +1865,7 @@ as the fix when a loss lands.
 | 6.237.0 | 🆔 a Finder drag hands back `file:///.file/id=6571367.15194583` — a volume and an inode, no name and no extension — and a bookmark turns it back into the file (realpath does not) | **WIN** — LL: "Music player works!" (2026-09-17). Seven releases and three losses to get the drop working; the artefact that ended it was his own card |
 | 6.238.0 | 🪟 the card reopens showing what is playing — the page says when it is ready instead of Lua pushing into a document WebKit has not parsed | pending |
 | 6.239.0 | ⏪ ← → seek 5 s, ⇧← ⇧→ 30 s — his ask, in the same message as the win | pending |
+| 6.240.0 | 💡 the shortcut hint card off on both Macs — two settings lines, no module code | pending |
 
 Running total: 15 wins · 8 losses · 22 pending (6.215.0, 6.217.0, 6.218.0,
 6.219.0, 6.220.0, 6.221.0, 6.222.0, 6.223.0, 6.224.0, 6.225.0, 6.226.0,
@@ -2162,6 +2163,18 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.240.0 verify with LL — 💡 THE HINT CARD IS OFF (KNOWN GROUND):
+  install. Press any ⇪ key you use often — ⇪T, ⇪V, ⇪D. NO card appears in
+  the top-right corner. Everything the key itself does is unchanged.
+  Console: `_G.shortcutHintsReport()` — "enabled  : false". If a card still
+  appears, paste that line; it is the whole switch.
+  🔎 NOTHING IS LEFT RUNNING: with it off no canvas is built, no dismiss tap
+  is created and no timer is held — the card is never made, not made and
+  hidden.
+  Back on, no release and no reload beyond the usual: `shortcut_hints =
+  { enabled = true, scale = 1.5 }` in the Air's profile (the 1.5 is your
+  own LG measurement and is kept there while the card is off, deliberately).
+
 - 6.239.0 verify with LL — ⏪ SEEK (KNOWN GROUND): install (carries
   6.238.0). Play a track. → jumps forward 5 seconds, ← back 5, and the time
   and the bar move with it. ⇧→ and ⇧← jump 30. ↑↓ still walk the list —

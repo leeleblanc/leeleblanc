@@ -561,6 +561,16 @@ do
           handTyped and "a profile still has its own modules = { }" or nil)
     local n = select(2, profileBlock:gsub("profileFrom", ""))
     check("...and all three profiles use it", n >= 3, n)
+
+    -- 💡 6.240.0 — THE HINT CARD IS OFF ON BOTH OF HIS MACS, and that is a
+    -- SETTINGS line rather than module code, so the only place it can be
+    -- proven is here, in init.lua's own source. test_shortcut_hints proves
+    -- that hint.enabled = false stops the card; this proves his two Macs
+    -- actually carry the false. Counted, so removing EITHER one bites.
+    local offs = select(2, profileBlock:gsub(
+        "shortcut_hints%s*=%s*{%s*enabled%s*=%s*false", ""))
+    check("💡 the shortcut hint card is switched off in BOTH named profiles "
+          .. "(6.240.0 — a settings line, no module code)", offs == 2, offs)
 end
 
 -- ⚠️ loader_test.lua LOADS THE REAL LIST as a side effect of being

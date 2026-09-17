@@ -4,9 +4,30 @@
 -- =====================================================================
 -- 09-17-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.239.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.240.0
 -- =====================================================================
 
+-- NEW IN 6.240.0 — 💡 THE SHORTCUT HINT CARD IS OFF (init.lua's profiles):
+--   LL asked for it off. This release is two settings lines and NOT ONE
+--      LINE OF MODULE CODE, which is the whole point of it being written
+--      down: `hint.enabled` is read at PRESS time inside _G.shortcutHint,
+--      never captured at setup, so the switch modules/shortcut_hints.lua
+--      already documents simply works. Nothing is hidden — with it false
+--      no canvas is built, no dismiss tap is created and no timer is held.
+--   🔌 THAT IS THE 6.228.0 RULE PAYING OFF: a switch is only real if the
+--      thing it governs starts AFTER setup. This one does, so there was
+--      nothing to fix; window_move's `wm.enabled` is the counter-example
+--      and is still decorative for exactly that reason.
+--   📍 THE SCALE STAYS BESIDE THE SWITCH on the Air. 1.5 is his own
+--      6.167.0 measurement for the LG, and deleting it while the card is
+--      off would cost him that tuning the day he turns it back on.
+--   🔎 Proven where it lives: test_shortcut_hints already shows that
+--      enabled = false draws no card, so the new checks read init.lua's
+--      OWN source and count the switch in BOTH named profiles — a
+--      settings-only release can be proven nowhere else.
+--      Back on, no release: enabled = true in the profile.
+--      · 9,556 -> 9,558 checks.
+--
 -- NEW IN 6.239.0 — ⏪ ← → SEEK (modules/music_player.lua):
 --   LL, with the win: "I need an arrow keys left/right as seek". v1 shipped
 --      without seek on his own answers; this is him asking. ← and → move 5
@@ -23,32 +44,12 @@
 --      tick drags the time back to where it was; its own check.
 --      · 9,522 -> 9,556 checks · fourteen mutations across both suites.
 --
--- NEW IN 6.238.0 — 🪟 A PUSH INTO A PAGE THAT HAS NOT LOADED IS DROPPED IN
---                  SILENCE (modules/music_player.lua):
---   LL: "I was playing a song in the first screenshot but I closed the
---      window and it didn't show but then opened again it did." His card
---      read "nothing playing · QUEUE EMPTY" over music that was still
---      playing — and the progress bar was nearly FULL on that empty card,
---      which is the whole diagnosis in one photograph.
---   🪟 `view:html()` returns long before WebKit has parsed the document, so
---      the `draw(...)` pushed on the next line found no `draw` function and
---      went nowhere; the page then ran its OWN `draw(S)` over the empty
---      default. The CLOCK kept landing because the tick pushes one every
---      half second — hence a full bar over an empty queue.
---   🔑 THE PAGE ASKS NOW: `say({a:'ready'})` is the last line of its
---      script, so everything it promises exists by the time Lua hears it,
---      and Lua answers with a redraw. The blind push stays as the belt.
---   🔎 COUNTED APART, because a push that was dropped must not read like
---      one that landed: the report says how many draws landed since the
---      page spoke and how many were pushed before it existed.
---      · 9,522 -> 9,556 checks.
---
--- (6.237.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.238.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.239.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.240.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -145,7 +146,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.239.0"
+_G.configVersion = "6.240.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the
@@ -3126,7 +3127,16 @@ _G.moduleProfiles = {
     -- 6.170.0: the LG runs 2560×1440@2x ("looks like 1440") — outcome (b)
     -- of 6.167.0: the screen was NOT why the card read small, so pin it.
     ["Lees-MacBook-Air"] = profileFrom{ settings = {
-        shortcut_hints = { scale = 1.5 },
+        -- 💡 6.240.0 — THE HINT CARD IS OFF, on LL's ask, and this line is
+        -- the whole release: `hint.enabled` is read at PRESS time inside
+        -- _G.shortcutHint, not at setup, so the switch the module already
+        -- documents needs no module code at all. With it false nothing is
+        -- drawn, no dismiss tap is created and no timer is held — the card
+        -- is not hidden, it is never built. The scale stays beside it on
+        -- purpose: it is his 6.167.0 measurement for the LG, and deleting
+        -- it would cost him that tuning the day he turns the card back on.
+        -- Back on, no release: enabled = true here.
+        shortcut_hints = { enabled = false, scale = 1.5 },
         -- 6.213.2, LL: "solid when I go over, about 30% when I move off".
         -- The hover poll (6.152.0) already switches between the two.
         pomodoro = { alphaIdle = 0.30, alphaAlert = 1 },
@@ -3138,6 +3148,7 @@ _G.moduleProfiles = {
     -- on that Mac, or read the 🧭 line at the top of its Console.
     ["Lees-Work-MacBook"] = profileFrom({
         settings = {
+            shortcut_hints = { enabled = false },              -- 6.240.0, as on the Air
             pomodoro = { alphaIdle = 0.30, alphaAlert = 1 },   -- 6.213.2, as on the Air
             -- Examples — delete or edit freely. These are exactly the
             -- knobs a work Mac tends to want different:
