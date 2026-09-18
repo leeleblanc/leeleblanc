@@ -105,6 +105,10 @@ function M.setup(core)
     chrome.maxTotal  = 60000      -- archive rows kept in all, newest first
     chrome.staleSecs = 6 * 3600   -- ⇪Y quietly re-exports past this age
     chrome.showRows  = 40         -- results the picker holds per keystroke
+    -- 🔔 6.245.0 — a keystroke slower than this takes the degrade door. It
+    -- is a number he can feel: past about a fifth of a second the keyboard
+    -- is visibly behind the typing, which is what he reported.
+    chrome.slowMs    = 150
     -- 📜 6.156.0 — LL: "can you show more than nine cmd+{number}? I'd
     -- like a scrollable list of at least 30 days." The empty box used to
     -- hold the newest showRows pages; it now holds EVERYTHING from the
@@ -201,6 +205,21 @@ function M.setup(core)
     end
 
     -- ---- finding the databases -------------------------------------------
+    -- A monotonic millisecond with a degrade, so "never measured" cannot
+    -- read the same as "measured and fast" (6.196.1, and file_tracker's).
+    chrome.clockName = "nothing timed yet"
+    function chrome.nowMs()
+        if hs.timer and hs.timer.absoluteTime then
+            local ok, v = pcall(hs.timer.absoluteTime)
+            if ok and tonumber(v) then
+                chrome.clockName = "hs.timer.absoluteTime"
+                return tonumber(v) / 1e6
+            end
+        end
+        chrome.clockName = "os.clock (coarse)"
+        return (os.clock() or 0) * 1000
+    end
+
     function chrome.findDbs()
         local dbs = {}
         local function addIf(label, path)
@@ -768,6 +787,51 @@ printf 'finished cleanly\n' >> "$pf"
         return list
     end
 
+    -- 🚨 6.245.0 — SELECT, DO NOT SORT. LL: "Searching Chrome history with
+    -- hyper+y caused a lock up when I started to search." WHEN HE STARTED
+    -- is the whole diagnosis, and it is the FIRST keystroke that is the
+    -- worst one: a single letter is inside very nearly every URL in the
+    -- archive, so the old code built a table for all 60,000 matches and
+    -- handed the lot to table.sort — about a million comparator calls,
+    -- 60,000 allocations and the garbage collection behind them, ON THE
+    -- MAIN THREAD, inside a queryChangedCallback, for every key he typed.
+    -- The picker can show `showRows` (40). Sorting 60,000 rows to draw 40
+    -- is the whole cost, and none of it was ever seen.
+    --
+    -- THE ORDERING RULE LIVES IN ONE PLACE so the selection cannot drift
+    -- from what a full sort would have answered: score DESC, then the
+    -- pool index ASC — entries are newest-first, so equal scores surface
+    -- this morning's page above last month's. PURE.
+    function chrome.better(aScore, aIdx, bScore, bIdx)
+        if aScore ~= bScore then return aScore > bScore end
+        return aIdx < bIdx
+    end
+
+    -- Keeps `best` sorted and at most `n` long. A row that cannot beat the
+    -- WORST row already kept is dropped without allocating anything, which
+    -- is what turns 60,000 sorted entries into 60,000 comparisons and forty
+    -- inserts. → true when it was kept.
+    function chrome.keepBest(best, n, score, idx, e)
+        n = math.max(1, math.floor(tonumber(n) or 40))
+        local have = #best
+        if have >= n and not chrome.better(score, idx, best[n].s, best[n].idx) then
+            return false
+        end
+        local at = have + 1
+        for i = 1, have do
+            if chrome.better(score, idx, best[i].s, best[i].idx) then at = i ; break end
+        end
+        table.insert(best, at, { s = score, idx = idx, e = e })
+        if #best > n then table.remove(best) end
+        return true
+    end
+
+    -- What the last search cost, so a report can answer "is it still slow"
+    -- with a number rather than a shrug (6.224.0's rule).
+    chrome.lastSearch = { query = nil, pool = 0, matched = 0, kept = 0,
+                          ms = 0, at = nil, worstMs = 0, worstQuery = nil,
+                          slow = 0 }
+
     function chrome.search(query)
         local words, patterns = {}, {}
         for w in tostring(query or ""):lower():gmatch("%S+") do
@@ -788,19 +852,36 @@ printf 'finished cleanly\n' >> "$pf"
             end
             return out
         end
-        local scored = {}
-        for idx, e in ipairs(pool) do
-            local s = chrome.score(e, words, patterns)
-            -- idx breaks ties: entries are newest-first, so equal scores
-            -- surface this morning's page above last month's
-            if s then scored[#scored + 1] = { s = s, idx = idx, e = e } end
+        local t0 = chrome.nowMs()
+        local n = chrome.showRows or 40
+        local best, matched = {}, 0
+        for idx = 1, #pool do
+            local e = pool[idx]
+            local sc = chrome.score(e, words, patterns)
+            if sc then
+                matched = matched + 1
+                chrome.keepBest(best, n, sc, idx, e)
+            end
         end
-        table.sort(scored, function(a, b)
-            if a.s ~= b.s then return a.s > b.s end
-            return a.idx < b.idx
-        end)
-        for i = 1, math.min(#scored, chrome.showRows) do
-            out[#out + 1] = scored[i].e
+        for i = 1, #best do out[i] = best[i].e end
+        local ms = chrome.nowMs() - t0
+        local L = chrome.lastSearch
+        L.query, L.pool, L.matched, L.kept = query, #pool, matched, #out
+        L.ms, L.at = ms, os.date("%H:%M:%S")
+        if ms > (L.worstMs or 0) then L.worstMs, L.worstQuery = ms, query end
+        -- 🔔 Past the budget this is a BREAK and is seen, not only logged:
+        -- a keystroke that costs a fifth of a second is a keyboard he can
+        -- feel, and it is the thing he reported.
+        if ms > (tonumber(chrome.slowMs) or 150) then
+            L.slow = (L.slow or 0) + 1
+            local why = string.format(
+                "a keystroke took %.0f ms over %d row(s) — that is the main"
+                .. " thread, and your keyboard waits for it", ms, #pool)
+            if type(core.degrade) == "function" then
+                pcall(core.degrade, "Chrome history", why)
+            else
+                print("⚠️ Chrome history: " .. why)
+            end
         end
         return out
     end
@@ -983,6 +1064,28 @@ printf 'finished cleanly\n' >> "$pf"
         end
 
         outLine("🕘 CHROME HISTORY (⇪Y) — " .. tostring(chrome.status))
+
+        -- 🔎 6.245.0 — WHAT A KEYSTROKE COSTS, because "it locked up when
+        -- I started to search" had no number behind it and the module had
+        -- no way to be asked. Never searched ≠ searched and fast.
+        local LS = chrome.lastSearch or {}
+        if not LS.at then
+            outLine("   search    : nothing typed into ⇪Y yet this session")
+        else
+            outLine(string.format(
+                "   search    : %.0f ms for %q at %s · %d row(s) scanned · "
+                .. "%d matched · %d shown",
+                LS.ms or 0, tostring(LS.query), tostring(LS.at),
+                LS.pool or 0, LS.matched or 0, LS.kept or 0))
+            outLine(string.format(
+                "   worst     : %.0f ms for %q · budget %d ms · %d over it",
+                LS.worstMs or 0, tostring(LS.worstQuery),
+                tonumber(chrome.slowMs) or 150, LS.slow or 0))
+            outLine("   ↳ the picker shows " .. tostring(chrome.showRows)
+                    .. ", so only that many are ever kept — 6.245.0 stopped"
+                    .. " sorting every match to draw forty of them")
+        end
+        outLine("   clock     : " .. tostring(chrome.clockName))
 
         -- 1. the two things that must exist before anything can work
         local sqlOk

@@ -1835,7 +1835,7 @@ THE METHOD, when something breaks after a stacked zip:
    6.216.0 6f06071 · 6.217.0 a475bef · 6.218.0 41b002b · 6.219.0 862c177
    · 6.220.0 ac3975e · 6.221.0 ead07d9 · 6.222.0 1842ca7 · 6.223.0
    86ac82b · 6.224.0 67957ea · 6.225.0 98434fe · 6.226.0 304f1f9 ·
-   6.227.0 14e953a · 6.228.0 2aa3dfe · 6.229.0 a1318e1 · 6.230.0 0740c07 · 6.231.0 c1921af · 6.231.1 5a5c298 · 6.232.0 1ca3f6f · 6.233.0 2328c8c · 6.234.0 57f78d0 · 6.235.0 52e5b21 · 6.236.0 34cff8b · 6.236.1 fdce771 · 6.237.0 adf9256 · 6.238.0 3adad4f · 6.239.0 3adad4f (one commit, two releases) · 6.240.0 8f44bec · 6.241.0 dce517e · 6.242.0 1a1dab0 · 6.243.0 8fba04f · 6.244.0 SHA244.
+   6.227.0 14e953a · 6.228.0 2aa3dfe · 6.229.0 a1318e1 · 6.230.0 0740c07 · 6.231.0 c1921af · 6.231.1 5a5c298 · 6.232.0 1ca3f6f · 6.233.0 2328c8c · 6.234.0 57f78d0 · 6.235.0 52e5b21 · 6.236.0 34cff8b · 6.236.1 fdce771 · 6.237.0 adf9256 · 6.238.0 3adad4f · 6.239.0 3adad4f (one commit, two releases) · 6.240.0 8f44bec · 6.241.0 dce517e · 6.242.0 1a1dab0 · 6.243.0 8fba04f · 6.244.0 9320906 · 6.245.0 SHA245.
    Keep this list current: one line per release, appended at ceremony
    time.
 4. A BISECT IS AN OPTION, NOT THE FIRST MOVE — it costs him an install
@@ -1914,6 +1914,7 @@ as the fix when a loss lands.
 | 6.242.0 | 🧭 `_G.groundReport()` — what THIS Mac answers about the six surfaces the next releases need, with the release each answer decides | pending |
 | 6.243.0 | 🔤 ⇪Z learns the correction HE just made — backspace over a typo, retype it, press ⇪Z | pending |
 | 6.244.0 | 🗓 the ⇪⇧0 calendar is as tall as its content (768 → 494), the date and clock sit above the months, and it wears the music player's card | pending |
+| 6.245.0 | 🔎 ⇪Y stopped sorting the whole archive to draw forty rows — the first keystroke of a search was building and sorting 60,000 entries on the main thread | pending |
 
 Running total: 15 wins · 8 losses · 22 pending (6.215.0, 6.217.0, 6.218.0,
 6.219.0, 6.220.0, 6.221.0, 6.222.0, 6.223.0, 6.224.0, 6.225.0, 6.226.0,
@@ -2144,15 +2145,35 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   never read each other's stores again. autocorrect.csv is one of them, and
   "what ⇪Z learns is permanent, CROSS-MACHINE" is a promise this config
   makes in writing. Do not flip that flag to fix a wake-up problem.
-- 🐞 ⇪Y CHROME HISTORY BEACHBALL (2026-09-13, LL: "Searching Chrome
-  history: caused a beachball"; the stall guard relaunched at 72 s).
-  NOT diagnosed. The export copies each profile's History DB and
-  queries it with sqlite3 in an hs.task (off-thread by design), so the
-  stall is on the READ-BACK side or the picker: suspects are the JSON
-  result decode / CSV save on the main thread (20,000 rows), or the
-  per-keystroke search over chrome.maxTotal rows. Ask for the artefact
-  FIRST: `_G.chromeHistoryReport()` (rows, timings) and whether it
-  froze on the keypress or on typing. Own release once named.
+- ✅ ⇪Y CHROME HISTORY BEACHBALL — NAMED AND FIXED AS 6.245.0. His
+  second report (2026-09-17) carried the half that decided it: "caused a
+  lock up when I STARTED TO SEARCH" — it froze on TYPING, not on the
+  keypress, which clears the export, the sqlite3 task and the CSV read
+  and leaves the per-keystroke search alone as the suspect. The cause was
+  then READABLE (6.199.0's rule — read the source before naming a second
+  cause): `chrome.search` scored every row, built a table for every
+  MATCH, and handed the lot to table.sort before taking the first 40. A
+  one-letter query is inside nearly every URL, so the FIRST keystroke of
+  any search built ~60,000 tables and sorted them — about a million Lua
+  comparator calls plus that much garbage — on the main thread inside a
+  queryChangedCallback, per key. 6.228.0's rule names the cost.
+  🚨 SELECT, DO NOT SORT: `chrome.keepBest` holds the best `showRows` and
+  refuses anything that cannot beat the worst kept row, without
+  allocating; `chrome.better` is the ordering rule (score DESC, pool
+  index ASC) in ONE place and PURE. THE CHECK THAT MATTERS runs the OLD
+  algorithm beside the new one over seven queries and wants identical
+  rows in identical order — speed bought with his results is not a fix,
+  and a check that only asserted "the answer looks right" passes with
+  table.sort put back. A second check counts the rows actually KEPT
+  while a one-letter query matches most of the pool: a few dozen, never a
+  few thousand. GENERAL: when only the top N is shown, selecting is the
+  fix and sorting is the bug — and the check is "same answer as the sort"
+  PLUS "nowhere near as much work".
+  🔎 `_G.chromeHistoryReport()` has a CLOCK now (last keystroke: ms, rows
+  scanned, matched, kept; the worst of the session beside it) and past
+  `chrome.slowMs` (150) a keystroke takes the 🔔 door naming the ms AND
+  the row count. NOT FIXED, named: the scan is still O(archive) per
+  keystroke and still on the main thread.
 - 🎵 MINI MUSIC PLAYER (LL, 2026-09-13, NOT built; questions asked):
   ⇪⇧numpad. opens a lightweight player in the top-right corner like
   the 3-month calendar. Repeat one / repeat all; history (click an
@@ -2269,6 +2290,27 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.245.0 verify with LL — 🔎 ⇪Y SEARCHES WITHOUT THE BEACHBALL (KNOWN
+  GROUND): install. ⇪Y, and TYPE — slowly at first, then normally. The first
+  keystroke was the worst one and it is the one to watch: a single letter is
+  in nearly every URL you have, and this config used to build a row for all
+  60,000 matches and SORT them before drawing forty.
+  Then Console: `_G.chromeHistoryReport()` and paste the "search :" and
+  "worst :" lines. They say what the last keystroke cost, over how many
+  rows, how many matched and how many were kept.
+  🔔 If a keystroke ever crosses 150 ms you get an alert naming the
+  milliseconds and the row count — that is the door, and the alert IS the
+  evidence. Paste it.
+  🚨 THE RESULTS MUST NOT HAVE CHANGED. Search something you searched
+  before; the same pages in the same order. The gate runs the OLD algorithm
+  beside the new one over seven queries and wants them identical, so if you
+  ever see a page you expected near the top go missing, that is a real
+  finding and I want the query.
+  📏 KNOWN AND NOT FIXED: the scan still walks the whole archive on every
+  keystroke and still on the main thread — milliseconds, not seconds, now
+  that the sort is gone. The report carries the number that would say
+  otherwise.
+
 - 6.244.0 verify with LL — 🗓 THE CALENDAR, TIGHTENED (KNOWN GROUND):
   install. ⇪⇧0. Three things to look at, in this order:
   1. The DATE and the CLOCK are now ABOVE the three months, same 34 pt as

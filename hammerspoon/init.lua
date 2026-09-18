@@ -4,9 +4,37 @@
 -- =====================================================================
 -- 09-17-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.244.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.245.0
 -- =====================================================================
 
+-- NEW IN 6.245.0 — 🔎 ⇪Y STOPPED SORTING THE WHOLE ARCHIVE TO DRAW
+--                  FORTY ROWS (modules/chrome_history.lua):
+--   LL: "Searching Chrome history with hyper+y caused a lock up when I
+--      started to search." WHEN HE STARTED is the diagnosis, and it made
+--      the first keystroke the worst one: a single letter is inside very
+--      nearly every URL in a 60,000-row archive, so chrome.search built a
+--      table for EVERY match and handed the lot to table.sort — about a
+--      million comparator calls, sixty thousand allocations and the
+--      collection behind them, on the MAIN THREAD, inside a
+--      queryChangedCallback, for every key he pressed. The picker shows 40.
+--   🚨 SELECT, DO NOT SORT. `chrome.keepBest` holds the best
+--      `showRows` and drops anything that cannot beat the worst kept row
+--      without allocating — sixty thousand comparisons and forty inserts
+--      instead of a sort. `chrome.better` is the ordering rule (score
+--      DESC, pool index ASC) in ONE place, PURE, so the selection cannot
+--      drift from what a full sort would have answered.
+--   🧪 AND THAT IS THE CHECK: the suite runs the OLD algorithm beside
+--      the new one over seven queries and wants identical rows in an
+--      identical order. Speed bought with his results is not a fix.
+--   🔎 IT HAS A CLOCK NOW, because "it locked up" had no number behind
+--      it and the module could not be asked: the report says what the last
+--      keystroke cost, over how many rows, how many matched and how many
+--      were kept, with the worst of the session beside it.
+--   🔔 And past `chrome.slowMs` (150) a keystroke takes the degrade
+--      door naming the milliseconds AND the row count — a keyboard he can
+--      feel is a break, and a break is seen, never only logged.
+--      · 9,701 -> 9,721 checks · six mutations, six bites.
+--
 -- NEW IN 6.244.0 — 🗓 THE CALENDAR IS AS TALL AS WHAT IS IN IT
 --                  (modules/mini_calendar.lua):
 --   LL, with two screenshots: "Can you please make this look like the
@@ -43,43 +71,12 @@
 --      elements. 6.220.0's rule in a new costume.
 --      · 9,676 -> 9,701 checks · nine mutations, nine bites.
 --
--- NEW IN 6.243.0 — 🔤 ⇪Z LEARNS THE CORRECTION HE JUST MADE HIMSELF
---                  (modules/autocorrect.lua):
---   LL: "I wanted a quick way to use the last correction I makee and then
---      I type make to fix it, is either added by you catching it, or me
---      adding it via shortcut key." His sentence demonstrates the feature
---      on its way past. His call on the one open decision: ARM, not write.
---   🔤 Backspace over a word, retype a near-twin of it, and the pair is
---      noticed SILENTLY; ⇪Z within `selfSecs` (30) writes the fix row
---      through the existing _G.autocorrectAdd. A pair nobody presses ⇪Z
---      on is never written down — his own rule about the OCR filter ("if
---      the method can introduce errors, singles only"), applied to a
---      similarity test that is a guess where a keypress is not.
---   🔑 NO NEW KEY. ⇪Z undoes OUR correction when there is one (that
---      branch is unchanged and wins), and learns HIS when there is not.
---      6.199.0's own test for whether a rule belongs here — "⇪Z ALREADY
---      GOVERNS IT … Nothing new to learn".
---   🚨 AND THE TRAP THAT DECIDED THE DESIGN: 6.218.0 — a retype comes
---      back through the tap. This module corrects by deleting and
---      retyping, so its own corrections are indistinguishable from his
---      unless the injection guard separates them. The detector sits BELOW
---      that guard and a source sentry holds it there; without it the
---      dictionary would teach itself its own rules.
---   🔎 ONE EDIT APART, or it is a rewrite: cat → dog is an ordinary edit
---      and is never offered. A new retype replaces the offer whether or
---      not it qualifies — ⇪Z means "the last correction you made".
---   ↩️ AND A ROW A KEYPRESS WROTE OWES A WAY BACK (6.199.0, in the other
---      column): the row carries a fourth column, `_G.autocorrectReport()`
---      lists what ⇪Z taught with its line, and
---      `_G.autocorrectForgetFix("makee")` takes it out.
---      · 9,646 -> 9,676 checks · eight mutations, eight bites.
---
--- (6.242.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.243.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.244.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.245.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -176,7 +173,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.244.0"
+_G.configVersion = "6.245.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the

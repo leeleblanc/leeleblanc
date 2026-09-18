@@ -5,6 +5,71 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.245.0 — 🔎 ⇪Y STOPPED SORTING THE WHOLE ARCHIVE TO DRAW FORTY ROWS
+                 (modules/chrome_history.lua):
+  LL: "Searching Chrome history with hyper+y caused a lock up when I started
+  to search. So I made it through the cheat sheet until Chrome history caused
+  my dreaded beachball."
+
+  WHEN HE STARTED is the whole diagnosis, and it is the half the module could
+  never be asked for. It froze on TYPING, not on the keypress — so the export,
+  the sqlite3 task and the CSV read were all innocent, and the suspect list
+  in CLAUDE.md ("the JSON decode / CSV save on the main thread, or the
+  per-keystroke search") collapses to the second one by his own sentence.
+
+  🚨 AND THE CAUSE IS READABLE, which is why this is a fix and not another
+  instrument. `chrome.search` scored every row in the archive, built a
+  `{s, idx, e}` table for every MATCH, and handed the lot to table.sort — then
+  took the first 40. A one-letter query is inside very nearly every URL, so
+  the first keystroke of any search built sixty thousand tables and sorted
+  them: roughly a million Lua comparator calls plus the garbage collection
+  behind sixty thousand allocations, on the MAIN THREAD, inside a
+  queryChangedCallback, per key. 6.228.0's rule names what that costs — a main
+  thread this config is busy on is a keyboard this Mac has lost.
+
+  🚨 SELECT, DO NOT SORT. `chrome.keepBest(best, n, score, idx, e)` keeps the
+  best `showRows` in order and refuses anything that cannot beat the WORST row
+  already kept — without allocating. Sixty thousand comparisons and forty
+  inserts, instead of a sort of every match. `chrome.better` is the ordering
+  rule in ONE place and PURE: score DESC, then the pool index ASC (entries are
+  newest-first, so equal scores surface this morning's page above last
+  month's).
+
+  🧪 AND THAT IS THE CHECK THAT MATTERS: the suite runs the OLD algorithm —
+  score everything, sort everything, take the first showRows — beside the new
+  one over seven queries and wants identical rows in an identical order.
+  Speed bought with his results is not a fix, and a check that only asserted
+  "the answer looks right" would have passed with table.sort put back. A
+  SECOND check counts how many rows were actually kept while a one-letter
+  query matches 1,600 of 2,000: it must be a few dozen, not a few thousand.
+  That is the row that proves this is a selection rather than a fast sort.
+
+  🔎 IT HAS A CLOCK NOW. "It locked up when I started to search" had no number
+  behind it and there was nothing to ask, which is 6.196.1's rule in the one
+  module that most needed it. `_G.chromeHistoryReport()` says what the last
+  keystroke cost, over how many rows, how many matched and how many were
+  kept, with the worst keystroke of the session beside it — and "nothing typed
+  into ⇪Y yet" reads differently from "searched and fast".
+
+  🔔 Past `chrome.slowMs` (150) a keystroke takes the degrade door, naming the
+  milliseconds AND the row count. A keyboard he can feel is a break, and a
+  break is seen, never only logged (6.214.0).
+
+  🧪 A LUA TRAP IN THE SUITE, and it is one this project has written down
+  before: the core stub's `degrade` closure was defined ABOVE `local DEGRADED
+  = {}`, so it bound the GLOBAL of that name while every check read a local
+  nothing ever filled — both door checks failed for a reason that had nothing
+  to do with the door. 6.230.0's declare-first rule, in a test rather than a
+  module.
+
+  📏 NOT FIXED HERE, and named so it is not a surprise: the scan itself is
+  still O(archive) per keystroke and still on the main thread. At 60,000 rows
+  and one or two C-speed finds each that is milliseconds rather than seconds —
+  the sort was the beachball — and the report now carries the number that
+  would say otherwise.
+
+  · 9,701 -> 9,721 checks · six mutations, six bites.
+
 NEW IN 6.244.0 — 🗓 THE CALENDAR IS AS TALL AS WHAT IS IN IT
                  (modules/mini_calendar.lua):
   LL, with two screenshots of ⇪⇧0: "Can you please make this look like the

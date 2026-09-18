@@ -27,6 +27,12 @@ local function check(label, cond, extra)
 end
 local function out(s) io.write(s) end
 
+-- 🚨 DECLARED BEFORE the core stub below closes over it: written after,
+-- the stub's `degrade` would bind the GLOBAL of this name and every check
+-- here would read a local nothing ever filled (6.230.0's declare-first
+-- rule, in a test rather than a module).
+local DEGRADED = {}
+
 local printed = {}
 print = function(...)
     local p = {}
@@ -223,6 +229,11 @@ local CORE = {
         local ms = {} ; for _, x in ipairs(mods or {}) do ms[#ms + 1] = x end
         table.sort(ms) ; HYPER[table.concat(ms, "+") .. "|" .. key] = fn end,
     provide = function(n, f) PROVIDED[n] = f end,
+    -- 6.245.0: the 🔔 door, so a keystroke over budget can be asserted.
+    degrade = function(tool, why)
+        DEGRADED[#DEGRADED + 1] = tostring(tool) .. " :: " .. tostring(why)
+        return false, why
+    end,
     call    = function(n, ...) CALLS[#CALLS + 1] = { n = n, args = { ... } } ; return true end,
 }
 
@@ -913,6 +924,189 @@ check("services provided for ⇪space and friends",
       and PROVIDED["chromeHistory.export"] ~= nil)
 check("_G.chromeHistory is published for the @web source",
       _G.chromeHistory == chrome)
+
+-- =====================================================================
+out("\n9) 6.245.0 — a keystroke stopped sorting the whole archive\n")
+-- =====================================================================
+-- LL: "Searching Chrome history with hyper+y caused a lock up when I
+-- started to search." WHEN HE STARTED is the diagnosis, and the FIRST
+-- keystroke is the worst one: a single letter is inside very nearly every
+-- URL in the archive, so the old code built a table for all 60,000 matches
+-- and handed the lot to table.sort — about a million comparator calls plus
+-- 60,000 allocations, on the main thread, inside a queryChangedCallback,
+-- for every key. The picker draws 40.
+--
+-- 🚨 THE SECTION WRAPS ITSELF AND COUNTS ITS OWN CHECKS (6.186.0).
+local before245 = pass + fail
+local ok245, err245 = pcall(function()
+
+-- A pool with varied scores: some hold the word outright, some only as a
+-- scattered sequence, some not at all.
+local POOL = {}
+local words = { "gmail", "github", "google", "gimlet", "grumble", "nope" }
+for i = 1, 2000 do
+    local w = words[(i % #words) + 1]
+    local title = w .. " item " .. i
+    POOL[i] = { url = "https://" .. w .. ".example/" .. i, title = title,
+                ts = 1000000 - i, visits = 1, profile = "Default", when = "",
+                hay = (title .. " https://" .. w .. ".example/" .. i):lower(),
+                titleLen = #title }
+end
+chrome.entries  = POOL
+chrome.visCache = nil
+chrome.hideLogins = false
+
+-- The reference: EXACTLY what the old code did — score everything, sort
+-- everything, take the first showRows. If the new selection ever answers
+-- something different, the speed was bought with his results.
+local function seqPat(word)
+    local parts = {}
+    for i = 1, #word do parts[#parts + 1] = word:sub(i, i):gsub("(%W)", "%%%1") end
+    return table.concat(parts, ".-")
+end
+local function referenceSearch(query, n)
+    local ws, ps = {}, {}
+    for w in tostring(query):lower():gmatch("%S+") do
+        ws[#ws + 1] = w ; ps[#ps + 1] = seqPat(w)
+    end
+    local scored = {}
+    local pool = chrome.visible()
+    for idx, e in ipairs(pool) do
+        local sc = chrome.score(e, ws, ps)
+        if sc then scored[#scored + 1] = { s = sc, idx = idx, e = e } end
+    end
+    table.sort(scored, function(a, b)
+        if a.s ~= b.s then return a.s > b.s end
+        return a.idx < b.idx
+    end)
+    local outl = {}
+    for i = 1, math.min(#scored, n) do outl[i] = scored[i].e end
+    return outl, #scored
+end
+
+-- 🚨 THE ROW THIS RELEASE TURNS ON: same answers, or the speed was bought
+-- with his results.
+local same, total = true, 0
+for _, q in ipairs({ "g", "gm", "gmail", "git hub", "goo gle", "zzz", "e 1" }) do
+    local got  = chrome.search(q)
+    local want = referenceSearch(q, chrome.showRows)
+    total = total + #want
+    if #got ~= #want then same = false break end
+    for i = 1, #got do if got[i] ~= want[i] then same = false break end end
+    if not same then break end
+end
+check("🚨 the selection answers EXACTLY what a full sort would have — same "
+      .. "rows, same order, across seven queries", same and total > 0, total)
+
+-- 🚨 AND IT IS A SELECTION, NOT A SORT. "g" matches nearly every row; the
+-- old code kept a table for each one. A check that the ANSWER is right
+-- would pass just as happily with table.sort put back, so this counts the
+-- rows that were actually KEPT.
+local realKeep = chrome.keepBest
+local keeps = 0
+chrome.keepBest = function(best, n, sc, idx, e)
+    local kept = realKeep(best, n, sc, idx, e)
+    if kept then keeps = keeps + 1 end
+    return kept
+end
+local wide = chrome.search("e")
+chrome.keepBest = realKeep
+local matched = chrome.lastSearch.matched
+check("🚨 ...and a one-letter query really does match nearly the whole "
+      .. "archive — that is why the first keystroke was the worst one",
+      matched > 1500, matched)
+check("🚨 ...yet only a bounded few rows are ever KEPT — the cost is the "
+      .. "scan now, not a sort of every match",
+      keeps < 400 and keeps >= chrome.showRows, keeps .. " kept of " .. matched)
+check("...and the picker still gets its full showRows",
+      #wide == chrome.showRows, #wide)
+
+-- The ordering rule, PURE and in one place.
+check("🔎 chrome.better: a higher score wins",
+      chrome.better(100, 9, 50, 1) == true
+      and chrome.better(50, 1, 100, 9) == false)
+check("...and an equal score is broken by the NEWER row — entries are "
+      .. "newest-first, so the lower index is this morning's page",
+      chrome.better(100, 2, 100, 7) == true
+      and chrome.better(100, 7, 100, 2) == false)
+
+-- keepBest's own edges.
+do
+    local best = {}
+    check("keepBest fills up to n and no further", (function()
+        for i = 1, 50 do chrome.keepBest(best, 10, 100 - i, i, i) end
+        return #best == 10
+    end)(), #best)
+    check("...and it holds the BEST, in order",
+          best[1].s > best[#best].s and best[1].s == 99, best[1].s)
+    check("...a row that cannot beat the worst kept is refused outright",
+          chrome.keepBest(best, 10, -1, 999, "x") == false)
+    check("...and one that can is taken, pushing the worst out",
+          chrome.keepBest(best, 10, 1000, 999, "x") == true
+          and #best == 10 and best[1].s == 1000)
+    local one = {}
+    check("...n of 1 keeps exactly one, and a silly n does not throw",
+          chrome.keepBest(one, 1, 5, 1, "a") and chrome.keepBest(one, 1, 9, 2, "b")
+          and #one == 1 and one[1].s == 9
+          and (function() local z = {} ; chrome.keepBest(z, 0, 1, 1, "q")
+                 return #z == 1 end)())
+end
+
+-- 🕐 THE CLOCK AND THE REPORT. "It locked up when I started to search" had
+-- no number behind it and the module had no way to be asked.
+do
+    local L = chrome.lastSearch
+    check("🕐 the last search is timed, with what it scanned and what it kept",
+          type(L.ms) == "number" and L.pool == #POOL and L.kept == chrome.showRows,
+          L.pool .. " / " .. tostring(L.kept))
+    printed = {}
+    chrome.report()
+    local rep = table.concat(printed, "\n")
+    check("...and the report says so, with the worst keystroke beside it",
+          rep:find("search    :", 1, true) ~= nil
+          and rep:find("worst     :", 1, true) ~= nil, rep:match("search[^\n]*"))
+    check("...and names the clock that answered",
+          rep:find("clock     :", 1, true) ~= nil)
+end
+
+-- 🔔 PAST THE BUDGET IT TAKES THE DOOR. A keystroke he can feel is a break,
+-- and a break is SEEN, never only logged (6.214.0).
+do
+    DEGRADED = {}
+    local realNow, tick = chrome.nowMs, 0
+    chrome.nowMs = function() tick = tick + 500 ; return tick end
+    chrome.search("gmail")
+    chrome.nowMs = realNow
+    check("🔔 a keystroke over the budget takes the degrade door",
+          #DEGRADED == 1 and DEGRADED[1]:find("Chrome history", 1, true) == 1,
+          DEGRADED[1])
+    check("...and the alert names the milliseconds AND the row count, so the"
+          .. " next report is an artefact rather than 'it felt slow'",
+          (DEGRADED[1] or ""):find("500 ms over 2000 row", 1, true) ~= nil,
+          DEGRADED[1])
+    check("...and it is counted", (chrome.lastSearch.slow or 0) >= 1)
+    DEGRADED = {}
+    chrome.search("gmail")
+    check("🤫 ...while a fast keystroke says nothing at all", #DEGRADED == 0,
+          DEGRADED[1])
+end
+
+-- The empty box is untouched: it was never the slow path.
+check("the empty query still lists by recency, not by score",
+      (function()
+          local l = chrome.search("")
+          return #l > chrome.showRows and l[1] == POOL[1]
+      end)())
+
+chrome.entries, chrome.visCache = {}, nil
+
+end)
+if not ok245 then
+    check("🚨 the 6.245.0 section ran to the end without throwing", false,
+          tostring(err245))
+end
+check("🚨 ...and it asserted every check it was written to make",
+      (pass + fail) - before245 >= 17, (pass + fail) - before245)
 
 os.remove(CSV)
 out(string.format("\n%d passed, %d failed\n", pass, fail))
