@@ -293,8 +293,12 @@ check("scratch.show / scratch.send / scratch.report are published",
 check("the store lives under logsDir/scratch", sp.file == "/logs/scratch/scratch.json")
 check("the store is registered with the write ledger", _G.rewrittenFiles[sp.file] ~= nil)
 check("a fresh install starts with exactly one blank tab", #sp.tabs == 1 and sp.tabs[1].text == "")
-check("the 16:00 send is armed and HELD in sp.sendTimer",
-      sp.sendTimer ~= nil and sp.sendTimer.kind == "at" and sp.sendTimer.at == "16:00" and sp.sendTimer.repeats == "1d")
+-- 🗑 6.254.0 — the daily send is OFF by default now (LL: "I don't need to
+-- send these at 4pm"), so warm() arms nothing. The switch, the timer it
+-- arms when it is ON, and the fact that nothing was deleted, are all
+-- checked in the 6.254.0 section at the end of this file.
+check("🗑 the 16:00 send is NOT armed by default — no timer is held",
+      sp.sendDaily == false and sp.sendTimer == nil, tostring(sp.sendTimer))
 
 -- =======================================================================
 out("2) typing — Lua at once, disk after the debounce, one held timer\n")
@@ -422,9 +426,17 @@ sp.setText(sp.active, "second\nline two!!")
 ok = sp.send("button")
 check("a change sends again", ok == true and #SUBMITS == 2)
 check("the report names the last send", _G.scratchPadReport():find("last send:", 1, true) ~= nil)
--- the scheduled timer runs the same path, inside pcall
+-- the scheduled timer runs the same path, inside pcall.
+-- 🗑 6.254.0 — the SCHEDULE is off by default now, so this section turns
+-- it on and warms again: the machinery is unchanged and still has to
+-- work, which is the whole point of a switch rather than a deletion.
 SUBMITS = {}
 sp.setText(sp.active, "third try")
+sp.sendDaily = true
+mod.warm(CORE)
+check("with sendDaily on, warm arms the 16:00 timer and HOLDS it",
+      sp.sendTimer ~= nil and sp.sendTimer.kind == "at"
+      and sp.sendTimer.at == "16:00" and sp.sendTimer.repeats == "1d")
 sp.sendTimer:fire()
 check("the 16:00 timer sends", #SUBMITS == 1 and SUBMITS[1].extra.dueTime == "16:00")
 -- nothing to send
@@ -1166,6 +1178,87 @@ do
     -- dropped it would leave two identical windows.
     check("the pad's header carries its own icon, not just the name",
           code:find("📝 Hamsidian", 1, true) ~= nil)
+end
+
+-- =====================================================================
+-- 🗑 6.254.0 — THE THREE DOORS, CLOSED WITHOUT DELETING ANYTHING
+-- =====================================================================
+-- LL: "I don't need to send these at 4pm. I don't need capture or append.
+-- I think those features are redundant. Am I wrong?" The answer was: the
+-- DOORS are redundant, the STORES are not — so each door is a switch and
+-- nothing on disk is touched.
+do
+    local before = pass + fail
+    local okSection, secErr = pcall(function()
+
+    -- 🚨 A FRESH LOAD, and its OWN config table. Four later sections
+    -- reload this module (mod2..mod4) and `sp` above still points at the
+    -- FIRST one, so warm() would be arming a table nobody here reads —
+    -- which is exactly what the first version of this section measured.
+    local m = dofile(HS .. "/modules/scratch_pad.lua")
+    m.setup(CORE)
+    local sp = m.config
+
+    check("the daily Asana send is OFF by default", sp.sendDaily == false)
+    check("the + Capture / + Append rows are OFF by default",
+          sp.showKindRows == false)
+
+    -- 🚨 OFF MUST ARM NOTHING. A timer created and then ignored is the
+    -- 4 PM task still running with nobody reading its answer.
+    sp.sendDaily, sp.sendTimer = false, nil
+    m.warm(CORE)
+    check("🗑 warm arms NO timer while the send is off", sp.sendTimer == nil)
+    sp.sendDaily = true
+    m.warm(CORE)
+    check("...and arms one the moment it is switched back on",
+          sp.sendTimer ~= nil and sp.sendTimer.at == "16:00",
+          tostring(sp.sendTimer))
+    sp.sendDaily, sp.sendTimer = false, nil
+    m.warm(CORE)
+
+    -- 🔑 NOTHING WAS DELETED. The send still works when it is asked for
+    -- by hand, which is what makes this a switch rather than a removal.
+    SUBMITS = {}
+    sp.tabs = { { id = "z1", text = "still here", createdAt = 0, updatedAt = 1 } }
+    sp.active, sp.sent = "z1", {}
+    local okSend = sp.send("button")
+    check("🔑 _G.scratchPadSend() still sends one by hand with the schedule off",
+          okSend == true and #SUBMITS == 1)
+
+    -- The report says OFF as a STATE, not as a failure: "NOT armed" on a
+    -- Mac that was asked not to arm it reads like something broken.
+    local r = _G.scratchPadReport()
+    check("the report calls the send OFF rather than 'NOT armed'",
+          r:find("4 PM: OFF", 1, true) ~= nil
+          and r:find("NOT armed", 1, true) == nil, r:match("[^\n]*4 PM[^\n]*"))
+    check("...and names the settings line that puts it back",
+          r:find("sendDaily = true", 1, true) ~= nil)
+    check("...and says the hand-send still works",
+          r:find("_G.scratchPadSend", 1, true) ~= nil)
+    -- 6.201.1 — the 📎 Collect tab rode into this task every day. With the
+    -- send off it cannot, and that is worth saying where the old warning
+    -- was read.
+    check("...and that nothing is swept into Asana at all now",
+          r:find("Collect tab included", 1, true) ~= nil)
+    check("the report names the hidden + rows, and that the stores are kept",
+          r:find("+ rows: hidden", 1, true) ~= nil
+          and r:find("still searched", 1, true) ~= nil)
+    sp.showKindRows = true
+    check("...and says so when they are switched back on",
+          _G.scratchPadReport():find("are offered in the window", 1, true) ~= nil)
+    sp.showKindRows = false
+
+    -- 🔑 AND THE KINDS THEMSELVES ARE UNTOUCHED: openKind still works, so
+    -- ⇪space's rows, the services and both pads' own routes are all live.
+    check("🔑 openKind still exists and still knows both kinds",
+          type(sp.openKind) == "function"
+          and sp.kinds ~= nil and sp.kinds.capture ~= nil and sp.kinds.append ~= nil)
+
+    end)
+    check("§6.254.0 ran to the end — a throw here deletes the checks after it",
+          okSection == true, secErr)
+    local ran = (pass + fail) - before
+    check("§6.254.0 ran all of its checks (" .. ran .. " of 13+)", ran >= 13, ran)
 end
 
 out(string.format("\n%d passed, %d failed\n", pass, fail))

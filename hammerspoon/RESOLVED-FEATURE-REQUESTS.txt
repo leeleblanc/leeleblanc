@@ -1,5 +1,5 @@
 ========================================================================
-RESOLVED FEATURE REQUESTS — Hammerspoon config 6.253.0
+RESOLVED FEATURE REQUESTS — Hammerspoon config 6.254.0
 Every feature and how to use it. Generated from the modules' own
 cheat sheets (the rows ⇪/ draws), so it is never out of date.
 ⇪ = Caps Lock held (the hyper key). ⇪⇧X = Caps Lock + Shift + X.
@@ -190,9 +190,9 @@ In the Console, _G.<tool>Report() prints any tool's own report.
   ⌘1…⌘9 Switch tab · ⌃Tab / ⌃⇧Tab cycle round them
   history   Right pane (in the notes): every closed tab, click to reopen
   📌      Pin: stays up beside the app; Esc only hands the keys back
-  + 🗒 · + ➕ New Capture / Append tabs are rows in the section now, not their own keys; ⌘W still files each where it always went
+  + 🗒 · + ➕ OFF since 6.254.0 — the Capture / Append rows are hidden. Nothing was deleted: both stores are intact and still searched by ⇪space. settings = { scratch_pad = { showKindRows = true } } brings the rows back
   ⇪2      SEQUENTIAL COPY: select text, press it, select more, press again — the grabs join into ONE block on the clipboard, so ⌘V pastes the lot. Copying anything else starts a new sequence. Nothing is filed into the pad
-  16:00     One Asana task of the day: every tab, 07:30 → 16:00, you
+  16:00     OFF since 6.254.0 — no daily Asana task. _G.scratchPadSend() sends one by hand; settings = { scratch_pad = { sendDaily = true } } puts the schedule back
   search    ⇪space finds everything here — tabs and history
   own window settings = { scratch_pad = { viaVault = false } } brings the old window back
   ⌘⇧S   Export every tab to <Vault>/Scratch as .md — Obsidian opens them
@@ -200,7 +200,7 @@ In the Console, _G.<tool>Report() prints any tool's own report.
 
 🕸 HAMSIDIAN (⇪3 / ⇪N — Markdown notes that link to each other, in OneDrive; its scratch tabs too)   [modules/vault.lua]
   ⇪3 · ⇪N Open / close the window — ⇪3 on your last note, ⇪N on your scratch tabs
-  📝 SCRATCH NOTES Top of the list: every scratch tab, plain or 🗒 Capture or ➕ Append · ⌘T new · the + rows make the other two · ⌘W close · ⌘1–9 · ⌃Tab · history on the right
+  📝 SCRATCH NOTES Top of the list: every scratch tab · ⌘T new · ⌘W close · ⌘1–9 · ⌃Tab · history on the right. The + 🗒 Capture / + ➕ Append rows are off since 6.254.0 (scratch_pad.showKindRows)
   🕸 NOTES Under the scratch tabs: every .md note in the vault · the + new note row and ⌘N both name it in the window · typing a name and ⏎ creates it too
   [[        Type [[ and pick a note — [[Name]] links to Name.md, creating it on follow
   ⌘⏎    Follow the link under the caret (a note, or a file link opens the file)
@@ -766,6 +766,7 @@ In the Console, _G.<tool>Report() prints any tool's own report.
 
 📜 RELEASE INDEX — newest first, one line per release (the full story of each is in CHANGELOG.md)
 ------------------------------------------------------------------------
+  6.254.0  🗑 THE THREE DOORS HE DOES NOT USE, CLOSED WITHOUT DELETING
   6.253.0  ✏️ ONE WINDOW, ONE NAME: THE SCORP PAD IS HAMSIDIAN
   6.252.0  ✂️ THE LANDED BOX SPLITS BY LETTER, AND ⌥HALVE IS GONE
   6.251.0  ⌨️ THE MUSIC CARD TAKES THE KEYBOARD

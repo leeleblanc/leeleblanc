@@ -878,6 +878,19 @@ Capture Pad recipe — NO eventtap, NO AX/window reads, every timer held.
 Keystrokes land in `sp.tabs` at once, the store (Logs/scratch/scratch.json,
 write ledger) 0.3 s later. The 16:00 task goes through `_G.asanaSubmitTask`
 with `extra.comment` (the only Asana path); keep it that way.
+🗑 6.254.0 — THREE DOORS CLOSED, NOTHING DELETED (LL: "I don't need to
+send these at 4pm. I don't need capture or append. I think those features
+are redundant."). `sendDaily = false` (no 16:00 Asana task) and
+`showKindRows = false` (no + 🗒 Capture / + ➕ Append rows in the window),
+both settings-overridable. capture_pad and note_pad keep their modules,
+stores and own routes; every note already written is on disk and still
+found by ⇪space / ⇪D. `_G.scratchPadSend()` still sends by hand — that is
+what makes it a switch and not a removal. THE SWITCH IS READ IN warm(),
+the only place it can be (6.228.0: settings land after setup). 📋 6.201.1's
+leak closes with it — the 📎 Collect tab rode into that task every day and
+cannot now; the report says so where the old warning was read. 🚨 And the
+PAGE has to ask: a `KINDROWS` flag the render ignores is 6.220.0's rule
+again, so the check measures that both pushes sit INSIDE the guard.
 6.165.0: 🗒 Capture / ➕ Append open as TABS in it (`sp.openKind`);
 closing such a tab files through capturePad.add / notePad.fileAll — the old
 modules keep their brains, `pad.viaScratch` / `np.viaScratch` restore their
@@ -2109,6 +2122,7 @@ as the fix when a loss lands.
 | 6.251.0 | ⌨️ the music card takes the keyboard when it opens — space works without a click, and the Console coming forward is the price | pending |
 | 6.252.0 | ✂️ the landed grid box splits by letter (one in each half, longer side first) and ⌥halve is gone | pending |
 | 6.253.0 | ✏️ the Scorp Pad is Hamsidian — one window, one name, the icon telling the two sides apart | pending |
+| 6.254.0 | 🗑 the 4 PM Asana send and the + Capture / + Append rows are off — three switches, nothing deleted | pending |
 
 Running total: 15 wins · 8 losses · 22 pending (6.215.0, 6.217.0, 6.218.0,
 6.219.0, 6.220.0, 6.221.0, 6.222.0, 6.223.0, 6.224.0, 6.225.0, 6.226.0,
@@ -2145,7 +2159,8 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   5 cheat-sheet punctuation search ✔ 6.250.0 · 6 the music card takes the
   keyboard ✔ 6.251.0 —
   keyboard · 7 the yellow box splits by letter (⌥halve gone) ✔ 6.252.0 ·
-  8 the Scorp Pad renamed Hamsidian ✔ 6.253.0 · 9 the three removals (the 4 PM
+  8 the Scorp Pad renamed Hamsidian ✔ 6.253.0 · 9 the three removals ✔ 6.254.0
+  (the 4 PM
   Asana send, the Capture row, the Append row).
   🗳 DECIDED BY ME, STATED TO HIM, because he said go rather than
   answering: (7) halves along the box's LONGER side, two letters, and
@@ -2511,6 +2526,27 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.254.0 verify with LL — 🗑 THE THREE DOORS (KNOWN GROUND): install
+  (carries 6.253.0). ⇪N — the 📝 SCRATCH NOTES section still has "+ new tab
+  ⌘T" and NOTHING else: the + 🗒 Capture and + ➕ Append rows are gone.
+  At 4 PM: no Asana task. Nothing is sent, and nothing is swept — which also
+  ends the 📎 Collect tab riding into it every day (6.201.1).
+  🔑 NOTHING WAS DELETED, and this is the part to check if you want to be
+  sure: ⇪D and ⇪space still find every Capture and Append note you have ever
+  written, and any Capture tab already open still closes and files exactly as
+  it did. The stores, the modules and the search rows are all untouched — only
+  the doors are shut.
+  Console: `_G.scratchPadReport()` — "4 PM: OFF", the settings line that puts
+  it back, and "+ rows: hidden — the Capture and Append stores are untouched".
+  ANY OF THE THREE COMES BACK WITH NO RELEASE:
+  `settings = { scratch_pad = { sendDaily = true } }` — the 4 PM task.
+  `settings = { scratch_pad = { showKindRows = true } }` — both + rows.
+  And `_G.scratchPadSend()` sends one task by hand whenever you want it.
+  🔎 SAY IF YOU WANT THEM GONE FOR REAL. This release closes the doors; it
+  does not remove capture_pad or note_pad, because deleting a module is how
+  notes you forgot you had become unreadable. That is its own release, on your
+  word, and it is easier to do after a month of not missing them.
+
 - 6.253.0 verify with LL — ✏️ ONE WINDOW, ONE NAME (KNOWN GROUND): install
   (carries 6.252.0). ⇪N — the header reads 📝 Hamsidian. ⇪3 — the same window,
   the header reads 🕸 Hamsidian. The ICON is the difference now; the name is

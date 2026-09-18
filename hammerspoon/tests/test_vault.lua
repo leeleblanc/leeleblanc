@@ -504,6 +504,37 @@ do
           h:find("📝 SCRATCH", 1, true) and h:find('TABS = [{id:"t1",t:"groceries"', 1, true) and h:find("HASPAD = true", 1, true)
           and h:find("🕸 NOTES", 1, true) and h:find("new tab ⌘T", 1, true))
     check("a Capture tab row carries its badge and kind", h:find('{id:"t2",t:"Capture",b:"🗒",k:"capture"}', 1, true) ~= nil)
+    -- 🗑 6.254.0 — LL: "I don't need capture or append." The two + rows
+    -- are hidden by default and the PAD owns the switch, so this window
+    -- only asks. An existing Capture TAB is still drawn (above) — the
+    -- door is what closed, not the room.
+    check("🗑 the + Capture / + Append rows are off by default",
+          h:find("var KINDROWS = false", 1, true) ~= nil
+          and h:find("+ new tab ⌘T", 1, true) ~= nil)
+    -- 🚨 AND THE PAGE MUST ACTUALLY ASK. A flag the render ignores is
+    -- 6.220.0's rule in a new costume: the declaration can be perfect
+    -- while the rows are pushed unconditionally, and a check that only
+    -- reads the declaration passes. Both pushes must sit INSIDE the
+    -- guard — measured by position, which is a counting question.
+    do
+        local guard = h:find("if (KINDROWS) {", 1, true)
+        local cap   = h:find('data-tab="+capture"', 1, true)
+        local app   = h:find('data-tab="+append"', 1, true)
+        check("...and the page pushes them ONLY inside that guard",
+              guard ~= nil and cap ~= nil and app ~= nil
+              and cap > guard and app > guard
+              and h:find('data-tab="+capture"', guard + 1, true) ~= nil
+              and select(2, h:gsub('data%-tab="%+capture"', "")) == 1,
+              tostring(guard) .. "/" .. tostring(cap))
+    end
+    do
+        local was = _G.scratchPad.showKindRows
+        _G.scratchPad.showKindRows = true
+        local h2 = v.buildHtml and v.buildHtml() or html()
+        check("...and the switch puts them back",
+              h2:find("var KINDROWS = true", 1, true) ~= nil)
+        _G.scratchPad.showKindRows = was
+    end
     check("the header says 📝 Hamsidian, offers ⌘W and → Asana now", h:find("📝 Hamsidian", 1, true) and h:find("→ Asana now", 1, true) and h:find("a:'tabclose'", 1, true))
     check("the right pane shows the tab's links out (Alpha) and HISTORY, not backlinks",
           h:find("HISTORY", 1, true) and h:find('data-name="Alpha">→ Alpha', 1, true) and not h:find("BACKLINKS", 1, true))

@@ -98,9 +98,9 @@ local M = {
             { "⌘1…⌘9",     "Switch tab · ⌃Tab / ⌃⇧Tab cycle round them" },
             { "history",   "Right pane (in the notes): every closed tab, click to reopen" },
             { "📌",        "Pin: stays up beside the app; Esc only hands the keys back" },
-            { "+ 🗒 · + ➕", "New Capture / Append tabs are rows in the section now, not their own keys; ⌘W still files each where it always went" },
+            { "+ 🗒 · + ➕", "OFF since 6.254.0 — the Capture / Append rows are hidden. Nothing was deleted: both stores are intact and still searched by ⇪space. settings = { scratch_pad = { showKindRows = true } } brings the rows back" },
             { "⇪2",        "SEQUENTIAL COPY: select text, press it, select more, press again — the grabs join into ONE block on the clipboard, so ⌘V pastes the lot. Copying anything else starts a new sequence. Nothing is filed into the pad" },
-            { "16:00",     "One Asana task of the day: every tab, 07:30 → 16:00, you" },
+            { "16:00",     "OFF since 6.254.0 — no daily Asana task. _G.scratchPadSend() sends one by hand; settings = { scratch_pad = { sendDaily = true } } puts the schedule back" },
             { "search",    "⇪space finds everything here — tabs and history" },
             { "own window","settings = { scratch_pad = { viaVault = false } } brings the old window back" },
             { "⌘⇧S",       "Export every tab to <Vault>/Scratch as .md — Obsidian opens them" },
@@ -144,6 +144,19 @@ function M.setup(core)
         lastExport      = nil,
 
         viaVault      = true,     -- 6.173.0 — ⇪1 opens inside the ⇪3 Vault window; false = this module's own window
+
+        -- 🗑 6.254.0 — THE THREE DOORS LL SAID HE DOES NOT USE. "I don't
+        -- need to send these at 4pm. I don't need capture or append. I
+        -- think those features are redundant. Am I wrong?"
+        --
+        -- NOTHING IS DELETED. capture_pad and note_pad keep their
+        -- modules, their stores and their own filing routes; every note
+        -- already written is still on disk and still found by ⇪space and
+        -- ⇪D. What goes is the DOORS: the daily Asana task, and the two
+        -- + rows in the Hamsidian window that open a kind tab. Each is a
+        -- switch, so any of the three comes back with no release.
+        sendDaily     = false,    -- settings = { scratch_pad = { sendDaily = true } }
+        showKindRows  = false,    -- settings = { scratch_pad = { showKindRows = true } }
 
         -- the 4 PM task
         sendAt        = "16:00",
@@ -1399,10 +1412,28 @@ t.focus(); try { t.setSelectionRange(CARET, CARET); } catch(e){}
         L[#L + 1] = "   window: " .. (host and "Hamsidian's (⇪N opens the tabs there; viaVault = false for its own)" or "its own")
         L[#L + 1] = "   pad: " .. ((sp.webview or (host and host.webview)) and "open" or "closed") .. (sp.pinned and " · 📌 pinned" or "")
                     .. " · opens: " .. sp.opens .. " · non-activating: " .. tostring(sp.nonActivatingWhy)
-        L[#L + 1] = "   4 PM: at " .. sp.sendAt .. " · " .. sp.startTime .. " → " .. sp.dueTime
-                    .. " · assignee " .. sp.assignee .. " · "
-                    .. (sp.sendTimer and "armed" or "NOT armed")
-                    .. " · Asana " .. (core.asanaEnabled and "on" or "off on this Mac")
+        -- 🗑 6.254.0 — OFF is its own state, not a failure. "NOT armed"
+        -- on a Mac that was asked not to arm it reads like a fault.
+        if not sp.sendDaily then
+            L[#L + 1] = "   4 PM: OFF — no daily Asana task is sent"
+                        .. " (settings = { scratch_pad = { sendDaily = true } })"
+            L[#L + 1] = "          _G.scratchPadSend() still sends one by hand"
+            -- 6.201.1: the Collect tab rode into this task every day. With
+            -- the send off it cannot, and that is worth saying where the
+            -- old warning was read.
+            L[#L + 1] = "          ↳ nothing is swept into Asana at all now,"
+                        .. " the 📎 Collect tab included (6.201.1)"
+        else
+            L[#L + 1] = "   4 PM: at " .. sp.sendAt .. " · " .. sp.startTime .. " → " .. sp.dueTime
+                        .. " · assignee " .. sp.assignee .. " · "
+                        .. (sp.sendTimer and "armed" or "NOT armed")
+                        .. " · Asana " .. (core.asanaEnabled and "on" or "off on this Mac")
+        end
+        L[#L + 1] = "   + rows: " .. (sp.showKindRows
+                    and "🗒 Capture and ➕ Append are offered in the window"
+                    or ("hidden — the Capture and Append stores are untouched"
+                        .. " and still searched by ⇪space / ⇪D"
+                        .. " (settings = { scratch_pad = { showKindRows = true } })"))
         if sp.lastSend then
             L[#L + 1] = "   last send: " .. os.date("%b %d %H:%M", sp.lastSend.at) .. " (" .. sp.lastSend.reason
                         .. ") — " .. sp.lastSend.outcome
@@ -1418,6 +1449,14 @@ end
 function M.warm(core)
     local sp = M.config
     if not sp then return end
+    -- 🗑 6.254.0 — the switch is read HERE, in warm, which is the only
+    -- place it can be: a profile's `settings` land AFTER setup returns
+    -- (6.228.0), and a timer armed in setup could never be stopped by
+    -- one. `_G.scratchPadSend()` still sends by hand, on purpose.
+    if not sp.sendDaily then
+        sp.sendTimer = nil
+        return
+    end
     local ok, t = pcall(hs.timer.doAt, sp.sendAt, "1d", function() pcall(sp.send, "scheduled") end)
     if ok and t then sp.sendTimer = t     -- HELD
     else

@@ -4,9 +4,35 @@
 -- =====================================================================
 -- 09-18-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.253.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.254.0
 -- =====================================================================
 
+-- NEW IN 6.254.0 — 🗑 THE THREE DOORS HE DOES NOT USE, CLOSED WITHOUT
+--                  DELETING ANYTHING (modules/scratch_pad.lua, vault.lua):
+--   LL: "I don't need to send these at 4pm. I don't need capture or
+--      append. I think those features are redundant. Am I wrong?"
+--   🗑 THE DOORS ARE REDUNDANT; THE STORES ARE NOT — so all three are
+--      SWITCHES and nothing on disk is touched. capture_pad and note_pad
+--      keep their modules, their stores and their own filing routes;
+--      every note already written is still there and still found by
+--      ⇪space and ⇪D. What goes is the daily Asana task and the two + rows
+--      in the Hamsidian window.
+--        settings = { scratch_pad = { sendDaily = true } }      -- 4 PM back
+--        settings = { scratch_pad = { showKindRows = true } }   -- rows back
+--   🔌 THE SWITCH IS READ IN warm(), which is the only place it can be:
+--      a profile's `settings` land AFTER setup returns (6.228.0), and a
+--      timer armed in setup could never be stopped by one.
+--   🔑 `_G.scratchPadSend()` STILL SENDS ONE BY HAND. That is what makes
+--      this a switch rather than a removal, and it has its own check.
+--   📋 6.201.1's leak closes with it: the 📎 Collect tab rode into that
+--      task every day and cannot now. The report says so where the old
+--      warning was read.
+--   🚨 AND THE PAGE HAS TO ASK, not just be told: a `KINDROWS` flag the
+--      render ignores is 6.220.0's rule in a new costume, so the check
+--      measures that both pushes sit INSIDE the guard — the mutation that
+--      hard-codes `if (true)` passes every check about the declaration.
+--      · 9,860 -> 9,878 checks · eight mutations, eight bites.
+--
 -- NEW IN 6.253.0 — ✏️ ONE WINDOW, ONE NAME: THE SCORP PAD IS HAMSIDIAN
 --                  (modules/scratch_pad.lua, vault.lua, unified_search):
 --   LL: "Scorp pad should be named 'Hamsidian.'"
@@ -27,39 +53,12 @@
 --      icon: dropping it would leave two identical headers.
 --      · 9,857 -> 9,860 checks · three mutations, three bites.
 --
--- NEW IN 6.252.0 — ✂️ THE LANDED BOX SPLITS BY LETTER, AND ⌥HALVE IS
---                  GONE (modules/mouse_grid.lua):
---   LL: "When I reach the yellow box level, split each box in half
---      putting one letter of the alphabet in each box. Remove the ⌥halve
---      option as I don't use that. Too convoluted."
---   ✂️ The box you land in is DRAWN split along its LONGER side with one
---      letter in each half; pressing that letter keeps it, puts the
---      pointer in its middle and splits again — so it repeats exactly as
---      ⌥+arrow did, without the modifier or the direction.
---   🔒 AND THE RULE IS NARROWED, NOT DELETED. 6.192.0 wrote "landed mode
---      may capture NO alphabet key, so LL's typing reaches the app he
---      just landed on" and chose ⌥+arrows FOR that rule. It now captures
---      EXACTLY TWO letters — the pair drawn in the box — and the suite
---      still forbids every other letter and every ⌥+letter. THE COST,
---      named: typing one of those two immediately after landing splits
---      the box instead of reaching the app. The badge shows the pair.
---   🔌 THEY ARE BOUND ON THE FIRST LANDING, not at setup: a profile's
---      `settings` are applied AFTER setup returns (6.228.0), so a
---      `halveKeys` override read at setup would draw one pair and bind
---      another. hs.hotkey.modal has no unbind, so it happens once.
---   ✂️ `grid.splitOf(box, minPt)` and `grid.halvePair(keys, alphabet)`
---      are PURE. The LONGER side is the one worth splitting — halving a
---      200x20 strip top to bottom adds no precision where it is missing
---      — and two DIFFERENT characters or nothing, because one letter
---      cannot name two halves.
---      · 9,839 -> 9,857 checks · nine mutations, nine bites.
---
--- (6.251.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.252.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.253.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.254.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -156,7 +155,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.253.0"
+_G.configVersion = "6.254.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the

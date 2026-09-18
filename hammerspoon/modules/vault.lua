@@ -199,7 +199,7 @@ local M = {
         title = "🕸 HAMSIDIAN (⇪3 / ⇪N — Markdown notes that link to each other, in OneDrive; its scratch tabs too)",
         entries = {
             { "⇪3 · ⇪N",    "Open / close the window — ⇪3 on your last note, ⇪N on your scratch tabs" },
-            { "📝 SCRATCH NOTES", "Top of the list: every scratch tab, plain or 🗒 Capture or ➕ Append · ⌘T new · the + rows make the other two · ⌘W close · ⌘1–9 · ⌃Tab · history on the right" },
+            { "📝 SCRATCH NOTES", "Top of the list: every scratch tab · ⌘T new · ⌘W close · ⌘1–9 · ⌃Tab · history on the right. The + 🗒 Capture / + ➕ Append rows are off since 6.254.0 (scratch_pad.showKindRows)" },
             { "🕸 NOTES", "Under the scratch tabs: every .md note in the vault · the + new note row and ⌘N both name it in the window · typing a name and ⏎ creates it too" },
             { "[[",         "Type [[ and pick a note — [[Name]] links to Name.md, creating it on follow" },
             { "⌘⏎",         "Follow the link under the caret (a note, or a file link opens the file)" },
@@ -2332,6 +2332,9 @@ var CURKEY = ]==] .. jstr(d and d.key or "") .. [==[, CURNAME = ]==] .. jstr(d a
 var CARET = ]==] .. tostring(tonumber(v.caret) or 0) .. [==[;
 var VIEW = ]==] .. jstr(v.view) .. [==[;
 var TABS = []==] .. table.concat(tabsJs, ",") .. [==[], HASPAD = ]==] .. (sp and "true" or "false") .. [==[;
+// 🗑 6.254.0 — whether the two kind rows are offered at all. The PAD owns
+// the switch (it owns the kinds); this window only asks.
+var KINDROWS = ]==] .. ((sp and sp.showKindRows) and "true" or "false") .. [==[;
 // 6.174.0 — Lua's state for the page (page: setMode/drawRows/setRows/setMentions/vaultHint/gotoLine read these)
 var MODE = ]==] .. jstr(v.mode) .. [==[;
 var TAGS = ]==] .. v.tagsJson() .. [==[;
@@ -2415,8 +2418,12 @@ function drawRows(){
     // called, so both pads keep their brains and neither keeps a key.
     s.unshift('<li class="sec">📝 SCRATCH NOTES</li>');
     if (!f) { s.push('<li class="add" data-tab="+">+ new tab ⌘T</li>');
-              s.push('<li class="add" data-tab="+capture">+ 🗒 Capture — ⌘W queues it for the 4 PM Asana send</li>');
-              s.push('<li class="add" data-tab="+append">+ ➕ Append — * idea · + log · ! task · ? note</li>'); }
+              // 🗑 6.254.0 — LL: "I don't need capture or append. I think
+              // those features are redundant." The rows are hidden; the
+              // stores, the modules and the search rows are all untouched.
+              if (KINDROWS) {
+                s.push('<li class="add" data-tab="+capture">+ 🗒 Capture — ⌘W files it</li>');
+                s.push('<li class="add" data-tab="+append">+ ➕ Append — * idea · + log · ! task · ? note</li>'); } }
     s.push('<li class="sec">🕸 NOTES</li>');
   } else if (HASPAD) s.push('<li class="sec">🕸 NOTES</li>');
   var exact = false;

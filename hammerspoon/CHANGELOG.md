@@ -5,6 +5,55 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.254.0 — 🗑 THE THREE DOORS HE DOES NOT USE, CLOSED WITHOUT DELETING
+                 ANYTHING (modules/scratch_pad.lua, modules/vault.lua):
+  LL: "I don't need to send these at 4pm. I don't need capture or append. I
+  think those features are redundant. Am I wrong?"
+
+  🗑 THE DOORS ARE REDUNDANT; THE STORES ARE NOT. That is the whole shape of
+  this release. capture_pad and note_pad keep their modules, their stores and
+  their own filing routes; every note already written is still on disk and
+  still found by ⇪space and ⇪D. What closes is three doors:
+
+      sendDaily    = false   -- the 16:00 Asana task
+      showKindRows = false   -- the + 🗒 Capture and + ➕ Append rows
+
+  and each is a switch, so any of them comes back with no release.
+
+  🔌 THE SWITCH IS READ IN warm(), WHICH IS THE ONLY PLACE IT CAN BE. init.lua
+  applies a profile's `settings` AFTER setup returns (6.228.0's 🔌 rule), so a
+  timer armed during setup could never be stopped by an override — the flag
+  would be written and nobody would read it again. warm() now returns before
+  arming anything when the send is off, and a check drives both directions.
+
+  🔑 `_G.scratchPadSend()` STILL SENDS ONE BY HAND, and that has its own check.
+  It is what makes this a switch rather than a removal: the machinery is
+  untouched, only the schedule is gone.
+
+  📋 AND 6.201.1'S LEAK CLOSES WITH IT. The 📎 Collect tab was swept into that
+  daily task every day since 6.182.0 — "one bug can have two outputs", and this
+  was the output nobody had looked for. With the send off nothing is swept into
+  Asana at all, and the report says so in the line where the old warning was
+  read.
+
+  🚨 THE PAGE HAS TO ASK, NOT JUST BE TOLD. The vault window is given a
+  `KINDROWS` flag, and a flag the render ignores is 6.220.0's rule in a new
+  costume: the declaration can be perfect while the rows are pushed
+  unconditionally. The check measures POSITION — both pushes must sit inside
+  `if (KINDROWS) {` — and the mutation that hard-codes `if (true)` passes every
+  check about the declaration and fails that one.
+
+  🔎 THE REPORT CALLS IT OFF, NOT "NOT ARMED". A Mac that was asked not to arm
+  the timer is not a Mac where the timer failed to arm, and the old wording
+  read like a fault. It names the settings line, the hand-send, and — for the
+  + rows — that the stores are untouched and still searched, because "where did
+  my Capture notes go" is the question this release could otherwise create.
+  · 9,860 -> 9,878 checks · eight mutations, eight bites.
+
+  🧪 And the first version of the new section measured the WRONG TABLE: four
+  later sections of that suite reload the module, so `sp` still pointed at the
+  first config while warm() armed the newest one. It loads its own copy now.
+
 NEW IN 6.253.0 — ✏️ ONE WINDOW, ONE NAME: THE SCORP PAD IS HAMSIDIAN
                  (modules/scratch_pad.lua, modules/vault.lua,
                   modules/unified_search.lua, modules/power_tools.lua):
