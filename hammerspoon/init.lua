@@ -4,9 +4,29 @@
 -- =====================================================================
 -- 09-18-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.252.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.253.0
 -- =====================================================================
 
+-- NEW IN 6.253.0 — ✏️ ONE WINDOW, ONE NAME: THE SCORP PAD IS HAMSIDIAN
+--                  (modules/scratch_pad.lua, vault.lua, unified_search):
+--   LL: "Scorp pad should be named 'Hamsidian.'"
+--   ✏️ ⇪N and ⇪3 have opened the SAME WINDOW since 6.173.0 and it
+--      carried two names — 📝 Scorp Pad on a tab, 🕸 Hamsidian on a note.
+--      VISIBLE STRINGS ONLY, exactly as 6.214.0 did for the notes: the
+--      module id, `sp.*`, `_G.scratchPad*`, `_G.scorpPadExport`, the
+--      store path, the services and the `scratch:` refs are untouched,
+--      and the comments keep the history.
+--   🔑 THE ICON IS WHAT TELLS THE TWO APART NOW: 📝 Hamsidian on a
+--      scratch tab, 🕸 Hamsidian on a note. Where a LIST has to show
+--      both — ⇪space's sources, the ⌃⌃ editor picker, the panic steps —
+--      the pad is "Hamsidian tabs", because two rows reading the same
+--      word is a picker you cannot use.
+--   🧪 A source sentry fails on any visible "Scorp" left in the module,
+--      COMMENTS EXCLUDED (the file's own past is in the lines above the
+--      code — 6.246.0's rule, in a rename), and a second check holds the
+--      icon: dropping it would leave two identical headers.
+--      · 9,857 -> 9,860 checks · three mutations, three bites.
+--
 -- NEW IN 6.252.0 — ✂️ THE LANDED BOX SPLITS BY LETTER, AND ⌥HALVE IS
 --                  GONE (modules/mouse_grid.lua):
 --   LL: "When I reach the yellow box level, split each box in half
@@ -34,41 +54,12 @@
 --      cannot name two halves.
 --      · 9,839 -> 9,857 checks · nine mutations, nine bites.
 --
--- NEW IN 6.251.0 — ⌨️ THE MUSIC CARD TAKES THE KEYBOARD
---                  (modules/music_player.lua):
---   LL: "I have to click on it to make it the focus to use the space bar
---      to play/pause. How do I fix this so I can get to it with the
---      keyboard? Because even if I hide it and bring it back, it's not
---      the active window."
---   🎯 UP, IN FRONT AND KEY ARE THREE DIFFERENT STATES — 6.225.0's rule,
---      learned on the OCR edit box and unpaid here. `bringToFront(true)`
---      RAISES the window; only a KEY window is handed the keyboard, so
---      the page's own ↑↓ / space / ⏎ / ⌘1–9 / ← → handler was there the
---      whole time with nothing routed to it.
---   ⌨️ THE THIRD STEP IS LUA'S: focus the hswindow off a HELD timer in
---      its own slot (6.196.1), bounded by `focusTries` (4 × 0.08 s),
---      stopping the moment the card IS key. No hswindow → ONE attempt
---      and stop, because retrying cannot make key a window Hammerspoon
---      cannot name. Closing the card tears the chase down.
---   ⚠️ AND THE COST IS NAMED, in the report and out loud: focusing a
---      Hammerspoon window ACTIVATES HAMMERSPOON, so an open Console
---      comes forward with the card. That is the same mechanism as his
---      "the Hammerspoon console jumps to the front and I'm not sure
---      why", and it is the price of the keyboard.
---      `settings = { music_player = { takeKeyboard = false } }`.
---   🧪 The stub had no :hswindow() at all, and its focus() has to MOVE
---      the focus or "it took the keys" could never be reached — the
---      fifth getter-only stub this project has had to fix. And two
---      mutations landed on paths that never run, so two checks were
---      strengthened until the ones that do run are the ones asserted.
---      · 9,819 -> 9,839 checks · seven mutations, seven bites.
---
--- (6.250.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.251.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.252.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.253.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -165,7 +156,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.252.0"
+_G.configVersion = "6.253.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the

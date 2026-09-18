@@ -1655,7 +1655,7 @@ end tell]]
             v.hide()
             return true
         end },
-        { id = "scratch", what = "Scorp Pad closed", run = function()
+        { id = "scratch", what = "Hamsidian tabs closed", run = function()
             local sp = _G.scratchPad
             if not (sp and sp.webview) then return nil end
             sp.hide()

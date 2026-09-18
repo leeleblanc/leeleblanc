@@ -9,7 +9,7 @@ structure, not for the shortcuts (⇪/ is the shortcut list).
 
 ```
 ~/.hammerspoon/
-├── init.lua          the orchestrator (3678 lines)
+├── init.lua          the orchestrator (3669 lines)
 ├── secret.lua        Asana token. NEVER backed up, never in the cloud
 ├── core/             dofile'd at a fixed point, NOT loader-managed (12 files)
 ├── modules/          one file per feature (73 files, ~58,200 lines)
@@ -932,7 +932,7 @@ CREATED AUTOMATICALLY (never make these yourself):
    <OneDrive>/Vault, one window over it — [[links]], backlinks,
    the graph (⌘G), tags, templates, search inside every note,
    tasks, live ```dataview lists, the ```kanban board, daily
-   notes, and the Scorp Pad's tabs at the top of the same list.
+   notes, and the Hamsidian tabs at the top of the same list.
    The folder is the database: open it in Obsidian on either Mac
    and it is the same vault. The name is the only thing 6.214.0
    changed — the module id stays `vault` (settings, _G.vault,
@@ -973,10 +973,10 @@ CREATED AUTOMATICALLY (never make these yourself):
 
 ## 6. Tests
 
-Seventy-three Lua suites, 9,257 checks, plus five more that run the Capture
+Seventy-three Lua suites, 9,260 checks, plus five more that run the Capture
 Pad's, the screenshot editor's, unified search's, the vault's and the
 music player's page JavaScript under `node` for a further 592 —
-**9,857 checks over eighty stages** in
+**9,860 checks over eighty stages** in
 all. Every Lua stage runs with `lua5.4` on any machine — no Mac required,
 they stub the `hs` API:
 

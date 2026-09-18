@@ -85,26 +85,26 @@
 -- =====================================================================
 
 local M = {
-    name    = "Scorp Pad",
+    name    = "Hamsidian tabs",
     order   = 13.37,
     family  = "capture",
-    summary = "⇪1 a scratch editor: tabs, saved as you type, a searchable "
+    summary = "⇪N a scratch editor: tabs, saved as you type, a searchable "
               .. "history under the text, one Asana task of the day at 4 PM",
     cheatsheet = {
-        title = "📝 SCRATCH NOTES (⇪N — type, it saves; close as fast as you opened it)",
+        title = "📝 HAMSIDIAN TABS (⇪N — type, it saves; close as fast as you opened it)",
         entries = {
-            { "⇪N",        "Open the pad — inside the ⇪3 Hamsidian window, on your SCRATCH NOTES (again closes). ⇪1 no longer opens it and is free" },
+            { "⇪N",        "Open the tabs — inside the ⇪3 Hamsidian window, on your SCRATCH NOTES (again closes). ⇪1 no longer opens it and is free" },
             { "⌘T · ⌘W",   "New tab · close tab (its text goes to the history)" },
             { "⌘1…⌘9",     "Switch tab · ⌃Tab / ⌃⇧Tab cycle round them" },
-            { "history",   "Right pane (in the vault): every closed tab, click to reopen" },
+            { "history",   "Right pane (in the notes): every closed tab, click to reopen" },
             { "📌",        "Pin: stays up beside the app; Esc only hands the keys back" },
             { "+ 🗒 · + ➕", "New Capture / Append tabs are rows in the section now, not their own keys; ⌘W still files each where it always went" },
             { "⇪2",        "SEQUENTIAL COPY: select text, press it, select more, press again — the grabs join into ONE block on the clipboard, so ⌘V pastes the lot. Copying anything else starts a new sequence. Nothing is filed into the pad" },
             { "16:00",     "One Asana task of the day: every tab, 07:30 → 16:00, you" },
-            { "search",    "⇪space finds everything in the pad — tabs and history" },
+            { "search",    "⇪space finds everything here — tabs and history" },
             { "own window","settings = { scratch_pad = { viaVault = false } } brings the old window back" },
             { "⌘⇧S",       "Export every tab to <Vault>/Scratch as .md — Obsidian opens them" },
-            { "Console",   "_G.scratchPadReport() · _G.scratchPadSend() · _G.scorpPadExport()" },
+            { "Console",   "_G.scratchPadReport() · _G.scratchPadSend() · _G.scorpPadExport() — the COMMANDS keep their old names, like the notes' own did in 6.214.0" },
         },
     },
 }
@@ -150,8 +150,8 @@ function M.setup(core)
         startTime     = "07:30",
         dueTime       = "16:00",
         assignee      = "me",
-        titlePrefix   = "Scorp pad · ",
-        comment       = "Sent by Hammerspoon Scorp Pad \"⇪1\", file init.lua",
+        titlePrefix   = "Hamsidian · ",
+        comment       = "Sent by Hammerspoon Hamsidian \"⇪N\", file init.lua",
         sendOnlyIfChanged = true,
 
         -- state
@@ -179,7 +179,7 @@ function M.setup(core)
     sp.baseDir  = core.logsDir or core.homeDir
     sp.file = sp.dir .. "/scratch.json"
     _G.rewrittenFiles = _G.rewrittenFiles or {}
-    _G.rewrittenFiles[sp.file] = "the ⇪1 Scorp Pad — rewritten after every edit"
+    _G.rewrittenFiles[sp.file] = "the ⇪N Hamsidian tabs — rewritten after every edit"
 
     -- ---- small helpers ----------------------------------------------------
     local counter = 0
@@ -320,7 +320,7 @@ function M.setup(core)
                     hs.alert.show("📝 NOT SAVED — " .. why .. "\nYour text is safe in memory; "
                                   .. "every keystroke retries the write.", 5)
                 end)
-                print("📝 Scorp Pad: store not written — " .. why .. " (" .. sp.file .. ")")
+                print("📝 Hamsidian: store not written — " .. why .. " (" .. sp.file .. ")")
             end
             return false
         end
@@ -522,7 +522,7 @@ function M.setup(core)
         local L = {
             "---",
             "title: " .. tostring(rec.title or "Scratch"),
-            "source: Scorp Pad",
+            "source: Hamsidian",
             "created: " .. os.date("%Y-%m-%d %H:%M", made),
             "updated: " .. os.date("%Y-%m-%d %H:%M", when),
             "tags: " .. tostring(sp.exportTag or "scorp-pad"),
@@ -626,7 +626,7 @@ function M.setup(core)
     -- The Console door. Prints what happened either way.
     _G.scorpPadExport = function()
         local ok, summary = sp.exportAll("console")
-        print("📤 Scorp Pad export — " .. tostring(summary))
+        print("📤 Hamsidian export — " .. tostring(summary))
         return ok, summary
     end
 
@@ -677,7 +677,7 @@ function M.setup(core)
         end
         if not (core.asanaEnabled and _G.asanaSubmitTask) then
             sp.lastSend = { at = os.time(), reason = reason, outcome = "Asana is off on this Mac" }
-            print("📝 Scorp Pad: " .. sp.sendAt .. " task not sent — Asana is off on this Mac "
+            print("📝 Hamsidian: " .. sp.sendAt .. " task not sent — Asana is off on this Mac "
                   .. "(secret.lua); the text is safe in " .. sp.file)
             return false, "asana off"
         end
@@ -779,7 +779,7 @@ textarea{flex:1;margin:0;padding:10px;border:0;outline:0;resize:none;background:
 .row .p{opacity:.65;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1}
 .empty{opacity:.45;padding:8px 10px;font-size:FS1px}
 ]] .. theme .. [[</style></head><body><div id="wrap">
-<header id="bar"><span class="grip">⠿</span><span class="name">📝 Scorp Pad</span>
+<header id="bar"><span class="grip">⠿</span><span class="name">📝 Hamsidian</span>
 <span class="hint">]] .. escapeHtml(sp.kindOf(cur) and sp.kindOf(cur).hint or "⌘T new · ⌘W close · ⌃Tab cycle · Esc") .. [[</span>
 ]] .. (sp.lastSaveErr and ('<span class="bad" title="' .. escapeHtml(sp.lastSaveErr) .. '">⚠ not saved</span>') or "") .. [[
 <button class="pin]] .. (sp.pinned and " on" or "") .. [[" id="pin" title="Pin: the pad stays up beside the app; Esc only hands the keyboard back">📌 ]] .. (sp.pinned and "Pinned" or "Pin") .. [[</button>
@@ -1028,7 +1028,7 @@ t.focus(); try { t.setSelectionRange(CARET, CARET); } catch(e){}
     -- the active tab and saves it the same way.
     local function promptFallback()
         local cur = sp.activeTab() or sp.newTab("")
-        local okP, button, typed = pcall(hs.dialog.textPrompt, "Scorp Pad",
+        local okP, button, typed = pcall(hs.dialog.textPrompt, "Hamsidian",
             "No web view on this Hammerspoon — this box edits the current tab.",
             cur.text or "", "Save", "Cancel")
         if not okP or button ~= "Save" then return end
@@ -1188,13 +1188,13 @@ t.focus(); try { t.setSelectionRange(CARET, CARET); } catch(e){}
         pcall(function()
             uc:setCallback(function(msg)
                 local ok, err = pcall(handleMessage, msg and msg.body)
-                if not ok then print("📝 Scorp Pad: message handler — " .. tostring(err)) end
+                if not ok then print("📝 Hamsidian: message handler — " .. tostring(err)) end
             end)
         end)
         local okV, view = pcall(hs.webview.new, rect, {}, uc)
         if not (okV and view) then sp.uc = nil; promptFallback() return end
         sp.webview = view
-        pcall(function() view:windowTitle("Scorp Pad") end)
+        pcall(function() view:windowTitle("Hamsidian") end)
         pcall(function() view:allowTextEntry(true) end)
         pcall(function() view:closeOnEscape(false) end)
         pcall(function() view:level(hs.drawing.windowLevels.floating) end)
@@ -1207,7 +1207,7 @@ t.focus(); try { t.setSelectionRange(CARET, CARET); } catch(e){}
         if sp.nonActivating then
             sp.nonActivatingApplied, sp.nonActivatingWhy = sp.applyNonActivating(view)
             if not sp.nonActivatingApplied then
-                print("📝 Scorp Pad: non-activating panel unavailable — "
+                print("📝 Hamsidian: non-activating panel unavailable — "
                       .. tostring(sp.nonActivatingWhy) .. "; opening the pad will bring Hammerspoon forward.")
             end
         end
@@ -1319,7 +1319,7 @@ t.focus(); try { t.setSelectionRange(CARET, CARET); } catch(e){}
 
     _G.editors = _G.editors or {}
     table.insert(_G.editors, {
-        name  = "Scorp Pad",
+        name  = "Hamsidian tabs",
         key   = "⇪" .. sp.key,
         what  = "tabs saved as you type; ⇪N / ⇪2 open here too",
         order = 22,
@@ -1345,7 +1345,7 @@ t.focus(); try { t.setSelectionRange(CARET, CARET); } catch(e){}
 
     function _G.scratchPadReport()
         local L = {}
-        L[#L + 1] = "📝 Scorp Pad — ⇪" .. sp.key .. (sp.enabled and "" or " (disabled)")
+        L[#L + 1] = "📝 Hamsidian tabs — ⇪" .. sp.key .. (sp.enabled and "" or " (disabled)")
         L[#L + 1] = "   store: " .. sp.file .. (sp.lastSaveErr and ("  ⚠️ " .. sp.lastSaveErr) or "")
         L[#L + 1] = "   tabs: " .. #sp.tabs .. " · history: " .. #sp.history
                     .. " · saves: " .. sp.saves .. " · failed writes: " .. (sp.saveFails or 0)
@@ -1421,7 +1421,7 @@ function M.warm(core)
     local ok, t = pcall(hs.timer.doAt, sp.sendAt, "1d", function() pcall(sp.send, "scheduled") end)
     if ok and t then sp.sendTimer = t     -- HELD
     else
-        print("📝 Scorp Pad: the " .. sp.sendAt .. " send is not armed — " .. tostring(t))
+        print("📝 Hamsidian: the " .. sp.sendAt .. " send is not armed — " .. tostring(t))
         if _G.notices and _G.notices.record then
             pcall(_G.notices.record, "scratch", "the 4 PM task is not armed", tostring(t))
         end

@@ -190,7 +190,7 @@ check("the escape router knows 'vault'", CLAIMED_ESC.vault ~= nil)
 check("an editors row and a movable panel row exist", #_G.editors == 1 and #_G.movablePanels == 1)
 check("vault.show / open / rescan / report are published",
       PROVIDED["vault.show"] and PROVIDED["vault.open"] and PROVIDED["vault.rescan"] and PROVIDED["vault.report"])
-check("the cheat sheet names ⇪3, ⇪1 and Obsidian", mod.cheatsheet.title:find("⇪3") and mod.cheatsheet.title:find("⇪1") and (function()
+check("the cheat sheet names ⇪3, ⇪N and Obsidian", mod.cheatsheet.title:find("⇪3") and mod.cheatsheet.title:find("⇪N") and (function()
     for _, e in ipairs(mod.cheatsheet.entries) do if e[1] == "Obsidian" then return true end end end)())
 do
     local src = io.open(HS .. "/modules/vault.lua") and "" or ""
@@ -504,7 +504,7 @@ do
           h:find("📝 SCRATCH", 1, true) and h:find('TABS = [{id:"t1",t:"groceries"', 1, true) and h:find("HASPAD = true", 1, true)
           and h:find("🕸 NOTES", 1, true) and h:find("new tab ⌘T", 1, true))
     check("a Capture tab row carries its badge and kind", h:find('{id:"t2",t:"Capture",b:"🗒",k:"capture"}', 1, true) ~= nil)
-    check("the header says Scorp Pad, offers ⌘W and → Asana now", h:find("📝 Scorp Pad", 1, true) and h:find("→ Asana now", 1, true) and h:find("a:'tabclose'", 1, true))
+    check("the header says 📝 Hamsidian, offers ⌘W and → Asana now", h:find("📝 Hamsidian", 1, true) and h:find("→ Asana now", 1, true) and h:find("a:'tabclose'", 1, true))
     check("the right pane shows the tab's links out (Alpha) and HISTORY, not backlinks",
           h:find("HISTORY", 1, true) and h:find('data-name="Alpha">→ Alpha', 1, true) and not h:find("BACKLINKS", 1, true))
     -- 6.174.0 — the spare newline after the start tag: HTML discards one
@@ -598,7 +598,7 @@ do
               (OPENED[#OPENED] or ""):find("^message://") ~= nil, OPENED[#OPENED])
     end
 
-    check("the report has the scratch line", _G.vaultReport():find("scratch: 3 tabs of the Scorp Pad", 1, true) ~= nil)
+    check("the report has the scratch line", _G.vaultReport():find("scratch: 3 tabs shown here", 1, true) ~= nil)
     _G.scratchPad = nil
 end
 
@@ -1638,12 +1638,21 @@ do
     local real = rf and rf:read("a") or ""
     if rf then rf:close() end
     check("the module NAME (boot report, cheat sheet owner, hint card) is Hamsidian", mod.name == "Hamsidian")
-    check("the cheat sheet's title says HAMSIDIAN and still names ⇪3 / ⇪1",
-          tostring(mod.cheatsheet.title):find("🕸 HAMSIDIAN", 1, true) ~= nil and tostring(mod.cheatsheet.title):find("⇪3 / ⇪1", 1, true) ~= nil)
+    check("the cheat sheet's title says HAMSIDIAN and still names ⇪3 / ⇪N",
+          tostring(mod.cheatsheet.title):find("🕸 HAMSIDIAN", 1, true) ~= nil and tostring(mod.cheatsheet.title):find("⇪3 / ⇪N", 1, true) ~= nil)
     v.openNote("Alpha")
-    check("the window header reads 🕸 Hamsidian on a note (📝 Scorp Pad on a tab is unchanged)",
+    -- ✏️ 6.252.1 — ONE WINDOW, ONE NAME. The pad side reads 📝 Hamsidian
+    -- and the notes side 🕸 Hamsidian: the ICON is what tells them apart
+    -- now, which is the minimal wording that answers "Scorp pad should be
+    -- named Hamsidian" without making two identical headers.
+    check("the window header reads 🕸 Hamsidian on a note and 📝 Hamsidian on a tab",
           WEBVIEWS[#WEBVIEWS].htmlSet:find('<span class="name">🕸 Hamsidian</span>', 1, true) ~= nil
-              and real:find('"📝 Scorp Pad"', 1, true) ~= nil)
+              and real:find('"📝 Hamsidian"', 1, true) ~= nil
+              -- COMMENTS may still say Scorp (they are the history, and
+              -- 6.214.0 set that precedent for the notes' own rename).
+              -- What must be gone is every VISIBLE one.
+              and real:find('"📝 Scorp Pad"', 1, true) == nil
+              and real:find('"the Scorp Pad is not loaded"', 1, true) == nil)
     check("the report's first line is 🕸 Hamsidian — ⇪3", tostring(_G.vaultReport()):find("🕸 Hamsidian — ⇪3", 1, true) == 1)
     check("no Console line, alert or window title says Vault any more (the folder and comments may)",
           real:find('"🕸 Vault', 1, true) == nil and real:find('windowTitle("Vault")', 1, true) == nil

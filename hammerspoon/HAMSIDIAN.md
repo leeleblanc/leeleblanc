@@ -24,8 +24,9 @@ Three sections, top to bottom.
 
 ### 📝 SCRATCH NOTES — tabs, not files
 
-Live text. Held in a JSON store, **not** as `.md` files. This is the
-Scorp Pad.
+Live text. Held in a JSON store, **not** as `.md` files. These are the
+**Hamsidian tabs** — the same window, the other kind of writing (6.253.0
+renamed them; they were the Scorp Pad).
 
 | Row | What it is |
 |---|---|

@@ -860,7 +860,18 @@ per window, timed reads on held timers, `dm.apps` only; app_watcher's
 quit panel asks `docs.openFor` / `docs.reopen` — keep that the only
 reopen path.
 
-Scratch pad — named the SCORP PAD to LL since 6.171.0 (visible strings only;
+Scratch pad — named HAMSIDIAN to LL since 6.253.0 (was the SCORP PAD from
+6.171.0). ⇪N and ⇪3 open ONE window and it now carries ONE name: 📝
+Hamsidian on a scratch tab, 🕸 Hamsidian on a note — THE ICON is what
+tells them apart, and where a LIST must show both (⇪space's sources, the
+⌃⌃ editor picker, the panic steps) the pad is "Hamsidian tabs", because
+two rows reading the same word is a picker you cannot use. VISIBLE
+STRINGS ONLY: the module id, settings key, `sp.*`, `_G.scratchPad*`,
+`_G.scorpPadExport`, the store, the `scratch:` refs and the services are
+untouched, and the COMMANDS keep their old names on purpose (6.214.0's
+precedent). A source sentry in test_scratch_pad fails on any visible
+"Scorp" left in the module, COMMENTS EXCLUDED — the history lives in
+them. (visible strings only;
 file, store, `_G.scratchPad` and service ids unchanged; 768×1024 portrait, window
 alpha 1 via `sp.alpha`, 16 px text via `sp.fontSize`) — (6.164.0, modules/scratch_pad.lua, ⇪1): a webview on the
 Capture Pad recipe — NO eventtap, NO AX/window reads, every timer held.
@@ -2097,6 +2108,7 @@ as the fix when a loss lands.
 | 6.250.0 | 🔤 ⇪/ can be searched for punctuation — the keys that name half this config were the keys its search box ignored | pending |
 | 6.251.0 | ⌨️ the music card takes the keyboard when it opens — space works without a click, and the Console coming forward is the price | pending |
 | 6.252.0 | ✂️ the landed grid box splits by letter (one in each half, longer side first) and ⌥halve is gone | pending |
+| 6.253.0 | ✏️ the Scorp Pad is Hamsidian — one window, one name, the icon telling the two sides apart | pending |
 
 Running total: 15 wins · 8 losses · 22 pending (6.215.0, 6.217.0, 6.218.0,
 6.219.0, 6.220.0, 6.221.0, 6.222.0, 6.223.0, 6.224.0, 6.225.0, 6.226.0,
@@ -2133,7 +2145,7 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   5 cheat-sheet punctuation search ✔ 6.250.0 · 6 the music card takes the
   keyboard ✔ 6.251.0 —
   keyboard · 7 the yellow box splits by letter (⌥halve gone) ✔ 6.252.0 ·
-  8 the Scorp Pad renamed Hamsidian · 9 the three removals (the 4 PM
+  8 the Scorp Pad renamed Hamsidian ✔ 6.253.0 · 9 the three removals (the 4 PM
   Asana send, the Capture row, the Append row).
   🗳 DECIDED BY ME, STATED TO HIM, because he said go rather than
   answering: (7) halves along the box's LONGER side, two letters, and
@@ -2499,6 +2511,24 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.253.0 verify with LL — ✏️ ONE WINDOW, ONE NAME (KNOWN GROUND): install
+  (carries 6.252.0). ⇪N — the header reads 📝 Hamsidian. ⇪3 — the same window,
+  the header reads 🕸 Hamsidian. The ICON is the difference now; the name is
+  the same on both sides, which is what you asked for.
+  Where a LIST has to show both it says "Hamsidian tabs" for the pad: ⌃⌃ (the
+  editor picker), ⇪D's source rows, and the panic chord's step list. Two rows
+  reading the same word would be a list you cannot use — say if you would
+  rather they were identical and I will make them so.
+  🚨 NOTHING MOVED BUT THE WORDS. Same key, same window, same store, same
+  tabs, same 4 PM task. The COMMANDS keep their old names on purpose, exactly
+  as `_G.vaultReport()` did when the notes were renamed in 6.214.0:
+  `_G.scratchPadReport()`, `_G.scratchPadSend()`, `_G.scorpPadExport()`.
+  Two stale keys were corrected in passing while the rename walked over them:
+  the notes' cheat sheet said ⇪3 / ⇪1 and the pad's summary said ⇪1 — both are
+  ⇪N now (⇪1 has been mouse-follows since 6.194.0).
+  Run the 6.214.0 HAMSIDIAN TEST LIST again if you want the whole surface
+  checked; nothing in it should behave differently.
+
 - 6.252.0 verify with LL — ✂️ THE BOX SPLITS BY LETTER (KNOWN GROUND):
   install (carries 6.251.0). ⇪X, type the three letters to land in a cell. The
   yellow box is now drawn SPLIT IN HALF with a letter in each side — the first

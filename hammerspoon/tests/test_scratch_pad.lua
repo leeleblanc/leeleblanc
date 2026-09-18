@@ -301,7 +301,7 @@ out("2) typing — Lua at once, disk after the debounce, one held timer\n")
 -- =======================================================================
 sp.show()
 local view = WEBVIEWS[#WEBVIEWS]
-check("the pad opened one webview with the page in it", view and view.htmlSet and view.htmlSet:find("Scorp Pad", 1, true))
+check("the pad opened one webview with the page in it", view and view.htmlSet and view.htmlSet:find("📝 Hamsidian", 1, true))
 -- 6.171.0 — 1024×768, 35% translucent, both from sp.* so a profile can change them
 check("6.171.1: the pad is 768×1024 (portrait) by default", sp.width == 768 and sp.height == 1024)
 check("6.172.1: the window is SOLID (alpha 1 — never applied to the view)", sp.alpha == 1 and view and view.alphaSet == nil, view and tostring(view.alphaSet))
@@ -407,7 +407,7 @@ SUBMITS = {}
 local ok, why = sp.send("scheduled")
 check("with text the send is accepted", ok == true and #SUBMITS == 1, why)
 local s = SUBMITS[1]
-check("title is the prefix + the day", s and s.title:find("^Scorp pad · ") ~= nil, s and s.title)
+check("title is the prefix + the day", s and s.title:find("^Hamsidian · ") ~= nil, s and s.title)
 check("notes hold the open tab under a ## heading", s and s.desc:find("## second\nsecond\nline two!", 1, true) ~= nil, s and s.desc)
 check("notes hold the row closed today too", s and s.desc:find("## hello w (closed", 1, true) ~= nil)
 check("assignee is me, no attachment", s and s.assignee == "me" and s.attach == "")
@@ -511,7 +511,7 @@ do
     for _, t in ipairs(sp2.tabs) do if t.kind == "capture" then ct = t end end
     check("⇪N makes the Capture tab and shows it in the vault", ct and ct.text == "from ⇪N" and HOST.shows[#HOST.shows] == ct.id and sp2.active == ct.id)
     local ed
-    for _, e in ipairs(_G.editors) do if e.name == "Scorp Pad" then ed = e end end
+    for _, e in ipairs(_G.editors) do if e.name == "Hamsidian tabs" then ed = e end end
     check("the editors entry reports the host window while a tab is open there", ed and ed.view() == HOST.webview)
     HOST.doc = { rel = "Alpha.md" }
     check("…and nothing while the host shows a note", ed and ed.view() == nil)
@@ -778,7 +778,7 @@ do
     local body = md("Milk.md") or ""
     check("the note opens as Markdown with front matter Obsidian reads",
           body:find("^---\n") and body:find("\ntitle: Milk\n", 1, true) and body:find("\n---\n\n", 1, true))
-    check("...it says where it came from", body:find("\nsource: Scorp Pad\n", 1, true) ~= nil)
+    check("...it says where it came from", body:find("\nsource: Hamsidian\n", 1, true) ~= nil)
     check("...and wears a tag, so the vault's tag list finds them all",
           body:find("\ntags: scorp%-pad\n") ~= nil)
     check("the text is the text — no Markdown is invented for LL",
@@ -880,7 +880,7 @@ do
     check("the Vault window has the same key, and hands the work to the pad",
           vsrc:find("say({a:'export'})", 1, true) and vsrc:find('elseif a == "export" then', 1, true))
     check("...and the vault never assumes the pad is loaded",
-          vsrc:find('"the Scorp Pad is not loaded"', 1, true) ~= nil)
+          vsrc:find('"the Hamsidian tabs are not loaded"', 1, true) ~= nil)
     check("the report names the folder and the last run",
           src:find('"   export: ⌘⇧S → "', 1, true) ~= nil)
 end
@@ -1133,6 +1133,39 @@ do
           and vsrc:find("pcall(sp.openKind, kind)", 1, true))
     check("…and a × on a + row can never be read as closing a tab",
           vsrc:find("tid.charAt(0) !== '+'", 1, true) ~= nil)
+end
+
+-- =====================================================================
+-- ✏️ 6.253.0 — ONE WINDOW, ONE NAME
+-- =====================================================================
+-- LL: "Scorp pad should be named 'Hamsidian.'" ⇪N and ⇪3 have opened the
+-- same window since 6.173.0 and it carried two names. VISIBLE STRINGS
+-- ONLY, exactly as 6.214.0 did for the notes: the module id, sp.*,
+-- _G.scratchPad*, _G.scorpPadExport, the store path and the services are
+-- all unchanged, and the COMMENTS keep the history.
+do
+    local fh = io.open(HS .. "/modules/scratch_pad.lua", "r")
+    local src = fh and fh:read("a") or ""
+    if fh then fh:close() end
+    -- Comment lines dropped first: this is a check about what is SHOWN,
+    -- and the file explains its own past in the lines above the code.
+    local code = {}
+    for line in src:gmatch("[^\n]*") do
+        if not line:match("^%s*%-%-") then code[#code + 1] = line end
+    end
+    code = table.concat(code, "\n")
+    check("no visible string in the pad says Scorp any more",
+          code:find("Scorp", 1, true) == nil,
+          code:match("[^\n]*Scorp[^\n]*"))
+    check("...while the identifiers it is called by are untouched",
+          src:find("_G.scratchPadReport", 1, true) ~= nil
+          and src:find("_G.scorpPadExport", 1, true) ~= nil
+          and src:find("/scratch.json", 1, true) ~= nil)
+    -- 🚨 AND THE TWO SIDES MUST STILL BE TELLABLE APART. Both headers say
+    -- Hamsidian; the ICON is what distinguishes them, so a rename that
+    -- dropped it would leave two identical windows.
+    check("the pad's header carries its own icon, not just the name",
+          code:find("📝 Hamsidian", 1, true) ~= nil)
 end
 
 out(string.format("\n%d passed, %d failed\n", pass, fail))

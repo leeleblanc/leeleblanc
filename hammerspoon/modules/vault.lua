@@ -196,7 +196,7 @@ local M = {
               .. "a graph of the connections, Obsidian-compatible files, tags, templates, full-text search, tasks, "
               .. "live queries and a Kanban board you can drag cards on",
     cheatsheet = {
-        title = "🕸 HAMSIDIAN (⇪3 / ⇪1 — Markdown notes that link to each other, in OneDrive; the Scorp Pad's tabs too)",
+        title = "🕸 HAMSIDIAN (⇪3 / ⇪N — Markdown notes that link to each other, in OneDrive; its scratch tabs too)",
         entries = {
             { "⇪3 · ⇪N",    "Open / close the window — ⇪3 on your last note, ⇪N on your scratch tabs" },
             { "📝 SCRATCH NOTES", "Top of the list: every scratch tab, plain or 🗒 Capture or ➕ Append · ⌘T new · the + rows make the other two · ⌘W close · ⌘1–9 · ⌃Tab · history on the right" },
@@ -216,7 +216,7 @@ local M = {
             { "```dataview", "A live list: LIST or TABLE, FROM #tag / [[note]] / \"Folder\", WHERE status != \"done\", SORT, LIMIT — drawn in 🔎 QUERY, never written into the note. \"/\" writes the block for you" },
             { "⌘⇧B",        "🗂 Board: your notes as Kanban columns, grouped by a front-matter field (```kanban BY status). DRAGGING A CARD REWRITES that note's status: line — the one view here that writes" },
             { "⌘⇧E · ⌘⇧R",  "Extract the selection into a new note, leaving [[Name]] behind · open a random note" },
-            { "⌘⇧S",       "Export the Scorp Pad's tabs into <Vault>/Scratch as .md notes" },
+            { "⌘⇧S",       "Export the scratch tabs into <Vault>/Scratch as .md notes" },
             { "⌘F · ⌘O · ↑↓ ⏎", "Filter the list · walk it (⌥↑/⌥↓ ⌥⏎ from inside the text)" },
             { "📌",          "Pin: the window stays up beside the app; Esc only hands the keys back" },
             { "Obsidian",   "Open the same folder as a vault in Obsidian — plug-ins and all" },
@@ -446,7 +446,7 @@ function M.setup(core)
     -- (a blank one is made if there are none).
     function v.openScratch(id)
         local sp = v.sp()
-        if not sp then return false, "the Scorp Pad is not loaded" end
+        if not sp then return false, "the Hamsidian tabs are not loaded" end
         if v.doc and v.dirty then v.saveNow() end
         local t = id and sp.findTab(tostring(id)) or nil
         if not t then t = sp.activeTab() end
@@ -2239,7 +2239,7 @@ body.board #board{display:flex}
   box-shadow:0 6px 18px rgba(0,0,0,.55)}
 ]==] .. theme .. [==[
 </style></head><body class="]==] .. ((v.view == "graph" or v.view == "board") and v.view or "") .. [==["><div id="wrap">
-<header id="hdr"><span class="name">]==] .. (isTab and "📝 Scorp Pad" or "🕸 Hamsidian") .. [==[</span><span class="doc" title="]==] .. escapeHtml(d and d.rel or "") .. [==[">]==] .. escapeHtml(d and d.name or "no note open") .. [==[</span>
+<header id="hdr"><span class="name">]==] .. (isTab and "📝 Hamsidian" or "🕸 Hamsidian") .. [==[</span><span class="doc" title="]==] .. escapeHtml(d and d.rel or "") .. [==[">]==] .. escapeHtml(d and d.name or "no note open") .. [==[</span>
 <span class="hint" id="hint">]==] .. escapeHtml(status) .. [==[</span>
 ]==] .. (v.lastSaveErr and ('<span class="bad" title="' .. escapeHtml(v.lastSaveErr) .. '">⚠ not saved</span>') or "") .. [==[
 ]==] .. (sp and '<button onclick="say({a:\'tabnew\'})" title="New scratch tab ⌘T">📝+</button>' or "") .. [==[
@@ -3781,7 +3781,7 @@ else {
         -- the work; if it is not loaded this says so and changes nothing.
         elseif a == "export" then
             local sp = v.sp()
-            local ok, summary = false, "the Scorp Pad is not loaded"
+            local ok, summary = false, "the Hamsidian tabs are not loaded"
             if sp and type(sp.exportAll) == "function" then ok, summary = sp.exportAll("⌘⇧S") end
             pcall(function() hs.alert.show((ok and "📤 Exported — " or "📤 ") .. tostring(summary), 4) end)
             if ok then v.scan("export") end
@@ -3790,7 +3790,7 @@ else {
             if sp and sp.restore(tostring(body.rid or "")) and v.openScratch(sp.active) then v.render() end
         elseif a == "send" then
             local sp = v.sp()
-            local ok, why = false, "the Scorp Pad is not loaded"
+            local ok, why = false, "the Hamsidian tabs are not loaded"
             if sp then ok, why = sp.send("button") end
             if not ok then pcall(function() hs.alert.show("📝 Not sent — " .. tostring(why), 2) end) end
         elseif a == "pin" then
@@ -4138,8 +4138,8 @@ else {
                                  or " (see-through; vault = { alpha = 1 } for solid)")
                     .. " · non-activating: " .. tostring(v.nonActivatingWhy)
         local sp = v.sp()
-        L[#L + 1] = "   scratch: " .. (sp and (#sp.tabs .. " tab" .. (#sp.tabs == 1 and "" or "s") .. " of the Scorp Pad shown here (⇪1)"
-                    .. ((v.doc and v.doc.scratch) and " · one is open" or "")) or "not hosted (the Scorp Pad is off or has its own window)")
+        L[#L + 1] = "   scratch: " .. (sp and (#sp.tabs .. " tab" .. (#sp.tabs == 1 and "" or "s") .. " shown here (⇪N)"
+                    .. ((v.doc and v.doc.scratch) and " · one is open" or "")) or "not hosted (the tabs are off or have their own window)")
         L[#L + 1] = "   Obsidian: open this folder as a vault in Obsidian on either Mac — same files, its plug-ins on top"
         local out = table.concat(L, "\n")
         print(out)

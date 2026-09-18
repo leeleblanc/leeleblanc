@@ -5,6 +5,44 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.253.0 — ✏️ ONE WINDOW, ONE NAME: THE SCORP PAD IS HAMSIDIAN
+                 (modules/scratch_pad.lua, modules/vault.lua,
+                  modules/unified_search.lua, modules/power_tools.lua):
+  LL: "Scorp pad should be named 'Hamsidian.'"
+
+  ✏️ ⇪N AND ⇪3 HAVE OPENED THE SAME WINDOW SINCE 6.173.0, and it carried two
+  names: 📝 Scorp Pad when a scratch tab was open, 🕸 Hamsidian when a note
+  was. One window with two names is one window you have to learn twice.
+
+  VISIBLE STRINGS ONLY, exactly as 6.214.0 did for the notes side. Unchanged:
+  the module id `scratch_pad`, the settings key, every `sp.*` field,
+  `_G.scratchPad`, `_G.scratchPadReport`, `_G.scratchPadSend`,
+  `_G.scorpPadExport`, the store at `<logs>/scratch/scratch.json`, the
+  `scratch:<id>` refs, the services and the `@scratch` tag. The COMMANDS keep
+  their old names on purpose — they are what he types, and 6.214.0 set that
+  precedent when `_G.vaultReport()` survived the notes' rename.
+
+  🔑 THE ICON IS WHAT TELLS THE TWO APART NOW: 📝 Hamsidian on a scratch tab,
+  🕸 Hamsidian on a note. That is the minimal wording that answers his sentence
+  without making two identical headers — and where a LIST has to show both, the
+  pad is "Hamsidian tabs": ⇪space's source rows, the ⌃⌃ editor picker and the
+  panic chord's step list. Two rows reading the same word is a picker you
+  cannot use, and his own screenshot of the editor picker (Scorp Pad above
+  Hamsidian) is exactly the list that would have broken.
+
+  Also corrected in passing, because they were wrong before this release and
+  the rename walks past them: the notes' cheat sheet said ⇪3 / ⇪1 and the pad's
+  summary said ⇪1 — 6.182.0 moved the pad to ⇪N and freed ⇪1, and 6.194.0 gave
+  ⇪1 to mouse-follows.
+
+  🧪 A SOURCE SENTRY fails on any visible "Scorp" left in the module, COMMENTS
+  EXCLUDED — the file's own past is in the lines above the code, and a check
+  that reads the whole text would force the history to be deleted to stay green
+  (6.246.0's rule, in a rename). A second check holds the ICON, because
+  dropping it is the one change that would leave two identical windows and
+  still pass everything else.
+  · 9,857 -> 9,860 checks · three mutations, three bites.
+
 NEW IN 6.252.0 — ✂️ THE LANDED BOX SPLITS BY LETTER, AND ⌥HALVE IS GONE
                  (modules/mouse_grid.lua, tests/test_mouse_grid.lua):
   LL: "When I reach the yellow box level, split each box in half putting one

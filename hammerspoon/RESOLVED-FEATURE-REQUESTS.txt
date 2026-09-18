@@ -1,5 +1,5 @@
 ========================================================================
-RESOLVED FEATURE REQUESTS — Hammerspoon config 6.252.0
+RESOLVED FEATURE REQUESTS — Hammerspoon config 6.253.0
 Every feature and how to use it. Generated from the modules' own
 cheat sheets (the rows ⇪/ draws), so it is never out of date.
 ⇪ = Caps Lock held (the hyper key). ⇪⇧X = Caps Lock + Shift + X.
@@ -184,21 +184,21 @@ In the Console, _G.<tool>Report() prints any tool's own report.
   pre-typed ⇪pad* opens it with * (an Idea) · ⇪pad- with + (a Log)
   no pad?   ⇪2 opens it · ⇪space finds both pre-typed doors too
 
-📝 SCRATCH NOTES (⇪N — type, it saves; close as fast as you opened it)   [modules/scratch_pad.lua]
-  ⇪N      Open the pad — inside the ⇪3 Hamsidian window, on your SCRATCH NOTES (again closes). ⇪1 no longer opens it and is free
+📝 HAMSIDIAN TABS (⇪N — type, it saves; close as fast as you opened it)   [modules/scratch_pad.lua]
+  ⇪N      Open the tabs — inside the ⇪3 Hamsidian window, on your SCRATCH NOTES (again closes). ⇪1 no longer opens it and is free
   ⌘T · ⌘W New tab · close tab (its text goes to the history)
   ⌘1…⌘9 Switch tab · ⌃Tab / ⌃⇧Tab cycle round them
-  history   Right pane (in the vault): every closed tab, click to reopen
+  history   Right pane (in the notes): every closed tab, click to reopen
   📌      Pin: stays up beside the app; Esc only hands the keys back
   + 🗒 · + ➕ New Capture / Append tabs are rows in the section now, not their own keys; ⌘W still files each where it always went
   ⇪2      SEQUENTIAL COPY: select text, press it, select more, press again — the grabs join into ONE block on the clipboard, so ⌘V pastes the lot. Copying anything else starts a new sequence. Nothing is filed into the pad
   16:00     One Asana task of the day: every tab, 07:30 → 16:00, you
-  search    ⇪space finds everything in the pad — tabs and history
+  search    ⇪space finds everything here — tabs and history
   own window settings = { scratch_pad = { viaVault = false } } brings the old window back
   ⌘⇧S   Export every tab to <Vault>/Scratch as .md — Obsidian opens them
-  Console   _G.scratchPadReport() · _G.scratchPadSend() · _G.scorpPadExport()
+  Console   _G.scratchPadReport() · _G.scratchPadSend() · _G.scorpPadExport() — the COMMANDS keep their old names, like the notes' own did in 6.214.0
 
-🕸 HAMSIDIAN (⇪3 / ⇪1 — Markdown notes that link to each other, in OneDrive; the Scorp Pad's tabs too)   [modules/vault.lua]
+🕸 HAMSIDIAN (⇪3 / ⇪N — Markdown notes that link to each other, in OneDrive; its scratch tabs too)   [modules/vault.lua]
   ⇪3 · ⇪N Open / close the window — ⇪3 on your last note, ⇪N on your scratch tabs
   📝 SCRATCH NOTES Top of the list: every scratch tab, plain or 🗒 Capture or ➕ Append · ⌘T new · the + rows make the other two · ⌘W close · ⌘1–9 · ⌃Tab · history on the right
   🕸 NOTES Under the scratch tabs: every .md note in the vault · the + new note row and ⌘N both name it in the window · typing a name and ⏎ creates it too
@@ -215,7 +215,7 @@ In the Console, _G.<tool>Report() prints any tool's own report.
   ```dataview A live list: LIST or TABLE, FROM #tag / [[note]] / "Folder", WHERE status != "done", SORT, LIMIT — drawn in 🔎 QUERY, never written into the note. "/" writes the block for you
   ⌘⇧B   🗂 Board: your notes as Kanban columns, grouped by a front-matter field (```kanban BY status). DRAGGING A CARD REWRITES that note's status: line — the one view here that writes
   ⌘⇧E · ⌘⇧R Extract the selection into a new note, leaving [[Name]] behind · open a random note
-  ⌘⇧S   Export the Scorp Pad's tabs into <Vault>/Scratch as .md notes
+  ⌘⇧S   Export the scratch tabs into <Vault>/Scratch as .md notes
   ⌘F · ⌘O · ↑↓ ⏎ Filter the list · walk it (⌥↑/⌥↓ ⌥⏎ from inside the text)
   📌      Pin: the window stays up beside the app; Esc only hands the keys back
   Obsidian  Open the same folder as a vault in Obsidian — plug-ins and all
@@ -766,6 +766,7 @@ In the Console, _G.<tool>Report() prints any tool's own report.
 
 📜 RELEASE INDEX — newest first, one line per release (the full story of each is in CHANGELOG.md)
 ------------------------------------------------------------------------
+  6.253.0  ✏️ ONE WINDOW, ONE NAME: THE SCORP PAD IS HAMSIDIAN
   6.252.0  ✂️ THE LANDED BOX SPLITS BY LETTER, AND ⌥HALVE IS GONE
   6.251.0  ⌨️ THE MUSIC CARD TAKES THE KEYBOARD
   6.250.0  🔤 THE CHEAT SHEET CAN BE SEARCHED FOR PUNCTUATION
