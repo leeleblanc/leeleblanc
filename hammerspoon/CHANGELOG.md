@@ -5,6 +5,58 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.248.0 — 🌓 TWO SCRIMS, NOT ONE (modules/mouse_grid.lua,
+                 tests/test_mouse_grid.lua):
+  LL: "When I first bring up the grid, please make the boxes less translucent
+  so I can read the letters easier, then on first key press make the box 100%
+  see through."
+
+  🌓 TWO JOBS ASKED OF ONE NUMBER, which is why no single value could be right.
+  The FIRST draw is a READING surface: three letters in every cell, over
+  whatever was on the screen, and 30% of black was not enough behind white
+  text. After the first keystroke it is an AIMING surface — the survivors are
+  drawn in amber and the darkening is only in the way of the thing he is trying
+  to hit. So there are two numbers now:
+
+      grid.scrimAlpha       = 0.55   -- before you type  (was 0.30, doing both)
+      grid.scrimAlphaTyped  = 0.00   -- after the first character
+
+  and 0.00 is his "100% see through", not a taste.
+
+  🔑 `grid.scrimFor(typed)` IS PURE and answers the alpha AND why. BOTH draw
+  sites ask it — `gridElements` (the full lattice) and `scrimOnly` (what is
+  left once 6.65.0 drops the lines) — so the two can never drift, and
+  backspacing all the way out brings the reading wash back with the lattice.
+  That last one has its own check, because it is the case a careless fix
+  breaks: the obvious edit is to change the only scrim you can find.
+
+  🧪 THE OLD CHECK ASSERTED THE LITERAL 0.30. It was written for a real rule —
+  the scrim is COVERAGE, never brightness, because an opaque 30% grey would
+  hide the very thing you are aiming at — and it asserted a constant instead,
+  so moving the number failed a check that had nothing to say about the change.
+  It asks the rule now (white == 0, alpha strictly between 0 and 1) and a
+  second check joins the drawing to the config. The two numbers themselves are
+  proven by MOVING the config to 0.90/0.20 and requiring the drawing to follow:
+  6.239.0's rule, because asserting a shipped default passes just as happily
+  when the number has been typed in twice.
+
+  🗑 AND ONE GUARD WAS WRITTEN AND THEN TAKEN OUT AGAIN, which is worth the
+  paragraph: scrimAlphaTyped was added to the layout cache's signature, on the
+  reasoning that a knob a settings override moved after setup must rebuild what
+  it affects. It affects nothing cached — BOTH scrims are built inside redraw()
+  — so the mutation that removed it passed every check. A guard no test can
+  fail is dead code with a comment on it (6.199.0), so the comment is there and
+  the code is not.
+
+  🔎 `_G.mouseGridReport()` gains a "scrim :" line naming both, because "the
+  grid is too dark" and "the grid does not get out of the way" are two
+  complaints about two different numbers, and a Mac given 0.10 does not read as
+  see-through.
+  · 9,775 -> 9,793 checks · five mutations, five bites.
+
+  Both are settings, no release: settings = { mouse_grid = { scrimAlpha = 0.4,
+  scrimAlphaTyped = 0.1 } }.
+
 NEW IN 6.247.0 — 🏃 A HELD ARROW MOVES THE OVERLAY, IT NO LONGER REBUILDS IT
                  (modules/mouse_grid.lua, tests/test_mouse_grid.lua):
   LL: "After I isolate to a grid box (using three letters), then holding down

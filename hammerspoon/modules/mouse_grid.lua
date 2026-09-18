@@ -221,8 +221,23 @@ function M.setup(core)
     -- thing you are aiming at.
     --   scrim = black at 30% alpha  ("a 30% shade of grey")
     --   lines = 80% white           ("lines are 80% grey")
-    grid.scrimWhite  = 0.00
-    grid.scrimAlpha  = 0.30
+    -- 🌓 6.248.0 — TWO SCRIMS, NOT ONE. LL: "When I first bring up the
+    -- grid, please make the boxes less translucent so I can read the
+    -- letters easier, then on first key press make the box 100% see
+    -- through." Those are two different jobs asked of one number: the
+    -- FIRST draw is a reading surface (three letters per cell, over
+    -- whatever was on screen), and after a keystroke it is an aiming
+    -- surface where the darkening is only in the way.
+    --   scrimAlpha      — the wash before you type. 0.30 -> 0.55 on his
+    --                     word; the labels are white on it.
+    --   scrimAlphaTyped — the wash after the first character. 0 means
+    --                     exactly what he said: the screen comes back and
+    --                     only the amber survivors are drawn over it.
+    -- Both are settings-overridable and BOTH draw sites ask the same pure
+    -- function, so the two can never drift.
+    grid.scrimWhite       = 0.00
+    grid.scrimAlpha       = 0.55
+    grid.scrimAlphaTyped  = 0.00
     grid.lineWhite   = 0.80
     grid.lineAlpha   = 0.55
     grid.lineWidth   = 1.0
@@ -469,8 +484,17 @@ function M.setup(core)
                     tostring(f.x), tostring(f.y), tostring(f.w), tostring(f.h) }, ",")
             end
         end
+        -- 🌓 6.248.0 — scrimAlphaTyped is deliberately NOT in this key,
+        -- and it was written in and taken out again: BOTH scrims are built
+        -- at DRAW time (gridElements and scrimOnly are called from
+        -- redraw(), never cached), so a changed knob is picked up by the
+        -- next draw with no rebuild at all. No mutation could catch its
+        -- absence, and a guard no test can fail is dead code with a
+        -- comment on it (6.199.0). scrimAlpha's own entry here predates
+        -- that and is left alone.
         parts[#parts + 1] = string.format("|%s^%d|%.2f|%.2f|%.2f",
-            grid.alphabet, grid.labelLength, grid.scrimAlpha, grid.lineAlpha, grid.labelSize)
+            grid.alphabet, grid.labelLength, grid.scrimAlpha, grid.lineAlpha,
+            grid.labelSize)
         return table.concat(parts, ";")
     end
 
@@ -622,10 +646,21 @@ function M.setup(core)
     -- built once and then only shown/hidden. Lines are drawn as segments
     -- (2 points, stroked) rather than thin rectangles so strokeWidth means
     -- exactly what it says at any scale factor.
+    -- 🌓 6.248.0 — PURE, and the ONE place either draw decides. Answers
+    -- the alpha AND why, so the report can say which state a Mac is in
+    -- rather than printing a number with no name on it.
+    function grid.scrimFor(typed)
+        typed = tonumber(typed) or 0
+        if typed > 0 then
+            return num(grid.scrimAlphaTyped, 0), "typed — the screen is back"
+        end
+        return num(grid.scrimAlpha, 0.55), "before you type — a reading surface"
+    end
+
     local function gridElements(p)
         local els = {
             { type = "rectangle", action = "fill",
-              fillColor = { white = grid.scrimWhite, alpha = grid.scrimAlpha },
+              fillColor = { white = grid.scrimWhite, alpha = (grid.scrimFor(0)) },
               frame = { x = 0, y = 0, w = p.frame.w, h = p.frame.h } },
         }
         local stroke = { white = grid.lineWhite, alpha = grid.lineAlpha }
@@ -1420,9 +1455,15 @@ function M.setup(core)
     -- field. That is ONE element to draw, not one per discarded cell, so
     -- the more the grid narrows the CHEAPER this gets — the opposite of
     -- greying out each loser individually.
-    local function scrimOnly(p)
+    -- 🌓 6.248.0 — and this is the one he sees after the first keystroke,
+    -- so it asks scrimFor with the count. A 0 alpha still draws its
+    -- rectangle: setElements refuses an empty list (an empty table is ONE
+    -- element with no key-value pairs and hs.canvas throws on it), and a
+    -- transparent fill is the cheapest honest way to say "nothing here".
+    local function scrimOnly(p, typed)
         return { { type = "rectangle", action = "fill",
-                   fillColor = { white = grid.scrimWhite, alpha = grid.scrimAlpha },
+                   fillColor = { white = grid.scrimWhite,
+                                 alpha = (grid.scrimFor(typed or 1)) },
                    frame = { x = 0, y = 0, w = p.frame.w, h = p.frame.h } } }
     end
 
@@ -1435,7 +1476,8 @@ function M.setup(core)
         local bare = grid.dropLattice and #s.typed > 0
         for _, p in ipairs(grid.cache.screens) do
             if bare ~= s.latticeDropped then
-                setElements(p.gridCanvas, bare and scrimOnly(p) or gridElements(p))
+                setElements(p.gridCanvas,
+                            bare and scrimOnly(p, #s.typed) or gridElements(p))
             end
             if #s.typed == 0 then
                 setElements(p.labelCanvas, p.fullLabels)
@@ -1682,6 +1724,17 @@ function M.setup(core)
             math.floor(num(grid.nudgeStep, 8)), math.floor(num(grid.nudgeFine, 1)),
             math.floor(num(grid.nudgeStep, 8) * num(grid.nudgeAccelFirst, 4)),
             math.floor(num(grid.nudgeStep, 8) * num(grid.nudgeAccelMax, 8)))
+        -- 🌓 6.248.0 — the two washes, named, because "the grid is too
+        -- dark" and "the grid does not get out of the way" are different
+        -- complaints about different numbers.
+        do
+            local a0, why0 = grid.scrimFor(0)
+            local a1, why1 = grid.scrimFor(1)
+            out[#out + 1] = string.format(
+                "   scrim   : %.2f %s · %.2f once you type%s",
+                a0, why0, a1,
+                a1 <= 0 and " (fully see-through)" or "")
+        end
         -- 🏃 6.247.0 — WHAT A HELD ARROW COSTS, counted apart. A release
         -- that claims it stopped rebuilding must be able to prove it on
         -- HIS Mac: moves climbing while rebuilds stay flat is the claim

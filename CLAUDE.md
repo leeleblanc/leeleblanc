@@ -490,6 +490,28 @@ work Mac.
   never printed. 6.186.0's rule in a new place: a test HELPER answers
   falsely rather than indexing a nil, so a mutation fails a check instead
   of killing the run. Fifteen mutations, fifteen bites.
+- 🌓 TWO JOBS ASKED OF ONE NUMBER CANNOT BOTH BE RIGHT (6.248.0,
+  modules/mouse_grid.lua — LL: "make the boxes less translucent so I can
+  read the letters easier, then on first key press make the box 100% see
+  through"). The grid's scrim was ONE alpha doing two things: the first
+  draw is a READING surface (three letters a cell over whatever was on
+  screen) and after a keystroke it is an AIMING surface where the
+  darkening is only in the way. `scrimAlpha` 0.30 → 0.55, and
+  `scrimAlphaTyped` = 0, which is his "100% see through" and not a taste.
+  `grid.scrimFor(typed)` is PURE, answers the alpha AND why, and BOTH
+  draw sites ask it (gridElements and scrimOnly) so they cannot drift;
+  backspacing out brings the reading wash back and has its own check.
+  🧪 THE OLD CHECK ASSERTED THE LITERAL 0.30 — written for a real rule
+  (coverage, never brightness: an opaque grey hides what you are aiming
+  at) and asserting a constant instead, so moving the number failed a
+  check with nothing to say about the change. It asks the RULE now, and
+  the numbers are proven by MOVING the config and requiring the drawing
+  to follow (6.239.0).
+  🗑 AND ONE GUARD WAS WRITTEN AND TAKEN OUT AGAIN: scrimAlphaTyped in
+  the layout cache's key. It affects nothing cached — both scrims are
+  built inside redraw() — so the mutation removing it passed every
+  check, and a guard no test can fail is dead code with a comment on it
+  (6.199.0). SECOND time this project has made that call on purpose.
 - 🏃 A HANDLER WIRED AS ITS OWN repeatfn PAYS FOR EVERYTHING IT DOES AT
   THE KEY-REPEAT RATE (6.247.0, modules/mouse_grid.lua — LL: "holding
   down the arrow key should repeat about the same cadence as holding
@@ -1988,6 +2010,7 @@ as the fix when a loss lands.
 | 6.245.0 | 🔎 ⇪Y stopped sorting the whole archive to draw forty rows — the first keystroke of a search was building and sorting 60,000 entries on the main thread | pending |
 | 6.246.0 | 🎯 ⇪⇧A acts on the file selected NOW — the panel had been one press behind since 6.65.1, and the title says so when it cannot re-read | pending |
 | 6.247.0 | 🏃 a held arrow MOVES the grid overlay instead of rebuilding two NSWindows per keystroke — the cadence was the work | pending |
+| 6.248.0 | 🌓 two scrims: 0.55 to read the letters on, 0 the moment you type — one number had been doing both jobs | pending |
 
 Running total: 15 wins · 8 losses · 22 pending (6.215.0, 6.217.0, 6.218.0,
 6.219.0, 6.220.0, 6.221.0, 6.222.0, 6.223.0, 6.224.0, 6.225.0, 6.226.0,
@@ -2019,7 +2042,8 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   installs ONE ZIP AT A TIME — the zip for release N is built from N's
   commit and carries everything before it, so a break still names its
   version. THE ORDER, his: 1 ⇪⇧A on the current selection ✔ 6.246.0 ·
-  2 grid arrow cadence ✔ 6.247.0 · 3 grid translucency · 4 the calendar
+  2 grid arrow cadence ✔ 6.247.0 · 3 grid translucency ✔ 6.248.0 ·
+  4 the calendar
   header ·
   5 cheat-sheet punctuation search · 6 the music card takes the
   keyboard · 7 the yellow box splits by letter (and ⌥halve goes) ·
@@ -2389,6 +2413,23 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.248.0 verify with LL — 🌓 THE GRID GETS OUT OF THE WAY (KNOWN GROUND):
+  install (carries 6.247.0). ⇪X. The screen is darker than it was — 55% black
+  instead of 30% — and the three letters in each cell read cleanly against it.
+  Now press ONE letter: the darkening goes away completely. The screen is back,
+  and only the amber boxes that still match are drawn over it. Type the second
+  and third letters as usual.
+  Backspace all the way out and the darker wash comes back with the full grid,
+  which is the case worth a second: it is the same rule read the other way.
+  Console: `_G.mouseGridReport()` — the new "scrim :" line reads
+  "0.55 before you type — a reading surface · 0.00 once you type (fully
+  see-through)".
+  🔎 If 0.55 is too dark, or if you want a little wash left after typing, NO
+  release: `settings = { mouse_grid = { scrimAlpha = 0.40,
+  scrimAlphaTyped = 0.10 } }`. Either number on its own is fine.
+  🚨 NOTHING ELSE CHANGED: the letters, the yellow survivors, ⌥+arrow, the
+  arrows and the click are all exactly as they were.
+
 - 6.247.0 verify with LL — 🏃 THE ARROW CADENCE (KNOWN GROUND): install
   (carries 6.246.0). ⇪X, type the three letters to land on a cell, then HOLD
   an arrow. It should now run at the same cadence as holding an arrow in a

@@ -1146,10 +1146,18 @@ check("the overlay draws ABOVE the menu bar — at overlay level the top "
 
 out("   -- the colours you asked for --\n")
 local scrim = grid.cache.screens[1].gridCanvas.elements[1]
-check("the scrim is 30% coverage, not 30% brightness — an opaque 30% grey "
-      .. "would hide the very thing you are aiming at",
-      scrim.fillColor.alpha == 0.30 and scrim.fillColor.white == 0.00,
+-- 6.248.0 — the NUMBER moved (0.30 -> 0.55, his ask) and the RULE did
+-- not: it is coverage, never brightness. Asserting the shipped literal
+-- made this a check on a constant; it asks the rule now, and the two
+-- numbers get their own checks that move the config and require the
+-- drawing to move with them.
+check("the scrim is COVERAGE, not brightness — an opaque grey would hide "
+      .. "the very thing you are aiming at",
+      scrim.fillColor.white == 0.00
+      and scrim.fillColor.alpha > 0 and scrim.fillColor.alpha < 1,
       tostring(scrim.fillColor.alpha))
+check("...and it is what the config says, not a number typed in twice",
+      scrim.fillColor.alpha == grid.scrimAlpha, tostring(scrim.fillColor.alpha))
 -- Indexed defensively on purpose. When a mutation stops show() from
 -- restoring the lattice this element does not exist, and a bare index
 -- would ABORT the run — killing every check after it and pointing the
@@ -2766,6 +2774,102 @@ do
           okSection == true, secErr)
     local ran = (pass + fail) - before
     check("§6.247.0 ran all of its checks (" .. ran .. " of 19+)", ran >= 19, ran)
+end
+
+
+out("\n=== 🌓 TWO SCRIMS, NOT ONE (6.248.0) ===\n")
+-- LL: "When I first bring up the grid, please make the boxes less
+-- translucent so I can read the letters easier, then on first key press
+-- make the box 100% see through." One number was being asked to do two
+-- different jobs — a reading surface before you type, an aiming surface
+-- after.
+do
+    local before = pass + fail
+    local okSection, secErr = pcall(function()
+
+    loadModule()
+    -- ---- the rule, PURE ------------------------------------------------
+    check("scrimFor(0) is the wash you read the labels on",
+          (grid.scrimFor(0)) == grid.scrimAlpha)
+    check("scrimFor(1) is the wash after the first keystroke",
+          (grid.scrimFor(1)) == grid.scrimAlphaTyped)
+    check("...and it stays that way for every later character",
+          (grid.scrimFor(3)) == grid.scrimAlphaTyped)
+    check("scrimFor answers WHY as well as what, and the two differ",
+          (function()
+              local _, w0 = grid.scrimFor(0)
+              local _, w1 = grid.scrimFor(1)
+              return type(w0) == "string" and type(w1) == "string" and w0 ~= w1
+          end)())
+    check("a nonsense count reads as 'before you type' rather than throwing",
+          (grid.scrimFor("banana")) == grid.scrimAlpha
+          and (grid.scrimFor(nil)) == grid.scrimAlpha)
+    -- 🚨 THE DECISION, not the taste. His two sentences are exactly these
+    -- two facts: the first draw is darker than the second, and the second
+    -- is nothing at all.
+    check("the reading surface is DARKER than the aiming one",
+          grid.scrimAlpha > grid.scrimAlphaTyped)
+    check("...and 'see through' means 0, not 'a bit lighter'",
+          grid.scrimAlphaTyped == 0)
+
+    -- ---- what is actually drawn ----------------------------------------
+    local function scrimAlphaNow()
+        local c = grid.cache and grid.cache.screens
+                  and grid.cache.screens[1] and grid.cache.screens[1].gridCanvas
+        if not (c and c.elements and c.elements[1]
+                and c.elements[1].fillColor) then return nil end
+        return c.elements[1].fillColor.alpha
+    end
+
+    grid.show(false)
+    check("before a key is pressed the screen is washed at scrimAlpha",
+          scrimAlphaNow() == grid.scrimAlpha, tostring(scrimAlphaNow()))
+    -- 🚨 MUTATION: have scrimOnly keep asking for scrimAlpha and the grid
+    -- never gets out of his way — the reported bug, restored.
+    pickKey("a")
+    check("🌓 the first keystroke takes the wash away",
+          scrimAlphaNow() == grid.scrimAlphaTyped, tostring(scrimAlphaNow()))
+    -- 🚨 MUTATION: have gridElements ask for the TYPED alpha and
+    -- backspacing out leaves a grid with no labels to read.
+    pickKey("delete")
+    check("...and backspacing all the way out brings the reading wash back",
+          scrimAlphaNow() == grid.scrimAlpha, tostring(scrimAlphaNow()))
+    grid.hide("test")
+
+    -- ---- the numbers are the CONFIG's, not the drawing's ---------------
+    -- 6.239.0's rule: asserting the shipped default passes when the number
+    -- has simply been typed in twice. Move the config and require the
+    -- drawing to move with it. (Neither scrim is cached — both are built
+    -- inside redraw() — which is why scrimAlphaTyped is deliberately not
+    -- in the layout cache's key; see the comment there.)
+    loadModule()
+    grid.scrimAlpha, grid.scrimAlphaTyped = 0.90, 0.20
+    grid.show(false)
+    check("a moved scrimAlpha is what gets drawn", scrimAlphaNow() == 0.90,
+          tostring(scrimAlphaNow()))
+    pickKey("a")
+    check("a moved scrimAlphaTyped is what gets drawn once you type",
+          scrimAlphaNow() == 0.20, tostring(scrimAlphaNow()))
+    grid.hide("test")
+
+    -- ---- the report ----------------------------------------------------
+    loadModule()
+    local r = _G.mouseGridReport()
+    check("the report names both washes",
+          type(r) == "string" and r:find("scrim", 1, true) ~= nil
+          and r:find("once you type", 1, true) ~= nil)
+    check("...and says so when the second one is nothing at all",
+          _G.mouseGridReport():find("fully see-through", 1, true) ~= nil)
+    grid.scrimAlphaTyped = 0.25
+    check("...while a Mac that was given a number does NOT read as see-through",
+          _G.mouseGridReport():find("fully see-through", 1, true) == nil)
+    grid.scrimAlphaTyped = 0
+
+    end)
+    check("§6.248.0 ran to the end — a throw here deletes the checks after it",
+          okSection == true, secErr)
+    local ran = (pass + fail) - before
+    check("§6.248.0 ran all of its checks (" .. ran .. " of 14+)", ran >= 14, ran)
 end
 
 -- =====================================================================
