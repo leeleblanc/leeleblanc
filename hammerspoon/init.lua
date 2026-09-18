@@ -4,9 +4,38 @@
 -- =====================================================================
 -- 09-18-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.250.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.251.0
 -- =====================================================================
 
+-- NEW IN 6.251.0 — ⌨️ THE MUSIC CARD TAKES THE KEYBOARD
+--                  (modules/music_player.lua):
+--   LL: "I have to click on it to make it the focus to use the space bar
+--      to play/pause. How do I fix this so I can get to it with the
+--      keyboard? Because even if I hide it and bring it back, it's not
+--      the active window."
+--   🎯 UP, IN FRONT AND KEY ARE THREE DIFFERENT STATES — 6.225.0's rule,
+--      learned on the OCR edit box and unpaid here. `bringToFront(true)`
+--      RAISES the window; only a KEY window is handed the keyboard, so
+--      the page's own ↑↓ / space / ⏎ / ⌘1–9 / ← → handler was there the
+--      whole time with nothing routed to it.
+--   ⌨️ THE THIRD STEP IS LUA'S: focus the hswindow off a HELD timer in
+--      its own slot (6.196.1), bounded by `focusTries` (4 × 0.08 s),
+--      stopping the moment the card IS key. No hswindow → ONE attempt
+--      and stop, because retrying cannot make key a window Hammerspoon
+--      cannot name. Closing the card tears the chase down.
+--   ⚠️ AND THE COST IS NAMED, in the report and out loud: focusing a
+--      Hammerspoon window ACTIVATES HAMMERSPOON, so an open Console
+--      comes forward with the card. That is the same mechanism as his
+--      "the Hammerspoon console jumps to the front and I'm not sure
+--      why", and it is the price of the keyboard.
+--      `settings = { music_player = { takeKeyboard = false } }`.
+--   🧪 The stub had no :hswindow() at all, and its focus() has to MOVE
+--      the focus or "it took the keys" could never be reached — the
+--      fifth getter-only stub this project has had to fix. And two
+--      mutations landed on paths that never run, so two checks were
+--      strengthened until the ones that do run are the ones asserted.
+--      · 9,819 -> 9,839 checks · seven mutations, seven bites.
+--
 -- NEW IN 6.250.0 — 🔤 THE CHEAT SHEET CAN BE SEARCHED FOR PUNCTUATION
 --                  (core/cheatsheet.lua):
 --   LL: "When I search the cheat sheet, I can search punctuation and I
@@ -31,33 +60,12 @@
 --      file warns about at the top of that block. Its own check.
 --      · 9,801 -> 9,819 checks · six mutations, six bites.
 --
--- NEW IN 6.249.0 — 🗓 THE CALENDAR'S HEADER HOLDS THE NAV AND NOTHING
---                  ELSE (modules/mini_calendar.lua):
---   LL: "Doesn't need the 'September 2026 → November 2026' label and the
---      ‹ Today › should go there — that month label should be gone so
---      that Today is right above the large date text."
---   🗓 THE RANGE LINE RESTATED THE THREE MONTH TITLES under it, in the
---      one place that could have held the navigation instead. It is
---      gone, and ‹ Today › moved from the far right to the date's own
---      left edge.
---   🔑 ONE LEFT EDGE, which is the ask written as arithmetic: `L.textX`
---      is where the big date is drawn AND where the cluster starts, so
---      "Today is right above the large date text" cannot drift into two
---      numbers somebody has to keep in step.
---   📐 AND THE HEADER IS ONLY AS TALL AS WHAT IS IN IT: `headerH` is
---      `btnH + 20` rather than the 56 it was when it carried a 20 pt
---      title — 6.244.0's rule applied one band further in. 494 → 486 pt.
---   ✂️ `cal.navButtons(L)` is PURE and answers the three buttons as
---      data; the drawing and the hit boxes are built from that one list
---      in one loop, so they cannot disagree about where a button is.
---      · 9,793 -> 9,801 checks · seven mutations, seven bites.
---
--- (6.248.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.249.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.250.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.251.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -154,7 +162,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.250.0"
+_G.configVersion = "6.251.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the

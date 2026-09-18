@@ -70,6 +70,7 @@ local M = {
             { "⌫",       "Take the highlighted track out of the queue" },
             { "drag",    "Move the card: grab its title strip — or ⌘-drag anywhere on it. It reopens where you left it" },
             { "volume",  "Use the Mac's own volume keys — this player has none, by design" },
+            { "focus",   "The card takes the keyboard when it opens — no click first" },
             { "Console", "_G.musicReport()" },
         },
     },
@@ -94,6 +95,15 @@ function M.setup(core)
         seekStep    = 5,              -- ← → seconds (LL asked for seek)
         seekBigStep = 30,             -- ⇧← ⇧→ seconds
         saveDelay = 0.3,
+        -- ⌨️ 6.251.0 — the card takes the keyboard when it opens, so the
+        -- space bar works without a click. FLAT knobs (the settings block
+        -- assigns mod.config[k] = v; a nested table would replace the
+        -- whole table and lose the rest).
+        takeKeyboard = true,          -- settings = { music_player = { takeKeyboard = false } }
+        focusTries   = 4,             -- attempts, then it says to click once
+        focusEvery   = 0.08,          -- seconds between them
+        focusTimer   = nil,           -- HELD: its own slot, never the tick's
+        focus        = { tries = 0, why = "not asked" },
         -- 🎧 WHAT NSSound PLAYS. Not a guess and not a wish list: these are
         -- the container/codec pairs AVFoundation decodes on a stock Mac.
         -- FLAC and Ogg are deliberately absent — they do not play through
@@ -1293,9 +1303,132 @@ say({a:'ready'});
     -- (tests/dump_music_html.lua → tests/test_music_js.js).
     mp.buildHtml = buildHtml
 
+    -- =====================================================================
+    -- ⌨️ 6.251.0 — THE CARD TAKES THE KEYBOARD
+    -- =====================================================================
+    -- LL: "I have to click on it to make it the focus to use the space bar
+    -- to play/pause. How do I fix this so I can get to it with the
+    -- keyboard? Because even if I hide it and bring it back, it's not the
+    -- active window."
+    --
+    -- 🎯 UP, IN FRONT AND KEY ARE THREE DIFFERENT STATES — 6.225.0 learned
+    -- that on the OCR edit box and the answer is the same here.
+    -- `bringToFront(true)` RAISES the window; it does not make it key, and
+    -- only a key window is handed the keyboard. So the page's own keydown
+    -- handler — ↑↓, space, ⏎, ⌫, ⌘1–9, ← → seek — was there the whole
+    -- time with nothing routed to it until he clicked.
+    --
+    -- THE THIRD STEP IS LUA'S, off a HELD timer in its own slot (6.196.1),
+    -- bounded by `focusTries`, stopping the moment the window IS key. No
+    -- hswindow on this build → one attempt and stop, because retrying
+    -- cannot make key a window Hammerspoon cannot name.
+    --
+    -- ⚠️ AND THE COST IS REAL AND IS NAMED: focusing a Hammerspoon window
+    -- ACTIVATES HAMMERSPOON, and macOS brings an app's other windows
+    -- forward with it — so the Console, if it is open, comes to the front
+    -- when the card opens. That is the same mechanism as LL's "the
+    -- Hammerspoon console jumps to the front and I'm not sure why", and it
+    -- is the price of the keyboard. `mp.takeKeyboard = false` is the off
+    -- switch and the report says which state this Mac reached.
+    function mp.cardIsKey()
+        local view = mp.webview
+        if not view then return false, "no card" end
+        local okW, win = pcall(function() return view:hswindow() end)
+        if not (okW and win) then return false, "no hswindow" end
+        local okF, front = pcall(function() return hs.window.focusedWindow() end)
+        if not (okF and front) then return false, "cannot read the focus" end
+        local okI, same = pcall(function() return front:id() == win:id() end)
+        if not okI then return false, "cannot compare windows" end
+        return same == true, same and "key" or "another window is key"
+    end
+
+    function mp.focusCardNow()
+        local view = mp.webview
+        if not view then return false, "the card closed" end
+        local okW, win = pcall(function() return view:hswindow() end)
+        if not (okW and win) then return false, "no hswindow" end
+        pcall(function() win:focus() end)
+        return true, "window focused"
+    end
+
+    function mp.stopFocusChase()
+        if mp.focusTimer then
+            pcall(function() mp.focusTimer:stop() end)
+            mp.focusTimer = nil
+        end
+    end
+
+    -- Bounded, held, and it reports which of the states this Mac reached.
+    function mp.focusCardSoon()
+        mp.stopFocusChase()
+        mp.focus = { tries = 0, why = "not asked" }
+        if not mp.takeKeyboard then
+            mp.focus.why = "off (takeKeyboard)"
+            return false, mp.focus.why
+        end
+        if not mp.webview then
+            mp.focus.why = "no card"
+            return false, mp.focus.why
+        end
+        if type(hs.timer) ~= "table" or type(hs.timer.doAfter) ~= "function" then
+            -- No timer is not no feature: ask once, now, and say so.
+            mp.focus.tries = 1
+            local ok, why = mp.focusCardNow()
+            mp.focus.why = ok and (why .. " — no timer to retry with")
+                              or ("could not focus: " .. tostring(why))
+            return ok, mp.focus.why
+        end
+        local function attempt()
+            if not mp.webview then
+                mp.focus.why = "the card closed"
+                mp.stopFocusChase()
+                return
+            end
+            local isKey = mp.cardIsKey()
+            if isKey then
+                mp.focus.why = "took the keys on try " .. mp.focus.tries
+                mp.stopFocusChase()
+                return
+            end
+            if mp.focus.tries >= (tonumber(mp.focusTries) or 4) then
+                mp.focus.why = "gave up after " .. mp.focus.tries
+                            .. " tries — click the card once"
+                mp.stopFocusChase()
+                return
+            end
+            mp.focus.tries = mp.focus.tries + 1
+            local ok, why = mp.focusCardNow()
+            if not ok then
+                -- 🚨 RETRYING CANNOT MAKE KEY A WINDOW THAT CANNOT BE
+                -- NAMED. One attempt, then stop, rather than four
+                -- identical failures and a timer nobody can see.
+                mp.focus.why = "cannot focus this card — " .. tostring(why)
+                mp.stopFocusChase()
+                return
+            end
+            if mp.cardIsKey() then
+                mp.focus.why = "took the keys on try " .. mp.focus.tries
+                mp.stopFocusChase()
+            end
+        end
+        local okT, t = pcall(hs.timer.doEvery,
+                             tonumber(mp.focusEvery) or 0.08, attempt)
+        if not (okT and t) then
+            mp.focus.tries = 1
+            local ok, why = mp.focusCardNow()
+            mp.focus.why = ok and (why .. " — no timer to retry with")
+                              or ("could not focus: " .. tostring(why))
+            return ok, mp.focus.why
+        end
+        mp.focusTimer = t
+        attempt()
+        return true, "chasing the keyboard"
+    end
+
     function mp.hide()
         mp.stopTick()
         mp.stopCatcher()
+        mp.stopFocusChase()
         if mp.webview then
             pcall(function() mp.webview:delete() end)
             mp.webview = nil
@@ -1416,6 +1549,9 @@ say({a:'ready'});
         -- Started AFTER the window exists, because it is placed at the
         -- window's frame and reports through the window's page.
         pcall(function() mp.startCatcher(rect) end)
+        -- ⌨️ 6.251.0 — and THEN the keyboard. After show and bringToFront,
+        -- because a window that is not up yet cannot be made key.
+        mp.focusCardSoon()
         mp.startTick()
         mp.render()
         say("card opened")
@@ -1437,6 +1573,26 @@ say({a:'ready'});
              .. (mp.enabled and "" or " · OFF by settings"))
         line("   engine   : " .. (hs.sound and "hs.sound (macOS's own)"
                                           or "⚠️ NO hs.sound — nothing can play"))
+        -- ⌨️ 6.251.0 — WHICH OF THE THREE STATES THIS MAC REACHED. "not
+        -- asked" is not "asked and failed" is not "it has the keys"
+        -- (6.196.1), and the last one has to be readable AFTER the fact:
+        -- "the space bar does nothing" is answered by this line alone.
+        do
+            local f = mp.focus or {}
+            if not mp.takeKeyboard then
+                line("   keyboard : off (takeKeyboard) — click the card to use it")
+            elseif mp.webview then
+                local isKey, keyWhy = mp.cardIsKey()
+                line("   keyboard : " .. tostring(f.why or "not asked")
+                     .. " · right now: " .. (isKey and "the card has the keys"
+                                                    or tostring(keyWhy)))
+            else
+                line("   keyboard : " .. tostring(f.why or "not asked")
+                     .. " (the card is closed)")
+            end
+            line("              ↳ taking the keys ACTIVATES Hammerspoon, so"
+                 .. " an open Console comes forward with the card")
+        end
         if #mp.queue == 0 then
             line("   queue    : empty — drop files on the card")
         else
@@ -1523,7 +1679,12 @@ say({a:'ready'});
         line("   volume   : none here, on purpose — the Mac's own keys")
         line("   last     : " .. tostring(mp.lastWhy))
         line("   off      : settings = { music_player = { enabled = false } }")
-        print(table.concat(L, "\n"))
+        -- 6.251.0 — it RETURNS the text as well as printing it, like
+        -- every other report in this config. Printing alone means the
+        -- only way to ask it anything is to read the Console.
+        local text = table.concat(L, "\n")
+        print(text)
+        return text
     end
 
     -- ---- the doors in -----------------------------------------------------

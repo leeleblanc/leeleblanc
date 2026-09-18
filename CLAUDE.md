@@ -490,6 +490,29 @@ work Mac.
   never printed. 6.186.0's rule in a new place: a test HELPER answers
   falsely rather than indexing a nil, so a mutation fails a check instead
   of killing the run. Fifteen mutations, fifteen bites.
+- ⌨️ TAKING THE KEYBOARD ACTIVATES HAMMERSPOON, AND THAT IS THE PRICE
+  (6.251.0, modules/music_player.lua — LL: "I have to click on it to make
+  it the focus to use the space bar … even if I hide it and bring it
+  back, it's not the active window"). 6.225.0's rule, unpaid here:
+  bringToFront RAISES, it does not make KEY, and only a key window is
+  handed the keyboard — so the card's own ↑↓ / space / ⏎ / ⌘1–9 / ← →
+  handler was there all along with nothing routed to it. The third step
+  is Lua's: focus the hswindow off a HELD timer in its own slot, bounded
+  by `focusTries`, stopping the moment it IS key; no hswindow → ONE
+  attempt (retrying cannot make key a window that cannot be named);
+  closing the card tears the chase down.
+  ⚠️ THE COST IS NAMED IN THE REPORT: focusing a Hammerspoon window
+  activates the APP, so an open Console comes forward with the card —
+  the same mechanism as his "the Hammerspoon console jumps to the front
+  and I'm not sure why". `takeKeyboard = false` is the switch. ANY panel
+  in this config that wants the keyboard pays this; say so rather than
+  letting it look like a second bug.
+  🧪 The stub had no :hswindow(), and its focus() must MOVE the focus or
+  "it took the keys" is unreachable — FIFTH getter-only stub to hide a
+  feature here. And TWO mutations landed on paths that never run (hide()
+  stopping a chase already over; a second stop further down), so the
+  checks were rewritten against the path that RUNS: close the card
+  mid-chase, and assert the timer object is GONE, not "nil or stopped".
 - 🔤 A BOX THAT REFUSES A CHARACTER MAY NEVER HAVE BEEN OFFERED ONE
   (6.250.0, core/cheatsheet.lua — LL: "When I search the cheat sheet, I
   can['t] search punctuation and I should be able to do this"). The sheet
@@ -2055,6 +2078,7 @@ as the fix when a loss lands.
 | 6.248.0 | 🌓 two scrims: 0.55 to read the letters on, 0 the moment you type — one number had been doing both jobs | pending |
 | 6.249.0 | 🗓 the calendar's month-range label is gone and ‹ Today › sits where it was, at the big date's own left edge | pending |
 | 6.250.0 | 🔤 ⇪/ can be searched for punctuation — the keys that name half this config were the keys its search box ignored | pending |
+| 6.251.0 | ⌨️ the music card takes the keyboard when it opens — space works without a click, and the Console coming forward is the price | pending |
 
 Running total: 15 wins · 8 losses · 22 pending (6.215.0, 6.217.0, 6.218.0,
 6.219.0, 6.220.0, 6.221.0, 6.222.0, 6.223.0, 6.224.0, 6.225.0, 6.226.0,
@@ -2089,6 +2113,7 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   2 grid arrow cadence ✔ 6.247.0 · 3 grid translucency ✔ 6.248.0 ·
   4 the calendar header ✔ 6.249.0 ·
   5 cheat-sheet punctuation search ✔ 6.250.0 · 6 the music card takes the
+  keyboard ✔ 6.251.0 —
   keyboard · 7 the yellow box splits by letter (and ⌥halve goes) ·
   8 the Scorp Pad renamed Hamsidian · 9 the three removals (the 4 PM
   Asana send, the Capture row, the Append row).
@@ -2456,6 +2481,24 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.251.0 verify with LL — ⌨️ THE CARD TAKES THE KEYBOARD (KNOWN GROUND):
+  install (carries 6.250.0). ⇪⇧pad. and press SPACE straight away — no click.
+  It plays or pauses. ↑↓ walk the queue, ⏎ plays, ⌘3 plays the third, ← → seek.
+  Close it and open it again: same thing, first press.
+  🔎 WHAT IT WAS: opening the card RAISED the window but never made it key, and
+  only a key window is handed the keyboard. The card's key handler was there
+  the whole time with nothing routed to it.
+  ⚠️ THE PRICE, and it answers your OTHER report: taking the keyboard activates
+  Hammerspoon, and macOS brings an app's other windows forward with it — so if
+  the Console is open it comes to the front when the card opens. That is the
+  same mechanism as "occasionally the Hammerspoon console jumps to the front
+  and I'm not sure why". If you would rather have the click back:
+  `settings = { music_player = { takeKeyboard = false } }`.
+  Console: `_G.musicReport()` — the new "keyboard :" line reads "took the keys
+  on try 1 · right now: the card has the keys". If it ever says "gave up after
+  4 tries — click the card once", paste it: that Mac will not make the window
+  key and the click is still needed.
+
 - 6.250.0 verify with LL — 🔤 SEARCHING FOR A PUNCTUATION KEY (KNOWN
   GROUND): install (carries 6.249.0). ⇪/ to open the sheet, then type a
   BACKSLASH. It lands in the search box and the sheet filters to the ⇪\ rows —

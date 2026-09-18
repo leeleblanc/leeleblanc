@@ -5,6 +5,58 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.251.0 — ⌨️ THE MUSIC CARD TAKES THE KEYBOARD
+                 (modules/music_player.lua, tests/test_music_player.lua):
+  LL: "I have to click on it to make it the focus to use the space bar to
+  play/pause. How do I fix this so I can get to it with the keyboard? Because
+  even if I hide it and bring it back, it's not the active window."
+
+  🎯 UP, IN FRONT AND KEY ARE THREE DIFFERENT STATES. That is 6.225.0's rule,
+  learned on the OCR edit box, and it was never paid here: show() ends with
+  `view:show()` and `view:bringToFront(true)`, which RAISES the window and does
+  not make it key — and only a key window is handed the keyboard. So the card's
+  own keydown handler (↑↓, space, ⏎, ⌫, ⌘1–9 and 6.239.0's ← → seek) was there
+  the whole time with nothing routed to it until he clicked.
+
+  ⌨️ THE THIRD STEP IS LUA'S, and it is the same shape the OCR box uses:
+    · focus the hswindow off a HELD timer in its own slot (6.196.1 — never the
+      tick's), bounded by `focusTries` (4) × `focusEvery` (0.08 s);
+    · stop the moment the card IS key, and tear the chase down when the card
+      closes — a timer outliving its window is the shape that has bitten this
+      config twice;
+    · no hswindow on this build → ONE attempt and stop, because retrying cannot
+      make key a window Hammerspoon cannot name;
+    · a window macOS refuses to focus is bounded, and then says "click the card
+      once" rather than failing in silence.
+
+  ⚠️ AND THE COST IS REAL AND IS NAMED, in the report itself: focusing a
+  Hammerspoon window ACTIVATES HAMMERSPOON, and macOS brings an app's other
+  windows forward with it — so an open Console comes to the front when the card
+  opens. That is the same mechanism as his other report ("Occasionally the
+  Hammerspoon console jumps to the front and I'm not sure why"), and it is the
+  price of the keyboard rather than a bug beside it. The off switch is
+  settings = { music_player = { takeKeyboard = false } }.
+
+  🧪 THE STUB HAD NO :hswindow() AT ALL, so none of this was testable — and its
+  focus() has to actually MOVE the focus, or "the card took the keys" is a
+  state the suite can never reach. That is the fifth time a stub gentler than
+  the real provider has hidden a feature here (6.198.0, 6.227.0, 6.230.0,
+  6.239.0). NO_HSWINDOW and REFUSE_FOCUS play the two Macs that cannot.
+
+  🧪 AND TWO MUTATIONS LANDED ON PATHS THAT NEVER RUN. "Closing the card leaves
+  the chase running" passed, because on a healthy Mac the chase is over before
+  hide() is ever called; "the chase keeps ticking after it has the keys" passed,
+  because a second stop further down still fired. Both checks were rewritten
+  against the path that actually runs — a card that has NOT got the keys yet is
+  closed mid-chase, and the timer object must be GONE rather than "nil or
+  stopped".
+
+  🔎 `_G.musicReport()` gains a "keyboard :" line with the three states (not
+  asked ≠ asked and failed ≠ it has the keys) plus what it is right now — and
+  the report RETURNS its text as well as printing it, like every other report
+  in this config.
+  · 9,819 -> 9,839 checks · seven mutations, seven bites.
+
 NEW IN 6.250.0 — 🔤 THE CHEAT SHEET CAN BE SEARCHED FOR PUNCTUATION
                  (core/cheatsheet.lua, tests/test_cheatsheet.lua):
   LL: "When I search the cheat sheet, I can search punctuation and I should be

@@ -36,6 +36,9 @@ local OPENABLE  = {}     -- path → false when macOS refuses to decode it
 local DURATION  = {}     -- path → seconds
 local SOUNDS    = {}     -- every hs.sound handed out
 local TIMERS    = {}
+-- ⌨️ 6.251.0 — which window macOS currently considers key.
+local FOCUSED_WIN, WIN_SEQ = nil, 0
+local NO_HSWINDOW, REFUSE_FOCUS = false, false
 local ALERTS, PRINTED, DEGRADED = {}, {}, {}
 local JS        = {}     -- every script pushed into the page
 NO_SEEK         = false  -- a Mac that refuses to move the playing position
@@ -70,6 +73,15 @@ io.open = function(path, mode)
 end
 
 hs = {
+    window = {
+        focusedWindow = function()
+            if FOCUSED_WIN == nil then return nil end
+            local id = FOCUSED_WIN
+            local w = {}
+            function w:id() return id end
+            return w
+        end,
+    },
     timer = {
         doAfter = function(secs, fn)
             local t = { secs = secs, fn = fn, every = false, stopped = false }
@@ -294,6 +306,27 @@ hs.webview = {
             return self
         end
         function v:evaluateJavaScript(s) JS[#JS + 1] = s ; return self end
+        -- ⌨️ 6.251.0 — hs.webview:hswindow() and the window it answers
+        -- with. A REAL FOCUS: win:focus() makes it the focused window, so
+        -- "the card took the keys" can actually be reached. A stub whose
+        -- focus() did nothing would let the chase run its four tries and
+        -- give up on a healthy Mac — and a getter-only one would let the
+        -- opposite pass. NO_HSWINDOW plays a build that does not expose
+        -- the window at all; REFUSE_FOCUS plays a window macOS will not
+        -- make key.
+        v.winId = (WIN_SEQ or 0) + 1
+        WIN_SEQ = v.winId
+        function v:hswindow()
+            if NO_HSWINDOW then return nil end
+            local id = self.winId
+            local w = { }
+            function w:id() return id end
+            function w:focus()
+                if not REFUSE_FOCUS then FOCUSED_WIN = id end
+                return self
+            end
+            return w
+        end
         WEBVIEWS[#WEBVIEWS + 1] = v
         return v
     end,
@@ -339,6 +372,10 @@ local function reset()
     mp.loaded, mp.enabled = true, true
     mp.tickTimer, mp.saveTimer = nil, nil
     mp.pos, mp.posWhy = nil, "not opened yet"
+    -- ⌨️ 6.251.0
+    mp.takeKeyboard, mp.focusTimer = true, nil
+    mp.focus = { tries = 0, why = "not asked" }
+    FOCUSED_WIN, NO_HSWINDOW, REFUSE_FOCUS = nil, false, false
     SCREENS = { { x = 0, y = 0, w = 1440, h = 900 } }
     CANVASES, NO_CANVAS, NO_DRAGCB = {}, false, false
     NO_SEEK = false
@@ -1722,6 +1759,143 @@ check("🚨 the suite asserted every check it was written to make",
       (pass + fail) >= 225, pass + fail)
 
 os.execute("true")
+
+-- =====================================================================
+out("\n=== ⌨️ THE CARD TAKES THE KEYBOARD (6.251.0) ===\n")
+-- =====================================================================
+-- LL: "I have to click on it to make it the focus to use the space bar to
+-- play/pause… even if I hide it and bring it back, it's not the active
+-- window." bringToFront RAISES a window; it does not make it KEY, and
+-- only a key window is handed the keyboard (6.225.0, on the OCR box).
+do
+    local before = pass + fail
+    local okSection, secErr = pcall(function()
+
+    local function fireFocusTimers()
+        for _, t in ipairs(TIMERS) do
+            if t.every and not t.stopped and t.secs == mp.focusEvery then t.fn() end
+        end
+    end
+
+    -- ---- the healthy Mac -----------------------------------------------
+    reset()
+    FOCUSED_WIN, NO_HSWINDOW, REFUSE_FOCUS = nil, false, false
+    mp.show()
+    check("⌨️ opening the card takes the keyboard — no click needed",
+          mp.cardIsKey() == true, mp.focus.why)
+    check("...and it says so, naming the try it landed on",
+          tostring(mp.focus.why):find("took the keys", 1, true) ~= nil,
+          mp.focus.why)
+    -- 🚨 THE TIMER MUST BE GONE, not merely "nil or stopped": a chase
+    -- that got the keys and kept ticking is a held timer nobody can see.
+    -- The first version of this check read "nil OR stopped" and passed
+    -- under the mutation, because the healthy path never armed one it had
+    -- to stop. It asserts the object is gone now.
+    check("...and the chase is torn down the moment it has them",
+          mp.focusTimer == nil, tostring(mp.focusTimer))
+    check("...and no focus timer is left ticking anywhere",
+          (function()
+              for _, t in ipairs(TIMERS) do
+                  if t.every and t.secs == mp.focusEvery and not t.stopped then
+                      return false
+                  end
+              end
+              return true
+          end)())
+
+    -- ---- a window macOS will not make key --------------------------------
+    reset()
+    FOCUSED_WIN, REFUSE_FOCUS = nil, true
+    mp.show()
+    for _ = 1, 8 do fireFocusTimers() end
+    REFUSE_FOCUS = false
+    check("a window macOS refuses to focus is BOUNDED, not chased for ever",
+          mp.focus.tries <= mp.focusTries, mp.focus.tries)
+    check("...and it says to click the card once rather than failing silently",
+          tostring(mp.focus.why):find("click the card once", 1, true) ~= nil,
+          mp.focus.why)
+    check("...and the timer is stopped when it gives up",
+          mp.focusTimer == nil or mp.focusTimer.stopped == true)
+
+    -- 🚨 AND A CHASE STILL RUNNING WHEN THE CARD CLOSES. This is the case
+    -- the first "closing stops the chase" check could not reach: on a
+    -- healthy Mac the chase is over before hide() is ever called, so the
+    -- mutation that deletes stopFocusChase() from hide() passed. A window
+    -- that will not take focus keeps it running.
+    reset()
+    FOCUSED_WIN, REFUSE_FOCUS = nil, true
+    mp.show()
+    local chasing = nil
+    for _, t in ipairs(TIMERS) do
+        if t.every and t.secs == mp.focusEvery and not t.stopped then chasing = t end
+    end
+    check("a card that has not got the keys yet is still chasing them",
+          chasing ~= nil)
+    mp.hide()
+    REFUSE_FOCUS = false
+    check("🚨 closing the card stops a chase that was STILL RUNNING",
+          chasing == nil or chasing.stopped == true,
+          chasing and tostring(chasing.stopped))
+
+    -- ---- a build with no hswindow ----------------------------------------
+    reset()
+    FOCUSED_WIN, NO_HSWINDOW = nil, true
+    local okShow = pcall(function() return mp.show() end)
+    NO_HSWINDOW = false
+    check("a build that cannot name the window does not throw, and the card "
+          .. "still opens", okShow and mp.webview ~= nil)
+    -- 🚨 RETRYING CANNOT MAKE KEY A WINDOW THAT CANNOT BE NAMED.
+    check("...it asks ONCE and stops, rather than four identical failures",
+          mp.focus.tries <= 1
+          and tostring(mp.focus.why):find("cannot focus", 1, true) ~= nil,
+          mp.focus.tries .. " — " .. tostring(mp.focus.why))
+
+    -- ---- the off switch ---------------------------------------------------
+    reset()
+    FOCUSED_WIN = nil
+    mp.takeKeyboard = false
+    mp.show()
+    check("takeKeyboard = false leaves the keyboard where it was",
+          mp.cardIsKey() == false
+          and tostring(mp.focus.why):find("takeKeyboard", 1, true) ~= nil,
+          mp.focus.why)
+    check("...and no focus timer is left running",
+          mp.focusTimer == nil or mp.focusTimer.stopped == true)
+    check("...and the report says so rather than looking like a failure",
+          _G.musicReport():find("off (takeKeyboard)", 1, true) ~= nil)
+    mp.takeKeyboard = true
+
+    -- ---- closing the card ------------------------------------------------
+    reset()
+    FOCUSED_WIN = nil
+    mp.show()
+    mp.hide()
+    check("closing the card stops the chase — a timer outliving its window "
+          .. "is 6.196.1's shape",
+          mp.focusTimer == nil or mp.focusTimer.stopped == true)
+
+    -- ---- the report's three states ---------------------------------------
+    reset()
+    FOCUSED_WIN = nil
+    check("the report says 'not asked' before the card has ever opened",
+          _G.musicReport():find("not asked", 1, true) ~= nil)
+    mp.show()
+    local r = _G.musicReport()
+    check("...and names the state once it has",
+          r:find("keyboard", 1, true) ~= nil
+          and r:find("the card has the keys", 1, true) ~= nil)
+    -- 🚨 THE COST IS NAMED, because it is the answer to a DIFFERENT report
+    -- of his ("the Hammerspoon console jumps to the front").
+    check("...and says what taking the keys costs",
+          r:find("ACTIVATES Hammerspoon", 1, true) ~= nil)
+
+    end)
+    check("§6.251.0 ran to the end — a throw here deletes the checks after it",
+          okSection == true, secErr)
+    local ran = (pass + fail) - before
+    check("§6.251.0 ran all of its checks (" .. ran .. " of 14+)", ran >= 14, ran)
+end
+
 realPrint(table.concat(PRINTED, "\n"))
 out("\n")
 if fail > 0 then
