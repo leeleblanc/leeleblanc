@@ -5,6 +5,58 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.250.0 — 🔤 THE CHEAT SHEET CAN BE SEARCHED FOR PUNCTUATION
+                 (core/cheatsheet.lua, tests/test_cheatsheet.lua):
+  LL: "When I search the cheat sheet, I can search punctuation and I should be
+  able to do this."
+
+  🔤 HE IS DESCRIBING A HOLE THE SHEET HAS HAD SINCE 6.66.0. It is a wall of
+  ⇪\ ⇪' ⇪/ ⇪; ⇪[ ⇪] ⇪- ⇪= — the keys that name half this config — and not one
+  of them could be typed into its own search box, because the only keys ever
+  claimed were:
+
+      for c in ("abcdefghijklmnopqrstuvwxyz0123456789"):gmatch(".") do
+          claim(c, function() cheatSheet.typeChar(c) end)
+      end
+      claim("space",  function() cheatSheet.typeChar(" ") end)
+      claim("delete", cheatSheet.backspace)
+
+  Press "\" over the open sheet and the keystroke went to whatever was behind
+  it. The box was not refusing punctuation; it had never been offered any.
+
+  🧨 AND THE FILTER WAS ALREADY SAFE FOR IT, which is why this is a small
+  release rather than a rewrite. `cheatSheet.matches` has passed `true` as
+  find()'s fourth argument since it was written, with a comment saying exactly
+  why: "this sheet is a wall of ⇪[ ⇪\ ⇪- ⇪/ ⇪= and every one of those is an
+  operator in Lua's pattern engine". The half that would have thrown was
+  written correctly years before the half that would have typed.
+
+  `cheatSheet.punctKeys` is DATA — eleven rows of { key, plain, shift } plus
+  ten digit rows carrying only a shifted symbol — so the gate reads the map
+  rather than the binding loop, and the loop is four lines.
+
+  🚨 A DIGIT ROW CARRIES ONLY ITS SHIFTED CHARACTER. The bare key is already
+  claimed by the a-z0-9 loop above, and claiming it again is the "two objects
+  bound to one key, one of which nothing can disable" that the top of that
+  block warns about. Its own check, and the mutation that adds `plain = "1"`
+  fails it.
+
+  ⚠️ THE SHIFTED HALF ASSUMES A US LAYOUT. ⇧- is "_" there and is something
+  else elsewhere; the bind simply fails on a keyboard that disagrees. It is
+  COUNTED and NAMED in the Console ("2 search key(s) could not be bound — ` ⇧`")
+  rather than pretended away, and the PLAIN half — which is what every ⇪ combo
+  on this sheet is written with — does not depend on the layout at all.
+
+  🧪 THE STUB ASSERTS AN ALLOW-LIST of keys the sheet may bind ("a key
+  appearing here unexpectedly is a mistake worth failing on"), and that list is
+  deliberately NOT read from cheatSheet.punctKeys: a guard that reads itself
+  from the thing it is guarding cannot notice a new row. The two are joined by
+  a check instead, so adding a row to the module fails the suite loudly.
+  And three of the six mutations first KILLED the section instead of failing
+  it — keyFor(...).fire() on a key that is no longer bound — until the helper
+  answered false rather than indexing a nil. 6.186.0, again.
+  · 9,801 -> 9,819 checks · six mutations, six bites.
+
 NEW IN 6.249.0 — 🗓 THE CALENDAR'S HEADER HOLDS THE NAV AND NOTHING ELSE
                  (modules/mini_calendar.lua, tests/test_features.lua):
   LL, on 6.244.0: "Doesn't need the 'September 2026 → November 2026' label and

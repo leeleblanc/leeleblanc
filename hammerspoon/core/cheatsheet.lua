@@ -540,6 +540,42 @@ return function(core)
     -- not mean costs one keypress rather than a close-and-reopen.
     cheatSheet.query = ""
 
+    -- 🔤 6.250.0 — THE KEYS THE SEARCH BOX TAKES BEYOND a-z0-9, as DATA
+    -- so the gate can read the map rather than the binding loop. `plain`
+    -- is what the bare key types and `shift` what ⇧ with it types; a row
+    -- with no `plain` is a DIGIT, whose bare key the a-z0-9 loop already
+    -- claimed — writing it twice would bind one key to two hotkeys, one
+    -- of which nothing can disable.
+    --
+    -- ⚠️ THE SHIFTED HALF ASSUMES A US LAYOUT. ⇧- is "_" there and is
+    -- something else elsewhere; a bind that fails is counted and named
+    -- rather than pretended away, and the plain half — which is what
+    -- every ⇪ combo on this sheet is written with — does not depend on
+    -- the layout at all.
+    cheatSheet.punctKeys = {
+        { key = "-",  plain = "-",  shift = "_" },
+        { key = "=",  plain = "=",  shift = "+" },
+        { key = "[",  plain = "[",  shift = "{" },
+        { key = "]",  plain = "]",  shift = "}" },
+        { key = "\\", plain = "\\", shift = "|" },
+        { key = ";",  plain = ";",  shift = ":" },
+        { key = "'",  plain = "'",  shift = '"' },
+        { key = ",",  plain = ",",  shift = "<" },
+        { key = ".",  plain = ".",  shift = ">" },
+        { key = "/",  plain = "/",  shift = "?" },
+        { key = "`",  plain = "`",  shift = "~" },
+        { key = "1",  shift = "!" },
+        { key = "2",  shift = "@" },
+        { key = "3",  shift = "#" },
+        { key = "4",  shift = "$" },
+        { key = "5",  shift = "%" },
+        { key = "6",  shift = "^" },
+        { key = "7",  shift = "&" },
+        { key = "8",  shift = "*" },
+        { key = "9",  shift = "(" },
+        { key = "0",  shift = ")" },
+    }
+
     -- 🧨 PLAIN TEXT, NEVER A PATTERN — the same rule the Tool Picker
     -- documents, and it matters more here: this sheet is a wall of ⇪[ ⇪\
     -- ⇪- ⇪/ ⇪= and every one of those is an operator in Lua's pattern
@@ -1210,15 +1246,50 @@ return function(core)
         -- from hide(), which every exit path goes through.
         if not _G.cheatSheetSearchKeys then
             local keys = {}
-            local function claim(k, fn)
-                local ok, hk = pcall(hs.hotkey.new, {}, k, fn, nil, fn)
-                if ok and hk then keys[#keys + 1] = hk end
+            local refused = {}
+            local function claim(k, fn, mods)
+                local ok, hk = pcall(hs.hotkey.new, mods or {}, k, fn, nil, fn)
+                if ok and hk then
+                    keys[#keys + 1] = hk
+                else
+                    refused[#refused + 1] =
+                        ((mods and #mods > 0) and "⇧" or "") .. tostring(k)
+                end
             end
             for c in ("abcdefghijklmnopqrstuvwxyz0123456789"):gmatch(".") do
                 claim(c, function() cheatSheet.typeChar(c) end)
             end
             claim("space",  function() cheatSheet.typeChar(" ") end)
             claim("delete", cheatSheet.backspace)
+            -- 🔤 6.250.0 — AND THE PUNCTUATION. LL: "When I search the
+            -- cheat sheet, I can't search punctuation and I should be
+            -- able to." This sheet is a wall of ⇪\ ⇪' ⇪/ ⇪; ⇪[ ⇪] ⇪- ⇪=
+            -- and not one of them could be typed into its own search box:
+            -- only a-z, 0-9, space and backspace were ever claimed, so
+            -- the keys that name half the config were the keys the box
+            -- ignored. cheatSheet.matches has always been safe for them —
+            -- it is a plain-text find (the `true` fourth argument), so a
+            -- bracket is a bracket and not a pattern. Only the INPUT was
+            -- missing.
+            for _, r in ipairs(cheatSheet.punctKeys) do
+                if r.plain then
+                    claim(r.key, function() cheatSheet.typeChar(r.plain) end)
+                end
+                if r.shift then
+                    claim(r.key, function() cheatSheet.typeChar(r.shift) end,
+                          { "shift" })
+                end
+            end
+            cheatSheet.searchKeysBound   = #keys
+            cheatSheet.searchKeysRefused = refused
+            -- 🚨 A KEY THAT COULD NOT BE CLAIMED IS SAID, not swallowed:
+            -- the shifted half assumes a US layout, and on a keyboard
+            -- where ⇧- is not "_" the bind simply fails. The box still
+            -- works; the sheet says which keys it did not get.
+            if #refused > 0 then
+                print("⌨️ Cheat sheet: " .. #refused .. " search key(s) "
+                      .. "could not be bound — " .. table.concat(refused, " "))
+            end
             _G.cheatSheetSearchKeys = keys
         end
         for _, hk in ipairs(_G.cheatSheetSearchKeys or {}) do

@@ -49,14 +49,28 @@ hs = {
       -- They are still an allow-list rather than "anything goes", because
       -- the point of this assert is that a key appearing here unexpectedly
       -- is a mistake worth failing on.
+      -- 6.250.0 — the PUNCTUATION keys join them. Listed here as a
+      -- literal rather than read off cheatSheet.punctKeys, deliberately:
+      -- this assert exists to notice a key nobody meant to bind, and a
+      -- list that reads itself from the thing it is checking cannot. The
+      -- two are joined by a check further down instead, so a new row in
+      -- the module fails loudly here rather than drifting.
       local valid = { escape=1, up=1, down=1, pageup=1, pagedown=1, home=1, ["end"]=1,
                       space=1, delete=1 }
       for c in ("abcdefghijklmnopqrstuvwxyz0123456789"):gmatch(".") do valid[c] = 1 end
+      for _, c in ipairs({ "-", "=", "[", "]", "\\", ";", "'", ",", ".",
+                           "/", "`" }) do valid[c] = 1 end
       assert(valid[key], "unexpected key bound: " .. tostring(key))
       -- `enabled` is tracked per hotkey now, not just counted: "did closing
       -- the sheet give the alphabet back" is a question about individual
       -- keys, and a counter cannot answer it.
-      local hk = { key = key, fire = pressed, repeatfn = repeatfn, enabled = false }
+      -- 6.250.0 — the MODS are recorded now. A shifted bind and a bare
+      -- one on the same key are two different hotkeys, and a stub that
+      -- forgets which is which cannot tell "?" from "/".
+      local ms = {}
+      for _, m in ipairs(mods or {}) do ms[#ms + 1] = m end
+      local hk = { key = key, mods = ms, fire = pressed,
+                   repeatfn = repeatfn, enabled = false }
       function hk:enable() hotkeysEnabled = hotkeysEnabled + 1; hk.enabled = true; return hk end
       function hk:disable() hotkeysDisabled = hotkeysDisabled + 1; hk.enabled = false; return hk end
       return hk
@@ -1717,6 +1731,155 @@ do
   CS.hide()
   CS.scroll = nil
   CS.searchAnchor = nil
+end
+
+
+-- =====================================================================
+-- 🔤 PUNCTUATION IS SEARCHABLE (6.250.0)
+-- =====================================================================
+-- LL: "When I search the cheat sheet, I can't search punctuation and I
+-- should be able to." This sheet is a wall of ⇪\ ⇪' ⇪/ ⇪; ⇪[ ⇪] ⇪- ⇪=
+-- and not one of them could be typed into its own search box: only
+-- a-z, 0-9, space and delete were ever claimed.
+do
+  local before = pass + fail
+  local okSection, secErr = pcall(function()
+
+  -- ---- the map, as data ---------------------------------------------
+  local rows = CS.punctKeys
+  check("punctKeys is a list of rows, not a set of strings",
+        type(rows) == "table" and #rows > 0 and type(rows[1]) == "table")
+  check("every row names a key and at least one character it types",
+        (function()
+          for _, r in ipairs(rows) do
+            if type(r.key) ~= "string" or r.key == "" then return false, r.key end
+            if r.plain == nil and r.shift == nil then return false, r.key end
+          end
+          return true
+        end)())
+  check("no key appears twice — one key, one row",
+        (function()
+          local seen = {}
+          for _, r in ipairs(rows) do
+            if seen[r.key] then return false, r.key end
+            seen[r.key] = true
+          end
+          return true
+        end)())
+  -- 🚨 MUTATION: give "1" a `plain` and the digit is bound twice — once
+  -- by the a-z0-9 loop and once here — which is exactly the "two objects
+  -- bound to one key, one of which nothing can disable" this file warns
+  -- about at the top of the search-key block.
+  check("🚨 a DIGIT row carries only its shifted character — its bare key "
+        .. "is already claimed by the a-z0-9 loop",
+        (function()
+          for _, r in ipairs(rows) do
+            if r.key:match("^%d$") and r.plain ~= nil then return false, r.key end
+          end
+          return true
+        end)())
+  -- The join the stub's allow-list cannot make for itself.
+  check("every punctuation key the module names is one the stub allows — "
+        .. "a new row fails here rather than drifting",
+        (function()
+          local allowed = {}
+          for _, c in ipairs({ "-", "=", "[", "]", "\\", ";", "'", ",", ".",
+                               "/", "`" }) do allowed[c] = true end
+          for _, r in ipairs(rows) do
+            if not (allowed[r.key] or r.key:match("^%d$")) then
+              return false, r.key
+            end
+          end
+          return true
+        end)())
+
+  -- ---- what is actually bound ----------------------------------------
+  CS.show()
+  local function keyFor(k, shifted)
+    for _, hk in ipairs(_G.cheatSheetSearchKeys or {}) do
+      local hasShift = (hk.mods and #hk.mods > 0)
+      if hk.key == k and hasShift == (shifted and true or false) then return hk end
+    end
+  end
+  check("the backslash is bound bare", keyFor("\\", false) ~= nil)
+  check("...and shifted, as a different hotkey", keyFor("\\", true) ~= nil)
+  check("...and they are not the same object",
+        keyFor("\\", false) ~= keyFor("\\", true))
+
+  -- 🚨 A HELPER ANSWERS FALSELY RATHER THAN INDEXING A NIL (6.186.0):
+  -- the mutation that stops a key being bound must FAIL these checks, not
+  -- throw through them and delete every check after it. It did, first
+  -- time, in three of six mutations.
+  local function press(k, shifted)
+    local hk = keyFor(k, shifted)
+    if not (hk and hk.fire) then return false end
+    hk.fire()
+    return true
+  end
+
+  -- 🔤 THE REPORTED BUG: typing ⇪\'s own character into the box.
+  CS.query = ""
+  check("🔤 pressing \\ types a backslash into the search box",
+        press("\\", false) and CS.query == "\\", CS.query)
+  check("...and ⇧/ types a question mark",
+        press("/", true) and CS.query == "\\?", CS.query)
+  CS.query = ""
+  check("...and a shifted DIGIT types its symbol",
+        press("1", true) and CS.query == "!", CS.query)
+  CS.query = ""
+
+  -- ---- and the filter takes it ---------------------------------------
+  check("matches() takes a backslash as TEXT, not as a pattern",
+        CS.matches("⇪\\  split the two front windows", "\\") == true)
+  check("...and a bracket does not throw",
+        (function()
+          local ok, r = pcall(CS.matches, "⇪[ move a window left", "[")
+          return ok and r == true
+        end)())
+  check("...and a query that matches nothing still says no",
+        CS.matches("⇪; power tools", "\\") == false)
+
+  -- ---- a real close gives the new keys back too -----------------------
+  CS.hide()
+  check("closing the sheet releases the punctuation as well as the letters",
+        (function()
+          for _, hk in ipairs(_G.cheatSheetSearchKeys or {}) do
+            if hk.enabled then return false, hk.key end
+          end
+          return true
+        end)())
+
+  -- ---- a key that cannot be bound is NAMED ----------------------------
+  -- 🚨 MUTATION: swallow the refusal. The shifted half assumes a US
+  -- layout, so a Mac where ⇧- is not "_" simply fails to bind — and a
+  -- count that says nothing is how that becomes "the search box is
+  -- broken and nobody knows which key".
+  do
+    local realNew = hs.hotkey.new
+    local killed = 0
+    hs.hotkey.new = function(mods, key, ...)
+      if key == "`" then killed = killed + 1 ; error("no such key", 0) end
+      return realNew(mods, key, ...)
+    end
+    _G.cheatSheetSearchKeys = nil
+    CS.show()
+    hs.hotkey.new = realNew
+    check("a key that will not bind is counted and named, and the rest "
+          .. "still bind",
+          killed > 0 and type(CS.searchKeysRefused) == "table"
+          and #CS.searchKeysRefused == killed
+          and (CS.searchKeysBound or 0) > 30,
+          tostring(CS.searchKeysBound) .. " bound, "
+          .. tostring(CS.searchKeysRefused and #CS.searchKeysRefused) .. " refused")
+    CS.hide()
+    _G.cheatSheetSearchKeys = nil
+  end
+
+  end)
+  check("§6.250.0 ran to the end — a throw here deletes the checks after it",
+        okSection == true, secErr)
+  local ran = (pass + fail) - before
+  check("§6.250.0 ran all of its checks (" .. ran .. " of 16+)", ran >= 16, ran)
 end
 
 print(("\n%d passed, %d failed\n"):format(pass, fail))

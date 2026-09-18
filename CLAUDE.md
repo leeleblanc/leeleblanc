@@ -490,6 +490,27 @@ work Mac.
   never printed. 6.186.0's rule in a new place: a test HELPER answers
   falsely rather than indexing a nil, so a mutation fails a check instead
   of killing the run. Fifteen mutations, fifteen bites.
+- 🔤 A BOX THAT REFUSES A CHARACTER MAY NEVER HAVE BEEN OFFERED ONE
+  (6.250.0, core/cheatsheet.lua — LL: "When I search the cheat sheet, I
+  can['t] search punctuation and I should be able to do this"). The sheet
+  is a wall of ⇪\ ⇪' ⇪/ ⇪; ⇪[ ⇪] ⇪- ⇪= and not one could be typed into
+  its own search box: the claim loop was `a-z0-9` plus space and delete,
+  full stop, so those keystrokes went to whatever was behind the sheet.
+  🧨 AND THE FILTER WAS ALREADY SAFE — `cheatSheet.matches` has passed
+  find()'s `true` since it was written, with a comment naming these very
+  characters as pattern operators. The half that would have THROWN was
+  right years before the half that would have TYPED existed. When a
+  feature "rejects" an input, ask whether it ever receives it.
+  📋 `cheatSheet.punctKeys` is DATA ({key, plain, shift}), so the gate
+  reads the map and the loop is four lines. A DIGIT row carries only its
+  shifted symbol — the bare key is claimed by the a-z0-9 loop and
+  binding it twice is "two objects on one key, one of which nothing can
+  disable". ⚠️ The shifted half assumes a US layout; a bind that fails is
+  COUNTED and NAMED in the Console, and the plain half (what every ⇪
+  combo is written with) does not depend on the layout.
+  🧪 The stub's allow-list of bindable keys is deliberately NOT read from
+  punctKeys — a guard that reads itself from the thing it guards cannot
+  notice a new row — so a CHECK joins the two instead.
 - 🗓 A LABEL THAT RESTATES WHAT IS UNDER IT IS OCCUPYING A BAND
   (6.249.0, modules/mini_calendar.lua — LL: "Doesn't need the 'September
   2026 → November 2026' label and the ‹ Today › should go there — that
@@ -2033,6 +2054,7 @@ as the fix when a loss lands.
 | 6.247.0 | 🏃 a held arrow MOVES the grid overlay instead of rebuilding two NSWindows per keystroke — the cadence was the work | pending |
 | 6.248.0 | 🌓 two scrims: 0.55 to read the letters on, 0 the moment you type — one number had been doing both jobs | pending |
 | 6.249.0 | 🗓 the calendar's month-range label is gone and ‹ Today › sits where it was, at the big date's own left edge | pending |
+| 6.250.0 | 🔤 ⇪/ can be searched for punctuation — the keys that name half this config were the keys its search box ignored | pending |
 
 Running total: 15 wins · 8 losses · 22 pending (6.215.0, 6.217.0, 6.218.0,
 6.219.0, 6.220.0, 6.221.0, 6.222.0, 6.223.0, 6.224.0, 6.225.0, 6.226.0,
@@ -2066,7 +2088,7 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   version. THE ORDER, his: 1 ⇪⇧A on the current selection ✔ 6.246.0 ·
   2 grid arrow cadence ✔ 6.247.0 · 3 grid translucency ✔ 6.248.0 ·
   4 the calendar header ✔ 6.249.0 ·
-  5 cheat-sheet punctuation search · 6 the music card takes the
+  5 cheat-sheet punctuation search ✔ 6.250.0 · 6 the music card takes the
   keyboard · 7 the yellow box splits by letter (and ⌥halve goes) ·
   8 the Scorp Pad renamed Hamsidian · 9 the three removals (the 4 PM
   Asana send, the Capture row, the Append row).
@@ -2434,6 +2456,22 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.250.0 verify with LL — 🔤 SEARCHING FOR A PUNCTUATION KEY (KNOWN
+  GROUND): install (carries 6.249.0). ⇪/ to open the sheet, then type a
+  BACKSLASH. It lands in the search box and the sheet filters to the ⇪\ rows —
+  which is how you find out what ⇪| does without asking me.
+  Try the others: ' / ; [ ] - = . , and ⇧ with them (? : { } | _ + < >), and
+  ⇧1…⇧0 for ! @ # $ % ^ & * ( ). Backspace still deletes, Esc still clears then
+  closes, and every key is handed back to your apps the moment the sheet goes.
+  🔎 WHAT IT WAS: the search box only ever claimed a-z, 0-9, space and delete.
+  Punctuation was never refused — it was never offered. The FILTER has always
+  handled it (it is a plain-text match, not a pattern), so only the input was
+  missing.
+  ⚠️ IF A SHIFTED ONE DOES NOTHING, that is a layout difference and the Console
+  says which: "⌨️ Cheat sheet: N search key(s) could not be bound — …". Paste
+  that line. The unshifted keys — the ones every ⇪ combo is written with — do
+  not depend on the layout.
+
 - 6.249.0 verify with LL — 🗓 THE CALENDAR HEADER (KNOWN GROUND): install
   (carries 6.248.0). ⇪⇧0. Two things, and they are the two you asked for:
   1. The "September 2026 → November 2026" line is GONE.

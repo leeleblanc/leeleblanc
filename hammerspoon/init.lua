@@ -4,9 +4,33 @@
 -- =====================================================================
 -- 09-18-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.249.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.250.0
 -- =====================================================================
 
+-- NEW IN 6.250.0 — 🔤 THE CHEAT SHEET CAN BE SEARCHED FOR PUNCTUATION
+--                  (core/cheatsheet.lua):
+--   LL: "When I search the cheat sheet, I can search punctuation and I
+--      should be able to do this."
+--   🔤 THE SHEET IS A WALL OF ⇪\ ⇪' ⇪/ ⇪; ⇪[ ⇪] ⇪- ⇪= and NOT ONE of
+--      them could be typed into its own search box: only a-z, 0-9,
+--      space and delete were ever claimed. The keys that name half this
+--      config were the keys the box ignored.
+--   🧨 AND THE FILTER WAS ALREADY SAFE FOR THEM — `cheatSheet.matches`
+--      has passed `true` to find() since it was written, precisely
+--      because this sheet is full of pattern operators. Only the INPUT
+--      was missing, which is why this is eleven bare keys and twenty-one
+--      shifted ones rather than a rewrite.
+--   ⚠️ THE SHIFTED HALF ASSUMES A US LAYOUT (⇧- is "_" there and is
+--      something else elsewhere). A bind that fails is COUNTED and
+--      NAMED in the Console rather than pretended away, and the plain
+--      half — which is what every ⇪ combo on the sheet is written with
+--      — does not depend on the layout at all.
+--   🚨 A DIGIT ROW CARRIES ONLY ITS SHIFTED CHARACTER: the bare key is
+--      already claimed by the a-z0-9 loop, and binding it twice is the
+--      "two objects on one key, one of which nothing can disable" this
+--      file warns about at the top of that block. Its own check.
+--      · 9,801 -> 9,819 checks · six mutations, six bites.
+--
 -- NEW IN 6.249.0 — 🗓 THE CALENDAR'S HEADER HOLDS THE NAV AND NOTHING
 --                  ELSE (modules/mini_calendar.lua):
 --   LL: "Doesn't need the 'September 2026 → November 2026' label and the
@@ -28,40 +52,12 @@
 --      in one loop, so they cannot disagree about where a button is.
 --      · 9,793 -> 9,801 checks · seven mutations, seven bites.
 --
--- NEW IN 6.248.0 — 🌓 TWO SCRIMS, NOT ONE (modules/mouse_grid.lua):
---   LL: "When I first bring up the grid, please make the boxes less
---      translucent so I can read the letters easier, then on first key
---      press make the box 100% see through."
---   🌓 THAT IS TWO JOBS ASKED OF ONE NUMBER, which is why it could not
---      be right: the FIRST draw is a READING surface — three letters per
---      cell over whatever was on screen — and after a keystroke it is an
---      AIMING surface, where the darkening is only in the way.
---      `scrimAlpha` 0.30 → 0.55 for the first; `scrimAlphaTyped` = 0 for
---      the second, which is his "100% see through" exactly.
---   🔑 `grid.scrimFor(typed)` is PURE and answers the alpha AND why, and
---      BOTH draw sites ask it — gridElements (the lattice) and scrimOnly
---      (what is left once the lines are dropped). Two sites, one rule,
---      so they cannot drift; backspacing all the way out brings the
---      reading wash back, and that has its own check.
---   🧪 THE OLD CHECK ASSERTED THE LITERAL 0.30, which made it a check on
---      a constant rather than on the rule it was written for (coverage,
---      never brightness). It asks the rule now, and the two numbers are
---      proven by MOVING the config and requiring the drawing to move
---      with it — 6.239.0's rule, because asserting a shipped default
---      passes when the number has simply been typed in twice.
---   🗑 AND ONE GUARD WAS WRITTEN AND THEN TAKEN OUT: scrimAlphaTyped in
---      the layout cache's key. Both scrims are built at DRAW time, so no
---      mutation could catch its absence — and a guard no test can fail
---      is dead code with a comment on it (6.199.0). The comment is there
---      instead.
---      · 9,775 -> 9,793 checks · five mutations, five bites.
---
--- (6.247.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.248.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.249.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.250.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -158,7 +154,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.249.0"
+_G.configVersion = "6.250.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the
