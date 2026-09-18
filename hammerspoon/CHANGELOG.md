@@ -5,6 +5,95 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.246.0 — 🎯 ⇪⇧A ACTS ON THE FILE THAT IS SELECTED NOW
+                 (modules/universal_actions.lua, tests/test_tools.lua):
+  LL, with a screenshot: "Hyper+shift+a — shouldn't this be working on the
+  blue line file?" The action panel's title read "⚡ And now reopen document
+  two.docx" while the highlighted row in the list behind it was
+  "We are currently overstocked on books come check them out.mp4".
+
+  🚨 IT WAS NOT A RACE. IT WAS THE DESIGN, AND IT WAS WRITTEN DOWN.
+  ua.finderSelection() returns the LAST KNOWN answer and merely STARTS a
+  refresh for the NEXT press:
+
+      function ua.finderSelection()
+          local age = hs.timer.secondsSinceEpoch() - (ua.selectionAt or 0)
+          if age > ua.selectionSecs then ua.refresh() end
+          return ua.selection or {}
+      end
+
+  Select a file and press ⇪⇧A and the cache is ALWAYS older than
+  selectionSecs (2) — so the panel was built from the selection before this
+  one, every single time, and pressing ⇪⇧A twice was the only way to see the
+  right name. The comment above that function said "the staleness window is
+  one press wide", which is true, and which is the bug stated as a feature:
+  ONE PRESS WIDE IS ONE PRESS WRONG.
+
+  ⚠️ AND THE OBVIOUS FIX IS THE ONE THAT ABORTED THIS MAC. Reading the
+  selection synchronously is exactly what 6.65.1 removed: hs.osascript
+  .applescript runs NSAppleScript in process, and an Objective-C exception
+  from that machinery unwinds straight past pcall and kills Hammerspoon —
+  LL's crash report, frame for frame. bulk_rename does block the main
+  thread for its own read and pays a 3-second beachball ceiling for it.
+  Neither was on offer here.
+
+  🔑 SO THE PRESS WAITS FOR THE ANSWER INSTEAD OF GUESSING AT IT. The read
+  is still out of process and still asynchronous; what changed is that the
+  panel is BUILT IN ITS CALLBACK rather than from whatever was lying around
+  when the key went down. ua.show() is now a decider and ua.showNow() is
+  the old builder, and the decision is PURE:
+
+      ua.readPlan(now, at, secs, canTask) ->
+          "open"  — the cache was read within secs; use it as it is
+          "wait"  — stale; read, and build the panel on the answer
+          "blind" — nothing can read; the last known answer, named as such
+
+  🚨 A NEGATIVE AGE IS A CLOCK THAT WENT BACKWARDS, NEVER FRESHNESS. A Mac
+  waking from sleep can answer with a smaller epoch than the one stamped
+  before it slept, and "-40s ago" must read as stale rather than as the
+  freshest answer this module has ever held. Its own check, its own
+  mutation.
+
+  👁 AND WHEN IT CANNOT RE-READ, THE TITLE SAYS SO: "⚡ old.docx · could not
+  re-read the selection", drawn in the one line he is already reading to
+  decide whether the panel has the right file. An hs.alert would be a
+  second thing to notice; a stale name he cannot see is the whole failure.
+  6.203.0's rule — the refusal is drawn where he is looking.
+
+  ⏱ THE WAIT IS BOUNDED THREE WAYS, because a hyper key that opens nothing
+  is worse than one that opens the wrong thing:
+    · a watchdog (ua.waitSecs, 1.5) in its OWN timer slot — 6.196.1, never
+      the task's — armed BEFORE the read is asked for, so a read that never
+      calls back cannot strand the key;
+    · a Mac that cannot arm that timer does not wait at all: it opens blind
+      and says so;
+    · a second press while the first is still waiting is the same press —
+      one keystroke, one panel.
+
+  🚨 AND AN ANSWER HANDED BACK BECAUSE A READ WAS ALREADY IN FLIGHT IS NOT
+  A FRESH READ. ua.refresh(done) has always short-circuited when a task is
+  running, handing the caller the OLD list; a caller that opens a panel on
+  the strength of that callback would report a stale selection as a current
+  one — the same bug, one layer down. done(paths, FRESH) now, and only the
+  real task callback passes true.
+
+  🔎 _G.universalActionsReport() — this module had no report at all, which
+  is why "it acted on the wrong file" had to be diagnosed from a photograph.
+  Every row has three states, and the one that earns its place is the read:
+  a REFUSED read (Finder scripting off, an Automation prompt unanswered, a
+  wedged Finder) exits non-zero and looks EXACTLY like "nothing is selected"
+  to everything downstream. Counted apart, with osascript's own words kept.
+
+  🧪 Thirty-one checks, eight mutations, eight bites — including the
+  headline one: put the old door back and the check reports "⚡ Reopen this
+  doc.docx" over a .mp4, which is LL's screenshot, reproduced in the gate.
+  · 9,721 -> 9,752 checks.
+
+  RULE, general: a cache that is refreshed FOR THE NEXT CALLER is not a
+  cache, it is a one-step delay line. When an answer must be current at the
+  moment of a keypress, the keypress waits for it — bounded, and saying so
+  when the bound bites.
+
 NEW IN 6.245.0 — 🔎 ⇪Y STOPPED SORTING THE WHOLE ARCHIVE TO DRAW FORTY ROWS
                  (modules/chrome_history.lua):
   LL: "Searching Chrome history with hyper+y caused a lock up when I started

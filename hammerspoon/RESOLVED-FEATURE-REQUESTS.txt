@@ -1,5 +1,5 @@
 ========================================================================
-RESOLVED FEATURE REQUESTS — Hammerspoon config 6.245.0
+RESOLVED FEATURE REQUESTS — Hammerspoon config 6.246.0
 Every feature and how to use it. Generated from the modules' own
 cheat sheets (the rows ⇪/ draws), so it is never out of date.
 ⇪ = Caps Lock held (the hyper key). ⇪⇧X = Caps Lock + Shift + X.
@@ -453,6 +453,8 @@ In the Console, _G.<tool>Report() prints any tool's own report.
   ⏎       Run the highlighted action
   auto      The action you used last is at the top next time
   auto      Actions that cannot apply right now are hidden
+  reads     The selection is re-read ON the press — the title says so when it could not be
+  console   _G.universalActionsReport()
   last row  Reset the running order back to the default
 
 🧰 POWER TOOLS (⇪; — the small ones, in one list)   [modules/power_tools.lua]
@@ -763,6 +765,7 @@ In the Console, _G.<tool>Report() prints any tool's own report.
 
 📜 RELEASE INDEX — newest first, one line per release (the full story of each is in CHANGELOG.md)
 ------------------------------------------------------------------------
+  6.246.0  🎯 ⇪⇧A ACTS ON THE FILE THAT IS SELECTED NOW
   6.245.0  🔎 ⇪Y STOPPED SORTING THE WHOLE ARCHIVE TO DRAW FORTY ROWS
   6.244.0  🗓 THE CALENDAR IS AS TALL AS WHAT IS IN IT
   6.243.0  🔤 ⇪Z LEARNS THE CORRECTION HE JUST MADE HIMSELF

@@ -45,6 +45,9 @@ local M = {
             { "⏎",    "Run the highlighted action" },
             { "auto", "The action you used last is at the top next time" },
             { "auto", "Actions that cannot apply right now are hidden" },
+            { "reads", "The selection is re-read ON the press — the title"
+                       .. " says so when it could not be" },
+            { "console", "_G.universalActionsReport()" },
             { "last row", "Reset the running order back to the default" },
         },
     },
@@ -62,6 +65,11 @@ function M.setup(core)
     -- The read is out of process and therefore asynchronous (see the 🚨 in
     -- ua.refresh), so "current" here means "as of the last refresh".
     ua.selectionSecs = 2
+    -- 🕐 6.246.0 — HOW LONG A PRESS WAITS for a selection read that is
+    -- already stale. Past this the panel opens on the last known answer
+    -- and SAYS so in its own title. It is a ceiling on the keypress, not
+    -- a target: a healthy Finder answers in a few tens of milliseconds.
+    ua.waitSecs = 1.5
     ua.maxMRU   = 40          -- bounded: this list can only ever be as long
                               -- as the action table, but the FILE is written
                               -- by us and read back next boot, and an
@@ -117,41 +125,120 @@ function M.setup(core)
     -- selection and have it in the same breath. It is read on a short
     -- cadence and cached instead — see ua.refresh().
     ua.selection, ua.selectionAt, ua.selTask = {}, 0, nil
+    -- 6.246.0 — what the report needs, and nothing the feature reads.
+    ua.reads, ua.readFails, ua.lastReadWhy = 0, 0, nil
+    ua.opened   = { open = 0, waited = 0, stale = 0, blind = 0 }
+    ua.lastOpen = nil     -- { how, why, what, at }
+    ua.waiting  = false   -- a press is waiting for an answer right now
+    ua.waitTimer = nil    -- HELD: its own slot, never the task's
 
     function ua.refresh(done)
         -- One in flight at a time. Holding the reference matters twice
         -- over: an unreferenced hs.task is collected mid-run, and without
         -- the guard a held-down key would fan out a process per press.
+        -- 🚨 6.246.0 — done(paths, FRESH). The second value is the whole
+        -- difference between "Finder just told us" and "somebody else's
+        -- read is in flight, here is the old answer". A caller that opens
+        -- a panel on the strength of this callback must be able to tell
+        -- those apart, or it reports a stale selection as a current one —
+        -- which is the bug this release exists to end.
         if ua.selTask then
             local okRun, running = pcall(function() return ua.selTask:isRunning() end)
-            if okRun and running then if done then done(ua.selection) end return end
+            if okRun and running then
+                if done then pcall(done, ua.selection, false) end
+                return
+            end
         end
         local okNew, t = pcall(hs.task.new, "/usr/bin/osascript",
-            function(_, stdOut, _)
+            function(code, stdOut, stdErr)
                 local paths = {}
                 for line in tostring(stdOut or ""):gmatch("[^\r\n]+") do
                     if line ~= "" then paths[#paths + 1] = line end
                 end
                 ua.selection, ua.selectionAt = paths, hs.timer.secondsSinceEpoch()
                 ua.selTask = nil
-                if done then pcall(done, paths) end
+                ua.reads = ua.reads + 1
+                -- A REFUSED READ IS NOT AN EMPTY FOLDER. Finder scripting
+                -- off, an Automation prompt unanswered, a wedged Finder —
+                -- all exit non-zero, and all of them look exactly like
+                -- "nothing is selected" to everything downstream. Counted
+                -- and named here so the report can tell them apart.
+                if tonumber(code) ~= 0 then
+                    ua.readFails = ua.readFails + 1
+                    ua.lastReadWhy = (tostring(stdErr or ""):match("[^\r\n]+")
+                                      or ("osascript exit " .. tostring(code)))
+                end
+                if done then pcall(done, paths, true) end
             end,
             { "-e", FINDER_SEL })
         if not (okNew and t) then
             -- No child process is a degraded panel, not a dead one: the
             -- clipboard actions still apply.
             warn("could not start osascript — Finder selection unavailable")
-            if done then pcall(done, {}) end
+            if done then pcall(done, ua.selection or {}, false) end
             return
         end
         ua.selTask = t
         pcall(function() t:start() end)
     end
 
-    -- What the panel uses. Never blocks: it returns the last known answer
-    -- and kicks off a refresh for the next press. The staleness window is
-    -- one press wide, and a wrong file would be visible in the panel's own
-    -- title before you chose anything.
+    -- =====================================================================
+    -- 🎯 6.246.0 — THE PANEL OPENS ON THE FILE THAT IS SELECTED NOW
+    -- =====================================================================
+    -- LL, with a screenshot: "shouldn't this be working on the blue line
+    -- file?" The panel's title named a .docx while the highlighted row in
+    -- Finder was a .mp4 — the file he had selected BEFORE.
+    --
+    -- 🚨 AND IT WAS NOT A RACE, IT WAS THE DESIGN. ua.finderSelection()
+    -- returns the LAST KNOWN answer and merely STARTS a refresh for the
+    -- NEXT press. Select a file, press ⇪⇧A, and the cache is older than
+    -- ua.selectionSecs every time — so the panel was built from the
+    -- previous selection, always, and pressing ⇪⇧A twice was the only way
+    -- to see the right name. The comment above it said "the staleness
+    -- window is one press wide", which is true and is exactly the bug: one
+    -- press wide is one press wrong.
+    --
+    -- ⚠️ THE OBVIOUS FIX IS THE ONE THAT CRASHED THIS MAC. Reading the
+    -- selection synchronously is what 6.65.1 removed: in-process
+    -- AppleScript raises an Objective-C exception that unwinds past pcall
+    -- and aborts Hammerspoon. bulk_rename blocks the main thread for its
+    -- own read and pays a 3-second beachball for it. Neither is on offer
+    -- here.
+    --
+    -- 🔑 SO THE PRESS WAITS FOR THE ANSWER INSTEAD OF GUESSING AT IT: the
+    -- read is still out of process and still asynchronous, and the panel
+    -- is built in its callback. A watchdog (ua.waitSecs) bounds the wait,
+    -- and when it bites the panel opens on the old answer with "could not
+    -- re-read the selection" IN ITS OWN TITLE — a stale name he cannot
+    -- see is the whole failure, so the degraded state is drawn where he is
+    -- already looking.
+    --
+    -- ua.readPlan is PURE, so every branch is proven with no Mac:
+    --   "open"  — the cache was read within selectionSecs; use it now
+    --   "wait"  — it is stale; read, and build the panel on the answer
+    --   "blind" — nothing can read (no hs.task); the last known answer,
+    --             named as such
+    function ua.readPlan(now, at, secs, canTask)
+        now  = tonumber(now) or 0
+        at   = tonumber(at)  or 0
+        secs = tonumber(secs) or 0
+        if not canTask then
+            return "blind", "no child process to ask Finder with"
+        end
+        local age = now - at
+        -- 🚨 age < 0 IS A CLOCK THAT WENT BACKWARDS, never freshness. A
+        -- Mac waking from sleep can hand back a smaller epoch than the one
+        -- stamped before it slept, and "-40s ago" must read as stale
+        -- rather than as the freshest answer this module ever had.
+        if age >= 0 and age <= secs then
+            return "open", string.format("read %.1fs ago", age)
+        end
+        return "wait", "re-reading the Finder selection"
+    end
+
+    -- What the CONTEXT uses. Never blocks: it returns the last known answer
+    -- and kicks off a refresh. ua.show no longer relies on that refresh
+    -- landing in time — see ua.readPlan above.
     function ua.finderSelection()
         local age = hs.timer.secondsSinceEpoch() - (ua.selectionAt or 0)
         if age > ua.selectionSecs then ua.refresh() end
@@ -419,7 +506,64 @@ function M.setup(core)
         return nil
     end
 
+    -- ⏳ 6.246.0 — THE DECIDER. It never builds anything itself: it asks
+    -- ua.readPlan what this press is allowed to trust and routes to
+    -- ua.showNow, which is the old ua.show unchanged in everything but
+    -- its name and its bookkeeping.
     function ua.show()
+        if not ua.enabled then return false end
+
+        -- A second press while the first is still waiting is the same
+        -- press: opening two panels a moment apart is how a slow Finder
+        -- turns one keystroke into two windows.
+        if ua.waiting then return true end
+
+        local now = 0
+        pcall(function() now = hs.timer.secondsSinceEpoch() end)
+        local canTask = (type(hs.task) == "table"
+                         and type(hs.task.new) == "function")
+        local how, why = ua.readPlan(now, ua.selectionAt, ua.selectionSecs,
+                                     canTask)
+        if how ~= "wait" then return ua.showNow(how, why) end
+
+        ua.waiting = true
+        local landed = false
+        local function proceed(h, w)
+            if landed then return end
+            landed = true
+            ua.waiting = false
+            if ua.waitTimer then
+                pcall(function() ua.waitTimer:stop() end)
+                ua.waitTimer = nil
+            end
+            ua.showNow(h, w)
+        end
+
+        -- 🚨 THE WATCHDOG IS ARMED BEFORE THE READ IS ASKED FOR. A read
+        -- that never calls back would otherwise strand the key: ua.waiting
+        -- true for ever and ⇪⇧A dead until a reload. Its own slot, never
+        -- the task's — 6.196.1.
+        local okT, t = pcall(hs.timer.doAfter, ua.waitSecs, function()
+            proceed("stale", string.format(
+                "Finder did not answer within %.1fs", ua.waitSecs))
+        end)
+        if okT and t then
+            ua.waitTimer = t
+        else
+            -- No timer is no wait. Opening blind beats a key that might
+            -- never open anything.
+            ua.waiting = false
+            return ua.showNow("blind", "no timer to bound the wait")
+        end
+
+        ua.refresh(function(_, fresh)
+            if fresh then proceed("waited", "read on the press")
+            else proceed("stale", "a read was already in flight") end
+        end)
+        return true
+    end
+
+    function ua.showNow(how, why)
         if not ua.enabled then return false end
         local ctx = ua.context()
         local what = describe(ctx)
@@ -469,7 +613,15 @@ function M.setup(core)
         -- the panel said it was acting on.
         ua.ctx = ctx
         pcall(function()
-            ua.chooser:placeholderText("⚡ " .. what)
+            -- 🔎 THE DEGRADED STATE IS DRAWN WHERE HE IS LOOKING. An
+            -- hs.alert would be a second thing to notice; the name in the
+            -- title is the thing he is already reading to decide whether
+            -- the panel is acting on the right file.
+            local flag = ""
+            if how == "stale" or how == "blind" then
+                flag = " · could not re-read the selection"
+            end
+            ua.chooser:placeholderText("⚡ " .. what .. flag)
             ua.chooser:query("")
             ua.chooser:choices(choices)
             -- 🚨 core.showPopup, NOT :show() — an unplaced picker leaves the
@@ -479,7 +631,13 @@ function M.setup(core)
             if core.showPopup then core.showPopup(ua.chooser)
             else ua.chooser:show() end
         end)
-        say("opened on " .. what .. " with " .. #choices .. " actions")
+        ua.opened[how] = (ua.opened[how] or 0) + 1
+        ua.lastOpen = { how = how, why = why, what = what, at = (function()
+            local n = 0 ; pcall(function() n = hs.timer.secondsSinceEpoch() end)
+            return n
+        end)() }
+        say("opened on " .. what .. " with " .. #choices .. " actions ("
+            .. tostring(how) .. " — " .. tostring(why) .. ")")
         return true
     end
 
@@ -528,6 +686,85 @@ function M.setup(core)
     -- it is also more discoverable there than in a chord nobody recalls.
 
     core.provide("universalActions.show", function() return ua.show() end)
+
+    -- =====================================================================
+    -- 🔎 THE REPORT
+    -- =====================================================================
+    -- 6.246.0 — this module had none, which is why "it acted on the wrong
+    -- file" had to be diagnosed from a screenshot. Every row has three
+    -- states: never asked ≠ asked and refused ≠ answered.
+    --
+    -- 🚨 ONE STRING, ONE print — core/console.lua's gate silences short
+    -- repeated lines and splices banners through marked ones, so a report
+    -- printed row by row loses rows (6.179.1).
+    function _G.universalActionsReport()
+        local L = {}
+        local function add(x) L[#L + 1] = x end
+        local function clock(t)
+            if not t or t <= 0 then return "never" end
+            return os.date("%H:%M:%S", math.floor(t))
+        end
+
+        add("═══════════════════════════════════════════════════════")
+        add("⚡ UNIVERSAL ACTIONS — ⇪⇧A")
+        add(string.format("read    : out of process, waits up to %.1fs on the press",
+                          tonumber(ua.waitSecs) or 0))
+
+        local o = ua.opened or {}
+        local total = (o.open or 0) + (o.waited or 0) + (o.stale or 0) + (o.blind or 0)
+        if total == 0 then
+            add("opened  : not pressed this session")
+        else
+            add(string.format("opened  : %d — %d on a fresh read · %d waited for one"
+                              .. " · %d stale · %d blind",
+                              total, o.open or 0, o.waited or 0,
+                              o.stale or 0, o.blind or 0))
+        end
+
+        local lo = ua.lastOpen
+        if not lo then
+            add("last    : —")
+        else
+            add(string.format("last    : %s — %s (%s) at %s",
+                              tostring(lo.what), tostring(lo.how),
+                              tostring(lo.why), clock(lo.at)))
+            if lo.how == "stale" or lo.how == "blind" then
+                add("          ↳ that panel named the PREVIOUS selection —"
+                    .. " its title said so")
+            end
+        end
+
+        -- 🚨 THREE STATES. "0 refused" over 0 reads is the sentence that
+        -- reads most like health and means least.
+        if (ua.reads or 0) == 0 then
+            add("finder  : never read this session")
+        elseif (ua.readFails or 0) == 0 then
+            add(string.format("finder  : %d read(s), none refused", ua.reads))
+        else
+            add(string.format("finder  : %d read(s), %d REFUSED — last: %s",
+                              ua.reads, ua.readFails,
+                              tostring(ua.lastReadWhy or "?")))
+            add("          ↳ Finder scripting or Automation permission —"
+                .. " a refusal looks exactly like an empty selection")
+        end
+
+        if (ua.selectionAt or 0) <= 0 then
+            add("cached  : nothing read yet")
+        else
+            local now = 0
+            pcall(function() now = hs.timer.secondsSinceEpoch() end)
+            add(string.format("cached  : %d path(s), read %.1fs ago (%s)",
+                              #(ua.selection or {}), now - ua.selectionAt,
+                              clock(ua.selectionAt)))
+        end
+
+        add(string.format("order   : %d action(s) remembered · %s",
+                          #(ua.mru or {}), tostring(ua.store)))
+        add("═══════════════════════════════════════════════════════")
+        local text = table.concat(L, "\n")
+        print(text)
+        return text
+    end
 
     _G.universalActions = ua
     M.ua     = ua

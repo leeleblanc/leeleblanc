@@ -490,6 +490,41 @@ work Mac.
   never printed. 6.186.0's rule in a new place: a test HELPER answers
   falsely rather than indexing a nil, so a mutation fails a check instead
   of killing the run. Fifteen mutations, fifteen bites.
+- 🎯 A CACHE REFRESHED FOR THE NEXT CALLER IS A ONE-STEP DELAY LINE
+  (6.246.0, modules/universal_actions.lua — LL, with a screenshot:
+  "shouldn't this be working on the blue line file?"). ⇪⇧A named the
+  file he had selected BEFORE, every press, and it was not a race: 
+  `ua.finderSelection()` returned the LAST answer and merely STARTED a
+  refresh for the NEXT press, so a cache older than `selectionSecs` (2)
+  was guaranteed on any press that follows a selection. Its own comment
+  said "the staleness window is one press wide" — true, and the bug
+  stated as a feature. ONE PRESS WIDE IS ONE PRESS WRONG.
+  ⚠️ THE OBVIOUS FIX IS THE ONE THAT ABORTED THIS MAC: an in-process
+  read is 6.65.1's crash (an Objective-C exception unwinds past pcall),
+  and bulk_rename's synchronous read pays a 3 s beachball ceiling. So
+  THE PRESS WAITS FOR THE ANSWER — still out of process, still async,
+  and the panel is BUILT IN THE CALLBACK. `ua.readPlan(now, at, secs,
+  canTask)` is PURE: open · wait · blind, with why; a NEGATIVE age is a
+  clock that went backwards (a Mac waking from sleep), never freshness.
+  👁 WHEN IT CANNOT RE-READ, THE TITLE SAYS SO — "⚡ old.docx · could not
+  re-read the selection", in the line he is already reading to decide
+  whether the panel has the right file (6.203.0's rule: the refusal is
+  drawn where he is looking, never in an alert under the window).
+  ⏱ BOUNDED THREE WAYS, because a hyper key that opens nothing is worse
+  than one that opens the wrong thing: a watchdog (`waitSecs` 1.5) in
+  its OWN slot (6.196.1) armed BEFORE the read is asked for; a Mac that
+  cannot arm one opens blind rather than waiting on an answer nothing
+  would end; and a second press while the first waits is the SAME press.
+  🚨 AN ANSWER HANDED BACK BECAUSE A READ WAS ALREADY IN FLIGHT IS NOT A
+  FRESH READ — `ua.refresh` short-circuits when a task is running, so
+  `done(paths, FRESH)` now, and only the real callback passes true.
+  🔎 `_G.universalActionsReport()` (the module had none, which is why a
+  photograph had to do the diagnosing): a REFUSED read — Finder
+  scripting off, an Automation prompt unanswered — exits non-zero and
+  looks EXACTLY like "nothing is selected" downstream, so it is counted
+  apart with osascript's own words. GENERAL: when an answer must be
+  current at the moment of a keypress, the keypress waits for it —
+  bounded, and saying so when the bound bites.
 - 🔖 hs.chooser DROPS THE SELECTION ON EVERY :choices() (6.227.0,
   modules/clipboard_history.lua — LL on ⇪⇧V: "I'm returned to the top
   after a selection multiple times … until I get out of the search box, I
@@ -1915,6 +1950,7 @@ as the fix when a loss lands.
 | 6.243.0 | 🔤 ⇪Z learns the correction HE just made — backspace over a typo, retype it, press ⇪Z | pending |
 | 6.244.0 | 🗓 the ⇪⇧0 calendar is as tall as its content (768 → 494), the date and clock sit above the months, and it wears the music player's card | pending |
 | 6.245.0 | 🔎 ⇪Y stopped sorting the whole archive to draw forty rows — the first keystroke of a search was building and sorting 60,000 entries on the main thread | pending |
+| 6.246.0 | 🎯 ⇪⇧A acts on the file selected NOW — the panel had been one press behind since 6.65.1, and the title says so when it cannot re-read | pending |
 
 Running total: 15 wins · 8 losses · 22 pending (6.215.0, 6.217.0, 6.218.0,
 6.219.0, 6.220.0, 6.221.0, 6.222.0, 6.223.0, 6.224.0, 6.225.0, 6.226.0,
@@ -1939,6 +1975,31 @@ next boot announced it (LL: "fortunately hammerspoon caught itself"). LL is on
 built. The work Mac's storm report is still owed, on 6.215.0 now.
 
 ## Open items — update as they move
+
+- 🧭 THE NINE (LL, 2026-09-18, on the batch he reported after 6.245.0:
+  "go & build in that order. Prep each item to roll out as I come back
+  and say next"). ONE CHANGE PER RELEASE, built back to back, and he
+  installs ONE ZIP AT A TIME — the zip for release N is built from N's
+  commit and carries everything before it, so a break still names its
+  version. THE ORDER, his: 1 ⇪⇧A on the current selection ✔ 6.246.0 ·
+  2 grid arrow cadence · 3 grid translucency · 4 the calendar header ·
+  5 cheat-sheet punctuation search · 6 the music card takes the
+  keyboard · 7 the yellow box splits by letter (and ⌥halve goes) ·
+  8 the Scorp Pad renamed Hamsidian · 9 the three removals (the 4 PM
+  Asana send, the Capture row, the Append row).
+  🗳 DECIDED BY ME, STATED TO HIM, because he said go rather than
+  answering: (7) halves along the box's LONGER side, two letters, and
+  it re-splits so it repeats like ⌥+arrow did — the cost is two
+  alphabet keys captured while the landed badge is up, which is the
+  6.192.0 rule's price, named. (9) nothing is deleted: the stores stay,
+  ⇪space still searches them, only the DOORS go, each behind a settings
+  knob. (6) the card takes the keyboard on its own key and hands it
+  back on Esc — and that makes Hammerspoon the active app, which is the
+  same mechanism as the console jumping forward.
+  ❓ STILL ANSWERED BY NOBODY, asked twice now: the three-finger-drag
+  setting (the desktop-jumping suspect), how he unpauses after ⇪',
+  `_G.begoneProbe()` with Notification Center open, and what "Doc
+  watcher;;" was going to say.
 
 - 🧭 THE GROUND PROBE IS THE INSTRUMENT FOR THE NEW-GROUND HABIT
   (6.242.0, modules/ground_probe.lua, no key). `_G.groundReport()` asks
@@ -2290,6 +2351,29 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.246.0 verify with LL — 🎯 ⇪⇧A ON THE BLUE LINE FILE (KNOWN GROUND):
+  install. In Finder select a file — ANY file — and press ⇪⇧A. The title at
+  the top of the panel names THAT file. Then Esc, click a DIFFERENT file, and
+  press ⇪⇧A again: it names the new one, first press.
+  🔎 WHAT IT WAS: the panel was built from the last selection this config had
+  read, and it only ever re-read for the NEXT press. So it was one press
+  behind, always — your screenshot, where the title said "And now reopen
+  document two.docx" over a highlighted .mp4. Pressing ⇪⇧A twice was the only
+  way to see the right name, which is why it looked intermittent.
+  🚨 THE ONE THING TO WATCH FOR is the opposite failure: the press now WAITS
+  for Finder to answer. It should be imperceptible. If ⇪⇧A ever feels like it
+  hangs, or if the title ever reads "· could not re-read the selection", that
+  is the 1.5-second watchdog biting — paste it, with Console
+  `_G.universalActionsReport()`.
+  📋 THE REPORT IS NEW (this tool had none): it says how many presses opened
+  on a fresh read, how many waited, how many went stale, and — the row that
+  matters — whether Finder ever REFUSED a read. A refusal looks exactly like
+  "nothing is selected" to everything downstream, so if ⇪⇧A ever says
+  "Nothing to act on" with a file clearly selected, that line is the answer
+  and it will name it.
+  Longer or shorter wait, no release: `settings = { universal_actions =
+  { waitSecs = 3 } }`.
+
 - 6.245.0 verify with LL — 🔎 ⇪Y SEARCHES WITHOUT THE BEACHBALL (KNOWN
   GROUND): install. ⇪Y, and TYPE — slowly at first, then normally. The first
   keystroke was the worst one and it is the one to watch: a single letter is

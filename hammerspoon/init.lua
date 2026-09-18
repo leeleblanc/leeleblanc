@@ -2,11 +2,45 @@
 -- * Working VERSION *
 -- =====================================================================
 -- =====================================================================
--- 09-17-26 using Claude          ← EDITED date. Bumped with every release.
+-- 09-18-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.245.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.246.0
 -- =====================================================================
 
+-- NEW IN 6.246.0 — 🎯 ⇪⇧A ACTS ON THE FILE THAT IS SELECTED NOW
+--                  (modules/universal_actions.lua):
+--   LL, with a screenshot: "shouldn't this be working on the blue line
+--      file?" The panel's title named a .docx while the highlighted row
+--      in Finder was a .mp4 — the file he had selected BEFORE.
+--   🚨 NOT A RACE — THE DESIGN. `ua.finderSelection()` returned the LAST
+--      known answer and merely STARTED a refresh for the NEXT press, so a
+--      cache older than `selectionSecs` (2) was guaranteed on every press
+--      that follows a selection. Its own comment said "the staleness
+--      window is one press wide", which is true and IS the bug: one press
+--      wide is one press wrong. Pressing ⇪⇧A twice was the only way to
+--      see the right name.
+--   ⚠️ AND THE OBVIOUS FIX IS THE ONE THAT ABORTED THIS MAC. Reading the
+--      selection in process is what 6.65.1 removed — an Objective-C
+--      exception unwinds past pcall and kills Hammerspoon; bulk_rename
+--      blocks the main thread for its own read and pays a 3-second
+--      beachball for it. Neither is on offer.
+--   🔑 SO THE PRESS WAITS FOR THE ANSWER instead of guessing at it: still
+--      out of process, still asynchronous, and the panel is BUILT IN THE
+--      CALLBACK. `ua.readPlan(now, at, secs, canTask)` is PURE and
+--      answers open · wait · blind, with why. A negative age is a clock
+--      that went backwards, never freshness.
+--   👁 WHEN IT CANNOT RE-READ, THE TITLE SAYS SO — `⚡ old.docx · could
+--      not re-read the selection`, in the one line he is already reading
+--      to decide whether the panel has the right file. A watchdog
+--      (`waitSecs` 1.5) bounds the wait in its own timer slot, and a Mac
+--      that cannot arm one opens blind rather than waiting on an answer
+--      nothing would end.
+--   🔎 `_G.universalActionsReport()` — this module had none, which is why
+--      a screenshot had to do the diagnosing. A REFUSED read (Finder
+--      scripting off, Automation unanswered) is counted apart from an
+--      empty selection: they are the same nil to everything downstream.
+--      · 9,721 -> 9,752 checks · eight mutations, eight bites.
+--
 -- NEW IN 6.245.0 — 🔎 ⇪Y STOPPED SORTING THE WHOLE ARCHIVE TO DRAW
 --                  FORTY ROWS (modules/chrome_history.lua):
 --   LL: "Searching Chrome history with hyper+y caused a lock up when I
@@ -35,48 +69,12 @@
 --      feel is a break, and a break is seen, never only logged.
 --      · 9,701 -> 9,721 checks · six mutations, six bites.
 --
--- NEW IN 6.244.0 — 🗓 THE CALENDAR IS AS TALL AS WHAT IS IN IT
---                  (modules/mini_calendar.lua):
---   LL, with two screenshots: "Can you please make this look like the
---      music player window?" · "I don't know why we made such a large
---      empty space below the dates." · "The date and time should be above
---      the months, same as large." · "There's a lot of space below the
---      calendar. Why do we have that?"
---   📐 BOTH EMPTY SPACES WERE DRAWN ON PURPOSE, by arithmetic nobody
---      reread. `cal.height` was a literal 768 while the content needed
---      about 490; the readout under the months was drawn to whatever the
---      window had left over, so on a 768-pt panel over 94 pt of text it
---      was a 362-pt empty box; and the footer was pinned to the BOTTOM OF
---      THE WINDOW, so it drifted away from the calendar by the slack.
---   🗓 `cal.layout(width, months)` is PURE and answers the panel's own
---      height as the SUM of its bands — header · readout · months · footer
---      · padding. 768 → 494, and nothing is stretched to reach an edge.
---      `cal.height = nil` means "fit it"; a NUMBER is still taken at its
---      word (6.230.0's rule).
---   ⬆ THE DATE AND THE CLOCK MOVED ABOVE THE MONTHS, still 34 pt — the
---      size was never the complaint, the position and the box were.
---   🚨 THE KNOB AND THE OUTCOME ARE DIFFERENT FIELDS NOW: show() used
---      to write the screen-clamped size back over cal.width/cal.height,
---      so a panel a small display had squeezed could never work its own
---      height out again. `cal.drawW/drawH` is what it GOT.
---   🎨 The music player's card, on his ask: #15161a with a #1b1d23
---      header strip, #22242b buttons on a #33353e hairline. NAMED, NOT
---      FIXED — that makes the calendar the second panel wearing the
---      player's look while nine still wear ui_style's; folding the two
---      together restyles eleven panels at once and is its own release.
---   🧪 AND THE FIRST SET OF CHECKS PROVED NOTHING ABOUT THE DRAWING:
---      stretching the readout back to the bottom and re-pinning the
---      footer — his two complaints, exactly — both left every check
---      green, because they asserted the LAYOUT's numbers and not the
---      elements. 6.220.0's rule in a new costume.
---      · 9,676 -> 9,701 checks · nine mutations, nine bites.
---
--- (6.243.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.244.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.245.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.246.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -173,7 +171,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.245.0"
+_G.configVersion = "6.246.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the

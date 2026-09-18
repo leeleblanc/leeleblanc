@@ -520,6 +520,10 @@ end
 say("   -- opening --")
 CLIPBOARD = nil
 TASKS = {}   -- no Finder selection: the task never calls back
+-- 6.246.0 — a press whose cached read is STALE now waits for Finder
+-- before building anything (§6). These checks are about what the panel
+-- OFFERS, so they are given a selection that was read a moment ago.
+ua.selection, ua.selectionAt = {}, NOW
 ALERTS = {}
 check("with nothing selected and nothing copied it says so, rather than "
       .. "opening a panel of actions that would all fail",
@@ -1351,6 +1355,202 @@ do
         hs.task.new = realNew
         return ok
     end)())
+end
+
+
+-- =====================================================================
+say("\n=== 6. UNIVERSAL ACTIONS — THE FILE SELECTED NOW (6.246.0) ===")
+-- =====================================================================
+-- LL, with a screenshot: "shouldn't this be working on the blue line
+-- file?" The panel's title named a .docx while Finder's highlighted row
+-- was a .mp4 — the file he had selected BEFORE. ua.finderSelection()
+-- returned the LAST answer and only STARTED a refresh for the NEXT
+-- press, so the panel was one press behind, every time.
+--
+-- 🚨 THIS SECTION WRAPS ITSELF (6.186.0): a throw inside a section
+-- deletes the checks after it while the run still says "0 failed".
+do
+    local before = pass + fail
+    local okSection, secErr = pcall(function()
+
+    -- ---- the rule, PURE ------------------------------------------------
+    check("readPlan: a cache read inside selectionSecs is used as it is",
+          (ua.readPlan(1000, 999, 2, true)) == "open")
+    check("readPlan: a stale cache makes the press WAIT for a real read",
+          (ua.readPlan(1000, 900, 2, true)) == "wait")
+    check("readPlan: no child process to ask Finder with is BLIND — the "
+          .. "last known answer, named as such",
+          (ua.readPlan(1000, 999.5, 2, false)) == "blind")
+    -- 🚨 MUTATION: drop the `age >= 0` guard in ua.readPlan and a clock
+    -- that went backwards (a Mac waking from sleep) reads as the freshest
+    -- answer this module has ever held.
+    check("readPlan: a NEGATIVE age is stale, never fresh",
+          (ua.readPlan(1000, 1040, 2, true)) == "wait")
+    check("readPlan answers WHY as well as what",
+          (function() local _, w = ua.readPlan(1000, 999, 2, true)
+                      return type(w) == "string" and w ~= "" end)())
+
+    local function resetUA()
+        TASKS, TIMERS = {}, {}
+        ua.selection, ua.selectionAt, ua.selTask = {}, 0, nil
+        ua.waiting, ua.waitTimer = false, nil
+        ua.opened = { open = 0, waited = 0, stale = 0, blind = 0 }
+        ua.lastOpen = nil
+        ua.reads, ua.readFails, ua.lastReadWhy = 0, 0, nil
+        if ua.chooser then ua.chooser.visible = false
+                           ua.chooser.placeholder = nil end
+    end
+    local function placeholder()
+        return tostring(ua.chooser and ua.chooser.placeholder or "")
+    end
+    local function fireAfterTimers()
+        for _, t in ipairs(TIMERS) do
+            if t.kind == "after" and t.live ~= false then t.fn() end
+        end
+    end
+
+    -- ---- 🎯 THE REPORTED BUG -------------------------------------------
+    resetUA()
+    ua.selection   = { "/tmp/Reopen this doc.docx" }   -- what he HAD selected
+    ua.selectionAt = NOW - 100
+    HYPER["shift+a"].fn()
+    check("a press on a stale cache does not open a panel yet",
+          placeholder() == "" and (ua.chooser == nil or ua.chooser.visible ~= true))
+    check("...it asks Finder first",
+          #TASKS == 1 and TASKS[1].cmd == "/usr/bin/osascript",
+          #TASKS .. " task(s)")
+    TASKS[1].cb(0, "/tmp/We are currently overstocked.mp4\n", "")
+    check("🎯 the panel opens on the file selected NOW, not the one before",
+          ua.chooser.visible == true
+          and placeholder():find("overstocked.mp4", 1, true) ~= nil,
+          placeholder())
+    check("...with no stale flag, because nothing was stale",
+          placeholder():find("could not re%-read") == nil, placeholder())
+    check("...counted as a press that waited for its answer",
+          ua.opened.waited == 1 and ua.opened.stale == 0 and ua.opened.blind == 0)
+    -- MUTATION: leave the watchdog running and it fires into a panel that
+    -- is already open.
+    check("...and the watchdog was stopped, not left running",
+          ua.waitTimer == nil and ua.waiting == false)
+
+    -- ---- the watchdog --------------------------------------------------
+    resetUA()
+    ua.selection, ua.selectionAt = { "/tmp/old.docx" }, NOW - 100
+    HYPER["shift+a"].fn()
+    check("a press Finder never answers has a watchdog on it",
+          (function() for _, t in ipairs(TIMERS) do
+               if t.kind == "after" then return true end end return false end)())
+    fireAfterTimers()          -- the read never comes back
+    check("the watchdog opens the panel rather than stranding the key",
+          ua.chooser.visible == true and ua.opened.stale == 1)
+    -- 🚨 MUTATION: delete the flag and the panel names the previous file
+    -- with nothing to say it might be wrong — the whole reported bug,
+    -- silent again.
+    check("🔎 and the TITLE says the selection could not be re-read",
+          placeholder():find("could not re%-read the selection") ~= nil,
+          placeholder())
+    check("...and ⇪⇧A is free again", ua.waiting == false and ua.waitTimer == nil)
+
+    -- ---- one press, one panel ------------------------------------------
+    resetUA()
+    ua.selection, ua.selectionAt = { "/tmp/old.docx" }, NOW - 100
+    HYPER["shift+a"].fn()
+    local afterFirst = #TASKS
+    HYPER["shift+a"].fn()
+    check("a second press while the first is still waiting starts no second read",
+          #TASKS == afterFirst, #TASKS .. " vs " .. afterFirst)
+    TASKS[1].cb(0, "/tmp/new.png\n", "")
+    check("...and exactly one panel opens",
+          ua.opened.waited + ua.opened.stale + ua.opened.blind == 1)
+
+    -- ---- it degrades, it never breaks ----------------------------------
+    resetUA()
+    ua.selection, ua.selectionAt = { "/tmp/old.docx" }, NOW - 100
+    local realNew = hs.task.new
+    hs.task.new = nil
+    local okBlind = pcall(function() return HYPER["shift+a"].fn() end)
+    hs.task.new = realNew
+    check("with no way to ask Finder the panel opens at once on the last "
+          .. "known answer — never a key that opens nothing",
+          okBlind and ua.chooser.visible == true and ua.opened.blind == 1)
+    check("...and says so in its title",
+          placeholder():find("could not re%-read") ~= nil, placeholder())
+
+    resetUA()
+    ua.selection, ua.selectionAt = { "/tmp/old.docx" }, NOW - 100
+    local realAfter = hs.timer.doAfter
+    hs.timer.doAfter = function() error("no timer", 0) end
+    local okNoTimer = pcall(function() return HYPER["shift+a"].fn() end)
+    hs.timer.doAfter = realAfter
+    -- 🚨 A wait nothing can end is a dead hyper key. Without a timer the
+    -- press must not wait at all.
+    check("a Mac that cannot arm the watchdog opens blind rather than "
+          .. "waiting on an answer nothing would bound",
+          okNoTimer and ua.chooser.visible == true
+          and ua.opened.blind == 1 and ua.waiting == false)
+
+    -- ---- an answer that was already in flight is NOT a fresh read ------
+    resetUA()
+    ua.selection, ua.selectionAt = { "/tmp/old.docx" }, NOW - 100
+    ua.selTask = { isRunning = function() return true end }
+    HYPER["shift+a"].fn()
+    check("🚨 an answer handed back because a read was ALREADY in flight "
+          .. "is stale, not fresh",
+          ua.opened.stale == 1 and ua.opened.waited == 0
+          and placeholder():find("could not re%-read") ~= nil, placeholder())
+
+    -- ---- a REFUSED read is not an empty selection ----------------------
+    resetUA()
+    ua.selectionAt = NOW - 100
+    ua.refresh()
+    TASKS[#TASKS].cb(1, "", "Finder got an error: Application isn't running.\n")
+    check("a refused read is counted apart, and its words are kept",
+          ua.reads == 1 and ua.readFails == 1
+          and tostring(ua.lastReadWhy):find("isn't running", 1, true) ~= nil,
+          tostring(ua.lastReadWhy))
+
+    -- ---- the report, three states per row ------------------------------
+    local r1 = _G.universalActionsReport()
+    check("the report names the refusal rather than reading as an empty folder",
+          type(r1) == "string" and r1:find("REFUSED", 1, true) ~= nil)
+    ua.reads, ua.readFails, ua.lastReadWhy = 0, 0, nil
+    check("...and 'never read' does not read as 'none refused'",
+          _G.universalActionsReport():find("never read this session", 1, true) ~= nil)
+    resetUA()
+    check("a session with no press says so rather than printing four zeros",
+          _G.universalActionsReport():find("not pressed this session", 1, true) ~= nil)
+    check("the report is ONE string, built and printed once (6.179.1)",
+          (function() local _, n = _G.universalActionsReport():gsub("\n", "")
+                      return n >= 6 end)())
+
+    -- ---- the source promises -------------------------------------------
+    local fh = realOpen(HS .. "/modules/universal_actions.lua")
+    local src = fh and fh:read("a") or ""
+    if fh then fh:close() end
+    check("the watchdog has its OWN timer slot, never the task's (6.196.1)",
+          src:find("ua.waitTimer", 1, true) ~= nil
+          and src:find("ua.selTask = t", 1, true) ~= nil)
+    -- 🚨 THE CODE, NOT THE COMMENTARY. The 6.65.1 block in that file
+    -- NAMES hs.osascript.applescript to explain why it is banned, so a
+    -- search of the whole text answers "present" on a healthy module and
+    -- would fail for ever. Comment lines are dropped first.
+    local code = {}
+    for line in src:gmatch("[^\n]*") do
+        if not line:match("^%s*%-%-") then code[#code + 1] = line end
+    end
+    code = table.concat(code, "\n")
+    check("the selection is STILL read out of process — in-process "
+          .. "AppleScript aborted this Mac once (6.65.1)",
+          code:find("hs.osascript", 1, true) == nil)
+    check("🚨 and the press never BLOCKS on it: no waitUntilExit here, "
+          .. "whatever bulk_rename does",
+          src:find("waitUntilExit", 1, true) == nil)
+
+    end)
+    check("§6 ran to the end — a throw here would delete every check after it",
+          okSection == true, secErr)
+    local ran = (pass + fail) - before
+    check("§6 ran all of its checks (" .. ran .. " of 25+)", ran >= 25, ran)
 end
 
 -- =====================================================================
