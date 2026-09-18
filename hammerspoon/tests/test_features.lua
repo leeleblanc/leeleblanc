@@ -1883,11 +1883,10 @@ do
             if e.textAlignment == "right" then timeEl = e else dateEl = e end
         end
     end
-    -- 🚨 NOT findText: the HEADER's range line ("August 2026 → October
-    -- 2026") contains the same words and is drawn first, so a text search
-    -- returns the header and the check compares the date against the thing
-    -- above it rather than the thing below it. The month titles are the
-    -- 18 pt centred ones.
+    -- 🚨 NOT findText, and it is still right even though 6.249.0 deleted
+    -- the range line that first made it necessary: the date string
+    -- depends on the locale and on which weekday the fixture lands on.
+    -- The month titles are the 18 pt centred ones.
     local monthEl
     for _, e in ipairs(els or {}) do
         if e.type == "text" and e.textSize == 18
@@ -1913,6 +1912,65 @@ do
     end
     check("🎨 DRAWN: the music player's header strip runs across the top",
           strip ~= nil and strip.frame.y < 1, strip and strip.frame.h)
+
+    -- ---- 🗓 6.249.0 — the header holds the nav and nothing else --------
+    -- LL: "Doesn't need the 'September 2026 → November 2026' label and the
+    -- ‹ Today › should go there — that month label should be gone so that
+    -- Today is right above the large date text."
+    local nav = cal.navButtons(Ld)
+    check("navButtons answers the three, left to right",
+          #nav == 3 and nav[1].id == "nav:-1" and nav[2].id == "nav:today"
+          and nav[3].id == "nav:1")
+    check("...laid out from the LEFT with no overlap",
+          nav[1].x == Ld.btnX
+          and nav[2].x == nav[1].x + nav[1].w + Ld.btnGap
+          and nav[3].x == nav[2].x + nav[2].w + Ld.btnGap,
+          nav[1].x .. "," .. nav[2].x .. "," .. nav[3].x)
+    check("...all on one row, at the header's own button height",
+          nav[1].y == Ld.btnY and nav[2].y == Ld.btnY and nav[3].y == Ld.btnY
+          and nav[1].h == Ld.btnH)
+    -- 🚨 MUTATION: pin btnX back to the right edge (W - pad - 216) and the
+    -- cluster is no longer over the date — his whole sentence.
+    check("🗓 the cluster starts at the SAME left edge as the big date",
+          dateEl ~= nil and nav[1].x == dateEl.frame.x
+          and Ld.btnX == Ld.textX,
+          dateEl and (nav[1].x .. " vs " .. dateEl.frame.x))
+    check("...and the header is only as tall as what is in it",
+          Ld.headerH == Ld.btnH + 20
+          and nav[1].y >= 0 and nav[1].y + nav[1].h <= Ld.headerH,
+          Ld.headerH)
+
+    -- 🚨 MUTATION: put the range line back. Found by SHAPE — "<Month>
+    -- <year>  →" — because the month NAMES move with the fixture's date.
+    local rangeLine
+    for _, e in ipairs(els or {}) do
+        if e.type == "text" and type(e.text) == "string"
+           and e.text:find("%a+ %d%d%d%d%s+→") then rangeLine = e end
+    end
+    check("🗓 DRAWN: the month-range label is GONE — the three month "
+          .. "titles under it already say it", rangeLine == nil,
+          rangeLine and rangeLine.text)
+
+    -- 🚨 DRAWN: the buttons really are where navButtons put them, and
+    -- ABOVE the date. A mutation that lays the draw out by hand again
+    -- passes every check above and fails this one.
+    local todayBtn
+    for _, e in ipairs(els or {}) do
+        if e.type == "rectangle" and e.id == "nav:today" then todayBtn = e end
+    end
+    check("🗓 DRAWN: ‹ Today › is drawn from the pure layout, above the date",
+          todayBtn ~= nil and todayBtn.frame.x == nav[2].x
+          and todayBtn.frame.y == nav[2].y
+          and dateEl ~= nil
+          and todayBtn.frame.y + todayBtn.frame.h <= dateEl.frame.y,
+          todayBtn and (todayBtn.frame.x .. "," .. todayBtn.frame.y))
+    check("...and every one of them is clickable",
+          (function()
+              for _, b in ipairs(nav) do
+                  if cal.hitboxes[b.id] == nil then return false, b.id end
+              end
+              return true
+          end)())
 
     if not wasOpen then cal.hide() end
     cal.today, cal.cursor = wasToday, wasCursor

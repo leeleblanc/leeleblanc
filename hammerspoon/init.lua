@@ -4,9 +4,30 @@
 -- =====================================================================
 -- 09-18-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.248.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.249.0
 -- =====================================================================
 
+-- NEW IN 6.249.0 — 🗓 THE CALENDAR'S HEADER HOLDS THE NAV AND NOTHING
+--                  ELSE (modules/mini_calendar.lua):
+--   LL: "Doesn't need the 'September 2026 → November 2026' label and the
+--      ‹ Today › should go there — that month label should be gone so
+--      that Today is right above the large date text."
+--   🗓 THE RANGE LINE RESTATED THE THREE MONTH TITLES under it, in the
+--      one place that could have held the navigation instead. It is
+--      gone, and ‹ Today › moved from the far right to the date's own
+--      left edge.
+--   🔑 ONE LEFT EDGE, which is the ask written as arithmetic: `L.textX`
+--      is where the big date is drawn AND where the cluster starts, so
+--      "Today is right above the large date text" cannot drift into two
+--      numbers somebody has to keep in step.
+--   📐 AND THE HEADER IS ONLY AS TALL AS WHAT IS IN IT: `headerH` is
+--      `btnH + 20` rather than the 56 it was when it carried a 20 pt
+--      title — 6.244.0's rule applied one band further in. 494 → 486 pt.
+--   ✂️ `cal.navButtons(L)` is PURE and answers the three buttons as
+--      data; the drawing and the hit boxes are built from that one list
+--      in one loop, so they cannot disagree about where a button is.
+--      · 9,793 -> 9,801 checks · seven mutations, seven bites.
+--
 -- NEW IN 6.248.0 — 🌓 TWO SCRIMS, NOT ONE (modules/mouse_grid.lua):
 --   LL: "When I first bring up the grid, please make the boxes less
 --      translucent so I can read the letters easier, then on first key
@@ -35,48 +56,12 @@
 --      instead.
 --      · 9,775 -> 9,793 checks · five mutations, five bites.
 --
--- NEW IN 6.247.0 — 🏃 A HELD ARROW MOVES THE OVERLAY, IT NO LONGER
---                  REBUILDS IT (modules/mouse_grid.lua):
---   LL: "After I isolate to a grid box (using three letters), then
---      holding down the arrow key should repeat about the same cadence as
---      holding down arrow key in a text box."
---   🚨 THE CADENCE WAS THE WORK, not the key repeat. `nudge` is wired as
---      BOTH pressedfn and repeatfn, and it called showBox AND
---      showCrosshair — each of which DELETED its canvas and built a new
---      one. Two NSWindows created, filled through LuaSkin (eleven element
---      tables) and ordered in, PER KEYSTROKE, on the main thread. 6.228.0
---      names what that does to every other app's input, never mind ours.
---   🔎 CHECKED IN THE SOURCE, FILE NAMED (6.233.0's rule, about an
---      implementation this time): extensions/canvas/libcanvas.m's
---      `canvas_topLeft` (line 2842) is a SETTER as well as a getter and
---      does one thing — [canvasWindow setFrame:display:YES animate:NO].
---      No elements, no marshalling, no new window. It refuses only for a
---      canvas used as a SUBVIEW, and that refusal is a THROW, so it is
---      caught and falls back to the rebuild.
---   ✂️ `grid.canMove(prev, want)` is PURE: everything but x and y must
---      match, in BOTH directions — pairs() cannot see a nil, so a key in
---      one table and absent from the other is a difference each loop can
---      only catch from its own side. A nudge never resizes (6.192.0), so
---      on the hot path nothing but x and y differs.
---   🎯 THE BADGE IS NOT ALWAYS MOVABLE, and that is the interesting half:
---      it is clamped into the display, so at a screen EDGE its rings move
---      INSIDE the frame while the pointer keeps going — rx/ry ride in the
---      comparison and that draw rebuilds. So does a changed hint.
---   🔎 COUNTED APART on `_G.mouseGridReport()`'s new "canvas :" line:
---      moves climbing while rebuilds stay flat is the claim working;
---      rebuilds climbing with every arrow is this release doing nothing,
---      quietly, and it says so in words (6.241.0's rule).
---   🧪 The stub had no :topLeft at all, so the fix was untestable — and a
---      getter-only one would have passed every check while moving
---      nothing, the FOURTH time that shape has hidden a feature here.
---      · 9,752 -> 9,775 checks · nine mutations, nine bites.
---
--- (6.246.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.247.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.248.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.249.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -173,7 +158,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.248.0"
+_G.configVersion = "6.249.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the

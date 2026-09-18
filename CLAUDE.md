@@ -490,6 +490,27 @@ work Mac.
   never printed. 6.186.0's rule in a new place: a test HELPER answers
   falsely rather than indexing a nil, so a mutation fails a check instead
   of killing the run. Fifteen mutations, fifteen bites.
+- 🗓 A LABEL THAT RESTATES WHAT IS UNDER IT IS OCCUPYING A BAND
+  (6.249.0, modules/mini_calendar.lua — LL: "Doesn't need the 'September
+  2026 → November 2026' label and the ‹ Today › should go there — that
+  month label should be gone so that Today is right above the large date
+  text"). The range line said in one 20 pt string what the three month
+  titles under it already say, in the one band that could hold the
+  navigation instead.
+  🔑 ONE LEFT EDGE, his sentence as arithmetic: `L.textX` is where the
+  big date is drawn AND where the cluster starts, so "above the large
+  date text" cannot drift into two numbers kept in step by hand — and
+  the check compares the DRAWN button to the DRAWN date, never the
+  layout to itself.
+  📐 `headerH` was 56, sized for a title that no longer exists; it is
+  `btnH + 20` now and `btnY` falls out of it. 494 → 486 pt. 6.244.0's
+  rule one band further in: a height that is a sum cannot go stale, and
+  a height that is a literal already has.
+  ✂️ `cal.navButtons(L)` is PURE and answers the buttons as DATA; the
+  drawing and the hit boxes come from that one list in one loop, so they
+  cannot disagree about where a button is — the mutation that lays the
+  draw out by hand passes every layout check and fails the one that
+  reads the canvas.
 - 🌓 TWO JOBS ASKED OF ONE NUMBER CANNOT BOTH BE RIGHT (6.248.0,
   modules/mouse_grid.lua — LL: "make the boxes less translucent so I can
   read the letters easier, then on first key press make the box 100% see
@@ -2011,6 +2032,7 @@ as the fix when a loss lands.
 | 6.246.0 | 🎯 ⇪⇧A acts on the file selected NOW — the panel had been one press behind since 6.65.1, and the title says so when it cannot re-read | pending |
 | 6.247.0 | 🏃 a held arrow MOVES the grid overlay instead of rebuilding two NSWindows per keystroke — the cadence was the work | pending |
 | 6.248.0 | 🌓 two scrims: 0.55 to read the letters on, 0 the moment you type — one number had been doing both jobs | pending |
+| 6.249.0 | 🗓 the calendar's month-range label is gone and ‹ Today › sits where it was, at the big date's own left edge | pending |
 
 Running total: 15 wins · 8 losses · 22 pending (6.215.0, 6.217.0, 6.218.0,
 6.219.0, 6.220.0, 6.221.0, 6.222.0, 6.223.0, 6.224.0, 6.225.0, 6.226.0,
@@ -2043,8 +2065,7 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   commit and carries everything before it, so a break still names its
   version. THE ORDER, his: 1 ⇪⇧A on the current selection ✔ 6.246.0 ·
   2 grid arrow cadence ✔ 6.247.0 · 3 grid translucency ✔ 6.248.0 ·
-  4 the calendar
-  header ·
+  4 the calendar header ✔ 6.249.0 ·
   5 cheat-sheet punctuation search · 6 the music card takes the
   keyboard · 7 the yellow box splits by letter (and ⌥halve goes) ·
   8 the Scorp Pad renamed Hamsidian · 9 the three removals (the 4 PM
@@ -2413,6 +2434,18 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.249.0 verify with LL — 🗓 THE CALENDAR HEADER (KNOWN GROUND): install
+  (carries 6.248.0). ⇪⇧0. Two things, and they are the two you asked for:
+  1. The "September 2026 → November 2026" line is GONE.
+  2. ‹ Today › sits where it was — top left — directly above the big date,
+     lined up with it exactly.
+  The panel is 8 pt shorter again (486 instead of 494), because the header was
+  still as tall as the title it used to hold.
+  EVERYTHING ELSE IS UNCHANGED and worth ten seconds: click ‹ and › to step a
+  month, Today to come back, ←→ ↑↓ [ ] T, click a date to copy it, Esc.
+  🔎 Too short now? `settings = { mini_calendar = { height = 700 } }` — a
+  number is still obeyed, leaving it out means "fit the content".
+
 - 6.248.0 verify with LL — 🌓 THE GRID GETS OUT OF THE WAY (KNOWN GROUND):
   install (carries 6.247.0). ⇪X. The screen is darker than it was — 55% black
   instead of 30% — and the three letters in each cell read cleanly against it.

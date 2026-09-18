@@ -193,7 +193,7 @@ function M.setup(core)
     --
     -- THE ORDER IS THE RELEASE (LL: "The date and time should be above the
     -- months, same as large"):
-    --      header strip   the month range, and ‹ Today ›
+    --      header strip   ‹ Today ›, and nothing else (6.249.0)
     --      the readout    the big date and the live clock, then the
     --                     week/day line  — ABOVE the months now
     --      the months     always SIX rows, so the panel does not change
@@ -204,7 +204,22 @@ function M.setup(core)
         months = math.max(1, math.floor(tonumber(months) or 3))
         local L = {}
         L.pad      = 22
-        L.headerH  = 56
+        -- 🗓 6.249.0 — LL: "Doesn't need the 'September 2026 → November
+        -- 2026' label and the ‹ Today › should go there — that month
+        -- label should be gone so that Today is right above the large
+        -- date text." So the header holds the nav cluster and NOTHING
+        -- else, and its height is what the cluster needs rather than a
+        -- number that was sized for a title that is gone.
+        L.btnH     = 28
+        L.btnGap   = 6
+        L.headerH  = L.btnH + 20
+        L.btnY     = math.floor((L.headerH - L.btnH) / 2)
+        -- 🔑 ONE LEFT EDGE, and it is the whole ask: the big date is
+        -- drawn at textX and the cluster starts at textX, so "Today is
+        -- right above the large date text" is arithmetic rather than two
+        -- numbers somebody has to keep in step.
+        L.textX    = L.pad + 18
+        L.btnX     = L.textX
         L.gap      = 22
         L.colW     = (width - L.pad * 2 - L.gap * (months - 1)) / months
         L.cellW    = math.floor((L.colW - 8) / 7)
@@ -221,6 +236,23 @@ function M.setup(core)
         -- is stretched to reach an edge, which is the whole fix.
         L.height   = L.footY + L.footH + L.pad
         return L
+    end
+
+    -- 🗓 6.249.0 — PURE. The ‹ Today › cluster, laid out from the LEFT so
+    -- it sits over the date rather than out at the far edge, and answered
+    -- as data so the drawing and the hit boxes cannot disagree about where
+    -- a button is (they are built from the same list, in one loop).
+    function cal.navButtons(L)
+        local spec = { { id = "nav:-1",    label = "‹",     w = 40 },
+                       { id = "nav:today", label = "Today", w = 90 },
+                       { id = "nav:1",     label = "›",     w = 40 } }
+        local out, x = {}, L.btnX
+        for _, b in ipairs(spec) do
+            out[#out + 1] = { id = b.id, label = b.label,
+                              x = x, y = L.btnY, w = b.w, h = L.btnH }
+            x = x + b.w + L.btnGap
+        end
+        return out
     end
 
     local function layout()
@@ -383,39 +415,25 @@ function M.setup(core)
             frame = { x = 0, y = L.headerH - 1, w = W, h = 1 },
         })
 
-        local c = os.date("*t", cal.cursor)
-        local lastShown = addMonths(cal.cursor, cal.months - 1)
-        table.insert(els, {
-            type = "text",
-            text = MONTHS[c.month] .. " " .. c.year .. "  →  " ..
-                   MONTHS[os.date("*t", lastShown).month] .. " " ..
-                   os.date("*t", lastShown).year,
-            textSize = 20, textAlignment = "left",
-            textColor = cal.ink,
-            frame = { x = L.pad, y = 16, w = W * 0.6, h = 28 },
-        })
-
-        -- ‹ Today › — the mouse alternative to [ ] and T.
-        -- The player's buttons: #22242b on a #33353e hairline, radius 6.
-        local btnY, btnH = 14, 28
-        local buttons = {
-            { id = "nav:-1",    label = "‹",     x = W - L.pad - 216, w = 40 },
-            { id = "nav:today", label = "Today", x = W - L.pad - 170, w = 90 },
-            { id = "nav:1",     label = "›",     x = W - L.pad - 74,  w = 40 },
-        }
-        for _, b in ipairs(buttons) do
+        -- 🗓 6.249.0 — THE MONTH RANGE IS GONE. "September 2026 →
+        -- November 2026" restated what the three month titles underneath
+        -- already say, in the one place that could hold the nav instead.
+        -- ‹ Today › — the mouse alternative to [ ] and T — sits there now,
+        -- at the date's own left edge. The player's buttons: #22242b on a
+        -- #33353e hairline, radius 6.
+        for _, b in ipairs(cal.navButtons(L)) do
             table.insert(els, {
                 type = "rectangle", action = "strokeAndFill",
                 fillColor = cal.btnBg,
                 strokeColor = cal.btnStroke, strokeWidth = 1,
                 roundedRectRadii = { xRadius = 6, yRadius = 6 },
-                frame = { x = b.x, y = btnY, w = b.w, h = btnH },
+                frame = { x = b.x, y = b.y, w = b.w, h = b.h },
                 trackMouseDown = true, id = b.id,
             })
             table.insert(els, {
                 type = "text", text = b.label, textSize = 13,
                 textAlignment = "center", textColor = cal.ink,
-                frame = { x = b.x, y = btnY + 5, w = b.w, h = 22 },
+                frame = { x = b.x, y = b.y + 5, w = b.w, h = 22 },
             })
             cal.hitboxes[b.id] = b.id
         end
@@ -439,7 +457,7 @@ function M.setup(core)
             text = os.date("%A, %d %B %Y", cal.cursor):gsub(" 0", " "),
             textSize = 34, textAlignment = "left",
             textColor = cal.ink,
-            frame = { x = L.pad + 18, y = L.readY + 12, w = W - L.pad * 2 - 36, h = 44 },
+            frame = { x = L.textX, y = L.readY + 12, w = W - L.pad * 2 - 36, h = 44 },
         })
         -- 🕐 6.147.0 — the time, as big as the date and live to the
         -- second (cal.clock re-renders while the panel is up). Same frame
@@ -449,7 +467,7 @@ function M.setup(core)
             type = "text", text = cal.timeNow(),
             textSize = 34, textAlignment = "right",
             textColor = cal.ink,
-            frame = { x = L.pad + 18, y = L.readY + 12, w = W - L.pad * 2 - 36, h = 44 },
+            frame = { x = L.textX, y = L.readY + 12, w = W - L.pad * 2 - 36, h = 44 },
         })
 
         local doy   = tonumber(os.date("%j", cal.cursor))
@@ -462,7 +480,7 @@ function M.setup(core)
                 doy, total, total - doy, yr),
             textSize = 14, textAlignment = "left",
             textColor = cal.inkDim,
-            frame = { x = L.pad + 18, y = L.readY + 58, w = W - L.pad * 2 - 36, h = 22 },
+            frame = { x = L.textX, y = L.readY + 58, w = W - L.pad * 2 - 36, h = 22 },
         })
 
         for i = 1, cal.months do

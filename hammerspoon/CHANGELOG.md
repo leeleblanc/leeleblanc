@@ -5,6 +5,48 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.249.0 — 🗓 THE CALENDAR'S HEADER HOLDS THE NAV AND NOTHING ELSE
+                 (modules/mini_calendar.lua, tests/test_features.lua):
+  LL, on 6.244.0: "Doesn't need the 'September 2026 → November 2026' label and
+  the ‹ Today › should go there — that month label should be gone so that Today
+  is right above the large date text."
+
+  🗓 HE IS RIGHT ABOUT WHAT IT WAS FOR. The range line said, in one twenty-point
+  string, what the three month titles directly under it already say in full —
+  and it was sitting in the one band that could have held the navigation
+  instead. So it is deleted, and ‹ Today › moves from the far right of the
+  header to the date's own left edge.
+
+  🔑 ONE LEFT EDGE, which is his sentence written as arithmetic:
+
+      L.textX = L.pad + 18     -- where the big date is drawn
+      L.btnX  = L.textX        -- where the cluster starts
+
+  "Today is right above the large date text" is now a single number two things
+  read, rather than two numbers somebody has to keep in step — and the check
+  that proves it compares the DRAWN button against the DRAWN date, not the
+  layout against itself.
+
+  📐 AND THE HEADER IS ONLY AS TALL AS WHAT IS IN IT. `headerH` was 56, sized
+  for a twenty-point title that no longer exists; it is `btnH + 20` now, and
+  `btnY` is the centring that falls out of it. 494 → 486 pt. That is 6.244.0's
+  rule applied one band further in: a height that is a sum cannot go stale, and
+  a height that is a literal already has.
+
+  ✂️ `cal.navButtons(L)` IS PURE and answers the three buttons as data —
+  position, size, label and id. The drawing and the hit boxes are built from
+  that one list in one loop, so they cannot disagree about where a button is;
+  the mutation that lays the draw out by hand again passes every check about
+  the layout and fails the one that reads the canvas.
+
+  🧪 The range line is looked for BY SHAPE ("<Month> <year>  →"), because the
+  month names move with the fixture's date and a check that stops biting in
+  November is not a check. And the old comment explaining why the date is found
+  by shape rather than by text — "the header's range line contains the same
+  words" — is corrected rather than deleted: the reason it names is gone, the
+  practice it recommends is still right for a different reason (the locale).
+  · 9,793 -> 9,801 checks · seven mutations, seven bites.
+
 NEW IN 6.248.0 — 🌓 TWO SCRIMS, NOT ONE (modules/mouse_grid.lua,
                  tests/test_mouse_grid.lua):
   LL: "When I first bring up the grid, please make the boxes less translucent
