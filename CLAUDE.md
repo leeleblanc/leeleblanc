@@ -96,6 +96,50 @@ work Mac.
   his call, so 6.215.0 shipped on the home ✓ alone; the work Mac
   installs 6.215.0 (it carries 6.214.2) and its `_G.stormReport()`
   is still owed.
+- 🔤 ⇪Z LEARNS THE CORRECTION LL JUST MADE HIMSELF (6.243.0,
+  modules/autocorrect.lua). LL: "I wanted a quick way to use the last
+  correction I makee and then I type make to fix it, is either added by
+  you catching it, or me adding it via shortcut key." HIS CALL on the one
+  open decision was ARM, not write: backspacing over a word and retyping
+  a near-twin of it ARMS the pair silently, and ⇪Z within `selfSecs` (30)
+  writes the row through _G.autocorrectAdd. A pair nobody presses ⇪Z on
+  is never written. That is his own OCR rule ("if the method can
+  introduce errors, singles only") in the right place — a similarity
+  test is a guess, a keypress is not.
+  🔑 NO NEW KEY: ⇪Z undoes OURS when there is one (unchanged, and it
+  wins) and learns HIS when there is not. 6.199.0’s test for whether a
+  rule belongs here at all. ONE cheat-sheet row for the two states — the
+  6.196.0 auditor reads a combo listed twice as a conflict.
+  🚨 THE DETECTOR SITS BELOW THE INJECTION GUARD, and a source sentry
+  holds it there. 6.218.0: a retype comes back through the tap, so this
+  module’s own corrections are indistinguishable from LL’s unless that
+  guard separates them — get it wrong and the dictionary teaches itself
+  its own rules, on both Macs, for ever. The sentry exists because the
+  functional check would still pass on the day the guard broke.
+  🔎 `acEditsOne` is PURE (Damerau–Levenshtein capped at one, three
+  branches not a matrix — the answer is only ever "one or not one" and a
+  matrix per keystroke is main-thread work). cat → dog is a REWRITE and
+  is never offered; three letters is the floor because teh → the IS the
+  typo. A NEW RETYPE REPLACES THE OFFER whether or not it qualifies (⇪Z
+  means "the last correction you made"), while typing an ordinary word
+  does not — or the 30 seconds last until the next space.
+  ↩️ A ROW A KEYPRESS WROTE OWES A WAY BACK, which is 6.199.0’s rule in
+  the other column. There is no shipped list to set-difference eleven
+  thousand fix rows against, so THE ROW SAYS SO ITSELF: a FOURTH column,
+  `fix,makee,make,⇪Z`. The loader has always read c[1..3] and ignored the
+  rest, so old rows load here and these load in older builds.
+  `_G.autocorrectReport()`’s "⇪Z taught" block names each with its line;
+  `_G.autocorrectForgetFix("makee")` removes EVERY matching row, tagged
+  or not (leaving a hand-written one behind means the word goes on being
+  corrected after a command that said it would stop).
+  🧪 TWO CHECKS PASSED FOR THE WRONG REASON: the capitalisation refusal
+  passed with its branch deleted, because "The"/"the" are ZERO edits
+  apart once lowered and the edit rule turns them away by itself — the
+  branch earns its place by giving the TRUE reason (a dead row, 6.199.0)
+  rather than a lie about an edit count, so the check asserts the REASON.
+  And the suite’s ⇪Z helper had to deliver the undo’s posted keys back
+  into the tap, or the guard stayed up and swallowed every later
+  keystroke in the section — a test measuring its own stub.
 - ✏️ AN APOSTROPHE INSIDE A WORD IS NOT A WORD ENDING (6.219.0,
   modules/autocorrect.lua — LL on 6.218.0: "Doesnt't kinda works").
   The typing watcher ends a word on punctuation, and an apostrophe is
@@ -1791,7 +1835,7 @@ THE METHOD, when something breaks after a stacked zip:
    6.216.0 6f06071 · 6.217.0 a475bef · 6.218.0 41b002b · 6.219.0 862c177
    · 6.220.0 ac3975e · 6.221.0 ead07d9 · 6.222.0 1842ca7 · 6.223.0
    86ac82b · 6.224.0 67957ea · 6.225.0 98434fe · 6.226.0 304f1f9 ·
-   6.227.0 14e953a · 6.228.0 2aa3dfe · 6.229.0 a1318e1 · 6.230.0 0740c07 · 6.231.0 c1921af · 6.231.1 5a5c298 · 6.232.0 1ca3f6f · 6.233.0 2328c8c · 6.234.0 57f78d0 · 6.235.0 52e5b21 · 6.236.0 34cff8b · 6.236.1 fdce771 · 6.237.0 adf9256 · 6.238.0 3adad4f · 6.239.0 3adad4f (one commit, two releases) · 6.240.0 8f44bec · 6.241.0 dce517e · 6.242.0 SHA242.
+   6.227.0 14e953a · 6.228.0 2aa3dfe · 6.229.0 a1318e1 · 6.230.0 0740c07 · 6.231.0 c1921af · 6.231.1 5a5c298 · 6.232.0 1ca3f6f · 6.233.0 2328c8c · 6.234.0 57f78d0 · 6.235.0 52e5b21 · 6.236.0 34cff8b · 6.236.1 fdce771 · 6.237.0 adf9256 · 6.238.0 3adad4f · 6.239.0 3adad4f (one commit, two releases) · 6.240.0 8f44bec · 6.241.0 dce517e · 6.242.0 1a1dab0 · 6.243.0 SHA243.
    Keep this list current: one line per release, appended at ceremony
    time.
 4. A BISECT IS AN OPTION, NOT THE FIRST MOVE — it costs him an install
@@ -1868,6 +1912,7 @@ as the fix when a loss lands.
 | 6.240.0 | 💡 the shortcut hint card off on both Macs — two settings lines, no module code | pending |
 | 6.241.0 | 🎯 the cloud folder is watched by its children — this config's own Logs folder was waking the module that writes to it | pending |
 | 6.242.0 | 🧭 `_G.groundReport()` — what THIS Mac answers about the six surfaces the next releases need, with the release each answer decides | pending |
+| 6.243.0 | 🔤 ⇪Z learns the correction HE just made — backspace over a typo, retype it, press ⇪Z | pending |
 
 Running total: 15 wins · 8 losses · 22 pending (6.215.0, 6.217.0, 6.218.0,
 6.219.0, 6.220.0, 6.221.0, 6.222.0, 6.223.0, 6.224.0, 6.225.0, 6.226.0,
@@ -2223,6 +2268,34 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.243.0 verify with LL — 🔤 ⇪Z LEARNS YOUR OWN CORRECTION (KNOWN
+  GROUND): install. In Chrome, type `makee`, backspace over it, type `make`,
+  then a space. NOTHING happens — that is the design, you chose ARM.
+  Now press ⇪Z. It says `makee → make is a fix row now`. Type `makee ` again
+  anywhere: it corrects, at once, no reload. It reaches the other Mac once
+  OneDrive syncs and it reloads.
+  ⏱ You have 30 seconds after the retype. Past that ⇪Z says so and tells you
+  to retype it — it never silently does nothing.
+  🚨 THE TWO THINGS THAT MUST NOT HAPPEN, one test each:
+  1. Type `cat`, backspace, type `dog`, space, ⇪Z → it must REFUSE and say
+     the pair was more than one edit apart. That is an ordinary edit, not a
+     typo, and a row for it would rewrite the word for ever, on both Macs.
+  2. Let the config correct something itself (type `teh `), then press ⇪Z →
+     it must UNDO ours, exactly as it always did. Ours wins when there is
+     one, and this config must never learn from its own retype.
+  ↩️ THE WAY BACK, which is the half 6.199.0 made a rule: Console
+  `_G.autocorrectReport()` — a new "⇪Z taught" block lists every row a
+  keypress wrote, with its line number and the exact
+  `_G.autocorrectForgetFix("makee")` that removes it. Run that and `makee `
+  stops being corrected.
+  🔎 If ⇪Z ever seems to do nothing, run the report: the "self-fix :" line
+  says whether a pair is armed right now, or names the last word you
+  retyped and why it was not offered.
+  Off, no release: `settings = { autocorrect = { selfLearn = false } }`.
+  Want it to say "⇪Z learns makee → make" as you type? `selfAlert = true` —
+  off by default, because you correct typos all day and a tool that talks
+  every time is a tool you switch off.
+
 - 6.242.0 verify with LL — 🧭 THE GROUND PROBE (KNOWN GROUND — it only
   READS): install. Console: `_G.groundReport()` — PASTE THE WHOLE THING.
   It changes nothing. It binds no key, writes no file and leaves no tap

@@ -1,5 +1,5 @@
 ========================================================================
-RESOLVED FEATURE REQUESTS — Hammerspoon config 6.242.0
+RESOLVED FEATURE REQUESTS — Hammerspoon config 6.243.0
 Every feature and how to use it. Generated from the modules' own
 cheat sheets (the rows ⇪/ draws), so it is never out of date.
 ⇪ = Caps Lock held (the hyper key). ⇪⇧X = Caps Lock + Shift + X.
@@ -395,10 +395,11 @@ In the Console, _G.<tool>Report() prints any tool's own report.
 
 ✏️ AUTOCORRECT   [modules/autocorrect.lua]
   ⇪S      Toggle on/off
-  ⇪Z      Undo last fix & learn the exception — reversible
+  ⇪Z      Was OURS wrong? Undo it and learn the exception. Nothing of ours to undo? It learns the correction YOU just made — backspace over a typo, retype it, press ⇪Z within 30s
   auto      Fixes typos & TWo-caps as you type (autocorrect.csv)
   see       _G.autocorrectReport() — what ⇪Z has learned, and how to unlearn it (_G.autocorrectForget "HOw")
   add       _G.autocorrectAdd("intsead", "instead") — a permanent fix row in autocorrect.csv, live at once, on both Macs
+  undo      _G.autocorrectForgetFix("makee") — takes a fix row back, the way _G.autocorrectForget takes back an exception
 
 🗂 EDITOR PICKER (⌃⌃ — every editor at once)   [modules/editor_picker.lua]
   ⌃⌃    Tap it twice, touching nothing else — the picker opens
@@ -762,6 +763,7 @@ In the Console, _G.<tool>Report() prints any tool's own report.
 
 📜 RELEASE INDEX — newest first, one line per release (the full story of each is in CHANGELOG.md)
 ------------------------------------------------------------------------
+  6.243.0  🔤 ⇪Z LEARNS THE CORRECTION HE JUST MADE HIMSELF
   6.242.0  🧭 THE GROUND PROBE (modules/ground_probe.lua, no key)
   6.241.0  🎯 THE CLOUD FOLDER IS WATCHED BY ITS CHILDREN
   6.240.0  💡 THE SHORTCUT HINT CARD IS OFF (init.lua's profiles)

@@ -42,12 +42,21 @@ local M = {
         title = "✏️ AUTOCORRECT",
         entries = {
             { "⇪S", "Toggle on/off" },
-            { "⇪Z", "Undo last fix & learn the exception — reversible" },
+            -- 🔑 ONE KEY, ONE ROW. The 6.196.0 auditor reads a combo listed
+            -- twice as a conflict, and it is right to: ⇪space would offer
+            -- the same key twice with only one of them runnable. Two states
+            -- of one key belong in one sentence.
+            { "⇪Z", "Was OURS wrong? Undo it and learn the exception."
+                     .. " Nothing of ours to undo? It learns the correction"
+                     .. " YOU just made — backspace over a typo, retype it,"
+                     .. " press ⇪Z within 30s" },
             { "auto", "Fixes typos & TWo-caps as you type (autocorrect.csv)" },
             { "see", "_G.autocorrectReport() — what ⇪Z has learned, and how"
                      .. " to unlearn it (_G.autocorrectForget \"HOw\")" },
             { "add", "_G.autocorrectAdd(\"intsead\", \"instead\") — a permanent"
                      .. " fix row in autocorrect.csv, live at once, on both Macs" },
+            { "undo", "_G.autocorrectForgetFix(\"makee\") — takes a fix row back,"
+                      .. " the way _G.autocorrectForget takes back an exception" },
         },
     },
 }
@@ -104,6 +113,17 @@ function M.setup(core)
         -- have all come back through, this is only the belt for a key
         -- macOS never delivered. settings = { autocorrect = { injectHold = 0.5 } }
         injectHold = 0.3,
+        -- 🔤 6.243.0 — ⇪Z LEARNS THE CORRECTION HE JUST MADE HIMSELF.
+        -- LL: "I wanted a quick way to use the last correction I makee and
+        -- then I type make to fix it, is either added by you catching it,
+        -- or me adding it via shortcut key." His call, asked and answered:
+        -- ARM, not write. Backspacing over a word and retyping a near-twin
+        -- of it ARMS the pair, silently; ⇪Z within selfSecs writes it. A
+        -- pair nobody presses ⇪Z on is never written down.
+        selfLearn  = true,      -- settings = { autocorrect = { selfLearn = false } }
+        selfSecs   = 30,        -- how long an armed pair stays offered
+        selfMinLen = 3,         -- "teh"/"the" is three letters and is THE typo
+        selfAlert  = false,     -- true: say "⇪Z learns x → y" as it arms
         -- 🚨 Where a word list is wrong far more often than right. LL
         -- chose exactly these plus password fields; anywhere else gets
         -- added from EVIDENCE — the report names every word it changed —
@@ -145,6 +165,10 @@ function M.setup(core)
     -- possible; none of them changes a single correction.
     local autocorrectAllowLines = {}   -- word  -> { line numbers it sits on }
     local autocorrectNoop       = {}   -- the dead `fix` rows, with lines
+    -- 6.243.0 — the fix rows carrying a fourth column, i.e. the ones a
+    -- keypress wrote rather than a person editing the CSV by hand.
+    -- wrong -> { right, lines = {...}, how }
+    local autocorrectTaught     = {}
     local autocorrectDefaultSet = {}   -- the ones WE ship, so the report can
                                        -- separate them from what ⇪Z learned
     local autocorrectLoaded     = false -- read at least once? "nothing
@@ -206,6 +230,7 @@ function M.setup(core)
         autocorrectDict, autocorrectAllow = {}, {}
         autocorrectDictCount, autocorrectAllowCount = 0, 0
         autocorrectAllowLines, autocorrectNoop = {}, {}
+        autocorrectTaught = {}
         local f = io.open(autocorrectFile, "r")
         if not f then return false end
         local content = f:read("*a"); f:close()
@@ -222,6 +247,25 @@ function M.setup(core)
                     else
                         autocorrectDict[wrong:lower()] = right:lower()
                         autocorrectDictCount = autocorrectDictCount + 1
+                        -- 🔤 6.243.0 — A FOURTH COLUMN MARKS THE ROWS ⇪Z
+                        -- WROTE. 6.199.0's rule is that anything this
+                        -- config LEARNS about his typing owes a report
+                        -- naming it and a one-liner that undoes it; the
+                        -- `allow` rows manage that by set-differencing
+                        -- against the ~85 this config ships, and there is
+                        -- no such list for eleven thousand fix rows. So
+                        -- the row says so itself: `fix,makee,make,CapsZ`.
+                        -- The loader has always read c[1..3] and ignored
+                        -- the rest, so every older row still loads and
+                        -- every older build still reads these.
+                        if c[4] and c[4] ~= "" then
+                            local at = autocorrectTaught[wrong:lower()]
+                                       or { right = right:lower(), lines = {},
+                                            how = c[4] }
+                            at.right = right:lower()
+                            at.lines[#at.lines + 1] = n
+                            autocorrectTaught[wrong:lower()] = at
+                        end
                     end
                 elseif kind == "allow" and wrong and wrong ~= "" then
                     -- Counted DISTINCT: ⇪Z appends without looking, so the
@@ -327,6 +371,83 @@ function M.setup(core)
         { "ily", "ly" }, { "est", "est" }, { "es", "s" }, { "ed", "ed" },
         { "er", "er" }, { "ly", "ly" }, { "s", "s" },
     }
+    -- =====================================================================
+    -- 🔤 6.243.0 — IS THIS PAIR ONE EDIT APART? (PURE)
+    -- =====================================================================
+    -- Damerau–Levenshtein, capped at one: one substitution, one insertion,
+    -- one deletion, or one swap of NEIGHBOURS. Written as three branches
+    -- rather than a matrix because the answer is only ever "one or not
+    -- one", and a matrix over two words on every keystroke is work the
+    -- main thread does not need (6.228.0).
+    --
+    -- 🚨 WHY A SIMILARITY TEST AT ALL, when LL typed both words himself:
+    -- because every ordinary EDIT looks identical to a correction at this
+    -- tap. Typing "cat", changing your mind and typing "dog" is a rewrite,
+    -- not a typo, and a dictionary that learned it would rewrite the word
+    -- for ever, on both Macs. One edit apart is what separates the two, and
+    -- the fact that this only ARMS — nothing is written without ⇪Z — is
+    -- what makes a wrong guess here cost nothing at all.
+    local function acEditsOne(a, b)
+        if type(a) ~= "string" or type(b) ~= "string" then return false end
+        local la, lb = #a, #b
+        if la == lb then
+            local i = 1
+            while i <= la and a:byte(i) == b:byte(i) do i = i + 1 end
+            if i > la then return false end         -- identical, not one edit
+            local j = la
+            while j > i and a:byte(j) == b:byte(j) do j = j - 1 end
+            if i == j then return true end          -- one substitution
+            if j == i + 1 and a:byte(i) == b:byte(j)
+               and a:byte(j) == b:byte(i) then
+                return true                          -- two neighbours swapped
+            end
+            return false
+        end
+        if math.abs(la - lb) ~= 1 then return false end
+        -- The longer string with one character taken out is the shorter one.
+        local long, short = a, b
+        if lb > la then long, short = b, a end
+        local i = 1
+        while i <= #short and long:byte(i) == short:byte(i) do i = i + 1 end
+        -- Everything after the skipped character must line up.
+        local k = i
+        while k <= #short do
+            if long:byte(k + 1) ~= short:byte(k) then return false end
+            k = k + 1
+        end
+        return true
+    end
+
+    -- → ok, why. The whole rule for "did he just correct himself", in one
+    -- PURE place, so the gate proves every refusal without a keyboard.
+    local function acSelfPair(before, after, minLen)
+        minLen = tonumber(minLen) or 3
+        if type(before) ~= "string" or type(after) ~= "string" then
+            return false, "not two words"
+        end
+        if before == "" or after == "" then return false, "an empty side" end
+        if #before < minLen or #after < minLen then
+            return false, "shorter than " .. minLen .. " letters — too many"
+                          .. " real words are one edit from each other down there"
+        end
+        if not before:match("^%a+$") or not after:match("^%a+$") then
+            return false, "letters only — a number or a symbol is not a typo"
+        end
+        -- 🚨 THE DICTIONARY STORES BOTH SIDES LOWERCASED and re-applies
+        -- sentence case, so a pair that differs only in capitals would be
+        -- written as a row whose two sides are the same word — the DEAD ROW
+        -- 6.199.0 skips at load. Refused here, with the real reason, rather
+        -- than written and silently ignored for ever.
+        if before:lower() == after:lower() then
+            return false, "the same word once lowered — that row would be dead"
+        end
+        if not acEditsOne(before:lower(), after:lower()) then
+            return false, "more than one edit apart — that is a rewrite, not"
+                          .. " a typo, and this never guesses at one"
+        end
+        return true, "one edit apart"
+    end
+
     local function acSpellEnding(w)
         for _, p in ipairs(acSpellFamilies) do
             if #w > #p[1] and w:sub(-#p[1]) == p[1] then return p[2] end
@@ -581,6 +702,21 @@ function M.setup(core)
     -- be safely rewound, but the exception can still be learned.
     local acLast = nil   -- { word, fixed, boundary, wasRule, undoSafe }
 
+    -- 🔤 6.243.0 — WHAT HE WAS TYPING BEFORE HE STARTED BACKSPACING, and
+    -- the pair that is currently offered to ⇪Z. `before` is the word as it
+    -- stood when the FIRST delete of a run arrived; `pair` is what the
+    -- boundary made of it. Nothing here is ever written by itself.
+    --
+    -- 🚨 THE DISCRIMINATOR ALREADY EXISTS AND IS THE WHOLE DESIGN. This
+    -- module corrects by deleting and retyping, and 6.218.0's rule is that
+    -- those keys come BACK through this tap as typing — so the config's own
+    -- corrections are indistinguishable from LL correcting himself unless
+    -- something separates them. The injection guard is that something, and
+    -- it already returns before any of the code below runs. Learn from our
+    -- own retype and the dictionary starts teaching itself its own rules.
+    local acSelf = { before = nil, pair = nil, armed = 0, learned = 0,
+                     lastWhy = nil }
+
     local acClearKeycodes = {   -- keys that mean "cursor moved / abandon word"
         [53] = true,  -- esc
         [123] = true, [124] = true, [125] = true, [126] = true,  -- arrows
@@ -768,6 +904,7 @@ function M.setup(core)
             if t == hs.eventtap.event.types.leftMouseDown
                or t == hs.eventtap.event.types.rightMouseDown then
                 acBuffer = ""
+                acSelf.before = nil          -- a click is a different word
                 if acLast then acLast.undoSafe = false end   -- cursor moved
                 return false
             end
@@ -775,17 +912,31 @@ function M.setup(core)
             local flags = ev:getFlags()
             if flags.cmd or flags.ctrl then
                 acBuffer = ""
+                -- 🔑 The ARMED PAIR deliberately survives a chord: ⇪Z is a
+                -- chord, and clearing it here would make the key that
+                -- learns the pair the key that throws it away. `before` is
+                -- a half-typed word and does not survive.
+                acSelf.before = nil
                 return false   -- chords (incl. ⌃⌥⌘Z itself) don't spoil undo
             end
 
             local code = ev:getKeyCode()
             if code == 51 then                       -- delete: trim buffer
+                -- 🔤 6.243.0 — the FIRST delete of a run is the moment the
+                -- word he typed still exists. Kept only when there IS one:
+                -- backspacing into text this tap never saw typed gives an
+                -- empty buffer, and an empty "before" would pair with the
+                -- next word he types and offer a row he never corrected.
+                if acSelf.before == nil and #acBuffer > 0 then
+                    acSelf.before = acBuffer
+                end
                 if #acBuffer > 0 then acBuffer = acBuffer:sub(1, -2) end
                 if acLast then acLast.undoSafe = false end
                 return false
             end
             if acClearKeycodes[code] then
                 acBuffer = ""
+                acSelf.before = nil          -- the caret moved off the word
                 if acLast then acLast.undoSafe = false end   -- cursor moved
                 return false
             end
@@ -809,6 +960,39 @@ function M.setup(core)
                or ch:match("^[%.,;:!%?'\"%(%)%[%]{}<>/\\%-_=%+%*&%%%$#@~`|%^]$") then
                 local word = acBuffer
                 acBuffer = ""
+                -- 🔤 6.243.0 — HE CORRECTED HIMSELF. Deletes removed the
+                -- word `acSelf.before` and he typed `word` in its place;
+                -- if they are one edit apart, ⇪Z is offered the pair.
+                -- ARMED, NEVER WRITTEN — his own call on the one decision
+                -- this feature had: "if the method can introduce errors,
+                -- singles only" is his rule about the OCR filter, and a
+                -- similarity test is a guess where a keypress is not.
+                local wasBefore = acSelf.before
+                acSelf.before = nil
+                if wasBefore and acSpell.selfLearn ~= false then
+                    local ok, why = acSelfPair(wasBefore, word, acSpell.selfMinLen)
+                    acSelf.lastWhy = wasBefore .. " → " .. word .. ": " .. why
+                    -- 🚨 A NEW RETYPE REPLACES THE OFFER WHETHER OR NOT IT
+                    -- QUALIFIES. ⇪Z offers "the last correction you made",
+                    -- and once he has backspaced over another word that is
+                    -- no longer the pair from three words ago — pressing it
+                    -- would write a row he had stopped thinking about.
+                    -- Cleared only when he really did retype something:
+                    -- typing an ordinary word must NOT cancel the offer, or
+                    -- the 30 seconds are only until the next space.
+                    acSelf.pair = nil
+                    if ok then
+                        acSelf.pair = { wrong = wasBefore, right = word,
+                                        at = os.time() }
+                        acSelf.armed = acSelf.armed + 1
+                        if acSpell.selfAlert then
+                            pcall(function()
+                                hs.alert.show("⇪Z learns " .. wasBefore
+                                              .. " → " .. word, 2)
+                            end)
+                        end
+                    end
+                end
                 if _G.autocorrectEnabled and #word >= 2 then
                     -- 🚨 6.219.0 — AN APOSTROPHE INSIDE A WORD IS NOT A
                     -- WORD ENDING, and the piece before it is not a word.
@@ -916,7 +1100,49 @@ function M.setup(core)
     hs.hotkey.bind(core.popupKeys.mods, autocorrectUndoKey, function()
         local last = acLast
         if not last then
-            hs.alert.show("✏️ No autocorrection to undo")
+            -- 🔤 6.243.0 — NOTHING OF OURS TO UNDO, so the other thing ⇪Z
+            -- governs: the correction LL just made HIMSELF. One key, two
+            -- states, nothing new to remember — 6.199.0's own test for
+            -- whether a rule belongs in this module ("⇪Z ALREADY GOVERNS
+            -- IT … Nothing new to learn"), and 6.182.0's rule that a tool
+            -- living inside another tool does not also get its own key.
+            --
+            -- 🚨 THE CONFIG'S OWN CORRECTION WINS when there is one. It is
+            -- the more urgent of the two (something on screen is wrong
+            -- NOW), it is the behaviour that already existed, and after it
+            -- runs the pair below is stale anyway.
+            local p = acSelf.pair
+            local maxAge = tonumber(acSpell.selfSecs) or 30
+            if p and (os.time() - (p.at or 0)) <= maxAge then
+                acSelf.pair = nil
+                local ok, why = _G.autocorrectAdd(p.wrong, p.right, "⇪Z")
+                if ok then
+                    acSelf.learned = acSelf.learned + 1
+                else
+                    pcall(function()
+                        hs.alert.show("✏️ " .. p.wrong .. " → " .. p.right
+                                      .. " was NOT added — " .. tostring(why), 5)
+                    end)
+                end
+                return
+            end
+            -- 🔎 AND THE REFUSAL SAYS WHICH OF THE THREE THINGS IT WAS, or
+            -- a key that does nothing is a key he stops trusting.
+            if p then
+                acSelf.pair = nil
+                hs.alert.show("✏️ " .. p.wrong .. " → " .. p.right
+                              .. " was more than " .. maxAge
+                              .. "s ago — retype it and press ⇪Z again", 4)
+            elseif acSpell.selfLearn == false then
+                hs.alert.show("✏️ Nothing to undo — learning your own"
+                              .. " corrections is switched off", 4)
+            elseif acSelf.lastWhy then
+                hs.alert.show("✏️ Nothing to undo. The last word you retyped"
+                              .. " was not offered: " .. acSelf.lastWhy, 5)
+            else
+                hs.alert.show("✏️ No autocorrection to undo — and you have"
+                              .. " not retyped a word for me to learn", 4)
+            end
             return
         end
         acLast = nil
@@ -1043,6 +1269,84 @@ function M.setup(core)
         return true, msg
     end
 
+    -- 🔤 6.243.0 — AND THE WAY BACK, because a row a KEYPRESS wrote is
+    -- exactly the thing 6.199.0 was written about: "anything this config
+    -- LEARNS about LL's typing owes a report that names it and a one-liner
+    -- that undoes it — a rule you can only find with grep is a rule you
+    -- cannot govern." ⇪Z's `allow` rows have had that since 6.199.0; a fix
+    -- row written by the same key would have had nothing but an
+    -- 11,000-line CSV, which is the exact hole that release closed.
+    --
+    -- Removes EVERY `fix,<wrong>,...` row for one word — the duplicate the
+    -- other Mac appends before it has reloaded included — through the same
+    -- temp-file-then-rename rewriter, and it removes a HAND-WRITTEN row for
+    -- that word too. That is deliberate: he asked to stop the word being
+    -- rewritten, and leaving one row behind because it has no fourth column
+    -- would mean the word goes on being rewritten after a command that said
+    -- it would not.
+    -- → ok, why
+    function _G.autocorrectForgetFix(wrong)
+        if type(wrong) ~= "string" or wrong == "" then
+            local why = [[give it a word, e.g. _G.autocorrectForgetFix("makee")]]
+            print("✏️ " .. why) ; return false, why
+        end
+        local key = wrong:lower()
+        local f = io.open(autocorrectFile, "r")
+        if not f then
+            local why = "there is no " .. autocorrectFile .. " to edit"
+            print("✏️ " .. why) ; return false, why
+        end
+        local content = f:read("*a") ; f:close()
+        local kept, removed = {}, 0
+        for line in content:gmatch("([^\r\n]+)") do
+            local c = core.splitCSVLine(line)
+            if c[1] == "fix" and type(c[2]) == "string" and c[2]:lower() == key then
+                removed = removed + 1
+            else
+                kept[#kept + 1] = line
+            end
+        end
+        if removed == 0 then
+            local why = [["]] .. wrong .. [[" is not a fix row in that file]]
+                        .. " — nothing was changed"
+            print("✏️ " .. why) ; return false, why
+        end
+        -- 🚨 TEMP FILE THEN RENAME, for the same reason _G.autocorrectForget
+        -- does it: this is 11,000 lines of his own work and a half-written
+        -- file is far worse than one row too many.
+        local tmp = autocorrectFile .. ".new"
+        local out = io.open(tmp, "w")
+        if not out then
+            core.warnWriteFailed("autocorrect.csv")
+            return false, "could not write beside " .. autocorrectFile
+        end
+        local okW = pcall(function() out:write(table.concat(kept, "\n") .. "\n") end)
+        pcall(function() out:close() end)
+        if not okW then
+            os.remove(tmp)
+            core.warnWriteFailed("autocorrect.csv")
+            return false, "the write failed — your file is untouched"
+        end
+        if not os.rename(tmp, autocorrectFile) then
+            os.remove(tmp)
+            core.warnWriteFailed("autocorrect.csv")
+            return false, "could not put the rewritten file in place"
+                          .. " — your file is untouched"
+        end
+        if autocorrectDict[key] then
+            autocorrectDictCount = math.max(0, autocorrectDictCount - 1)
+        end
+        autocorrectDict[key]   = nil
+        autocorrectTaught[key] = nil
+        local msg = "✏️ " .. key .. " is no longer corrected ("
+                    .. removed .. " row" .. (removed == 1 and "" or "s")
+                    .. " removed). The other Mac follows once OneDrive syncs"
+                    .. " and it reloads."
+        print(msg)
+        pcall(function() hs.alert.show(msg, 4) end)
+        return true, msg
+    end
+
     -- ✏️ 6.205.0 — THE DOOR FOR A FIX ROW. LL: "How do I add an
     -- autocorrect entry like starets which should be starts?" The answer
     -- used to be "open an 11,000-line CSV in OneDrive and type a row at the
@@ -1052,7 +1356,7 @@ function M.setup(core)
     -- a row the loader would skip: a dead row (both sides the same word
     -- once lowered), an empty side, or a side carrying a comma or a line
     -- break, which would corrupt the file it is meant to help.
-    function _G.autocorrectAdd(wrong, right)
+    function _G.autocorrectAdd(wrong, right, how)
         local function refuse(why)
             print("✏️ " .. why) ; return false, why
         end
@@ -1073,8 +1377,15 @@ function M.setup(core)
             core.warnWriteFailed("autocorrect.csv")
             return refuse("could not append to " .. autocorrectFile .. " — nothing was written")
         end
+        -- 🔤 6.243.0 — the optional fourth column, so the report can find
+        -- this row again. A comma or a newline in it would corrupt the file
+        -- the same way the two words would, so it is held to the same rule.
+        local tag = ""
+        if type(how) == "string" and how ~= "" and not how:find("[,\r\n]") then
+            tag = "," .. how
+        end
         local okW = pcall(function()
-            f:write("fix," .. wrong:lower() .. "," .. right:lower() .. "\n")
+            f:write("fix," .. wrong:lower() .. "," .. right:lower() .. tag .. "\n")
         end)
         pcall(function() f:close() end)
         if not okW then
@@ -1085,11 +1396,17 @@ function M.setup(core)
             autocorrectDictCount = autocorrectDictCount + 1
         end
         autocorrectDict[wrong:lower()] = right:lower()
+        if tag ~= "" then
+            local at = autocorrectTaught[wrong:lower()]
+                       or { right = right:lower(), lines = {}, how = how }
+            at.right, at.how = right:lower(), how
+            at.lines[#at.lines + 1] = -1   -- appended; the line is known next load
+            autocorrectTaught[wrong:lower()] = at
+        end
         local msg = "✏️ " .. wrong:lower() .. " → " .. right:lower()
                     .. " is a fix row now — live here at once, on the other Mac"
-                    .. " after OneDrive syncs and it reloads. To take it back,"
-                    .. " delete the row fix," .. wrong:lower() .. "," .. right:lower()
-                    .. " in autocorrect.csv."
+                    .. " after OneDrive syncs and it reloads. To take it back:"
+                    .. " _G.autocorrectForgetFix(" .. string.format("%q", wrong:lower()) .. ")"
         print(msg)
         pcall(function() hs.alert.show(msg, 4) end)
         return true, msg
@@ -1170,6 +1487,55 @@ function M.setup(core)
                         and "no word ended on a ' yet this session"
                         or (acApostrophe .. " piece(s) before a ' — dictionary"
                             .. " and TWo-caps only, never the word list"))
+        -- 🔤 6.243.0 — WHAT ⇪Z LEARNED FROM HIS OWN TYPING, and the one
+        -- line that takes each back. 6.199.0's rule, paid in the other
+        -- column: permanent and cross-machine is fine, invisible is not.
+        local taught = {}
+        for w in pairs(autocorrectTaught) do taught[#taught + 1] = w end
+        table.sort(taught)
+        if not autocorrectLoaded then
+            L[#L + 1] = "   ⇪Z taught   : the file has not been read yet"
+        elseif #taught == 0 then
+            L[#L + 1] = "   ⇪Z taught   : nothing — no fix row here was written"
+                        .. " by a keypress"
+        else
+            L[#L + 1] = "   ⇪Z taught   : " .. #taught .. " — these are YOURS."
+                        .. " They are permanent and they reach the other Mac:"
+            for _, w in ipairs(taught) do
+                local at = autocorrectTaught[w]
+                local where = {}
+                for _, n in ipairs(at.lines or {}) do
+                    where[#where + 1] = (n == -1) and "added just now" or tostring(n)
+                end
+                L[#L + 1] = ("      %-14s → %-14s line %-14s _G.autocorrectForgetFix(%q)")
+                            :format(w, tostring(at.right), table.concat(where, ", "), w)
+            end
+        end
+        -- 🔎 THREE STATES, AND THEY DECIDE WHETHER THE KEY LOOKS BROKEN:
+        -- switched off · armed and waiting · nothing offered and why not.
+        if acSpell.selfLearn == false then
+            L[#L + 1] = "   self-fix     : OFF — settings = { autocorrect ="
+                        .. " { selfLearn = false } }"
+        else
+            local p = acSelf.pair
+            local age = p and (os.time() - (p.at or 0)) or nil
+            local live = p and age <= (tonumber(acSpell.selfSecs) or 30)
+            L[#L + 1] = "   self-fix     : " .. acSelf.armed .. " pair(s) armed · "
+                        .. acSelf.learned .. " written by ⇪Z · offered for "
+                        .. tostring(acSpell.selfSecs) .. "s"
+            if live then
+                L[#L + 1] = "      ↳ NOW: ⇪Z writes " .. p.wrong .. " → " .. p.right
+                            .. " (" .. age .. "s ago)"
+            elseif p then
+                L[#L + 1] = "      ↳ the last pair (" .. p.wrong .. " → " .. p.right
+                            .. ") is " .. age .. "s old — too late now"
+            elseif acSelf.lastWhy then
+                L[#L + 1] = "      ↳ nothing offered. Last retype: " .. acSelf.lastWhy
+            else
+                L[#L + 1] = "      ↳ nothing offered — no word has been"
+                            .. " backspaced over and retyped yet"
+            end
+        end
         L[#L + 1] = "   retype guard : "
                     .. (acDrain.retypes == 0 and "no retype yet this session"
                         or (acDrain.retypes .. " retype(s) · released by count "

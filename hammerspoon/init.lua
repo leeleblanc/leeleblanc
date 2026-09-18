@@ -4,9 +4,40 @@
 -- =====================================================================
 -- 09-17-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.242.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.243.0
 -- =====================================================================
 
+-- NEW IN 6.243.0 — 🔤 ⇪Z LEARNS THE CORRECTION HE JUST MADE HIMSELF
+--                  (modules/autocorrect.lua):
+--   LL: "I wanted a quick way to use the last correction I makee and then
+--      I type make to fix it, is either added by you catching it, or me
+--      adding it via shortcut key." His sentence demonstrates the feature
+--      on its way past. His call on the one open decision: ARM, not write.
+--   🔤 Backspace over a word, retype a near-twin of it, and the pair is
+--      noticed SILENTLY; ⇪Z within `selfSecs` (30) writes the fix row
+--      through the existing _G.autocorrectAdd. A pair nobody presses ⇪Z
+--      on is never written down — his own rule about the OCR filter ("if
+--      the method can introduce errors, singles only"), applied to a
+--      similarity test that is a guess where a keypress is not.
+--   🔑 NO NEW KEY. ⇪Z undoes OUR correction when there is one (that
+--      branch is unchanged and wins), and learns HIS when there is not.
+--      6.199.0's own test for whether a rule belongs here — "⇪Z ALREADY
+--      GOVERNS IT … Nothing new to learn".
+--   🚨 AND THE TRAP THAT DECIDED THE DESIGN: 6.218.0 — a retype comes
+--      back through the tap. This module corrects by deleting and
+--      retyping, so its own corrections are indistinguishable from his
+--      unless the injection guard separates them. The detector sits BELOW
+--      that guard and a source sentry holds it there; without it the
+--      dictionary would teach itself its own rules.
+--   🔎 ONE EDIT APART, or it is a rewrite: cat → dog is an ordinary edit
+--      and is never offered. A new retype replaces the offer whether or
+--      not it qualifies — ⇪Z means "the last correction you made".
+--   ↩️ AND A ROW A KEYPRESS WROTE OWES A WAY BACK (6.199.0, in the other
+--      column): the row carries a fourth column, `_G.autocorrectReport()`
+--      lists what ⇪Z taught with its line, and
+--      `_G.autocorrectForgetFix("makee")` takes it out.
+--      · 9,646 -> 9,676 checks · eight mutations, eight bites.
+--
 -- NEW IN 6.242.0 — 🧭 THE GROUND PROBE (modules/ground_probe.lua, no key):
 --   The instrument behind the habit written down on 2026-09-17, after
 --      6.231.0 → 6.237.0 cost three losses in a row: every release is
@@ -34,41 +65,12 @@
 --      only boot work is one `defaults read` in a task on a held timer.
 --      · 9,589 -> 9,646 checks · seven mutations, seven bites.
 --
--- NEW IN 6.241.0 — 🎯 THE CLOUD FOLDER IS WATCHED BY ITS CHILDREN
---                  (modules/file_tracker.lua):
---   6.229.0's rule, one level down, and the receipts were in that same
---      file: fileTrackerExcludedPath discards the WHOLE Logs folder — and
---      Logs is inside OneDrive-Personal, which 6.229.0 then added BACK as
---      a watched root. So every store this config writes (the clipboard
---      poll, the OCR log, the boot-cost row, the master log and this
---      module's own CSV) woke this module, handed it a path, and had that
---      path thrown away in Lua, after the wake-up it had already cost.
---      The module was waking itself to discard its own writes.
---   🎯 `ft.cloudRoots` is PURE: the cloud folder's own folders, minus
---      `ft.cloudSkip` ({ "Logs" }), bounded by `ft.maxCloudRoots` (40).
---   🚨 AND IT RUNS AFTER THE DEDUPE, which is the whole trick. ~/OneDrive
---      is a LINK to that folder (6.230.0), so while the list is being
---      built there are two names for one tree and only ft.dedupeRoots
---      knows it. Expanding first would add the children and then have the
---      dedupe drop every one as "inside" the link's own whole-tree
---      watcher — this release doing nothing, quietly, on the exact Mac it
---      was written for. `ft.expandCloud` swaps the slot afterwards.
---   🔒 `Logs` AND NOTHING MORE: the exclusions drop <cloud>/Backups/
---      Hammerspoon/ but KEEP the rest of Backups, so skipping the whole
---      Backups folder would un-decide something the exclusions decided.
---      Named, not fixed: the nightly backup and the 30-minute store
---      mirror still wake this module and are still discarded in Lua.
---   🔎 THE CSV LINE IS READ, NOT CLAIMED — whether this module's own
---      folder is still watched is a fact about the list two lines above,
---      so a `folders` override that puts Logs back is reported honestly.
---      · 9,558 -> 9,589 checks · two mutations, each with its own row.
---
--- (6.240.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.241.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.242.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.243.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -165,7 +167,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.242.0"
+_G.configVersion = "6.243.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the

@@ -5,6 +5,91 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.243.0 — 🔤 ⇪Z LEARNS THE CORRECTION HE JUST MADE HIMSELF
+                 (modules/autocorrect.lua):
+  LL: "I wanted a quick way to use the last correction I makee and then I
+  type make to fix it, is either added by you catching it, or me adding it
+  via shortcut key." The sentence demonstrates the feature on its way past —
+  he typed "makee", then typed "make".
+
+  He was given the one decision the design turned on — does catching it
+  WRITE the row, or only ARM ⇪Z — and he chose ARM. That is his own rule
+  about the OCR junk filter ("if the method can introduce errors, singles
+  only") applied in the right place: a similarity test is a guess, and a
+  keypress is not.
+
+  So: backspace over a word, retype a near-twin of it, and the pair is
+  noticed SILENTLY. ⇪Z within `selfSecs` (30) writes the fix row through the
+  _G.autocorrectAdd door 6.205.0 already built. A pair nobody presses ⇪Z on
+  is never written down, anywhere.
+
+  🔑 NO NEW KEY, and that is a rule rather than thrift. ⇪Z undoes OUR
+  correction when there is one — that branch is untouched and takes
+  precedence, because something on screen is wrong NOW — and learns HIS when
+  there is not. 6.199.0 wrote the test for whether a rule belongs in this
+  module at all: "⇪Z ALREADY GOVERNS IT … Nothing new to learn." One key,
+  two states, and one row on the cheat sheet, because the 6.196.0 auditor
+  reads a combo listed twice as a conflict and is right to.
+
+  🚨 AND THE TRAP THAT DECIDED THE WHOLE DESIGN. 6.218.0: a retype comes
+  back through the tap. This module corrects by deleting and retyping, and
+  hs.eventtap POSTS those keys — they arrive afterwards looking exactly like
+  typing. So the config's own corrections are indistinguishable from LL
+  correcting himself unless something separates them, and the only honest
+  something is the injection guard that already stands there. The detector
+  sits BELOW it, and a source sentry asserts that ordering, because the
+  functional check would still pass on the day the guard itself broke. Get
+  this wrong and the dictionary starts teaching itself its own rules, on
+  both Macs, for ever.
+
+  🔎 ONE EDIT APART, OR IT IS A REWRITE. `acEditsOne` is PURE —
+  Damerau–Levenshtein capped at one, written as three branches rather than a
+  matrix because the answer is only ever "one or not one" and a matrix on
+  every keystroke is work the main thread does not need. Typing "cat",
+  changing your mind and typing "dog" is an edit, not a typo, and a
+  dictionary that learned it would rewrite the word for ever. Three letters
+  is the floor, because "teh" → "the" IS the typo and two letters is a
+  neighbourhood where every real word is one edit from another.
+
+  🚨 A NEW RETYPE REPLACES THE OFFER WHETHER OR NOT IT QUALIFIES, and this
+  was found by a failing check rather than by thinking: ⇪Z offers "the last
+  correction you made", so once he has backspaced over another word the pair
+  from three words ago is not it. Typing an ordinary word does NOT cancel
+  the offer, or the thirty seconds would only ever last until the next
+  space.
+
+  ↩️ AND A ROW A KEYPRESS WROTE OWES A WAY BACK. 6.199.0's rule, paid in the
+  other column: "anything this config LEARNS about LL's typing owes a report
+  that names it and a one-liner that undoes it — a rule you can only find
+  with grep is a rule you cannot govern." The `allow` rows have had that
+  since 6.199.0 by set-differencing against the ~85 this config ships, and
+  there is no such list for eleven thousand fix rows. So the row says so
+  itself: `fix,makee,make,⇪Z`, a FOURTH column. The loader has always read
+  columns 1..3 and ignored the rest, so every older row still loads here and
+  every older build still reads these. `_G.autocorrectReport()` grows a
+  "⇪Z taught" block with each row's line number, and
+  `_G.autocorrectForgetFix("makee")` removes it through the same
+  temp-file-then-rename rewriter _G.autocorrectForget uses — and it removes
+  EVERY matching row, tagged or not, because leaving a hand-written one
+  behind would mean the word goes on being corrected after a command that
+  said it would stop.
+
+  🧪 TWO CHECKS PASSED FOR THE WRONG REASON AND BOTH WERE OLD RULES:
+  the capitalisation refusal ("The" → "the") passed with its branch deleted,
+  because those two are ZERO edits apart once lowered and the edit rule
+  turns them away by itself — it earns its place by giving the TRUE reason
+  (that row would be dead) rather than a lie about an edit count, so the
+  check asserts the reason. And the suite's own ⇪Z helper had to deliver the
+  undo's posted keys back into the tap: without that the guard stayed UP and
+  every later keystroke in the section was swallowed, which is a test
+  measuring its own stub (6.193.0, and 6.218.0's harness rule).
+
+  Off: settings = { autocorrect = { selfLearn = false } }. The arming alert
+  is off by default (`selfAlert`) — he corrects typos all day, and a feature
+  that talks every time is one he switches off.
+
+  · 9,646 -> 9,676 checks · eight mutations, eight bites.
+
 NEW IN 6.242.0 — 🧭 THE GROUND PROBE (modules/ground_probe.lua, no key):
   The instrument behind the habit written down on 2026-09-17, and owed to
   him rather than promised: every release is labelled KNOWN GROUND (the gate

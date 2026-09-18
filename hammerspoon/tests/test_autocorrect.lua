@@ -1088,6 +1088,256 @@ do
   check("§10 ran every one of its checks", mine == 13, mine)
 end
 
+-- =====================================================================
+out("\n=== 11. 6.243.0 — ⇪Z learns the correction HE just made ===\n")
+-- =====================================================================
+-- LL: "I wanted a quick way to use the last correction I makee and then I
+-- type make to fix it, is either added by you catching it, or me adding it
+-- via shortcut key." His answer to the one open decision was ARM, not
+-- write: the pair is noticed silently and ⇪Z is what writes it down.
+--
+-- 🚨 THE TRAP THIS SECTION EXISTS FOR. This module corrects by deleting and
+-- retyping, and 6.218.0's rule is that those keys come BACK through this
+-- tap looking exactly like typing — so the config's own corrections are
+-- indistinguishable from LL correcting himself unless the injection guard
+-- separates them. The harness above DELIVERS the posted keys back into the
+-- tap, which is the only way that can be proven at all.
+--
+-- 🚨 THE SECTION WRAPS ITSELF AND COUNTS ITS OWN CHECKS (6.186.0).
+local before243 = pass + fail
+local ok243, err243 = pcall(function()
+  local CSV = TMP .. "/autocorrect.csv"
+  local function readCsv()
+    local f = io.open(CSV, "r") ; local t = f and f:read("*a") or ""
+    if f then f:close() end ; return t
+  end
+  local ac = mod.config
+  ac.selfLearn, ac.selfSecs, ac.selfMinLen = true, 30, 3
+  local zKey = BOUND["ctrl+alt+cmd+Z"] or BOUND["cmd+alt+ctrl+Z"]
+  for k, fn in pairs(BOUND) do if k:find("Z$") then zKey = fn end end
+
+  -- 🚨 ⇪Z POSTS KEYS TOO, AND THEY MUST COME BACK. The undo branch
+  -- retypes through the same guarded door as a correction (6.218.0), so a
+  -- harness that presses ⇪Z and does not deliver those keys leaves the
+  -- guard UP and every later keystroke in this section is swallowed —
+  -- which is a test measuring its own stub, not the feature.
+  local function pressZ()
+    KEYSTROKES, DELETES = {}, 0
+    zKey()
+    if KEYSTROKES[1] then deliver(DELETES, KEYSTROKES[1]) end
+  end
+
+  -- Backspace over a word and retype a near-twin of it.
+  local function selfCorrect(typed, back, retyped, boundary)
+    KEYSTROKES, DELETES, TIMERS = {}, 0, {}
+    for ch in typed:gmatch(".") do keyIn(ch) end
+    for _ = 1, back do press(51) end
+    for ch in retyped:gmatch(".") do keyIn(ch) end
+    keyIn(boundary or " ")
+    runShortTimers()
+  end
+
+  -- 🚨 DRAIN ANY UNDO LEFT PENDING BY AN EARLIER SECTION FIRST. ⇪Z
+  -- undoes OUR correction when there is one, and that branch is unchanged
+  -- and takes precedence — so a suite that starts here with acLast set is
+  -- testing the wrong branch and would have reported this feature broken.
+  pressZ() ; pressZ()
+  -- …and one boundary on an empty buffer, which clears any half-typed
+  -- word an earlier section left behind in the detector.
+  keyIn(" ")
+
+  -- ---- the pair rules, through the tap --------------------------------
+  ALERTS = {}
+  selfCorrect("makee", 5, "make")          -- his own example, verbatim
+  local before = readCsv()
+  pressZ()
+  local after = readCsv()
+  check("🔤 his own sentence: makee → backspace → make → ⇪Z writes the row",
+        after:find("fix,makee,make", 1, true) ~= nil, after:sub(-120))
+  check("🚨 ...and NOTHING was written before he pressed it — armed, not"
+        .. " written, which was his call",
+        before:find("fix,makee,make", 1, true) == nil, before:sub(-120))
+  check("...the row is TAGGED, so the report can find it again",
+        after:match("fix,makee,make,[^\n]+") ~= nil,
+        after:match("fix,makee,make[^\n]*"))
+  check("...and it is live at once, without a reload",
+        typeWord("makee ") == "make ", typeWord("makee "))
+
+  -- ---- one edit apart, and not one edit apart -------------------------
+  local function armed()
+    log = {} ; _G.autocorrectReport()
+    return (table.concat(log, "\n")):match("↳ NOW: ⇪Z writes ([^\n]*)")
+  end
+  selfCorrect("teh", 3, "the")
+  check("🔤 a transposition arms — teh → the is THE typo and is three letters",
+        (armed() or ""):find("teh → the", 1, true) ~= nil, armed())
+  selfCorrect("adress", 6, "address")
+  check("...an inserted letter arms", (armed() or ""):find("adress → address", 1, true) ~= nil,
+        armed())
+  selfCorrect("recieve", 7, "receive")
+  check("...and a swap in the middle of a long word arms",
+        (armed() or ""):find("recieve → receive", 1, true) ~= nil, armed())
+
+  -- 🚨 THE ROW THE SIMILARITY TEST EXISTS FOR. Typing a word, changing your
+  -- mind and typing a DIFFERENT word is an ordinary edit, and a dictionary
+  -- that learned it would rewrite that word for ever, on both Macs.
+  selfCorrect("cat", 3, "dog")
+  check("🚨 cat → dog is a REWRITE, not a typo, and is never offered",
+        armed() == nil, armed())
+  selfCorrect("hello", 5, "goodbye")
+  check("...nor is anything else more than one edit apart", armed() == nil, armed())
+  selfCorrect("ab", 2, "ac")
+  check("🔎 ...and two letters is under the floor: too many real words are"
+        .. " one edit from each other down there", armed() == nil, armed())
+  -- 🚨 AND THIS ONE IS ASSERTED ON ITS REASON, NOT ON THE REFUSAL.
+  -- "The" and "the" are ZERO edits apart once lowered, so the edit rule
+  -- turns them away all by itself and a check that only asked "was it
+  -- refused" passed with this branch deleted. The branch earns its place by
+  -- saying the TRUE thing — that row would be dead (6.199.0) — instead of
+  -- "more than one edit apart", which would be a lie about zero.
+  local function lastWhy()
+    log = {} ; _G.autocorrectReport()
+    return (table.concat(log, "\n")):match("Last retype: ([^\n]*)")
+  end
+  selfCorrect("The", 3, "the")
+  check("🚨 a capitalisation-only pair is refused, and the reason given is"
+        .. " the DEAD ROW (6.199.0) rather than an edit count",
+        armed() == nil and (lastWhy() or ""):find("would be dead", 1, true) ~= nil,
+        lastWhy())
+
+  -- ---- 🚨 THE TRAP: our own retype must never teach us ------------------
+  -- typeWord delivers the posted deletes and characters back into the tap,
+  -- exactly as macOS does. Without the injection guard those look identical
+  -- to LL fixing a typo, and the module would learn its own corrections.
+  local taughtBefore = readCsv()
+  check("the config still corrects USa → Usa", typeWord("USa ") == "Usa ")
+  check("🚨 ...and it did NOT learn its own retype: no row, and nothing armed"
+        .. " for ⇪Z to write (6.218.0 — a retype comes back through the tap)",
+        armed() == nil and readCsv() == taughtBefore, armed())
+  pressZ() -- there IS an undo pending here; it must take the undo branch
+  check("...and ⇪Z there undoes OUR correction, as it always did",
+        (ALERTS[#ALERTS] or ""):find("USa", 1, true) ~= nil, ALERTS[#ALERTS])
+
+  -- ---- the window, and the three refusals -----------------------------
+  selfCorrect("freind", 6, "friend")
+  -- A minute passes. The clock is moved rather than the setting, so this
+  -- measures the AGE of the pair and not a knob set to a silly value.
+  ALERTS = {}
+  local staleBefore = readCsv()
+  local realTime = os.time
+  os.time = function() return realTime() + 60 end
+  pressZ()
+  os.time = realTime
+  check("⏱ a pair older than selfSecs is NOT written",
+        readCsv() == staleBefore, readCsv():sub(-80))
+  check("...and the refusal says so, rather than doing nothing",
+        (ALERTS[#ALERTS] or ""):find("retype it and press", 1, true) ~= nil,
+        ALERTS[#ALERTS])
+
+  ALERTS = {}
+  selfCorrect("cat", 3, "dog")   -- refused, so lastWhy is set and pair is nil
+  pressZ()
+  check("🔎 nothing offered NAMES the last retype and why it was not — a key"
+        .. " that does nothing is a key he stops trusting",
+        (ALERTS[#ALERTS] or ""):find("was not offered", 1, true) ~= nil,
+        ALERTS[#ALERTS])
+
+  ac.selfLearn = false
+  ALERTS = {} ; KEYSTROKES, DELETES, TIMERS = {}, 0, {}
+  selfCorrect("makee", 5, "make")
+  local offBefore = readCsv()
+  pressZ()
+  check("🔌 switched off, nothing is armed and nothing is written",
+        readCsv() == offBefore
+        and (ALERTS[#ALERTS] or ""):find("switched off", 1, true) ~= nil,
+        ALERTS[#ALERTS])
+  ac.selfLearn = true
+
+  -- ---- a click and a caret move end the word --------------------------
+  KEYSTROKES, DELETES, TIMERS = {}, 0, {}
+  for ch in ("makee"):gmatch(".") do keyIn(ch) end
+  press(51)
+  TAP.fn({ getType = function() return hs.eventtap.event.types.leftMouseDown end,
+           getFlags = function() return {} end,
+           getKeyCode = function() return 0 end,
+           getCharacters = function() return "" end })
+  for ch in ("make "):gmatch(".") do keyIn(ch) end
+  runShortTimers()
+  check("🖱 a click between the backspace and the retype ends the pair — the"
+        .. " caret is somewhere else and those are two different words",
+        armed() == nil, armed())
+
+  -- ---- the way back ---------------------------------------------------
+  log = {}
+  _G.autocorrectReport()
+  local rep = table.concat(log, "\n")
+  check("📋 the report NAMES what ⇪Z taught, with the line and the one-liner"
+        .. " that removes it (6.199.0's rule, in the other column)",
+        rep:find("⇪Z taught", 1, true) ~= nil
+        and rep:find("_G.autocorrectForgetFix(\"makee\")", 1, true) ~= nil,
+        rep:match("⇪Z taught[^\n]*\n[^\n]*"))
+  local okF, whyF = _G.autocorrectForgetFix("makee")
+  check("↩️ and that one-liner really removes the row",
+        okF == true and readCsv():find("fix,makee,make", 1, true) == nil, whyF)
+  check("...and the word is corrected no longer, without a reload",
+        typeWord("makee ") == nil, typeWord("makee "))
+  check("...a word that is not a fix row is refused, never a silent rewrite",
+        select(1, _G.autocorrectForgetFix("nosuchword")) == false)
+  check("...and so is an empty ask", select(1, _G.autocorrectForgetFix("")) == false)
+
+  -- 🚨 IT REMOVES EVERY MATCHING ROW, tagged or not. The other Mac appends a
+  -- duplicate before it has reloaded, and a hand-written row for the same
+  -- word would otherwise go on correcting after a command that said it
+  -- would stop.
+  local f = io.open(CSV, "a")
+  f:write("fix,dupe,duplicate\nfix,dupe,duplicate,⇪Z\n") ; f:close()
+  mod.warm(core)
+  local okD = _G.autocorrectForgetFix("dupe")
+  check("🚨 every matching row goes — the hand-written one and the taught"
+        .. " duplicate alike", okD == true
+        and readCsv():find("fix,dupe", 1, true) == nil, readCsv():sub(-160))
+
+  -- ---- 🔎 an older row and an older build ------------------------------
+  -- The loader has always read columns 1..3 and ignored the rest, so a
+  -- tagged row loads in an older build and an untagged row loads here.
+  local f2 = io.open(CSV, "a")
+  f2:write("fix,plainrow,plainfix\n") ; f2:close()
+  mod.warm(core)
+  check("🔎 a row with no fourth column still corrects, and is NOT listed as"
+        .. " something a keypress taught", typeWord("plainrow ") == "plainfix ",
+        typeWord("plainrow "))
+  log = {} ; _G.autocorrectReport()
+  check("...and the taught list only ever holds the tagged ones",
+        (table.concat(log, "\n")):find("plainrow", 1, true) == nil)
+end)
+if not ok243 then
+  check("🚨 the 6.243.0 section ran to the end without throwing", false,
+        tostring(err243))
+end
+check("🚨 ...and it asserted every check it was written to make",
+      (pass + fail) - before243 >= 26, (pass + fail) - before243)
+
+-- ---- against the source ------------------------------------------------
+do
+  local f = io.open(HS .. "/modules/autocorrect.lua", "r")
+  local src = f:read("*a") ; f:close()
+  -- 🚨 THE DETECTOR MUST SIT BEHIND THE INJECTION GUARD. That guard returns
+  -- early for every key this module posted, and it is the ONLY honest way
+  -- to tell our own retype from his. If the detector ever moves above it,
+  -- the module starts learning its own corrections — and the functional
+  -- check above would still pass on the day the guard itself broke.
+  local guardAt  = src:find("if acInjecting then", 1, true)
+  local detectAt = src:find("if acSelf.before == nil and #acBuffer > 0 then", 1, true)
+  local armAt    = src:find("acSelf.pair = { wrong = wasBefore", 1, true)
+  check("🔒 the self-correction detector sits BELOW the injection guard, so"
+        .. " this module can never learn from its own retype",
+        guardAt and detectAt and armAt and guardAt < detectAt and guardAt < armAt,
+        tostring(guardAt) .. " / " .. tostring(detectAt) .. " / " .. tostring(armAt))
+  local _, writes = src:gsub("autocorrectAdd%(p%.wrong", "")
+  check("🔒 ...and there is exactly ONE place a learned pair is written",
+        writes == 1, writes)
+end
+
 out(("\n%d passed, %d failed\n\n"):format(pass, fail))
 os.execute("rm -rf '" .. TMP .. "'")
 os.exit(fail == 0 and 0 or 1)
