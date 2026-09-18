@@ -154,7 +154,7 @@ local M = {
             { "-- after it lands --", "" },
             { "space",    "Left click · ⇧space right click · 2 double click" },
             { "↑↓←→",     "Tap nudges 8pt; HOLD and it jumps 32pt at once (four taps' worth) and climbs to 64pt · with ⇧ nudge 1pt for a tight target" },
-            { "⌥↑↓←→",    "Halve the box you landed in, toward that side — press again and it halves again, so a big cell narrows onto a small button in two or three presses instead of a lot of arrowing · press it while the grid is still up and it says to type the letters first" },
+            { "two keys", "After you land, the box is drawn SPLIT IN HALF with a letter in each side (the first two of the alphabet — the badge names them). Press one and that half is kept, the pointer goes to its middle, and it splits again — two or three presses narrow a big cell onto a small button" },
             { "⎋",        "Done — leave the pointer where it is" },
             { "⇪⇧L",      "Find the pointer — three white rings pulse out from it, again and again, for 5 s" },
             { "",         "Sized to the screen (×1.5 on a 4K at full points); grid.locateRadius / locateSecs / locateScale to taste" },
@@ -343,6 +343,12 @@ function M.setup(core)
     -- or leave.
     grid.halve       = true         -- rollback: settings = { mouse_grid = { halve = false } }
     grid.halveMin    = 8            -- points; it will not make a box smaller than this
+    -- ✂️ 6.252.0 — THE TWO LETTERS. LL: "When I reach the yellow box
+    -- level, split each box in half putting one letter of the alphabet in
+    -- each box. Remove the ⌥halve option as I don't use that. Too
+    -- convoluted." nil means "the first two of grid.alphabet"; a string of
+    -- two DIFFERENT characters overrides it.
+    grid.halveKeys   = nil          -- settings = { mouse_grid = { halveKeys = "jk" } }
     grid.landedSecs  = 8            -- landed badge up, nothing pressed
     -- 🖱 6.155.0 — a click by HAND ends landed mode. LL's Console, after
     -- ⇪X had landed on a button: "watchdog fired after 8s — landed badge
@@ -867,6 +873,45 @@ function M.setup(core)
         return nil, "not a direction"
     end
 
+    -- ✂️ 6.252.0 — WHICH TWO KEYS SPLIT THE BOX. PURE, and it answers
+    -- WHERE they came from so the report and the badge agree with the
+    -- binding. Two DIFFERENT characters or nothing: one letter cannot
+    -- name two halves, and a pair that is the same letter twice would
+    -- bind one key to both halves and pick whichever was bound last.
+    function grid.halvePair(keys, alphabet)
+        local function firstTwo(str)
+            str = tostring(str or "")
+            local a, b = str:sub(1, 1), str:sub(2, 2)
+            if a ~= "" and b ~= "" and a ~= b then return a, b end
+            return nil
+        end
+        local a, b = firstTwo(keys)
+        if a then return a, b, "grid.halveKeys" end
+        a, b = firstTwo(alphabet)
+        if a then return a, b, "the first two of grid.alphabet" end
+        return nil, nil, "no two distinct keys to split with"
+    end
+
+    -- ✂️ 6.252.0 — THE BOX, SPLIT IN TWO ALONG ITS LONGER SIDE. PURE, and
+    -- built on 6.192.0's halfOf so the floor, the arithmetic and the
+    -- refusal wording are all still in one place. The LONGER side is the
+    -- one worth splitting: halving a 200x20 strip top-to-bottom gives two
+    -- 200x10 strips and no more precision where the precision is missing.
+    function grid.splitOf(box, minPt)
+        if type(box) ~= "table" then return nil, "there is no box to split" end
+        local w, h = tonumber(box.w) or 0, tonumber(box.h) or 0
+        if w <= 0 or h <= 0 then return nil, "there is no box to split" end
+        local wide = (w >= h)
+        local d1, d2 = (wide and "left" or "up"), (wide and "right" or "down")
+        local first,  why1 = grid.halfOf(box, d1, minPt)
+        local second, why2 = grid.halfOf(box, d2, minPt)
+        if not (first and second) then
+            return nil, (why1 or why2 or "it will not split any further")
+        end
+        return { first = first, second = second,
+                 axis = wide and "x" or "y", sides = { d1, d2 } }
+    end
+
     -- =====================================================================
     -- 🏃 6.247.0 — A HELD ARROW MOVES THE CANVAS, IT DOES NOT REBUILD IT
     -- =====================================================================
@@ -946,7 +991,14 @@ function M.setup(core)
             grid.boxDraw, grid.boxAt = nil, nil
             return true
         end
-        local want = { x = box.x, y = box.y, w = box.w, h = box.h }
+        -- ✂️ 6.252.0 — the split rides in `want`. It depends on the box's
+        -- SIZE (already here) and on grid.halve, which the Console can
+        -- turn off between two draws of an identically sized box — and a
+        -- canvas that only MOVED would keep drawing letters that no longer
+        -- do anything.
+        local sp = grid.halve and grid.splitOf(box, grid.halveMin) or nil
+        local want = { x = box.x, y = box.y, w = box.w, h = box.h,
+                       split = sp and true or false }
         -- 🏃 6.247.0 — the hot path: a nudge changes x and y and nothing
         -- else, so the window moves and the elements are left alone.
         if moveCanvas(grid.boxDraw, grid.boxAt, want, "boxMove") then
@@ -958,14 +1010,50 @@ function M.setup(core)
         grid.draws.boxBuild = (grid.draws.boxBuild or 0) + 1
         local c = hs.canvas.new({ x = box.x, y = box.y, w = box.w, h = box.h })
         if not c then return false end
-        c:replaceElements({
+        local els = {
             { type = "rectangle", action = "fill",
               fillColor = { red = 1, green = 0.78, blue = 0.25, alpha = 0.10 },
               frame = { x = 0, y = 0, w = box.w, h = box.h } },
             { type = "rectangle", action = "stroke", strokeWidth = 2,
               strokeColor = { red = 1, green = 0.78, blue = 0.25, alpha = 0.95 },
               frame = { x = 1, y = 1, w = math.max(1, box.w - 2), h = math.max(1, box.h - 2) } },
-        })
+        }
+        -- ✂️ 6.252.0 — AND THE TWO HALVES, each with its letter in it.
+        -- Drawn in the box's OWN coordinates (the canvas is the box), so a
+        -- move carries them without a thought.
+        if sp then
+            local k1, k2 = grid.halvePair(grid.halveKeys, grid.alphabet)
+            if k1 then
+                local vertical = (sp.axis == "x")
+                local ink = { red = 1, green = 0.78, blue = 0.25, alpha = 0.95 }
+                els[#els + 1] = { type = "segments", action = "stroke",
+                    strokeColor = ink, strokeWidth = 1,
+                    coordinates = vertical
+                        and { { x = box.w / 2, y = 0 }, { x = box.w / 2, y = box.h } }
+                        or  { { x = 0, y = box.h / 2 }, { x = box.w, y = box.h / 2 } } }
+                -- Sized to the HALF it sits in, floored so a small box
+                -- still shows a letter you can read.
+                local halfW = vertical and (box.w / 2) or box.w
+                local halfH = vertical and box.h or (box.h / 2)
+                local size  = math.max(10, math.min(22,
+                                  math.floor(math.min(halfW, halfH) * 0.5)))
+                local function label(ch, x, y, w2, h2)
+                    els[#els + 1] = { type = "text", text = ch,
+                        textSize = size, textAlignment = "center",
+                        textColor = { white = 1.0, alpha = 0.98 },
+                        frame = { x = x, y = y + math.max(0, (h2 - size) / 2),
+                                  w = w2, h = math.min(h2, size + 4) } }
+                end
+                if vertical then
+                    label(k1, 0, 0, box.w / 2, box.h)
+                    label(k2, box.w / 2, 0, box.w / 2, box.h)
+                else
+                    label(k1, 0, 0, box.w, box.h / 2)
+                    label(k2, 0, box.h / 2, box.w, box.h / 2)
+                end
+            end
+        end
+        c:replaceElements(els)
         pcall(function()
             c:level((hs.canvas.windowLevels or {})[grid.windowLevel]
                     or (hs.canvas.windowLevels or {}).overlay)
@@ -1039,9 +1127,17 @@ function M.setup(core)
               -- is told about is a shortcut nobody has. It is dropped when
               -- halving is switched off, so the badge never offers a key
               -- that does nothing.
+              -- ✂️ 6.252.0 — the badge names the two letters, because a
+              -- key nobody is told about is a key nobody has.
               text = (hint and ("🎯 " .. hint .. " · space click · ⎋ done")
                       or ("space click · ↑↓←→ nudge"
-                          .. (grid.halve and " · ⌥ halve" or "") .. " · ⎋ done")),
+                          .. (function()
+                                if not grid.halve then return "" end
+                                local a, b = grid.halvePair(grid.halveKeys,
+                                                            grid.alphabet)
+                                if not a then return "" end
+                                return " · " .. a .. b .. " split"
+                             end)() .. " · ⎋ done")),
               textSize = 11, textColor = { white = 1.0, alpha = 0.95 },
               textAlignment = "center",
               frame = { x = 8, y = H - 23, w = W - 16, h = 17 } },
@@ -1334,6 +1430,9 @@ function M.setup(core)
     -- LANDED MODE
     -- =====================================================================
     local function enterLanded(point, snap, box)
+        -- ✂️ 6.252.0 — before the modal is entered, and after any settings
+        -- override has landed. Idempotent.
+        if grid.halve then pcall(grid.ensureSplitKeys) end
         hideAllShown()
         pcall(function() grid.pickModal:exit() end)
         local okEnter = pcall(function() grid.landModal:enter() end)
@@ -1392,28 +1491,28 @@ function M.setup(core)
         armWatchdog(grid.landedSecs, "landed badge left open")
     end
 
-    -- ✂️ 6.192.0 — ⌥ + arrow: keep that HALF of the box, pointer to its
-    -- middle. A refusal (no box, or the floor) SAYS so and changes
-    -- nothing — it never silently does a nudge instead, which would be
-    -- the pointer moving somewhere LL did not ask for.
-    local function halveTo(dir)
+    -- ✂️ 6.252.0 — PRESS A LETTER, KEEP THAT HALF. The box you landed in
+    -- is drawn split along its longer side with one letter in each half;
+    -- pressing that letter keeps it, puts the pointer in its middle and
+    -- SPLITS AGAIN, so it repeats exactly as ⌥+arrow did — which is gone.
+    -- A refusal (no box, or the floor) SAYS so and changes nothing: it
+    -- never silently nudges instead, which would be the pointer moving
+    -- somewhere LL did not ask for (6.195.0).
+    local function splitTo(which)
         local s = grid.state
-        -- 🚨 6.195.0 — NO SILENT NO-OP. LL: "the grid is not dividing into
-        -- (2) squares." Both of these used to return without a word, so a
-        -- press that did nothing looked identical whichever reason it was:
-        -- pressed before landing, or the feature switched off. Say which.
+        -- 🚨 6.195.0 — NO SILENT NO-OP. A press that does nothing must not
+        -- look the same whichever reason it was.
         if not (s and s.phase == "landed") then
-            hs.alert.show("🎯 type the three letters first — ⌥+arrow halves "
-                          .. "the cell AFTER you land in one")
-            say("halve ignored: not landed")
+            say("split ignored: not landed")
             return
         end
         if not grid.halve then
-            hs.alert.show("🎯 halving is switched off (mouse_grid.halve)")
-            say("halve ignored: grid.halve is false")
+            hs.alert.show("🎯 splitting is switched off (mouse_grid.halve)")
+            say("split ignored: grid.halve is false")
             return
         end
-        local box, why = grid.halfOf(s.box, dir, grid.halveMin)
+        local sp, whySplit = grid.splitOf(s.box, grid.halveMin)
+        local box, why = (sp and sp[which]), whySplit
         if not box then
             hs.alert.show("🎯 " .. tostring(why))
             say("halve refused: " .. tostring(why))
@@ -1424,14 +1523,44 @@ function M.setup(core)
         s.box, s.point, s.halvings = box, p, (s.halvings or 0) + 1
         movePointer(p)
         if not showBox(box) or not showCrosshair(p.x, p.y) then
-            grid.hide("badge lost while halving")
-            warn("the box or badge could not be drawn while halving — "
+            grid.hide("badge lost while splitting")
+            warn("the box or badge could not be drawn while splitting — "
                  .. "refusing to capture keys invisibly")
             return
         end
         armWatchdog(grid.landedSecs, "landed badge left open")
-        say(string.format("halved %s -> %.0fx%.0f at %.0f,%.0f (%d deep)",
-            dir, box.w, box.h, p.x, p.y, s.halvings))
+        say(string.format("split %s -> %.0fx%.0f at %.0f,%.0f (%d deep)",
+            which, box.w, box.h, p.x, p.y, s.halvings))
+    end
+
+    -- ✂️ 6.252.0 — THE TWO LETTERS ARE BOUND ON THE FIRST LANDING, not at
+    -- setup. init.lua applies a profile's `settings` AFTER setup returns
+    -- (6.228.0's 🔌 rule), so a `halveKeys` override read at setup time
+    -- would draw one pair of letters and bind another. hs.hotkey.modal has
+    -- no unbind, so this can only be done once — hence the guard, and
+    -- hence resolving the pair at the last possible moment rather than the
+    -- first.
+    function grid.ensureSplitKeys()
+        if grid.splitBound then return grid.splitBound end
+        local k1, k2, from = grid.halvePair(grid.halveKeys, grid.alphabet)
+        if not k1 then
+            grid.splitBound = { ok = false, why = from }
+            return grid.splitBound
+        end
+        local okB = pcall(function()
+            grid.landModal:bind({}, k1, function()
+                local ok, err = pcall(splitTo, "first")
+                if not ok then warn("split first: " .. tostring(err)) end
+            end)
+            grid.landModal:bind({}, k2, function()
+                local ok, err = pcall(splitTo, "second")
+                if not ok then warn("split second: " .. tostring(err)) end
+            end)
+        end)
+        grid.splitBound = { ok = okB, keys = k1 .. k2, from = from,
+                            why = okB and ("bound " .. k1 .. k2 .. " from " .. from)
+                                      or "the modal refused the keys" }
+        return grid.splitBound
     end
 
     local function landedClick(kind)
@@ -1705,15 +1834,23 @@ function M.setup(core)
         -- will read as broken when it is working exactly as written.
         do
             local st = grid.state
-            out[#out + 1] = "   halve   : " .. (not grid.halve
+            local k1, k2, from = grid.halvePair(grid.halveKeys, grid.alphabet)
+            local bound = grid.splitBound
+            out[#out + 1] = "   split   : " .. (not grid.halve
                 and "off (grid.halve)"
-                or string.format("✅ ⌥↑↓←→ keeps that half of the box you landed in, "
-                                 .. "down to %d pt (grid.halveMin)%s",
-                                 math.floor(num(grid.halveMin, 0)),
+                or (not k1) and ("⚠️ " .. tostring(from))
+                or string.format("✅ %s / %s keep that half of the box you "
+                                 .. "landed in, down to %d pt (grid.halveMin) · %s%s",
+                                 k1, k2, math.floor(num(grid.halveMin, 0)), from,
                                  (st and st.phase == "landed" and st.box)
                                    and string.format(" · now %.0fx%.0f, %d deep",
                                                      st.box.w, st.box.h, st.halvings or 0)
                                    or ""))
+            -- 🔎 THREE STATES: never landed yet ≠ bound ≠ the modal refused
+            -- them. "the letters do nothing" is answered by this line.
+            out[#out + 1] = "             keys: " .. (bound == nil
+                and "not bound yet — they are claimed on the first landing"
+                or tostring(bound.why))
         end
         -- 6.195.0 — what a HELD arrow actually does, in points, because
         -- "the arrows are too slow" has now been the report twice and the
@@ -1805,20 +1942,10 @@ function M.setup(core)
             function() grid.hide("escape") end)
     end
 
-    -- 🎯 6.195.0 — ⌥+arrow WHILE THE GRID IS STILL UP. It is the natural
-    -- thing to try when you are looking at the labelled cells and want one
-    -- split, and until now it did nothing whatsoever. It still does not
-    -- divide the grid — halving is a property of the cell you LANDED in,
-    -- because that is the only box with bounds — but it now SAYS so
-    -- instead of eating the key.
-    for _, k in ipairs({ "up", "down", "left", "right" }) do
-        grid.pickModal:bind({ "alt" }, k, function()
-            pcall(function()
-                hs.alert.show("🎯 type the three letters first — ⌥+arrow "
-                              .. "halves the cell AFTER you land in one")
-            end)
-        end)
-    end
+    -- ✂️ 6.252.0 — 6.195.0's ⌥+arrow hint binds are GONE with the feature
+    -- they explained. A key that says "⌥+arrow halves the cell after you
+    -- land in one" is worse than an unbound key once ⌥+arrow does not
+    -- halve anything.
     grid.pickModal:bind({}, "escape", function() grid.hide("escape") end)
     grid.pickModal:bind({}, "delete", function()
         local ok, err = pcall(grid.backspace)
@@ -1834,19 +1961,18 @@ function M.setup(core)
     -- for double" would have cost that rule for one mnemonic; "2" for two
     -- clicks is as memorable and keeps the rule absolute and testable.
     grid.landModal:bind({}, "2",      function() landedClick("double") end)
-    -- ✂️ 6.192.0 — ⌥ + arrow HALVES the box you landed in, toward that
-    -- side. Not repeatfn'd on purpose, unlike the nudge below: a held
-    -- nudge crawls a pointer at 8 pt a step, but a held halve would run
-    -- the box past the floor in the time it takes to notice, and each
-    -- press here is a DECISION about which half the target is in.
-    -- ⌥ is free in landed mode and is not an alphabet key, so the rule
-    -- above survives intact.
-    for key, dir in pairs({ up = "up", down = "down", left = "left", right = "right" }) do
-        grid.landModal:bind({ "alt" }, key, function()
-            local ok, err = pcall(halveTo, dir)
-            if not ok then warn("halve " .. dir .. ": " .. tostring(err)) end
-        end)
-    end
+    -- ✂️ 6.252.0 — ⌥+arrow IS GONE. LL: "Remove the ⌥halve option as I
+    -- don't use that. Too convoluted." The two split letters are bound
+    -- lazily by grid.ensureSplitKeys on the first landing, because a
+    -- settings override of halveKeys lands after setup.
+    --
+    -- 🚨 AND THE RULE ABOVE IS NARROWED, NOT DELETED. Landed mode may now
+    -- capture EXACTLY TWO alphabet keys — the pair drawn in the box — and
+    -- no others; the suite still forbids every other letter. THE COST,
+    -- named: type one of those two letters immediately after landing and
+    -- it splits the box instead of reaching the app. The badge shows the
+    -- pair, the watchdog closes landed mode in grid.landedSecs, and a
+    -- click by hand ends it at once (6.155.0).
     -- ⏱ 6.115.0 — HOLD AN ARROW AND IT KEEPS MOVING. LL: "Can you make it
     -- so that hyper+X allows the arrows to be pressed and held down? Right
     -- now you have to rapidly hit the key to move."

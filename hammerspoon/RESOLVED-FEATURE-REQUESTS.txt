@@ -1,5 +1,5 @@
 ========================================================================
-RESOLVED FEATURE REQUESTS — Hammerspoon config 6.251.0
+RESOLVED FEATURE REQUESTS — Hammerspoon config 6.252.0
 Every feature and how to use it. Generated from the modules' own
 cheat sheets (the rows ⇪/ draws), so it is never out of date.
 ⇪ = Caps Lock held (the hyper key). ⇪⇧X = Caps Lock + Shift + X.
@@ -137,7 +137,7 @@ In the Console, _G.<tool>Report() prints any tool's own report.
   -- after it lands -- 
   space     Left click · ⇧space right click · 2 double click
   ↑↓←→ Tap nudges 8pt; HOLD and it jumps 32pt at once (four taps' worth) and climbs to 64pt · with ⇧ nudge 1pt for a tight target
-  ⌥↑↓←→ Halve the box you landed in, toward that side — press again and it halves again, so a big cell narrows onto a small button in two or three presses instead of a lot of arrowing · press it while the grid is still up and it says to type the letters first
+  two keys  After you land, the box is drawn SPLIT IN HALF with a letter in each side (the first two of the alphabet — the badge names them). Press one and that half is kept, the pointer goes to its middle, and it splits again — two or three presses narrow a big cell onto a small button
   ⎋       Done — leave the pointer where it is
   ⇪⇧L   Find the pointer — three white rings pulse out from it, again and again, for 5 s
             Sized to the screen (×1.5 on a 4K at full points); grid.locateRadius / locateSecs / locateScale to taste
@@ -766,6 +766,7 @@ In the Console, _G.<tool>Report() prints any tool's own report.
 
 📜 RELEASE INDEX — newest first, one line per release (the full story of each is in CHANGELOG.md)
 ------------------------------------------------------------------------
+  6.252.0  ✂️ THE LANDED BOX SPLITS BY LETTER, AND ⌥HALVE IS GONE
   6.251.0  ⌨️ THE MUSIC CARD TAKES THE KEYBOARD
   6.250.0  🔤 THE CHEAT SHEET CAN BE SEARCHED FOR PUNCTUATION
   6.249.0  🗓 THE CALENDAR'S HEADER HOLDS THE NAV AND NOTHING ELSE

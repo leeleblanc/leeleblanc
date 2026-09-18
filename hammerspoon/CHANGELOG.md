@@ -5,6 +5,63 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.252.0 — ✂️ THE LANDED BOX SPLITS BY LETTER, AND ⌥HALVE IS GONE
+                 (modules/mouse_grid.lua, tests/test_mouse_grid.lua):
+  LL: "When I reach the yellow box level, split each box in half putting one
+  letter of the alphabet in each box. Remove the ⌥halve option as I don't use
+  that. Too convoluted."
+
+  ✂️ WHAT HE IS DESCRIBING IS 6.192.0'S OWN PICTURE. That release's comment
+  says so in as many words: "WHY AN ARROW AND NOT A LETTER LABEL on each half,
+  which is what LL's picture shows". It chose ⌥+arrow instead, for a rule —
+  and he has now told us which of the two he wants.
+
+  The box you land in is DRAWN split along its LONGER side with one letter in
+  each half. Press that letter and the half is kept, the pointer goes to its
+  middle, and it splits again — so it repeats exactly as ⌥+arrow did, with no
+  modifier and no direction to work out.
+
+  🔒 THE RULE IS NARROWED, NOT DELETED, and that distinction is the whole
+  reason this is safe. 6.192.0: "landed mode may capture NO alphabet key, so
+  LL's typing reaches the app he just landed on." It now captures EXACTLY TWO
+  letters — the pair drawn in the box — and the suite still walks the whole
+  alphabet and fails on any other letter, and on any ⌥+letter. THE COST, named
+  rather than discovered: type one of those two characters immediately after
+  landing and it splits the box instead of reaching the app. The badge shows
+  the pair, the watchdog closes landed mode after `landedSecs`, and a click by
+  hand ends it at once.
+
+  🔌 THEY ARE BOUND ON THE FIRST LANDING, NOT AT SETUP. init.lua applies a
+  profile's `settings` AFTER setup returns (6.228.0's 🔌 rule), so a `halveKeys`
+  override read at setup time would draw one pair of letters and bind another —
+  the exact shape that made window_move's `wm.enabled` decorative. And
+  hs.hotkey.modal has NO unbind, so this can only be done once: hence the
+  guard, and hence resolving the pair at the last possible moment rather than
+  the first.
+
+  ✂️ TWO PURE FUNCTIONS CARRY THE RULE:
+    · `grid.splitOf(box, minPt)` — the LONGER side is the one worth splitting.
+      Halving a 200x20 strip top to bottom gives two 200x10 strips and no more
+      precision where the precision is missing. Built on 6.192.0's halfOf, so
+      the floor, the arithmetic and the refusal wording stay in one place.
+    · `grid.halvePair(keys, alphabet)` — two DIFFERENT characters or nothing.
+      One letter cannot name two halves, and the same letter twice would bind
+      one key to both and pick whichever was bound last.
+
+  🗑 AND 6.195.0's ⌥+ARROW HINT KEYS WENT WITH THE FEATURE THEY EXPLAINED. A
+  key bound purely to say "⌥+arrow halves the cell after you land in one" is
+  worse than an unbound key once ⌥+arrow halves nothing.
+
+  🧪 Three mutations first passed or killed the run rather than failing a
+  check: one landed on a branch the other half of an if/else covered, one
+  reached a guard no test could get to (splitting switched off AFTER landing,
+  when the keys are already bound), and one indexed a nil through a helper.
+  All three are checks now.
+  · 9,839 -> 9,857 checks · nine mutations, nine bites.
+
+  settings = { mouse_grid = { halveKeys = "jk" } } · { halve = false } is still
+  the rollback and now unbinds the letters entirely.
+
 NEW IN 6.251.0 — ⌨️ THE MUSIC CARD TAKES THE KEYBOARD
                  (modules/music_player.lua, tests/test_music_player.lua):
   LL: "I have to click on it to make it the focus to use the space bar to

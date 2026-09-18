@@ -1750,8 +1750,25 @@ STUBS returned nothing while the real service returns true, so the
 suite ran the failing input on every green run and passed. A stub more
 forgiving than the thing it stands in for is a hole with a tick beside
 it — make a stub return exactly what the real provider returns.
-✂️ HALVE THE LANDED BOX (6.192.0, mouse_grid): after ⇪X lands, ⌥+arrow
-keeps that HALF of the cell and puts the pointer at its centre; press
+✂️ SPLIT THE LANDED BOX (6.192.0, REPLACED BY LETTERS IN 6.252.0 —
+mouse_grid). ⌥+arrow is GONE (LL: "Remove the ⌥halve option as I don't
+use that. Too convoluted."). After ⇪X lands, the box is DRAWN split
+along its LONGER side with one letter in each half; pressing that letter
+keeps it, puts the pointer at its centre and splits again.
+🔒 THE 6.192.0 RULE IS NARROWED, NOT DELETED: landed mode captures
+EXACTLY TWO alphabet keys — the pair drawn in the box — and the suite
+still walks the whole alphabet and fails on any other letter and any
+⌥+letter. COST, named: typing one of those two right after landing
+splits instead of reaching the app; the badge shows the pair.
+🔌 BOUND ON THE FIRST LANDING, never at setup — `settings` are applied
+AFTER setup returns (6.228.0), so binding early would draw one pair and
+bind another; hs.hotkey.modal has no unbind, so it happens once
+(`grid.ensureSplitKeys`). `grid.splitOf` and `grid.halvePair` are PURE:
+the LONGER side is the one worth splitting (a 200x20 strip halved top to
+bottom adds no precision where it is missing), and two DIFFERENT
+characters or nothing (one letter cannot name two halves).
+THE ORIGINAL RULE, kept because its arithmetic still stands: ⌥+arrow
+kept that HALF of the cell and put the pointer at its centre; press
 again to halve again. `grid.halfOf(box, dir, minPt)` is PURE (the gate
 proves the geometry with no screen) and the floor is measured on the
 HALF, not the box — 16 pt halves, 15 refuses, each dimension asked
@@ -2079,6 +2096,7 @@ as the fix when a loss lands.
 | 6.249.0 | 🗓 the calendar's month-range label is gone and ‹ Today › sits where it was, at the big date's own left edge | pending |
 | 6.250.0 | 🔤 ⇪/ can be searched for punctuation — the keys that name half this config were the keys its search box ignored | pending |
 | 6.251.0 | ⌨️ the music card takes the keyboard when it opens — space works without a click, and the Console coming forward is the price | pending |
+| 6.252.0 | ✂️ the landed grid box splits by letter (one in each half, longer side first) and ⌥halve is gone | pending |
 
 Running total: 15 wins · 8 losses · 22 pending (6.215.0, 6.217.0, 6.218.0,
 6.219.0, 6.220.0, 6.221.0, 6.222.0, 6.223.0, 6.224.0, 6.225.0, 6.226.0,
@@ -2114,7 +2132,7 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   4 the calendar header ✔ 6.249.0 ·
   5 cheat-sheet punctuation search ✔ 6.250.0 · 6 the music card takes the
   keyboard ✔ 6.251.0 —
-  keyboard · 7 the yellow box splits by letter (and ⌥halve goes) ·
+  keyboard · 7 the yellow box splits by letter (⌥halve gone) ✔ 6.252.0 ·
   8 the Scorp Pad renamed Hamsidian · 9 the three removals (the 4 PM
   Asana send, the Capture row, the Append row).
   🗳 DECIDED BY ME, STATED TO HIM, because he said go rather than
@@ -2481,6 +2499,26 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.252.0 verify with LL — ✂️ THE BOX SPLITS BY LETTER (KNOWN GROUND):
+  install (carries 6.251.0). ⇪X, type the three letters to land in a cell. The
+  yellow box is now drawn SPLIT IN HALF with a letter in each side — the first
+  two of the alphabet, and the badge under the pointer names them.
+  Press one: that half is kept, the pointer goes to its middle, and it splits
+  again. Two or three presses put you on a small button. It splits the LONGER
+  side each time, so a wide box splits left/right and a tall one top/bottom.
+  ⌥+arrow no longer does anything — that is the removal you asked for.
+  ↑↓←→ still nudge, ⇧+arrow is still 1 pt, space still clicks, Esc still ends.
+  🚨 THE COST, and it is worth knowing before it surprises you: while the
+  landed badge is up, those TWO letters are captured — type one of them
+  immediately after landing and it splits the box instead of reaching the app.
+  Every OTHER letter still goes straight through, as it always did. Click, or
+  press Esc, or wait 8 seconds, and the two letters are yours again.
+  Different pair, no release: `settings = { mouse_grid = { halveKeys = "jk" } }`.
+  Off entirely: `{ halve = false }` — then no letter is captured at all.
+  Console: `_G.mouseGridReport()` — the "split :" line names the two keys, the
+  floor, and where the pair came from; the line under it says whether they are
+  bound yet (they are claimed on the first landing).
+
 - 6.251.0 verify with LL — ⌨️ THE CARD TAKES THE KEYBOARD (KNOWN GROUND):
   install (carries 6.250.0). ⇪⇧pad. and press SPACE straight away — no click.
   It plays or pauses. ↑↓ walk the queue, ⏎ plays, ⌘3 plays the third, ← → seek.

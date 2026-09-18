@@ -435,9 +435,14 @@ check("the picking modal binds every alphabet letter", (function()
     end
     return true
 end)())
-check("the LANDED modal binds NO letter at all — everything you type after "
-      .. "landing must reach the app underneath, with no exceptions to "
-      .. "remember", (function()
+-- ✂️ 6.252.0 NARROWED THIS RULE AND DID NOT DELETE IT. Landed mode may
+-- capture the TWO split letters and no others, and they are bound on the
+-- first LANDING (a settings override of halveKeys lands after setup), so
+-- before anyone has landed the answer is still "no letter at all". The
+-- full version of the rule — exactly two, and which two — is asserted in
+-- the split section further down.
+check("the LANDED modal binds NO letter at all before you have landed — "
+      .. "everything you type must reach the app underneath", (function()
     for ch in ("abcdefghijklmnopqrstuvwxyz"):gmatch(".") do
         if grid.landModal.binds["|" .. ch] ~= nil then return false, ch end
     end
@@ -2458,7 +2463,7 @@ do
     setScreens(ONE)
 end
 
-out("\n=== ✂️ HALVE THE LANDED BOX (6.192.0) ===\n")
+out("\n=== ✂️ SPLIT THE LANDED BOX BY LETTER (6.252.0) ===\n")
 -- LL, with a diagram: "A big cell one misses a button and I have to arrow
 -- a lot to get to it … Once I select a box, can the box be broken in half
 -- so I have a better chance of landing on the button." ⌥+arrow keeps that
@@ -2504,49 +2509,151 @@ do
           grid.halfOf(nil, "up", 8) == nil and grid.halfOf({ x=0,y=0,w=0,h=0 }, "up", 8) == nil
           and grid.halfOf(B, "sideways", 8) == nil)
 
+    -- --- ✂️ 6.252.0 — the split, PURE --------------------------------
+    check("splitOf halves the LONGER side — a wide box splits left/right",
+          (function()
+              local sp = grid.splitOf({ x = 0, y = 0, w = 80, h = 40 }, 8)
+              return sp and sp.axis == "x"
+                 and sp.first.w == 40 and sp.first.x == 0
+                 and sp.second.x == 40 and sp.first.h == 40
+          end)())
+    -- 🚨 MUTATION: always split the same way and a 200x20 strip becomes
+    -- two 200x10 strips — no more precision where it is missing.
+    check("...and a TALL box splits top/bottom",
+          (function()
+              local sp = grid.splitOf({ x = 0, y = 0, w = 40, h = 80 }, 8)
+              return sp and sp.axis == "y"
+                 and sp.first.h == 40 and sp.first.y == 0 and sp.second.y == 40
+          end)())
+    check("...a square splits left/right rather than refusing to choose",
+          (function()
+              local sp = grid.splitOf({ x = 0, y = 0, w = 40, h = 40 }, 8)
+              return sp and sp.axis == "x"
+          end)())
+    check("...the two halves are the whole box and never overlap",
+          (function()
+              local sp = grid.splitOf({ x = 10, y = 20, w = 80, h = 40 }, 8)
+              return sp and (sp.first.w + sp.second.w) == 80
+                 and sp.second.x == sp.first.x + sp.first.w
+          end)())
+    check("splitOf refuses at the floor, with words, rather than throwing",
+          (function()
+              local sp, why = grid.splitOf({ x = 0, y = 0, w = 15, h = 15 }, 8)
+              return sp == nil and type(why) == "string" and why ~= ""
+          end)())
+    check("...and no box, or a sizeless one, refuses too",
+          grid.splitOf(nil, 8) == nil
+          and grid.splitOf({ x = 0, y = 0, w = 0, h = 0 }, 8) == nil)
+
+    -- --- which two keys, PURE ----------------------------------------
+    check("halvePair takes the first two of the alphabet by default",
+          (function()
+              local a, b, from = grid.halvePair(nil, "asdfghjkl")
+              return a == "a" and b == "s" and tostring(from):find("alphabet")
+          end)())
+    check("...and an override wins, and says so",
+          (function()
+              local a, b, from = grid.halvePair("jk", "asdfghjkl")
+              return a == "j" and b == "k" and tostring(from):find("halveKeys")
+          end)())
+    -- 🚨 ONE LETTER CANNOT NAME TWO HALVES, and the same letter twice
+    -- would bind one key to both and pick whichever was bound last.
+    check("...a one-character or doubled override falls back rather than "
+          .. "binding one key to both halves",
+          (function()
+              local a = grid.halvePair("j", "asdfghjkl")
+              local c = grid.halvePair("jj", "asdfghjkl")
+              return a == "a" and c == "a"
+          end)())
+    check("...and an alphabet with nothing usable in it refuses, with why",
+          (function()
+              local a, _, why = grid.halvePair(nil, "")
+              return a == nil and type(why) == "string" and why ~= ""
+          end)())
+
     -- --- through a real landing --------------------------------------
     loadModule(); grid.show(false); typeLabel("aaa")
     local st = grid.state
-    check("landing carries the CELL into landed mode as the box to halve",
+    check("landing carries the CELL into landed mode as the box to split",
           st and st.phase == "landed" and type(st.box) == "table"
           and st.box.w > 0 and st.box.h > 0)
+    local K1, K2 = grid.halvePair(grid.halveKeys, grid.alphabet)
+    -- 🚨 BOUND ON THE FIRST LANDING, not at setup: a settings override of
+    -- halveKeys lands AFTER setup returns (6.228.0), so binding early
+    -- would draw one pair and bind another.
+    check("the two split letters are bound by the time you land",
+          grid.landModal.binds["|" .. K1] ~= nil
+          and grid.landModal.binds["|" .. K2] ~= nil, K1 .. K2)
     local cell = { x = st.box.x, y = st.box.y, w = st.box.w, h = st.box.h }
     local nCanvas = #CANVASES
-    landKey("down", "alt")
-    check("⌥↓ halves the live box", grid.state.box.h == cell.h / 2
-          and grid.state.box.w == cell.w, tostring(grid.state.box.h))
-    check("...and the POINTER is put in the middle of the new half — that is "
-          .. "the whole point, not just an outline",
+    local function press(k) local f = grid.landModal.binds["|" .. k]
+                            if f then f() return true end return false end
+    -- The cell's own aspect decides which way it splits, so the expected
+    -- half is asked of splitOf rather than assumed to be the left one.
+    local wantFirst = grid.splitOf(cell, grid.halveMin)
+    check("✂️ pressing the first letter keeps that half",
+          press(K1) and wantFirst ~= nil
+          and grid.state.box.w == wantFirst.first.w
+          and grid.state.box.h == wantFirst.first.h
+          and grid.state.box.x == wantFirst.first.x
+          and grid.state.box.y == wantFirst.first.y,
+          string.format("%.0fx%.0f", grid.state.box.w, grid.state.box.h))
+    check("...and the POINTER is put in the middle of it — that is the whole "
+          .. "point, not just an outline",
           MOUSE_AT.x == grid.state.box.x + grid.state.box.w / 2
           and MOUSE_AT.y == grid.state.box.y + grid.state.box.h / 2)
     check("...an outline canvas was drawn for it and is held", grid.boxDraw ~= nil
           and #CANVASES > nCanvas)
     check("...and it never eats the click it is helping aim (mouse events off)",
-          grid.boxDraw.mouseEvents ~= nil and grid.boxDraw.mouseEvents[1] == false)
+          grid.boxDraw ~= nil and grid.boxDraw.mouseEvents ~= nil
+          and grid.boxDraw.mouseEvents[1] == false)
     check("...the depth is counted for the report", grid.state.halvings == 1)
-    landKey("right", "alt"); landKey("right", "alt")
-    check("it composes — three presses in, a quarter as wide and half as tall",
-          grid.state.box.w == cell.w / 4 and grid.state.box.h == cell.h / 2
-          and grid.state.halvings == 3)
+    -- 🎨 THE LETTERS ARE DRAWN IN THE BOX. A split nobody can see is a
+    -- pair of keys nobody knows about.
+    check("🎨 the box is DRAWN split, with a letter in each half",
+          (function()
+              local seen = {}
+              for _, e in ipairs((grid.boxDraw or {}).elements or {}) do
+                  if e.type == "text" then seen[tostring(e.text)] = true end
+              end
+              return seen[K1] == true and seen[K2] == true
+          end)())
+    check("...and a divider is drawn between them",
+          (function()
+              for _, e in ipairs((grid.boxDraw or {}).elements or {}) do
+                  if e.type == "segments" then return true end
+              end
+              return false
+          end)())
+    local secondBox = { x = grid.state.box.x, y = grid.state.box.y }
+    press(K2)
+    check("...and the second letter keeps the OTHER half",
+          grid.state.box.x ~= secondBox.x or grid.state.box.y ~= secondBox.y,
+          string.format("%.0f,%.0f", grid.state.box.x, grid.state.box.y))
+    press(K1)
+    check("it composes — three presses in, and the depth says so",
+          grid.state.halvings == 3)
     check("...and the box never leaves the cell it came from",
           grid.state.box.x >= cell.x and grid.state.box.y >= cell.y
           and grid.state.box.x + grid.state.box.w <= cell.x + cell.w
           and grid.state.box.y + grid.state.box.h <= cell.y + cell.h)
-    -- A NUDGE carries the box rather than abandoning it, so nudge-then-halve
+    -- A NUDGE carries the box rather than abandoning it, so nudge-then-split
     -- works and the outline never sits somewhere the pointer is not.
     local bx, by = grid.state.box.x, grid.state.box.y
+    local bw, bh = grid.state.box.w, grid.state.box.h
     landKey("right")
     check("a nudge MOVES the box with the pointer, same size",
-          grid.state.box.w == cell.w / 4 and grid.state.box.h == cell.h / 2
+          grid.state.box.w == bw and grid.state.box.h == bh
           and grid.state.box.x > bx and grid.state.box.y == by)
-    check("...and the pointer is still at its centre, so ⌥+arrow after a "
-          .. "nudge is still true", MOUSE_AT.x == grid.state.box.x + grid.state.box.w / 2)
-    -- The floor, live: keep halving until it refuses, and prove it refuses
-    -- by NOT MOVING THE POINTER rather than by doing a nudge instead.
-    for _ = 1, 12 do landKey("down", "alt") end
+    check("...and the pointer is still at its centre, so a split after a "
+          .. "nudge is still true",
+          MOUSE_AT.x == grid.state.box.x + grid.state.box.w / 2)
+    -- The floor, live: keep splitting until it refuses, and prove it refuses
+    -- by NOT MOVING THE POINTER rather than by doing something else instead.
+    for _ = 1, 14 do press(K1) end
     local held = { x = MOUSE_AT.x, y = MOUSE_AT.y }
     local deep = grid.state.halvings
-    landKey("down", "alt")
+    press(K1)
     check("at the floor it refuses: the pointer does not move and the depth "
           .. "does not grow", MOUSE_AT.x == held.x and MOUSE_AT.y == held.y
           and grid.state.halvings == deep)
@@ -2558,72 +2665,115 @@ do
     grid.hide("test")
     check("leaving takes the outline down and drops the held reference",
           grid.boxDraw == nil)
-    checkInv("after halving and hiding")
+    checkInv("after splitting and hiding")
 
     -- The rollback, and the rule it must not break.
     loadModule(); grid.halve = false; grid.show(false); typeLabel("aaa")
     local was = { x = MOUSE_AT.x, y = MOUSE_AT.y }
-    landKey("down", "alt")
-    check("grid.halve = false: ⌥+arrow does nothing at all", MOUSE_AT.x == was.x
+    check("grid.halve = false: the split letters are not bound at all — the "
+          .. "alphabet reaches the app, exactly as before 6.252.0",
+          grid.landModal.binds["|" .. K1] == nil
+          and grid.landModal.binds["|" .. K2] == nil)
+    check("...and nothing has moved", MOUSE_AT.x == was.x
           and MOUSE_AT.y == was.y and grid.state.halvings == 0)
+    check("...and the box is not drawn split",
+          (function()
+              landKey("right")            -- the nudge draws the outline
+              for _, e in ipairs((grid.boxDraw or {}).elements or {}) do
+                  if e.type == "text" then return false end
+              end
+              return true
+          end)())
     grid.hide("test")
 
-    -- 🚨 6.195.0 — NO SILENT NO-OP. LL reported "the grid is not dividing
-    -- into (2) squares" and neither of the two ways ⌥+arrow can decline
-    -- said a word, so a dead press looked identical whichever it was.
-    loadModule(); grid.show(false)              -- still PICKING, not landed
+    -- 🚨 SWITCHED OFF AFTER LANDING. The keys are bound on the landing, so
+    -- turning grid.halve off from the Console while the badge is up leaves
+    -- them bound — and splitTo must refuse, out loud, rather than carrying
+    -- on. This is the only path that reaches that guard, and without a
+    -- check for it the guard is untestable.
+    loadModule(); grid.show(false); typeLabel("aaa")
+    local K1b = grid.halvePair(grid.halveKeys, grid.alphabet)
+    grid.halve = false
     ALERTS = {}
-    check("⌥+arrow while the grid is still up is BOUND in the picker",
-          grid.pickModal.binds["alt|down"] ~= nil
-          and grid.pickModal.binds["alt|up"] ~= nil
-          and grid.pickModal.binds["alt|left"] ~= nil
-          and grid.pickModal.binds["alt|right"] ~= nil)
-    grid.pickModal.binds["alt|down"]()
-    check("...and it SAYS the letters come first rather than eating the key",
-          (function()
-              for _, a in ipairs(ALERTS) do
-                  if a:find("three letters", 1, true) then return true end
-              end
-              return false, #ALERTS
-          end)())
-    check("...and it does not tear the grid down or move anything",
-          grid.state ~= nil and grid.state.phase ~= "landed")
+    local heldAt = { x = MOUSE_AT.x, y = MOUSE_AT.y }
+    local f = grid.landModal.binds["|" .. tostring(K1b)]
+    if f then f() end
+    check("switching splitting off AFTER landing refuses out loud and moves "
+          .. "nothing", MOUSE_AT.x == heldAt.x and MOUSE_AT.y == heldAt.y
+          and (function()
+                  for _, a in ipairs(ALERTS) do
+                      if a:find("switched off", 1, true) then return true end
+                  end
+                  return false
+               end)(), #ALERTS .. " alert(s)")
+    grid.halve = true
     grid.hide("test")
-    loadModule(); grid.halve = false; grid.show(false); typeLabel("aaa")
-    ALERTS = {}
-    landKey("down", "alt")
-    check("...and with halving switched off the refusal is named too",
+
+    -- 🚨 6.195.0's hint keys went with the feature they explained.
+    loadModule(); grid.show(false)
+    check("⌥+arrow in the PICKER is no longer bound — a key that says "
+          .. "'⌥+arrow halves the cell' is worse than an unbound one once "
+          .. "⌥+arrow halves nothing",
+          grid.pickModal.binds["alt|down"] == nil
+          and grid.pickModal.binds["alt|up"] == nil)
+    grid.hide("test")
+
+    loadModule(); grid.show(false); typeLabel("aaa")
+    -- 🔒 THE RULE IS NARROWED, NOT DELETED (6.192.0 → 6.252.0). Landed mode
+    -- may capture EXACTLY the two split letters and NO others; ⌥+letter is
+    -- still forbidden outright.
+    check("🔒 landed mode binds the two split letters and NOT ONE OTHER — "
+          .. "everything else you type reaches the app underneath",
           (function()
-              for _, a in ipairs(ALERTS) do
-                  if a:find("switched off", 1, true) then return true end
+              for ch in ("abcdefghijklmnopqrstuvwxyz"):gmatch(".") do
+                  local bound = grid.landModal.binds["|" .. ch] ~= nil
+                  local wanted = (ch == K1 or ch == K2)
+                  if bound ~= wanted then return false, ch end
+                  if grid.landModal.binds["alt|" .. ch] ~= nil then
+                      return false, "alt " .. ch
+                  end
               end
-              return false, #ALERTS
+              return true
+          end)())
+    check("...and ⌥+arrow is gone from landed mode too",
+          grid.landModal.binds["alt|up"] == nil
+          and grid.landModal.binds["alt|down"] == nil
+          and grid.landModal.binds["alt|left"] == nil
+          and grid.landModal.binds["alt|right"] == nil)
+    -- 🚨 A HELD split letter must NOT repeat: one press is a decision about
+    -- which half the target is in, and a hold would run the box to the
+    -- floor before you saw it.
+    check("...and a split letter does not auto-repeat, unlike the arrows",
+          grid.landModal.repeats["|" .. K1] == nil
+          and grid.landModal.repeats["|down"] ~= nil)
+    check("...the badge names the two letters",
+          (function()
+              for _, e in ipairs((grid.cross or {}).elements or {}) do
+                  if e.type == "text" and tostring(e.text):find(K1 .. K2 .. " split",
+                                                                1, true) then
+                      return true
+                  end
+              end
+              return false
           end)())
     grid.hide("test")
 
     loadModule()
-    check("🔒 the halving keys are ⌥+ARROWS, never letters — landed mode still "
-          .. "binds no letter, so LL's typing reaches the app underneath", (function()
-        for ch in ("abcdefghijklmnopqrstuvwxyz"):gmatch(".") do
-            if grid.landModal.binds["|" .. ch] ~= nil then return false, ch end
-            if grid.landModal.binds["alt|" .. ch] ~= nil then return false, "alt " .. ch end
-        end
-        return grid.landModal.binds["alt|up"] ~= nil and grid.landModal.binds["alt|down"] ~= nil
-           and grid.landModal.binds["alt|left"] ~= nil and grid.landModal.binds["alt|right"] ~= nil
-    end)())
-    -- 🚨 A HELD ⌥+arrow must NOT repeat: unlike the nudge, one press here is
-    -- a decision about which half the target is in, and a hold would run
-    -- the box to the floor before you saw it.
-    check("...and they do not auto-repeat, unlike the plain arrows",
-          grid.landModal.repeats["alt|down"] == nil
-          and grid.landModal.repeats["|down"] ~= nil)
     local rep0 = _G.mouseGridReport()
     check("the report's nudge line names the HELD speed, not just the tap",
           rep0:find("nudge") and rep0:find("HOLD 32 pt", 1, true)
           and rep0:find("tap 8 pt", 1, true), rep0:match("   nudge   :[^\n]*"))
-    local rep = _G.mouseGridReport()
-    check("the report's halve line names the state and the floor",
-          rep:find("halve") and rep:find("⌥↑↓←→") and rep:find(tostring(grid.halveMin)))
+    check("the report's split line names the two keys and the floor",
+          rep0:find("split", 1, true) and rep0:find(K1 .. " / " .. K2, 1, true)
+          and rep0:find(tostring(grid.halveMin), 1, true),
+          rep0:match("   split   :[^\n]*"))
+    -- 🔎 THREE STATES, and the middle one is the useful one.
+    check("...and says the keys are not bound until the first landing",
+          rep0:find("not bound yet", 1, true) ~= nil)
+    grid.show(false); typeLabel("aaa")
+    check("...and names them once they are",
+          _G.mouseGridReport():find("bound " .. K1 .. K2, 1, true) ~= nil)
+    grid.hide("test")
     grid.halve = false
     check("...and says so when it is switched off", _G.mouseGridReport():find("off %(grid%.halve%)"))
     grid.halve = true
@@ -2711,8 +2861,12 @@ do
 
     -- ---- a RESIZE is not a move -------------------------------------
     local madeBeforeHalve = CANVAS_NEW
-    landKey("down", "alt")
-    check("⌥↓ changes the box's SIZE, so it is rebuilt — a moved canvas "
+    do  -- 6.252.0 — the split letter, where ⌥↓ used to be
+        local k1 = grid.halvePair(grid.halveKeys, grid.alphabet)
+        local f = grid.landModal.binds["|" .. tostring(k1)]
+        if f then f() end
+    end
+    check("a SPLIT changes the box's size, so it is rebuilt — a moved canvas "
           .. "would draw the old size's elements in the new place",
           CANVAS_NEW > madeBeforeHalve and grid.draws.boxBuild > drawsBefore.boxBuild)
 

@@ -4,9 +4,36 @@
 -- =====================================================================
 -- 09-18-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.251.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.252.0
 -- =====================================================================
 
+-- NEW IN 6.252.0 — ✂️ THE LANDED BOX SPLITS BY LETTER, AND ⌥HALVE IS
+--                  GONE (modules/mouse_grid.lua):
+--   LL: "When I reach the yellow box level, split each box in half
+--      putting one letter of the alphabet in each box. Remove the ⌥halve
+--      option as I don't use that. Too convoluted."
+--   ✂️ The box you land in is DRAWN split along its LONGER side with one
+--      letter in each half; pressing that letter keeps it, puts the
+--      pointer in its middle and splits again — so it repeats exactly as
+--      ⌥+arrow did, without the modifier or the direction.
+--   🔒 AND THE RULE IS NARROWED, NOT DELETED. 6.192.0 wrote "landed mode
+--      may capture NO alphabet key, so LL's typing reaches the app he
+--      just landed on" and chose ⌥+arrows FOR that rule. It now captures
+--      EXACTLY TWO letters — the pair drawn in the box — and the suite
+--      still forbids every other letter and every ⌥+letter. THE COST,
+--      named: typing one of those two immediately after landing splits
+--      the box instead of reaching the app. The badge shows the pair.
+--   🔌 THEY ARE BOUND ON THE FIRST LANDING, not at setup: a profile's
+--      `settings` are applied AFTER setup returns (6.228.0), so a
+--      `halveKeys` override read at setup would draw one pair and bind
+--      another. hs.hotkey.modal has no unbind, so it happens once.
+--   ✂️ `grid.splitOf(box, minPt)` and `grid.halvePair(keys, alphabet)`
+--      are PURE. The LONGER side is the one worth splitting — halving a
+--      200x20 strip top to bottom adds no precision where it is missing
+--      — and two DIFFERENT characters or nothing, because one letter
+--      cannot name two halves.
+--      · 9,839 -> 9,857 checks · nine mutations, nine bites.
+--
 -- NEW IN 6.251.0 — ⌨️ THE MUSIC CARD TAKES THE KEYBOARD
 --                  (modules/music_player.lua):
 --   LL: "I have to click on it to make it the focus to use the space bar
@@ -36,36 +63,12 @@
 --      strengthened until the ones that do run are the ones asserted.
 --      · 9,819 -> 9,839 checks · seven mutations, seven bites.
 --
--- NEW IN 6.250.0 — 🔤 THE CHEAT SHEET CAN BE SEARCHED FOR PUNCTUATION
---                  (core/cheatsheet.lua):
---   LL: "When I search the cheat sheet, I can search punctuation and I
---      should be able to do this."
---   🔤 THE SHEET IS A WALL OF ⇪\ ⇪' ⇪/ ⇪; ⇪[ ⇪] ⇪- ⇪= and NOT ONE of
---      them could be typed into its own search box: only a-z, 0-9,
---      space and delete were ever claimed. The keys that name half this
---      config were the keys the box ignored.
---   🧨 AND THE FILTER WAS ALREADY SAFE FOR THEM — `cheatSheet.matches`
---      has passed `true` to find() since it was written, precisely
---      because this sheet is full of pattern operators. Only the INPUT
---      was missing, which is why this is eleven bare keys and twenty-one
---      shifted ones rather than a rewrite.
---   ⚠️ THE SHIFTED HALF ASSUMES A US LAYOUT (⇧- is "_" there and is
---      something else elsewhere). A bind that fails is COUNTED and
---      NAMED in the Console rather than pretended away, and the plain
---      half — which is what every ⇪ combo on the sheet is written with
---      — does not depend on the layout at all.
---   🚨 A DIGIT ROW CARRIES ONLY ITS SHIFTED CHARACTER: the bare key is
---      already claimed by the a-z0-9 loop, and binding it twice is the
---      "two objects on one key, one of which nothing can disable" this
---      file warns about at the top of that block. Its own check.
---      · 9,801 -> 9,819 checks · six mutations, six bites.
---
--- (6.249.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.250.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.251.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.252.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -162,7 +165,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.251.0"
+_G.configVersion = "6.252.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the
