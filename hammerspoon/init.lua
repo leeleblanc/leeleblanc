@@ -4,9 +4,45 @@
 -- =====================================================================
 -- 09-17-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.243.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.244.0
 -- =====================================================================
 
+-- NEW IN 6.244.0 — 🗓 THE CALENDAR IS AS TALL AS WHAT IS IN IT
+--                  (modules/mini_calendar.lua):
+--   LL, with two screenshots: "Can you please make this look like the
+--      music player window?" · "I don't know why we made such a large
+--      empty space below the dates." · "The date and time should be above
+--      the months, same as large." · "There's a lot of space below the
+--      calendar. Why do we have that?"
+--   📐 BOTH EMPTY SPACES WERE DRAWN ON PURPOSE, by arithmetic nobody
+--      reread. `cal.height` was a literal 768 while the content needed
+--      about 490; the readout under the months was drawn to whatever the
+--      window had left over, so on a 768-pt panel over 94 pt of text it
+--      was a 362-pt empty box; and the footer was pinned to the BOTTOM OF
+--      THE WINDOW, so it drifted away from the calendar by the slack.
+--   🗓 `cal.layout(width, months)` is PURE and answers the panel's own
+--      height as the SUM of its bands — header · readout · months · footer
+--      · padding. 768 → 494, and nothing is stretched to reach an edge.
+--      `cal.height = nil` means "fit it"; a NUMBER is still taken at its
+--      word (6.230.0's rule).
+--   ⬆ THE DATE AND THE CLOCK MOVED ABOVE THE MONTHS, still 34 pt — the
+--      size was never the complaint, the position and the box were.
+--   🚨 THE KNOB AND THE OUTCOME ARE DIFFERENT FIELDS NOW: show() used
+--      to write the screen-clamped size back over cal.width/cal.height,
+--      so a panel a small display had squeezed could never work its own
+--      height out again. `cal.drawW/drawH` is what it GOT.
+--   🎨 The music player's card, on his ask: #15161a with a #1b1d23
+--      header strip, #22242b buttons on a #33353e hairline. NAMED, NOT
+--      FIXED — that makes the calendar the second panel wearing the
+--      player's look while nine still wear ui_style's; folding the two
+--      together restyles eleven panels at once and is its own release.
+--   🧪 AND THE FIRST SET OF CHECKS PROVED NOTHING ABOUT THE DRAWING:
+--      stretching the readout back to the bottom and re-pinning the
+--      footer — his two complaints, exactly — both left every check
+--      green, because they asserted the LAYOUT's numbers and not the
+--      elements. 6.220.0's rule in a new costume.
+--      · 9,676 -> 9,701 checks · nine mutations, nine bites.
+--
 -- NEW IN 6.243.0 — 🔤 ⇪Z LEARNS THE CORRECTION HE JUST MADE HIMSELF
 --                  (modules/autocorrect.lua):
 --   LL: "I wanted a quick way to use the last correction I makee and then
@@ -38,39 +74,12 @@
 --      `_G.autocorrectForgetFix("makee")` takes it out.
 --      · 9,646 -> 9,676 checks · eight mutations, eight bites.
 --
--- NEW IN 6.242.0 — 🧭 THE GROUND PROBE (modules/ground_probe.lua, no key):
---   The instrument behind the habit written down on 2026-09-17, after
---      6.231.0 → 6.237.0 cost three losses in a row: every release is
---      labelled KNOWN GROUND or NEW GROUND, and on new ground the FIRST
---      release is a probe that prints what macOS actually answered.
---      All three of those losses were at a boundary the gate is blind to
---      — hs.webview cannot take a drop · a throw in a dragging callback
---      is silent · Finder hands over an inode — and all three ended the
---      moment something PRINTED what macOS had said.
---   🧭 `_G.groundReport()` asks six questions and writes the RELEASE each
---      answer decides beside it: Accessibility · Secure Input (READ from
---      capabilities.lua, never re-probed) · the focused element's role,
---      AXSelectedTextRange and AXBoundsForRange · a bounded walk of the
---      front window's clickable elements · whether Spotlight still holds
---      ⌘Space · whether a flagsChanged tap can be made.
---   🟥 THE ROW THAT DECIDES A FEATURE OUTRIGHT: AXBoundsForRange. With no
---      rectangle there is nowhere to draw a pink underline, and the
---      doubled-word alert is the whole feature in that app. The answer is
---      PER APP, and the report says to run it in each.
---   🚨 BOUNDED THREE WAYS AND IT SAYS WHICH BOUND BIT — elements, depth,
---      milliseconds (plus children per element). It walks the AX tree on
---      the main thread, in the config whose subject is what that costs,
---      so a count taken under a bound is printed as a FLOOR (6.197.2).
---   🔒 It changes nothing: no key, no store, no tap left running, and the
---      only boot work is one `defaults read` in a task on a held timer.
---      · 9,589 -> 9,646 checks · seven mutations, seven bites.
---
--- (6.241.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.242.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.243.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.244.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -167,7 +176,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.243.0"
+_G.configVersion = "6.244.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the

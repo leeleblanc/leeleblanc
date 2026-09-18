@@ -1619,11 +1619,18 @@ cal.goToday()
 check("T goes back to today", ymd(cal.cursor) == "2026-08-06")
 check("...and clears the edge warning", cal.atEdge == false)
 
-check("the panel is the 1024×768 you asked for",
-      cal.width == 1024 and cal.height == 768)
+-- 6.244.0: the WIDTH is still the 1024 he asked for; the HEIGHT was a
+-- literal 768 and is worked out from the content now (his "large empty
+-- space below the dates"). nil is the knob saying "fit it".
+check("the panel is the 1024 wide he asked for, and no longer a literal 768",
+      cal.width == 1024 and cal.height == nil)
 check("the date numbers are 16px, as asked", cal.dayTextSize == 16)
-check("it is translucent BLACK rather than grey",
-      cal.bg.red < 0.05 and cal.bg.green < 0.05 and cal.bg.blue < 0.05 and cal.alpha < 1)
+-- 6.244.0: the music player's #15161a rather than the old near-pure black.
+-- Still unmistakably a dark card, still translucent — the check moved with
+-- the colour instead of being deleted for failing.
+check("it is the music player's dark card, and still translucent",
+      cal.bg.red < 0.12 and cal.bg.green < 0.12 and cal.bg.blue < 0.15
+      and cal.alpha < 1)
 check("three months are shown", cal.months == 3)
 check("⇪⇧0 opens it", hyperFor({ "shift" }, "0") ~= nil)
 
@@ -1703,6 +1710,214 @@ end)())
 check("calendar.format is published for other modules",
       _G.service.call("calendar.format", aug7) == "08-07-26")
 
+-- =====================================================================
+-- 🗓 6.244.0 — THE PANEL IS AS TALL AS WHAT IS IN IT
+-- =====================================================================
+-- LL, with two screenshots: "I don't know why we made such a large empty
+-- space below the dates" · "There's a lot of space below the calendar. Why
+-- do we have that?" · "The date and time should be above the months, same
+-- as large."
+--
+-- The height was a LITERAL 768 while the content needed about 490, and the
+-- readout under the months was drawn `cal.height - L.footY - L.pad` tall —
+-- so it stretched to eat every point of slack, and the footer was pinned to
+-- the BOTTOM OF THE WINDOW rather than to the bottom of the calendar. Both
+-- of his empty spaces were drawn on purpose, by arithmetic nobody reread.
+--
+-- cal.layout is PURE, so all of it is proven here with no screen.
+do
+    local L = cal.layout(1024, 3)
+
+    -- 📐 THE SUM IS THE HEIGHT. This is the row the release exists for: no
+    -- band may be stretched to reach an edge, so the total must equal the
+    -- parts added up, with nothing left over.
+    check("🗓 the panel's height IS the sum of its bands — nothing is "
+          .. "stretched to fill a gap",
+          L.height == L.footY + L.footH + L.pad, L.height)
+    check("...and the footer sits under the MONTHS, not against the bottom "
+          .. "of the window", L.footY == L.monthY + L.monthH + 12,
+          L.footY .. " vs " .. (L.monthY + L.monthH))
+    check("...so the space under the last row is one padding, not 274 points",
+          L.height - (L.monthY + L.monthH) == 12 + L.footH + L.pad,
+          L.height - (L.monthY + L.monthH))
+
+    -- 🚨 THE ORDER LL ASKED FOR: the date and the time ABOVE the months.
+    check("🗓 the readout is ABOVE the months", L.readY + L.readH <= L.monthY,
+          L.readY .. "+" .. L.readH .. " vs " .. L.monthY)
+    check("...and under the header strip, not over it",
+          L.readY >= L.headerH, L.readY .. " vs " .. L.headerH)
+    check("...and the readout's own height is FIXED, not whatever is left "
+          .. "over — that box was the empty space",
+          L.readH == 88 and L.readH < L.monthH, L.readH)
+
+    -- 📏 The whole point, in one number.
+    check("🗓 the panel is far shorter than the 768 it was hard-coded to",
+          L.height < 560 and L.height > 380, L.height)
+
+    -- SIX ROWS ALWAYS, deliberately: a five-row month and a six-row month
+    -- must not give the panel two different heights, or it would jump size
+    -- as he pages through the year with [ and ].
+    check("🗓 the month block is always six rows, so paging never resizes "
+          .. "the panel", L.monthH == L.titleH + L.dowH + 6 * L.cellH,
+          L.monthH)
+    check("...and every band is a positive number",
+          L.pad > 0 and L.headerH > 0 and L.readH > 0 and L.monthH > 0
+          and L.footH > 0 and L.colW > 0 and L.cellW > 0)
+
+    -- PURE means it answers about the numbers it is GIVEN, never about the
+    -- module's own state — which is what lets the gate prove a 4K panel and
+    -- a clamped one without a screen.
+    local wide = cal.layout(1600, 3)
+    check("🗓 cal.layout is PURE — a wider panel gets wider columns and the "
+          .. "same height", wide.colW > L.colW and wide.height == L.height,
+          wide.colW .. " / " .. wide.height)
+    local two = cal.layout(1024, 2)
+    check("...and fewer months means wider columns, still the same height",
+          two.colW > L.colW and two.height == L.height, two.colW)
+    check("...and a nonsense width does not throw or go negative",
+          cal.layout(nil, nil).height == L.height
+          and cal.layout("wide", 0).cellW > 0)
+
+    -- 🔌 NIL MEANS "WORK IT OUT", A NUMBER IS TAKEN AT ITS WORD (6.230.0's
+    -- rule). His override has to keep winning, or a panel he sized by hand
+    -- would silently snap back on the next release.
+    local hadHeight = cal.height
+    cal.height = nil
+    check("🔌 with no height set, the panel asks for the content's height",
+          cal.panelHeight() == L.height, cal.panelHeight())
+    cal.height = 700
+    check("...and a number in settings is obeyed, not overruled",
+          cal.panelHeight() == 700, cal.panelHeight())
+    cal.height = hadHeight
+
+    -- 🚨 THE KNOB AND THE OUTCOME ARE DIFFERENT FIELDS. show() used to write
+    -- the screen-clamped size back over cal.width/cal.height, so a panel the
+    -- screen had squeezed could never work its height out again — the fix
+    -- for the empty space would have been undone by the first small display.
+    local src = (function()
+        local f = io.open(MODDIR .. "/mini_calendar.lua", "r")
+        local t = f:read("*a") ; f:close() ; return t
+    end)()
+    check("🚨 the clamped size is never written back over the knobs",
+          src:find("cal%.width, cal%.height = f%.w, f%.h") == nil
+          and src:find("cal%.drawW, cal%.drawH = f%.w, f%.h") ~= nil)
+    check("...and the readout is no longer sized off the window's height",
+          src:find("cal%.height %- L%.footY") == nil)
+
+    -- 🎨 The music player's card, on his ask. The player is a WEBVIEW and is
+    -- the one panel ui_style.lua does not reach, so these are written here
+    -- — and the fact that this diverges from the other nine is NAMED in the
+    -- module rather than left for someone to notice.
+    check("🎨 the card carries the player's own colours",
+          type(cal.headerBg) == "table" and type(cal.btnBg) == "table"
+          and type(cal.inkDim) == "table")
+    check("...and the divergence from ui_style is written down, not silent",
+          src:find("NAMED, NOT FIXED", 1, true) ~= nil)
+
+    -- =================================================================
+    -- 🚨 AND NOW THE DRAWING, because the numbers above proved NOTHING
+    -- about it. Two mutations — stretching the readout back to the bottom
+    -- of the window, and pinning the footer to it — left every check above
+    -- green, and those two ARE his complaint. A layout that is right while
+    -- the render ignores it is 6.220.0's rule in a new costume: assert
+    -- where the forbidden thing would actually happen.
+    -- =================================================================
+    local wasToday, wasCursor = cal.today, cal.cursor
+    cal.today, cal.cursor = at(2026, 8, 6), at(2026, 8, 6)
+    -- ⇪⇧0 TOGGLES, so a panel an earlier section left open would be
+    -- CLOSED by a bare show() and this whole block would read a nil canvas.
+    -- And the sections after this one expect the panel in the state they
+    -- left it, so it is put back at the end rather than simply closed.
+    local wasOpen = (cal.canvas ~= nil)
+    if cal.canvas then cal.hide() end
+    cal.show()
+    local els = cal.canvas and cal.canvas._elements
+    -- cal.drawW nil means show() did not record what it drew — a fault in
+    -- its own right, and the layout still answers rather than throwing.
+    local Ld  = cal.layout(cal.drawW or cal.width, cal.months)
+
+    local function findText(needle)
+        for _, e in ipairs(els or {}) do
+            if e.type == "text" and type(e.text) == "string"
+               and e.text:find(needle, 1, true) then return e end
+        end
+    end
+    -- The readout's own panel: the one soft-white filled rectangle.
+    local function readoutRect()
+        for _, e in ipairs(els or {}) do
+            if e.type == "rectangle" and e.action == "fill" and e.fillColor
+               and e.fillColor.white == 1 and e.fillColor.alpha == 0.05 then
+                return e
+            end
+        end
+    end
+
+    local rr = readoutRect()
+    check("🚨 DRAWN: the readout box is its own height, not the window's "
+          .. "leftover — this is the empty space he photographed",
+          rr ~= nil and rr.frame.h == Ld.readH,
+          rr and (rr.frame.h .. " tall in a " .. tostring(cal.drawH) .. " panel"))
+    check("...and it is drawn ABOVE the months",
+          rr ~= nil and rr.frame.y == Ld.readY and rr.frame.y < Ld.monthY,
+          rr and rr.frame.y)
+
+    local foot = findText("Esc close")
+    check("🚨 DRAWN: the footer sits under the months, not against the "
+          .. "bottom of the window",
+          foot ~= nil and foot.frame.y == Ld.footY,
+          foot and (foot.frame.y .. " vs footY " .. Ld.footY
+                    .. " / panel " .. tostring(cal.drawH)))
+    check("...and there is one padding under it, not a field of nothing",
+          foot ~= nil and type(cal.drawH) == "number"
+          and (cal.drawH - (foot.frame.y + foot.frame.h)) <= Ld.pad + 1,
+          foot and type(cal.drawH) == "number"
+              and (cal.drawH - (foot.frame.y + foot.frame.h))
+              or ("drawH is " .. tostring(cal.drawH)))
+
+    -- Found by SHAPE, not by the words: the date string depends on the
+    -- locale and on which weekday the fixture's date happens to be, and a
+    -- check that stops biting because a month rolled over is not a check.
+    local dateEl, timeEl
+    for _, e in ipairs(els or {}) do
+        if e.type == "text" and e.textSize == 34 then
+            if e.textAlignment == "right" then timeEl = e else dateEl = e end
+        end
+    end
+    -- 🚨 NOT findText: the HEADER's range line ("August 2026 → October
+    -- 2026") contains the same words and is drawn first, so a text search
+    -- returns the header and the check compares the date against the thing
+    -- above it rather than the thing below it. The month titles are the
+    -- 18 pt centred ones.
+    local monthEl
+    for _, e in ipairs(els or {}) do
+        if e.type == "text" and e.textSize == 18
+           and e.textAlignment == "center" then monthEl = monthEl or e end
+    end
+    check("🗓 DRAWN: the big date is above the month titles, and is still "
+          .. "34 pt — the size was never the complaint",
+          dateEl ~= nil and monthEl ~= nil and dateEl.textSize == 34
+          and dateEl.frame.y < monthEl.frame.y,
+          dateEl and (dateEl.frame.y .. " vs "
+                      .. tostring(monthEl and monthEl.frame.y)))
+    check("...and the live clock sits on the same line, right-aligned",
+          timeEl ~= nil and dateEl ~= nil and timeEl.frame.y == dateEl.frame.y,
+          timeEl and timeEl.text)
+
+    -- 🎨 The player's header strip, and the hairline under it.
+    local strip
+    for _, e in ipairs(els or {}) do
+        if e.type == "rectangle" and e.action == "fill" and e.fillColor
+           and e.fillColor.red and e.frame and e.frame.h == Ld.headerH then
+            strip = e
+        end
+    end
+    check("🎨 DRAWN: the music player's header strip runs across the top",
+          strip ~= nil and strip.frame.y < 1, strip and strip.frame.h)
+
+    if not wasOpen then cal.hide() end
+    cal.today, cal.cursor = wasToday, wasCursor
+end
+
 -- 🕐 6.147.0 — THE DATE REPORT AND THE CLOCK, both LL's ask verbatim:
 -- "give all as a 'Date report:'" · "a time display: 2:00:00 PM so I
 -- can see what time it is".
@@ -1755,11 +1970,12 @@ do
     check("calendar.frame is nil while the panel is closed", _G.service.call("calendar.frame") == nil)
     cal.show()
     check("🚨 opening the calendar asks the pomodoro to dock, with the panel's own frame",
-          #DOCKS == 1 and type(DOCKS[1]) == "table" and DOCKS[1].w == cal.width and DOCKS[1].h == cal.height
+          #DOCKS == 1 and type(DOCKS[1]) == "table"
+          and DOCKS[1].w == cal.drawW and DOCKS[1].h == cal.drawH
           and DOCKS[1].x == cal.canvas:frame().x, DOCKS[1] and (DOCKS[1].w .. "x" .. DOCKS[1].h))
     check("calendar.frame answers the frame while it is up", (function()
         local f = _G.service.call("calendar.frame")
-        return type(f) == "table" and f.w == cal.width
+        return type(f) == "table" and f.w == cal.drawW
     end)())
     cal.hide()
     check("🚨 closing it asks the pomodoro to undock — before the canvas is gone", UNDOCKS == 1 and cal.canvas == nil)

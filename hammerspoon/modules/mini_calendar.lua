@@ -55,14 +55,42 @@ function M.setup(core)
     -- ✏️ EDIT HERE ---------------------------------------------------------
     cal.enabled     = true
     cal.width       = 1024
-    cal.height      = 768
+    -- 🗓 6.244.0 — NIL MEANS "AS TALL AS WHAT IS IN IT". LL: "I don't
+    -- know why we made such a large empty space below the dates" and
+    -- "There's a lot of space below the calendar. Why do we have that?"
+    -- Because the height was a LITERAL 768 while the content needed about
+    -- 490, and the readout under the months was stretched to fill whatever
+    -- was left over (the window's height, less the footer's top, less the
+    -- padding) — so the emptier
+    -- the panel, the bigger the empty box drawn around the date. The
+    -- height is worked out from the parts now. A NUMBER here is still
+    -- taken at its word, the way ft.folders is (6.230.0's rule: nil means
+    -- work it out, anything else is obeyed).
+    --   settings = { mini_calendar = { height = 700 } }
+    cal.height      = nil
     cal.months      = 3         -- panels across. 3 fits 1024 comfortably.
     cal.dayTextSize = 16        -- the date numbers, as asked
-    cal.alpha       = 0.90      -- translucent BLACK, not grey (see bg below)
-    -- 🎨 6.90.0 — the shared card hue (ui_style.lua); cal.alpha above
-    -- stays the translucency knob. Old literal kept as the fallback.
+    cal.alpha       = 0.94      -- translucent BLACK, not grey (see bg below)
+    -- 🎨 6.244.0 — THE MUSIC PLAYER'S CARD, on LL's ask ("Can you
+    -- please make this look like the music player window?"). The player is
+    -- a WEBVIEW and is the one panel ui_style.lua does not reach, so its
+    -- numbers are written here rather than read from there: #15161a card,
+    -- #1b1d23 header strip, #22242b buttons with a #33353e hairline,
+    -- #9a9aa4 and #7d7f89 for the two receded greys.
+    -- 🚨 NAMED, NOT FIXED (6.201.1's rule): that makes the calendar the
+    -- SECOND panel wearing the player's look while nine others still wear
+    -- ui_style's. The right end state is the player's palette folded INTO
+    -- ui_style so one edit moves all eleven — but that restyles eleven
+    -- panels in one go, which is a sweep, and the rule here is one change
+    -- per release. It waits for its own.
     local st = _G.uiStyle or {}
-    cal.bg          = st.bg or { red = 0.02, green = 0.02, blue = 0.035 }
+    cal.bg          = { red = 0.082, green = 0.086, blue = 0.102 }  -- #15161a
+    cal.headerBg    = { red = 0.106, green = 0.114, blue = 0.137 }  -- #1b1d23
+    cal.btnBg       = { red = 0.133, green = 0.141, blue = 0.169 }  -- #22242b
+    cal.btnStroke   = { red = 0.200, green = 0.208, blue = 0.243 }  -- #33353e
+    cal.ink         = { red = 0.906, green = 0.906, blue = 0.918 }  -- #e7e7ea
+    cal.inkDim      = { red = 0.604, green = 0.604, blue = 0.643 }  -- #9a9aa4
+    cal.inkFaint    = { red = 0.490, green = 0.498, blue = 0.537 }  -- #7d7f89
     cal.weekStart   = 2         -- 1 = Sunday, 2 = Monday (matches Itsycal)
     cal.rangeDays   = 365       -- how far the cursor may travel either way
     cal.menuBar     = true      -- show the date next to the clock
@@ -158,22 +186,54 @@ function M.setup(core)
     end
 
     -- ---- geometry --------------------------------------------------------
-    -- Worked out once per draw from cal.width/cal.height so changing the
-    -- panel size in the settings above does not need any other edit.
-    local function layout()
+    -- 🗓 6.244.0 — PURE, AND IT ANSWERS THE PANEL'S OWN HEIGHT. Every
+    -- band is stacked in the order it is drawn and the total falls out of
+    -- the sum, so there is no number anywhere that has to be kept in step
+    -- with the layout by hand — which is exactly what 768 was.
+    --
+    -- THE ORDER IS THE RELEASE (LL: "The date and time should be above the
+    -- months, same as large"):
+    --      header strip   the month range, and ‹ Today ›
+    --      the readout    the big date and the live clock, then the
+    --                     week/day line  — ABOVE the months now
+    --      the months     always SIX rows, so the panel does not change
+    --                     height between a five-row month and a six-row one
+    --      the footer     the key hints, immediately under the months
+    function cal.layout(width, months)
+        width  = tonumber(width) or 1024
+        months = math.max(1, math.floor(tonumber(months) or 3))
         local L = {}
-        L.pad      = 26
-        L.headerH  = 74
+        L.pad      = 22
+        L.headerH  = 56
         L.gap      = 22
-        L.colW     = (cal.width - L.pad * 2 - L.gap * (cal.months - 1)) / cal.months
+        L.colW     = (width - L.pad * 2 - L.gap * (months - 1)) / months
         L.cellW    = math.floor((L.colW - 8) / 7)
         L.cellH    = 36
         L.titleH   = 32
         L.dowH     = 22
         L.monthH   = L.titleH + L.dowH + 6 * L.cellH
-        L.monthY   = L.headerH + 10
-        L.footY    = L.monthY + L.monthH + 26
+        L.readY    = L.headerH + 10
+        L.readH    = 88
+        L.monthY   = L.readY + L.readH + 14
+        L.footY    = L.monthY + L.monthH + 12
+        L.footH    = 22
+        -- The panel is the sum of its bands and the bottom padding. Nothing
+        -- is stretched to reach an edge, which is the whole fix.
+        L.height   = L.footY + L.footH + L.pad
         return L
+    end
+
+    local function layout()
+        return cal.layout(cal.drawW or cal.width, cal.months)
+    end
+
+    -- The height the panel ASKS FOR: his override if he set one, else the
+    -- content's own. `cal.drawH` is what it actually GOT after the screen
+    -- clamped it, and the two are deliberately different fields — writing
+    -- the clamped number back over the knob is how the old code lost the
+    -- ability to work the height out ever again.
+    function cal.panelHeight()
+        return tonumber(cal.height) or cal.layout(cal.width, cal.months).height
     end
 
     -- ---- drawing ---------------------------------------------------------
@@ -294,13 +354,33 @@ function M.setup(core)
         local L = layout()
         local els = {}
 
+        local W = cal.drawW or cal.width
+        local H = cal.drawH or cal.panelHeight()
+        local R = st.radius or 12
+
         table.insert(els, {
             type = "rectangle", action = "strokeAndFill",
             fillColor = { red = cal.bg.red, green = cal.bg.green,
                           blue = cal.bg.blue, alpha = cal.alpha },
             strokeColor = st.stroke or { white = 1, alpha = 0.16 }, strokeWidth = 1,
-            roundedRectRadii = { xRadius = st.radius or 16, yRadius = st.radius or 16 },
-            frame = { x = 0.5, y = 0.5, w = cal.width - 1, h = cal.height - 1 },
+            roundedRectRadii = { xRadius = R, yRadius = R },
+            frame = { x = 0.5, y = 0.5, w = W - 1, h = H - 1 },
+        })
+
+        -- 🎨 6.244.0 — the music player's HEADER STRIP: a slightly
+        -- lighter band across the top with a hairline under it, so the
+        -- title and the nav read as chrome rather than as content.
+        table.insert(els, {
+            type = "rectangle", action = "fill",
+            fillColor = { red = cal.headerBg.red, green = cal.headerBg.green,
+                          blue = cal.headerBg.blue, alpha = cal.alpha },
+            roundedRectRadii = { xRadius = R, yRadius = R },
+            frame = { x = 0.5, y = 0.5, w = W - 1, h = L.headerH },
+        })
+        table.insert(els, {
+            type = "rectangle", action = "fill",
+            fillColor = { white = 1, alpha = 0.10 },
+            frame = { x = 0, y = L.headerH - 1, w = W, h = 1 },
         })
 
         local c = os.date("*t", cal.cursor)
@@ -310,64 +390,66 @@ function M.setup(core)
             text = MONTHS[c.month] .. " " .. c.year .. "  →  " ..
                    MONTHS[os.date("*t", lastShown).month] .. " " ..
                    os.date("*t", lastShown).year,
-            textSize = 24, textAlignment = "left",
-            textColor = st.fg or { white = 0.97 },
-            frame = { x = L.pad + 4, y = 22, w = cal.width * 0.6, h = 34 },
+            textSize = 20, textAlignment = "left",
+            textColor = cal.ink,
+            frame = { x = L.pad, y = 16, w = W * 0.6, h = 28 },
         })
 
         -- ‹ Today › — the mouse alternative to [ ] and T.
-        local btnY, btnH = 24, 30
+        -- The player's buttons: #22242b on a #33353e hairline, radius 6.
+        local btnY, btnH = 14, 28
         local buttons = {
-            { id = "nav:-1",    label = "‹",     x = cal.width - L.pad - 236, w = 44 },
-            { id = "nav:today", label = "Today", x = cal.width - L.pad - 184, w = 96 },
-            { id = "nav:1",     label = "›",     x = cal.width - L.pad - 80,  w = 44 },
+            { id = "nav:-1",    label = "‹",     x = W - L.pad - 216, w = 40 },
+            { id = "nav:today", label = "Today", x = W - L.pad - 170, w = 90 },
+            { id = "nav:1",     label = "›",     x = W - L.pad - 74,  w = 40 },
         }
         for _, b in ipairs(buttons) do
             table.insert(els, {
                 type = "rectangle", action = "strokeAndFill",
-                fillColor = { white = 1, alpha = 0.08 },
-                strokeColor = { white = 1, alpha = 0.16 }, strokeWidth = 1,
-                roundedRectRadii = { xRadius = 8, yRadius = 8 },
+                fillColor = cal.btnBg,
+                strokeColor = cal.btnStroke, strokeWidth = 1,
+                roundedRectRadii = { xRadius = 6, yRadius = 6 },
                 frame = { x = b.x, y = btnY, w = b.w, h = btnH },
                 trackMouseDown = true, id = b.id,
             })
             table.insert(els, {
-                type = "text", text = b.label, textSize = 14,
-                textAlignment = "center", textColor = { white = 0.92 },
-                frame = { x = b.x, y = btnY + 6, w = b.w, h = 22 },
+                type = "text", text = b.label, textSize = 13,
+                textAlignment = "center", textColor = cal.ink,
+                frame = { x = b.x, y = btnY + 5, w = b.w, h = 22 },
             })
             cal.hitboxes[b.id] = b.id
         end
 
-        for i = 1, cal.months do
-            drawMonth(els, L, L.pad + (i - 1) * (L.colW + L.gap), L.monthY,
-                      addMonths(cal.cursor, i - 1))
-        end
-
-        -- ---- the readout under the months --------------------------------
+        -- ---- the readout, ABOVE the months (6.244.0) ---------------------
+        -- LL: "The date and time should be above the months, same as
+        -- large." Same 34 pt as before — the size was never the problem,
+        -- the POSITION and the box around it were.
+        -- 🚨 AND ITS HEIGHT IS ITS CONTENT'S. It used to be drawn to
+        -- whatever the window had left over, which on a 768-pt panel over
+        -- 94 pt of text is 362 pt of empty box — his "large empty space
+        -- below the dates", drawn on purpose by arithmetic nobody reread.
         table.insert(els, {
             type = "rectangle", action = "fill",
             fillColor = { white = 1, alpha = 0.05 },
-            roundedRectRadii = { xRadius = 12, yRadius = 12 },
-            frame = { x = L.pad, y = L.footY, w = cal.width - L.pad * 2,
-                      h = cal.height - L.footY - L.pad },
+            roundedRectRadii = { xRadius = 10, yRadius = 10 },
+            frame = { x = L.pad, y = L.readY, w = W - L.pad * 2, h = L.readH },
         })
         table.insert(els, {
             type = "text",
             text = os.date("%A, %d %B %Y", cal.cursor):gsub(" 0", " "),
             textSize = 34, textAlignment = "left",
-            textColor = st.fg or { white = 0.98 },
-            frame = { x = L.pad + 22, y = L.footY + 20, w = cal.width - L.pad * 2 - 44, h = 46 },
+            textColor = cal.ink,
+            frame = { x = L.pad + 18, y = L.readY + 12, w = W - L.pad * 2 - 36, h = 44 },
         })
         -- 🕐 6.147.0 — the time, as big as the date and live to the
-        -- second (cal.clock re-renders while the panel is up). Same
-        -- frame as the date line, right-aligned, so the footer reads
-        -- date on the left, NOW on the right.
+        -- second (cal.clock re-renders while the panel is up). Same frame
+        -- as the date line, right-aligned, so the row reads date on the
+        -- left, NOW on the right.
         table.insert(els, {
             type = "text", text = cal.timeNow(),
             textSize = 34, textAlignment = "right",
-            textColor = st.fg or { white = 0.98 },
-            frame = { x = L.pad + 22, y = L.footY + 20, w = cal.width - L.pad * 2 - 44, h = 46 },
+            textColor = cal.ink,
+            frame = { x = L.pad + 18, y = L.readY + 12, w = W - L.pad * 2 - 36, h = 44 },
         })
 
         local doy   = tonumber(os.date("%j", cal.cursor))
@@ -378,11 +460,20 @@ function M.setup(core)
             text = string.format("%s  ·  week %s  ·  day %d of %d  ·  %d left in %d",
                 relativeWords(cal.cursor), os.date("%V", cal.cursor),
                 doy, total, total - doy, yr),
-            textSize = 15, textAlignment = "left",
-            textColor = st.fgDim or { white = 0.62 },
-            frame = { x = L.pad + 22, y = L.footY + 70, w = cal.width - L.pad * 2 - 44, h = 24 },
+            textSize = 14, textAlignment = "left",
+            textColor = cal.inkDim,
+            frame = { x = L.pad + 18, y = L.readY + 58, w = W - L.pad * 2 - 36, h = 22 },
         })
 
+        for i = 1, cal.months do
+            drawMonth(els, L, L.pad + (i - 1) * (L.colW + L.gap), L.monthY,
+                      addMonths(cal.cursor, i - 1))
+        end
+
+        -- 📐 The footer sits under the MONTHS, not against the bottom of
+        -- the window. Pinned to the window's own height it floated away from the
+        -- calendar by however much slack the panel happened to have — the
+        -- second half of "there's a lot of space below the calendar".
         local edgeNote = ""
         if cal.atEdge then
             edgeNote = "   ⛔ that is as far as this goes — ±" .. cal.rangeDays .. " days"
@@ -394,9 +485,8 @@ function M.setup(core)
                    .. "   R the Date report   Esc close" .. edgeNote,
             textSize = 13, textAlignment = "left",
             textColor = cal.atEdge and { red = 1, green = 0.72, blue = 0.4 }
-                                    or { white = 0.42 },
-            frame = { x = L.pad + 22, y = cal.height - L.pad - 30,
-                      w = cal.width - L.pad * 2 - 44, h = 22 },
+                                    or cal.inkFaint,
+            frame = { x = L.pad, y = L.footY, w = W - L.pad * 2, h = L.footH },
         })
 
         local ok, err = pcall(function() cal.canvas:replaceElements(els) end)
@@ -495,7 +585,7 @@ function M.setup(core)
                        or hs.screen.mainScreen()
         local sf = screen and screen:frame() or { x = 0, y = 0, w = 1440, h = 900 }
         local w = math.min(cal.width, sf.w - cal.margin * 2)
-        local h = math.min(cal.height, sf.h - cal.margin * 2)
+        local h = math.min(cal.panelHeight(), sf.h - cal.margin * 2)
         if cal.anchor == "center" then
             return { x = sf.x + (sf.w - w) / 2, y = sf.y + (sf.h - h) / 2, w = w, h = h }
         end
@@ -522,6 +612,10 @@ function M.setup(core)
             pcall(function() cal.canvas:delete() end)
             cal.canvas = nil
         end
+        -- 6.244.0 — forget what the LAST screen clamped it to, so the next
+        -- open works its size out again rather than inheriting a squeeze
+        -- from a monitor that is no longer there.
+        cal.drawW, cal.drawH = nil, nil
         _G.diag.say("calendar", "closed")
     end
 
@@ -538,7 +632,11 @@ function M.setup(core)
         end
 
         local f = frameFor()
-        cal.width, cal.height = f.w, f.h
+        -- 🗓 6.244.0 — what it GOT, in its own fields. The clamped size
+        -- used to be written back over cal.width/cal.height, which meant a
+        -- panel the screen had squeezed could never work its height out
+        -- again: the knob and the outcome were the same variable.
+        cal.drawW, cal.drawH = f.w, f.h
         local okNew, made = pcall(hs.canvas.new, f)
         if not (okNew and made) then
             hs.alert.show("🗓 Mini calendar: couldn't draw — check the Console")

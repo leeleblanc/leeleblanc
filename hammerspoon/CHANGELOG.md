@@ -5,6 +5,76 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.244.0 — 🗓 THE CALENDAR IS AS TALL AS WHAT IS IN IT
+                 (modules/mini_calendar.lua):
+  LL, with two screenshots of ⇪⇧0: "Can you please make this look like the
+  music player window?" · "I don't know why we made such a large empty space
+  below the dates." · "The date and time should be above the months, same as
+  large." · "There's a lot of space below the calendar. Why do we have that?"
+
+  📐 BOTH EMPTY SPACES WERE DRAWN ON PURPOSE, by arithmetic nobody reread.
+  `cal.height` was a literal 768 while the content needed about 490. The
+  readout under the months was drawn to whatever the window had left over —
+  the window's height, less the footer's top, less the padding — so on a
+  768-pt panel holding 94 pt of text it was a 362-pt empty box with a date
+  sitting in the top corner of it. And the footer was pinned to the BOTTOM
+  OF THE WINDOW rather than to the bottom of the calendar, so it drifted
+  away from the last row by exactly the slack. Neither was a bug in the
+  ordinary sense; both were numbers that stopped meaning anything once the
+  panel's contents changed and nobody went back to the sum.
+
+  🗓 `cal.layout(width, months)` is PURE and answers the panel's own HEIGHT
+  as the sum of its bands: header strip · readout · months · footer ·
+  padding. 768 → 494. Nothing is stretched to reach an edge, which is the
+  whole fix, and the total cannot drift from the layout again because it IS
+  the layout added up. `cal.height = nil` means "fit it"; a NUMBER is still
+  taken at its word, the way ft.folders is (6.230.0: nil means work it out,
+  anything else is obeyed) — so `settings = { mini_calendar = { height =
+  700 } }` still wins.
+
+  ⬆ THE DATE AND THE CLOCK MOVED ABOVE THE MONTHS, still 34 pt. The size was
+  never the complaint; the position and the box around it were.
+
+  🚨 THE KNOB AND THE OUTCOME ARE DIFFERENT FIELDS NOW. show() wrote the
+  screen-clamped frame back over cal.width/cal.height, which meant a panel a
+  small display had squeezed could never work its own height out again — the
+  knob and the result were the same variable, so this release's fix would
+  have been undone by the first display that clamped it. `cal.drawW/drawH`
+  is what it GOT; cal.width/cal.height is what it ASKS FOR. GENERAL: a
+  setting and the value it produced never share a field.
+
+  🎨 The music player's card, on his ask: #15161a with a #1b1d23 header strip
+  and a hairline under it, #22242b buttons on a #33353e edge, #9a9aa4 and
+  #7d7f89 for the two receded greys. The player is a WEBVIEW and is the one
+  panel ui_style.lua does not reach, so its numbers are written into the
+  calendar rather than read from there. NAMED, NOT FIXED (6.201.1): that
+  makes the calendar the SECOND panel wearing the player's look while nine
+  others still wear ui_style's. The right end state is the player's palette
+  folded INTO ui_style so one edit moves all eleven — but that restyles
+  eleven panels in one go, which is a sweep, and the rule is one change per
+  release. It waits for its own.
+
+  🧪 AND THE FIRST SET OF CHECKS PROVED NOTHING ABOUT THE DRAWING. Nine
+  mutations were run; two of them — stretching the readout back to the
+  bottom of the window, and re-pinning the footer to it — left every check
+  green. Those two ARE his complaint. The checks asserted `cal.layout`'s
+  NUMBERS, and a layout can be right while the render ignores it: 6.220.0's
+  rule ("an assertion about nesting written as an assertion about order
+  passes the mutation it exists to catch") in a new costume. The suite reads
+  the canvas's own elements now — the readout rectangle's height, the
+  footer text's y, the big date against the month titles.
+
+  🧪 THREE SMALLER ONES, all old rules: a mutation that left `cal.drawH` nil
+  KILLED the suite on a nil concatenation instead of failing a check
+  (6.186.0) — the messages are guarded now; a text search for "August 2026"
+  found the HEADER's range line, which contains the same words and is drawn
+  first, so the date was being compared against the thing above it; and the
+  block closed the panel it had opened, leaving a later section reading a
+  clock that was no longer running — it puts the panel back the way it
+  found it.
+
+  · 9,676 -> 9,701 checks · nine mutations, nine bites.
+
 NEW IN 6.243.0 — 🔤 ⇪Z LEARNS THE CORRECTION HE JUST MADE HIMSELF
                  (modules/autocorrect.lua):
   LL: "I wanted a quick way to use the last correction I makee and then I

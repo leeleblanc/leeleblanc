@@ -1835,7 +1835,7 @@ THE METHOD, when something breaks after a stacked zip:
    6.216.0 6f06071 · 6.217.0 a475bef · 6.218.0 41b002b · 6.219.0 862c177
    · 6.220.0 ac3975e · 6.221.0 ead07d9 · 6.222.0 1842ca7 · 6.223.0
    86ac82b · 6.224.0 67957ea · 6.225.0 98434fe · 6.226.0 304f1f9 ·
-   6.227.0 14e953a · 6.228.0 2aa3dfe · 6.229.0 a1318e1 · 6.230.0 0740c07 · 6.231.0 c1921af · 6.231.1 5a5c298 · 6.232.0 1ca3f6f · 6.233.0 2328c8c · 6.234.0 57f78d0 · 6.235.0 52e5b21 · 6.236.0 34cff8b · 6.236.1 fdce771 · 6.237.0 adf9256 · 6.238.0 3adad4f · 6.239.0 3adad4f (one commit, two releases) · 6.240.0 8f44bec · 6.241.0 dce517e · 6.242.0 1a1dab0 · 6.243.0 8fba04f.
+   6.227.0 14e953a · 6.228.0 2aa3dfe · 6.229.0 a1318e1 · 6.230.0 0740c07 · 6.231.0 c1921af · 6.231.1 5a5c298 · 6.232.0 1ca3f6f · 6.233.0 2328c8c · 6.234.0 57f78d0 · 6.235.0 52e5b21 · 6.236.0 34cff8b · 6.236.1 fdce771 · 6.237.0 adf9256 · 6.238.0 3adad4f · 6.239.0 3adad4f (one commit, two releases) · 6.240.0 8f44bec · 6.241.0 dce517e · 6.242.0 1a1dab0 · 6.243.0 8fba04f · 6.244.0 SHA244.
    Keep this list current: one line per release, appended at ceremony
    time.
 4. A BISECT IS AN OPTION, NOT THE FIRST MOVE — it costs him an install
@@ -1913,6 +1913,7 @@ as the fix when a loss lands.
 | 6.241.0 | 🎯 the cloud folder is watched by its children — this config's own Logs folder was waking the module that writes to it | pending |
 | 6.242.0 | 🧭 `_G.groundReport()` — what THIS Mac answers about the six surfaces the next releases need, with the release each answer decides | pending |
 | 6.243.0 | 🔤 ⇪Z learns the correction HE just made — backspace over a typo, retype it, press ⇪Z | pending |
+| 6.244.0 | 🗓 the ⇪⇧0 calendar is as tall as its content (768 → 494), the date and clock sit above the months, and it wears the music player's card | pending |
 
 Running total: 15 wins · 8 losses · 22 pending (6.215.0, 6.217.0, 6.218.0,
 6.219.0, 6.220.0, 6.221.0, 6.222.0, 6.223.0, 6.224.0, 6.225.0, 6.226.0,
@@ -2268,6 +2269,29 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.244.0 verify with LL — 🗓 THE CALENDAR, TIGHTENED (KNOWN GROUND):
+  install. ⇪⇧0. Three things to look at, in this order:
+  1. The DATE and the CLOCK are now ABOVE the three months, same 34 pt as
+     before, in a box that is the height of the two lines in it.
+  2. The big empty space below the dates is GONE. The panel is about 494 pt
+     tall instead of 768 — the height is worked out from what is in it now
+     rather than being a number typed in once.
+  3. The key-hint line sits right under the last row of dates, not at the
+     bottom of the window.
+  It wears the music player's card: #15161a with a lighter header strip
+  across the top, and the ‹ Today › buttons in the player's style.
+  EVERYTHING ELSE MUST STILL WORK, and it is worth thirty seconds: ←→ a day,
+  ↑↓ a week, [ ] a month, T back to today, click a date to copy it, C, R for
+  the Date report, Esc. Then ⇪⇧P with it open — the pomodoro still docks
+  against its left edge and goes back when you close it.
+  🔎 If it is now too SHORT for your eye, no release:
+  `settings = { mini_calendar = { height = 700 } }` — a number is still
+  obeyed; leaving it out means "fit the content".
+  🎨 NAMED, NOT FIXED: the calendar is now the second panel wearing the
+  music player's look while nine others still wear the shared ui_style one.
+  Folding them together restyles eleven panels at once, so it is its own
+  release when you want it.
+
 - 6.243.0 verify with LL — 🔤 ⇪Z LEARNS YOUR OWN CORRECTION (KNOWN
   GROUND): install. In Chrome, type `makee`, backspace over it, type `make`,
   then a space. NOTHING happens — that is the design, you chose ARM.
