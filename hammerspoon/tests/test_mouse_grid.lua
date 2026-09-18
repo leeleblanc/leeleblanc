@@ -135,6 +135,18 @@ local function mkCanvas(frame)
         end
         self.elements = e; return self
     end
+    -- 🏃 6.247.0 — THE REAL hs.canvas MOVES, and it is a SETTER. Checked
+    -- in extensions/canvas/libcanvas.m: canvas_topLeft (line 2842) calls
+    -- [canvasWindow setFrame:display:YES animate:NO] and touches no
+    -- element. A GETTER-ONLY stub would let every "it moved" check pass
+    -- while nothing moved — the third time that shape has hidden a whole
+    -- feature here (6.227.0 selectedRow, 6.239.0 currentTime).
+    function c:topLeft(pt)
+        if pt == nil then return { x = self.frame.x, y = self.frame.y } end
+        self.frame.x, self.frame.y = pt.x, pt.y
+        self.moved = (self.moved or 0) + 1
+        return self
+    end
     function c:show()   self.visible = true;  return self end
     function c:hide()   self.visible = false; return self end
     function c:delete() self.visible = false; self.deleted = true; return self end
@@ -2607,6 +2619,153 @@ do
     grid.halve = false
     check("...and says so when it is switched off", _G.mouseGridReport():find("off %(grid%.halve%)"))
     grid.halve = true
+end
+
+
+out("\n=== 🏃 A HELD ARROW MOVES THE CANVAS (6.247.0) ===\n")
+-- LL: "After I isolate to a grid box (using three letters), then holding
+-- down the arrow key should repeat about the same cadence as holding down
+-- arrow key in a text box." The cadence WAS the work: every repeat deleted
+-- two canvases and built two more — two NSWindows created, filled through
+-- LuaSkin and ordered in, per keystroke, on the main thread.
+do
+    local before = pass + fail
+    local okSection, secErr = pcall(function()
+
+    -- ---- the rule, PURE ------------------------------------------------
+    check("canMove: nothing drawn yet cannot be moved",
+          grid.canMove(nil, { x = 1, y = 2, w = 3, h = 4 }) == false)
+    check("canMove: a different x and y is a MOVE",
+          grid.canMove({ x = 0, y = 0, w = 30, h = 20 },
+                       { x = 9, y = 9, w = 30, h = 20 }) == true)
+    check("canMove: the same rect is still a move (moving where it already "
+          .. "is costs one setFrame and no rebuild)",
+          grid.canMove({ x = 0, y = 0, w = 30, h = 20 },
+                       { x = 0, y = 0, w = 30, h = 20 }) == true)
+    -- 🚨 MUTATION: compare only x and y, or compare nothing, and a RESIZE
+    -- is drawn by moving a canvas whose elements are the old size.
+    check("canMove: a different WIDTH must be rebuilt, and it says which field",
+          (function()
+              local ok, why = grid.canMove({ x = 0, y = 0, w = 30, h = 20 },
+                                           { x = 0, y = 0, w = 31, h = 20 })
+              return ok == false and tostring(why):find("w changed", 1, true) ~= nil
+          end)())
+    -- 🚨 MUTATION: drop the SECOND loop. pairs() cannot see a nil, so a
+    -- key present in what is drawn and absent from what is wanted — the
+    -- landed badge's hint, exactly — would compare equal to nothing.
+    check("canMove: a field that is in what is DRAWN but not in what is "
+          .. "wanted is a difference too",
+          grid.canMove({ x = 0, y = 0, w = 30, h = 20, hint = "3 deep" },
+                       { x = 0, y = 0, w = 30, h = 20 }) == false)
+    -- 🚨 AND THE MIRROR, which is the badge GAINING a hint — a snapped
+    -- landing draws words the previous draw had none of. MUTATION: delete
+    -- the FIRST loop and only this row falls, because the second loop
+    -- walks what is DRAWN and cannot see a key that is only in `want`.
+    check("canMove: a field that is in what is WANTED but not in what is "
+          .. "drawn is a difference too",
+          grid.canMove({ x = 0, y = 0, w = 30, h = 20 },
+                       { x = 0, y = 0, w = 30, h = 20, hint = "3 deep" }) == false)
+
+    -- ---- the hot path: a nudge --------------------------------------
+    loadModule(); grid.show(false); typeLabel("aaa")
+    check("landing leaves the badge on screen", grid.cross ~= nil)
+    -- 📐 AWAY FROM EVERY EDGE, deliberately. The badge is clamped into the
+    -- display, so near an edge its rings move INSIDE it and a rebuild is
+    -- the right answer — that case has its own checks below. "aaa" is the
+    -- top-left cell, where BOTH clamps bite.
+    grid.state.point = { x = 700, y = 500 }
+    -- The OUTLINE is born on the first nudge (6.192.0: a nudge carries the
+    -- box), so that one is a build by definition and is not counted here.
+    landKey("right")
+    check("...and the first nudge draws the box outline",
+          grid.boxDraw ~= nil and grid.draws.boxBuild >= 1)
+    local madeBefore  = CANVAS_NEW
+    local drawsBefore = { boxBuild = grid.draws.boxBuild,
+                          crossBuild = grid.draws.crossBuild }
+    local boxX = grid.boxDraw.frame.x
+    landKey("right"); landKey("right"); landKey("right")
+    -- 🚨 THE CHECK THIS RELEASE EXISTS FOR. Put either moveCanvas call
+    -- back to a rebuild and this fails by exactly that many windows.
+    check("🏃 three nudges build NO new canvas",
+          CANVAS_NEW == madeBefore, CANVAS_NEW - madeBefore .. " new")
+    check("...they MOVED instead — the box canvas is further right",
+          grid.boxDraw.frame.x > boxX and (grid.boxDraw.moved or 0) >= 3,
+          tostring(grid.boxDraw.moved))
+    check("...and the badge moved with it, once per nudge",
+          (grid.cross.moved or 0) >= 3, tostring(grid.cross.moved))
+    check("...counted apart, so the report can prove it on his Mac",
+          grid.draws.boxMove >= 3 and grid.draws.crossMove >= 3
+          and grid.draws.boxBuild == drawsBefore.boxBuild
+          and grid.draws.crossBuild == drawsBefore.crossBuild)
+    check("...and the outline still sits where the pointer is",
+          grid.boxDraw.frame.x == grid.state.box.x
+          and grid.boxDraw.frame.y == grid.state.box.y)
+
+    -- ---- a RESIZE is not a move -------------------------------------
+    local madeBeforeHalve = CANVAS_NEW
+    landKey("down", "alt")
+    check("⌥↓ changes the box's SIZE, so it is rebuilt — a moved canvas "
+          .. "would draw the old size's elements in the new place",
+          CANVAS_NEW > madeBeforeHalve and grid.draws.boxBuild > drawsBefore.boxBuild)
+
+    -- ---- the badge at a screen edge ---------------------------------
+    -- Away from an edge the rings sit at the badge's centre and a nudge is
+    -- a pure move. AT the edge the badge is clamped into the display while
+    -- the pointer keeps going, so the rings move INSIDE it — and a canvas
+    -- that only moved would draw them in the wrong place.
+    loadModule(); grid.show(false); typeLabel("aaa")
+    grid.state.point = { x = 1400, y = 500 }
+    landKey("right")                       -- lands in the clamp
+    local madeAtEdge = CANVAS_NEW
+    local boxMoveAtEdge = grid.draws.boxMove
+    landKey("right")
+    -- 🚨 MUTATION: drop rx/ry from the crosshair's want table.
+    check("🎯 at a screen edge the badge REBUILDS, because its rings move "
+          .. "inside it", CANVAS_NEW > madeAtEdge)
+    check("...while the box, whose size never changed, still only moves",
+          grid.draws.boxMove > boxMoveAtEdge)
+
+    -- ---- it degrades, it never breaks -------------------------------
+    loadModule(); grid.show(false); typeLabel("aaa")
+    grid.state.point = { x = 700, y = 500 }
+    landKey("right")                       -- the outline exists from here
+    -- libcanvas.m refuses topLeft for a canvas used as a SUBVIEW
+    -- (luaL_argerror) — a throw, on a Mac we cannot test from here.
+    grid.boxDraw.topLeft = function() error("method unavailable for canvas "
+                                            .. "as a subview", 0) end
+    local madeBeforeThrow = CANVAS_NEW
+    local okNudge = pcall(function() landKey("right") end)
+    check("a topLeft that REFUSES falls back to a rebuild rather than "
+          .. "leaving the outline where the pointer is not",
+          okNudge and CANVAS_NEW > madeBeforeThrow
+          and grid.boxDraw.frame.x == grid.state.box.x)
+
+    -- ---- the record does not outlive the canvas ----------------------
+    grid.hide("test")
+    check("teardown forgets what was on screen — a position record for a "
+          .. "canvas that is gone is a lie the next draw would read",
+          grid.boxAt == nil and grid.crossAt == nil)
+
+    -- ---- the report --------------------------------------------------
+    loadModule()
+    grid.draws = { boxMove = 0, boxBuild = 0, crossMove = 0, crossBuild = 0 }
+    local r0 = _G.mouseGridReport()
+    check("the report says nothing was drawn rather than printing four zeros",
+          type(r0) == "string"
+          and r0:find("nothing drawn this session", 1, true) ~= nil)
+    grid.draws = { boxMove = 12, boxBuild = 1, crossMove = 12, crossBuild = 1 }
+    check("...and names moves and rebuilds apart",
+          _G.mouseGridReport():find("24 move(s) · 2 rebuild(s)", 1, true) ~= nil)
+    -- 🚨 A Mac where topLeft never works would otherwise read as normal.
+    grid.draws = { boxMove = 0, boxBuild = 40, crossMove = 0, crossBuild = 40 }
+    check("...and a session where NOTHING moved is a warning, not a number",
+          _G.mouseGridReport():find("every draw was a REBUILD", 1, true) ~= nil)
+
+    end)
+    check("§6.247.0 ran to the end — a throw here deletes the checks after it",
+          okSection == true, secErr)
+    local ran = (pass + fail) - before
+    check("§6.247.0 ran all of its checks (" .. ran .. " of 19+)", ran >= 19, ran)
 end
 
 -- =====================================================================

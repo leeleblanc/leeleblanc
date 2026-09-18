@@ -4,9 +4,45 @@
 -- =====================================================================
 -- 09-18-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.246.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.247.0
 -- =====================================================================
 
+-- NEW IN 6.247.0 — 🏃 A HELD ARROW MOVES THE OVERLAY, IT NO LONGER
+--                  REBUILDS IT (modules/mouse_grid.lua):
+--   LL: "After I isolate to a grid box (using three letters), then
+--      holding down the arrow key should repeat about the same cadence as
+--      holding down arrow key in a text box."
+--   🚨 THE CADENCE WAS THE WORK, not the key repeat. `nudge` is wired as
+--      BOTH pressedfn and repeatfn, and it called showBox AND
+--      showCrosshair — each of which DELETED its canvas and built a new
+--      one. Two NSWindows created, filled through LuaSkin (eleven element
+--      tables) and ordered in, PER KEYSTROKE, on the main thread. 6.228.0
+--      names what that does to every other app's input, never mind ours.
+--   🔎 CHECKED IN THE SOURCE, FILE NAMED (6.233.0's rule, about an
+--      implementation this time): extensions/canvas/libcanvas.m's
+--      `canvas_topLeft` (line 2842) is a SETTER as well as a getter and
+--      does one thing — [canvasWindow setFrame:display:YES animate:NO].
+--      No elements, no marshalling, no new window. It refuses only for a
+--      canvas used as a SUBVIEW, and that refusal is a THROW, so it is
+--      caught and falls back to the rebuild.
+--   ✂️ `grid.canMove(prev, want)` is PURE: everything but x and y must
+--      match, in BOTH directions — pairs() cannot see a nil, so a key in
+--      one table and absent from the other is a difference each loop can
+--      only catch from its own side. A nudge never resizes (6.192.0), so
+--      on the hot path nothing but x and y differs.
+--   🎯 THE BADGE IS NOT ALWAYS MOVABLE, and that is the interesting half:
+--      it is clamped into the display, so at a screen EDGE its rings move
+--      INSIDE the frame while the pointer keeps going — rx/ry ride in the
+--      comparison and that draw rebuilds. So does a changed hint.
+--   🔎 COUNTED APART on `_G.mouseGridReport()`'s new "canvas :" line:
+--      moves climbing while rebuilds stay flat is the claim working;
+--      rebuilds climbing with every arrow is this release doing nothing,
+--      quietly, and it says so in words (6.241.0's rule).
+--   🧪 The stub had no :topLeft at all, so the fix was untestable — and a
+--      getter-only one would have passed every check while moving
+--      nothing, the FOURTH time that shape has hidden a feature here.
+--      · 9,752 -> 9,775 checks · nine mutations, nine bites.
+--
 -- NEW IN 6.246.0 — 🎯 ⇪⇧A ACTS ON THE FILE THAT IS SELECTED NOW
 --                  (modules/universal_actions.lua):
 --   LL, with a screenshot: "shouldn't this be working on the blue line
@@ -41,40 +77,12 @@
 --      empty selection: they are the same nil to everything downstream.
 --      · 9,721 -> 9,752 checks · eight mutations, eight bites.
 --
--- NEW IN 6.245.0 — 🔎 ⇪Y STOPPED SORTING THE WHOLE ARCHIVE TO DRAW
---                  FORTY ROWS (modules/chrome_history.lua):
---   LL: "Searching Chrome history with hyper+y caused a lock up when I
---      started to search." WHEN HE STARTED is the diagnosis, and it made
---      the first keystroke the worst one: a single letter is inside very
---      nearly every URL in a 60,000-row archive, so chrome.search built a
---      table for EVERY match and handed the lot to table.sort — about a
---      million comparator calls, sixty thousand allocations and the
---      collection behind them, on the MAIN THREAD, inside a
---      queryChangedCallback, for every key he pressed. The picker shows 40.
---   🚨 SELECT, DO NOT SORT. `chrome.keepBest` holds the best
---      `showRows` and drops anything that cannot beat the worst kept row
---      without allocating — sixty thousand comparisons and forty inserts
---      instead of a sort. `chrome.better` is the ordering rule (score
---      DESC, pool index ASC) in ONE place, PURE, so the selection cannot
---      drift from what a full sort would have answered.
---   🧪 AND THAT IS THE CHECK: the suite runs the OLD algorithm beside
---      the new one over seven queries and wants identical rows in an
---      identical order. Speed bought with his results is not a fix.
---   🔎 IT HAS A CLOCK NOW, because "it locked up" had no number behind
---      it and the module could not be asked: the report says what the last
---      keystroke cost, over how many rows, how many matched and how many
---      were kept, with the worst of the session beside it.
---   🔔 And past `chrome.slowMs` (150) a keystroke takes the degrade
---      door naming the milliseconds AND the row count — a keyboard he can
---      feel is a break, and a break is seen, never only logged.
---      · 9,701 -> 9,721 checks · six mutations, six bites.
---
--- (6.244.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.245.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.246.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.247.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -171,7 +179,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.246.0"
+_G.configVersion = "6.247.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the

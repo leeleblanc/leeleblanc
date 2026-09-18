@@ -490,6 +490,42 @@ work Mac.
   never printed. 6.186.0's rule in a new place: a test HELPER answers
   falsely rather than indexing a nil, so a mutation fails a check instead
   of killing the run. Fifteen mutations, fifteen bites.
+- 🏃 A HANDLER WIRED AS ITS OWN repeatfn PAYS FOR EVERYTHING IT DOES AT
+  THE KEY-REPEAT RATE (6.247.0, modules/mouse_grid.lua — LL: "holding
+  down the arrow key should repeat about the same cadence as holding
+  down arrow key in a text box"). `nudge` is bound as pressedfn AND
+  repeatfn, and it called showBox + showCrosshair, each of which DELETED
+  its canvas and built a new one: two NSWindows created, eleven element
+  tables marshalled through LuaSkin and two windows ordered in, PER
+  KEYSTROKE, on the main thread — 6.228.0's cost, inside the handler for
+  the key being held. `grid.accelFor` was never the bug; 6.195.0 raised
+  the DISTANCE and he is describing the RATE.
+  🔎 CHECKED IN THE SOURCE, FILE NAMED (6.233.0's rule about an
+  IMPLEMENTATION this time): extensions/canvas/libcanvas.m's
+  `canvas_topLeft` (line 2842) is a SETTER as well as a getter and does
+  one thing — `[canvasWindow setFrame:display:YES animate:NO]`. It
+  refuses only for a canvas used as a SUBVIEW, and that refusal is a
+  THROW, so it is caught and falls back to the rebuild.
+  ✂️ `grid.canMove(prev, want)` is PURE: everything but x and y must
+  match, in BOTH directions — pairs() cannot see a nil, so a key in one
+  table and absent from the other is a difference only the loop from
+  that side can catch, and both cases are real (the badge loses a hint
+  on a nudge after a snapped landing, and gains one the other way).
+  🎯 THE BADGE IS NOT ALWAYS MOVABLE: it is clamped into the display, so
+  at a screen EDGE its rings move INSIDE the frame while the pointer
+  keeps going — rx/ry ride in the comparison and that draw rebuilds, and
+  the check drives the pointer into the clamp to prove it. A RESIZE
+  (⌥+arrow) rebuilds too: the elements are canvas-relative.
+  🔎 COUNTED APART on the report's "canvas :" line, because a release
+  that claims it stopped rebuilding must PROVE it on his Mac: moves
+  climbing while rebuilds stay flat is the claim; nothing moving is this
+  release doing nothing, quietly (6.241.0), and it prints a ⚠️ naming
+  topLeft rather than a row of numbers that reads like health.
+  🧪 The stub had no :topLeft at all, and a getter-only one would have
+  passed every "it moved" check while moving nothing — FOURTH time that
+  shape has hidden a whole feature here. GENERAL: a handler that is its
+  own repeatfn may redraw, but it must not REBUILD; ask what actually
+  changed, and move what can be moved.
 - 🎯 A CACHE REFRESHED FOR THE NEXT CALLER IS A ONE-STEP DELAY LINE
   (6.246.0, modules/universal_actions.lua — LL, with a screenshot:
   "shouldn't this be working on the blue line file?"). ⇪⇧A named the
@@ -1951,6 +1987,7 @@ as the fix when a loss lands.
 | 6.244.0 | 🗓 the ⇪⇧0 calendar is as tall as its content (768 → 494), the date and clock sit above the months, and it wears the music player's card | pending |
 | 6.245.0 | 🔎 ⇪Y stopped sorting the whole archive to draw forty rows — the first keystroke of a search was building and sorting 60,000 entries on the main thread | pending |
 | 6.246.0 | 🎯 ⇪⇧A acts on the file selected NOW — the panel had been one press behind since 6.65.1, and the title says so when it cannot re-read | pending |
+| 6.247.0 | 🏃 a held arrow MOVES the grid overlay instead of rebuilding two NSWindows per keystroke — the cadence was the work | pending |
 
 Running total: 15 wins · 8 losses · 22 pending (6.215.0, 6.217.0, 6.218.0,
 6.219.0, 6.220.0, 6.221.0, 6.222.0, 6.223.0, 6.224.0, 6.225.0, 6.226.0,
@@ -1983,7 +2020,7 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   commit and carries everything before it, so a break still names its
   version. THE ORDER, his: 1 ⇪⇧A on the current selection ✔ 6.246.0 ·
   2 grid arrow cadence · 3 grid translucency · 4 the calendar header ·
-  5 cheat-sheet punctuation search · 6 the music card takes the
+  5 cheat-sheet punctuation search ✔ (2 ✔ 6.247.0) · 6 the music card takes the
   keyboard · 7 the yellow box splits by letter (and ⌥halve goes) ·
   8 the Scorp Pad renamed Hamsidian · 9 the three removals (the 4 PM
   Asana send, the Capture row, the Append row).
@@ -2351,6 +2388,28 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.247.0 verify with LL — 🏃 THE ARROW CADENCE (KNOWN GROUND): install
+  (carries 6.246.0). ⇪X, type the three letters to land on a cell, then HOLD
+  an arrow. It should now run at the same cadence as holding an arrow in a
+  text box — before, every repeat was building two windows.
+  🔎 WHAT IT WAS: the nudge handler is wired as its own key-repeat handler,
+  and it deleted and rebuilt BOTH overlays — the yellow box and the crosshair
+  badge — on every repeat. They are moved now; nothing is rebuilt unless
+  something other than the position changed.
+  Console: `_G.mouseGridReport()` — the new "canvas :" line. After holding an
+  arrow for a second it should read something like "40 move(s) · 2
+  rebuild(s)". If it ever says "⚠️ every draw was a REBUILD", paste it: that
+  means hs.canvas:topLeft is refusing on your Mac and the release did
+  nothing.
+  🚨 TWO THINGS THAT MUST STILL WORK, and both are deliberate rebuilds:
+  ⌥+arrow still halves the box (the size changes, so it redraws), and at the
+  very EDGE of a screen the badge still tracks the pointer correctly — the
+  crosshair rings move inside the badge there, so that draw is rebuilt on
+  purpose. Nudge the pointer into a corner and watch the rings stay on the
+  target.
+  ⇧+arrow is still 1 pt, a tap is still 8 pt, a held arrow still accelerates.
+  Nothing about the distances changed.
+
 - 6.246.0 verify with LL — 🎯 ⇪⇧A ON THE BLUE LINE FILE (KNOWN GROUND):
   install. In Finder select a file — ANY file — and press ⇪⇧A. The title at
   the top of the panel names THAT file. Then Esc, click a DIFFERENT file, and

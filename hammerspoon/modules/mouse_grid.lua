@@ -832,14 +832,95 @@ function M.setup(core)
         return nil, "not a direction"
     end
 
+    -- =====================================================================
+    -- 🏃 6.247.0 — A HELD ARROW MOVES THE CANVAS, IT DOES NOT REBUILD IT
+    -- =====================================================================
+    -- LL: "After I isolate to a grid box (using three letters), then
+    -- holding down the arrow key should repeat about the same cadence as
+    -- holding down arrow key in a text box."
+    --
+    -- 🚨 AND THE CADENCE WAS THE WORK, not the key repeat. nudge() ran
+    -- showBox() AND showCrosshair() on every repeat, and each of those
+    -- DELETED its canvas and built a new one: hs.canvas.new is an NSWindow,
+    -- replaceElements marshals eight element tables through LuaSkin, and
+    -- :show() orders a window in. Two NSWindows created, populated and
+    -- ordered in per keystroke, on the main thread — and 6.228.0's rule
+    -- says what main-thread work does to every other app's input, never
+    -- mind our own.
+    --
+    -- 🔎 CHECKED IN THE SOURCE, FILE NAMED (6.233.0's rule, because this
+    -- is a platform fact deciding an implementation):
+    -- extensions/canvas/libcanvas.m's canvas_topLeft (line 2842) is a
+    -- SETTER as well as a getter, and all it does is
+    --     [canvasWindow setFrame:newFrame display:YES animate:NO]
+    -- — no elements, no LuaSkin marshalling, no new window. It refuses
+    -- (luaL_argerror) only for a canvas used as a SUBVIEW, which ours
+    -- never is; that refusal is a throw, so it is caught and falls back
+    -- to the rebuild rather than leaving the overlay stale.
+    --
+    -- A NUDGE NEVER RESIZES — 6.192.0 made that a rule ("a nudge is a
+    -- move, and only ⌥+arrow changes precision") — so on the hot path
+    -- nothing but x and y differs, which is exactly what canMove asks.
+    -- grid.canMove is PURE: everything BUT x and y must match, in both
+    -- directions (a key present in one table and absent from the other is
+    -- a difference, and pairs() cannot see a nil).
+    function grid.canMove(prev, want)
+        if type(prev) ~= "table" or type(want) ~= "table" then
+            return false, "nothing drawn yet"
+        end
+        for k, v in pairs(want) do
+            if k ~= "x" and k ~= "y" and prev[k] ~= v then
+                return false, tostring(k) .. " changed"
+            end
+        end
+        for k, v in pairs(prev) do
+            if k ~= "x" and k ~= "y" and want[k] ~= v then
+                return false, tostring(k) .. " changed"
+            end
+        end
+        return true, "position only"
+    end
+
+    -- What is on screen right now, so the next draw can ask canMove.
+    grid.boxAt, grid.crossAt = nil, nil
+    -- 🔎 COUNTED APART, and the report prints both: a release that claims
+    -- to have stopped rebuilding is a release that must be able to PROVE
+    -- it on his Mac. Moves climbing while rebuilds stay flat is the claim;
+    -- rebuilds climbing with every arrow is this release doing nothing.
+    grid.draws = { boxMove = 0, boxBuild = 0, crossMove = 0, crossBuild = 0 }
+
+    -- Move the canvas if that is all this draw needs. Returns true when it
+    -- moved — a false answer means the caller must build.
+    local function moveCanvas(canvas, prevAt, want, which)
+        if not canvas then return false end
+        local ok = grid.canMove(prevAt, want)
+        if not ok then return false end
+        local moved = pcall(function() canvas:topLeft({ x = want.x, y = want.y }) end)
+        if not moved then return false end
+        grid.draws[which] = (grid.draws[which] or 0) + 1
+        return true
+    end
+
     -- The outline over the live box. Its own canvas, not the badge's:
     -- the badge is a fixed 232x78 near the pointer and a box can be any
     -- size anywhere. Returns false the same way showCrosshair does, and
     -- for the same reason — the caller must act on it.
     local function showBox(box)
+        if not box then
+            pcall(function() if grid.boxDraw then grid.boxDraw:delete() end end)
+            grid.boxDraw, grid.boxAt = nil, nil
+            return true
+        end
+        local want = { x = box.x, y = box.y, w = box.w, h = box.h }
+        -- 🏃 6.247.0 — the hot path: a nudge changes x and y and nothing
+        -- else, so the window moves and the elements are left alone.
+        if moveCanvas(grid.boxDraw, grid.boxAt, want, "boxMove") then
+            grid.boxAt = want
+            return true
+        end
         pcall(function() if grid.boxDraw then grid.boxDraw:delete() end end)
         grid.boxDraw = nil
-        if not box then return true end
+        grid.draws.boxBuild = (grid.draws.boxBuild or 0) + 1
         local c = hs.canvas.new({ x = box.x, y = box.y, w = box.w, h = box.h })
         if not c then return false end
         c:replaceElements({
@@ -865,6 +946,7 @@ function M.setup(core)
             if not ok then return false end
         end
         grid.boxDraw = c
+        grid.boxAt   = want
         return true
     end
 
@@ -879,8 +961,21 @@ function M.setup(core)
         local cy = math.max(sf.y, math.min(py - 26,    sf.y + sf.h - H))
         local rx, ry = px - cx, py - cy
 
+        -- 🏃 6.247.0 — rx/ry ride in the comparison, not just the frame.
+        -- Away from a screen edge they are constant (px - cx is W/2), so a
+        -- nudge is a pure move; AT an edge the clamp changes them and the
+        -- rings would be drawn in the wrong place inside the badge, so
+        -- that draw rebuilds. The hint is in there for the same reason —
+        -- landing swaps the text, and a moved canvas keeps the old words.
+        local want = { x = cx, y = cy, w = W, h = H,
+                       rx = rx, ry = ry, hint = hint or false }
+        if moveCanvas(grid.cross, grid.crossAt, want, "crossMove") then
+            grid.crossAt = want
+            return true
+        end
         pcall(function() if grid.cross then grid.cross:delete() end end)
         grid.cross = nil
+        grid.draws.crossBuild = (grid.draws.crossBuild or 0) + 1
         local c = hs.canvas.new({ x = cx, y = cy, w = W, h = H })
         -- 🚨 RETURNS FALSE, AND THE CALLER MUST ACT ON IT. The old cross has
         -- already been destroyed by this point, so carrying on would leave
@@ -926,7 +1021,8 @@ function M.setup(core)
         -- whole hotkey callback. Through showCanvasSafely like the rest.
         if _G.showCanvasSafely then _G.showCanvasSafely(c, "grid crosshair")
         else pcall(function() c:show() end) end
-        grid.cross = c
+        grid.cross   = c
+        grid.crossAt = want
         return true
     end
 
@@ -952,9 +1048,9 @@ function M.setup(core)
         stopClickTap()
         hideAllShown()
         pcall(function() if grid.cross then grid.cross:delete() end end)
-        grid.cross = nil
+        grid.cross, grid.crossAt = nil, nil
         pcall(function() if grid.boxDraw then grid.boxDraw:delete() end end)
-        grid.boxDraw = nil
+        grid.boxDraw, grid.boxAt = nil, nil
         pcall(function() if grid.pickModal then grid.pickModal:exit() end end)
         pcall(function() if grid.landModal then grid.landModal:exit() end end)
         if grid.state then
@@ -1586,6 +1682,30 @@ function M.setup(core)
             math.floor(num(grid.nudgeStep, 8)), math.floor(num(grid.nudgeFine, 1)),
             math.floor(num(grid.nudgeStep, 8) * num(grid.nudgeAccelFirst, 4)),
             math.floor(num(grid.nudgeStep, 8) * num(grid.nudgeAccelMax, 8)))
+        -- 🏃 6.247.0 — WHAT A HELD ARROW COSTS, counted apart. A release
+        -- that claims it stopped rebuilding must be able to prove it on
+        -- HIS Mac: moves climbing while rebuilds stay flat is the claim
+        -- working; rebuilds climbing with every arrow is this release
+        -- doing nothing, quietly (6.241.0's rule).
+        do
+            local d = grid.draws or {}
+            local moves  = (d.boxMove or 0) + (d.crossMove or 0)
+            local builds = (d.boxBuild or 0) + (d.crossBuild or 0)
+            if moves + builds == 0 then
+                out[#out + 1] = "   canvas  : nothing drawn this session"
+            else
+                out[#out + 1] = string.format(
+                    "   canvas  : %d move(s) · %d rebuild(s) — box %d/%d, "
+                    .. "badge %d/%d (move/rebuild)",
+                    moves, builds, d.boxMove or 0, d.boxBuild or 0,
+                    d.crossMove or 0, d.crossBuild or 0)
+                if moves == 0 then
+                    out[#out + 1] = "              ⚠️  every draw was a REBUILD — "
+                        .. "hs.canvas:topLeft is refusing on this Mac, and a "
+                        .. "held arrow is paying for two new windows a repeat"
+                end
+            end
+        end
         -- 6.167.0: the ring's size IN EFFECT where the pointer is now, and
         -- what the last press actually drew, for "still small".
         do

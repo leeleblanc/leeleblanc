@@ -5,6 +5,82 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.247.0 — 🏃 A HELD ARROW MOVES THE OVERLAY, IT NO LONGER REBUILDS IT
+                 (modules/mouse_grid.lua, tests/test_mouse_grid.lua):
+  LL: "After I isolate to a grid box (using three letters), then holding down
+  the arrow key should repeat about the same cadence as holding down arrow key
+  in a text box."
+
+  🚨 THE CADENCE WAS THE WORK, NOT THE KEY REPEAT. `nudge(dx, dy)` is wired as
+  BOTH pressedfn and repeatfn (`grid.landModal:bind({}, key, coarse, nil,
+  coarse)`), so every OS repeat runs the whole body — and the body called
+  showBox() and showCrosshair(), each of which began:
+
+      pcall(function() if grid.boxDraw then grid.boxDraw:delete() end end)
+      grid.boxDraw = nil
+      local c = hs.canvas.new({ … })
+
+  hs.canvas.new IS AN NSWINDOW. So one keystroke cost two window deletes, two
+  window creations, eleven element tables marshalled through LuaSkin, two
+  levels, two behaviours and two window orders — on the main thread, inside the
+  repeat handler for the key being held. 6.228.0's rule names the cost: a main
+  thread this config is busy on is a mouse this Mac has lost, and here it is
+  the keyboard too. `grid.accelFor` was never the bug: 6.195.0 raised the
+  DISTANCE per repeat, and LL is describing the RATE.
+
+  🔎 CHECKED IN THE SOURCE, WITH THE FILE NAMED — 6.233.0's rule, applied to an
+  implementation rather than an architecture. extensions/canvas/libcanvas.m,
+  `canvas_topLeft` (line 2842):
+
+      NSPoint newCoord = [skin tableToPointAtIndex:2] ;
+      NSRect  newFrame = RectWithFlippedYCoordinate(NSMakeRect(newCoord.x,
+                           newCoord.y, oldFrame.size.width, oldFrame.size.height)) ;
+      [canvasWindow setFrame:newFrame display:YES animate:NO];
+
+  One setFrame. No elements, no marshalling, no new window. It is a SETTER as
+  well as a getter, and it refuses (luaL_argerror) only for a canvas used as a
+  SUBVIEW — which ours never is, and which is a THROW, so it is caught and
+  falls back to the rebuild rather than leaving the outline where the pointer
+  is not.
+
+  ✂️ `grid.canMove(prev, want)` IS PURE and carries the whole rule: everything
+  but x and y must match — in BOTH DIRECTIONS. pairs() cannot see a nil, so a
+  key present in one table and absent from the other is a difference only the
+  loop starting from that side can catch, and the two cases are real: the badge
+  LOSES a hint when a nudge follows a snapped landing, and GAINS one when a
+  landing follows a nudge. Two rows, two mutations, one each.
+
+  🎯 THE BADGE IS NOT ALWAYS MOVABLE, and that half is the interesting one. It
+  is clamped into the display (`cx = max(sf.x, min(px - W/2, sf.x + sf.w - W))`)
+  and its rings are then drawn at `rx, ry = px - cx, py - cy`. Away from an
+  edge rx/ry are constant and a nudge is a pure move; AT an edge cx stops while
+  px keeps going, so the rings move INSIDE the frame and a translated canvas
+  would draw them in the wrong place. rx/ry ride in the comparison, so that
+  draw rebuilds — and a check drives the pointer into the clamp to prove it,
+  because the mutation that drops them is invisible everywhere else.
+
+  📐 A RESIZE IS NOT A MOVE EITHER: ⌥+arrow halves the box, w/h change, the
+  elements are sized in canvas-relative coordinates, and a moved canvas would
+  draw the old size. Its own check.
+
+  🔎 COUNTED APART, and printed — `_G.mouseGridReport()`'s new "canvas :" line:
+  "N move(s) · N rebuild(s) — box N/N, badge N/N". Moves climbing while
+  rebuilds stay flat is the claim working. Rebuilds climbing with every arrow
+  is this release doing NOTHING, quietly, on the Mac it was written for
+  (6.241.0's rule), so a session where nothing moved prints a ⚠️ naming
+  hs.canvas:topLeft rather than a row of numbers that reads like health.
+
+  🧪 AND THE STUB HAD NO :topLeft AT ALL, so none of this was testable until it
+  did — and a GETTER-ONLY one would have let every "it moved" check pass while
+  nothing moved, which is the FOURTH time that exact shape has hidden a whole
+  feature here (6.227.0's selectedRow, 6.239.0's currentTime, 6.198.0's
+  setContents). The stub moves its own frame and counts the moves.
+  · 9,752 -> 9,775 checks · nine mutations, nine bites.
+
+  RULE, general: when a handler is wired as its own repeatfn, everything it
+  does is paid at the key-repeat rate — so it may redraw, but it must not
+  REBUILD. Ask what actually changed, and move what can be moved.
+
 NEW IN 6.246.0 — 🎯 ⇪⇧A ACTS ON THE FILE THAT IS SELECTED NOW
                  (modules/universal_actions.lua, tests/test_tools.lua):
   LL, with a screenshot: "Hyper+shift+a — shouldn't this be working on the
