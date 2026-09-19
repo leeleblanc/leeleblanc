@@ -2064,6 +2064,9 @@ function M.setup(core)
     core.provide("screenshots.captureScreenTo",
                  function(delay, cb) return shots.captureScreenTo(delay, cb) end)
     core.provide("screenshots.show",    function() return shots.show() end)
+    -- 6.258.0 — this module owns the folder, so it answers "what is in it";
+    -- the editor's ⌘O asks rather than listing the folder a second time.
+    core.provide("screenshots.list",    function() return shots.list() end)
     core.provide("screenshots.folder",  function() return shots.revealFolder() end)
 
     -- 🗂 6.130.0 — IN THE EDITOR PICKER (⌃⌃), and it is the odd row there

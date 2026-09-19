@@ -9,7 +9,7 @@ structure, not for the shortcuts (⇪/ is the shortcut list).
 
 ```
 ~/.hammerspoon/
-├── init.lua          the orchestrator (3686 lines)
+├── init.lua          the orchestrator (3696 lines)
 ├── secret.lua        Asana token. NEVER backed up, never in the cloud
 ├── core/             dofile'd at a fixed point, NOT loader-managed (12 files)
 ├── modules/          one file per feature (73 files, ~58,200 lines)
@@ -976,7 +976,7 @@ CREATED AUTOMATICALLY (never make these yourself):
 Seventy-three Lua suites, 9,278 checks, plus five more that run the Capture
 Pad's, the screenshot editor's, unified search's, the vault's and the
 music player's page JavaScript under `node` for a further 592 —
-**10,014 checks over eighty stages** in
+**10,092 checks over eighty stages** in
 all. Every Lua stage runs with `lua5.4` on any machine — no Mac required,
 they stub the `hs` API:
 

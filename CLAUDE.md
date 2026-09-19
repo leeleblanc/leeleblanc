@@ -594,6 +594,42 @@ work Mac.
   left `hidden` set, so the belt alerted "never answered" over an editor
   HE had closed. GENERAL: a feature holding two timers and a flag owes a
   teardown to every door that can end it.
+  🖼 6.258.0 — ⌘O LOADS A PRIOR SHOT AND THE CANVAS GROWS (LL: "Allow me
+  to load a prior screenshot on to the current screenshot and grow the
+  canvas so that I can see both"). GROW, NOT PASTE: ⌘V/⌘A put an image
+  ON the shot at 40% width, which is "point at this"; this makes ROOM
+  and draws the loaded shot at its own size.
+  📏 THE ORIGINAL NEVER MOVES — it keeps 0,0 — and that is the rule the
+  feature turns on: every note, blur, arrow and counter is stored in
+  CANVAS coordinates, so the origin is what stops a grow dragging his
+  marks off the things they point at. Centring the narrower shot looks
+  tidier and moves all of them.
+  🧭 IT GROWS ALONG THE SHORTER SIDE (`ed.growAxis`, PURE): two wide
+  shots stacked is nearly square, side by side is a 5120-px strip. That
+  is 6.252.0's rule the other way up — there the LONGER side splits,
+  because there the question is precision and here it is fit. A tie
+  grows sideways, stated rather than accidental.
+  📐 `ed.growPlan` is PURE and carries the edges: a WIDER shot widens the
+  canvas rather than being cropped, a negative gap is clamped (overlap is
+  the one thing this must never do), a named axis wins and an unknown one
+  falls back to the rule. 🪟 `ed.windowSizeFor` is LIFTED out of ed.open,
+  not copied — two copies of that sum is how a window that opens right
+  comes to resize wrong (6.231.0).
+  🪟 THE PAGE SAYS HOW BIG IT IS (6.238.0 again): Lua plans against the
+  size the page reported, with the file's size at open as the fallback,
+  and the report tells the two apart. The size just asked for is a BELT
+  for a second ⌘O — asserted BY DOING a second ⌘O, because "the number
+  is now 2892" passes with the belt deleted (6.212.0). ↩️ ⌘Z undoes a
+  whole grow and the undo row carries the old PIXELS, because assigning
+  a canvas's width destroys them.
+  🔒 `ed.imageURIok` is the ONE door both addImage and growTo ask, and a
+  grow NEVER shrinks — a plan smaller than the canvas means the two
+  sides disagree about this page and obeying it throws his work away.
+  🔌 The folder is listed by the module that owns it (`screenshots.list`
+  is published now); the shot he is editing is not offered.
+  🧪 AND THE CANVAS STUB KEPT ITS PIXELS THROUGH A RESIZE, which a real
+  canvas does not — so "⌘Z put the pixels back" passed with the
+  putImageData deleted. 6.193.0 in a PROPERTY rather than a method.
 - ⌨️ TAKING THE KEYBOARD ACTIVATES HAMMERSPOON, AND THAT IS THE PRICE
   (6.251.0, modules/music_player.lua — LL: "I have to click on it to make
   it the focus to use the space bar … even if I hide it and bring it
@@ -2230,8 +2266,9 @@ as the fix when a loss lands.
 | 6.255.0 | ⏲ ⌘D in the editor: five seconds to arrange the screen, then the whole screen lands on the shot — and the editor hides, with a belt that brings it back | pending |
 | 6.256.0 | 🖥 ⌘F: the whole screen, now, with the editor out of the picture — and it waits a beat for the window to actually go | pending |
 | 6.257.0 | 📄 the documents list finally names Word's documents — the file the app has open, asked of doc_memory once per session, written as a sixth column | pending |
+| 6.258.0 | 🖼 ⌘O loads a prior shot onto this one and the canvas grows to hold both — the original stays at 0,0 so nothing already drawn moves | pending |
 
-Running total: 15 wins · 8 losses · 40 pending — every release from
+Running total: 15 wins · 8 losses · 41 pending — every release from
 6.215.0 on except the fifteen wins and eight losses named in the table
 above. (The enumeration that used to sit here stopped at 6.239.0 and was
 seventeen releases stale, which is a scoreboard that cannot be read;
@@ -2661,6 +2698,33 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.258.0 verify with LL — 🖼 TWO SHOTS ON ONE CANVAS (KNOWN GROUND):
+  install (carries 6.257.0). Open the editor on any screenshot (⇪⇧1). Beside
+  🖥 Full screen there is now 🖼 Load shot — press it, or ⌘O.
+  A picker lists the other screenshots in your folder, newest first. Pick
+  one: the canvas GROWS and that shot is drawn in the new space, at its own
+  size. Two wide shots end up one above the other; a tall one ends up beside.
+  🔑 THIS IS NOT ⌘V. Paste image and Add capture drop a picture ON the shot
+  at 40% of its width, to point at something. This one makes ROOM, so you can
+  put a before and an after in one picture and send one file.
+  📏 THE THING TO CHECK, and it is the rule the whole release turns on: draw
+  an arrow or a text box on the first shot BEFORE you press ⌘O. After the
+  grow it must still be exactly where you put it, on the thing it was
+  pointing at. If any mark moves, that is a real break and I want the
+  screenshot.
+  ↩︎ ⌘Z takes the whole grow back — canvas size and pixels. ⌘⏎ saves both
+  shots as one "… (edited).png" and puts it on the clipboard.
+  🔎 Console: `_G.screenshotEditorReport()` — two new lines. "canvas :" says
+  how big it is and WHO said so ("the page said so" is healthy; "read off the
+  file at open" means the page has not spoken and is worth pasting).
+  "grow :" counts them, and "↳ last:" names the last one in full.
+  Wider gap between the two shots, or a different colour in the new space,
+  no release: `settings = { screenshot_editor = { growGap = 24,
+  growFill = "#000000" } }`.
+  📏 KNOWN AND ACCEPTED: it only offers shots from your screenshots folder —
+  not any file anywhere. Say if you want a Finder picker instead; that is its
+  own release.
+
 - 6.257.0 verify with LL — 📄 THE DOCUMENTS LIST NAMES THE FILE (KNOWN
   GROUND): install (carries 6.255.0 and 6.256.0). Work in Word for ten
   minutes on a real document, switch to another app, then ⇪⇧W.

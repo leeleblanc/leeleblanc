@@ -132,6 +132,20 @@ hs = {
         return nil
     end },
     alert = { show = function(m) ALERTS[#ALERTS + 1] = tostring(m) end },
+    -- 6.258.0 — ⌘O's picker. It REMEMBERS its rows and its callback so the
+    -- suite can choose a row for real rather than calling the grow by hand
+    -- (6.203.0: a harness that builds the message cannot see a bug in the
+    -- sending).
+    chooser = { new = function(cb)
+        local c = { _cb = cb, rows = {}, shown = false, hidden = false }
+        function c:choices(x) if x then self.rows = x end return self.rows end
+        function c:placeholderText() return self end
+        function c:show() self.shown = true; return self end
+        function c:hide() self.hidden = true; self.shown = false; return self end
+        function c:pick(i) self._cb(self.rows[i]) end
+        CHOOSER = c
+        return c
+    end },
     timer = {
         secondsSinceEpoch = function() return 1000 end,
         -- 6.255.0 — timers are HELD, not fired: the suite fires them by
@@ -148,9 +162,16 @@ hs = {
 }
 _G.diag = { say = function() end, warn = function() end, err = function() end }
 
+CHOOSER = nil           -- 6.258.0: the last hs.chooser the module made
+SERVICES = {}           -- 6.258.0: what core.has / core.call answer
+_G.choosers = {}
+
 local PROVIDED = {}
 local CORE = {
     provide = function(n, f) PROVIDED[n] = f end,
+    has  = function(n) return SERVICES[n] ~= nil end,
+    call = function(n, ...) local f = SERVICES[n]; if f then return f(...) end end,
+    showPopup = function(c) POPPED = c; pcall(function() c:show() end) end,
     degrade = function(tool, why)
         DEGRADES[#DEGRADES + 1] = { tool = tool, why = tostring(why) }
         return false, why
@@ -786,6 +807,268 @@ do
         #DEGRADES == 0, DEGRADES[1] and DEGRADES[1].why)
 
     check("§12 ran every one of its checks", n12 == 11, n12)
+end
+
+-- =====================================================================
+out("13. 6.258.0 — ⌘O: a prior shot onto this one, and the canvas grows\n")
+-- =====================================================================
+-- LL: "Allow me to load a prior screenshot on to the current screenshot
+-- and grow the canvas so that I can see both." The geometry is PURE and
+-- lives in Lua, so all of it is proven here with no Mac and no WebKit;
+-- the page is given the numbers and does them (its own section is in
+-- test_editor_js.js).
+do
+    local n13 = 0
+    local function c13(label, cond, extra) n13 = n13 + 1; check(label, cond, extra) end
+
+    -- ---- which way it grows -------------------------------------------
+    local ax, why = E.growAxis(2560, 1440)
+    c13("🧭 a WIDE shot grows downwards — two of them stacked is nearly "
+        .. "square, side by side is a 5120-pixel strip", ax == "down", ax)
+    c13("...and says why", why == "a wide shot grows downwards", why)
+    c13("🧭 a TALL shot grows sideways", E.growAxis(900, 1600) == "right")
+    c13("a square canvas grows sideways — the tie has to go somewhere and "
+        .. "it is stated rather than accidental", E.growAxis(800, 800) == "right")
+    c13("a canvas with no size is not an axis", E.growAxis(0, 100) == nil)
+    c13("...and says so", select(2, E.growAxis(nil, nil)) == "the canvas has no size")
+
+    -- ---- the plan ------------------------------------------------------
+    local p = E.growPlan(2560, 1440, 2560, 1440, nil, 12)
+    c13("📐 two equal wide shots: the canvas keeps its width…",
+        p and p.w == 2560, p and p.w)
+    c13("…and grows by the second shot plus the gap",
+        p and p.h == 1440 + 12 + 1440, p and p.h)
+    c13("📏 THE ORIGINAL NEVER MOVES — it keeps 0,0, because every note, "
+        .. "blur and arrow on this canvas is in canvas coordinates and "
+        .. "would otherwise move with it", p and p.x == 0)
+    c13("…and the loaded shot lands under it, past the gap",
+        p and p.y == 1440 + 12, p and p.y)
+
+    local wide = E.growPlan(1000, 800, 1600, 400, nil, 10)
+    c13("📐 a WIDER shot widens the canvas rather than being cropped",
+        wide and wide.w == 1600, wide and wide.w)
+    c13("…and the original is STILL at 0,0 — centring it would be tidier "
+        .. "and would move every mark he has already drawn",
+        wide and wide.x == 0 and wide and wide.y == 810, wide and wide.y)
+
+    local tall = E.growPlan(600, 1600, 500, 900, nil, 12)
+    c13("📐 a tall canvas puts the loaded shot BESIDE it",
+        tall and tall.axis == "right" and tall.x == 612 and tall.y == 0,
+        tall and (tall.axis .. " " .. tall.x .. "," .. tall.y))
+    c13("…and the canvas keeps the taller of the two",
+        tall and tall.h == 1600 and tall.w == 600 + 12 + 500,
+        tall and (tall.w .. "x" .. tall.h))
+
+    c13("🔌 an axis given by name WINS over the computed one",
+        (E.growPlan(2560, 1440, 100, 100, "right", 0) or {}).axis == "right")
+    c13("…and an axis that is not one of the two falls back to the rule",
+        (E.growPlan(2560, 1440, 100, 100, "sideways-ish", 0) or {}).axis == "down")
+    c13("the gap is honoured", (E.growPlan(100, 100, 50, 50, "down", 30) or {}).y == 130)
+    c13("a NEGATIVE gap is clamped to nothing — it would overlap the two "
+        .. "shots, which is the one thing this feature must not do",
+        (E.growPlan(100, 100, 50, 50, "down", -40) or {}).y == 100)
+    c13("no gap at all is 0, never an error",
+        (E.growPlan(100, 100, 50, 50, "down", nil) or {}).y == 100)
+    c13("a shot with no size is refused", E.growPlan(100, 100, 0, 50) == nil)
+    c13("…by name", select(2, E.growPlan(100, 100, 0, 50)) == "that shot has no size")
+    c13("a canvas with no size is refused, and differently",
+        select(2, E.growPlan(0, 0, 50, 50)) == "the canvas has no size")
+    c13("the reason names both shots, so the report reads as a measurement",
+        (select(2, E.growPlan(2560, 1440, 800, 600)) or ""):find("800x600", 1, true) ~= nil)
+
+    -- ---- the window follows -------------------------------------------
+    local w1, h1 = E.windowSizeFor(800, 600, { x = 0, y = 0, w = 1440, h = 900 })
+    c13("🪟 a small shot gets a window its own size plus the chrome",
+        w1 == 828 and h1 == 682, w1 .. "x" .. h1)
+    local w2, h2 = E.windowSizeFor(3840, 2160, { x = 0, y = 0, w = 1440, h = 900 })
+    c13("🪟 a 4K shot is CLAMPED to the screen rather than opening off it",
+        w2 <= 1440 * 0.85 + 28 and h2 <= 900 * 0.85 + 82, w2 .. "x" .. h2)
+    local w3, h3 = E.windowSizeFor(10, 10, { x = 0, y = 0, w = 1440, h = 900 })
+    c13("🪟 …and there is a floor, so a tiny shot is still a usable window",
+        w3 == 720 and h3 == 320, w3 .. "x" .. h3)
+    local w4 = E.windowSizeFor(nil, nil, nil)
+    c13("🪟 garbage in does not throw — it sizes for a default shot",
+        type(w4) == "number" and w4 > 0, w4)
+
+    -- ---- the one door --------------------------------------------------
+    c13("🔒 a png data URI is usable", E.imageURIok("data:image/png;base64,AAAB") == true)
+    c13("🔒 a QUOTE is not — it would end the JavaScript string literal "
+        .. "this URI is pushed inside, and a script WebKit cannot parse is "
+        .. "dropped in SILENCE",
+        E.imageURIok("data:image/png;base64,AA'+alert(1)+'") == false)
+    c13("🔒 a plain path is not an image", E.imageURIok("/x/shot.png") == false)
+    c13("🔒 nil is not an image, and does not throw", E.imageURIok(nil) == false)
+
+    -- ---- the canvas size, and WHO says so ------------------------------
+    JS = {}
+    check("(the editor is open for this section)", E.open(SRC) == true)
+    local cw, ch, who = E.canvasSize()
+    c13("📏 before the page speaks, Lua uses the size it read off the FILE",
+        cw == 800 and ch == 600, tostring(cw) .. "x" .. tostring(ch))
+    c13("…and says that is where the number came from — a ⌘O this early "
+        .. "still works, and the report does not pretend the page answered",
+        who == "read off the file at open", who)
+    BRIDGE({ body = { a = "size", w = 2560, h = 1440 } })
+    local cw2, _, who2 = E.canvasSize()
+    c13("📏 once the page says its size, THAT is the canvas", cw2 == 2560, cw2)
+    c13("…and the report can tell the two apart (6.196.1)",
+        who2 == "the page said so", who2)
+    BRIDGE({ body = { a = "size", w = 0, h = 0 } })
+    local cw3, _, who3 = E.canvasSize()
+    c13("🚨 a size of zero is not an answer — it is ignored rather than "
+        .. "believed, or the next grow plans against nothing",
+        cw3 == 2560 and who3 == "the page said so", tostring(cw3))
+
+    -- ---- the grow itself ------------------------------------------------
+    JS = {}
+    local okG, whyG = E.growWith("data:image/png;base64,SECOND", 2560, 1440)
+    c13("🖼 the grow lands", okG == true, whyG)
+    local grew = JS[#JS] or ""
+    c13("…and the page is GIVEN the numbers rather than working them out",
+        grew:find("growTo('data:image/png;base64,SECOND', 2560, 2892, 0, 1452", 1, true) ~= nil,
+        grew)
+    c13("…the fill colour rides with them", grew:find("#202127", 1, true) ~= nil)
+    c13("🪟 the window grew with the canvas",
+        VIEW.rect.w == E.windowSizeFor(2560, 2892, { w = 1440, h = 900 }),
+        VIEW.rect.w)
+    -- 🚨 THE BELT, ASSERTED WHERE IT BITES. "canvasSize now reads 2892"
+    -- passes with the belt deleted too, because the old number is still a
+    -- number — so the check is a SECOND ⌘O with no word from the page in
+    -- between, which must plan against the canvas the first one made.
+    JS = {}
+    local okTwice = E.growWith("data:image/png;base64,THIRD", 2560, 1440)
+    local twice = JS[#JS] or ""
+    c13("🚨 a second ⌘O before the page has spoken again plans against the "
+        .. "canvas the FIRST one made, not the one before it — and the "
+        .. "axis is recomputed, so the now-TALL canvas grows sideways",
+        okTwice == true
+        and twice:find("2560x1440 beside", 1, true) == nil
+        and twice:find("', 5132, 2892, 2572, 0", 1, true) ~= nil, twice:sub(1, 70))
+
+    JS = {}
+    local okBad, whyBad = E.growWith("/not/a/uri.png", 100, 100)
+    c13("🔒 a refused URI never reaches WebKit", okBad == false and #JS == 0, #JS)
+    c13("…and says why", whyBad == "not a usable image", whyBad)
+
+    E.close()
+    local okShut = E.growWith("data:image/png;base64,X", 10, 10)
+    c13("a closed editor cannot grow", okShut == false)
+    local _, _, whoShut = E.canvasSize()
+    c13("🚨 and closing FORGETS the canvas — a size left behind is a grow "
+        .. "planned against a page that no longer exists",
+        whoShut == "not known", whoShut)
+
+    -- ---- ⌘O's picker ----------------------------------------------------
+    -- Earlier sections repoint CORE.has at their own registry, so this one
+    -- claims it back rather than assuming what a section three hundred
+    -- lines up left behind.
+    SERVICES = {}
+    CORE.has  = function(n) return SERVICES[n] ~= nil end
+    CORE.call = function(n, ...) local f = SERVICES[n]; if f then return f(...) end end
+    E.open(SRC)
+    local okNo, whyNo = E.loadPrior()
+    c13("🔌 with the screenshots module absent, ⌘O says so and changes "
+        .. "nothing", okNo == false and (whyNo or ""):find("screenshots module", 1, true),
+        whyNo)
+
+    SERVICES["screenshots.list"] = function()
+        return {
+            { name = "Later.png",  path = "/od/2026 Screenshots/Later.png",
+              mtime = 200, size = 2048 },
+            { name = "Screenshot demo.png", path = SRC, mtime = 150, size = 1024 },
+            { name = "Older.png",  path = "/od/2026 Screenshots/Older.png",
+              mtime = 100, size = 512 },
+        }
+    end
+    READABLE["/od/2026 Screenshots/Later.png"] = "FAKE-SECOND-PNG"
+    CHOOSER = nil
+    local okPick, whyPick = E.loadPrior()
+    c13("🖼 ⌘O opens a picker of the folder's other shots", okPick == true
+        and CHOOSER ~= nil and CHOOSER.shown == true, whyPick)
+    -- 6.186.0 — every read of the picker below goes through these, so a
+    -- mutation that stops it being made FAILS a check rather than ending
+    -- the run at an index of nil.
+    local function rowCount() return CHOOSER and #CHOOSER.rows or -1 end
+    local function row(i)
+        return (CHOOSER and CHOOSER.rows[i]) or { text = "(no picker)", path = "" }
+    end
+    c13("🚨 the shot he is ALREADY editing is not offered — loading a shot "
+        .. "onto itself is the one row that can only be a mistake",
+        rowCount() == 2 and row(1).text == "Later.png"
+        and row(2).text == "Older.png", rowCount())
+    c13("…each row carries its path and when it was taken",
+        row(1).path == "/od/2026 Screenshots/Later.png"
+        and (row(1).subText or ""):find("KB", 1, true) ~= nil,
+        row(1).subText)
+    c13("…and the picker is in the Esc registry like every other chooser "
+        .. "here", _G.choosers.editorLoadShot == CHOOSER)
+
+    JS = {}
+    BRIDGE({ body = { a = "size", w = 800, h = 600 } })
+    -- 🔒 THE DOOR BITES ON THE REAL ROUTE, and this suite's own encoder
+    -- proves it: hs.base64.encode is stubbed here to a VISIBLE transform
+    -- ("B64<…>") so other sections can see it ran — and those angle
+    -- brackets are exactly what `ed.imageURIok` refuses, so a shot read
+    -- off disk and encoded that way never reaches WebKit.
+    if CHOOSER then CHOOSER:pick(1) end
+    c13("🔒 a file whose encoding is not base64 is refused on the way in, "
+        .. "on the path from DISK rather than only in a unit check",
+        #JS == 0, JS[1])
+    c13("…and the refusal is remembered for the report",
+        (E.lastGrowWhy or "") == "not a usable image", E.lastGrowWhy)
+
+    local realEncode = hs.base64.encode
+    hs.base64.encode = function(bytes) return "SEC" .. #bytes end
+    JS = {}
+    _G.choosers.editorLoadShot = nil
+    E.loadPrior()
+    if CHOOSER then CHOOSER:pick(1) end
+    hs.base64.encode = realEncode
+    local pushed = JS[#JS] or ""
+    c13("🖼 picking a row reads that file and grows the canvas — driven "
+        .. "through the chooser's own callback, not by calling the grow "
+        .. "by hand (6.203.0)",
+        pushed:find("growTo(", 1, true) == 1, pushed:sub(1, 40))
+    c13("…with the SECOND file's bytes, not the open one's",
+        pushed:find("SEC15", 1, true) ~= nil, pushed:sub(1, 60))
+    c13("…and the picker lets go of the registry when it answers",
+        _G.choosers.editorLoadShot == nil)
+
+    SERVICES["screenshots.list"] = function()
+        return { { name = "Screenshot demo.png", path = SRC, mtime = 1, size = 1 } }
+    end
+    local okEmpty, whyEmpty = E.loadPrior()
+    c13("a folder holding only this shot says so rather than opening an "
+        .. "empty picker", okEmpty == false
+        and (whyEmpty or ""):find("no other screenshots", 1, true) ~= nil, whyEmpty)
+
+    -- ---- the report ------------------------------------------------------
+    printed = {}
+    local rep = _G.screenshotEditorReport()
+    c13("🔎 the report prints as ONE string (6.179.1)", #printed == 1, #printed)
+    c13("…it names the canvas and who said so",
+        rep:find("canvas  :", 1, true) ~= nil
+        and rep:find("the page said so", 1, true) ~= nil)
+    c13("…and counts the grows", rep:find("grow    :", 1, true) ~= nil
+        and rep:find("asked", 1, true) ~= nil, rep)
+
+    E.close()
+    E.open(SRC)
+    printed = {}
+    local rep2 = _G.screenshotEditorReport()
+    c13("🔎 the counts are per SESSION, not per window — closing and "
+        .. "reopening the editor does not forget what this session did",
+        rep2:find("grow    :", 1, true) ~= nil
+        and rep2:find("never asked", 1, true) == nil)
+    E.grows.asked, E.grows.landed, E.grows.failed = 0, 0, 0
+    printed = {}
+    local rep3 = _G.screenshotEditorReport()
+    c13("🔎 …and a session with no ⌘O in it reads DIFFERENTLY from one "
+        .. "where every grow failed (6.196.1)",
+        rep3:find("never asked this session", 1, true) ~= nil)
+    E.close()
+
+    check("§13 ran every one of its checks", n13 == 61, n13)
 end
 
 out(("\n%d passed, %d failed\n"):format(pass, fail))

@@ -86,8 +86,12 @@ function makeEnv(shownW, size) {
   const listeners = { window: {}, ov: {}, tin: {} };
   const cvCtx = drawStubs(makeCtx(store, CW), cvCalls);
   const ovCtx = drawStubs({ getImageData() {}, putImageData() {} }, ovCalls);
+  let cvW = CW, cvH = CH;
   const cv = {
-    width: CW, height: CH,
+    get width(){ return cvW; },
+    set width(v){ cvW = v; store.fill(0); },
+    get height(){ return cvH; },
+    set height(v){ cvH = v; store.fill(0); },
     getContext: () => cvCtx,
     toDataURL: (fmt) => (fmt === "image/jpeg" ? "data:image/jpeg;base64,RENDERED"
                                               : "data:image/png;base64,RENDERED"),
@@ -128,7 +132,7 @@ function makeEnv(shownW, size) {
     // the page's own base image never does, as before
     Image: function () {
       return { naturalWidth: 800, naturalHeight: 600, onload: null,
-               set src(v) { if (String(v).indexOf("PASTED") >= 0 && this.onload) this.onload(); } };
+               set src(v) { if (/PASTED|GROWN/.test(String(v)) && this.onload) this.onload(); } };
     },
     // 6.189.0 — the restore path decodes its notes here
     atob: (b) => Buffer.from(b, "base64").toString("binary"),
@@ -1033,6 +1037,86 @@ const free = (x, y) => Object.assign(mouse(x, y), { buttons: 0 });
   check("a normal mouseup still finishes the drag and keeps the shape",
         env.call("!drag") && env.call("notes.length") === 1
         && env.call("notes[0].kind") === "oval");
+}
+
+
+// =====================================================================
+// 6.258.0 — ⌘O: the canvas GROWS and a prior shot lands in the new room
+// =====================================================================
+// Lua worked out the geometry (proven in test_editor.lua, with no Mac)
+// and hands the numbers in. This half is what the page does with them,
+// and the rule that matters is the one that protects his work: the old
+// pixels go back at 0,0, never centred, because every note is in canvas
+// coordinates.
+{
+  const env = load(null, { w: 40, h: 60 });
+  env.call("cv.width = 40; cv.height = 30; if (ov){ ov.width = 40; ov.height = 30; }");
+
+  // two markers: the top-left corner, and the last row of the original
+  env.store[0] = 200; env.store[3] = 255;
+  const lastRow = (29 * 40 + 5) * 4;
+  env.store[lastRow] = 150; env.store[lastRow + 3] = 255;
+
+  env.cvCalls.length = 0;
+  const grew = env.call("growTo('GROWN-SHOT', 40, 60, 0, 42, '#202127')");
+  check("growTo accepts a plan that makes the canvas bigger", grew === true);
+  check("…the canvas is the size Lua asked for",
+        env.call("cv.width") === 40 && env.call("cv.height") === 60,
+        env.call("cv.width") + "x" + env.call("cv.height"));
+  check("…and the OVERLAY follows it, or every later mark is drawn on a "
+        + "surface a different size from the picture",
+        env.call("ov.width") === 40 && env.call("ov.height") === 60);
+
+  const fills = env.cvCalls.filter((c) => c[0] === "fillRect");
+  check("🎨 the new room is painted, so it reads as canvas and not as a "
+        + "piece of either screenshot",
+        fills.some((c) => c[3] === 40 && c[4] === 60 && c[5] === "#202127"),
+        JSON.stringify(fills[0]));
+
+  check("📏 THE ORIGINAL IS PUT BACK AT 0,0 — its top-left pixel is where "
+        + "it was", env.store[0] === 200);
+  check("…and so is its last row, at the same y — a grow that moved the "
+        + "old pixels would move every note off the thing it points at",
+        env.store[lastRow] === 150);
+
+  const drawn = env.cvCalls.filter((c) => c[0] === "drawImage");
+  check("🖼 the loaded shot is drawn at the offset Lua computed, at its "
+        + "OWN size — this is a grow, not a 40% paste",
+        drawn.length === 1 && drawn[0][2] === 0 && drawn[0][3] === 42,
+        JSON.stringify(drawn[0] && drawn[0].slice(1)));
+
+  const sizes = env.sent.filter((m) => m.a === "size");
+  check("🪟 the page tells Lua its new size afterwards (6.238.0 — a page "
+        + "says what it is; Lua does not guess)",
+        sizes.length >= 1 && sizes[sizes.length - 1].w === 40
+        && sizes[sizes.length - 1].h === 60,
+        JSON.stringify(sizes[sizes.length - 1]));
+
+  // ↩︎ undo: the size AND the pixels come back
+  env.call("undoLast()");
+  check("↩︎ ⌘Z takes the whole grow back — the canvas shrinks again",
+        env.call("cv.width") === 40 && env.call("cv.height") === 30,
+        env.call("cv.width") + "x" + env.call("cv.height"));
+  check("…and the pixels with it, because shrinking a canvas DESTROYS "
+        + "them and the undo row carries them",
+        env.store[0] === 200 && env.store[lastRow] === 150);
+  check("…and Lua is told the size went back too",
+        env.sent.filter((m) => m.a === "size").length === sizes.length + 1);
+}
+
+{
+  // 🚨 A GROW NEVER SHRINKS. Lua's plan is always at least the current
+  // canvas, so a smaller target means the two sides disagree about how
+  // big this page is — and obeying it would throw his work away.
+  const env = load(null, { w: 40, h: 60 });
+  env.cvCalls.length = 0;
+  const no = env.call("growTo('GROWN-SHOT', 20, 20, 0, 0, '#202127')");
+  check("🚨 a plan SMALLER than the canvas is refused outright", no === false);
+  check("…and nothing was drawn or resized",
+        env.call("cv.width") === 40 && env.cvCalls.length === 0,
+        env.cvCalls.length);
+  check("a growTo with no source does nothing",
+        env.call("growTo('', 80, 80, 0, 0, '#202127')") === false);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

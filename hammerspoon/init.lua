@@ -4,9 +4,45 @@
 -- =====================================================================
 -- 09-19-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.257.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.258.0
 -- =====================================================================
 
+-- NEW IN 6.258.0 — 🖼 ⌘O: A PRIOR SHOT ONTO THIS ONE, AND THE CANVAS GROWS
+--                  (modules/screenshot_editor.lua, screenshots.lua):
+--   LL: "Allow me to load a prior screenshot on to the current
+--      screenshot and grow the canvas so that I can see both."
+--   ⌘O, or the 🖼 Load shot button: a picker of the other shots in the
+--      folder, and the one he chooses is drawn at its OWN size in room
+--      the canvas has just been given for it.
+--   🔑 GROW, NOT PASTE, and that is the whole difference from ⌘V/⌘A:
+--      those put an image ON the shot at 40% of its width, which is
+--      right for "point at this" and wrong for "put these two side by
+--      side". This one makes room.
+--   📏 THE ORIGINAL NEVER MOVES — it keeps 0,0 — and that is a rule,
+--      not a convenience: every note, blur, arrow and counter is stored
+--      in CANVAS coordinates, so leaving it at the origin is what stops
+--      a grow dragging his marks off the things they point at. Centring
+--      it would look tidier and would move all of them.
+--   🧭 WHICH WAY IT GROWS IS ARITHMETIC: along the SHORTER side, so two
+--      wide screenshots stack (2560x1440 twice over is nearly square)
+--      rather than making a 5120-wide strip nothing can display.
+--      6.252.0's rule the other way up — there the LONGER side splits.
+--   🪟 AND THE WINDOW FOLLOWS, through the same screen-clamped
+--      arithmetic ed.open has always used — `ed.windowSizeFor` is
+--      LIFTED out rather than copied, because two copies is how a
+--      window that opens right comes to resize wrong.
+--   📐 `ed.growAxis` and `ed.growPlan` are PURE and carry every edge
+--      (a wider shot widens the canvas instead of being cropped, a
+--      negative gap cannot overlap the two shots, an unknown axis falls
+--      back to the rule), so the geometry is proven with no Mac.
+--   🪟 THE PAGE SAYS HOW BIG IT IS (6.238.0): Lua plans against the
+--      size the page reported, never one it assumed, and the report
+--      tells "the page said so" from "read off the file at open".
+--      ↩︎ ⌘Z takes a whole grow back — the undo row carries the old
+--      pixels, because shrinking a canvas destroys them.
+--        settings = { screenshot_editor = { growGap = 24 } }
+--      · 10,014 -> 10,092 checks · fifteen mutations, fifteen bites.
+--
 -- NEW IN 6.257.0 — 📄 A DOCUMENT IS NAMED BY THE APP, NOT BY ITS TITLE BAR
 --                  (modules/activity_tracker.lua, doc_memory.lua):
 --   LL, with a screenshot of the documents list beside Finder: "It's not
@@ -45,38 +81,12 @@
 --        settings = { activity_tracker = { askDocs = false } }
 --      · 9,941 -> 10,014 checks · thirteen mutations, thirteen bites.
 --
--- NEW IN 6.256.0 — 🖥 THE WHOLE SCREEN, NOW, WITH THIS WINDOW OUT OF IT
---                  (modules/screenshot_editor.lua):
---   LL: "Add full screen snapshot tool."
---   ⌘F, or the 🖥 button: the editor steps aside, the whole screen is
---      grabbed, and it lands on the shot as a movable image note —
---      6.255.0's door with the countdown taken off.
---   ⏱ ONE BODY, ONE ARGUMENT APART. `ed.grabScreen(secs, needDelay)`
---      serves ⌘D and ⌘F, and `ed.grabPlan` takes `needDelay` as a
---      PARAMETER rather than being written twice: a countdown of zero is
---      a broken ⌘D and a perfectly good ⌘F, which is one rule, not two.
---   🚨 :hide() IS NOT INSTANT, AND THAT IS THE WHOLE RELEASE. macOS takes
---      the window off screen on its own turn, so a screencapture asked
---      for on the next line photographs an editor that is still there.
---      With a countdown screencapture's own -T covers that; without one
---      NOTHING does, so `hideSettleSecs` (0.4) is a held timer in its OWN
---      slot (6.196.1) between the hide and the shutter, the belt is armed
---      to cover it too, and a Mac that cannot arm the beat shoots anyway
---      — a picture with the editor in it beats no picture.
---   🚨 AND CLOSING THE EDITOR MID-CAPTURE NOW TEARS IT DOWN. That was
---      6.255.0's wart, found while building its sibling: ⇪⇧1 on another
---      shot calls close(), which left `hidden` set, so the belt woke up
---      and alerted "the delayed capture never answered" over an editor
---      HE had closed. Both timers stopped, both flags cleared, its own
---      check. A feature holding two timers and a flag owes a teardown.
---      · 9,929 -> 9,941 checks · ten mutations, ten bites.
---
--- (6.255.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.256.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.257.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.258.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -173,7 +183,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.257.0"
+_G.configVersion = "6.258.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the

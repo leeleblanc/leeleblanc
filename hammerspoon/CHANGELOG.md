@@ -5,6 +5,85 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.258.0 — 🖼 ⌘O: A PRIOR SHOT ONTO THIS ONE, AND THE CANVAS GROWS
+                 (modules/screenshot_editor.lua, modules/screenshots.lua):
+  LL: "Allow me to load a prior screenshot on to the current screenshot and
+  grow the canvas so that I can see both."
+
+  ⌘O, or the 🖼 Load shot button beside 🖥 Full screen: a picker of the
+  other shots in the screenshots folder, and the one he chooses is drawn at
+  its OWN size in room the canvas has just been given for it.
+
+  🔑 GROW, NOT PASTE, AND THAT IS THE WHOLE DIFFERENCE. ⌘V and ⌘A already
+  put an image ON the shot — scaled to 40% of its width and floating over
+  the pixels, which is right for "point at this" and wrong for "put these
+  two side by side". This one makes ROOM.
+
+  📏 THE ORIGINAL NEVER MOVES. It keeps 0,0, and that is a rule rather than
+  a convenience: every note, blur, arrow, counter and spotlight on this
+  canvas is stored in CANVAS coordinates, so leaving the original at the
+  origin is the only thing that stops a grow dragging his marks off the
+  things they point at. Centring it would look tidier when the two shots
+  are different widths, and would move every one of them.
+
+  🧭 WHICH WAY IT GROWS IS ARITHMETIC, NOT TASTE: along the SHORTER side.
+  Two wide screenshots stacked is 2560x2892, very nearly square; side by
+  side it is a 5120-pixel strip no display can show. mouse_grid's 6.252.0
+  rule the other way up — there the LONGER side is the one worth splitting,
+  because there the question is precision and here it is fit.
+
+  📐 `ed.growAxis` and `ed.growPlan` are PURE and carry every edge with its
+  own check: a shot WIDER than the canvas widens it rather than being
+  cropped; a negative gap is clamped to nothing, because the one thing this
+  feature must never do is overlap the two shots; an axis passed by name
+  wins, and an axis that is not one of the two falls back to the rule. All
+  of the geometry is proven on the gate with no Mac.
+
+  🪟 AND THE WINDOW FOLLOWS THE CANVAS, through the same screen-clamped
+  arithmetic ed.open has always used — `ed.windowSizeFor` is LIFTED out of
+  ed.open rather than copied, because two copies of that sum is how a
+  window that opens right comes to resize wrong (6.231.0: one function,
+  two callers).
+
+  🪟 THE PAGE SAYS HOW BIG IT IS (6.238.0's rule, in a second panel). Lua
+  plans against the size the PAGE last reported, never one it assumed; the
+  size read off the file at open is the fallback, and the report tells the
+  two apart, because only the first proves the bridge works. The size Lua
+  just asked for is remembered as a BELT, so a second ⌘O before the page
+  has spoken again plans against the canvas the first one made — asserted
+  by doing exactly that, since "the number is now 2892" passes with the
+  belt deleted too (6.212.0: assert what is UNIQUE to the branch).
+
+  ↩︎ ⌘Z TAKES A WHOLE GROW BACK, and the undo row carries the old PIXELS,
+  because assigning a canvas's width destroys them. The same shape as a
+  blur's patch, one size up; bounded by the existing 20-row undo stack.
+
+  🔒 ONE DOOR, ONE SHAPE: `ed.imageURIok` is asked by ⌘V/⌘A's addImage and
+  by this release's growTo alike — both push a data URI inside a JavaScript
+  string literal, where a quote would end the literal and a script WebKit
+  cannot parse is dropped in silence (6.213.0, 6.204.0).
+
+  🚨 A GROW NEVER SHRINKS. A plan smaller than the canvas means Lua and the
+  page disagree about how big this page is, and obeying it would throw his
+  work away — the page refuses outright and draws nothing.
+
+  🔌 The folder is listed by the module that owns it: `screenshots.list` is
+  published and the editor asks, rather than walking that folder a second
+  time. The shot he is already editing is not offered, the picker lives in
+  the `_G.choosers` Esc registry like every other picker here, and closing
+  the editor lets go of both the picker and the canvas size.
+
+  🧪 AND THE CANVAS STUB KEPT ITS PIXELS THROUGH A RESIZE, which a real one
+  does not — so "⌘Z put the pixels back" passed with the putImageData
+  deleted. 6.193.0 in a PROPERTY rather than a method: the stub clears on
+  assignment now, and the mutation bites.
+
+    settings = { screenshot_editor = { growGap = 24, growFill = "#000000" } }
+
+  · 10,014 -> 10,092 checks · fifteen mutations, fifteen bites.
+```
+
+```text
 NEW IN 6.257.0 — 📄 A DOCUMENT IS NAMED BY THE APP, NOT BY ITS TITLE BAR
                  (modules/activity_tracker.lua, modules/doc_memory.lua):
   LL, with a screenshot of the documents list beside a Finder window:

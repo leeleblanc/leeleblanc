@@ -1,5 +1,5 @@
 ========================================================================
-RESOLVED FEATURE REQUESTS — Hammerspoon config 6.257.0
+RESOLVED FEATURE REQUESTS — Hammerspoon config 6.258.0
 Every feature and how to use it. Generated from the modules' own
 cheat sheets (the rows ⇪/ draws), so it is never out of date.
 ⇪ = Caps Lock held (the hyper key). ⇪⇧X = Caps Lock + Shift + X.
@@ -529,6 +529,7 @@ In the Console, _G.<tool>Report() prints any tool's own report.
   ⌘V ⌘A 6.213.0: paste the clipboard's IMAGE onto the shot · Add capture — drag an area of the screen and it lands on the shot (move the editor first if it is in the way)
   ⌘D      6.255.0: Delayed capture — this window gets out of the way, you arrange the screen, and five seconds later the WHOLE screen lands on the shot
   ⌘F      6.256.0: Full screen — the whole screen, right now, with this window out of the picture
+  ⌘O      6.258.0: Load a PRIOR shot — the canvas grows so you can see both, and what you have already drawn does not move
   text      click, type, ⏎ — white text, white outline box · click an EXISTING box (Text tool) to edit its words, or ⏎ on a selected one
   move      drag text/arrows around · arrow ENDS stretch + rotate · a selected text box has a corner dot — drag it to make the text bigger or smaller (⌘Z undoes it)
   ⌘-click 6.221.0: hold ⌘ and click ANY mark to select it — a text box opens its words at once, whatever tool is armed; a ⌘-click that misses creates nothing
@@ -770,6 +771,7 @@ In the Console, _G.<tool>Report() prints any tool's own report.
 
 📜 RELEASE INDEX — newest first, one line per release (the full story of each is in CHANGELOG.md)
 ------------------------------------------------------------------------
+  6.258.0  🖼 ⌘O: A PRIOR SHOT ONTO THIS ONE, AND THE CANVAS GROWS
   6.257.0  📄 A DOCUMENT IS NAMED BY THE APP, NOT BY ITS TITLE BAR
   6.256.0  🖥 THE WHOLE SCREEN, NOW, WITH THIS WINDOW OUT OF IT
   6.255.0  ⏲ A DELAYED FULL-SCREEN CAPTURE, ONTO THE SHOT

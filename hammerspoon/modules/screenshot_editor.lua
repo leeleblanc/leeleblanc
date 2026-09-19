@@ -61,6 +61,7 @@ local M = {
             { "⌘V ⌘A", "6.213.0: paste the clipboard's IMAGE onto the shot · Add capture — drag an area of the screen and it lands on the shot (move the editor first if it is in the way)" },
             { "⌘D",    "6.255.0: Delayed capture — this window gets out of the way, you arrange the screen, and five seconds later the WHOLE screen lands on the shot" },
             { "⌘F",    "6.256.0: Full screen — the whole screen, right now, with this window out of the picture" },
+            { "⌘O",    "6.258.0: Load a PRIOR shot — the canvas grows so you can see both, and what you have already drawn does not move" },
             { "text",  "click, type, ⏎ — white text, white outline box · click an EXISTING box (Text tool) to edit its words, or ⏎ on a selected one" },
             { "move",  "drag text/arrows around · arrow ENDS stretch + rotate · a selected text box has a corner dot — drag it to make the text bigger or smaller (⌘Z undoes it)" },
             { "⌘-click", "6.221.0: hold ⌘ and click ANY mark to select it — a text box opens its words at once, whatever tool is armed; a ⌘-click that misses creates nothing" },
@@ -118,6 +119,10 @@ function M.setup(core)
     -- waits, and it is the ONLY thing standing between "full screen" and
     -- "a picture of the editor".
     ed.hideSettleSecs = 0.4
+    -- 🖼 6.258.0 — loading a PRIOR shot onto this one
+    ed.growGap    = 12          -- pixels of surround between the two shots
+    ed.growFill   = "#202127"   -- what the new room is painted with
+    ed.growRows   = 40          -- prior shots offered in the picker
     ed.kept = nil    -- { path, img, notes } — never written to disk, never
                      -- survives a reload; this is a safety net, not a store
     -- ----------------------------------------------------------------------
@@ -141,6 +146,14 @@ function M.setup(core)
     ed.delayTimer = nil       -- HELD, its own slot (6.196.1)
     ed.settleTimer = nil      -- HELD, ITS OWN slot: two timers, never one
     ed.lastDelayWhy = nil
+    -- 🖼 6.258.0. canvasW/H is what the PAGE last said it is — never what
+    -- Lua assumes (6.238.0: a page tells Lua when it exists and what it
+    -- holds; Lua does not guess). `pageSized` is how the report tells
+    -- "the page told me" from "I read it off the file at open", and those
+    -- are different facts about the same number.
+    ed.canvasW, ed.canvasH, ed.pageSized = nil, nil, false
+    ed.grows = { asked = 0, landed = 0, failed = 0 }
+    ed.lastGrowWhy, ed.lastGrow = nil, nil
 
     -- ---- files -----------------------------------------------------------
     function ed.editedPathFor(path, ext)
@@ -254,6 +267,7 @@ function M.setup(core)
   <button onclick="say({a:'capture'})" title="⌘A">📸 Add capture</button>
   <button id="btn-delay" onclick="say({a:'delay'})" title="⌘D">⏲ Delayed ]] .. tostring(delaySecs) .. [[s</button>
   <button id="btn-full" onclick="say({a:'full'})" title="⌘F">🖥 Full screen</button>
+  <button id="btn-load" onclick="say({a:'loadshot'})" title="⌘O">🖼 Load shot</button>
   <button onclick="undoLast()" title="⌘Z">↩︎ Undo</button>
   <button class="go" onclick="saveIt('png')" title="⌘⏎">Save &amp; copy&nbsp;&nbsp;⌘⏎</button>
   <button onclick="saveIt('jpg')" title="⌘⇧⏎">Small JPEG</button>
@@ -428,6 +442,12 @@ function M.setup(core)
     var u = undoStack.pop();
     if (!u) return;
     if (u.op === 'blur') ctx.putImageData(u.data, u.x, u.y);
+    else if (u.op === 'grow'){
+      cv.width = u.w; cv.height = u.h;
+      if (ov){ ov.width = u.w; ov.height = u.h; }
+      ctx.putImageData(u.data, 0, 0);
+      sayCanvas();
+    }
     else if (u.op === 'add'){
       var i = notes.indexOf(u.note);
       if (i >= 0) notes.splice(i, 1);
@@ -505,6 +525,35 @@ function M.setup(core)
     redraw();
     return true;
   }
+  // 🖼 6.258.0 — the canvas GROWS and a prior shot lands in the new room.
+  // Lua worked the geometry out and handed the numbers in; this does them
+  // and nothing else, so there is one copy of the rule, in Lua, where the
+  // gate can drive it. The old pixels go back at 0,0 — never centred —
+  // because every note is in canvas coordinates and would otherwise move.
+  function sayCanvas(){ if (cv) say({ a: 'size', w: cv.width, h: cv.height }); }
+  function growTo(src, nw, nh, ax, ay, fill){
+    if (!cv || !ctx || !src) return false;
+    nw = Math.round(Number(nw) || 0); nh = Math.round(Number(nh) || 0);
+    if (nw < cv.width || nh < cv.height) return false;   // a grow never shrinks
+    var im = new Image();
+    im.onload = function(){
+      var old = ctx.getImageData(0, 0, cv.width, cv.height);
+      // 📏 THE UNDO CARRIES THE OLD PIXELS, because shrinking a canvas
+      // destroys them — the same shape as a blur's patch, one size up.
+      pushUndo({ op: 'grow', w: cv.width, h: cv.height, data: old });
+      cv.width = nw; cv.height = nh;
+      if (ov){ ov.width = nw; ov.height = nh; }
+      ctx.fillStyle = fill || '#202127';
+      ctx.fillRect(0, 0, nw, nh);
+      ctx.putImageData(old, 0, 0);
+      ctx.drawImage(im, Math.round(Number(ax) || 0), Math.round(Number(ay) || 0));
+      redraw();
+      sayCanvas();
+    };
+    im.src = src;
+    return true;
+  }
+
   // 6.213.0 — ONE veil for every spotlight: the whole canvas, with each
   // spot punched out (even-odd), so two spotlights are two holes and
   // never a double-dark. Drawn under the marks, over the magnifiers.
@@ -761,6 +810,7 @@ function M.setup(core)
       if (ov){ ov.width = cv.width; ov.height = cv.height; }
       ctx.drawImage(img, 0, 0);
       redraw();            // 6.189.0 — restored notes, if any
+      sayCanvas();         // 6.258.0 — Lua does not guess how big this is
     };
     img.src = RESTOREIMG || ']] .. dataURI .. [[';
 
@@ -975,6 +1025,7 @@ function M.setup(core)
       else if (e.metaKey && (e.key === 'd' || e.key === 'D')) { e.preventDefault(); say({ a: 'delay' }); }
       // 6.256.0 — ⌘F: the whole screen, now, with this window out of it
       else if (e.metaKey && (e.key === 'f' || e.key === 'F')) { e.preventDefault(); say({ a: 'full' }); }
+      else if (e.metaKey && (e.key === 'o' || e.key === 'O')) { e.preventDefault(); say({ a: 'loadshot' }); }
       // 6.207.0 — ⏎ on a selected text box edits it (⌘⏎ is still save)
       else if (e.key === 'Enter' && !e.metaKey && sel && sel.kind === 'text') {
         e.preventDefault(); startText(sel);
@@ -1104,7 +1155,232 @@ function M.setup(core)
         elseif body.a == "full" then
             local ok, why = ed.addFullScreen()
             if not ok then pcall(function() hs.alert.show("🖌 " .. tostring(why), 3) end) end
+        elseif body.a == "loadshot" then
+            local ok, why = ed.loadPrior()
+            if not ok then
+                ed.lastGrowWhy = tostring(why)
+                pcall(function() hs.alert.show("🖌 " .. tostring(why), 3) end)
+            end
+        elseif body.a == "size" then
+            -- 6.258.0 — the page is the authority on its own canvas
+            local w, h = tonumber(body.w), tonumber(body.h)
+            if w and h and w > 0 and h > 0 then
+                ed.canvasW, ed.canvasH, ed.pageSized = w, h, true
+            end
         end
+    end
+
+    -- =====================================================================
+    -- 🖼 6.258.0 — ⌘O: A PRIOR SHOT ONTO THIS ONE, AND THE CANVAS GROWS
+    -- =====================================================================
+    -- LL: "Allow me to load a prior screenshot on to the current
+    -- screenshot and grow the canvas so that I can see both."
+    --
+    -- 🔑 GROW, NOT PASTE, AND THAT IS THE WHOLE DIFFERENCE. ⌘V and ⌘A
+    -- already put an image ON the shot — scaled to 40% and floating over
+    -- the pixels, which is right for "point at this" and wrong for "put
+    -- these two side by side". This one makes ROOM: the canvas becomes
+    -- big enough for both, the shot he was editing stays exactly where it
+    -- was, and the loaded one is drawn at its OWN size in the new space.
+    --
+    -- 📐 THE OLD CONTENT NEVER MOVES, and that is a rule rather than a
+    -- convenience: every note, blur, arrow and counter on the canvas is
+    -- stored in CANVAS coordinates, so leaving the original at 0,0 means
+    -- a grow cannot disturb one of them. Centring it — which would look
+    -- tidier when the two shots are different widths — would move every
+    -- mark he has already placed. Tidy is not worth that.
+    --
+    -- 🧭 WHICH WAY IT GROWS IS ARITHMETIC, NOT TASTE: along the SHORTER
+    -- side, so two wide screenshots stack (2560x1440 twice over is
+    -- 2560x2892, nearly square) rather than making a 5120-wide strip
+    -- nothing can display. mouse_grid's 6.252.0 rule the other way up —
+    -- there the LONGER side is the one worth splitting.
+
+    -- PURE. Which way this canvas should grow, and why.
+    function ed.growAxis(curW, curH)
+        curW, curH = tonumber(curW) or 0, tonumber(curH) or 0
+        if curW <= 0 or curH <= 0 then return nil, "the canvas has no size" end
+        if curH < curW then
+            return "down", "a wide shot grows downwards"
+        end
+        return "right", "a tall shot grows sideways"
+    end
+
+    -- PURE. The new canvas, and where the loaded shot lands in it. The
+    -- canvas takes the WIDER (or taller) of the two so neither is
+    -- cropped; the original keeps 0,0; the gap is surround, not image.
+    function ed.growPlan(curW, curH, addW, addH, axis, gap)
+        curW, curH = tonumber(curW) or 0, tonumber(curH) or 0
+        addW, addH = tonumber(addW) or 0, tonumber(addH) or 0
+        if curW <= 0 or curH <= 0 then return nil, "the canvas has no size" end
+        if addW <= 0 or addH <= 0 then return nil, "that shot has no size" end
+        gap = math.max(0, math.floor(tonumber(gap) or 0))
+        if axis ~= "down" and axis ~= "right" then
+            axis = ed.growAxis(curW, curH)
+        end
+        if axis == "right" then
+            return { axis = "right",
+                     w = curW + gap + addW,
+                     h = math.max(curH, addH),
+                     x = curW + gap, y = 0 },
+                   ("%dx%d beside %dx%d"):format(addW, addH, curW, curH)
+        end
+        return { axis = "down",
+                 w = math.max(curW, addW),
+                 h = curH + gap + addH,
+                 x = 0, y = curH + gap },
+               ("%dx%d under %dx%d"):format(addW, addH, curW, curH)
+    end
+
+    -- PURE. The window a canvas of this size wants, clamped to a screen.
+    -- 6.258.0 LIFTED this out of ed.open so the grow can ask the same
+    -- question: two copies of this arithmetic is how a window that opens
+    -- right comes to resize wrong (6.231.0, one function two callers).
+    function ed.windowSizeFor(imgW, imgH, sf)
+        imgW, imgH = tonumber(imgW) or 0, tonumber(imgH) or 0
+        if imgW <= 0 or imgH <= 0 then imgW, imgH = 900, 600 end
+        sf = (type(sf) == "table" and sf.w and sf.h) and sf
+             or { x = 0, y = 0, w = 1440, h = 900 }
+        local maxW, maxH = sf.w * 0.85, sf.h * 0.85
+        local scale = math.min(1, maxW / imgW, (maxH - 60) / imgH)
+        local w = math.max(720, math.floor(imgW * scale) + 28)
+        local h = math.max(320, math.floor(imgH * scale) + 82)
+        return w, h
+    end
+
+    -- 🔒 ONE DOOR, ONE SHAPE (6.213.0). Both ⌘V/⌘A's addImage and this
+    -- release's growTo hand a data URI to WebKit inside a JavaScript
+    -- string literal, so both ask the same question in the same place —
+    -- a quote in a URI would end that literal, and a script WebKit cannot
+    -- parse is dropped in SILENCE.
+    function ed.imageURIok(url)
+        url = tostring(url or "")
+        if url:match("^data:image/%w+;base64,[A-Za-z0-9+/=]+$") then return true end
+        return false, "not a usable image"
+    end
+
+    -- What the canvas measures right now, and WHO says so. Three states,
+    -- because "the page told me 2560x1440" and "nobody has told me
+    -- anything and I am using the file I opened" must not read alike.
+    function ed.canvasSize()
+        if ed.pageSized and (tonumber(ed.canvasW) or 0) > 0 then
+            return ed.canvasW, ed.canvasH, "the page said so"
+        end
+        if (tonumber(ed.canvasW) or 0) > 0 then
+            return ed.canvasW, ed.canvasH, "read off the file at open"
+        end
+        return nil, nil, "not known"
+    end
+
+    -- The window follows the canvas. A refusal here is cosmetic — the
+    -- pixels are already there and the canvas scales to fit — so it is
+    -- counted and never fails the grow.
+    function ed.resizeToCanvas(w, h)
+        if not ed.webview then return false, "the editor is not open" end
+        local screen = core.resolveBaseScreen and core.resolveBaseScreen()
+                       or (hs.screen and hs.screen.mainScreen and hs.screen.mainScreen())
+        local sf = { x = 0, y = 0, w = 1440, h = 900 }
+        pcall(function() if screen then sf = screen:frame() end end)
+        local ww, wh = ed.windowSizeFor(w, h, sf)
+        local ok = pcall(function()
+            local f = ed.webview:frame()
+            ed.webview:frame({ x = f.x, y = f.y, w = ww, h = wh })
+        end)
+        if not ok then return false, "the window would not resize" end
+        return true
+    end
+
+    -- 🖼 The grow itself. Lua decides the geometry (PURE, above) and the
+    -- page is GIVEN the numbers — it resizes, redraws the old pixels at
+    -- 0,0 and draws the new shot at the offset. A page that worked the
+    -- plan out for itself would be a second copy of the rule.
+    function ed.growWith(url, addW, addH)
+        if not ed.webview then return false, "the editor is not open" end
+        local okURI, whyURI = ed.imageURIok(url)
+        if not okURI then return false, whyURI end
+        local curW, curH, who = ed.canvasSize()
+        if not curW then
+            return false, "the page has not said how big the canvas is"
+        end
+        local plan, why = ed.growPlan(curW, curH, addW, addH, nil, ed.growGap)
+        if not plan then return false, why end
+
+        ed.grows.asked = ed.grows.asked + 1
+        local js = ("growTo('%s', %d, %d, %d, %d, '%s')")
+                   :format(tostring(url), plan.w, plan.h, plan.x, plan.y,
+                           tostring(ed.growFill):gsub("'", ""))
+        local okEval, err = pcall(function()
+            if type(ed.webview.evaluateJavaScript) ~= "function" then
+                error("no evaluateJavaScript", 0)
+            end
+            ed.webview:evaluateJavaScript(js)
+        end)
+        if not okEval then
+            ed.grows.failed = ed.grows.failed + 1
+            ed.lastGrowWhy = "could not hand the shot to the page (" .. tostring(err) .. ")"
+            return false, ed.lastGrowWhy
+        end
+        ed.grows.landed = ed.grows.landed + 1
+        ed.lastGrow = why .. " · " .. plan.axis .. " · canvas now "
+                      .. plan.w .. "x" .. plan.h .. " (" .. who .. ")"
+        -- The page will say its new size back; this is the belt, so a
+        -- second ⌘O still has a number to work from if it does not.
+        ed.canvasW, ed.canvasH = plan.w, plan.h
+        ed.resizeToCanvas(plan.w, plan.h)
+        return true
+    end
+
+    -- ⌘O — pick a prior shot. The list is the screenshots module's own
+    -- (it owns that folder); this module keeps no second listing.
+    function ed.loadPrior()
+        if not ed.webview then return false, "the editor is not open" end
+        if not (core.has and core.has("screenshots.list")) then
+            return false, "Load shot needs the screenshots module, which is not loaded"
+        end
+        local list = core.call("screenshots.list")
+        if type(list) ~= "table" then return false, "the screenshots folder could not be listed" end
+        local rows, n = {}, 0
+        for _, it in ipairs(list) do
+            -- the shot he is already editing is not a prior shot
+            if it.path ~= ed.currentPath then
+                n = n + 1
+                if n > (tonumber(ed.growRows) or 40) then break end
+                rows[#rows + 1] = {
+                    text = it.name,
+                    subText = os.date("%Y-%m-%d %H:%M", tonumber(it.mtime) or 0)
+                              .. "   ·   " .. math.floor((tonumber(it.size) or 0) / 1024) .. " KB",
+                    path = it.path,
+                }
+            end
+        end
+        if #rows == 0 then return false, "no other screenshots in that folder" end
+
+        local ch = hs.chooser.new(function(choice)
+            _G.choosers.editorLoadShot = nil
+            if not (choice and choice.path) then return end
+            local b64 = readFileBase64(choice.path)
+            if not b64 then
+                pcall(function() hs.alert.show("🖌 Could not read " .. choice.path, 3) end)
+                return
+            end
+            local w, h = 0, 0
+            pcall(function()
+                local im = hs.image.imageFromPath(choice.path)
+                local sz = im and im:size()
+                if sz then w, h = sz.w, sz.h end
+            end)
+            local ok, why = ed.growWith("data:image/png;base64," .. b64, w, h)
+            if not ok then
+                ed.lastGrowWhy = tostring(why)
+                pcall(function() hs.alert.show("🖌 " .. tostring(why), 3) end)
+            end
+        end)
+        if not ch then return false, "the picker could not open" end
+        _G.choosers.editorLoadShot = ch
+        pcall(function() ch:placeholderText("A prior screenshot to put beside this one") end)
+        pcall(function() ch:choices(rows) end)
+        if core.showPopup then core.showPopup(ch) else pcall(function() ch:show() end) end
+        return true
     end
 
     -- 🖌 6.213.0 — an image INTO the page. One shape for both doors
@@ -1115,9 +1391,8 @@ function M.setup(core)
     function ed.pushImage(url, w, h)
         if not ed.webview then return false, "the editor is not open" end
         url = tostring(url or "")
-        if not url:match("^data:image/%w+;base64,[A-Za-z0-9+/=]+$") then
-            return false, "not a usable image"
-        end
+        local okURI, whyURI = ed.imageURIok(url)   -- 6.258.0: the ONE shape
+        if not okURI then return false, whyURI end
         w, h = tonumber(w) or 0, tonumber(h) or 0
         if w <= 0 or h <= 0 then return false, "the image has no size" end
         local js = ("addImage('%s', %d, %d)"):format(url, math.floor(w), math.floor(h))
@@ -1390,6 +1665,24 @@ function M.setup(core)
                             and (" · ⚠️ brought back by the belt " .. num(d.late, 0)
                                  .. " time(s) — the capture never answered")
                             or "")
+        -- 🖼 6.258.0 — the grow, and WHO says how big the canvas is. A
+        -- size Lua read off the file and one the page confirmed are
+        -- different facts, and only the second proves the bridge works.
+        local g = ed.grows or {}
+        local cw, chh, who = ed.canvasSize()
+        L[#L + 1] = "   canvas  : " .. (cw
+                        and (math.floor(cw) .. "x" .. math.floor(chh) .. " — " .. who)
+                        or "not known — the page has said nothing and no file was read")
+        if num(g.asked, 0) == 0 then
+            L[#L + 1] = "   grow    : never asked this session (⌘O in the editor)"
+        else
+            L[#L + 1] = ("   grow    : %d asked · %d landed · %d failed"):format(
+                            num(g.asked, 0), num(g.landed, 0), num(g.failed, 0))
+            if ed.lastGrow then L[#L + 1] = "   ↳ last: " .. tostring(ed.lastGrow) end
+        end
+        if ed.lastGrowWhy then
+            L[#L + 1] = "   ↳ last refusal: " .. tostring(ed.lastGrowWhy)
+        end
         L[#L + 1] = ("   settings: { screenshot_editor = { delaySecs = %d, hideForDelay = %s, "
                      .. "hideSettleSecs = %s } }")
                         :format(math.floor(num(ed.delaySecs, 5)),
@@ -1418,6 +1711,13 @@ function M.setup(core)
             ed.webview = nil
         end
         ed.uc, ed.currentPath = nil, nil
+        -- 6.258.0 — and the canvas this window was: a size left behind is
+        -- a grow planned against a page that no longer exists.
+        ed.canvasW, ed.canvasH, ed.pageSized = nil, nil, false
+        if _G.choosers and _G.choosers.editorLoadShot then
+            pcall(function() _G.choosers.editorLoadShot:hide() end)
+            _G.choosers.editorLoadShot = nil
+        end
     end
 
     function ed.open(path)
@@ -1444,12 +1744,15 @@ function M.setup(core)
             local sz = img and img:size()
             if sz and sz.w > 0 then imgW, imgH = sz.w, sz.h end
         end)
-        local maxW, maxH = sf.w * 0.85, sf.h * 0.85
-        local scale = math.min(1, maxW / imgW, (maxH - 60) / imgH)
-        local w = math.max(720, math.floor(imgW * scale) + 28)
-        local h = math.max(320, math.floor(imgH * scale) + 82)
+        -- 6.258.0 — ONE piece of arithmetic, two callers (the grow
+        -- resizes through the same function).
+        local w, h = ed.windowSizeFor(imgW, imgH, sf)
         local rect = { x = sf.x + (sf.w - w) / 2, y = sf.y + (sf.h - h) / 2,
                        w = w, h = h }
+        -- What the canvas will be until the page says otherwise. NOT
+        -- marked as the page's word — a ⌘O before the page has spoken
+        -- still has a number, and the report says where it came from.
+        ed.canvasW, ed.canvasH, ed.pageSized = imgW, imgH, false
 
         local okUc, uc = pcall(hs.webview.usercontent.new, "shotEditor")
         if not (okUc and uc) then return false end
