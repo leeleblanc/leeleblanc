@@ -302,6 +302,17 @@ function M.setup(core)
     end
 
     -- ---- docs.front() — the document in FRONT of you, right now ----------
+    -- 📄 6.257.0 — WHO ANSWERS. dm.apps is the list of apps whose documents
+    -- this module reads, and it is a CONFIG: LL can add one. Any other
+    -- module that wants to know "is it worth asking about this app" must
+    -- therefore ask HERE rather than keep a second copy — a copy is a list
+    -- that drifts the day he edits this one. PURE, and nil-tolerant: an
+    -- unknown app is `false`, never an error.
+    function dm.watches(name)
+        if type(name) ~= "string" or name == "" then return false end
+        return dm.apps[name] == true
+    end
+
     -- 6.180.0, for ⇪⇧U. dm.read walks every window of an app in dm.apps on
     -- a timer; this answers one question about one window, on demand, and
     -- it is the ONLY other AX-document path in the config (CLAUDE.md keeps
@@ -540,6 +551,9 @@ function M.setup(core)
     core.provide("docs.report",  function() return _G.docMemoryReport() end)
     -- 6.180.0 — one window, on demand, for the ⇪⇧U anchors
     core.provide("docs.front",   function() return dm.front() end)
+    -- 6.257.0 — "is this app worth asking about?", so the activity tracker
+    -- does not carry a second copy of dm.apps
+    core.provide("docs.watches", function(name) return dm.watches(name) end)
     _G.docMemory = dm
     M.dm = dm
     M.config = dm

@@ -490,6 +490,62 @@ work Mac.
   never printed. 6.186.0's rule in a new place: a test HELPER answers
   falsely rather than indexing a nil, so a mutation fails a check instead
   of killing the run. Fifteen mutations, fifteen bites.
+- 📄 A DOCUMENT IS NAMED BY THE APP, NOT BY ITS TITLE BAR (6.257.0,
+  modules/activity_tracker.lua + doc_memory.lua — LL: "It's not showing
+  the documents I just worked on. Look at the search window and the
+  Finder timestamps. Am I misunderstanding how this works?").
+  🔎 HIS ARTEFACT NAMED IT IN ONE LINE and nothing else could have: ⇪0,
+  typing "Word", answered `Microsoft Word — 5m 40s`. A search row is
+  keyed `app — title`, so a row reading the app ALONE means the title
+  was EMPTY for every one of those sessions — not mis-parsed, ABSENT.
+  Every document name in that module was read out of the title
+  (docFileFromTitle cuts at a dash and insists on a filename), so a Word
+  document could not appear in ⇪⇧W on any Mac, ever, and the list was
+  honestly reporting "0 documents today" about a day spent in Word. The
+  file's own header has said "window title is the closest thing that
+  generalizes" since 3.6; it was true when it was written. 6.201.0's
+  rule again — ASK FOR THE ARTEFACT: two screenshots said "it's not
+  working" and one row said what.
+  🔑 THE ANSWER WAS ALREADY HERE. doc_memory reads AXDocument for the ten
+  apps that answer it and is the ONLY AXDocument reader in this config,
+  so the tracker grows no Accessibility reader of its own: it asks
+  `docs.front` when a session OPENS and writes the answer as a SIXTH
+  column (`date,app,title,seconds,url,doc`). 6.123.0's url column is the
+  precedent in every particular — a column on the row this module
+  already writes, never a second observer with a second timer and a
+  second CSV, which is the design 6.104.0 DELETED. GENERAL: when one
+  module already knows a fact, the second module asks for it.
+  ⏱ BOUNDED THREE WAYS, because an AX read is main-thread work and a
+  busy main thread is a mouse this Mac has lost (6.228.0): once per
+  SESSION not once per tick, only for an app doc_memory says can answer,
+  and TIMED — past `ad.slowMs` (60) it takes the 🔔 door naming the app
+  and the ms. 🔑 THE APP LIST LIVES IN doc_memory (`dm.watches` →
+  `docs.watches`); a copy in the tracker is a list that drifts the day
+  LL edits `dm.apps`, and a source sentry fails if one appears.
+  🔎 THREE STATES, NEVER TWO (6.196.1): a window with no document
+  ANSWERED and said so; a read that came back with nothing at all
+  FAILED. `_G.activityDocsReport()` — the tool had none, which is why a
+  photograph had to do the diagnosing — counts them apart and names what
+  the asking BOUGHT beside what it cost (6.229.0's yield line).
+  ✂️ `ad.docName(entry, fromTitle)` is PURE with the title reader handed
+  in as an ARGUMENT (6.230.0): the file the app NAMED beats the filename
+  read out of a title bar, because one is an answer and the other is a
+  guess. `ad.rowLabel` is its twin for ⇪0's rows — the title still wins
+  where there is one, and the document is what a session with no title
+  is called instead of being called nothing at all. 🗑 AND ⇪⇧E'S JOIN
+  ASKS THE SAME FUNCTION, or it shows him a Word document and deletes
+  nothing when he asks it to — worse than not showing it (6.231.0, one
+  function two callers, its own mutation).
+  📏 IT CANNOT LOOK BACKWARDS, and that is said rather than hoped past:
+  rows already on disk have no doc column and, for Word, no title
+  either. Yesterday's Word time stays a total with no name on it.
+  🧪 AND THE STUB WAS GENTLER THAN init.lua, AGAIN (6.193.0): the
+  suite's `service.call` returned a provider's values raw while the real
+  one pcalls every provider — so the check asking whether a provider
+  that DIES takes the poller with it KILLED the suite instead of failing
+  (6.186.0 on top). It pcalls now and returns three values, which is the
+  whole reason "no document" can be told from "could not be asked".
+
 - ⏲ A WINDOW THAT HIDES ITSELF OWES A WAY BACK THAT DOES NOT DEPEND
   ON THE THING IT HID FOR (6.255.0, modules/screenshot_editor.lua +
   screenshots.lua — LL: "Add a delayed screenshot feature with a delay
@@ -2173,11 +2229,13 @@ as the fix when a loss lands.
 | 6.254.0 | 🗑 the 4 PM Asana send and the + Capture / + Append rows are off — three switches, nothing deleted | pending |
 | 6.255.0 | ⏲ ⌘D in the editor: five seconds to arrange the screen, then the whole screen lands on the shot — and the editor hides, with a belt that brings it back | pending |
 | 6.256.0 | 🖥 ⌘F: the whole screen, now, with the editor out of the picture — and it waits a beat for the window to actually go | pending |
+| 6.257.0 | 📄 the documents list finally names Word's documents — the file the app has open, asked of doc_memory once per session, written as a sixth column | pending |
 
-Running total: 15 wins · 8 losses · 22 pending (6.215.0, 6.217.0, 6.218.0,
-6.219.0, 6.220.0, 6.221.0, 6.222.0, 6.223.0, 6.224.0, 6.225.0, 6.226.0,
-6.227.0, 6.228.0, 6.229.0, 6.230.0, 6.231.1, 6.232.0, 6.234.0, 6.236.0,
-6.236.1, 6.238.0, 6.239.0).
+Running total: 15 wins · 8 losses · 40 pending — every release from
+6.215.0 on except the fifteen wins and eight losses named in the table
+above. (The enumeration that used to sit here stopped at 6.239.0 and was
+seventeen releases stale, which is a scoreboard that cannot be read;
+count the rows instead.)
 🏁 6.237.0 CLOSED THE MUSIC DROP: 6.231.0 → 6.237.0, three losses, and
 every one of them at the boundary with macOS where the gate is blind
 (webview cannot take a drop · a throw in a dragging callback is silent ·
@@ -2197,6 +2255,31 @@ next boot announced it (LL: "fortunately hammerspoon caught itself"). LL is on
 built. The work Mac's storm report is still owed, on 6.215.0 now.
 
 ## Open items — update as they move
+
+- ✅ DOCUMENTS YOU WORKED IN — NAMED AND SHIPPED AS 6.257.0. LL, with two
+  screenshots: "It's not showing the documents I just worked on … Am I
+  misunderstanding how this works?" He was not: ⇪0 typing "Word" answered
+  `Microsoft Word — 5m 40s`, an app with no title beside it, and the whole
+  documents view was derived from that title. The durable rule is above.
+  STILL OPEN AND ITS OWN RELEASE WHEN HE ASKS: an app OUTSIDE doc_memory's
+  ten (Sublime, a browser) is still named by its title, which is right —
+  AXDocument is the only honest answer and those apps do not give one.
+
+- 📐 A LIVE SIZE READOUT (LL, 2026-09-19, under a heading reading "Doc
+  watcher:"): "show a live 1280 × 720 in white on a 90 %-opaque black
+  box". Read with his screenshot-editor item 4 ("Change the pixel
+  measurement tool numbers to solid white in a black box that is 10%
+  translucent") this is ONE ask and it answers the question that blocked
+  it: the numbers are a LIVE W × H while a selection is dragged, and there
+  is no such readout anywhere in this config today — the numbers he has
+  been looking at are macOS's own `screencapture -i` HUD, which cannot be
+  restyled. So it is a BUILD, not a restyle: `shots.selectArea`'s own
+  canvas gains the readout, and the editor's drags get the same one.
+  🗳 DECIDED, STATED, NOT ASKED AGAIN: "90 %-opaque black" and "10%
+  translucent" are the same number and it is `alpha = 0.9`. The heading
+  "Doc watcher:" is not a tool in this config and nothing else in the
+  message belongs to one — if he meant somewhere else, it is one line to
+  move it. Shipping as 6.259.0.
 
 - 🧭 THE NINE (LL, 2026-09-18, on the batch he reported after 6.245.0:
   "go & build in that order. Prep each item to roll out as I come back
@@ -2223,8 +2306,10 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   same mechanism as the console jumping forward.
   ❓ STILL ANSWERED BY NOBODY, asked twice now: the three-finger-drag
   setting (the desktop-jumping suspect), how he unpauses after ⇪',
-  `_G.begoneProbe()` with Notification Center open, and what "Doc
-  watcher;;" was going to say.
+  `_G.begoneProbe()` with Notification Center open. ("Doc watcher;;" came
+  back on 2026-09-19 as a HEADING over the live-size-readout ask — see
+  📐 A LIVE SIZE READOUT above — so it is no longer an open question, and
+  what it heads is being built rather than asked about again.)
 
 - 🧭 THE GROUND PROBE IS THE INSTRUMENT FOR THE NEW-GROUND HABIT
   (6.242.0, modules/ground_probe.lua, no key). `_G.groundReport()` asks
@@ -2576,6 +2661,41 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.257.0 verify with LL — 📄 THE DOCUMENTS LIST NAMES THE FILE (KNOWN
+  GROUND): install (carries 6.255.0 and 6.256.0). Work in Word for ten
+  minutes on a real document, switch to another app, then ⇪⇧W.
+  The document is in the list, by its file name, with the time beside it —
+  and the "📄 N documents today" line at the top is no longer 0 on a day
+  you spent in Word. Excel, PowerPoint, Preview, TextEdit, Pages, Numbers,
+  Keynote and Acrobat are the same.
+  🔎 WHAT IT WAS, and your own artefact is what named it: ⇪0 typing "Word"
+  answered `Microsoft Word — 5m 40s`. Those rows are keyed `app — title`,
+  so the app on its own means macOS handed us NO window title for Word —
+  and every document name in this tool was read out of that title. The
+  time was always being recorded. The name never was. So it is not that
+  you misunderstood how it works; it is that this half of it could not
+  have worked, in Word, on any Mac.
+  Now the row reads `Microsoft Word — Strategies of the Directors.docx`,
+  and typing the FILE NAME in ⇪0 finds the time you spent in it.
+  📏 KNOWN AND ACCEPTED, so it is not a surprise: this cannot look
+  backwards. Rows already in the CSV have no document column and, for
+  Word, no title either — nothing recorded which file they were, so
+  yesterday's Word time stays a total with no name on it. It fills from
+  this install forward.
+  Console: `_G.activityDocsReport()` — this tool had no report at all,
+  which is why two screenshots had to do the diagnosing. "asked · named a
+  file · had no document · could not be asked" are four different things
+  and it counts them apart; "rows" says how many document rows the app
+  named versus how many were still read out of a title.
+  🔔 IF AN ALERT EVER SAYS "⚠️ Activity documents — asking Microsoft Word
+  which document was open took N ms", paste it. That is an Accessibility
+  read running slow on the main thread, which is the class of thing that
+  cost you drag and drop in 6.228.0, and the switch is one line:
+  `settings = { activity_tracker = { askDocs = false } }` — the title
+  fallback is still there and nothing else changes.
+  🚨 AND ⇪⇧E MUST STILL DELETE: pick a Word document in ⇪⇧E and delete it;
+  its sessions go, and the row goes with them.
+
 - 6.256.0 verify with LL — 🖥 THE FULL-SCREEN TOOL (KNOWN GROUND): install
   (carries 6.255.0). Open the editor on any shot. Beside ⏲ Delayed 5s there
   is now 🖥 Full screen — press it, or ⌘F.

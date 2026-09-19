@@ -1,5 +1,5 @@
 ========================================================================
-RESOLVED FEATURE REQUESTS — Hammerspoon config 6.256.0
+RESOLVED FEATURE REQUESTS — Hammerspoon config 6.257.0
 Every feature and how to use it. Generated from the modules' own
 cheat sheets (the rows ⇪/ draws), so it is never out of date.
 ⇪ = Caps Lock held (the hyper key). ⇪⇧X = Caps Lock + Shift + X.
@@ -551,6 +551,8 @@ In the Console, _G.<tool>Report() prints any tool's own report.
   ⇪⇧W   DOCUMENTS you worked in — name · time · day, searchable
   ☑️ row Copy several: pick rows with Enter, then copy together
   ⇪⇧E   Edit or delete a document entry (clear the name = delete)
+  doc column The file the app itself has open, per row, in the CSV
+  no documents? _G.activityDocsReport() — says where the names come from
   auto 4:00 PM Daily report pops up
   auto Mon 7:30 AM Weekly recap pops up
 
@@ -768,6 +770,7 @@ In the Console, _G.<tool>Report() prints any tool's own report.
 
 📜 RELEASE INDEX — newest first, one line per release (the full story of each is in CHANGELOG.md)
 ------------------------------------------------------------------------
+  6.257.0  📄 A DOCUMENT IS NAMED BY THE APP, NOT BY ITS TITLE BAR
   6.256.0  🖥 THE WHOLE SCREEN, NOW, WITH THIS WINDOW OUT OF IT
   6.255.0  ⏲ A DELAYED FULL-SCREEN CAPTURE, ONTO THE SHOT
   6.254.0  🗑 THE THREE DOORS HE DOES NOT USE, CLOSED WITHOUT DELETING

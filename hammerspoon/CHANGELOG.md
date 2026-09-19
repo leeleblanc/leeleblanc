@@ -5,6 +5,95 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.257.0 — 📄 A DOCUMENT IS NAMED BY THE APP, NOT BY ITS TITLE BAR
+                 (modules/activity_tracker.lua, modules/doc_memory.lua):
+  LL, with a screenshot of the documents list beside a Finder window:
+  "It's not showing the documents I just worked on. Look at the search
+  window and the Finder timestamps. Am I misunderstanding how this works?"
+
+  🔎 HIS ARTEFACT NAMED IT IN ONE LINE. Asked for ⇪0 and the word "Word",
+  he sent back one row:
+
+      Microsoft Word — 5m 40s
+
+  The time is there. The DOCUMENT is not — and the shape of that row is
+  the whole diagnosis, because a search row is keyed `app — title`. A row
+  reading the app ALONE means the title half was empty for every one of
+  those sessions. Not mis-parsed: absent. macOS did not hand us a window
+  title for Word at all.
+
+  That matters because everything downstream was derived from the title:
+  `docFileFromTitle` cuts it at a dash and insists on something that looks
+  like a filename. However good that parser is, it cannot read a string
+  that was never there — so a Word document could not appear in "documents
+  you worked in" on any Mac, ever, and the list has been honestly
+  reporting "0 documents today" about a day spent in Word. The header of
+  that file has claimed "window title is the closest thing that
+  generalizes" since 3.6. It was true when it was written.
+
+  🔑 IT IS NOT TRUE ANY MORE, AND THE ANSWER WAS ALREADY IN THIS CONFIG.
+  doc_memory reads AXDocument — the real file URL of a window — for the ten
+  apps that answer it, Word first among them, and CLAUDE.md makes it the
+  ONLY AXDocument reader here. So the tracker does not grow an
+  Accessibility reader of its own: it asks `docs.front`, the service that
+  has existed since 6.180.0, at the moment a session opens, and writes the
+  answer as a SIXTH column. 6.123.0's url column is the precedent in every
+  particular — a column on the row this module already writes, never a
+  second observer with a second timer and a second CSV.
+
+  ⏱ BOUNDED THREE WAYS, because an Accessibility read is main-thread work
+  and a main thread this config is busy on is a mouse this Mac has lost
+  (6.228.0): asked once per SESSION rather than once per tick; only for an
+  app doc_memory says can answer; and TIMED, with one past `ad.slowMs`
+  (60) taking the 🔔 door naming the app and the milliseconds.
+
+  🔑 THE APP LIST LIVES IN doc_memory, which owns it — `dm.watches` is
+  published as `docs.watches` and the tracker asks it. A copy here would be
+  a list that drifts the day LL adds an app to `dm.apps`, and a source
+  sentry fails if one ever appears.
+
+  🔎 THREE STATES, NEVER TWO (6.196.1). A front window with no document in
+  it ANSWERED and said so; a read that came back with nothing at all
+  FAILED. They are counted apart, because "you were not in a document" and
+  "this could not be asked" are opposite facts about the same Mac.
+  `_G.activityDocsReport()` — this tool had none, which is why a
+  photograph had to do the diagnosing — prints both, the worst read of the
+  session, the last path, and what the asking BOUGHT beside what it cost
+  (6.229.0's yield line).
+
+  ✂️ `ad.docName(entry, fromTitle)` is PURE and carries the whole rule,
+  with the title reader handed in as an ARGUMENT (6.230.0's shape): the
+  file the app NAMED beats the filename read out of a title bar, because
+  one is an answer and the other is a guess. `ad.rowLabel` is its twin for
+  ⇪0's rows — the title still wins where there is one, and the document is
+  what a session with no title is called instead of being called nothing
+  at all. That second half IS his report.
+
+  🗑 AND THE EDITOR'S JOIN ASKS THE SAME FUNCTION. ⇪⇧E finds a row's
+  sessions by re-running the list's join, so one that still read the title
+  would show him a Word document and then delete nothing when he asked it
+  to — worse than not showing it. One function, two callers (6.231.0),
+  with its own check and its own mutation.
+
+  📏 AND IT CANNOT LOOK BACKWARDS, said rather than hoped past: rows
+  already on disk have no document column and, for Word, no title either.
+  The file simply does not record which document they were. Yesterday's
+  Word time stays a total with no name on it.
+
+  🧪 AND THE TEST STUB WAS GENTLER THAN init.lua, AGAIN (6.193.0). The
+  suite's `service.call` returned the provider's values raw while the real
+  one wraps every provider in a pcall — so the check asking whether a
+  provider that DIES takes the poller with it killed the suite instead of
+  failing a check (6.186.0 on top of it). The stub pcalls now, and returns
+  three values, which is the whole reason "no document" can be told from
+  "could not be asked".
+
+    settings = { activity_tracker = { askDocs = false } }
+
+  · 9,941 -> 10,014 checks · thirteen mutations, thirteen bites.
+```
+
+```text
 NEW IN 6.256.0 — 🖥 THE WHOLE SCREEN, NOW, WITH THIS WINDOW OUT OF IT
                  (modules/screenshot_editor.lua):
   LL: "Add full screen snapshot tool."

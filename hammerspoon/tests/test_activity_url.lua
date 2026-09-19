@@ -45,6 +45,8 @@ local TIMERS  = {}
 local CLIP    = nil
 local FRONT   = { name = nil, title = nil, kind = 1 }
 local NOW     = 1000000
+local CLOCK   = 5000        -- seconds; hs.timer.secondsSinceEpoch (6.257.0)
+local DEGRADES = {}         -- every trip through the 🔔 door
 
 hs = {
     configdir = TMP,
@@ -79,6 +81,9 @@ hs = {
         end,
         doAt = function(_, _, fn) return { stop = function() end } end,
         doAfter = function(_, fn) return { stop = function() end } end,
+        -- 6.257.0: the document read is TIMED, so the clock has to exist
+        -- here or every read measures nothing and the 🔔 door is untestable.
+        secondsSinceEpoch = function() return CLOCK end,
     },
     alert     = { show = function(m) ALERTS[#ALERTS + 1] = tostring(m) end },
     pasteboard = { setContents = function(s) CLIP = s; return true end,
@@ -112,10 +117,23 @@ _G.service = {
     registry = {}, owner = {},
     provide = function(n, f) _G.service.registry[n] = f end,
     has     = function(n) return _G.service.registry[n] ~= nil end,
+    -- 🧪 6.257.0 — THE STUB PCALLS, BECAUSE THE REAL ONE DOES. init.lua's
+    -- service.call wraps every provider in a pcall and answers nil when one
+    -- throws; a stub that let the throw through turned a caller's "does it
+    -- survive a provider that dies" check into a dead test run (6.193.0,
+    -- and 6.186.0 on top: a mutation must FAIL a check, never kill the
+    -- suite). It returns three values like the real one, too — a provider
+    -- answering `nil, why` is the whole reason frontDoc can tell "no
+    -- document" from "could not be asked".
     call    = function(n, ...)
         local f = _G.service.registry[n]
         if not f then print("🔌 No provider for '" .. n .. "'") return nil end
-        return f(...)
+        local ok, a, b, c = pcall(f, ...)
+        if not ok then
+            print("🔌 Service '" .. tostring(n) .. "' failed — " .. tostring(a))
+            return nil
+        end
+        return a, b, c
     end,
 }
 
@@ -159,6 +177,10 @@ local core = {
         return fields
     end,
     formatDuration = function(s) return tostring(math.floor(s / 60)) .. "m" end,
+    degrade = function(tool, why)
+        DEGRADES[#DEGRADES + 1] = tostring(tool) .. ": " .. tostring(why)
+        return false, why
+    end,
     provide = function(n, f) _G.service.provide(n, f) end,
     call    = function(n, ...) return _G.service.call(n, ...) end,
     showPopup = function() end,
@@ -413,12 +435,12 @@ check("🏁 ...while the answer for the session you ARE on is stored",
 FRONT = { name = nil, title = nil, kind = 1 }
 
 -- =====================================================================
-out("\n== 5. THE FIVE-COLUMN CSV ==\n")
+out("\n== 5. THE SIX-COLUMN CSV ==\n")
 -- =====================================================================
 
 local at = io.open(HS .. "/modules/activity_tracker.lua"):read("a")
-check("the header names five columns including url",
-      at:find("date,app,title,seconds,url", 1, true) ~= nil)
+check("the header names six columns — url and, since 6.257.0, doc",
+      at:find("date,app,title,seconds,url,doc", 1, true) ~= nil)
 check("the append writer writes the url", (function()
     for line in at:gmatch("[^\n]+") do
         if line:find("core.csvQuote(entry.url", 1, true) then return true end
@@ -462,13 +484,13 @@ do
           _G.activityLog[1].url == "")
 
     local firstLine = io.open(EXPECTED_CSV):read("l")
-    check("🔁 the file was rewritten ONCE with the five-column header, so it "
+    check("🔁 the file was rewritten ONCE with the six-column header, so it "
           .. "is not left ragged for Excel",
-          firstLine == "date,app,title,seconds,url", firstLine)
+          firstLine == "date,app,title,seconds,url,doc", firstLine)
 
     local body = io.open(EXPECTED_CSV):read("a")
-    check("🔁 ...and the rewritten rows carry the new empty column",
-          body:find("2026%-08%-01,Safari,Some page,120,") ~= nil, body)
+    check("🔁 ...and the rewritten rows carry BOTH new empty columns",
+          body:find("2026%-08%-01,Safari,Some page,120,,\n") ~= nil, body)
     os.remove(EXPECTED_CSV)
 
     -- That fresh load installed a NEW engine and a new _G.urlReport closed
@@ -621,6 +643,379 @@ do
           #core.splitCSVLine("2026-08-20,Chrome,T,60," .. unquoted) == 6)
     check("…while the quoted one the module actually writes keeps five fields",
           #core.splitCSVLine("2026-08-20,Chrome,T,60," .. quoted) == 5)
+end
+
+-- =====================================================================
+out("\n== 9. THE DOCUMENT COLUMN — the name comes from the app (6.257.0) ==\n")
+-- =====================================================================
+-- LL: "It's not showing the documents I just worked on." His artefact was
+-- one row — `Microsoft Word — 5m 40s` — and the missing half of it is the
+-- whole bug: a search row is keyed `app — title`, so an app on its own
+-- means the title was EMPTY. Every document name in this module used to be
+-- read out of that title, so Word could never appear in the documents list
+-- however good the parser was. This section drives the fix: the file the
+-- APP has open, asked of doc_memory once per session, written as a sixth
+-- column, and used by every reader.
+
+local ad = _G.activityDocWatch
+check("the module exposes its document engine as _G.activityDocWatch",
+      type(ad) == "table")
+check("...and names the six-column header in ONE place, which the writers "
+      .. "and the upgrade check both read",
+      ad.HEADER == "date,app,title,seconds,url,doc", ad.HEADER)
+
+-- ---- ad.docName — PURE, and the title reader is an ARGUMENT ------------
+-- Given a resolver rather than reaching for one (6.230.0's shape), so the
+-- rule is provable with no Mac and no window plumbing.
+-- The resolver handed in is the module's REAL title reader, not a
+-- lookalike written here — a stand-in that cuts at a different dash proves
+-- the wiring and nothing else.
+local titleReader = _G.activityDocFileForTest
+check("(the real title reader is what gets handed in)",
+      type(titleReader) == "function")
+
+do
+    local name, why = ad.docName({ doc = "/Users/x/Documents/Report Q3.docx",
+                                   title = "", app = "Microsoft Word" }, titleReader)
+    check("📄 a session the APP named answers with the file's own name",
+          name == "Report Q3.docx", name)
+    check("...and says where the name came from, so the report can count "
+          .. "the two sources apart",
+          why == "the app named the file", why)
+end
+
+do
+    -- 🔑 THE ORDER IS THE RULE. Word's title bar can say anything — and in
+    -- LL's case said nothing at all — while AXDocument is the file itself.
+    -- An answer beats a guess, so a session carrying both is named by the
+    -- app. Reversing these two lines is a mutation below.
+    local name = ad.docName({ doc = "/Users/x/Real.docx",
+                              title = "Decoy.docx — Word", app = "Microsoft Word" },
+                            titleReader)
+    check("🔑 when a session has BOTH, the app's answer beats the title bar",
+          name == "Real.docx", name)
+end
+
+do
+    local name, why = ad.docName({ doc = "", title = "Notes.md - Sublime Text",
+                                   app = "Sublime Text" }, titleReader)
+    check("📄 a session with no document falls back to the title, exactly as "
+          .. "before 6.257.0 — nothing that worked stops working",
+          name == "Notes.md", name)
+    check("...and says so", why == "read out of the window title", why)
+end
+
+check("📄 a session with neither is not a document",
+      ad.docName({ doc = "", title = "#general", app = "Slack" }, titleReader) == nil)
+check("📄 ...and the WHY is a sentence, not a silence",
+      select(2, ad.docName({ doc = "", title = "#general", app = "Slack" },
+                           titleReader)) == "no document")
+check("📄 a path ending in a slash names no file and falls through",
+      ad.docName({ doc = "/Users/x/Documents/", title = "", app = "Word" },
+                 titleReader) == nil)
+check("📄 nil in, nil out — never a throw", ad.docName(nil, titleReader) == nil)
+check("📄 ...and with NO title reader at all it still answers about the doc",
+      ad.docName({ doc = "/a/b/C.pdf" }) == "C.pdf")
+
+-- ---- ad.rowLabel — what ⇪0 calls a session ----------------------------
+check("🔎 a search row is still called by its title where there is one",
+      ad.rowLabel({ title = "Invoice — Acme", doc = "/x/y.pdf" }) == "Invoice — Acme")
+check("🔎 ...and by its DOCUMENT where there is not — which is LL's row, the "
+      .. "one that read `Microsoft Word` and could not say which file",
+      ad.rowLabel({ title = "", doc = "/Users/x/Strategies.docx" })
+        == "Strategies.docx")
+check("🔎 a session with neither is still named by its app alone",
+      ad.rowLabel({ title = "", doc = "" }) == nil)
+
+-- ---- ad.frontDoc — bounded three ways ---------------------------------
+local FRONTCALLS = 0
+local ANSWER = nil          -- what docs.front hands back
+local function installDocs(watchList)
+    _G.service.registry["docs.front"] = function()
+        FRONTCALLS = FRONTCALLS + 1
+        if type(ANSWER) == "function" then return ANSWER() end
+        if type(ANSWER) == "table" then return ANSWER end
+        return nil, "no document in the front window"
+    end
+    if watchList then
+        _G.service.registry["docs.watches"] = function(n) return watchList[n] == true end
+    else
+        _G.service.registry["docs.watches"] = nil
+    end
+end
+local function zero()
+    ad.asked, ad.answered, ad.none, ad.failed, ad.skipped = 0, 0, 0, 0, 0
+    ad.degraded, ad.worstMs, ad.lastMs = 0, nil, nil
+    FRONTCALLS = 0; DEGRADES = {}
+end
+
+installDocs({ ["Microsoft Word"] = true })
+
+zero()
+ANSWER = { path = "/Users/x/Strategies of the Directors.docx",
+           title = "Strategies of the Directors", app = "Microsoft Word" }
+check("📄 an app doc_memory watches is asked, and the path comes back",
+      ad.frontDoc("Microsoft Word") == "/Users/x/Strategies of the Directors.docx")
+check("...counted as answered", ad.asked == 1 and ad.answered == 1, ad.answered)
+
+zero()
+check("🔒 an app doc_memory does NOT watch is never asked — the cost is an "
+      .. "Accessibility read on the main thread, so it is not spent on an "
+      .. "app that cannot answer",
+      ad.frontDoc("Slack") == nil and FRONTCALLS == 0, FRONTCALLS)
+check("...and that is a SKIP, not a failure", ad.skipped == 1 and ad.failed == 0)
+
+-- 🔑 THE APP LIST LIVES IN doc_memory, and this module asks it rather than
+-- keeping a copy. A copy is a list that drifts the day LL edits dm.apps.
+zero()
+installDocs({ ["Microsoft Word"] = true, ["Preview"] = true })
+check("🔑 adding an app to doc_memory's list is enough — this module asks "
+      .. "`docs.watches` and carries no list of its own",
+      ad.frontDoc("Preview") ~= nil)
+local atSrc = io.open(HS .. "/modules/activity_tracker.lua"):read("a")
+check("🔒 ...asserted against the SOURCE too: there is no second copy of "
+      .. "the app list here",
+      not atSrc:find('["Microsoft Word"]', 1, true))
+check("🔒 and it reads no Accessibility of its own — doc_memory is still the "
+      .. "only AXDocument reader in this config",
+      not atSrc:find("hs.axuielement", 1, true)
+      and not atSrc:find("attributeValue(", 1, true))
+
+-- 🔎 THREE STATES, NEVER TWO. "You were not in a document" and "this could
+-- not be asked" are opposite facts about the same Mac.
+zero()
+ANSWER = nil     -- dm.front's own nil, why
+check("📄 a front window with no document answers, and is counted as an "
+      .. "ANSWER", ad.frontDoc("Microsoft Word") == nil and ad.none == 1)
+check("...never as a failure", ad.failed == 0)
+
+zero()
+ANSWER = function() return nil end     -- nothing at all: no path, no reason
+check("📄 a read that comes back with nothing AND no reason is a FAILURE",
+      ad.frontDoc("Microsoft Word") == nil and ad.failed == 1)
+check("...never a 'no document'", ad.none == 0)
+
+zero()
+ANSWER = function() error("AX went away", 0) end
+check("📄 a provider that THROWS does not take the poller with it",
+      ad.frontDoc("Microsoft Word") == nil)
+check("...and is counted, not swallowed", ad.failed == 1)
+
+zero()
+ANSWER = { path = "", title = "x" }
+check("📄 an empty path is not a document — it would name every row after "
+      .. "it with nothing", ad.frontDoc("Microsoft Word") == nil)
+check("...counted with the answers that had no document", ad.none == 1)
+
+-- 🔔 THE DOOR. A slow Accessibility read is a stalled main thread, which is
+-- a mouse this Mac has lost (6.228.0) — it is SEEN, not logged.
+zero()
+ANSWER = function()
+    CLOCK = CLOCK + 0.5      -- 500 ms inside the read
+    return { path = "/x/Slow.docx" }
+end
+ad.frontDoc("Microsoft Word")
+check("🔔 a read past ad.slowMs takes the degrade door", #DEGRADES == 1, #DEGRADES)
+check("...and the alert NAMES the tool and the milliseconds",
+      DEGRADES[1] and DEGRADES[1]:find("Activity documents", 1, true)
+      and DEGRADES[1]:find("500 ms", 1, true), DEGRADES[1])
+check("...and it is counted for the report", ad.degraded == 1)
+check("...and the worst read of the session is remembered",
+      math.floor(ad.worstMs or 0) == 500, ad.worstMs)
+
+zero()
+ANSWER = { path = "/x/Fast.docx" }
+ad.frontDoc("Microsoft Word")
+check("🔔 a fast read says nothing — this runs every time you change window",
+      #DEGRADES == 0 and ad.degraded == 0)
+
+zero()
+ad.askDocs = false
+check("🔌 the switch is real: with askDocs off nothing is asked at all",
+      ad.frontDoc("Microsoft Word") == nil and FRONTCALLS == 0)
+check("...and it reads as a skip", ad.skipped == 1)
+ad.askDocs = true
+
+zero()
+_G.service.registry["docs.front"] = nil
+check("🔌 a Mac without doc_memory loaded skips silently and keeps the "
+      .. "title fallback", ad.frontDoc("Microsoft Word") == nil and ad.skipped == 1)
+installDocs({ ["Microsoft Word"] = true })
+
+-- ---- END TO END: LL's own session, driven through the poller ----------
+do
+    local realTime = os.time
+    NOW = 1758240000            -- a fixed second, so the row's date is fixed
+    os.time = function() return NOW end
+
+    os.remove(EXPECTED_CSV)
+    local f = io.open(EXPECTED_CSV, "w")
+    f:write("date,app,title,seconds,url,doc\n")
+    f:close()
+
+    local fresh = assert(loadfile(HS .. "/modules/activity_tracker.lua"))()
+    fresh.setup(core)
+    ad = _G.activityDocWatch
+    installDocs({ ["Microsoft Word"] = true })
+    ANSWER = { path = "/Users/x/Documents/Strategies of the Directors.docx",
+               title = "Strategies of the Directors", app = "Microsoft Word" }
+
+    -- 🚨 THIS IS THE REPORTED BUG, REPRODUCED: Word in front with NO window
+    -- title. Before 6.257.0 the row written here carried an empty title and
+    -- nothing else, and no document row could ever be derived from it.
+    FRONT = { name = "Microsoft Word", title = nil, kind = 1 }
+    _G.activityPoller.fn()
+    check("🚨 the session opens with no title — the bug's own condition",
+          _G.activitySession.title == nil and _G.activitySession.app == "Microsoft Word")
+    check("🚨 ...and the document was asked for at the moment it opened",
+          _G.activitySession.doc
+            == "/Users/x/Documents/Strategies of the Directors.docx",
+          _G.activitySession.doc)
+
+    local asksAfterOpen = ad.asked
+    _G.activityPoller.fn(); _G.activityPoller.fn(); _G.activityPoller.fn()
+    check("⏱ ...and asked ONCE, not on every tick — an Accessibility read "
+          .. "five times a minute for ever is 6.228.0's cost",
+          ad.asked == asksAfterOpen, ad.asked)
+
+    NOW = NOW + 340             -- 5m 40s, LL's own number
+    FRONT = { name = "Finder", title = "Downloads", kind = 1 }
+    _G.activityPoller.fn()
+
+    local last = _G.activityLog[#_G.activityLog]
+    check("📄 the closed session records the document",
+          last and last.app == "Microsoft Word"
+          and last.doc == "/Users/x/Documents/Strategies of the Directors.docx",
+          last and last.doc)
+    check("📄 ...with the time it always had", last and last.seconds == 340)
+
+    local body = io.open(EXPECTED_CSV):read("a")
+    check("📄 ...and the CSV row carries it as the sixth column",
+          body:find("Strategies of the Directors.docx", 1, true) ~= nil, body)
+
+    -- 📄 THE LIST LL WAS LOOKING AT
+    local docs = _G.activityDocsForTest()
+    check("📄 ⇪⇧W finally shows the document — the whole report, in one "
+          .. "assertion", (function()
+              for _, r in ipairs(docs) do
+                  if r.file == "Strategies of the Directors.docx" then return true end
+              end
+              return false
+          end)(), #docs)
+    check("📄 ...named by the app, and the row says so",
+          docs[1] and docs[1].why == "the app named the file", docs[1] and docs[1].why)
+
+    -- 🔎 AND THE ROW HE ACTUALLY RAN: ⇪0, typing "Word"
+    _G.service.call("activity.renderChoices", "Word")
+    local hits = _G.choosers.appTracker:choices()
+    check("🔎 ⇪0 no longer answers `Microsoft Word` alone — the row names the "
+          .. "document",
+          hits[2] and hits[2].text
+            == "Microsoft Word — Strategies of the Directors.docx",
+          hits[2] and hits[2].text)
+
+    _G.service.call("activity.renderChoices", "Strategies")
+    local byName = _G.choosers.appTracker:choices()
+    check("🔎 ...and typing the FILE NAME finds the time spent in it",
+          byName[2] and byName[2].text:find("Strategies", 1, true) ~= nil,
+          byName[2] and byName[2].text)
+
+    -- 🔒 A PATH HOLDS COMMAS AS READILY AS A URL DOES
+    NOW = NOW + 10
+    ANSWER = { path = "/Users/x/Notes, drafts/Plan, final.docx" }
+    FRONT = { name = "Microsoft Word", title = nil, kind = 1 }
+    _G.activityPoller.fn()
+    NOW = NOW + 60
+    FRONT = { name = "Finder", title = "Downloads", kind = 1 }
+    _G.activityPoller.fn()
+    local lines = {}
+    for l in io.open(EXPECTED_CSV):read("a"):gmatch("[^\n]+") do lines[#lines + 1] = l end
+    check("🔒 a document path containing commas is QUOTED and still reads as "
+          .. "six fields", #core.splitCSVLine(lines[#lines]) == 6,
+          #core.splitCSVLine(lines[#lines]))
+    check("🔒 ...and comes back whole",
+          core.splitCSVLine(lines[#lines])[6]
+            == "/Users/x/Notes, drafts/Plan, final.docx",
+          core.splitCSVLine(lines[#lines])[6])
+
+    -- 🗑 ⇪⇧E DELETES A DOCUMENT THE APP NAMED. The editor finds a row's
+    -- sessions by re-running the same join the list ran — so a join that
+    -- still read the title would show LL a Word document and then delete
+    -- nothing at all when he asked it to, which is worse than not showing
+    -- it. One function, two callers (6.231.0), asserted here.
+    do
+        local before = #_G.activityLog
+        local key
+        for _, r in ipairs(_G.activityDocsForTest()) do
+            if r.file == "Strategies of the Directors.docx" then key = r.key end
+        end
+        check("(the Word row is there to delete)", key ~= nil)
+        local removed = _G.activityDocDeleteForTest(key)
+        check("🗑 deleting a document the APP named removes its sessions",
+              removed == 1 and #_G.activityLog == before - 1, removed)
+        check("🗑 ...and the row is gone from the list", (function()
+                  for _, r in ipairs(_G.activityDocsForTest()) do
+                      if r.file == "Strategies of the Directors.docx" then return false end
+                  end
+                  return true
+              end)())
+    end
+
+    -- 🔁 THE UPGRADE, RUN FOR REAL, over a five-column file
+    os.remove(EXPECTED_CSV)
+    local g = io.open(EXPECTED_CSV, "w")
+    g:write("date,app,title,seconds,url\n")
+    g:write("2026-09-01,Safari,Some page,120,https://example.com/a\n")
+    g:close()
+    local fresh2 = assert(loadfile(HS .. "/modules/activity_tracker.lua"))()
+    fresh2.setup(core)
+    check("🔁 a five-column row survives the upgrade with its url intact",
+          #_G.activityLog == 1
+          and _G.activityLog[1].url == "https://example.com/a", #_G.activityLog)
+    check("🔁 ...and its missing doc reads as EMPTY rather than nil, so every "
+          .. "reader can treat both shapes the same",
+          _G.activityLog[1].doc == "")
+    check("🔁 the file was rewritten ONCE into the six-column header",
+          io.open(EXPECTED_CSV):read("l") == "date,app,title,seconds,url,doc",
+          io.open(EXPECTED_CSV):read("l"))
+
+    -- 🔎 THE REPORT — the tool that had none
+    printed = {}
+    local L = _G.activityDocsReport()
+    check("🔎 _G.activityDocsReport() exists and prints as ONE string "
+          .. "(6.179.1)", type(L) == "table" and #printed == 1, #printed)
+    local rep = printed[1] or ""
+    check("🔎 ...it counts the reads apart",
+          rep:find("asked", 1, true) and rep:find("named a file", 1, true)
+          and rep:find("had no document", 1, true)
+          and rep:find("could not be asked", 1, true))
+    check("🔎 ...names what the asking BOUGHT, not only what it cost",
+          rep:find("document row", 1, true) ~= nil)
+    check("🔎 ...and says plainly that old rows cannot gain a document",
+          rep:find("before 6.257.0", 1, true) ~= nil)
+
+    _G.service.registry["docs.front"] = nil
+    printed = {}
+    _G.activityDocsReport()
+    check("🔎 a Mac with doc_memory absent reads DIFFERENTLY from one where "
+          .. "nothing was asked", (printed[1] or ""):find("doc_memory is not loaded",
+                                                          1, true) ~= nil,
+          printed[1])
+    installDocs({ ["Microsoft Word"] = true })
+
+    os.time = realTime
+    os.remove(EXPECTED_CSV)
+    au = _G.activityURL
+end
+
+-- ---- doc_memory's half -------------------------------------------------
+do
+    local dmSrc = io.open(HS .. "/modules/doc_memory.lua"):read("a")
+    check("🔌 doc_memory publishes the list it owns as `docs.watches`",
+          dmSrc:find('core.provide("docs.watches"', 1, true) ~= nil)
+    check("🔌 ...and the answer is an EXACT match, never a substring — "
+          .. "`Microsoft Wordpad` is not `Microsoft Word`",
+          dmSrc:find("return dm.apps%[name%] == true") ~= nil)
 end
 
 -- ---- cleanup ------------------------------------------------------------

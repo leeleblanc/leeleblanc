@@ -455,6 +455,41 @@ do
     check("§8 ran every one of its checks", mine == 20, mine)
 end
 
+-- =====================================================================
+-- §9 — 6.257.0: THE APP LIST IS PUBLISHED, BECAUSE SOMEONE ELSE NEEDS IT
+-- =====================================================================
+-- The activity tracker wants to know whether asking about the app in front
+-- is worth an Accessibility read. dm.apps is the answer and it is a CONFIG
+-- LL can edit, so the question is answered HERE rather than by a second
+-- copy of the list in another file that drifts the day he adds an app.
+do
+    local mine = 0
+    local function ck(label, cond, extra) mine = mine + 1; check(label, cond, extra) end
+
+    ck("an app on the list is watched", dm.watches("Microsoft Word") == true)
+    ck("one that is not, is not", dm.watches("Slack") == false)
+    ck("🔒 the match is EXACT, never a substring — otherwise a text editor "
+       .. "called Wordpad would be asked an Accessibility question it "
+       .. "cannot answer, five times a minute",
+       dm.watches("Microsoft Wordpad") == false)
+    ck("nil is false, not an error", dm.watches(nil) == false)
+    ck("so is the empty string", dm.watches("") == false)
+    ck("adding an app to dm.apps is enough — the answer follows the config",
+       (function()
+            dm.apps["Fake Editor"] = true
+            local yes = dm.watches("Fake Editor")
+            dm.apps["Fake Editor"] = nil
+            return yes == true and dm.watches("Fake Editor") == false
+        end)())
+    ck("…and it is published as a service, so nothing has to reach into "
+       .. "this module's table", type(PROVIDED["docs.watches"]) == "function")
+    ck("…answering the same thing through the registry",
+       PROVIDED["docs.watches"]("Microsoft Word") == true
+       and PROVIDED["docs.watches"]("Slack") == false)
+
+    check("§9 ran every one of its checks", mine == 8, mine)
+end
+
 os.execute("rm -rf '" .. TMP .. "'")
 print = realPrint
 out(("\n%d passed, %d failed\n"):format(pass, fail))

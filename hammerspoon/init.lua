@@ -4,9 +4,47 @@
 -- =====================================================================
 -- 09-19-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.256.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.257.0
 -- =====================================================================
 
+-- NEW IN 6.257.0 — 📄 A DOCUMENT IS NAMED BY THE APP, NOT BY ITS TITLE BAR
+--                  (modules/activity_tracker.lua, doc_memory.lua):
+--   LL, with a screenshot of the documents list beside Finder: "It's not
+--      showing the documents I just worked on. Look at the search window
+--      and the Finder timestamps. Am I misunderstanding how this works?"
+--   🔎 HIS ARTEFACT NAMED IT IN ONE LINE. ⇪0, typing "Word", came back:
+--      `Microsoft Word — 5m 40s`. The time is there and the DOCUMENT is
+--      not — and a search row is keyed `app — title`, so a row reading
+--      the app ALONE means the title was EMPTY for every one of those
+--      sessions. Not mis-parsed: absent. Every document name in this
+--      module was read out of that title, so a Word document could not
+--      appear in "documents you worked in" on any Mac, ever, and the
+--      list was honestly reporting "0 documents today" about a day
+--      spent in Word.
+--   🔑 THE ANSWER WAS ALREADY IN THIS CONFIG. doc_memory reads AXDocument
+--      — the real file URL of a window — for the ten apps that answer
+--      it, and CLAUDE.md makes it the ONLY AXDocument reader here. So
+--      the tracker grows no Accessibility reader of its own: it asks
+--      `docs.front` when a session OPENS and writes the answer as a
+--      SIXTH column. 6.123.0's url column is the precedent in every
+--      particular — a column on the row this module already writes,
+--      never a second observer with a second timer.
+--   ⏱ BOUNDED THREE WAYS, because an AX read is main-thread work
+--      (6.228.0): once per SESSION rather than once per tick, only for
+--      an app doc_memory says can answer (`docs.watches`, so the app
+--      list stays in ONE place), and TIMED — one past `ad.slowMs` (60)
+--      takes the 🔔 door naming the app and the milliseconds.
+--   🔎 THREE STATES, NEVER TWO (6.196.1): a window with no document
+--      ANSWERED and said so; a read that came back with nothing at all
+--      FAILED. `_G.activityDocsReport()` counts them apart, and names
+--      what the asking BOUGHT beside what it cost (6.229.0).
+--   📏 AND IT CANNOT LOOK BACKWARDS, which is said rather than hoped
+--      past: rows already on disk have no document column and, for
+--      Word, no title either. Yesterday's Word time stays a total with
+--      no name on it.
+--        settings = { activity_tracker = { askDocs = false } }
+--      · 9,941 -> 10,014 checks · thirteen mutations, thirteen bites.
+--
 -- NEW IN 6.256.0 — 🖥 THE WHOLE SCREEN, NOW, WITH THIS WINDOW OUT OF IT
 --                  (modules/screenshot_editor.lua):
 --   LL: "Add full screen snapshot tool."
@@ -33,46 +71,12 @@
 --      check. A feature holding two timers and a flag owes a teardown.
 --      · 9,929 -> 9,941 checks · ten mutations, ten bites.
 --
--- NEW IN 6.255.0 — ⏲ A DELAYED FULL-SCREEN CAPTURE, ONTO THE SHOT
---                  (modules/screenshot_editor.lua, screenshots.lua):
---   LL: "Add a delayed screenshot feature with a delay of 5 seconds."
---   ⌘D in the editor (or the ⏲ button): five seconds to arrange the
---      screen — open the menu, hover the thing, put the dialog up — and
---      the WHOLE screen lands on the shot as a movable image note, the
---      same door ⌘V and ⌘A already use.
---   🪟 THE EDITOR GETS OUT OF THE WAY, and that is not a nicety: a
---      full-screen grab taken with this window open is a picture of this
---      window. ⌘A can be worked around by moving the editor; a whole-
---      screen shot cannot.
---   🚨 AND A HIDDEN WINDOW THAT NEVER COMES BACK IS HIS WORK GONE — the
---      notes and blurs are still in a live page, and he has no key that
---      reopens it. So the BELT is armed BEFORE the window hides
---      (6.246.0's ordering), in its own held slot (6.196.1), and brings
---      it back at the countdown plus `delayGraceSecs` whatever happened
---      to the capture; a Mac that cannot arm that timer DOES NOT HIDE at
---      all, because a shot containing the editor is a bad picture and a
---      window that cannot come back is lost work; and a belt return
---      takes the 🔔 door rather than passing as health.
---   🔑 THE PAGE IS GIVEN THE NUMBER: the button's LABEL is written from
---      the same `ed.delaySecs` the capture is asked for with, so the
---      check moves the config and requires both to follow (6.239.0) —
---      asserting the shipped 5 passes when 5 is typed in twice.
---   📏 ONE VERDICT, TWO CALLERS: `shots.captureVerdict` is PURE and both
---      the area grab and this one ask it, so "was that a real file?"
---      cannot come to differ. A zero-byte file with exit 0 is a FAILURE
---      — screencapture writes one (6.213.3 caught it doing exactly that).
---   🔎 `_G.screenshotEditorReport()` — this module had none, which is how
---      a hidden window would have become a photograph and a guess.
---        settings = { screenshot_editor = { delaySecs = 8 } }
---        settings = { screenshot_editor = { hideForDelay = false } }
---      · 9,878 -> 9,929 checks · ten mutations, ten bites.
---
--- (6.254.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.255.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.256.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.257.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -169,7 +173,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.256.0"
+_G.configVersion = "6.257.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the

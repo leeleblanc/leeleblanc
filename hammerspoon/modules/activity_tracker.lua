@@ -70,6 +70,8 @@ local M = {
             { "⇪⇧W", "DOCUMENTS you worked in — name · time · day, searchable" },
             { "☑️ row", "Copy several: pick rows with Enter, then copy together" },
             { "⇪⇧E", "Edit or delete a document entry (clear the name = delete)" },
+            { "doc column", "The file the app itself has open, per row, in the CSV" },
+            { "no documents?", "_G.activityDocsReport() — says where the names come from" },
             { "auto 4:00 PM", "Daily report pops up" },
             { "auto Mon 7:30 AM", "Weekly recap pops up" }
         },
@@ -384,6 +386,173 @@ function M.setup(core)
 
 
 
+    -- =====================================================================
+    -- 📄 6.257.0 — A DOCUMENT IS NAMED BY THE APP, NOT BY ITS TITLE BAR
+    -- =====================================================================
+    -- LL, with a screenshot of ⇪⇧W beside a Finder window: "It's not
+    -- showing the documents I just worked on. Look at the search window and
+    -- the Finder timestamps. Am I misunderstanding how this works?"
+    --
+    -- 🔎 THE ARTEFACT NAMED IT IN ONE LINE. Asked for ⇪0 and the word
+    -- "Word", he sent back:
+    --
+    --     Microsoft Word — 5m 40s
+    --
+    -- The time is there; the DOCUMENT is not. And the shape of that row is
+    -- the whole diagnosis: a search row is keyed `app — title`, so a row
+    -- reading the app ALONE means the title half was empty for every one of
+    -- those sessions. Not mis-parsed — absent. macOS did not hand us a
+    -- title for Word at all.
+    --
+    -- That matters because EVERYTHING below is derived from the title:
+    -- docFileFromTitle cuts it at a dash and insists on something that
+    -- looks like a filename. However good that parser is, it cannot read a
+    -- string that was never there — so a Word document could not appear in
+    -- "documents you worked in" on any Mac, ever, and the list has been
+    -- honestly reporting "0 documents today" about a day spent in Word.
+    -- The header of this file has said "window title is the closest thing
+    -- that generalizes" since 3.6. It was true when it was written.
+    --
+    -- 🔑 IT IS NOT TRUE ANY MORE, AND THE ANSWER IS ALREADY IN THIS CONFIG.
+    -- doc_memory reads AXDocument — the real file URL of a window — for the
+    -- ten apps that answer it, Word first among them, and CLAUDE.md makes
+    -- it the ONLY AXDocument reader here. So this module does not grow an
+    -- Accessibility reader of its own: it asks `docs.front`, the service
+    -- that already exists, at the moment a session opens, and writes the
+    -- answer as a SIXTH column. The url column (6.123.0) is the precedent
+    -- in every particular — a column on the row this module already writes,
+    -- never a second observer with a second timer and a second CSV.
+    --
+    -- ⚖️ WHAT IT COSTS, named rather than discovered: one Accessibility
+    -- question per SESSION — not per tick — and only for an app doc_memory
+    -- says can answer. Every read is timed, the worst is printed, and one
+    -- past ad.slowMs takes the 🔔 door. A Mac with doc_memory switched off
+    -- loses nothing it has today: the title fallback is still there and
+    -- still first-class.
+    --
+    -- 📏 AND IT CANNOT LOOK BACKWARDS. Sessions already on disk have no
+    -- doc column and, for Word, no title either — the file simply does not
+    -- record which document they were. Yesterday's Word time stays a total
+    -- with no name on it. That is stated in the verify block rather than
+    -- quietly hoped past.
+    local ad = {}
+    _G.activityDocWatch = ad
+    ad.HEADER  = "date,app,title,seconds,url,doc"
+    ad.askDocs = true   -- ask the front app which document it has open
+    ad.slowMs  = 60     -- one read slower than this takes the 🔔 door
+    ad.asked, ad.answered, ad.none, ad.failed, ad.skipped = 0, 0, 0, 0, 0
+    ad.lastPath, ad.lastWhy, ad.lastMs, ad.worstMs, ad.degraded = nil, nil, nil, nil, 0
+
+    function ad.nowMs()
+        local ok, t = pcall(function() return hs.timer.secondsSinceEpoch() end)
+        if ok and type(t) == "number" then return t * 1000 end
+        return nil   -- a clock this Mac will not read is not a fast read
+    end
+
+    -- PURE. The name a session's DOCUMENT is known by, and why: the file
+    -- the app itself named beats the filename read out of a title bar,
+    -- because one is an answer and the other is a guess. The title reader
+    -- is an ARGUMENT rather than an upvalue so the whole rule is provable
+    -- without a Mac and without this module's window plumbing.
+    function ad.docName(entry, fromTitle)
+        if type(entry) ~= "table" then return nil, "no session" end
+        local doc = entry.doc
+        if type(doc) == "string" and doc ~= "" then
+            local base = doc:match("([^/]+)$")
+            if base and base ~= "" then return base, "the app named the file" end
+        end
+        if type(fromTitle) == "function" then
+            local t = fromTitle(entry.title, entry.app)
+            if t then return t, "read out of the window title" end
+        end
+        return nil, "no document"
+    end
+
+    -- PURE. What a SEARCH row calls this session. The title still wins —
+    -- it is what LL typed and what he has been reading for two years — and
+    -- the document is what a session with no title is called instead of
+    -- being called nothing at all. That second half IS his report: ⇪0 said
+    -- "Microsoft Word" and could not say which file.
+    function ad.rowLabel(entry)
+        if type(entry) ~= "table" then return nil end
+        local t = entry.title
+        if type(t) == "string" and t ~= "" then return t end
+        local doc = entry.doc
+        if type(doc) == "string" and doc ~= "" then
+            return doc:match("([^/]+)$") or doc
+        end
+        return nil
+    end
+
+    -- Ask doc_memory which document is in front. Bounded three ways: only
+    -- when an app doc_memory watches is in front, only once per session,
+    -- and timed. Returns the path, or nil — never throws, never blocks on
+    -- anything this module owns.
+    function ad.frontDoc(appName)
+        if ad.askDocs == false then
+            ad.skipped = ad.skipped + 1
+            return nil, "switched off"
+        end
+        if not (_G.service and _G.service.has and _G.service.call) then
+            ad.skipped = ad.skipped + 1
+            return nil, "no service registry"
+        end
+        if not _G.service.has("docs.front") then
+            ad.skipped = ad.skipped + 1
+            return nil, "doc_memory is not loaded"
+        end
+        -- 🔑 THE APP LIST LIVES IN doc_memory. Asking costs one table
+        -- lookup; a copy here costs a wrong answer the day LL adds an app
+        -- to dm.apps and this file does not hear about it.
+        if _G.service.has("docs.watches") then
+            local watched = _G.service.call("docs.watches", appName)
+            if watched ~= true then
+                ad.skipped = ad.skipped + 1
+                return nil, tostring(appName) .. " is not an app that answers"
+            end
+        end
+
+        local t0 = ad.nowMs()
+        ad.asked = ad.asked + 1
+        local res, why = _G.service.call("docs.front")
+        local t1 = ad.nowMs()
+        local ms = (t0 and t1) and (t1 - t0) or nil
+        ad.lastMs = ms
+        if ms and ms > (ad.worstMs or -1) then ad.worstMs = ms end
+        -- 🔔 A slow Accessibility read is a stalled main thread, which is a
+        -- mouse this Mac has lost (6.228.0) — it is SEEN, not logged.
+        if ms and ms > (tonumber(ad.slowMs) or 60) then
+            ad.degraded = ad.degraded + 1
+            if type(core.degrade) == "function" then
+                core.degrade("Activity documents",
+                             ("asking %s which document was open took %d ms")
+                             :format(tostring(appName), math.floor(ms)))
+            end
+        end
+
+        if type(res) == "table" and type(res.path) == "string" and res.path ~= "" then
+            ad.answered = ad.answered + 1
+            ad.lastPath = res.path
+            ad.lastWhy  = nil
+            return res.path
+        end
+        -- 🔎 THREE STATES, NEVER TWO (6.196.1): a window with no document
+        -- ANSWERED and said so; a call that came back with nothing at all
+        -- FAILED. Reported apart, because "you were not in a document" and
+        -- "this could not be asked" are opposite facts about the same Mac.
+        if type(res) == "table" or why ~= nil then
+            -- An ANSWER arrived — a window with no document in it, or one
+            -- whose document has no usable path. Either way this Mac was
+            -- asked and replied.
+            ad.none = ad.none + 1
+            ad.lastWhy = tostring(why or "the front window has no document")
+        else
+            ad.failed = ad.failed + 1
+            ad.lastWhy = "the read gave no answer and no reason"
+        end
+        return nil, ad.lastWhy
+    end
+
     local function activityFileExists()
         local f = io.open(activityHistoryFile, "r")
         if f then f:close(); return true end
@@ -403,14 +572,22 @@ function M.setup(core)
         local log, isFirstLine, oldHeader = {}, true, false
         for line in content:gmatch("([^\r\n]+)") do
             if isFirstLine and line:match("^date,app,title,seconds") then
-                -- skip header row
-                if not line:find("url", 1, true) then oldHeader = true end
+                -- skip header row. 6.257.0: compared to the header we WRITE
+                -- rather than searched for one column name — the question is
+                -- "is this file the shape this release writes", and a search
+                -- for "doc" would have to be rewritten for every column
+                -- after it. Every older shape answers no, which is right.
+                if line ~= ad.HEADER then oldHeader = true end
             else
                 local fields = core.splitCSVLine(line)
                 local seconds = tonumber(fields[4])
                 if fields[1] and fields[2] and fields[3] and seconds then
                     table.insert(log, { date = fields[1], app = fields[2], title = fields[3],
-                                        seconds = seconds, url = fields[5] or "" })
+                                        seconds = seconds, url = fields[5] or "",
+                                        -- 6.257.0: a pre-6.257.0 row has five
+                                        -- fields and reads back with an empty
+                                        -- doc. Both shapes are valid forever.
+                                        doc = fields[6] or "" })
                 end
             end
             isFirstLine = false
@@ -442,10 +619,11 @@ function M.setup(core)
     local function rewriteActivityLog(log)
         local f = io.open(activityHistoryFile, "w")
         if not f then return false end
-        f:write("date,app,title,seconds,url\n")
+        f:write(ad.HEADER .. "\n")
         for _, e in ipairs(log) do
             f:write(e.date .. "," .. core.csvQuote(e.app) .. "," .. core.csvQuote(e.title)
-                    .. "," .. e.seconds .. "," .. core.csvQuote(e.url or "") .. "\n")
+                    .. "," .. e.seconds .. "," .. core.csvQuote(e.url or "")
+                    .. "," .. core.csvQuote(e.doc or "") .. "\n")
         end
         f:close()
         return true
@@ -456,8 +634,12 @@ function M.setup(core)
     local function appendActivityRow(entry)
         local f = io.open(activityHistoryFile, "a")
         if f then
+            -- 🔒 QUOTED like every other field: a path holds commas as
+            -- readily as a URL does, and an unquoted one shifts every
+            -- column after it (6.123.0's BREAK 5, in a new column).
             f:write(entry.date .. "," .. core.csvQuote(entry.app) .. "," .. core.csvQuote(entry.title)
-                    .. "," .. entry.seconds .. "," .. core.csvQuote(entry.url or "") .. "\n")
+                    .. "," .. entry.seconds .. "," .. core.csvQuote(entry.url or "")
+                    .. "," .. core.csvQuote(entry.doc or "") .. "\n")
             f:close()
         else
             core.warnWriteFailed("activity history")
@@ -571,7 +753,14 @@ function M.setup(core)
         au.seq = au.seq + 1
         local stamp = au.seq
         _G.activitySession = { app = appName, title = title,
-                               startTime = os.time(), url = nil, seq = stamp }
+                               startTime = os.time(), url = nil, doc = nil,
+                               seq = stamp }
+        -- 📄 6.257.0 — ASKED ONCE, HERE, AT THE MOMENT THE SESSION OPENS.
+        -- Not on every tick (that is an Accessibility read on the main
+        -- thread five times a minute for ever) and not at CLOSE (by then
+        -- the front window is the next one, and the answer would be about
+        -- the session after this one).
+        _G.activitySession.doc = ad.frontDoc(appName) or nil
         if au.CHROMES[appName] then
             au.fetch(appName, stamp, function(url, answeredFor)
                 local s = _G.activitySession
@@ -593,6 +782,7 @@ function M.setup(core)
                 title   = s.title or "",
                 seconds = duration,
                 url     = s.url or "",
+                doc     = s.doc or "",
             }
             table.insert(_G.activityLog, entry)
             appendActivityRow(entry)
@@ -717,8 +907,9 @@ function M.setup(core)
         for _, e in ipairs(_G.activityLog) do
             if e.date >= startStr and e.date <= endStr then
                 appTotals[e.app] = (appTotals[e.app] or 0) + e.seconds
-                if e.title and e.title ~= "" then
-                    local key = e.app .. " — " .. e.title
+                local label = ad.rowLabel(e)
+                if label then
+                    local key = e.app .. " — " .. label
                     titleTotals[key] = (titleTotals[key] or 0) + e.seconds
                 end
             end
@@ -812,11 +1003,16 @@ function M.setup(core)
                     -- finds the time you spent on it. The cache is still
                     -- built once per row — a url is one more string in the
                     -- same concatenation, not a second pass.
-                    haystack = (e.app .. " " .. (e.title or "") .. " " .. (e.url or "")):lower()
+                    -- 6.257.0: the document path joins it, so typing a
+                    -- file name finds the time spent in that file — which
+                    -- is the search LL ran when he reported this.
+                    haystack = (e.app .. " " .. (e.title or "") .. " " .. (e.url or "")
+                                .. " " .. (e.doc or "")):lower()
                     e._hay = haystack
                 end
                 if haystack:find(qLower, 1, true) then
-                    local key = e.app .. ((e.title and e.title ~= "") and (" — " .. e.title) or "")
+                    local label = ad.rowLabel(e)
+                    local key = e.app .. (label and (" — " .. label) or "")
                     matchTotals[key] = (matchTotals[key] or 0) + e.seconds
                     if e.url and e.url ~= "" and not matchURL[key] then matchURL[key] = e.url end
                 end
@@ -1108,12 +1304,17 @@ function M.setup(core)
     local function docRows()
         local index, order = {}, {}
         for _, e in ipairs(_G.activityLog or {}) do
-            local file = docFileFromTitle(e.title, e.app)
+            -- 📄 6.257.0 — the file the app NAMED wins; the title is the
+            -- fallback it always was. Both callers of this join ask the one
+            -- function, so the list and the editor cannot disagree about
+            -- what a session's document is called.
+            local file, why = ad.docName(e, docFileFromTitle)
             if file then
                 local key = e.date .. "|" .. file
                 local row = index[key]
                 if not row then
-                    row = { date = e.date, file = file, app = e.app, secs = 0, key = key }
+                    row = { date = e.date, file = file, app = e.app, secs = 0,
+                            key = key, why = why }
                     index[key] = row
                     order[#order + 1] = row
                 end
@@ -1137,7 +1338,7 @@ function M.setup(core)
     local function docSessionsFor(row)
         local hits = {}
         for i, e in ipairs(_G.activityLog or {}) do
-            if e.date == row.date and docFileFromTitle(e.title, e.app) == row.file then
+            if e.date == row.date and ad.docName(e, docFileFromTitle) == row.file then
                 hits[#hits + 1] = i
             end
         end
@@ -1444,6 +1645,72 @@ function M.setup(core)
         paneOpen(_G.choosers.activityDocsEdit)
     end, "activity — document edit")
 
+    -- =====================================================================
+    -- 🔎 6.257.0 — _G.activityDocsReport(): where the names come from
+    -- =====================================================================
+    -- This module had no report about its documents at all, which is why
+    -- "it's not showing the documents I just worked on" had to be answered
+    -- with a photograph and a guess. Every state this release can be in is
+    -- a line here, and the two that must never read alike — "you were not
+    -- in a document" and "this could not be asked" — are counted apart.
+    function _G.activityDocsReport()
+        local L = { "📄 DOCUMENTS — where the names come from" }
+        local function line(s) L[#L + 1] = s end
+
+        if ad.askDocs == false then
+            line("  asking : OFF — settings = { activity_tracker = "
+                 .. "{ askDocs = false } }")
+        elseif not (_G.service and _G.service.has and _G.service.has("docs.front")) then
+            line("  asking : ⚠️ doc_memory is not loaded — every document name "
+                 .. "here is read out of a window title, as before 6.257.0")
+        else
+            line("  asking : ON — doc_memory answers for Word, Excel, "
+                 .. "PowerPoint, Preview, TextEdit, Pages, Numbers, Keynote "
+                 .. "and Acrobat")
+        end
+
+        line(("  reads  : %d asked · %d named a file · %d had no document · "
+              .. "%d could not be asked"):format(ad.asked, ad.answered,
+                                                 ad.none, ad.failed))
+        line(("  skipped: %d (the app in front was not one that answers)")
+             :format(ad.skipped))
+        if ad.lastMs or ad.worstMs then
+            line(("  timing : last %s · worst %s · 🔔 %d over %d ms")
+                 :format(ad.lastMs and (math.floor(ad.lastMs) .. " ms") or "—",
+                         ad.worstMs and (math.floor(ad.worstMs) .. " ms") or "—",
+                         ad.degraded, math.floor(tonumber(ad.slowMs) or 60)))
+        else
+            line("  timing : not timed — this Mac would not answer the clock")
+        end
+        if ad.lastPath then line("  last   : " .. tostring(ad.lastPath)) end
+        if ad.lastWhy  then line("  ↳ last refusal: " .. tostring(ad.lastWhy)) end
+
+        -- 📏 WHAT IT BOUGHT, beside what it cost (6.229.0). A count of asks
+        -- with no rows beside it cannot say whether the column is working.
+        local rows = docRows()
+        local byApp, byTitle = 0, 0
+        for _, r in ipairs(rows) do
+            if r.why == "the app named the file" then byApp = byApp + 1
+            else byTitle = byTitle + 1 end
+        end
+        line(("  rows   : %d document row(s) — %d named by the app · "
+              .. "%d read out of a title"):format(#rows, byApp, byTitle))
+
+        local n, withDoc = 0, 0
+        for _, e in ipairs(_G.activityLog or {}) do
+            n = n + 1
+            if type(e.doc) == "string" and e.doc ~= "" then withDoc = withDoc + 1 end
+        end
+        line(("  log    : %d session(s) stored · %d carry a document")
+             :format(n, withDoc))
+        line("  📏 rows written before 6.257.0 have no document column and "
+             .. "cannot gain one — nothing recorded which file they were.")
+
+        print(table.concat(L, "\n"))
+        return L
+    end
+    core.provide("activity.docsReport", function() return _G.activityDocsReport() end)
+
     core.provide("activity.docs",     function() return docRows() end)
     core.provide("activity.docList",  function() renderDocList("") end)
 
@@ -1461,6 +1728,11 @@ function M.setup(core)
     _G.activityDocTaggedForTest  = function() return docTagged end
     _G.activityDocEditSelectForTest = function(on) docEditSelect = on and true or false end
     _G.activityDocEditTaggedForTest = function() return docEditTagged end
+    -- 6.257.0 — the document engine is the module's settings surface. It is
+    -- read at POLL TIME, never cached at setup, so an override applied
+    -- after setup returns is obeyed on the very next session (6.228.0).
+    M.config = ad
+    M.ad     = ad
     _G.activityDocDeleteForTest  = function(key)
         local r = docFindRow(key)
         if not r then return 0 end
