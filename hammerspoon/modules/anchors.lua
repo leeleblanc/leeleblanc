@@ -89,8 +89,11 @@ function M.setup(core)
             ["Arc"] = "chromium", ["Chromium"] = "chromium",
             ["Safari Technology Preview"] = "Safari",
         },
-        -- state
-        task = nil, grepTask = nil, killer = nil, chooser = nil,
+        -- state. 🚨 6.262.0: the tasks live in SEPARATE SLOTS, keyed by
+        -- what they are doing — never in one `task` field — so starting
+        -- one can never drop the last reference to another (6.196.1).
+        tasks = {}, hops = {}, killer = nil, chooser = nil,
+        hopped = 0, hopsMissed = 0,
         last = nil, opens = 0, links = 0, resolved = 0, lastWhy = nil,
     }
     M.config = anc
@@ -108,6 +111,35 @@ function M.setup(core)
     local function call(name, ...)
         if not has(name) then return false, "not loaded" end
         return _G.service.call(name, ...)
+    end
+
+    -- ---- 🚨 stepping off a task's own callback ----------------------------
+    -- 6.196.1, learned when this exact shape killed Hammerspoon natively
+    -- with no Lua error and nothing in the Console: NEVER START A TASK
+    -- FROM INSIDE ANOTHER TASK'S CALLBACK, and never drop the last
+    -- reference to the task whose callback is RUNNING. hs.task's
+    -- finaliser tears down the NSTask and the callback block underneath
+    -- the live frame, so whether it kills the Mac depends on where the
+    -- garbage collector happens to land.
+    --
+    -- Both halves are the same hop: whatever the callback wanted to do
+    -- next happens a turn later, from a HELD timer in its OWN slot, by
+    -- which time the callback has RETURNED and its task can be let go.
+    function anc.hop(slot, fn)
+        local ok, t = pcall(hs.timer.doAfter, 0, function()
+            anc.hops[slot] = nil
+            anc.tasks[slot] = nil   -- the callback has returned: safe now
+            anc.hopped = anc.hopped + 1
+            pcall(fn)
+        end)
+        if ok and t then anc.hops[slot] = t; return true end
+        -- No timer on this Mac. The work still has to happen — a ⇪⇧U that
+        -- answers nothing is worse than one that answers on the old path
+        -- — so it happens here, and the report SAYS the hop was missed
+        -- rather than reading as health.
+        anc.hopsMissed = anc.hopsMissed + 1
+        pcall(fn)
+        return false
     end
 
     -- ---- what is in front of me ------------------------------------------
@@ -179,19 +211,27 @@ function M.setup(core)
                 if done then return end
                 done = true
                 if anc.killer then pcall(function() anc.killer:stop() end); anc.killer = nil end
-                anc.task = nil
                 cb(t, why)
             end
+            -- The callback works out the ANSWER and hands it to the hop;
+            -- it does not run the caller's cb itself, because the caller
+            -- opens a chooser, writes a note and can start the grep — all
+            -- of it inside this task's own frame if it were called here.
             local okT, task = pcall(hs.task.new, OSASCRIPT, function(code, out, _)
-                if code ~= 0 then return finish(nil, app .. " did not answer (Automation not granted?)") end
-                local url = tostring(out or ""):match("^[^\n]*") or ""
-                local title = tostring(out or ""):match("\n(.*)$") or ""
-                url, title = trim(url), trim(title)
-                if url == "" then return finish(nil, "no tab open in " .. app) end
-                finish({ kind = "tab", url = url, title = title ~= "" and title or url, app = app })
+                local t, why
+                if code ~= 0 then
+                    why = app .. " did not answer (Automation not granted?)"
+                else
+                    local url = tostring(out or ""):match("^[^\n]*") or ""
+                    local title = tostring(out or ""):match("\n(.*)$") or ""
+                    url, title = trim(url), trim(title)
+                    if url == "" then why = "no tab open in " .. app
+                    else t = { kind = "tab", url = url, title = title ~= "" and title or url, app = app } end
+                end
+                anc.hop("tab", function() finish(t, why) end)
             end, { "-e", script })
             if not (okT and task) then return cb(nil, "could not start osascript") end
-            anc.task = task
+            anc.tasks.tab = task
             -- HELD, and killed on its own timer: a browser that never
             -- answers must not leave a process or a dangling callback.
             local okK, k = pcall(hs.timer.doAfter, anc.oscriptTimeout, function()
@@ -248,8 +288,13 @@ function M.setup(core)
             i = i + 1
             if i > #needles or #found > 0 then return cb(found) end
             local args = { "-rlF", "--include=*.md", "-e", needles[i], dir }
+            -- 🚨 THE SECOND NEEDLE IS THE COMMON CASE, which is what made
+            -- this the dangerous one: the basename grep runs whenever the
+            -- path grep found nothing, i.e. every ⇪⇧U on a document with
+            -- no note yet. Starting it from inside the first grep's own
+            -- callback is 6.196.1 exactly — and the old line above it
+            -- (`anc.grepTask = nil`) dropped the running task as well.
             local okT, task = pcall(hs.task.new, GREP, function(_, out, _)
-                anc.grepTask = nil
                 for line in tostring(out or ""):gmatch("[^\n]+") do
                     local rel = line:sub(1, #dir + 1) == dir .. "/" and line:sub(#dir + 2) or line
                     local name = rel:gsub("%.md$", ""):match("([^/]+)$")
@@ -257,10 +302,10 @@ function M.setup(core)
                         found[#found + 1] = { name = name, rel = rel }
                     end
                 end
-                step()
+                anc.hop("grep", step)
             end, args)
             if not (okT and task) then return cb(found, "grep would not start") end
-            anc.grepTask = task
+            anc.tasks.grep = task
             if not pcall(function() task:start() end) then return cb(found, "grep would not run") end
         end
         step()
@@ -418,6 +463,18 @@ function M.setup(core)
         L[#L + 1] = "   moved  : " .. (has("index.search")
                     and ("resolved by name through the ⇪D file index · " .. anc.resolved .. " so far")
                     or "the file index is not loaded — a moved file is reported, not guessed")
+        -- 🚨 6.262.0. A count that only ever reads as health would say
+        -- nothing, so the MISSED hops outrank it: a Mac that could not
+        -- arm the timer is running the shape that crashes, and that is
+        -- the line worth reading (6.196.1).
+        if anc.hopsMissed > 0 then
+            L[#L + 1] = "   tasks  : ⚠️ " .. anc.hopsMissed .. " callback(s) could NOT step off a held timer"
+                        .. " — this Mac ran the next step inside the last one's frame"
+        else
+            L[#L + 1] = "   tasks  : " .. anc.hopped .. " callback(s) stepped off a held timer before the"
+                        .. " next task started · slots: " .. (anc.tasks.tab and "tab " or "")
+                        .. (anc.tasks.grep and "grep" or "") .. ((not anc.tasks.tab and not anc.tasks.grep) and "none held" or "")
+        end
         L[#L + 1] = "   used   : opened " .. anc.opens .. " · linked " .. anc.links
         local l = anc.last
         L[#L + 1] = "   last   : " .. (l and (l.name .. " — " .. tostring(l.title) .. " ("

@@ -1418,6 +1418,47 @@ callback has RETURNED first. Asserted against the SOURCE, deliberately:
 a stub hs.task is collected by nobody, so a functional test of this
 passes just as happily with the bug in. Any new held-task chain gets
 the same two rules.
+🪜 6.262.0 — AND ⇪⇧U HAD BOTH HALVES, IN THE KEY LL NAMED (modules/
+anchors.lua; LL: "Hammerspoon just crashed while I was using the
+Hyper+shift+U feature I think... I'm not sure"). His log was the
+RELAUNCH and carried no 🧊 stall-guard line, so the process went down on
+its own rather than being killed for hanging. `anc.notesFor`'s grep
+callback set `anc.grepTask = nil` AND started the next grep from inside
+itself; `anc.identify`'s finish() cleared the osascript task's slot from
+inside that task's callback. 🔎 THE DANGEROUS BRANCH IS THE ORDINARY
+ONE, exactly as in 6.196.1: the second grep is the BASENAME needle and
+runs only when the first found nothing — every ⇪⇧U on a document with no
+note yet. 🪜 `anc.hop(slot, fn)` carries both halves: separate slots
+(`anc.tasks.tab` / `.grep`) so starting one never releases another, and a
+HELD doAfter(0) in `anc.hops[slot]` so the callback has RETURNED before
+the next task starts or the slot is let go — nothing inside a callback
+clears its own slot now. A Mac that cannot arm the timer still answers,
+on the old path, and the report's ⚠️ OUTRANKS its count and stays there
+afterwards (a missed hop is not forgotten the moment the next one
+works). 🧪 The sentries read the CODE with comments stripped, because a
+comment quotes the banned line (test_scratch_pad's rename sentry, same
+reason). 📏 NAMED, NOT FIXED: vault.lua's scan `finish()` nils all four
+task slots from inside a task callback (its chain is otherwise safe —
+every task there has its own slot); and `anchors.grepTimeout` is a knob
+nobody reads, so a hung grep is unbounded where the osascript read is
+not. 🔎 A SUSPECT, NOT A VERDICT (6.198.0) — the `.ips` decides it; this
+shipped anyway, because it breaks a rule we wrote after a native crash.
+🧪 AND THE GATE'S ONE WALL-CLOCK SUITE WAS PUT ON FIRM GROUND in the
+same release, because it is what held 6.261.0's zip back: one package
+gate run read `9993 checks (partial) · 1 stage failed` and every run
+after was green. 10,079 − 9,993 = 86 = test_stall_guard's exact count —
+a failed suite is not tallied, so ARITHMETIC NAMED THE SUITE. Eight
+copies at once reproduced it (1 in 8) and its own log named the cause:
+ON A LOADED MACHINE A FORK COSTS SECONDS — one log line's two timestamps
+were FOUR SECONDS APART, and log() forks twice — and the script writes
+guard.pid BEFORE `last=$(now)`, so a kill -STOP in that window is
+invisible. Section H waits for the "started" line and one whole check,
+then stops it and makes the beat stale while it is stopped; the pid poll
+is 10 s, not 2, and says so where it fails. GENERAL: a test that drives
+a REAL process against REAL seconds waits for it to be READY and puts it
+into the state under test deliberately — and "it passed the second
+time" is never the answer; the missing checks are an arithmetic
+fingerprint that names the suite.
 🔎 "NOT YET" AND "NEVER" MUST NOT READ THE SAME (6.196.1). The crash
 above shipped because `checks` only rose when a probe COMPLETED, so a
 probe that started and died read as "not probed yet, checks 0" —
@@ -2373,8 +2414,9 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
+| 6.262.0 | 🚨 ⇪⇧U no longer starts a task from inside another task's callback — the 6.196.1 native crash, twice, on the key he named | pending |
 
-Running total: 15 wins · 8 losses · 44 pending — every release from
+Running total: 15 wins · 8 losses · 45 pending — every release from
 6.215.0 on except the fifteen wins and eight losses named in the table
 above. (The enumeration that used to sit here stopped at 6.239.0 and was
 seventeen releases stale, which is a scoreboard that cannot be read;
@@ -2802,6 +2844,36 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.262.0 verify with LL — 🚨 ⇪⇧U AFTER THE CRASH (KNOWN GROUND for the
+  code, and honest about the rest): install (carries 6.261.0). Use ⇪⇧U
+  the way you were using it — and the case that matters is a document or
+  a tab with NO note linked to it yet, because that is the path that ran
+  the crashing shape every single time.
+  🔎 WHAT THIS WAS, and why I fixed it before knowing it was yours: the
+  module did the exact thing we wrote a rule about after the LAST native
+  crash — it started the second grep from inside the first grep's own
+  callback, and dropped that running task at the same time. When that
+  bites, Hammerspoon dies with no error, nothing in the Console, and no
+  beach ball. Your log matched all three.
+  🚨 AND IT IS STILL A SUSPECT, NOT A VERDICT. A correct fix for a real
+  bug is not proof I found YOUR bug. The file that decides it is the
+  crash report: Console → `_G.crashReport()`, and send me the `.ips` it
+  names. If it says there is no crash report at all, that is a different
+  diagnosis entirely and I want to know.
+  Console: `_G.anchorsReport()` — a new "tasks :" line. "N callback(s)
+  stepped off a held timer before the next task started · slots: none
+  held" is healthy. If it ever reads "⚠️ N callback(s) could NOT step off
+  a held timer", paste it: that Mac could not arm a timer and is running
+  the old shape.
+  🚨 IF IT CRASHES ON ⇪⇧U AGAIN, that is a real finding and a valuable
+  one — it means the cause is somewhere else and the .ips is the only
+  thing that can say where. Nothing else about ⇪⇧U changed: it still
+  identifies the tab, the document or the app, still greps the vault for
+  notes that already mention it, and still writes plain Markdown.
+  📏 NAMED, NOT FIXED, so it is not a surprise later: a vault grep that
+  hangs has no time limit (the browser read does — 4 s), and vault.lua's
+  own scan has one instance of the same shape. Each is its own release.
+
 - 6.261.0 verify with LL — 🗑 THE DIALOG HOME IS GONE (KNOWN GROUND):
   install (carries 6.260.0). ⇪/ and search `dialog` — NOTHING comes back.
   The 🎯 DIALOG HOME card you photographed is not in the sheet, because the

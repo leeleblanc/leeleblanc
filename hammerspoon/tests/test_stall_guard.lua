@@ -380,8 +380,18 @@ local function scenario(opts)
     function s.log() return readAll(dir .. "/stall-guard.log") or "" end
     function s.kills() return readAll(dir .. "/kills") or "" end
     function s.opens() return readAll(dir .. "/opens") or "" end
+    -- 6.261.0 — THE PID POLL IS THIS SUITE'S ONLY REAL RACE, and it was
+    -- two seconds wide. Every scenario forks a real /bin/sh and then
+    -- waits for it to write guard.pid; on a loaded machine that fork can
+    -- take longer than the poll, and a nil pid does not fail HERE — it
+    -- fails later, as a check about something else entirely (section H
+    -- passed `kill -STOP` an empty pid, stopped nothing, and reported
+    -- that the gap was not logged). Ten seconds, and the caller that
+    -- needs the pid says so out loud. GENERAL: when a test waits for a
+    -- real process, the wait is generous and its failure is named where
+    -- it happens, never left to surface as a lie about the code.
     function s.pid()
-        for _ = 1, 20 do
+        for _ = 1, 100 do
             local p = readAll(dir .. "/guard.pid")
             if p and p:match("%d+") then return tonumber(p:match("%d+")) end
             sleep(0.1)
@@ -495,16 +505,38 @@ do
 end
 
 -- H. a sleep gap (real SIGSTOP): the reading after it is thrown away
+-- 🧪 6.262.0 — THE GUARD IS PUT INTO THE STATE, NEVER RACED INTO IT.
+-- This section failed about one run in eight when eight copies of this
+-- suite ran at once, and its own log named why: no "skipped" line at
+-- all, and one log line whose two timestamps were FOUR SECONDS APART
+-- — on a loaded machine a fork costs seconds, and log() forks twice.
+-- The script writes guard.pid BEFORE it logs "started" and before
+-- `last=$(now)`, so a stop delivered in that window is invisible: the
+-- guard's first reading is taken after the CONT and there is no gap to
+-- see. And with a stale beat it could relaunch before the stop landed,
+-- after which the script deliberately resets `last`.
+-- So: a LIVE beat (it cannot relaunch), wait for the "started" line,
+-- wait one whole check so the loop has taken a reading, THEN stop it;
+-- the beat is made stale while it is stopped, which is the state this
+-- section is actually about. GENERAL: a test driving a real process
+-- against real seconds waits for the process to be READY, and puts it
+-- into the state under test deliberately rather than by timing.
 do
-    local s = scenario({ beatAge = 30 })
+    local s = scenario({ beatAge = 0 })
     local p = s.pid()
-    os.execute("kill -STOP " .. p)
+    check("H: the guard's pid was found (without it this section proves nothing)",
+          p ~= nil, p)
+    check("H: ...and the guard has taken its first reading before we stop it",
+          s.waitFor("started pid=", 10), s.log())
+    sleep(1.5)
+    os.execute("kill -STOP " .. tostring(p or 0))
     sleep(4.5)
+    writeFile(s.dir .. "/heartbeat", tostring(os.time() - 30))
     os.execute("kill -CONT " .. p)
-    check("H: the gap is logged as skipped", s.waitFor("skipped a reading after a", 4), s.log())
+    check("H: the gap is logged as skipped", s.waitFor("skipped a reading after a", 10), s.log())
     check("H: ...and the relaunch, when it comes, is at least two checks AFTER the skip",
           (function()
-              if not s.waitFor("relaunched: stalled", 6) then return false end
+              if not s.waitFor("relaunched: stalled", 12) then return false end
               local skip = tonumber(s.log():match("(%d+) [^\n]*skipped a reading"))
               local re   = tonumber(s.log():match("(%d+) [^\n]*relaunched: stalled"))
               return skip and re and (re - skip) >= 2

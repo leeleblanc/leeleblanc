@@ -5,6 +5,100 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.262.0 — 🚨 ⇪⇧U STEPS OFF ITS OWN CALLBACK (modules/anchors.lua):
+  LL, after Hammerspoon went down: "Hammerspoon just crashed while I was
+  using the Hyper+shift+U feature I think... I'm not sure." What he sent
+  with it was the Console log of the RELAUNCH — 6.260.0, 73 modules, 106
+  ⇪ shortcuts, All green, boot 485 ms — which describes the Hammerspoon
+  that came after and says nothing about the one that went. Two things it
+  does say: there is no 🧊 stall-guard line, so this was not a beach ball
+  the guard killed and relaunched; the process went down on its own.
+
+  🚨 AND THE KEY HE NAMED CONTAINS THE DOCUMENTED CRASH, TWICE. 6.196.1's
+  rule, written after a native crash in core/capabilities.lua: NEVER
+  START A TASK FROM INSIDE ANOTHER TASK'S CALLBACK, and never drop the
+  last reference to the task whose callback is RUNNING. hs.task's
+  finaliser tears down the NSTask and the callback block underneath the
+  live frame — a use-after-free that kills Hammerspoon natively, with no
+  Lua error and nothing in the Console, whenever a garbage collection
+  lands in that window. anc.notesFor's grep callback did BOTH halves: it
+  set anc.grepTask = nil (dropping the running task) and then called
+  step(), which builds and starts the NEXT grep, from inside that same
+  callback. anc.identify's finish() set anc.task = nil from inside the
+  osascript task's own callback.
+
+  🔎 AND IT IS THE COMMON PATH. The second grep is the BASENAME needle,
+  and it runs only when the first found nothing — which is every ⇪⇧U
+  pressed on a document that has no note linked to it yet. Exactly what
+  he was doing. Like 6.196.1's own case ("on a healthy Mac the narrow
+  probe finds nothing EVERY time"), the dangerous branch is the ordinary
+  one.
+
+  🪜 ONE DOOR, AND IT CARRIES BOTH HALVES. anc.hop(slot, fn): SEPARATE
+  SLOTS keyed by what the task is doing (anc.tasks.tab, anc.tasks.grep),
+  so starting one can never release the other; and a HELD hs.timer.
+  doAfter(0) in its own slot (anc.hops[slot]), so whatever the callback
+  wanted to do next happens a turn later, by which time the callback has
+  RETURNED and its task can safely be let go. Nothing inside a callback
+  clears its own slot any more; the hop does it, afterwards.
+
+  🔎 THE REPORT'S ⚠️ OUTRANKS ITS COUNT. A Mac that cannot arm the timer
+  still gets its answer — the work happens on the old path, because a
+  ⇪⇧U that answers nothing is worse than one that answers dangerously —
+  and the "tasks :" line then says so instead of printing a healthy
+  number over it. That is 6.196.1's other lesson: "not yet" and "never"
+  must not read the same, and neither must "safe" and "it worked
+  anyway". A missed hop stays on the report afterwards; it is not
+  forgotten the moment the next one succeeds.
+
+  🧪 ASSERTED AGAINST THE SOURCE, deliberately. A stub hs.task is
+  collected by nobody, so a purely functional test of this class passes
+  just as happily with the bug in — 6.196.1 said so and it is still
+  true. Four source sentries (separate slots, no single `task` field, the
+  grep callback hops instead of calling step(), the osascript callback
+  hops instead of answering) read the CODE with the comments stripped,
+  because one of those comments quotes the banned line — test_scratch_
+  pad's rename sentry, same reason. Beside them the functional half: the
+  answer must NOT have arrived when the callback returns, the task must
+  still be referenced while its callback runs, and the slot must be let
+  go once it has. Three mutations, thirteen bites; the restore was
+  verified by SHA (6.239.0).
+
+  🧪 AND THE GATE'S ONE WALL-CLOCK SUITE WAS PUT ON FIRM GROUND. This
+  release also closes the single red package-gate run that held 6.261.0's
+  zip back: 9,993 checks (partial), one stage failed, green on every run
+  after. 10,079 − 9,993 = 86, which is test_stall_guard's exact check
+  count — a failed suite is not tallied, so the arithmetic named the
+  suite. Reproduced by running eight copies of it at once: one in eight
+  failed section H, and its own log named the cause. ON A LOADED MACHINE
+  A FORK COSTS SECONDS — one log line came back with its two timestamps
+  FOUR SECONDS APART, and log() forks twice. The script writes guard.pid
+  BEFORE it logs "started" and before `last=$(now)`, so a kill -STOP
+  delivered in that window is invisible: the guard's first reading is
+  taken after the CONT and there is no gap left to see. And with a stale
+  beat it could relaunch before the stop landed, after which the script
+  deliberately resets `last`. Section H now uses a LIVE beat (it cannot
+  relaunch), waits for the "started" line, waits one whole check so the
+  loop has taken a reading, stops it, and makes the beat stale while it
+  is stopped — the state the section is actually about. The pid poll,
+  two seconds wide, is ten now, and its failure is named where it
+  happens rather than surfacing as a lie about the guard. Eight for
+  eight green under the load that broke it.
+
+  📏 NAMED, NOT FIXED, each its own release: modules/vault.lua's scan
+  chain has the same shape in one place — its finish() nils all four task
+  slots and is called from inside a task callback — though the chain
+  itself is safe, because every task there already has its own slot. And
+  anchors' grepTimeout = 8 is a knob nobody reads: the grep has no killer
+  timer, so a hung grep is unbounded where the osascript read is not.
+
+  🔎 AND IT IS A SUSPECT, NOT A VERDICT. A correct fix for a real bug is
+  not evidence that you found THE bug (6.198.0). The .ips from
+  _G.crashReport() names the thread and the frame and is what decides it;
+  this ships either way, because it breaks a rule we wrote after the last
+  native crash.
+    · 10,079 -> 10,098 checks over 79 stages · 72 modules.
+
 NEW IN 6.261.0 — 🗑 THE DIALOG HOME IS DELETED (modules/dialog_home.lua
 and tests/test_dialog_home.lua, removed):
   LL, with a photograph of the ⇪/ card that the switched-OFF tool was

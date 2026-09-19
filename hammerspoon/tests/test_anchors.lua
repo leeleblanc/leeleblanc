@@ -132,6 +132,19 @@ local function runTasks(outText, code)
         if not t.killed then t.cb(code or 0, outText or "", "") end
     end
 end
+-- 🚨 6.262.0. The hop is a doAfter(0) — the turn a task's callback steps
+-- off onto before the next task starts (6.196.1). It is fired APART from
+-- the killer timer, because firing every timer at once would run a
+-- four-second watchdog at time zero and call the answer a timeout.
+local function fireHops()
+    local keep, hops = {}, {}
+    for _, t in ipairs(TIMERS) do
+        if t.live and t.secs == 0 then hops[#hops + 1] = t else keep[#keep + 1] = t end
+    end
+    TIMERS = keep
+    for _, t in ipairs(hops) do t.fn() end
+    return #hops
+end
 local function fireTimers()
     local live = {}
     for _, t in ipairs(TIMERS) do if t.live then live[#live + 1] = t end end
@@ -183,6 +196,12 @@ check("...and the answer has not arrived yet — nothing blocked", got == nil)
 check("...and a killer timer is held, so a silent browser cannot hang it",
       anc.killer ~= nil and #TIMERS >= 1)
 runTasks("https://example.com/page\nExample — the page title")
+check("🚨 the callback does NOT answer inside its own frame — it hops first",
+      got == nil, got and "answered inside the task callback")
+check("...and the hop is a HELD timer in its own slot", anc.hops.tab ~= nil)
+check("...and the task is still referenced while its callback runs", anc.tasks.tab ~= nil)
+fireHops()
+check("...and the slot is let go once the callback has RETURNED", anc.tasks.tab == nil)
 check("the tab becomes a target", got and got.t and got.t.kind == "tab"
       and got.t.url == "https://example.com/page"
       and got.t.title == "Example — the page title", got and got.t and got.t.url)
@@ -191,6 +210,7 @@ check("...and the killer timer was stopped once the answer came", anc.killer == 
 got = nil
 anc.identify(function(t, why) got = { t = t, why = why } end)
 runTasks("", 1)
+fireHops()
 check("a browser that refuses Automation says so, and does not pretend",
       got and got.t == nil and tostring(got.why):find("did not answer", 1, true) ~= nil,
       got and tostring(got.why))
@@ -252,6 +272,9 @@ check("...for FIXED strings, and only .md files", (function()
     return a:find("-rlF", 1, true) and a:find("--include=*.md", 1, true)
 end)(), TASKS[1] and table.concat(TASKS[1].args, " "))
 runTasks("/vault/Contracts/Acme.md\n/vault/Daily/2026-09-07.md")
+check("🚨 the grep callback hands over through the hop, never directly",
+      found == nil and anc.hops.grep ~= nil, found and "answered inside the grep callback")
+fireHops()
 check("the notes come back by NAME, ready for the picker",
       found and #found.n == 2 and found.n[1].name == "Acme"
       and found.n[2].name == "2026-09-07", found and found.n and #found.n)
@@ -261,10 +284,23 @@ found = nil
 TASKS = {}
 anc.notesFor({ path = "/Users/lee/Contract.docx" }, function(n) found = n end)
 runTasks("")                                     -- nothing matched the full path
-check("nothing on the path → it tries the file's NAME next", #TASKS == 1
+-- 🚨 THE CRASH PATH ITSELF (6.196.1, and the reason 6.262.0 exists).
+-- The basename grep runs whenever the path grep found nothing, which is
+-- every ⇪⇧U on a document that has no note yet — so this is the common
+-- case, not a rare one. Started from inside the first grep's callback it
+-- would drop the last reference to the task whose callback is RUNNING,
+-- and hs.task's finaliser tears the NSTask and the block down underneath
+-- the live frame: no Lua error, nothing in the Console, the app gone.
+check("🚨 the SECOND grep does not start inside the first one's callback",
+      #TASKS == 0, #TASKS .. " task(s) started from inside the callback")
+check("...the first grep is still referenced while its callback runs", anc.tasks.grep ~= nil)
+check("...and the next step is held on its own hop timer", anc.hops.grep ~= nil)
+fireHops()
+check("nothing on the path → it tries the file's NAME next, a turn later", #TASKS == 1
       and table.concat(TASKS[1].args, " "):find("Contract.docx", 1, true) ~= nil,
       TASKS[1] and table.concat(TASKS[1].args, " "))
 runTasks("/vault/Contracts/Acme.md")
+fireHops()
 check("...which is how a note written before the file moved is still found",
       found and #found == 1 and found[1].name == "Acme")
 
@@ -276,6 +312,38 @@ anc.notesFor({ path = "/x" }, function(n, why) found = { n = n, why = why } end)
 check("no vault loaded → an empty answer with a reason, and no task started",
       found and #found.n == 0 and tostring(found.why):find("not loaded", 1, true) and #TASKS == 0)
 _G.vault = VAULT
+
+-- 🛠 AND A MAC THAT CANNOT ARM A TIMER STILL GETS ITS ANSWER. The hop
+-- is the safe path, not the whole feature: if hs.timer.doAfter is gone
+-- the work happens on the old path and the REPORT says so, because a
+-- count that only ever reads as health answers nothing (6.196.1).
+do
+    PRINTED = {}
+    _G.anchorsReport()
+    check("a healthy Mac's report says how many callbacks stepped off a held timer",
+          table.concat(PRINTED, "\n"):find("stepped off a held timer", 1, true) ~= nil,
+          table.concat(PRINTED, "\n"))
+    local keepDoAfter = hs.timer.doAfter
+    hs.timer.doAfter = function() error("no timers on this Mac", 0) end
+    local before = anc.hopsMissed
+    found, TASKS = nil, {}
+    anc.notesFor({ path = "/Users/lee/Contract.docx" }, function(n) found = n end)
+    runTasks("/vault/Contracts/Acme.md")
+    check("no hs.timer.doAfter → the answer still arrives", found and #found == 1, found and #found)
+    check("...and the missed hop is COUNTED, not swallowed", anc.hopsMissed == before + 1,
+          anc.hopsMissed)
+    PRINTED = {}
+    _G.anchorsReport()
+    local rep = table.concat(PRINTED, "\n")
+    check("...and the report leads with the ⚠️, not with a healthy-looking number",
+          rep:find("could NOT step off", 1, true) ~= nil, rep)
+    hs.timer.doAfter = keepDoAfter
+    PRINTED = {}
+    _G.anchorsReport()
+    check("...and it goes on saying so afterwards — a missed hop is not forgotten "
+          .. "the moment the next one works",
+          table.concat(PRINTED, "\n"):find("could NOT step off", 1, true) ~= nil)
+end
 
 -- =======================================================================
 out("6) 🚚 move survival — the link is the filename, so the index can find it\n")
@@ -367,6 +435,36 @@ do
           and not src:find("keyStroke", 1, true))
     check("🔒 and it never reads a file's CONTENTS — only paths and titles",
           not src:find("io.open", 1, true) and not src:find("readFile", 1, true))
+    -- 🚨 6.262.0 — ASSERTED AGAINST THE SOURCE, deliberately (6.196.1):
+    -- a stub hs.task is collected by nobody, so a functional test of this
+    -- class passes just as happily with the bug in.
+    -- the sentries read the CODE, never the comments: the comments are
+    -- where the story of the bug lives, and one of them quotes the line
+    -- being banned (test_scratch_pad's rename sentry, same reason).
+    local code = src:gsub("\n%s*%-%-[^\n]*", "\n")
+    check("🚨 the tasks live in SEPARATE SLOTS — no single `task` field to overwrite",
+          code:find("anc%.task%s*=") == nil and code:find("grepTask") == nil
+          and code:find("anc.tasks.grep = task", 1, true) ~= nil
+          and code:find("anc.tasks.tab = task", 1, true) ~= nil)
+    check("🚨 the grep callback does not start the next grep — it hops", (function()
+        local body = code:match("hs%.task%.new, GREP.-end, args")
+        if not body then return false, "the grep task moved" end
+        return body:find('anc.hop("grep"', 1, true) ~= nil
+               and body:find("%f[%w]step%(%)") == nil
+    end)())
+    check("🚨 ...and the osascript callback does not answer inside its own frame",
+          (function()
+        local body = code:match("hs%.task%.new, OSASCRIPT.-end, { \"%-e\"")
+        if not body then return false, "the osascript task moved" end
+        -- finish() is called, but only from INSIDE the hop's closure:
+        -- banning the name outright would be a sentry nobody could keep.
+        return body:find('anc.hop("tab", function() finish(', 1, true) ~= nil
+               and body:find("return finish%(") == nil
+               and body:find("%f[%w]cb%(") == nil
+    end)())
+    check("🚨 ...and no callback releases the slot it is running in",
+          code:find("anc%.tasks%.tab%s*=%s*nil") == nil
+          and code:find("anc%.tasks%.grep%s*=%s*nil") == nil)
     check("every timer it makes is HELD (the 6.16.18 rule)",
           not src:find("\n%s+hs%.timer%.doAfter"), "an unheld timer would be GC'd")
     check("it reaches other modules through the SERVICE registry only",
