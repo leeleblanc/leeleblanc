@@ -625,6 +625,79 @@ do
     check("it is published for the editor", type(PROVIDED["screenshots.captureAreaTo"]) == "function")
 end
 
+-- 🖥 6.255.0 — the editor's DELAYED / full-screen grab. Same contract as
+-- captureAreaTo minus the selector: -x, screencapture's own -T for the
+-- countdown, and the PATH handed back. The verdict is now ONE function
+-- both of them ask, so "was that a real file?" cannot come to differ.
+do
+    local n, ck = 0, nil
+    ck = function(label, cond, extra) n = n + 1; check(label, cond, extra) end
+
+    -- the PURE verdict
+    ck("verdict: exit 0 with bytes on disk is a capture", S.captureVerdict(0, 12345) == true)
+    ck("🚨 verdict: exit 0 with a ZERO-BYTE file is a FAILURE — screencapture "
+       .. "writes one, and the caller opens an empty image (6.213.3's shape)",
+       (function()
+            local ok, why = S.captureVerdict(0, 0)
+            return ok == false and tostring(why):find("no file was written", 1, true) ~= nil
+        end)())
+    ck("verdict: a non-zero exit carries screencapture's OWN first line",
+       (function()
+            local ok, why = S.captureVerdict(1, 9, "cannot write file to intended destination\nrest")
+            return ok == false
+                   and why:find("screencapture exit 1 — cannot write file", 1, true) ~= nil
+                   and why:find("rest", 1, true) == nil
+        end)())
+    ck("verdict: no exit code at all is still a refusal, never a pass",
+       S.captureVerdict(nil, 100) == false)
+
+    -- the delayed grab
+    local got, tBefore2 = {}, #TASKS
+    local ok = S.captureScreenTo(5, function(p, why) got[#got + 1] = { p = p, why = why } end)
+    ck("captureScreenTo(5) starts exactly one screencapture and returns true",
+       ok == true and #TASKS == tBefore2 + 1)
+    local args = TASKS[#TASKS].args
+    ck("🚨 it is a FULL-SCREEN shot with screencapture's own countdown — "
+       .. "no -R, no -i, nothing of ours holding the main thread for 5 s",
+       args[1] == "-x" and args[2] == "-T" and args[3] == "5"
+       and #args == 4 and tostring(args[4]):sub(1, 1) ~= "-",
+       table.concat(args, " "))
+    local dpath = args[4]
+    ck("…the caller has not been answered yet", #got == 0)
+    FILES[dpath] = { size = 999, modification = 1000 }
+    TASKS[#TASKS].cb(0, "", "")
+    ck("🚨 the shot is handed back by PATH — no clipboard, no editor",
+       #got == 1 and got[1].p == dpath and got[1].why == nil,
+       got[1] and tostring(got[1].p))
+
+    -- a delay of zero is the same door with no -T (6.256.0 leans on this)
+    got = {}
+    S.captureScreenTo(0, function(p, why) got[#got + 1] = { p = p, why = why } end)
+    local a0 = TASKS[#TASKS].args
+    ck("a delay of 0 asks for the screen NOW — the -T is absent, not '-T 0'",
+       a0[1] == "-x" and a0[2] ~= "-T" and #a0 == 2, table.concat(a0, " "))
+    ck("a negative delay is read as 0, never handed to screencapture",
+       (function()
+            S.captureScreenTo(-4, function() end)
+            local an = TASKS[#TASKS].args
+            return an[2] ~= "-T" and #an == 2
+        end)())
+
+    -- failure answers once, with the words
+    got = {}
+    S.captureScreenTo(5, function(p, why) got[#got + 1] = { p = p, why = why } end)
+    TASKS[#TASKS].cb(1, "", "could not create image from display\nmore")
+    ck("a delayed shot that fails answers nil + the reason, ONCE",
+       #got == 1 and got[1].p == nil
+       and got[1].why:find("could not create image from display", 1, true) ~= nil,
+       got[1] and got[1].why)
+    ck("no callback: refused, named",
+       select(2, S.captureScreenTo(5, nil)) == "no callback")
+    ck("it is published for the editor",
+       type(PROVIDED["screenshots.captureScreenTo"]) == "function")
+    check("the 6.255.0 block ran every one of its checks", n == 13, n)
+end
+
 -- =====================================================================
 out("10. the scrolling plan (pure)\n")
 -- =====================================================================

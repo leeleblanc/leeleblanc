@@ -2,11 +2,45 @@
 -- * Working VERSION *
 -- =====================================================================
 -- =====================================================================
--- 09-18-26 using Claude          ← EDITED date. Bumped with every release.
+-- 09-19-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.254.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.255.0
 -- =====================================================================
 
+-- NEW IN 6.255.0 — ⏲ A DELAYED FULL-SCREEN CAPTURE, ONTO THE SHOT
+--                  (modules/screenshot_editor.lua, screenshots.lua):
+--   LL: "Add a delayed screenshot feature with a delay of 5 seconds."
+--   ⌘D in the editor (or the ⏲ button): five seconds to arrange the
+--      screen — open the menu, hover the thing, put the dialog up — and
+--      the WHOLE screen lands on the shot as a movable image note, the
+--      same door ⌘V and ⌘A already use.
+--   🪟 THE EDITOR GETS OUT OF THE WAY, and that is not a nicety: a
+--      full-screen grab taken with this window open is a picture of this
+--      window. ⌘A can be worked around by moving the editor; a whole-
+--      screen shot cannot.
+--   🚨 AND A HIDDEN WINDOW THAT NEVER COMES BACK IS HIS WORK GONE — the
+--      notes and blurs are still in a live page, and he has no key that
+--      reopens it. So the BELT is armed BEFORE the window hides
+--      (6.246.0's ordering), in its own held slot (6.196.1), and brings
+--      it back at the countdown plus `delayGraceSecs` whatever happened
+--      to the capture; a Mac that cannot arm that timer DOES NOT HIDE at
+--      all, because a shot containing the editor is a bad picture and a
+--      window that cannot come back is lost work; and a belt return
+--      takes the 🔔 door rather than passing as health.
+--   🔑 THE PAGE IS GIVEN THE NUMBER: the button's LABEL is written from
+--      the same `ed.delaySecs` the capture is asked for with, so the
+--      check moves the config and requires both to follow (6.239.0) —
+--      asserting the shipped 5 passes when 5 is typed in twice.
+--   📏 ONE VERDICT, TWO CALLERS: `shots.captureVerdict` is PURE and both
+--      the area grab and this one ask it, so "was that a real file?"
+--      cannot come to differ. A zero-byte file with exit 0 is a FAILURE
+--      — screencapture writes one (6.213.3 caught it doing exactly that).
+--   🔎 `_G.screenshotEditorReport()` — this module had none, which is how
+--      a hidden window would have become a photograph and a guess.
+--        settings = { screenshot_editor = { delaySecs = 8 } }
+--        settings = { screenshot_editor = { hideForDelay = false } }
+--      · 9,878 -> 9,929 checks · ten mutations, ten bites.
+--
 -- NEW IN 6.254.0 — 🗑 THE THREE DOORS HE DOES NOT USE, CLOSED WITHOUT
 --                  DELETING ANYTHING (modules/scratch_pad.lua, vault.lua):
 --   LL: "I don't need to send these at 4pm. I don't need capture or
@@ -33,32 +67,12 @@
 --      hard-codes `if (true)` passes every check about the declaration.
 --      · 9,860 -> 9,878 checks · eight mutations, eight bites.
 --
--- NEW IN 6.253.0 — ✏️ ONE WINDOW, ONE NAME: THE SCORP PAD IS HAMSIDIAN
---                  (modules/scratch_pad.lua, vault.lua, unified_search):
---   LL: "Scorp pad should be named 'Hamsidian.'"
---   ✏️ ⇪N and ⇪3 have opened the SAME WINDOW since 6.173.0 and it
---      carried two names — 📝 Scorp Pad on a tab, 🕸 Hamsidian on a note.
---      VISIBLE STRINGS ONLY, exactly as 6.214.0 did for the notes: the
---      module id, `sp.*`, `_G.scratchPad*`, `_G.scorpPadExport`, the
---      store path, the services and the `scratch:` refs are untouched,
---      and the comments keep the history.
---   🔑 THE ICON IS WHAT TELLS THE TWO APART NOW: 📝 Hamsidian on a
---      scratch tab, 🕸 Hamsidian on a note. Where a LIST has to show
---      both — ⇪space's sources, the ⌃⌃ editor picker, the panic steps —
---      the pad is "Hamsidian tabs", because two rows reading the same
---      word is a picker you cannot use.
---   🧪 A source sentry fails on any visible "Scorp" left in the module,
---      COMMENTS EXCLUDED (the file's own past is in the lines above the
---      code — 6.246.0's rule, in a rename), and a second check holds the
---      icon: dropping it would leave two identical headers.
---      · 9,857 -> 9,860 checks · three mutations, three bites.
---
--- (6.252.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.253.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.254.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.255.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -155,7 +169,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.254.0"
+_G.configVersion = "6.255.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the

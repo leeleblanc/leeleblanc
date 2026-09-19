@@ -58,6 +58,12 @@ local LAST_HTML, BRIDGE, VIEW = nil, nil, nil
 local CLIP = { kind = "empty" }
 JS = {}                 -- 6.213.0: every evaluateJavaScript the module pushes
 PB_IMAGE = nil          -- what hs.pasteboard.readImage answers
+EVENTS = {}             -- 6.255.0: hide / show / timer, IN ORDER
+TIMERS = {}             -- 6.255.0: every hs.timer.doAfter the module holds
+DEGRADES = {}           -- 6.255.0: every core.degrade the module takes
+FOCUSED = false
+NO_HSWINDOW = false
+NO_TIMER = false
 
 hs = {
     webview = {
@@ -71,7 +77,19 @@ hs = {
         new = function(rect, opts, uc)
             local v = { rect = rect, deleted = false, shown = false }
             function v:html(s) LAST_HTML = s; return self end
-            function v:show() self.shown = true; return self end
+            function v:show() self.shown = true; self.hidden = false
+                              EVENTS[#EVENTS + 1] = "show"; return self end
+            -- 🧪 6.255.0 — a hide() that only returns self would let every
+            -- "it got out of the way" check pass over a window that never
+            -- moved: the getter-only stub, SIXTH time (6.193.0). It really
+            -- hides, and the order it happens in is recorded, because the
+            -- belt must be armed BEFORE the window goes.
+            function v:hide() self.shown = false; self.hidden = true
+                              EVENTS[#EVENTS + 1] = "hide"; return self end
+            function v:hswindow()
+                if NO_HSWINDOW then return nil end
+                return { focus = function() FOCUSED = true; return true end }
+            end
             function v:delete() self.deleted = true; return self end
             function v:windowTitle(t) self.title = t; return self end
             function v:allowTextEntry() return self end
@@ -114,13 +132,29 @@ hs = {
         return nil
     end },
     alert = { show = function(m) ALERTS[#ALERTS + 1] = tostring(m) end },
-    timer = { secondsSinceEpoch = function() return 1000 end },
+    timer = {
+        secondsSinceEpoch = function() return 1000 end,
+        -- 6.255.0 — timers are HELD, not fired: the suite fires them by
+        -- hand so the belt can be proven without waiting eight seconds.
+        doAfter = function(secs, fn)
+            if NO_TIMER then return nil end
+            EVENTS[#EVENTS + 1] = "timer"
+            local t = { secs = secs, fn = fn, stopped = false }
+            function t:stop() self.stopped = true; return self end
+            TIMERS[#TIMERS + 1] = t
+            return t
+        end,
+    },
 }
 _G.diag = { say = function() end, warn = function() end, err = function() end }
 
 local PROVIDED = {}
 local CORE = {
     provide = function(n, f) PROVIDED[n] = f end,
+    degrade = function(tool, why)
+        DEGRADES[#DEGRADES + 1] = { tool = tool, why = tostring(why) }
+        return false, why
+    end,
     resolveBaseScreen = function()
         return { frame = function() return { x = 0, y = 0, w = 1440, h = 900 } end }
     end,
@@ -467,6 +501,193 @@ ck("the page's #stage height is measured from the SAME header height the "
 E.close()
 
 check("§10 ran every one of its checks", mine == 10, mine)
+
+-- =====================================================================
+out("\n11. 6.255.0 — ⌘D: a delayed FULL-SCREEN capture, onto the shot\n")
+-- =====================================================================
+-- LL: "Add a delayed screenshot feature with a delay of 5 seconds."
+-- The window has to get out of the way (a whole-screen shot taken with
+-- the editor open is a picture of the editor) — and a window that hides
+-- and does not come back is his work gone, so the belt is the half this
+-- section spends most of its checks on.
+do
+    local n11 = 0
+    local function c11(label, cond, extra) n11 = n11 + 1; check(label, cond, extra) end
+
+    -- ---- the PURE plan ------------------------------------------------
+    c11("delayPlan: open, service there, idle, 5 s → go, with the reason",
+        (function()
+            local ok, why = E.delayPlan(true, true, false, 5)
+            return ok == true and tostring(why):find("5 second", 1, true) ~= nil
+        end)())
+    c11("delayPlan: the editor is not open → refused, named",
+        select(2, E.delayPlan(false, true, false, 5)) == "the editor is not open")
+    c11("delayPlan: no screenshots module → refused, and it names the module",
+        tostring(select(2, E.delayPlan(true, false, false, 5)))
+            :find("screenshots module", 1, true) ~= nil)
+    c11("delayPlan: one already counting down → refused, NOT a second countdown",
+        tostring(select(2, E.delayPlan(true, true, true, 5)))
+            :find("already counting down", 1, true) ~= nil)
+    c11("delayPlan: a delay of 0 is refused and points at ⌘A (0 is not a delay)",
+        tostring(select(2, E.delayPlan(true, true, false, 0)))
+            :find("Add capture", 1, true) ~= nil)
+
+    -- ---- the page -----------------------------------------------------
+    READABLE["/x/D.png"] = "PNGBYTES"
+    E.close(); JS, ALERTS, EVENTS, TIMERS, DEGRADES = {}, {}, {}, {}, {}
+    E.open("/x/D.png")
+    c11("the page carries the ⏲ button, the ⌘D key and the door",
+        LAST_HTML:find("say({a:'delay'})", 1, true) ~= nil
+        and LAST_HTML:find("id=\"btn-delay\"", 1, true) ~= nil
+        and LAST_HTML:find("e.key === 'd'", 1, true) ~= nil)
+    c11("…and the button's LABEL says the configured number of seconds",
+        LAST_HTML:find("⏲ Delayed 5s", 1, true) ~= nil)
+    -- 6.239.0: assert the shipped default and the check passes when the
+    -- number is typed in twice. Move the config; the page must follow.
+    E.close(); E.delaySecs = 9; E.open("/x/D.png")
+    c11("🚨 the label and the page's own DELAYSECS both come from the config "
+        .. "— move it and both move, or they were two numbers",
+        LAST_HTML:find("⏲ Delayed 9s", 1, true) ~= nil
+        and LAST_HTML:find("var DELAYSECS = 9;", 1, true) ~= nil)
+    E.delaySecs = 5
+
+    -- ---- no service ----------------------------------------------------
+    CORE.has  = function(n) return PROVIDED[n] ~= nil end
+    CORE.call = function(n, ...) return PROVIDED[n](...) end
+    PROVIDED["screenshots.captureScreenTo"] = nil
+    E.close(); JS, ALERTS, EVENTS, TIMERS, DEGRADES = {}, {}, {}, {}, {}
+    E.open("/x/D.png")
+    EVENTS = {}          -- opening the window is a "show"; this is about ⌘D
+    BRIDGE({ body = { a = "delay" } })
+    c11("⌘D without the screenshots module: says so, and the window NEVER hides",
+        (ALERTS[#ALERTS] or ""):find("screenshots module", 1, true) ~= nil
+        and E.hidden == false and #EVENTS == 0, ALERTS[#ALERTS])
+
+    -- ---- the happy path -------------------------------------------------
+    local ASKED, CB = nil, nil
+    PROVIDED["screenshots.captureScreenTo"] = function(secs, cb)
+        ASKED = secs; CB = cb; return true
+    end
+    JS, ALERTS, EVENTS, TIMERS, DEGRADES = {}, {}, {}, {}, {}
+    BRIDGE({ body = { a = "delay" } })
+    c11("⌘D asks screenshots.captureScreenTo for the CONFIGURED seconds",
+        ASKED == 5 and type(CB) == "function", ASKED)
+    c11("…and the alert says how long he has to arrange the screen",
+        (ALERTS[#ALERTS] or ""):find("5 seconds", 1, true) ~= nil, ALERTS[#ALERTS])
+    c11("🪟 the editor HIDES — a full-screen shot taken over it is a "
+        .. "picture of it", E.hidden == true)
+    c11("🚨 THE BELT IS ARMED BEFORE THE WINDOW GOES (6.246.0's ordering): "
+        .. "a hide with no way back is the failure this release could cause",
+        EVENTS[1] == "timer" and EVENTS[2] == "hide",
+        table.concat(EVENTS, ","))
+    c11("…and the belt waits the countdown PLUS the grace, in its own slot",
+        #TIMERS == 1 and TIMERS[1].secs == 5 + E.delayGraceSecs
+        and E.delayTimer ~= nil, TIMERS[1] and TIMERS[1].secs)
+    -- a second ⌘D while one is counting down
+    local before = #TIMERS
+    BRIDGE({ body = { a = "delay" } })
+    c11("a second ⌘D mid-countdown is refused — one countdown, one shot",
+        #TIMERS == before
+        and (ALERTS[#ALERTS] or ""):find("already counting down", 1, true) ~= nil,
+        ALERTS[#ALERTS])
+
+    -- the capture lands
+    local markerEncode = hs.base64.encode
+    hs.base64.encode = function() return "RlVMTFNDUkVFTg==" end
+    READABLE["/x/Full.png"] = "FULLSCREEN"
+    FOCUSED = false
+    CB("/x/Full.png")
+    hs.base64.encode = markerEncode
+    c11("🚨 the window comes BACK the moment the capture answers",
+        E.hidden == false and VIEW.shown == true)
+    c11("…and it asks for the keyboard once, rather than leaving a window "
+        .. "that is up but not key (6.251.0)", FOCUSED == true)
+    c11("…and the shot lands on the canvas as addImage(<data URI>, w, h)",
+        JS[#JS] == "addImage('data:image/png;base64,RlVMTFNDUkVFTg==', 800, 600)",
+        JS[#JS])
+    c11("…counted as LANDED, and nothing degraded",
+        E.delays.landed == 1 and E.delays.failed == 0 and #DEGRADES == 0)
+    c11("…and the countdown is over, so ⌘D works again",
+        E.delayBusy == false)
+
+    -- ---- the capture fails ---------------------------------------------
+    JS, ALERTS, EVENTS, DEGRADES = {}, {}, {}, {}
+    BRIDGE({ body = { a = "delay" } })
+    local pushed = #JS
+    CB(nil, "screencapture exit 1 — could not create image")
+    c11("a capture that did not land: the window is back, nothing pushed",
+        E.hidden == false and #JS == pushed)
+    c11("🔔 …and it takes the DOOR with screencapture's own words — a "
+        .. "silence here is a shot he thinks he took",
+        #DEGRADES == 1
+        and DEGRADES[1].why:find("could not create image", 1, true) ~= nil,
+        DEGRADES[1] and DEGRADES[1].why)
+    c11("…counted as FAILED, apart from the ones that landed",
+        E.delays.failed == 1 and E.delays.landed == 1)
+
+    -- ---- the belt ------------------------------------------------------
+    JS, ALERTS, EVENTS, DEGRADES, TIMERS = {}, {}, {}, {}, {}
+    BRIDGE({ body = { a = "delay" } })
+    c11("the window is hidden and waiting", E.hidden == true and #TIMERS == 1)
+    TIMERS[1].fn()      -- the countdown passed and NOTHING ever answered
+    c11("🚨 THE BELT BRINGS THE WINDOW BACK when the capture never answers "
+        .. "— his work is in a live page he cannot see otherwise",
+        E.hidden == false and VIEW.shown == true)
+    c11("…and it says so rather than reading as health",
+        #DEGRADES == 1 and DEGRADES[1].why:find("never answered", 1, true) ~= nil,
+        DEGRADES[1] and DEGRADES[1].why)
+    c11("…counted apart: a belt return means the capture answered NEVER, "
+        .. "which is not the same fact as a capture that failed",
+        E.delays.late == 1)
+    c11("…and the busy flag is cleared, so ⌘D is not dead for the session",
+        E.delayBusy == false)
+    -- the late CB arriving after the belt must not hide anything again
+    CB(nil, "too late")
+    c11("a callback that arrives after the belt cannot re-hide the window",
+        E.hidden == false)
+
+    -- ---- a Mac that cannot arm a timer ---------------------------------
+    JS, ALERTS, EVENTS, DEGRADES, TIMERS = {}, {}, {}, {}, {}
+    NO_TIMER = true
+    BRIDGE({ body = { a = "delay" } })
+    c11("🚨 NO TIMER, NO HIDE: a shot that contains the editor is a bad "
+        .. "picture; a window that cannot come back is lost work",
+        E.hidden == false and #EVENTS == 0, table.concat(EVENTS, ","))
+    NO_TIMER = false
+    CB("/x/Full.png")
+
+    -- ---- no hswindow ----------------------------------------------------
+    JS, ALERTS, EVENTS, DEGRADES, TIMERS = {}, {}, {}, {}, {}
+    NO_HSWINDOW, FOCUSED = true, false
+    BRIDGE({ body = { a = "delay" } })
+    CB(nil, "no")
+    c11("a Mac whose window cannot be named still gets its editor back",
+        E.hidden == false and FOCUSED == false)
+    NO_HSWINDOW = false
+
+    -- ---- the report ------------------------------------------------------
+    local rpt = _G.screenshotEditorReport()
+    c11("the report is ONE string (6.179.1) and it is returned",
+        type(rpt) == "string" and rpt:find("\n", 1, true) ~= nil)
+    c11("…it counts asked / landed / failed apart",
+        rpt:find("delayed :", 1, true) ~= nil
+        and rpt:find("landed", 1, true) ~= nil
+        and rpt:find("failed", 1, true) ~= nil, rpt)
+    c11("…it names the belt's returns rather than printing health",
+        rpt:find("brought back by the belt", 1, true) ~= nil, rpt)
+    c11("…and it carries the settings line that turns the hiding off",
+        rpt:find("hideForDelay", 1, true) ~= nil
+        and rpt:find("delaySecs = 5", 1, true) ~= nil, rpt)
+    -- 6.196.1 — never asked must not read like asked-and-nothing-happened
+    E.delays = { asked = 0, landed = 0, failed = 0, late = 0 }
+    local fresh = _G.screenshotEditorReport()
+    c11("🔎 never asked reads differently from asked and failed",
+        fresh:find("never asked", 1, true) ~= nil
+        and fresh:find("0 asked", 1, true) == nil, fresh)
+
+    E.close()
+    check("§11 ran every one of its checks", n11 == 36, n11)
+end
 
 out(("\n%d passed, %d failed\n"):format(pass, fail))
 for _, f in ipairs(failures) do out("    ❌ " .. f .. "\n") end

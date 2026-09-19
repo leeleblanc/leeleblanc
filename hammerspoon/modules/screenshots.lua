@@ -495,6 +495,58 @@ function M.setup(core)
         }, path, thenEdit)
     end
 
+    -- 📏 6.255.0 — THE VERDICT ON A CAPTURE, PURE: exit code, file size and
+    -- screencapture's own first line in, ok/why out. It exists because
+    -- there are TWO callers now (the editor's area grab and its full-screen
+    -- grab) and a second copy of "was that a real file?" is a second copy
+    -- to keep in step — 6.187.0's two-readers rule, paid before it costs
+    -- anything. A zero-byte file with exit 0 is a FAILURE: screencapture
+    -- has written one (6.213.3 found it doing exactly that in a cloud
+    -- folder), and a caller handed that path opens an empty image.
+    function shots.captureVerdict(exitCode, size, serr)
+        exitCode = tonumber(exitCode)
+        size     = tonumber(size) or 0
+        if exitCode == 0 and size > 0 then return true end
+        local why = "screencapture exit " .. tostring(exitCode)
+        local first = tostring(serr or ""):match("[^\n]+")
+        if first and first ~= "" then why = why .. " — " .. first end
+        if size <= 0 then why = why .. " — no file was written" end
+        return false, why
+    end
+
+    -- 🖥 6.255.0 — the editor's DELAYED grab (⌘D), and the same door the
+    -- full-screen grab uses: a whole-screen `screencapture -x [-T N]`
+    -- whose PATH is handed to the caller. No clipboard, no editor opened,
+    -- no panel — captureAreaTo's contract exactly, minus the selector.
+    -- cb(path) on success, cb(nil, why) on anything else, and NEVER both.
+    -- The countdown is screencapture's own -T, so nothing of ours holds
+    -- the main thread while the Mac is being arranged.
+    function shots.captureScreenTo(delay, cb)
+        if type(cb) ~= "function" then return false, "no callback" end
+        if not shots.ensureDir() then cb(nil, "no screenshots folder") return false end
+        -- 🗑 6.255.0 — a `if delay < 0 then delay = 0 end` guard was written
+        -- here and taken out again: the only reader is `delay > 0`, so a
+        -- negative number already means "no -T, shoot now" and no mutation
+        -- could fail. A guard no test can fail is dead code with a comment
+        -- on it (6.199.0) — THIRD time this project has made that call.
+        delay = math.floor(tonumber(delay) or 0)
+        local path = freshPath()
+        local args = { "-x" }
+        if delay > 0 then
+            args[#args + 1] = "-T"
+            args[#args + 1] = tostring(delay)
+        end
+        args[#args + 1] = path
+        local started = shots.runCapture(args, path, false, function(p, exitCode, serr)
+            local size
+            pcall(function() size = hs.fs.attributes(p, "size") end)
+            local ok, why = shots.captureVerdict(exitCode, size, serr)
+            if ok then cb(p) else cb(nil, why) end
+        end)
+        if not started then cb(nil, "screencapture could not be started") return false end
+        return true
+    end
+
     -- 🖌 6.213.0 — the editor's "Add capture" (⌘A): OUR selector, a -x -R
     -- shot of that rectangle, and the PATH handed to the caller — no
     -- clipboard, no editor open, no panel. cb(path) on success, cb(nil,
@@ -514,15 +566,9 @@ function M.setup(core)
             }, path, false, function(p, exitCode, serr)
                 local size
                 pcall(function() size = hs.fs.attributes(p, "size") end)
-                if exitCode == 0 and size and size > 0 then
-                    cb(p)
-                else
-                    local why = "screencapture exit " .. tostring(exitCode)
-                    local first = tostring(serr or ""):match("[^\n]+")
-                    if first and first ~= "" then why = why .. " — " .. first end
-                    if not size or size == 0 then why = why .. " — no file was written" end
-                    cb(nil, why)
-                end
+                -- 6.255.0 — one verdict, two callers (see captureVerdict)
+                local ok, why = shots.captureVerdict(exitCode, size, serr)
+                if ok then cb(p) else cb(nil, why) end
             end)
             if not started then cb(nil, "screencapture could not be started") end
         end)
@@ -2015,6 +2061,8 @@ function M.setup(core)
     core.provide("screenshots.latest",  function() return shots.latest() end)
     core.provide("screenshots.capture", function() return shots.capture() end)
     core.provide("screenshots.captureAreaTo", function(cb) return shots.captureAreaTo(cb) end)
+    core.provide("screenshots.captureScreenTo",
+                 function(delay, cb) return shots.captureScreenTo(delay, cb) end)
     core.provide("screenshots.show",    function() return shots.show() end)
     core.provide("screenshots.folder",  function() return shots.revealFolder() end)
 

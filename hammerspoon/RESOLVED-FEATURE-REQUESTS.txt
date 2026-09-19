@@ -1,5 +1,5 @@
 ========================================================================
-RESOLVED FEATURE REQUESTS — Hammerspoon config 6.254.0
+RESOLVED FEATURE REQUESTS — Hammerspoon config 6.255.0
 Every feature and how to use it. Generated from the modules' own
 cheat sheets (the rows ⇪/ draws), so it is never out of date.
 ⇪ = Caps Lock held (the hyper key). ⇪⇧X = Caps Lock + Shift + X.
@@ -527,6 +527,7 @@ In the Console, _G.<tool>Report() prints any tool's own report.
   L O H C   6.212.0: Line · Oval · Highlighter (translucent yellow box) · Counter (①②③ — a numbered badge per click, ⌘Z takes the last back)
   S M       6.213.0: Spotlight (darkens everything but the box) · Magnifier (a 2× circle; drag its right-hand dot to size it)
   ⌘V ⌘A 6.213.0: paste the clipboard's IMAGE onto the shot · Add capture — drag an area of the screen and it lands on the shot (move the editor first if it is in the way)
+  ⌘D      6.255.0: Delayed capture — this window gets out of the way, you arrange the screen, and five seconds later the WHOLE screen lands on the shot
   text      click, type, ⏎ — white text, white outline box · click an EXISTING box (Text tool) to edit its words, or ⏎ on a selected one
   move      drag text/arrows around · arrow ENDS stretch + rotate · a selected text box has a corner dot — drag it to make the text bigger or smaller (⌘Z undoes it)
   ⌘-click 6.221.0: hold ⌘ and click ANY mark to select it — a text box opens its words at once, whatever tool is armed; a ⌘-click that misses creates nothing
@@ -766,6 +767,7 @@ In the Console, _G.<tool>Report() prints any tool's own report.
 
 📜 RELEASE INDEX — newest first, one line per release (the full story of each is in CHANGELOG.md)
 ------------------------------------------------------------------------
+  6.255.0  ⏲ A DELAYED FULL-SCREEN CAPTURE, ONTO THE SHOT
   6.254.0  🗑 THE THREE DOORS HE DOES NOT USE, CLOSED WITHOUT DELETING
   6.253.0  ✏️ ONE WINDOW, ONE NAME: THE SCORP PAD IS HAMSIDIAN
   6.252.0  ✂️ THE LANDED BOX SPLITS BY LETTER, AND ⌥HALVE IS GONE

@@ -5,6 +5,66 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.255.0 — ⏲ A DELAYED FULL-SCREEN CAPTURE, ONTO THE SHOT
+                 (modules/screenshot_editor.lua, modules/screenshots.lua):
+  LL: "Add a delayed screenshot feature with a delay of 5 seconds."
+
+  ⌘D in the editor — or the ⏲ button beside 📸 Add capture — gives him five
+  seconds to arrange the screen (open the menu, hover the thing, put the
+  dialog up), and then the WHOLE screen lands on the shot as a movable image
+  note, through the same door ⌘V and ⌘A already use.
+
+  🪟 THE EDITOR GETS OUT OF THE WAY, and that is not a nicety. A full-screen
+  grab taken with this window open is a picture of this window. ⌘A's area
+  selector can be worked around by moving the editor first — the cheat sheet
+  has said so since 6.213.0 — but a whole-screen shot cannot be, and the five
+  seconds only mean anything if the thing being arranged is visible.
+
+  🚨 AND A HIDDEN WINDOW THAT NEVER COMES BACK IS HIS WORK GONE. Nothing is
+  deleted — the blurs, the text, the arrows and the image are all still in a
+  live page — but a panel he cannot see is indistinguishable from one, and
+  there is no key that reopens it. So:
+
+    · the BELT is armed BEFORE the window hides (6.246.0's ordering), in its
+      own held slot (6.196.1), and brings the window back at the countdown
+      plus `delayGraceSecs` whatever happened to the capture;
+    · a Mac that cannot arm that timer DOES NOT HIDE AT ALL — a shot that
+      contains the editor is a bad picture, and a window that cannot come
+      back is lost work, and those are not the same cost;
+    · a belt return takes the 🔔 door and is counted APART from a capture
+      that failed, because "the capture never answered" and "the capture
+      answered with a failure" are different faults (6.196.1).
+
+  🔑 THE PAGE IS GIVEN THE NUMBER, not told it twice. The button's label is
+  written from the same `ed.delaySecs` the capture is asked for with, so the
+  check MOVES the config and requires both to follow (6.239.0) — asserting
+  the shipped 5 passes happily on the day the 5 is typed in two places.
+
+  📏 ONE VERDICT, TWO CALLERS. `shots.captureVerdict(exitCode, size, serr)`
+  is PURE, and both the area grab and this one ask it, so "was that a real
+  file?" cannot come to differ (6.187.0's two-readers rule, paid before it
+  cost anything). A zero-byte file with exit 0 is a FAILURE: screencapture
+  writes one, which is exactly what 6.213.3 caught it doing in a cloud
+  folder, and a caller handed that path opens an empty image.
+
+  🗑 AND ONE GUARD WAS WRITTEN AND TAKEN OUT AGAIN: a `if delay < 0 then
+  delay = 0 end` clamp in captureScreenTo. Its only reader is `delay > 0`,
+  so a negative number already means "no -T, shoot now" and no mutation
+  could fail. A guard no test can fail is dead code with a comment on it
+  (6.199.0) — THIRD time this project has made that call on purpose.
+
+  🔎 `_G.screenshotEditorReport()` — this module had no report at all, which
+  is how a hidden window would have become a photograph and a guess (6.228.0,
+  where four true reports named nothing because the one module that could
+  have answered had none). Never asked · asked and failed · landed, with the
+  belt's own count beside them.
+
+  Rollback, no release: settings = { screenshot_editor = { delaySecs = 8 } }
+  puts the countdown wherever he wants it, and { hideForDelay = false } keeps
+  the editor on screen through it.
+
+  · 9,878 -> 9,929 checks · ten mutations, ten bites.
+
 NEW IN 6.254.0 — 🗑 THE THREE DOORS HE DOES NOT USE, CLOSED WITHOUT DELETING
                  ANYTHING (modules/scratch_pad.lua, modules/vault.lua):
   LL: "I don't need to send these at 4pm. I don't need capture or append. I

@@ -490,6 +490,38 @@ work Mac.
   never printed. 6.186.0's rule in a new place: a test HELPER answers
   falsely rather than indexing a nil, so a mutation fails a check instead
   of killing the run. Fifteen mutations, fifteen bites.
+- ⏲ A WINDOW THAT HIDES ITSELF OWES A WAY BACK THAT DOES NOT DEPEND
+  ON THE THING IT HID FOR (6.255.0, modules/screenshot_editor.lua +
+  screenshots.lua — LL: "Add a delayed screenshot feature with a delay
+  of 5 seconds"). ⌘D gives him five seconds to arrange the screen and
+  lands the WHOLE screen on the shot as an image note, through the same
+  door ⌘V and ⌘A use (`ed.pushImage`).
+  🪟 THE EDITOR GETS OUT OF THE WAY, and that is not a nicety: a
+  full-screen grab taken with this window open is a picture of this
+  window. ⌘A can be worked around by moving the editor; a whole-screen
+  shot cannot.
+  🚨 AND A HIDDEN WINDOW THAT NEVER COMES BACK IS HIS WORK GONE — nothing
+  is deleted, the page is still live, but a panel he cannot see is
+  indistinguishable from one and no key reopens it. THREE RULES, each
+  with its own mutation: the BELT is armed BEFORE the window hides
+  (6.246.0's ordering) in its own held slot (6.196.1) and returns it at
+  the countdown plus `delayGraceSecs` whatever happened; a Mac that
+  cannot arm that timer DOES NOT HIDE AT ALL (a shot containing the
+  editor is a bad picture, a window that cannot come back is lost work);
+  and a belt return takes the 🔔 door and is COUNTED APART from a capture
+  that failed — "never answered" and "answered with a failure" are
+  different faults. GENERAL: any panel in this config that hides itself
+  to get out of a capture's way owes the same three.
+  🔑 THE PAGE IS GIVEN THE NUMBER: the button's LABEL is written from the
+  same `ed.delaySecs` the capture is asked for with, so the check moves
+  the config and requires both to follow (6.239.0).
+  📏 ONE VERDICT, TWO CALLERS: `shots.captureVerdict` is PURE and both
+  the area grab and the screen grab ask it. A zero-byte file with exit 0
+  is a FAILURE — screencapture writes one (6.213.3 caught it doing exactly
+  that), and a caller handed that path opens an empty image.
+  🗑 A `delay < 0` clamp was written and taken out again: its only reader
+  is `delay > 0`, so no mutation could fail it — 6.199.0, THIRD time.
+  🔎 `_G.screenshotEditorReport()` (the module had none).
 - ⌨️ TAKING THE KEYBOARD ACTIVATES HAMMERSPOON, AND THAT IS THE PRICE
   (6.251.0, modules/music_player.lua — LL: "I have to click on it to make
   it the focus to use the space bar … even if I hide it and bring it
@@ -2123,6 +2155,7 @@ as the fix when a loss lands.
 | 6.252.0 | ✂️ the landed grid box splits by letter (one in each half, longer side first) and ⌥halve is gone | pending |
 | 6.253.0 | ✏️ the Scorp Pad is Hamsidian — one window, one name, the icon telling the two sides apart | pending |
 | 6.254.0 | 🗑 the 4 PM Asana send and the + Capture / + Append rows are off — three switches, nothing deleted | pending |
+| 6.255.0 | ⏲ ⌘D in the editor: five seconds to arrange the screen, then the whole screen lands on the shot — and the editor hides, with a belt that brings it back | pending |
 
 Running total: 15 wins · 8 losses · 22 pending (6.215.0, 6.217.0, 6.218.0,
 6.219.0, 6.220.0, 6.221.0, 6.222.0, 6.223.0, 6.224.0, 6.225.0, 6.226.0,
@@ -2526,6 +2559,34 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.255.0 verify with LL — ⏲ THE DELAYED CAPTURE (KNOWN GROUND): install
+  (carries 6.246.0–6.254.0). Open the editor on any shot (⇪⇧1, or ⌥⏎ on a
+  history row). There is a new ⏲ Delayed 5s button beside 📸 Add capture —
+  press it, or ⌘D.
+  The editor DISAPPEARS, you get five seconds to arrange the screen (open a
+  menu, hover something, put a dialog up), and then the editor comes back
+  with the whole screen on it as a movable image. Drag it, scale it by its
+  corner, ⌘Z takes it off.
+  🪟 THE WINDOW HIDING IS THE FEATURE, not a glitch: a full-screen shot taken
+  with the editor open is a picture of the editor.
+  🚨 THE ONE THING TO WATCH FOR is the opposite failure. If the editor ever
+  hides and does NOT come back within about eight seconds, that is a real
+  break — but it is caught: an alert reads "⚠️ Screenshot editor — the delayed
+  capture never answered — the window is back", and the window returns. Paste
+  that alert if you see it.
+  If the keyboard does not come back with the window, click the editor once
+  and say so — that is 6.251.0's price in a new place and it has its own line
+  in the report.
+  Console: `_G.screenshotEditorReport()` — this tool had no report until now.
+  "delayed : 1 asked · 1 landed · 0 failed" is healthy. A "brought back by the
+  belt" count is the line that matters; so is "↳ last failure:".
+  A different countdown, no release:
+  `settings = { screenshot_editor = { delaySecs = 8 } }`.
+  Keep the editor on screen through it: `{ hideForDelay = false }`.
+  📏 KNOWN AND NOT CHANGED: ⇪⇧3 (the global delayed capture) is still ten
+  seconds and still opens a fresh editor — this is the one INSIDE the editor,
+  which is what you asked for.
+
 - 6.254.0 verify with LL — 🗑 THE THREE DOORS (KNOWN GROUND): install
   (carries 6.253.0). ⇪N — the 📝 SCRATCH NOTES section still has "+ new tab
   ⌘T" and NOTHING else: the + 🗒 Capture and + ➕ Append rows are gone.
