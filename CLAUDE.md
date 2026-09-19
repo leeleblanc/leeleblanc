@@ -621,6 +621,33 @@ work Mac.
   HELPER answers falsely (6.186.0). GENERAL: a suite that boots a module
   must boot it the way init.lua does — setup, THEN settings, THEN warm —
   or it cannot tell a real switch from a decorative one.
+  🗑 6.261.0 — AND THEN HE ASKED FOR THE ROOM, NOT THE DOOR (LL, with a
+  photograph of the ⇪/ card the switched-OFF tool was still drawing:
+  "Remove this feature from future releases"). modules/dialog_home.lua,
+  tests/test_dialog_home.lua, the §1.12 loader line, the ⇪/ card,
+  `_G.dialogs()` and `_G.dialogHome` are DELETED — 73 modules → 72, 73
+  Lua suites → 72, and the counts in hs-doctor.sh, INSTALL.md and
+  GUIDE.md moved in the same commit (a count printed to a human is a lie
+  the moment a file goes). GENERAL, and it is the correction to 6.254.0's
+  shape rather than a reversal of it: KEEPING EVERYTHING IS RIGHT FOR A
+  DOOR AND WRONG FOR A TOOL HE DOES NOT WANT. A switched-off feature
+  still loads, still draws its sheet card and still answers its report,
+  so the only thing it does is describe itself. 🔑 A REMOVAL IS CHEAP
+  BECAUSE THE ARCHIVE IS GIT: every line is at 6.260.0 f16e286 and the
+  whole story is in CHANGELOG.md, so a deletion never needs hedging with
+  a flag nobody will set — "bring it back" is a checkout, not a rewrite.
+  🧪 AND A DELETION MUST NOT QUIETLY RETIRE A GUARD: test_features names
+  six modules in its hs.window.filter sweep and dialog_home was one of
+  them ON PURPOSE (watching windows appear is that ban's textbook
+  temptation), so removing it would have left five names and a comment
+  explaining why a sixth mattered. mouse_follows inherits the slot — the
+  same application-watcher plus AX-observer shape, by its own header —
+  and the pin was mutation-proven on its new module. When you delete a
+  module a sentry names, the sentry gets a new name in the SAME commit or
+  it is weaker than it reads.
+  📏 NAMED, NOT SWEPT: the captured spot stays in hs.settings under
+  "dialogHome.pos", inert, because the code that could clear it is the
+  code deleted; `hs.settings.clear("dialogHome.pos")` removes it.
 
 - ⏲ A WINDOW THAT HIDES ITSELF OWES A WAY BACK THAT DOES NOT DEPEND
   ON THE THING IT HID FOR (6.255.0, modules/screenshot_editor.lua +
@@ -2345,8 +2372,9 @@ as the fix when a loss lands.
 | 6.258.0 | 🖼 ⌘O loads a prior shot onto this one and the canvas grows to hold both — the original stays at 0,0 so nothing already drawn moves | pending |
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
+| 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
 
-Running total: 15 wins · 8 losses · 43 pending — every release from
+Running total: 15 wins · 8 losses · 44 pending — every release from
 6.215.0 on except the fifteen wins and eight losses named in the table
 above. (The enumeration that used to sit here stopped at 6.239.0 and was
 seventeen releases stale, which is a scoreboard that cannot be read;
@@ -2774,6 +2802,25 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.261.0 verify with LL — 🗑 THE DIALOG HOME IS GONE (KNOWN GROUND):
+  install (carries 6.260.0). ⇪/ and search `dialog` — NOTHING comes back.
+  The 🎯 DIALOG HOME card you photographed is not in the sheet, because the
+  tool is not in the config.
+  Console: `_G.dialogs()` → "attempt to call a nil value". That error IS the
+  release working; an error is the only honest proof that a thing is gone.
+  Copy a file over one that exists so Finder asks "Replace?": it opens where
+  macOS puts it, exactly as on 6.259.0. Nothing changed there — 6.259.0
+  stopped the moving, this one stops the advertising.
+  The boot line says 72 modules, not 73.
+  📏 ONE THING LEFT ON PURPOSE: the spot you once captured is still in
+  hs.settings under "dialogHome.pos". Nothing reads it, and nothing can
+  clear it any more, because the code that could is the code I deleted.
+  `hs.settings.clear("dialogHome.pos")` in the Console removes it; leaving
+  it costs nothing.
+  🔑 IT IS DELETED, NOT LOST: every line is in git at 6.260.0 (f16e286) and
+  its whole story is in CHANGELOG.md. If you ever want it back it is a
+  checkout, not a rewrite — say the word.
+
 - 6.260.0 verify with LL — 📐 THE LIVE SIZE (KNOWN GROUND): install
   (carries 6.259.0). Press ⇪5 and start dragging — or, in the editor, press
   📸 Add capture (⌘A). A black box follows the drag with the size in white:
@@ -2809,23 +2856,11 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   highlighter) still have no readout. Same feature, different surface, and
   its own release when you want it.
 
-- 6.259.0 verify with LL — 🎯 THE DIALOG HOME IS OFF (KNOWN GROUND):
-  install (carries 6.257.0 and 6.258.0). Copy a file over one that already
-  exists so Finder asks "Replace?" — the dialog opens wherever macOS puts
-  it, and nothing moves it. Drag a dialog somewhere: NO "🎯 Dialogs will
-  open here now" toast, ever again. That is the whole release.
-  Console: `_G.dialogs()` — "OFF — switched off in 6.259.0 on your word",
-  and it names the one line that brings it back. If you ever want it:
-  `settings = { dialog_home = { enabled = true } }` in the machine profile.
-  🗑 NOTHING WAS DELETED: the spot you had captured is still remembered and
-  the report prints it, so turning it back on puts you exactly where you
-  were. Say if you would rather the module were removed outright — that is
-  its own release and easier after a month of not missing it.
-  🔌 AND THE SWITCH WAS FIXED WHILE IT WAS OPEN: this tool started its
-  watchers before the settings file was read, which meant a switch could
-  only ever turn it OFF, never back on. It starts in the warm phase now, so
-  the line above really works. If you turn it on and nothing happens, paste
-  `_G.dialogs()` — it distinguishes "on" from "running" and will say which.
+- 6.259.0 verify — 🎯 THE DIALOG HOME IS OFF: SUPERSEDED BY 6.261.0, which
+  deleted the module outright on his word. Nothing to verify separately:
+  if 6.261.0's block passes, this one did too (the tool cannot move a
+  dialog if the tool is not there). Its steps are in git and in
+  CHANGELOG.md 6.259.0.
 
 - 6.258.0 verify with LL — 🖼 TWO SHOTS ON ONE CANVAS (KNOWN GROUND):
   install (carries 6.257.0). Open the editor on any screenshot (⇪⇧1). Beside

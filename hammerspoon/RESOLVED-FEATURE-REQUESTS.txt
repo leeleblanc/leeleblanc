@@ -1,5 +1,5 @@
 ========================================================================
-RESOLVED FEATURE REQUESTS — Hammerspoon config 6.260.0
+RESOLVED FEATURE REQUESTS — Hammerspoon config 6.261.0
 Every feature and how to use it. Generated from the modules' own
 cheat sheets (the rows ⇪/ draws), so it is never out of date.
 ⇪ = Caps Lock held (the hyper key). ⇪⇧X = Caps Lock + Shift + X.
@@ -35,17 +35,6 @@ In the Console, _G.<tool>Report() prints any tool's own report.
   match     By window id, then exact app+title — an unmatched window is left alone
   _G.windowsBack() Console: put them back right now, by hand
   off       wr.enabled = false in modules/window_return.lua's EDIT HERE
-
-🎯 DIALOG HOME (OFF since 6.259.0 — dialogs land where macOS puts them)   [modules/dialog_home.lua]
-  off       Switched off on your word. Nothing watches, nothing moves, nothing announces itself
-  back on   settings = { dialog_home = { enabled = true } } in the machine profile
-  auto      When ON: dialogs (Replace? Save? Delete?) open at ONE spot on the PRIMARY monitor
-  capture   Drag any dialog somewhere better — that spot becomes the new home
-  default   Centred, a little high, on the primary screen — until you drag one
-  scope     Frontmost app; a background app's dialog is placed when you switch to it
-  sheets    Panels glued to a window's title bar are never touched
-  _G.dialogs() Console: the spot, the last dialog seen, and who refused
-  reset     _G.dialogHome.reset() forgets the captured spot
 
 👀 APP PEEK   [modules/app_peek.lua]
   ⇪P      Hide frontmost app — press again to bring back
@@ -774,6 +763,7 @@ In the Console, _G.<tool>Report() prints any tool's own report.
 
 📜 RELEASE INDEX — newest first, one line per release (the full story of each is in CHANGELOG.md)
 ------------------------------------------------------------------------
+  6.261.0  🗑 THE DIALOG HOME IS DELETED (modules/dialog_home.lua
   6.260.0  📐 THE LIVE SIZE READOUT (modules/screenshots.lua)
   6.259.0  🎯 THE DIALOG HOME IS OFF (modules/dialog_home.lua)
   6.258.0  🖼 ⌘O: A PRIOR SHOT ONTO THIS ONE, AND THE CANVAS GROWS

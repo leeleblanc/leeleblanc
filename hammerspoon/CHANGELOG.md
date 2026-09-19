@@ -5,6 +5,63 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.261.0 — 🗑 THE DIALOG HOME IS DELETED (modules/dialog_home.lua
+and tests/test_dialog_home.lua, removed):
+  LL, with a photograph of the ⇪/ card that the switched-OFF tool was
+  still drawing — 🎯 DIALOG HOME (OFF since 6.259.0), ten rows of it,
+  telling him how to capture a spot and how to reset one: "Remove this
+  feature from future releases."
+
+  🗑 6.259.0 SHUT THE DOORS AND LEFT THE ROOM FURNISHED. That release was
+  built on 6.254.0's shape — nothing deleted, every line kept, one
+  settings line to bring it back — and it was the right shape for three
+  switches on a pad he still uses. It is the wrong shape for a tool he
+  does not want at all: the module still loaded, the card still drew, the
+  report still answered, and the only thing the feature did any more was
+  describe itself. The ask is not a switch. He had the switch.
+
+  🗑 WHAT WENT: modules/dialog_home.lua and its suite, the module's line
+  in the §1.12 loader, its ⇪/ cheat-sheet card, `_G.dialogs()` and
+  `_G.dialogHome`. 73 modules -> 72, 73 Lua suites -> 72, and the counts
+  in hs-doctor.sh, INSTALL.md and GUIDE.md moved with them — a count
+  printed to a human is a lie the moment a file goes.
+
+  🔑 DELETED IN THE TREE IS NOT DELETED IN THE ARCHIVE, and that is what
+  makes a removal cheap here: every line of it is in git at 6.260.0
+  (f16e286), this file carries its whole story from 6.143.0 onward, and
+  the rollback ladder rebuilds any release from its commit. A feature
+  that can be recovered from a commit does not need to be hedged with a
+  flag nobody will ever set. If he ever wants it back it is a checkout,
+  not a rewrite.
+
+  📏 NAMED, NOT SWEPT: the spot he once captured is still in hs.settings
+  under "dialogHome.pos". Nothing reads it now, and nothing can clear it
+  either, because the code that could is the code being deleted —
+  `hs.settings.clear("dialogHome.pos")` in the Console removes it, and it
+  is inert if he never does. A consequence you decide not to act on is
+  one you are obliged to name.
+
+  🧪 AND A DELETION MUST NOT QUIETLY RETIRE A GUARD. test_features asks
+  six modules BY NAME whether their code reaches for hs.window.filter —
+  the banned extension whose 44-second beachball this config is built
+  around — and dialog_home was on that list on purpose: watching windows
+  appear is the ban's textbook temptation. Taking the module out would
+  have taken the pin out with it, silently, leaving five names and a
+  comment explaining why a sixth mattered. mouse_follows inherits the
+  slot: the same application-watcher plus AX-observer shape, named as
+  such in its own header since it was written. The rule generalises —
+  when you delete a module that a sentry names, the sentry gets a new
+  name in the same commit or the sentry is weaker than it reads.
+
+  📋 THE ⇪/ CARD IS THE WHOLE POINT OF THE RELEASE. 6.181.0's rule is
+  that a sheet promising behaviour that no longer happens is a broken
+  feature; 6.259.0 obeyed it by rewriting the card to say OFF, which is
+  honest and still ten rows about a tool that does nothing. The card is
+  gone with the module, which is the honest end state for a feature
+  nobody wants.
+
+  · 10,151 -> 10,079 checks over 79 stages · 73 -> 72 modules.
+
 NEW IN 6.260.0 — 📐 THE LIVE SIZE READOUT (modules/screenshots.lua):
   LL, under a heading of his own: "show a live 1280 × 720 in white on a
   90 %-opaque black box". Read with the earlier line in his screenshot-

@@ -9,10 +9,10 @@ structure, not for the shortcuts (⇪/ is the shortcut list).
 
 ```
 ~/.hammerspoon/
-├── init.lua          the orchestrator (3696 lines)
+├── init.lua          the orchestrator (3681 lines)
 ├── secret.lua        Asana token. NEVER backed up, never in the cloud
 ├── core/             dofile'd at a fixed point, NOT loader-managed (12 files)
-├── modules/          one file per feature (73 files, ~58,200 lines)
+├── modules/          one file per feature (72 files, ~63,100 lines)
 ├── tests/            run on any machine with lua5.4; no Mac required
 ├── packs/            the four PUBLIC snippet packs as .json (1,926), in
 │                     git since 6.162.0 — the builder folds them into
@@ -973,10 +973,10 @@ CREATED AUTOMATICALLY (never make these yourself):
 
 ## 6. Tests
 
-Seventy-three Lua suites, 9,537 checks, plus five more that run the Capture
+Seventy-two Lua suites, 9,465 checks, plus five more that run the Capture
 Pad's, the screenshot editor's, unified search's, the vault's and the
 music player's page JavaScript under `node` for a further 614 —
-**10,151 checks over eighty stages** in
+**10,079 checks over seventy-nine stages** in
 all. Every Lua stage runs with `lua5.4` on any machine — no Mac required,
 they stub the `hs` API:
 
@@ -1027,9 +1027,6 @@ tests/test_lag.lua           ⏱ the keystroke probe — the wrapper must be inv
 tests/test_search_index.lua  the ⇪D file index: nice'd find, atomic publish, narrowing search
 tests/test_doc_keywords.lua  .docx → keywords → Finder comment; a human's comment survives
 tests/test_clipboard.lua     ⇪V, and the writes that must never destroy the history file
-tests/test_dialog_home.lua   🎯 dialogs land at your spot: the dialog-kind rule, the
-                             PRIMARY-screen default, drag capture with self-move
-                             suppression, and the Accessibility-off stand-down
 tests/test_mouse_follows.lua 🖱 ⇪⇧3 the pointer goes where focus goes: both rules,
                              the button-down / own-window / paused guards, the
                              observer hand-over on an app switch, the toggle,

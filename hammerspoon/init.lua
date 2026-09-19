@@ -4,9 +4,39 @@
 -- =====================================================================
 -- 09-19-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.260.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.261.0
 -- =====================================================================
 
+-- NEW IN 6.261.0 — 🗑 THE DIALOG HOME IS DELETED (modules/dialog_home.lua
+--   and tests/test_dialog_home.lua, gone):
+--   LL, with a photograph of the ⇪/ card the switched-OFF tool was still
+--      drawing: "Remove this feature from future releases." 6.259.0 shut
+--      the doors and left the room furnished — the card, the report, the
+--      module and its 700 lines were all still here, announcing a tool
+--      that does nothing. He asked for the room.
+--   🗑 WHAT WENT: the module, its suite, its line in the §1.12 loader, its
+--      ⇪/ card, `_G.dialogs()` and `_G.dialogHome`. A REMOVAL IS NOT A
+--      SWITCH: there is no settings line that brings this back, and that
+--      is the ask — 6.259.0 was the switch and he did not want one.
+--   🔑 DELETED IN THE TREE IS NOT DELETED IN THE ARCHIVE. Every line is in
+--      git at 6.260.0 (f16e286) and the whole story is in CHANGELOG.md, so
+--      "remove it" costs nothing that cannot be rebuilt from a commit.
+--      That is what the rollback ladder is for, and it is why a removal
+--      never needs to be hedged with a flag nobody will ever set.
+--   📏 NAMED, NOT SWEPT: the spot he once captured is still in hs.settings
+--      under "dialogHome.pos" — a few bytes nothing reads now, because the
+--      code that could clear it is the code being deleted.
+--      `hs.settings.clear("dialogHome.pos")` removes it; it is inert
+--      either way. A consequence you decide not to act on is one you are
+--      obliged to name.
+--   🧪 AND THE BAN SWEEP KEEPS ITS PIN: test_features asks six modules BY
+--      NAME whether they reach for hs.window.filter, and dialog_home was
+--      on that list because watching windows appear is the ban's textbook
+--      temptation. mouse_follows inherits the slot — the same application
+--      watcher plus AX observer shape, by its own header — so deleting a
+--      module does not quietly retire the guard it was carrying.
+--      · 10,151 -> 10,079 checks · 73 -> 72 modules · 73 -> 72 suites.
+--
 -- NEW IN 6.260.0 — 📐 THE LIVE SIZE READOUT (modules/screenshots.lua):
 --   LL: "show a live 1280 × 720 in white on a 90 %-opaque black box",
 --      read with his earlier "Change the pixel measurement tool numbers
@@ -41,40 +71,12 @@
 --        settings = { screenshots = { sizeReadout = false } }
 --      · 10,110 -> 10,151 checks · twenty-two mutations, twenty-two bites.
 --
--- NEW IN 6.259.0 — 🎯 THE DIALOG HOME IS OFF (modules/dialog_home.lua):
---   LL, with a photograph of this tool's own capture toast — "🎯 Dialogs
---      will open here now — _G.dialogHome.reset() undoes it" — sitting
---      over a film he was watching: "Turn off this feature in all future
---      releases." A tool that announces itself in the middle of
---      something else is a tool you switch off, and he did.
---   🗑 NOTHING IS DELETED (6.254.0's shape): every line of the feature is
---      here, the spot he once captured is still on disk and the OFF
---      status says so, and ONE settings line brings it back. Closing a
---      door is not emptying the room.
---   🔌 AND THE SWITCH IS REAL IN BOTH DIRECTIONS, which is the release's
---      actual work: the wiring moved out of setup() and into warm(),
---      because init.lua applies a profile's `settings` AFTER setup
---      returns — so a module that starts its watchers in setup can never
---      be started by an override (6.228.0 named this module's class and
---      said to fix it when the module was next opened; it is open).
---      With off as the default the broken direction would have been the
---      useful one.
---   🔎 OFF IS OFF, NOT MADE-AND-HIDDEN: no application watcher, no
---      Accessibility observer, no timer held — asserted, not claimed.
---      And "enabled" is not "running": a Mac that turned it on but never
---      warmed reads as a FAULT (6.196.1), never as health.
---   📋 The ⇪/ sheet says OFF in its own title and carries the line that
---      undoes it — a sheet that promises behaviour that no longer
---      happens is a broken feature (6.181.0).
---        settings = { dialog_home = { enabled = true } }
---      · 10,092 -> 10,110 checks · nine mutations, nine bites.
---
--- (6.258.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.259.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.260.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.261.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -171,7 +173,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.260.0"
+_G.configVersion = "6.261.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the
@@ -3100,11 +3102,6 @@ local BASE = {
     -- pulls its data from. One lsof snapshot per press, no polling.
     "net_watch",          -- 🌐 ⇪⇧6 who's talking — apps with live
                           --    connections, remote ends resolved + explained
-    -- 6.143.0 — LL, with a screenshot of Finder's "already exists —
-    -- Replace?" box: "Can we capture this kind of window and make it
-    -- appear in the same place, on my primary monitor?"
-    "dialog_home",        -- 🎯 dialogs land at one spot on the primary
-                          --    monitor; drag one to move the spot (no key)
     -- 6.146.0 — LL: set a default application for a specific file type,
     -- and verify the assignment took. Reads and writes LaunchServices
     -- through osascript; the verdict comes from reading the registry

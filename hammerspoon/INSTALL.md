@@ -29,7 +29,7 @@ with no admin password. The two steps that *can* use admin are marked
 │   ├── console.lua           the ⛔ ERRORS + ⚠️ NONBREAKING sections + repeat limiter
 │   ├── lag.lua               which tap is eating the keystroke — OFF unless ~/.hammerspoon/LAGPROBE exists (_G.lagOn())
 │   └── notices.lua           the failure ledger — nothing fails silently
-├── modules/              73 files, loaded by the §1.12 loader
+├── modules/              72 files, loaded by the §1.12 loader
 ├── RESOLVED-FEATURE-REQUESTS.txt   every feature and how to use it, one page, generated (6.217.0)
 ├── tools/                hs-doctor.sh · hs-install.sh · run-tests.sh · hs-stall-guard.sh (started by stall_guard.lua)
 └── logs/                 only if there is no OneDrive on this Mac
@@ -93,8 +93,9 @@ if the verify fails**. It refuses to run as root.
 
 Installing by drag-and-drop in Finder instead? The "already exists —
 Replace?" dialog that produces is the very box Dialog Home was born from
-(6.143.0): once the config is running, dialogs like it open at one spot
-on your primary monitor, and dragging one somewhere better moves the spot.
+(6.143.0) — and it is where macOS puts it again: that tool was switched
+off in 6.259.0 and deleted in 6.261.0, on LL's word. Nothing of this
+config moves a dialog now.
 
 ---
 
@@ -317,7 +318,7 @@ Run it from the **unpacked zip, before Step 3**, not from `~/.hammerspoon`
 copy it reports every Lua stage as missing. That is a skip, not a pass,
 but it is also not a check.
 
-Syntax on `init.lua`, `core/` and all 73 modules, seventy-three Lua suites, then
+Syntax on `init.lua`, `core/` and all 72 modules, seventy-two Lua suites, then
 five more that **execute** the page JavaScript of the Capture Pad, the
 screenshot editor, unified search, the vault and the music player against a
 DOM stub. One exit code. A skipped stage is reported as a skip, never as a
