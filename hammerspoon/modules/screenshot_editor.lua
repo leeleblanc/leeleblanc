@@ -60,6 +60,7 @@ local M = {
             { "S M",   "6.213.0: Spotlight (darkens everything but the box) · Magnifier (a 2× circle; drag its right-hand dot to size it)" },
             { "⌘V ⌘A", "6.213.0: paste the clipboard's IMAGE onto the shot · Add capture — drag an area of the screen and it lands on the shot (move the editor first if it is in the way)" },
             { "⌘D",    "6.255.0: Delayed capture — this window gets out of the way, you arrange the screen, and five seconds later the WHOLE screen lands on the shot" },
+            { "⌘F",    "6.256.0: Full screen — the whole screen, right now, with this window out of the picture" },
             { "text",  "click, type, ⏎ — white text, white outline box · click an EXISTING box (Text tool) to edit its words, or ⏎ on a selected one" },
             { "move",  "drag text/arrows around · arrow ENDS stretch + rotate · a selected text box has a corner dot — drag it to make the text bigger or smaller (⌘Z undoes it)" },
             { "⌘-click", "6.221.0: hold ⌘ and click ANY mark to select it — a text box opens its words at once, whatever tool is armed; a ⌘-click that misses creates nothing" },
@@ -110,6 +111,13 @@ function M.setup(core)
     ed.hideForDelay   = true  -- get this window out of the shot
     ed.delayGraceSecs = 3     -- the belt: how long past the countdown
                               -- before the window comes back regardless
+    -- 🖥 6.256.0 — the full-screen grab (⌘F) has no countdown to hide
+    -- behind, and :hide() is not instant: macOS takes the window off the
+    -- screen on its own turn, so a screencapture asked for on the next
+    -- line photographs a window that is still there. This is the beat it
+    -- waits, and it is the ONLY thing standing between "full screen" and
+    -- "a picture of the editor".
+    ed.hideSettleSecs = 0.4
     ed.kept = nil    -- { path, img, notes } — never written to disk, never
                      -- survives a reload; this is a safety net, not a store
     -- ----------------------------------------------------------------------
@@ -131,6 +139,7 @@ function M.setup(core)
     ed.delayBusy = false
     ed.hidden    = false
     ed.delayTimer = nil       -- HELD, its own slot (6.196.1)
+    ed.settleTimer = nil      -- HELD, ITS OWN slot: two timers, never one
     ed.lastDelayWhy = nil
 
     -- ---- files -----------------------------------------------------------
@@ -244,6 +253,7 @@ function M.setup(core)
   <button onclick="say({a:'paste'})" title="⌘V">📋 Paste image</button>
   <button onclick="say({a:'capture'})" title="⌘A">📸 Add capture</button>
   <button id="btn-delay" onclick="say({a:'delay'})" title="⌘D">⏲ Delayed ]] .. tostring(delaySecs) .. [[s</button>
+  <button id="btn-full" onclick="say({a:'full'})" title="⌘F">🖥 Full screen</button>
   <button onclick="undoLast()" title="⌘Z">↩︎ Undo</button>
   <button class="go" onclick="saveIt('png')" title="⌘⏎">Save &amp; copy&nbsp;&nbsp;⌘⏎</button>
   <button onclick="saveIt('jpg')" title="⌘⇧⏎">Small JPEG</button>
@@ -963,6 +973,8 @@ function M.setup(core)
       else if (e.metaKey && (e.key === 'a' || e.key === 'A')) { e.preventDefault(); say({ a: 'capture' }); }
       // 6.255.0 — ⌘D: hide, count DELAYSECS down, land the whole screen
       else if (e.metaKey && (e.key === 'd' || e.key === 'D')) { e.preventDefault(); say({ a: 'delay' }); }
+      // 6.256.0 — ⌘F: the whole screen, now, with this window out of it
+      else if (e.metaKey && (e.key === 'f' || e.key === 'F')) { e.preventDefault(); say({ a: 'full' }); }
       // 6.207.0 — ⏎ on a selected text box edits it (⌘⏎ is still save)
       else if (e.key === 'Enter' && !e.metaKey && sel && sel.kind === 'text') {
         e.preventDefault(); startText(sel);
@@ -1089,6 +1101,9 @@ function M.setup(core)
         elseif body.a == "delay" then
             local ok, why = ed.addDelayed()
             if not ok then pcall(function() hs.alert.show("🖌 " .. tostring(why), 3) end) end
+        elseif body.a == "full" then
+            local ok, why = ed.addFullScreen()
+            if not ok then pcall(function() hs.alert.show("🖌 " .. tostring(why), 3) end) end
         end
     end
 
@@ -1176,19 +1191,25 @@ function M.setup(core)
     --   · the belt's return takes the 🔔 door, because a window that came
     --     back late is a fault he should be told about, not a silence.
 
-    -- PURE. May a delayed capture start, and if not, WHY not — the three
-    -- refusals are different facts and the caller says which.
-    function ed.delayPlan(open, canAsk, busy, secs)
+    -- PURE. May a screen grab start, and if not, WHY not — the refusals
+    -- are different facts and the caller says which. `needDelay` is the
+    -- PARAMETER that tells ⌘D from ⌘F, rather than a second plan that
+    -- would drift: a countdown of zero is a broken ⌘D and a perfectly
+    -- good ⌘F (6.196.0's choicesFrom rule, in a guard).
+    function ed.grabPlan(open, canAsk, busy, secs, needDelay)
         if not open then return false, "the editor is not open" end
         if not canAsk then
-            return false, "Delayed capture needs the screenshots module, which is not loaded"
+            return false, "A screen capture needs the screenshots module, which is not loaded"
         end
-        if busy then return false, "a delayed capture is already counting down" end
+        if busy then return false, "a screen capture is already running" end
         secs = tonumber(secs) or 0
-        if secs <= 0 then
-            return false, "the delay is set to 0 — use 📸 Add capture instead"
+        if needDelay and secs <= 0 then
+            return false, "the delay is set to 0 — use 🖥 Full screen instead"
         end
-        return true, ("%d second(s), the whole screen"):format(math.floor(secs))
+        if secs > 0 then
+            return true, ("%d second(s), the whole screen"):format(math.floor(secs))
+        end
+        return true, "the whole screen, now"
     end
 
     -- Never throws. Answers whether the window is hidden NOW, which is
@@ -1237,71 +1258,105 @@ function M.setup(core)
         return ed.delayTimer ~= nil
     end
 
-    function ed.addDelayed()
+    -- ⏲ ⌘D and 🖥 ⌘F are ONE body with two arguments. The only
+    -- difference that matters is WHO waits: with a countdown,
+    -- screencapture's own -T covers the time the window needs to leave
+    -- the screen; without one, nothing does, so `hideSettleSecs` is a
+    -- held timer in its OWN slot (6.196.1) between the hide and the ask.
+    function ed.grabScreen(secs, needDelay)
         local canAsk = (core.has and core.has("screenshots.captureScreenTo")) and true or false
-        local ok, why = ed.delayPlan(ed.webview ~= nil, canAsk,
-                                     ed.delayBusy == true, ed.delaySecs)
+        local ok, why = ed.grabPlan(ed.webview ~= nil, canAsk,
+                                    ed.delayBusy == true, secs, needDelay)
         if not ok then return false, why end
 
-        local secs = math.floor(num(ed.delaySecs, 5))
+        secs = math.floor(num(secs, 0))
+        local settle = needDelay and 0 or num(ed.hideSettleSecs, 0.4)
+        local state = { answered = false }
         ed.delays.asked = ed.delays.asked + 1
         ed.delayBusy = true
+
+        local hid = false
         if ed.hideForDelay then
-            if ed.armDelayBelt(secs) then
-                ed.hideForShot()
+            if ed.armDelayBelt(secs + settle) then
+                hid = ed.hideForShot()
             else
                 say("no timer to bring the window back — it stays on screen, "
                     .. "so the shot will contain the editor")
             end
         end
-        pcall(function()
-            hs.alert.show(("📸 Full screen in %d seconds — set it up…"):format(secs), 2.5)
-        end)
+        if needDelay then
+            pcall(function()
+                hs.alert.show(("📸 Full screen in %d seconds — set it up…"):format(secs), 2.5)
+            end)
+        end
 
-        local answered = false
-        local started = core.call("screenshots.captureScreenTo", secs,
-            function(path, whyShot)
-                answered = true
+        local function landed(path, whyShot)
+            state.answered = true
+            ed.delayBusy = false
+            ed.stopSettle()
+            ed.showAgain()
+            if not path then
+                ed.delays.failed = ed.delays.failed + 1
+                ed.lastDelayWhy = tostring(whyShot)
+                if core.degrade then
+                    core.degrade("Screenshot editor",
+                        "the screen capture did not land — " .. tostring(whyShot))
+                end
+                return
+            end
+            local b64 = readFileBase64(path)
+            local w, h = 0, 0
+            pcall(function()
+                local im = hs.image.imageFromPath(path)
+                local sz = im and im:size()
+                if sz then w, h = sz.w, sz.h end
+            end)
+            local okPush, whyPush = false, "the capture could not be read"
+            if b64 then
+                okPush, whyPush = ed.pushImage("data:image/png;base64," .. b64, w, h)
+            end
+            if okPush then
+                ed.delays.landed = ed.delays.landed + 1
+                ed.lastDelayWhy  = nil
+            else
+                ed.delays.failed = ed.delays.failed + 1
+                ed.lastDelayWhy  = tostring(whyPush)
+                if core.degrade then core.degrade("Screenshot editor", tostring(whyPush)) end
+            end
+        end
+
+        local function ask()
+            local started = core.call("screenshots.captureScreenTo", secs, landed)
+            if started == false and not state.answered then
                 ed.delayBusy = false
                 ed.showAgain()
-                if not path then
-                    ed.delays.failed = ed.delays.failed + 1
-                    ed.lastDelayWhy = tostring(whyShot)
-                    if core.degrade then
-                        core.degrade("Screenshot editor",
-                            "the delayed capture did not land — " .. tostring(whyShot))
-                    end
-                    return
+                if core.degrade then
+                    core.degrade("Screenshot editor", "the capture could not be started")
                 end
-                local b64 = readFileBase64(path)
-                local w, h = 0, 0
-                pcall(function()
-                    local im = hs.image.imageFromPath(path)
-                    local sz = im and im:size()
-                    if sz then w, h = sz.w, sz.h end
-                end)
-                local okPush, whyPush = false, "the capture could not be read"
-                if b64 then
-                    okPush, whyPush = ed.pushImage("data:image/png;base64," .. b64, w, h)
-                end
-                if okPush then
-                    ed.delays.landed = ed.delays.landed + 1
-                    ed.lastDelayWhy  = nil
-                else
-                    ed.delays.failed = ed.delays.failed + 1
-                    ed.lastDelayWhy  = tostring(whyPush)
-                    if core.degrade then
-                        core.degrade("Screenshot editor", tostring(whyPush))
-                    end
-                end
-            end)
-        if started == false and not answered then
-            ed.delayBusy = false
-            ed.showAgain()
-            return false, "the countdown could not be started"
+            end
+        end
+
+        -- 🚨 THE WINDOW HAS TO BE GONE BEFORE THE SHUTTER. With a
+        -- countdown it always is; without one the ask waits a beat, and a
+        -- Mac that cannot arm that beat asks straight away rather than
+        -- never — a shot with the editor in it beats no shot at all.
+        if hid and settle > 0 then
+            ed.stopSettle()
+            pcall(function() ed.settleTimer = hs.timer.doAfter(settle, ask) end)
+            if not ed.settleTimer then ask() end
+        else
+            ask()
         end
         return true
     end
+
+    function ed.stopSettle()
+        if ed.settleTimer then pcall(function() ed.settleTimer:stop() end) end
+        ed.settleTimer = nil
+    end
+
+    function ed.addDelayed()   return ed.grabScreen(ed.delaySecs, true)  end
+    function ed.addFullScreen() return ed.grabScreen(0, false)           end
 
     -- 🔎 6.255.0 — THIS MODULE HAD NO REPORT, which is why a delayed
     -- capture that hid the window and did not come back would have been a
@@ -1321,9 +1376,9 @@ function M.setup(core)
                         or "nothing kept from a cancel")
         local asked = num(d.asked, 0)
         if asked == 0 then
-            L[#L + 1] = "   delayed : never asked this session (⌘D in the editor)"
+            L[#L + 1] = "   capture : never asked this session (⌘D or ⌘F in the editor)"
         else
-            L[#L + 1] = ("   delayed : %d asked · %d landed · %d failed"):format(
+            L[#L + 1] = ("   capture : %d asked · %d landed · %d failed"):format(
                             asked, num(d.landed, 0), num(d.failed, 0))
             if ed.lastDelayWhy then
                 L[#L + 1] = "   ↳ last failure: " .. tostring(ed.lastDelayWhy)
@@ -1335,9 +1390,11 @@ function M.setup(core)
                             and (" · ⚠️ brought back by the belt " .. num(d.late, 0)
                                  .. " time(s) — the capture never answered")
                             or "")
-        L[#L + 1] = ("   settings: { screenshot_editor = { delaySecs = %d, hideForDelay = %s } }")
+        L[#L + 1] = ("   settings: { screenshot_editor = { delaySecs = %d, hideForDelay = %s, "
+                     .. "hideSettleSecs = %s } }")
                         :format(math.floor(num(ed.delaySecs, 5)),
-                                tostring(ed.hideForDelay and true or false))
+                                tostring(ed.hideForDelay and true or false),
+                                tostring(num(ed.hideSettleSecs, 0.4)))
         L[#L + 1] = "   ↳ if the keyboard does not come back with the window, click it once"
         local text = table.concat(L, "\n")
         print(text)
@@ -1346,6 +1403,16 @@ function M.setup(core)
 
     -- ---- window ----------------------------------------------------------
     function ed.close()
+        -- 🚨 6.256.0 — FOUND WHILE BUILDING ⌘F, and it was 6.255.0's wart:
+        -- closing the editor mid-capture (⇪⇧1 on another shot is enough,
+        -- and with the window hidden that is exactly what he would press)
+        -- left `ed.hidden` set, so the belt woke up, found nothing to show
+        -- and alerted "the delayed capture never answered" over an editor
+        -- HE had closed. A teardown is not optional for a feature that
+        -- holds two timers and a flag.
+        ed.stopSettle()
+        if ed.delayTimer then pcall(function() ed.delayTimer:stop() end) end
+        ed.delayTimer, ed.delayBusy, ed.hidden = nil, false, false
         if ed.webview then
             pcall(function() ed.webview:delete() end)
             ed.webview = nil

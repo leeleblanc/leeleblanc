@@ -515,22 +515,24 @@ do
     local function c11(label, cond, extra) n11 = n11 + 1; check(label, cond, extra) end
 
     -- ---- the PURE plan ------------------------------------------------
-    c11("delayPlan: open, service there, idle, 5 s → go, with the reason",
+    c11("grabPlan: open, service there, idle, 5 s → go, with the reason",
         (function()
-            local ok, why = E.delayPlan(true, true, false, 5)
+            local ok, why = E.grabPlan(true, true, false, 5, true)
             return ok == true and tostring(why):find("5 second", 1, true) ~= nil
         end)())
-    c11("delayPlan: the editor is not open → refused, named",
-        select(2, E.delayPlan(false, true, false, 5)) == "the editor is not open")
-    c11("delayPlan: no screenshots module → refused, and it names the module",
-        tostring(select(2, E.delayPlan(true, false, false, 5)))
+    c11("grabPlan: the editor is not open → refused, named",
+        select(2, E.grabPlan(false, true, false, 5, true)) == "the editor is not open")
+    c11("grabPlan: no screenshots module → refused, and it names the module",
+        tostring(select(2, E.grabPlan(true, false, false, 5, true)))
             :find("screenshots module", 1, true) ~= nil)
-    c11("delayPlan: one already counting down → refused, NOT a second countdown",
-        tostring(select(2, E.delayPlan(true, true, true, 5)))
-            :find("already counting down", 1, true) ~= nil)
-    c11("delayPlan: a delay of 0 is refused and points at ⌘A (0 is not a delay)",
-        tostring(select(2, E.delayPlan(true, true, false, 0)))
-            :find("Add capture", 1, true) ~= nil)
+    c11("grabPlan: one already running → refused, NOT a second countdown",
+        tostring(select(2, E.grabPlan(true, true, true, 5, true)))
+            :find("already running", 1, true) ~= nil)
+    c11("grabPlan: a ⌘D with no delay is refused and points at ⌘F — but the "
+        .. "SAME zero is a perfectly good ⌘F, which is why it is one function",
+        tostring(select(2, E.grabPlan(true, true, false, 0, true)))
+            :find("Full screen", 1, true) ~= nil
+        and E.grabPlan(true, true, false, 0, false) == true)
 
     -- ---- the page -----------------------------------------------------
     READABLE["/x/D.png"] = "PNGBYTES"
@@ -588,7 +590,7 @@ do
     BRIDGE({ body = { a = "delay" } })
     c11("a second ⌘D mid-countdown is refused — one countdown, one shot",
         #TIMERS == before
-        and (ALERTS[#ALERTS] or ""):find("already counting down", 1, true) ~= nil,
+        and (ALERTS[#ALERTS] or ""):find("already running", 1, true) ~= nil,
         ALERTS[#ALERTS])
 
     -- the capture lands
@@ -670,7 +672,7 @@ do
     c11("the report is ONE string (6.179.1) and it is returned",
         type(rpt) == "string" and rpt:find("\n", 1, true) ~= nil)
     c11("…it counts asked / landed / failed apart",
-        rpt:find("delayed :", 1, true) ~= nil
+        rpt:find("capture :", 1, true) ~= nil
         and rpt:find("landed", 1, true) ~= nil
         and rpt:find("failed", 1, true) ~= nil, rpt)
     c11("…it names the belt's returns rather than printing health",
@@ -687,6 +689,103 @@ do
 
     E.close()
     check("§11 ran every one of its checks", n11 == 36, n11)
+end
+
+-- =====================================================================
+out("\n12. 6.256.0 — ⌘F: the whole screen, NOW, with this window out of it\n")
+-- =====================================================================
+-- LL: "Add full screen snapshot tool." One body with ⌘D, one argument
+-- apart: with a countdown screencapture's own -T covers the time the
+-- window needs to leave the screen, and without one NOTHING does — so
+-- the settle beat between the hide and the shutter IS this release.
+do
+    local n12 = 0
+    local ASKED, CB    -- declared BEFORE the helpers, or `answer` closes
+                       -- over a nil GLOBAL and every CB call is a no-op
+    local function c12(label, cond, extra) n12 = n12 + 1; check(label, cond, extra) end
+    -- 6.186.0 — a helper ANSWERS FALSELY rather than indexing a nil, or a
+    -- mutation that removes a timer kills this section instead of failing
+    -- a check in it.
+    local function fire(i)
+        local t = TIMERS[i]
+        if not (t and type(t.fn) == "function") then return false end
+        t.fn(); return true
+    end
+    local function answer(...)
+        if type(CB) ~= "function" then return false end
+        CB(...); return true
+    end
+
+    READABLE["/x/F.png"] = "PNGBYTES"
+    CORE.has  = function(n) return PROVIDED[n] ~= nil end
+    CORE.call = function(n, ...) return PROVIDED[n](...) end
+    PROVIDED["screenshots.captureScreenTo"] = function(secs, cb)
+        EVENTS[#EVENTS + 1] = "ask"; ASKED = secs; CB = cb; return true
+    end
+
+    E.close(); JS, ALERTS, EVENTS, TIMERS, DEGRADES = {}, {}, {}, {}, {}
+    E.open("/x/F.png")
+    c12("the page carries the 🖥 button, the ⌘F key and its door",
+        LAST_HTML:find("say({a:'full'})", 1, true) ~= nil
+        and LAST_HTML:find("id=\"btn-full\"", 1, true) ~= nil
+        and LAST_HTML:find("e.key === 'f'", 1, true) ~= nil)
+
+    EVENTS, TIMERS, ALERTS = {}, {}, {}
+    BRIDGE({ body = { a = "full" } })
+    c12("⌘F hides the editor and does NOT alert a countdown — there isn't one",
+        E.hidden == true and #ALERTS == 0, ALERTS[1])
+    c12("🚨 THE SHUTTER WAITS FOR THE WINDOW TO GO: belt, hide, settle — "
+        .. "and NO ask yet. :hide() is not instant, and a screencapture on "
+        .. "the next line photographs the editor",
+        EVENTS[1] == "timer" and EVENTS[2] == "hide" and EVENTS[3] == "timer"
+        and ASKED == nil, table.concat(EVENTS, ","))
+    c12("…and the belt covers the settle as well as the countdown",
+        TIMERS[1] and TIMERS[1].secs == 0 + E.hideSettleSecs + E.delayGraceSecs,
+        TIMERS[1] and TIMERS[1].secs)
+    c12("…the settle is its OWN held slot, never the belt's (6.196.1)",
+        E.settleTimer ~= nil and E.delayTimer ~= nil
+        and E.settleTimer ~= E.delayTimer)
+    local beat = fire(2)   -- the window has gone; now the shutter
+    c12("once the beat has passed the whole screen is asked for, no delay",
+        beat and ASKED == 0 and type(CB) == "function", ASKED)
+
+    local markerEncode = hs.base64.encode
+    hs.base64.encode = function() return "V0hPTEVTQ1JFRU4=" end
+    READABLE["/x/Whole.png"] = "WHOLESCREEN"
+    answer("/x/Whole.png")
+    hs.base64.encode = markerEncode
+    c12("…and it lands on the shot as an image note, window back",
+        E.hidden == false
+        and JS[#JS] == "addImage('data:image/png;base64,V0hPTEVTQ1JFRU4=', 800, 600)",
+        JS[#JS])
+
+    -- a Mac that cannot arm the settle beat
+    EVENTS, TIMERS, ASKED = {}, {}, nil
+    NO_TIMER = true
+    BRIDGE({ body = { a = "full" } })
+    c12("🚨 no timer at all: it does NOT hide, and it still takes the shot — "
+        .. "a picture with the editor in it beats no picture",
+        E.hidden == false and ASKED == 0, table.concat(EVENTS, ","))
+    NO_TIMER = false
+    answer("/x/Whole.png")
+
+    -- 🚨 6.255.0's wart, found building this one
+    EVENTS, TIMERS, DEGRADES, ALERTS = {}, {}, {}, {}
+    BRIDGE({ body = { a = "full" } })
+    c12("a capture is running and the window is hidden",
+        E.delayBusy == true and E.hidden == true)
+    local belt = TIMERS[1]
+    E.close()
+    c12("🚨 CLOSING THE EDITOR MID-CAPTURE TEARS IT DOWN — the flags and "
+        .. "BOTH timers, or the belt wakes to an editor HE closed",
+        E.delayBusy == false and E.hidden == false
+        and E.delayTimer == nil and E.settleTimer == nil
+        and belt ~= nil and belt.stopped == true)
+    fire(1)   -- even if it fires anyway, it must say nothing
+    c12("…and a belt that fires anyway alerts nothing over a closed editor",
+        #DEGRADES == 0, DEGRADES[1] and DEGRADES[1].why)
+
+    check("§12 ran every one of its checks", n12 == 11, n12)
 end
 
 out(("\n%d passed, %d failed\n"):format(pass, fail))

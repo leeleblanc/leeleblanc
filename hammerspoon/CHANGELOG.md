@@ -5,6 +5,40 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.256.0 — 🖥 THE WHOLE SCREEN, NOW, WITH THIS WINDOW OUT OF IT
+                 (modules/screenshot_editor.lua):
+  LL: "Add full screen snapshot tool."
+
+  ⌘F, or the 🖥 button beside ⏲ Delayed: the editor steps aside, the whole
+  screen is grabbed, and it lands on the shot as a movable image note —
+  6.255.0's door with the countdown taken off.
+
+  ⏱ ONE BODY, ONE ARGUMENT APART. `ed.grabScreen(secs, needDelay)` serves
+  both keys, and `ed.grabPlan` takes `needDelay` as a PARAMETER rather than
+  being written twice: a countdown of zero is a broken ⌘D and a perfectly
+  good ⌘F, which is one rule, not two (6.196.0's choicesFrom, in a guard).
+
+  🚨 :hide() IS NOT INSTANT, AND THAT IS THE WHOLE RELEASE. macOS takes the
+  window off the screen on its own turn, so a screencapture asked for on the
+  next line photographs an editor that is still there — the exact bug this
+  feature exists to avoid, reintroduced by the fix for it. With a countdown
+  screencapture's own -T covers the gap; without one NOTHING does. So
+  `hideSettleSecs` (0.4) is a held timer in its OWN slot (6.196.1) between
+  the hide and the shutter, the belt is armed to cover the beat as well as
+  the countdown, and a Mac that cannot arm it shoots straight away — a
+  picture with the editor in it beats no picture, and those two costs are
+  not the same size.
+
+  🚨 AND CLOSING THE EDITOR MID-CAPTURE NOW TEARS IT DOWN. That was 6.255.0's
+  wart, found while building its sibling rather than by him: ⇪⇧1 on another
+  shot calls close(), which left `ed.hidden` set, so the belt woke up, found
+  no window to show and alerted "the delayed capture never answered" over an
+  editor HE had closed. Both timers stopped, both flags cleared, its own
+  check. GENERAL: a feature that holds two timers and a flag owes a teardown
+  to every door that can end it.
+
+  · 9,929 -> 9,941 checks · ten mutations, ten bites.
+
 NEW IN 6.255.0 — ⏲ A DELAYED FULL-SCREEN CAPTURE, ONTO THE SHOT
                  (modules/screenshot_editor.lua, modules/screenshots.lua):
   LL: "Add a delayed screenshot feature with a delay of 5 seconds."

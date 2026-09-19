@@ -4,9 +4,35 @@
 -- =====================================================================
 -- 09-19-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.255.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.256.0
 -- =====================================================================
 
+-- NEW IN 6.256.0 — 🖥 THE WHOLE SCREEN, NOW, WITH THIS WINDOW OUT OF IT
+--                  (modules/screenshot_editor.lua):
+--   LL: "Add full screen snapshot tool."
+--   ⌘F, or the 🖥 button: the editor steps aside, the whole screen is
+--      grabbed, and it lands on the shot as a movable image note —
+--      6.255.0's door with the countdown taken off.
+--   ⏱ ONE BODY, ONE ARGUMENT APART. `ed.grabScreen(secs, needDelay)`
+--      serves ⌘D and ⌘F, and `ed.grabPlan` takes `needDelay` as a
+--      PARAMETER rather than being written twice: a countdown of zero is
+--      a broken ⌘D and a perfectly good ⌘F, which is one rule, not two.
+--   🚨 :hide() IS NOT INSTANT, AND THAT IS THE WHOLE RELEASE. macOS takes
+--      the window off screen on its own turn, so a screencapture asked
+--      for on the next line photographs an editor that is still there.
+--      With a countdown screencapture's own -T covers that; without one
+--      NOTHING does, so `hideSettleSecs` (0.4) is a held timer in its OWN
+--      slot (6.196.1) between the hide and the shutter, the belt is armed
+--      to cover it too, and a Mac that cannot arm the beat shoots anyway
+--      — a picture with the editor in it beats no picture.
+--   🚨 AND CLOSING THE EDITOR MID-CAPTURE NOW TEARS IT DOWN. That was
+--      6.255.0's wart, found while building its sibling: ⇪⇧1 on another
+--      shot calls close(), which left `hidden` set, so the belt woke up
+--      and alerted "the delayed capture never answered" over an editor
+--      HE had closed. Both timers stopped, both flags cleared, its own
+--      check. A feature holding two timers and a flag owes a teardown.
+--      · 9,929 -> 9,941 checks · ten mutations, ten bites.
+--
 -- NEW IN 6.255.0 — ⏲ A DELAYED FULL-SCREEN CAPTURE, ONTO THE SHOT
 --                  (modules/screenshot_editor.lua, screenshots.lua):
 --   LL: "Add a delayed screenshot feature with a delay of 5 seconds."
@@ -41,38 +67,12 @@
 --        settings = { screenshot_editor = { hideForDelay = false } }
 --      · 9,878 -> 9,929 checks · ten mutations, ten bites.
 --
--- NEW IN 6.254.0 — 🗑 THE THREE DOORS HE DOES NOT USE, CLOSED WITHOUT
---                  DELETING ANYTHING (modules/scratch_pad.lua, vault.lua):
---   LL: "I don't need to send these at 4pm. I don't need capture or
---      append. I think those features are redundant. Am I wrong?"
---   🗑 THE DOORS ARE REDUNDANT; THE STORES ARE NOT — so all three are
---      SWITCHES and nothing on disk is touched. capture_pad and note_pad
---      keep their modules, their stores and their own filing routes;
---      every note already written is still there and still found by
---      ⇪space and ⇪D. What goes is the daily Asana task and the two + rows
---      in the Hamsidian window.
---        settings = { scratch_pad = { sendDaily = true } }      -- 4 PM back
---        settings = { scratch_pad = { showKindRows = true } }   -- rows back
---   🔌 THE SWITCH IS READ IN warm(), which is the only place it can be:
---      a profile's `settings` land AFTER setup returns (6.228.0), and a
---      timer armed in setup could never be stopped by one.
---   🔑 `_G.scratchPadSend()` STILL SENDS ONE BY HAND. That is what makes
---      this a switch rather than a removal, and it has its own check.
---   📋 6.201.1's leak closes with it: the 📎 Collect tab rode into that
---      task every day and cannot now. The report says so where the old
---      warning was read.
---   🚨 AND THE PAGE HAS TO ASK, not just be told: a `KINDROWS` flag the
---      render ignores is 6.220.0's rule in a new costume, so the check
---      measures that both pushes sit INSIDE the guard — the mutation that
---      hard-codes `if (true)` passes every check about the declaration.
---      · 9,860 -> 9,878 checks · eight mutations, eight bites.
---
--- (6.253.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.254.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.255.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.256.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -169,7 +169,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.255.0"
+_G.configVersion = "6.256.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the

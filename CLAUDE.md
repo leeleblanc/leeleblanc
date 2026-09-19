@@ -522,6 +522,22 @@ work Mac.
   🗑 A `delay < 0` clamp was written and taken out again: its only reader
   is `delay > 0`, so no mutation could fail it — 6.199.0, THIRD time.
   🔎 `_G.screenshotEditorReport()` (the module had none).
+  🖥 6.256.0 — ⌘F IS THE SAME BODY WITH THE COUNTDOWN TAKEN OFF, and
+  :hide() IS NOT INSTANT: macOS takes the window off screen on its own
+  turn, so a screencapture asked for on the next line photographs the
+  editor — the bug the feature exists to avoid, reintroduced by the fix
+  for it. With a countdown screencapture's own -T covers the gap; without
+  one nothing does, so `hideSettleSecs` (0.4) is a held timer in its OWN
+  slot between the hide and the shutter, the belt covers the beat too,
+  and a Mac that cannot arm it shoots anyway (a picture with the editor
+  in it beats no picture). `ed.grabPlan` takes `needDelay` as a
+  PARAMETER, never a second plan: a countdown of zero is a broken ⌘D and
+  a perfectly good ⌘F.
+  🚨 AND CLOSING THE EDITOR MID-CAPTURE TEARS IT DOWN — 6.255.0's wart,
+  found building its sibling: ⇪⇧1 on another shot calls close(), which
+  left `hidden` set, so the belt alerted "never answered" over an editor
+  HE had closed. GENERAL: a feature holding two timers and a flag owes a
+  teardown to every door that can end it.
 - ⌨️ TAKING THE KEYBOARD ACTIVATES HAMMERSPOON, AND THAT IS THE PRICE
   (6.251.0, modules/music_player.lua — LL: "I have to click on it to make
   it the focus to use the space bar … even if I hide it and bring it
@@ -2156,6 +2172,7 @@ as the fix when a loss lands.
 | 6.253.0 | ✏️ the Scorp Pad is Hamsidian — one window, one name, the icon telling the two sides apart | pending |
 | 6.254.0 | 🗑 the 4 PM Asana send and the + Capture / + Append rows are off — three switches, nothing deleted | pending |
 | 6.255.0 | ⏲ ⌘D in the editor: five seconds to arrange the screen, then the whole screen lands on the shot — and the editor hides, with a belt that brings it back | pending |
+| 6.256.0 | 🖥 ⌘F: the whole screen, now, with the editor out of the picture — and it waits a beat for the window to actually go | pending |
 
 Running total: 15 wins · 8 losses · 22 pending (6.215.0, 6.217.0, 6.218.0,
 6.219.0, 6.220.0, 6.221.0, 6.222.0, 6.223.0, 6.224.0, 6.225.0, 6.226.0,
@@ -2559,6 +2576,25 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.256.0 verify with LL — 🖥 THE FULL-SCREEN TOOL (KNOWN GROUND): install
+  (carries 6.255.0). Open the editor on any shot. Beside ⏲ Delayed 5s there
+  is now 🖥 Full screen — press it, or ⌘F.
+  The editor blinks out, the whole screen is taken, and it comes straight back
+  with that screen on the shot as a movable image. No countdown: this is the
+  one for "put this next to that", where ⌘D is the one for a menu you have to
+  open first.
+  🔎 THE THING TO LOOK AT is the picture itself: the editor must NOT be in it.
+  If you can see the editor window inside the capture, that is the settle beat
+  being too short on your Mac and it is a number, not a release:
+  `settings = { screenshot_editor = { hideSettleSecs = 0.8 } }`. Tell me and
+  I will move the default.
+  🚨 AND THE 6.255.0 WART IS FIXED IN PASSING: press ⌘D, and while the five
+  seconds are counting down press ⇪⇧1 to open the editor on another shot. On
+  6.255.0 that left a belt alerting "the delayed capture never answered" over
+  an editor you had closed yourself. It says nothing now.
+  Console: `_G.screenshotEditorReport()` — the "delayed :" line is called
+  "capture :" from this release, because it counts both doors.
+
 - 6.255.0 verify with LL — ⏲ THE DELAYED CAPTURE (KNOWN GROUND): install
   (carries 6.246.0–6.254.0). Open the editor on any shot (⇪⇧1, or ⌥⏎ on a
   history row). There is a new ⏲ Delayed 5s button beside 📸 Add capture —
@@ -2578,7 +2614,8 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   and say so — that is 6.251.0's price in a new place and it has its own line
   in the report.
   Console: `_G.screenshotEditorReport()` — this tool had no report until now.
-  "delayed : 1 asked · 1 landed · 0 failed" is healthy. A "brought back by the
+  "delayed : 1 asked · 1 landed · 0 failed" is healthy (the line is called
+  "capture :" from 6.256.0, which counts ⌘F as well). A "brought back by the
   belt" count is the line that matters; so is "↳ last failure:".
   A different countdown, no release:
   `settings = { screenshot_editor = { delaySecs = 8 } }`.
