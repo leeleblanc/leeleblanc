@@ -41,3 +41,6 @@ hammerspoon*.zip
 # macOS Finder droppings, in case the repo is ever opened on the Mac
 # itself rather than only being installed to ~/.hammerspoon from it.
 .DS_Store
+
+# 6.260.0: un-ignored ONLY so the file panel can see it for download; never committed
+!hammerspoon6.260.0.zip
