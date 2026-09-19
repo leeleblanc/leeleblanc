@@ -38,6 +38,7 @@ local DIR   = HOME .. "/Library/CloudStorage/OneDrive-Personal/2026 Screenshots"
 local FILES = {}       -- path -> { size=, modification= }
 local DIRS  = { [HOME .. "/Library/CloudStorage/OneDrive-Personal"] = true }
 local ALERTS, TASKS, CHOICES_SET = {}, {}, nil
+local DEGRADES = {}
 local DEFER_TIMERS = false   -- §12 turns this on to hold the debounce
 local PENDING       = {}     -- timers queued while DEFER_TIMERS is true
 local CLIP  = { kind = "empty" }
@@ -243,6 +244,13 @@ local CORE = {
         return nil
     end,
     showPopup = function(c) POPUPS[#POPUPS + 1] = c; c.shown = true end,
+    -- 🔔 6.260.0 — the degrade door, recorded rather than swallowed: a
+    -- release whose whole safety story is "it takes the door" must be
+    -- able to prove the door was taken, with the tool's own name on it.
+    degrade = function(tool, why)
+        DEGRADES[#DEGRADES + 1] = { tool = tostring(tool), why = tostring(why) }
+        return false, why
+    end,
 }
 
 local M = dofile(HS .. "/modules/screenshots.lua")
@@ -1507,6 +1515,221 @@ os.rename = realRename
 _G.service = savedService
 _G.ocrShortcutAvailable = nil
 S.dir = savedDir
+
+
+-- =====================================================================
+out("\n14. 📐 6.260.0 — the live W × H readout on our own selector\n")
+-- =====================================================================
+-- LL: "show a live 1280 × 720 in white on a 90 %-opaque black box".
+-- There was no readout anywhere in this config to restyle — the numbers
+-- he had been looking at are macOS's own `screencapture -i` HUD — so the
+-- whole of this is new drawing on shots.selectArea's own canvas.
+do
+    local n14, ck = 0, nil
+    ck = function(label, cond, extra) n14 = n14 + 1; check(label, cond, extra) end
+
+    -- 🧪 6.186.0, and it caught one here: the mutation that deletes the
+    -- floor makes `("%d"):format(240.7)` RAISE, and a raise in a check's
+    -- own expression ends the run with "0 failed" never printed. A test
+    -- HELPER answers falsely rather than throwing, so the mutation fails
+    -- a check instead of killing the suite.
+    local function txt(w, h)
+        local ok, r = pcall(S.sizeText, w, h)
+        return ok and r or ("<threw: " .. tostring(r) .. ">")
+    end
+
+    -- ---- ✏️ PURE: the string ------------------------------------------
+    ck("🚨 the string is HIS string — 1280 × 720, with a multiplication sign",
+       txt(1280, 720) == "1280 × 720", txt(1280, 720))
+    ck("both numbers are floored — a fractional pixel is not actionable",
+       txt(240.7, 180.2) == "240 × 180", txt(240.7, 180.2))
+    ck("a negative side reads 0, never a minus sign",
+       txt(-5, 10) == "0 × 10", txt(-5, 10))
+    ck("no numbers at all is still a readout, not a crash",
+       txt() == "0 × 0", txt())
+
+    -- ---- ✏️ PURE: the box ---------------------------------------------
+    ck("the multiplication sign really is two bytes and one character "
+       .. "(the fixture, not the code — the bug below needs it true)",
+       #"1280 × 720" == 11 and utf8.len("1280 × 720") == 10)
+    ck("🚨 the box is measured in CHARACTERS: '1280 × 720' and '1280 x 720' "
+       .. "get the SAME width (# would make the × one glyph wider)",
+       S.sizeBox("1280 × 720", 15, 7, 0.62) == S.sizeBox("1280 x 720", 15, 7, 0.62),
+       tostring(S.sizeBox("1280 × 720", 15, 7, 0.62)) .. " vs "
+       .. tostring(S.sizeBox("1280 x 720", 15, 7, 0.62)))
+    ck("the width is the digits plus the padding on both sides",
+       S.sizeBox("1280 × 720", 15, 7, 0.62) == math.floor(10 * 15 * 0.62 + 14 + 0.5),
+       S.sizeBox("1280 × 720", 15, 7, 0.62))
+    ck("the height is the font plus the padding on both sides",
+       select(2, S.sizeBox("1280 × 720", 15, 7)) == 15 + 14,
+       select(2, S.sizeBox("1280 × 720", 15, 7)))
+    ck("a bigger font makes a bigger box — the number is read, not typed twice",
+       S.sizeBox("1280 × 720", 30, 7, 0.62) > S.sizeBox("1280 × 720", 15, 7, 0.62))
+
+    -- ---- ✏️ PURE: where it goes, and why -------------------------------
+    local SCR = { w = 1440, h = 900 }
+    local bw, bh = S.sizeBox("1280 × 720", 15, 7, 0.62)
+    local f, why = S.sizePlan({ x = 100, y = 100, w = 400, h = 200 }, SCR, bw, bh, 8)
+    ck("the ordinary case: under the band, centred on it",
+       why == "below the selection" and f.y == 308
+       and f.x == math.floor(100 + (400 - bw) / 2 + 0.5),
+       tostring(why) .. " " .. f.x .. "," .. f.y)
+    f, why = S.sizePlan({ x = 100, y = 700, w = 400, h = 180 }, SCR, bw, bh, 8)
+    ck("🚨 a band against the BOTTOM of the screen puts the box above it",
+       why:find("above it", 1, true) ~= nil and f.y == 700 - 8 - bh,
+       tostring(why) .. " y=" .. f.y)
+    f, why = S.sizePlan({ x = 100, y = 0, w = 400, h = 900 }, SCR, bw, bh, 8)
+    ck("🚨 a drag as tall as the display has room neither side — the box "
+       .. "goes INSIDE it, at its own bottom edge, and says so",
+       why:find("inside it", 1, true) ~= nil and f.y == 900 - 8 - bh
+       and f.y + f.h <= SCR.h, tostring(why) .. " y=" .. f.y)
+    f, why = S.sizePlan({ x = 0, y = 100, w = 20, h = 100 }, SCR, bw, bh, 8)
+    ck("a band at the left edge: the box is nudged in, never off-screen",
+       f.x == 0 and why:find("nudged into the screen", 1, true) ~= nil,
+       tostring(why) .. " x=" .. f.x)
+    f, why = S.sizePlan({ x = 1430, y = 100, w = 10, h = 100 }, SCR, bw, bh, 8)
+    ck("…and at the right edge, the same, from the other side",
+       f.x == SCR.w - bw and why:find("nudged", 1, true) ~= nil,
+       tostring(why) .. " x=" .. f.x)
+    f, why = S.sizePlan({ x = 600, y = 100, w = 200, h = 100 }, SCR, bw, bh, 8)
+    ck("🚨 a box that did NOT have to move does not claim it was nudged",
+       why:find("nudged", 1, true) == nil, tostring(why))
+    ck("no band and no screen at all still answers a frame and a reason",
+       (function()
+            local fr, w2 = S.sizePlan()
+            return type(fr) == "table" and type(fr.x) == "number" and type(w2) == "string"
+        end)())
+
+    -- ---- the canvas ----------------------------------------------------
+    local savedDegrades = #DEGRADES
+    local got = {}
+    S.captureAreaTo(function(p2, w2) got[#got + 1] = { p = p2, why = w2 } end)
+    local cv = _G.__lastCanvas
+    ck("the selector's canvas carries the scrim, the band, the box and the digits",
+       #cv.elements == 4, #cv.elements)
+    ck("🚨 the box is BLACK at the alpha he asked for — 90%-opaque, "
+       .. "which is the same number as '10% translucent'",
+       cv.elements[3].fillColor.black == 1 and cv.elements[3].fillColor.alpha == 0.9,
+       tostring(cv.elements[3].fillColor.alpha))
+    ck("…and the digits are SOLID WHITE on it",
+       cv.elements[4].textColor.white == 1 and cv.elements[4].textColor.alpha == 1)
+    ck("before the mouse is pressed the readout has no size at all — a "
+       .. "selector nobody dragged looks exactly as it did before",
+       cv.elements[3].frame.w == 0 and cv.elements[4].text == "")
+    cv.cb(cv, "mouseDown", "_canvas_", 200, 300)
+    ck("🚨 it is live from the PRESS: 0 × 0 is the honest answer for a "
+       .. "drag that has not started, and a late number is one you distrust",
+       cv.elements[4].text == "0 × 0" and cv.elements[3].frame.w > 0,
+       cv.elements[4].text)
+    cv.cb(cv, "mouseMove", "_canvas_", 440, 480)
+    ck("dragging updates the digits live", cv.elements[4].text == "240 × 180",
+       cv.elements[4].text)
+    ck("…and the band moved with them", cv.elements[2].frame.w == 240)
+    local boxF = cv.elements[3].frame
+    local txtF = cv.elements[4].frame
+    ck("🚨 the digits sit INSIDE the black, inset by the padding — not "
+       .. "against its top edge (the mutation that reuses the box frame)",
+       txtF.y > boxF.y and txtF.y < boxF.y + boxF.h, txtF.y .. " vs " .. boxF.y)
+    ck("the box is centred under the band, per the plan",
+       boxF.x == S.sizePlan({ x = 200, y = 300, w = 240, h = 180 },
+                            { w = 1440, h = 900 }, boxF.w, boxF.h, S.sizeGap).x)
+    local elemsBefore = #cv.elements
+    for i = 1, 30 do cv.cb(cv, "mouseMove", "_canvas_", 440 + i, 480 + i) end
+    ck("🚨 thirty moves MOVE the readout — they never rebuild it (6.247.0: "
+       .. "a per-event path that rebuilds is a cadence he can feel)",
+       #cv.elements == elemsBefore and cv.elements[4].text == "270 × 210",
+       #cv.elements .. " / " .. cv.elements[4].text)
+    cv.cb(cv, "mouseUp", "_canvas_", 470, 510)
+    ck("…and the drag still shoots the rectangle it always did",
+       TASKS[#TASKS].args[2] == "-R200,300,270,210", TASKS[#TASKS].args[2])
+    ck("nothing degraded on the happy path", #DEGRADES == savedDegrades)
+
+    -- ---- the config is READ, not typed twice (6.239.0) ------------------
+    S.sizeAlpha, S.sizeFontSize = 0.5, 30
+    S.captureAreaTo(function() end)
+    local cv2 = _G.__lastCanvas
+    cv2.cb(cv2, "mouseDown", "_canvas_", 10, 10)
+    cv2.cb(cv2, "mouseMove", "_canvas_", 210, 110)
+    ck("🚨 moving the config moves the DRAWING: a different alpha and a "
+       .. "bigger font reach the canvas, so neither number is typed twice",
+       cv2.elements[3].fillColor.alpha == 0.5
+       and cv2.elements[4].textSize == 30
+       and cv2.elements[3].frame.w > boxF.w,
+       tostring(cv2.elements[3].fillColor.alpha) .. " / "
+       .. tostring(cv2.elements[4].textSize))
+    cv2.cb(cv2, "mouseUp", "_canvas_", 210, 110)
+    S.sizeAlpha, S.sizeFontSize = 0.9, 15
+
+    -- ---- 🔒 the readout is decoration on a load-bearing drag ------------
+    local realDraw = S.drawSize
+    S.drawSize = function() error("the readout blew up", 0) end
+    local got2, tB = {}, #TASKS
+    S.captureAreaTo(function(p2, w2) got2[#got2 + 1] = { p = p2, why = w2 } end)
+    local cv3 = _G.__lastCanvas
+    cv3.cb(cv3, "mouseDown", "_canvas_", 50, 60)
+    cv3.cb(cv3, "mouseMove", "_canvas_", 250, 210)
+    ck("🚨 a readout that THROWS costs the readout and never the "
+       .. "selection — the band still follows the drag",
+       cv3.elements[2].frame.w == 200 and cv3.deleted ~= true,
+       tostring(cv3.elements[2].frame.w))
+    cv3.cb(cv3, "mouseUp", "_canvas_", 250, 210)
+    ck("…and the release still shoots the rectangle",
+       #TASKS == tB + 1 and TASKS[#TASKS].args[2] == "-R50,60,200,150",
+       TASKS[#TASKS] and TASKS[#TASKS].args[2])
+    ck("…the 🔔 door was taken, with this tool's name on it",
+       #DEGRADES > savedDegrades
+       and DEGRADES[#DEGRADES].tool == "Screenshot size readout"
+       and DEGRADES[#DEGRADES].why:find("threw mid%-drag") ~= nil,
+       DEGRADES[#DEGRADES] and (DEGRADES[#DEGRADES].tool .. ": " .. DEGRADES[#DEGRADES].why))
+    local afterFirst = #DEGRADES
+    for i = 1, 10 do cv3.cb(cv3, "mouseMove", "_canvas_", 250 + i, 210 + i) end
+    ck("…and it goes quiet for the rest of that drag rather than "
+       .. "shouting once per mouse event",
+       #DEGRADES == afterFirst, #DEGRADES - afterFirst)
+    S.drawSize = realDraw
+
+    -- ---- the switch is real --------------------------------------------
+    S.sizeReadout = false
+    S.captureAreaTo(function() end)
+    local cv4 = _G.__lastCanvas
+    ck("sizeReadout = false: the selector is the two elements it always was",
+       #cv4.elements == 2, #cv4.elements)
+    cv4.cb(cv4, "mouseDown", "_canvas_", 10, 10)
+    cv4.cb(cv4, "mouseMove", "_canvas_", 110, 110)
+    ck("…and dragging with it off draws nothing and throws nothing",
+       cv4.elements[2].frame.w == 100 and #cv4.elements == 2)
+    local rOff = _G.screenshotsReport()
+    ck("the report says OFF, and names the one line that puts it back",
+       rOff:find("size    : OFF", 1, true) ~= nil
+       and rOff:find("sizeReadout = false", 1, true) ~= nil)
+    cv4.cb(cv4, "mouseUp", "_canvas_", 110, 110)
+    S.sizeReadout = true
+
+    -- ---- the report: three states that must not read alike --------------
+    local keptLast, keptFailed = S.sizeLast, S.sizeFailed
+    S.sizeLast, S.sizeFailed = nil, nil
+    local r0 = _G.screenshotsReport()
+    ck("🚨 on but never dragged is NOT the same line as off, and NOT the "
+       .. "same as drawn (6.196.1)",
+       r0:find("nothing dragged yet", 1, true) ~= nil
+       and r0:find("OFF", 1, true) == nil, r0:match("size    :[^\\n]*"))
+    S.sizeLast = { w = 240, h = 180, why = "below the selection", at = os.time() }
+    local r1 = _G.screenshotsReport()
+    ck("…and once something has been dragged it names the size and the placement",
+       r1:find("240 × 180 · below the selection", 1, true) ~= nil,
+       r1:match("size    :[^\\n]*"))
+    S.sizeFailed = "the readout threw mid-drag — the selection itself is unaffected"
+    local r2 = _G.screenshotsReport()
+    ck("🚨 a readout that threw outranks a healthy-looking last size — "
+       .. "otherwise the line reads as health on a broken Mac",
+       r2:find("⚠️ the readout threw", 1, true) ~= nil
+       and r2:find("240 × 180", 1, true) == nil, r2:match("size    :[^\\n]*"))
+    S.sizeLast, S.sizeFailed = keptLast, keptFailed
+    ck("…and the line names WHERE the readout appears — ⇪4 keeps macOS's own HUD",
+       _G.screenshotsReport():find("⇪4 is macOS's own crosshair", 1, true) ~= nil)
+
+    check("the 6.260.0 block ran every one of its checks", n14 == 40, n14)
+end
 
 -- =====================================================================
 out(("\n%d passed, %d failed\n"):format(pass, fail))

@@ -142,6 +142,8 @@ local M = {
             { "⇪⇧3",  "⏲ Delayed capture, full screen after the countdown" },
             { "⇪⇧4",  "🔤 Recognize text / QR — the words go to the clipboard" },
             { "⇪5",   "🧻 Scrolling capture (experimental) — best in browsers · the result is saved AND on the clipboard" },
+            { "📐 size", "⇪5 / “repeat area” / the editor's ⌘A show a LIVE 1280 × 720" },
+            { "",        "white on 90%-opaque black · ⇪4 keeps macOS's own HUD" },
             { "check", "_G.screenshotsReport() — the folder, the watcher, and the last scrolling run slice by slice" },
             { "⇪⇧5",  "Panel: 9 actions (⌘1–⌘9) + history below · ⌘8 = BIG thumbnails" },
             { "🏷 names", "Every capture — ⇪4's AND other tools' SCR- files — gets" },
@@ -218,6 +220,34 @@ function M.setup(core)
     shots.historyRows = 8     -- history rows VISIBLE below the action rows
     shots.thumbH    = 72      -- thumbnail height in panel rows, pixels
     shots.alertSecs = 2.0
+    -- 📐 6.260.0 — THE LIVE SIZE READOUT (LL: "show a live 1280 × 720 in
+    -- white on a 90 %-opaque black box", read together with his earlier
+    -- "Change the pixel measurement tool numbers to solid white in a
+    -- black box that is 10% translucent" — one ask written twice, and
+    -- "90 %-opaque" and "10% translucent" are the SAME number: 0.9).
+    --
+    -- 🚨 IT IS A BUILD, NOT A RESTYLE, and only reading said so. There is
+    -- no pixel readout anywhere in this config: the numbers he has been
+    -- looking at are macOS's OWN `screencapture -i` HUD, which
+    -- Hammerspoon can neither restyle, move nor read. Our selector —
+    -- shots.selectArea, the one ⇪5, the editor's ⌘A and "repeat area"
+    -- drag on — has drawn a dashed band and NOTHING ELSE since it was
+    -- written. So the thing to change did not exist; it had to be made,
+    -- on the one selection surface this config owns.
+    --
+    -- 📏 NAMED, NOT FIXED: ⇪4 is still `screencapture -i`, so it keeps
+    -- macOS's HUD and gets no readout of ours. Routing ⇪4 through our
+    -- selector would give it one and would cost the native magnifier and
+    -- SPACE-to-capture-a-window, which he never asked to pay — his call,
+    -- and its own release.
+    shots.sizeReadout  = true    -- the live W × H while you drag
+    shots.sizeAlpha    = 0.9     -- the black box: "90 %-opaque" == "10% translucent"
+    shots.sizeFontSize = 15
+    shots.sizePad      = 7       -- points of black around the digits
+    shots.sizeGap      = 8       -- points between the band and the box
+    shots.sizeCharW    = 0.62    -- a digit's width as a fraction of the size
+    shots.sizeLast     = nil     -- { w, h, why, at } — the report's evidence
+    shots.sizeFailed   = nil     -- set once if the readout ever threw mid-drag
     shots.jpegQuality = 70    -- ⌃⏎ compress: sips jpeg formatOptions 0–100
     -- captures started from the ⇪⇧4 panel open the blur editor when done;
     -- ⇪4 never does (it is the fast path)
@@ -629,6 +659,100 @@ function M.setup(core)
         end
     end
 
+    -- ✏️ PURE — the string, exactly as LL wrote it: "1280 × 720", with a
+    -- MULTIPLICATION SIGN (U+00D7) and not an x. Both numbers are
+    -- floored: a drag is measured in points and a fractional pixel is a
+    -- number nobody can act on.
+    function shots.sizeText(w, h)
+        local function whole(v)
+            v = math.floor(tonumber(v) or 0)
+            if v < 0 then v = 0 end
+            return v
+        end
+        return ("%d × %d"):format(whole(w), whole(h))
+    end
+
+    -- ✏️ PURE — the black box around the digits. COUNTED IN CHARACTERS,
+    -- never bytes: "×" is two bytes and one character, so `#` would make
+    -- every box a glyph too wide and the digits would sit off centre.
+    -- 6.226.0's rule (utf8.len, never #), in a new place.
+    function shots.sizeBox(text, fontSize, pad, charW)
+        fontSize = tonumber(fontSize) or 15
+        pad      = tonumber(pad) or 7
+        charW    = tonumber(charW) or 0.62
+        local chars = 0
+        if type(text) == "string" then
+            local ok, n = pcall(function() return utf8.len(text) end)
+            chars = (ok and n) or #text
+        end
+        return math.floor(chars * fontSize * charW + pad * 2 + 0.5),
+               math.floor(fontSize + pad * 2 + 0.5)
+    end
+
+    -- ✏️ PURE — WHERE the box goes, and WHY. Centred under the band is
+    -- the eye's place for it: the numbers describe the thing above them.
+    -- THREE ANSWERS, in order, because a readout you cannot see is the
+    -- bug this release exists to avoid:
+    --   · below the selection — the ordinary case;
+    --   · ABOVE it, when the band is against the bottom of the screen;
+    --   · INSIDE it, at its own bottom edge, when neither side has room
+    --     (a drag as tall as the display, which is not a rare drag).
+    -- The x is clamped into the screen, and a clamp is SAID: a box that
+    -- has been moved sideways is no longer describing the band's centre,
+    -- and "it looks off" must have an answer in the report.
+    function shots.sizePlan(band, screen, boxW, boxH, gap)
+        band, screen = band or {}, screen or {}
+        local bx, by = tonumber(band.x) or 0, tonumber(band.y) or 0
+        local bw, bh = tonumber(band.w) or 0, tonumber(band.h) or 0
+        local sw, sh = tonumber(screen.w) or 0, tonumber(screen.h) or 0
+        boxW, boxH = tonumber(boxW) or 0, tonumber(boxH) or 0
+        gap = tonumber(gap) or 0
+
+        local why = "below the selection"
+        local y = by + bh + gap
+        if y + boxH > sh then
+            y = by - gap - boxH
+            why = "above it — no room below"
+            if y < 0 then
+                y = by + bh - gap - boxH
+                why = "inside it — no room either side"
+            end
+        end
+        if y < 0 then y = 0 end
+        if y + boxH > sh then y = math.max(0, sh - boxH) end
+
+        local want = bx + (bw - boxW) / 2
+        local x = want
+        if x < 0 then x = 0 end
+        if x + boxW > sw then x = math.max(0, sw - boxW) end
+        if math.abs(x - want) > 0.5 then why = why .. " · nudged into the screen" end
+
+        return { x = math.floor(x + 0.5), y = math.floor(y + 0.5),
+                 w = boxW, h = boxH }, why
+    end
+
+    -- The ONE place the readout is written to the canvas. Element 3 is
+    -- the box, element 4 the digits, and both are MOVED — never deleted
+    -- and rebuilt. This runs per mouse event and 6.247.0 priced a
+    -- rebuild on a path like that: two NSWindows per keystroke was a
+    -- cadence LL could feel.
+    function shots.drawSize(canvas, band, sf)
+        local text = shots.sizeText(band.w, band.h)
+        local boxW, boxH = shots.sizeBox(text, shots.sizeFontSize,
+                                         shots.sizePad, shots.sizeCharW)
+        local frame, why = shots.sizePlan(band, { w = sf.w, h = sf.h },
+                                          boxW, boxH, shots.sizeGap)
+        canvas[3].frame = frame
+        -- the text's own frame is inset by the padding, or the glyphs
+        -- sit against the top edge of the black
+        canvas[4].frame = { x = frame.x, y = frame.y + shots.sizePad - 2,
+                            w = frame.w, h = shots.sizeFontSize + 6 }
+        canvas[4].text  = text
+        shots.sizeLast = { w = math.floor(tonumber(band.w) or 0),
+                           h = math.floor(tonumber(band.h) or 0),
+                           why = why, at = os.time() }
+    end
+
     function shots.selectArea(cb)
         shots.cancelSelect()
         local scr
@@ -654,12 +778,58 @@ function M.setup(core)
               strokeColor = { red = 0.29, green = 0.5, blue = 0.88, alpha = 0.95 },
               strokeWidth = 2, strokeDashPattern = { 6, 4 },
               frame = { x = 0, y = 0, w = 0, h = 0 } })
+        -- 📐 6.260.0 — the readout rides on the SAME canvas as the band:
+        -- a second window would be a second thing to place, level, show
+        -- and tear down, and a drag is not a place to own two of
+        -- anything. Both elements start at zero size, so a Mac that
+        -- never drags sees exactly what it saw before.
+        local readout = false
+        if shots.sizeReadout then
+            local okR = pcall(function()
+                canvas:appendElements(
+                    { type = "rectangle", action = "fill",
+                      fillColor = { black = 1, alpha = shots.sizeAlpha },
+                      roundedRectRadii = { xRadius = 5, yRadius = 5 },
+                      frame = { x = 0, y = 0, w = 0, h = 0 } },
+                    { type = "text", text = "",
+                      textColor = { white = 1, alpha = 1 },
+                      textSize = shots.sizeFontSize,
+                      textAlignment = "center",
+                      frame = { x = 0, y = 0, w = 0, h = 0 } })
+            end)
+            readout = okR and true or false
+            if not okR then
+                shots.sizeFailed = "this Mac refused the readout elements — "
+                                   .. "the selector still works, there is just no live size"
+                if type(core.degrade) == "function" then
+                    pcall(core.degrade, "Screenshot size readout", shots.sizeFailed)
+                end
+            end
+        end
         pcall(function() canvas:level(hs.canvas.windowLevels.overlay) end)
         pcall(function()
             canvas:behaviorAsLabels({ "canJoinAllSpaces", "fullScreenAuxiliary" })
         end)
         pcall(function() canvas:canvasMouseEvents(true, true, false, true) end)
         shots.expectHyperRelease()   -- 6.170.3: the selector takes the keyboard like -i does
+
+        -- 🔒 THE READOUT IS DECORATION ON A LOAD-BEARING DRAG, so it is
+        -- guarded APART from the drag it decorates. The mouse callback's
+        -- own pcall cancels the whole selection when the body throws
+        -- (an error here would otherwise repeat per event) — which is
+        -- right for the band and wrong for the numbers: a readout that
+        -- throws must cost the readout and never the selection. It goes
+        -- quiet for the rest of the drag, takes the 🔔 door once, and
+        -- the report says so afterwards.
+        local function showSize(band)
+            local okD = pcall(shots.drawSize, canvas, band, sf)
+            if okD then return true end
+            shots.sizeFailed = "the readout threw mid-drag — the selection itself is unaffected"
+            if type(core.degrade) == "function" then
+                pcall(core.degrade, "Screenshot size readout", shots.sizeFailed)
+            end
+            return false
+        end
 
         local startPt = nil
         pcall(function()
@@ -669,11 +839,26 @@ function M.setup(core)
                 local ok = pcall(function()
                     if msg == "mouseDown" then
                         startPt = { x = mx, y = my }
+                        -- the readout is live from the press, not from
+                        -- the first movement: 0 × 0 is the honest answer
+                        -- for a drag that has not started, and a number
+                        -- that appears late is a number you do not trust
+                        if readout then
+                            readout = showSize({ x = mx, y = my, w = 0, h = 0 })
+                        end
                     elseif msg == "mouseMove" and startPt then
-                        canvas[2].frame = {
+                        local band = {
                             x = math.min(startPt.x, mx), y = math.min(startPt.y, my),
                             w = math.abs(mx - startPt.x), h = math.abs(my - startPt.y),
                         }
+                        canvas[2].frame = band
+                        -- 🚨 ASKED EVERY TIME, and the answer is KEPT: a
+                        -- readout that has already gone down must not be
+                        -- asked again on the next mouse event, or one
+                        -- throw becomes one per pixel of the drag — and
+                        -- with the readout switched off there are no
+                        -- elements 3 and 4 to write to at all.
+                        if readout then readout = showSize(band) end
                     elseif msg == "mouseUp" and startPt then
                         local rect = {
                             x = math.floor(sf.x + math.min(startPt.x, mx)),
@@ -1006,6 +1191,23 @@ function M.setup(core)
                                                 or ("⚠️ NONE — " .. tostring(sh.how)))
                                        or ("not yet asked · will use " .. tostring(shots.sliceDir)
                                            .. " (local, never OneDrive)"))
+        -- 📐 6.260.0 — three states that must not read alike (6.196.1):
+        -- switched off ≠ on but never dragged ≠ on and drawn. A fourth,
+        -- the readout having THROWN, outranks all three — it is the one
+        -- state where "0 drawn" would be a lie about a healthy Mac.
+        L[#L + 1] = "   size    : " .. (
+            (not shots.sizeReadout)
+                and "OFF — settings = { screenshots = { sizeReadout = false } }"
+            or shots.sizeFailed and ("⚠️ " .. tostring(shots.sizeFailed))
+            or (shots.sizeLast
+                and ("%d × %d · %s · last drawn %s"):format(
+                        shots.sizeLast.w, shots.sizeLast.h,
+                        tostring(shots.sizeLast.why),
+                        os.date("%H:%M:%S", shots.sizeLast.at))
+                or ("white on black at alpha " .. tostring(shots.sizeAlpha)
+                    .. " · nothing dragged yet this session")))
+        L[#L + 1] = "             ↳ ⇪5, the editor's ⌘A and 'repeat area' drag on OUR "
+                    .. "selector · ⇪4 is macOS's own crosshair and keeps its HUD"
         local r = shots.scrollLast
         if not r then
             L[#L + 1] = "   scroll  : never run this session (⇪5)"

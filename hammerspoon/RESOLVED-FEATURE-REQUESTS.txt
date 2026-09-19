@@ -1,5 +1,5 @@
 ========================================================================
-RESOLVED FEATURE REQUESTS — Hammerspoon config 6.259.0
+RESOLVED FEATURE REQUESTS — Hammerspoon config 6.260.0
 Every feature and how to use it. Generated from the modules' own
 cheat sheets (the rows ⇪/ draws), so it is never out of date.
 ⇪ = Caps Lock held (the hyper key). ⇪⇧X = Caps Lock + Shift + X.
@@ -511,6 +511,8 @@ In the Console, _G.<tool>Report() prints any tool's own report.
   ⇪⇧3   ⏲ Delayed capture, full screen after the countdown
   ⇪⇧4   🔤 Recognize text / QR — the words go to the clipboard
   ⇪5      🧻 Scrolling capture (experimental) — best in browsers · the result is saved AND on the clipboard
+  📐 size ⇪5 / “repeat area” / the editor's ⌘A show a LIVE 1280 × 720
+            white on 90%-opaque black · ⇪4 keeps macOS's own HUD
   check     _G.screenshotsReport() — the folder, the watcher, and the last scrolling run slice by slice
   ⇪⇧5   Panel: 9 actions (⌘1–⌘9) + history below · ⌘8 = BIG thumbnails
   🏷 names Every capture — ⇪4's AND other tools' SCR- files — gets
@@ -772,6 +774,7 @@ In the Console, _G.<tool>Report() prints any tool's own report.
 
 📜 RELEASE INDEX — newest first, one line per release (the full story of each is in CHANGELOG.md)
 ------------------------------------------------------------------------
+  6.260.0  📐 THE LIVE SIZE READOUT (modules/screenshots.lua)
   6.259.0  🎯 THE DIALOG HOME IS OFF (modules/dialog_home.lua)
   6.258.0  🖼 ⌘O: A PRIOR SHOT ONTO THIS ONE, AND THE CANVAS GROWS
   6.257.0  📄 A DOCUMENT IS NAMED BY THE APP, NOT BY ITS TITLE BAR

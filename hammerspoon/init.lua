@@ -4,9 +4,43 @@
 -- =====================================================================
 -- 09-19-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.259.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.260.0
 -- =====================================================================
 
+-- NEW IN 6.260.0 — 📐 THE LIVE SIZE READOUT (modules/screenshots.lua):
+--   LL: "show a live 1280 × 720 in white on a 90 %-opaque black box",
+--      read with his earlier "Change the pixel measurement tool numbers
+--      to solid white in a black box that is 10% translucent" — one ask
+--      written twice, and the two percentages are the SAME number: 0.9.
+--   🚨 IT IS A BUILD, NOT A RESTYLE, and only reading said so. There is
+--      no pixel readout anywhere in this config: the numbers he has
+--      been looking at are macOS's OWN `screencapture -i` HUD, which
+--      Hammerspoon can neither restyle, move nor read. Our selector —
+--      shots.selectArea, what ⇪5, the editor's ⌘A and "repeat area"
+--      drag on — has drawn a dashed band and nothing else since it was
+--      written. The thing to change did not exist.
+--   📏 NAMED, NOT FIXED: ⇪4 is still `screencapture -i`, so it keeps
+--      macOS's HUD and gets no readout of ours. Routing ⇪4 through our
+--      selector would give it one and would cost the native magnifier
+--      and SPACE-to-capture-a-window, which he never asked to pay.
+--   ✏️ THREE PURE FUNCTIONS carry the whole rule, so it is proven with
+--      no Mac: the string (his ×, both numbers floored); the box
+--      (counted in CHARACTERS — × is two bytes and one glyph, and #
+--      would make every box a glyph too wide, 6.226.0 in a new place);
+--      and WHERE it goes, with THREE answers and a reason — below the
+--      band, ABOVE it against the bottom of the screen, INSIDE it when
+--      a drag is as tall as the display. A readout you cannot see is
+--      the bug this release exists to avoid.
+--   🔒 IT IS DECORATION ON A LOAD-BEARING DRAG, so it is guarded APART
+--      from the drag it decorates: the mouse callback's own pcall
+--      cancels the whole selection when its body throws, which is right
+--      for the band and wrong for the numbers. A readout that throws
+--      goes quiet, takes the 🔔 door ONCE, and says so in the report.
+--   🏃 And it MOVES rather than rebuilds — this runs per mouse event,
+--      and 6.247.0 priced a rebuild on a path like that.
+--        settings = { screenshots = { sizeReadout = false } }
+--      · 10,110 -> 10,151 checks · twenty-two mutations, twenty-two bites.
+--
 -- NEW IN 6.259.0 — 🎯 THE DIALOG HOME IS OFF (modules/dialog_home.lua):
 --   LL, with a photograph of this tool's own capture toast — "🎯 Dialogs
 --      will open here now — _G.dialogHome.reset() undoes it" — sitting
@@ -35,48 +69,12 @@
 --        settings = { dialog_home = { enabled = true } }
 --      · 10,092 -> 10,110 checks · nine mutations, nine bites.
 --
--- NEW IN 6.258.0 — 🖼 ⌘O: A PRIOR SHOT ONTO THIS ONE, AND THE CANVAS GROWS
---                  (modules/screenshot_editor.lua, screenshots.lua):
---   LL: "Allow me to load a prior screenshot on to the current
---      screenshot and grow the canvas so that I can see both."
---   ⌘O, or the 🖼 Load shot button: a picker of the other shots in the
---      folder, and the one he chooses is drawn at its OWN size in room
---      the canvas has just been given for it.
---   🔑 GROW, NOT PASTE, and that is the whole difference from ⌘V/⌘A:
---      those put an image ON the shot at 40% of its width, which is
---      right for "point at this" and wrong for "put these two side by
---      side". This one makes room.
---   📏 THE ORIGINAL NEVER MOVES — it keeps 0,0 — and that is a rule,
---      not a convenience: every note, blur, arrow and counter is stored
---      in CANVAS coordinates, so leaving it at the origin is what stops
---      a grow dragging his marks off the things they point at. Centring
---      it would look tidier and would move all of them.
---   🧭 WHICH WAY IT GROWS IS ARITHMETIC: along the SHORTER side, so two
---      wide screenshots stack (2560x1440 twice over is nearly square)
---      rather than making a 5120-wide strip nothing can display.
---      6.252.0's rule the other way up — there the LONGER side splits.
---   🪟 AND THE WINDOW FOLLOWS, through the same screen-clamped
---      arithmetic ed.open has always used — `ed.windowSizeFor` is
---      LIFTED out rather than copied, because two copies is how a
---      window that opens right comes to resize wrong.
---   📐 `ed.growAxis` and `ed.growPlan` are PURE and carry every edge
---      (a wider shot widens the canvas instead of being cropped, a
---      negative gap cannot overlap the two shots, an unknown axis falls
---      back to the rule), so the geometry is proven with no Mac.
---   🪟 THE PAGE SAYS HOW BIG IT IS (6.238.0): Lua plans against the
---      size the page reported, never one it assumed, and the report
---      tells "the page said so" from "read off the file at open".
---      ↩︎ ⌘Z takes a whole grow back — the undo row carries the old
---      pixels, because shrinking a canvas destroys them.
---        settings = { screenshot_editor = { growGap = 24 } }
---      · 10,014 -> 10,092 checks · fifteen mutations, fifteen bites.
---
--- (6.257.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.258.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.259.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.260.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -173,7 +171,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.259.0"
+_G.configVersion = "6.260.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the

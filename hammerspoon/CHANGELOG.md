@@ -5,6 +5,91 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.260.0 — 📐 THE LIVE SIZE READOUT (modules/screenshots.lua):
+  LL, under a heading of his own: "show a live 1280 × 720 in white on a
+  90 %-opaque black box". Read with the earlier line in his screenshot-
+  editor list — "Change the pixel measurement tool numbers to solid white
+  in a black box that is 10% translucent" — it is one ask written twice,
+  and the two percentages are the same number said from opposite ends: an
+  alpha of 0.9.
+
+  🚨 IT IS A BUILD, NOT A RESTYLE, AND ONLY READING SAID SO. The obvious
+  reading of "change the numbers" is that there are numbers to change.
+  There are not. Nothing in this config has ever drawn a pixel readout.
+  The numbers he has been looking at belong to macOS: `screencapture -i`
+  draws its own HUD beside the crosshair, and Hammerspoon can neither
+  restyle it, move it, nor read what it says. Meanwhile this config's OWN
+  selector — shots.selectArea, the surface ⇪5, the editor's ⌘A and
+  "repeat area" all drag on — has drawn a dashed band and nothing else
+  since the day it was written. So the thing he asked to be changed did
+  not exist, and the only honest release is to make it, on the one
+  selection surface we own. 6.233.0's rule in a gentler costume: check
+  the platform before designing around a belief about it.
+
+  📏 NAMED, NOT FIXED, because a consequence you decide not to act on is
+  one you are obliged to name: ⇪4 is still `screencapture -i` and keeps
+  macOS's HUD, so it gets no readout of ours. Routing ⇪4 through our
+  selector would give it one and would cost the native magnifier and
+  SPACE-to-capture-a-window — two things he uses and never asked to pay
+  for. His call, and its own release. The report's size line says so in
+  the place he would be reading it to find out.
+
+  ✏️ THREE PURE FUNCTIONS CARRY THE WHOLE RULE, so all of it is proven
+  with no Mac:
+    · `shots.sizeText(w, h)` — his string, "1280 × 720", with a
+      MULTIPLICATION SIGN and not an x; both numbers floored, because a
+      drag is measured in points and a fractional pixel is a number
+      nobody can act on.
+    · `shots.sizeBox(text, fontSize, pad, charW)` — the black box, and it
+      counts CHARACTERS. "×" is two bytes and one glyph, so `#` would
+      make every box a glyph too wide and sit the digits off centre.
+      6.226.0's rule (utf8.len, never #) in a new place, and the check
+      that bites is that "1280 × 720" and "1280 x 720" measure the same.
+    · `shots.sizePlan(band, screen, boxW, boxH, gap)` — WHERE it goes and
+      WHY, with THREE answers rather than one: below the band, which is
+      the eye's place for numbers describing the thing above them; ABOVE
+      it when the band is against the bottom of the screen; and INSIDE
+      it, at its own bottom edge, when a drag is as tall as the display
+      and neither side has room. The x is clamped into the screen and the
+      clamp is SAID, because a box that has moved sideways is no longer
+      describing the band's centre and "it looks wrong" must have an
+      answer in the report. A readout you cannot see is the bug this
+      release exists to avoid.
+
+  🔒 IT IS DECORATION ON A LOAD-BEARING DRAG, AND IS GUARDED APART FROM
+  IT. The selector's mouse callback wraps its whole body in a pcall and
+  CANCELS THE SELECTION when it throws — right for a per-event path where
+  an error would otherwise repeat forever, and wrong for the numbers: a
+  readout that fails must cost the readout and never the selection. So
+  the draw has its own guard, goes quiet for the rest of that drag rather
+  than shouting once per mouse event, takes the 🔔 door once with the
+  tool's name on it, and the report says ⚠️ afterwards. Its check makes
+  the draw throw for real and then asserts that the release still shoots
+  the rectangle.
+
+  🏃 AND IT MOVES RATHER THAN REBUILDS. The box and the digits are two
+  elements on the selector's existing canvas, appended once and moved per
+  event. 6.247.0 priced rebuilding on a path like this one — a handler
+  that ran at the key-repeat rate and built two NSWindows every time.
+  Thirty moves in the suite must leave the element count where it was.
+
+  🔎 THE REPORT HAS THREE STATES THAT MUST NOT READ ALIKE (6.196.1): off
+  by settings, on but nothing dragged yet this session, and on with the
+  last size and the placement that was chosen for it. A fourth — the
+  readout having thrown — outranks all three, because otherwise the line
+  would print a healthy-looking size over a Mac where the feature is
+  down.
+
+  🧪 And the suite died instead of failing under its own first mutation:
+  deleting the floor makes ("%d"):format(240.7) RAISE, and a raise inside
+  a check's expression ends the run with "0 failed" never printed.
+  6.186.0, fifth time — a test HELPER answers falsely, so the mutation
+  fails a check instead of killing the suite.
+
+    settings = { screenshots = { sizeReadout = false } }  — off
+    settings = { screenshots = { sizeAlpha = 0.7, sizeFontSize = 20 } }
+  · 10,110 -> 10,151 checks · twenty-two mutations, twenty-two bites.
+
 NEW IN 6.259.0 — 🎯 THE DIALOG HOME IS OFF (modules/dialog_home.lua):
   LL, with a photograph of this tool's own capture toast — "🎯 Dialogs will
   open here now — _G.dialogHome.reset() undoes it" — sitting over a film he

@@ -546,6 +546,52 @@ work Mac.
   (6.186.0 on top). It pcalls now and returns three values, which is the
   whole reason "no document" can be told from "could not be asked".
 
+- 📐 A THING YOU WERE ASKED TO RESTYLE MAY BELONG TO macOS (6.260.0,
+  modules/screenshots.lua — LL: "show a live 1280 × 720 in white on a
+  90 %-opaque black box", with his earlier "Change the pixel measurement
+  tool numbers to solid white in a black box that is 10% translucent").
+  One ask written twice, and the two percentages are the SAME number:
+  `sizeAlpha = 0.9`. 🚨 BUT THERE WERE NO NUMBERS TO CHANGE. Nothing in
+  this config has ever drawn a pixel readout: what he had been looking at
+  is `screencapture -i`'s OWN HUD, which Hammerspoon can neither
+  restyle, move nor read — while OUR selector (`shots.selectArea`, what
+  ⇪5, the editor's ⌘A and "repeat area" drag on) had drawn a dashed band
+  and NOTHING ELSE since it was written. 6.233.0's rule in a gentler
+  costume: before designing around what a surface does, check WHOSE
+  surface it is.
+  📏 NAMED, NOT FIXED: ⇪4 is still `screencapture -i` and keeps macOS's
+  HUD. Routing ⇪4 through our selector would give it the readout and
+  would cost the native magnifier and SPACE-to-capture-a-window — his
+  call, its own release, and the report's "size :" line says so where he
+  would be reading it to find out why ⇪4 looks unchanged.
+  ✏️ THREE PURE FUNCTIONS, so the whole rule is proven with no Mac:
+  `sizeText` (his ×, both numbers floored — a fractional pixel is not
+  actionable); `sizeBox`, which counts CHARACTERS because "×" is two
+  bytes and one glyph and `#` would make every box a glyph too wide
+  (6.226.0 in a new place; the check that bites is "1280 × 720" and
+  "1280 x 720" measuring the same); and `sizePlan`, which answers the
+  frame AND WHY with THREE placements — below the band, ABOVE it against
+  the bottom of the screen, INSIDE it when a drag is as tall as the
+  display — plus an x clamp that is SAID, because a box moved sideways
+  no longer describes the band's centre. A READOUT YOU CANNOT SEE IS THE
+  BUG THIS RELEASE EXISTS TO AVOID.
+  🔒 IT IS DECORATION ON A LOAD-BEARING DRAG, SO IT IS GUARDED APART
+  FROM IT. The selector's mouse callback pcalls its whole body and
+  CANCELS THE SELECTION on a throw — right for a per-event path, wrong
+  for the numbers. The draw has its own guard, goes quiet for the rest
+  of that drag rather than shouting per mouse event, takes the 🔔 door
+  ONCE, and the report's ⚠️ outranks the last size (a healthy-looking
+  number over a dead feature is 6.196.1's exact failure). GENERAL: when
+  a decorative layer shares a guarded, per-event path with the thing it
+  decorates, it gets its own guard — the shared one is tuned for the
+  load-bearing half.
+  🏃 AND IT MOVES, NEVER REBUILDS: two elements on the selector's
+  existing canvas, appended once. 6.247.0 priced a rebuild on a path
+  that runs per event. 🧪 The suite DIED instead of failing under its
+  own first mutation — deleting the floor makes `("%d"):format(240.7)`
+  RAISE, and a raise inside a check's expression ends the run with "0
+  failed" never printed. 6.186.0, fifth time: a test HELPER answers
+  falsely.
 - 🎯 A TOOL THAT ANNOUNCES ITSELF IN THE MIDDLE OF SOMETHING ELSE IS A
   TOOL YOU SWITCH OFF (6.259.0, modules/dialog_home.lua — LL, with a
   photograph of its own capture toast, "🎯 Dialogs will open here now —
@@ -2298,8 +2344,9 @@ as the fix when a loss lands.
 | 6.257.0 | 📄 the documents list finally names Word's documents — the file the app has open, asked of doc_memory once per session, written as a sixth column | pending |
 | 6.258.0 | 🖼 ⌘O loads a prior shot onto this one and the canvas grows to hold both — the original stays at 0,0 so nothing already drawn moves | pending |
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
+| 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 
-Running total: 15 wins · 8 losses · 42 pending — every release from
+Running total: 15 wins · 8 losses · 43 pending — every release from
 6.215.0 on except the fifteen wins and eight losses named in the table
 above. (The enumeration that used to sit here stopped at 6.239.0 and was
 seventeen releases stale, which is a scoreboard that cannot be read;
@@ -2333,21 +2380,19 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   ten (Sublime, a browser) is still named by its title, which is right —
   AXDocument is the only honest answer and those apps do not give one.
 
-- 📐 A LIVE SIZE READOUT (LL, 2026-09-19, under a heading reading "Doc
-  watcher:"): "show a live 1280 × 720 in white on a 90 %-opaque black
-  box". Read with his screenshot-editor item 4 ("Change the pixel
-  measurement tool numbers to solid white in a black box that is 10%
-  translucent") this is ONE ask and it answers the question that blocked
-  it: the numbers are a LIVE W × H while a selection is dragged, and there
-  is no such readout anywhere in this config today — the numbers he has
-  been looking at are macOS's own `screencapture -i` HUD, which cannot be
-  restyled. So it is a BUILD, not a restyle: `shots.selectArea`'s own
-  canvas gains the readout, and the editor's drags get the same one.
-  🗳 DECIDED, STATED, NOT ASKED AGAIN: "90 %-opaque black" and "10%
-  translucent" are the same number and it is `alpha = 0.9`. The heading
-  "Doc watcher:" is not a tool in this config and nothing else in the
-  message belongs to one — if he meant somewhere else, it is one line to
-  move it. Shipping as 6.260.0 (6.259.0 went to his "turn this feature off" — bugs and removals before features).
+- ✅ A LIVE SIZE READOUT — SHIPPED AS 6.260.0 (LL, 2026-09-19, under a
+  heading reading "Doc watcher:"): "show a live 1280 × 720 in white on a
+  90 %-opaque black box", read with his screenshot-editor item 4
+  ("Change the pixel measurement tool numbers to solid white in a black
+  box that is 10% translucent"). The durable rule is above; the short
+  version is that there was nothing to restyle and it had to be built.
+  STILL OPEN, EACH ITS OWN RELEASE WHEN HE ASKS: the SCREENSHOT EDITOR'S
+  own drags (the Spotlight veil, the oval, the highlighter) have no
+  readout either and should get the same one — the three pure functions
+  are `shots.*` and published nowhere, so that release either lifts them
+  into a service or writes the editor's own; and ⇪4 keeps macOS's HUD
+  until he says he would rather have ours than the native magnifier and
+  SPACE-to-capture-a-window.
 
 - 🧭 THE NINE (LL, 2026-09-18, on the batch he reported after 6.245.0:
   "go & build in that order. Prep each item to roll out as I come back
@@ -2729,6 +2774,41 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.260.0 verify with LL — 📐 THE LIVE SIZE (KNOWN GROUND): install
+  (carries 6.259.0). Press ⇪5 and start dragging — or, in the editor, press
+  📸 Add capture (⌘A). A black box follows the drag with the size in white:
+  1280 × 720, live, changing as you move.
+  🚨 ⇪4 IS NOT IT, and I want to say that before you press it and think the
+  release did nothing. ⇪4 is macOS's own crosshair (`screencapture -i`), and
+  the numbers beside it are macOS's own HUD — Hammerspoon cannot restyle it,
+  move it, or read it. Everything that drags on OUR selector gets the new
+  readout: ⇪5 scrolling capture, the editor's ⌘A, and "repeat area" the
+  first time (⌘5 in the ⇪⇧5 panel, before there is a remembered rectangle).
+  🔎 WHAT THIS WAS, because it changes what you can ask for next: there was
+  no pixel readout anywhere in this config to restyle. Our selector has
+  drawn a dashed band and nothing else since the day it was written, so
+  "change the numbers" had nothing to change — it is new drawing.
+  📏 THINGS TO TRY, and each is a rule with its own check: drag near the
+  BOTTOM of the screen and the box flips ABOVE the selection rather than off
+  the edge. Drag the full height of the display and it moves INSIDE, at the
+  bottom. Drag at the far left or right and it stays on screen.
+  Console: `_G.screenshotsReport()` — a new "size :" line: "240 × 180 ·
+  below the selection · last drawn 21:14", and under it the line naming
+  where the readout appears and that ⇪4 keeps macOS's HUD.
+  🎨 Bigger digits, a different black, no release:
+  `settings = { screenshots = { sizeFontSize = 20, sizeAlpha = 0.75 } }`.
+  Off: `{ sizeReadout = false }`.
+  🔔 If an alert ever says "⚠️ Screenshot size readout — the readout threw
+  mid-drag", paste it. That is the guard working: the numbers go quiet and
+  your selection still shoots — the readout is never allowed to cost the
+  drag it sits on.
+  🗳 SAY IF YOU WANT ⇪4 ON OUR SELECTOR TOO. It would give ⇪4 the same
+  readout and would cost the native magnifier and SPACE-to-capture-a-window.
+  That is your call and its own release — I did not take it for you.
+  🖌 AND THE EDITOR'S OWN DRAGS (the Spotlight veil, the oval, the
+  highlighter) still have no readout. Same feature, different surface, and
+  its own release when you want it.
+
 - 6.259.0 verify with LL — 🎯 THE DIALOG HOME IS OFF (KNOWN GROUND):
   install (carries 6.257.0 and 6.258.0). Copy a file over one that already
   exists so Finder asks "Replace?" — the dialog opens wherever macOS puts
