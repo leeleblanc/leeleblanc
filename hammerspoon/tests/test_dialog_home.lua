@@ -164,18 +164,26 @@ end
 
 local chunk = assert(loadfile(HS .. "/modules/dialog_home.lua"),
                      "cannot load modules/dialog_home.lua")
-local function boot()
+-- 6.259.0 — THE SUITE BOOTS IT THE WAY init.lua DOES, in three beats:
+-- setup, then the profile's `settings`, then warm. That gap is the whole
+-- switch (6.228.0) — a harness that called setup alone could not tell a
+-- real switch from a decorative one.
+local function boot(opts)
+    opts = opts or {}
     TIMERS, OBSERVERS, ALERTS = {}, {}, {}
     local M = chunk()
     M.setup({})
+    for k, v in pairs(opts.settings or {}) do M.config[k] = v end
+    if not opts.noWarm then M.warm({}) end
     return _G.dialogHome, M
 end
+local ON = { settings = { enabled = true } }   -- most sections need it running
 
 -- =====================================================================
 out("── Dialog Home: dialogs land at your spot on the primary monitor ──\n")
 
 out("\n=== 1. What counts as \"this kind of window\" ===\n")
-local dh, M = boot()
+local dh, M = boot(ON)
 check("the module registers a cheat sheet group in the windows family",
       M.family == "windows" and M.cheatsheet and
       M.cheatsheet.title:find("DIALOG HOME", 1, true) ~= nil)
@@ -304,7 +312,7 @@ end)())
 
 out("\n=== 5. The spot survives a reload, and junk in settings does not ===\n")
 SETTINGS["dialogHome.pos"] = { x = 120, y = 60 }
-local dhR = boot()
+local dhR = boot(ON)
 check("a reload picks the captured spot back up",
       dhR.pos and dhR.pos.x == 120 and dhR.pos.y == 60, dhR.pos and dhR.pos.x)
 for _, j in ipairs({
@@ -333,15 +341,23 @@ check("a captured spot on a monitor you no longer have is CLAMPED, not obeyed",
 end)())
 
 out("\n=== 6. The watcher: frontmost app only, sweep on switch ===\n")
-dh = boot()
+dh = boot(ON)
 check("exactly one app watcher is running for this", WATCH_FN ~= nil)
+-- 🧪 6.186.0 — a mutation that stops the watcher being registered used to
+-- END this run at `WATCH_FN(...)`, with "0 failed" never printed. A test
+-- helper answers falsely rather than calling a nil.
+local function activate(app)
+    if type(WATCH_FN) ~= "function" then return false end
+    WATCH_FN(nil, hs.application.watcher.activated, app)
+    return true
+end
 local waiting = dialogEl(1500, 300, 400, 200)      -- a dialog already up
 local plain   = el({ AXRole = "AXWindow", AXSubrole = "AXStandardWindow",
                      AXPosition = { x = 9, y = 9 }, AXSize = { w = 600, h = 400 } })
 local finder  = fapp("Finder", 100, "com.apple.finder", { plain, waiting })
 NOW = NOW + 5
-WATCH_FN(nil, hs.application.watcher.activated, finder)
-local obs = OBSERVERS[#OBSERVERS]
+check("(the app watcher can be driven)", activate(finder))
+local obs = OBSERVERS[#OBSERVERS] or { started = false, watched = {} }
 check("activating an app attaches ONE observer to it", obs and obs.started)
 check("…watching for windows appearing AND moving", (function()
     local created, moved = false, false
@@ -386,8 +402,8 @@ check("an app that refuses a watcher is recorded ONCE, not per activation",
     PRINTED = {}
     REFUSE_WATCH = true
     local teams = fapp("Teams", 200, "com.microsoft.teams", {})
-    WATCH_FN(nil, hs.application.watcher.activated, teams)
-    WATCH_FN(nil, hs.application.watcher.activated, teams)
+    activate(teams)
+    activate(teams)
     REFUSE_WATCH = false
     local lines = 0
     for _, l in ipairs(PRINTED) do
@@ -405,13 +421,99 @@ check("…and teaches where a missed dialog's subrole is read from",
       status:find("subrole", 1, true) ~= nil)
 AX = false
 local before = WATCHERS
-local dhOff = boot()
+local dhOff = boot(ON)
 check("with Accessibility off, NOTHING starts — no watcher, no observer",
       WATCHERS == before and #OBSERVERS == 0)
 check("…but _G.dialogs() still says WHY, instead of silence", (function()
     return dhOff.status():find("Accessibility", 1, true) ~= nil
 end)())
 AX = true
+
+out("\n=== 8. 6.259.0 — OFF, and a switch that is real in BOTH directions ===\n")
+-- LL, with a photograph of this tool's own capture toast over a film he
+-- was watching: "Turn off this feature in all future releases." A tool
+-- that announces itself in the middle of something else is a tool you
+-- switch off. Nothing is deleted; the door is shut.
+do
+    local n8 = 0
+    local function c8(label, cond, extra) n8 = n8 + 1; check(label, cond, extra) end
+
+    local before, obsBefore = WATCHERS, #OBSERVERS
+    local dhD, MD = boot()          -- the SHIPPED default, no settings
+    c8("🎯 the shipped default is OFF", MD.config.enabled == false,
+       tostring(MD.config.enabled))
+    c8("🔌 and OFF means nothing was started — no app watcher, no "
+       .. "Accessibility observer (it is not made-and-hidden)",
+       WATCHERS == before and #OBSERVERS == obsBefore,
+       WATCHERS - before)
+    c8("…no timer is held either", #TIMERS == 0, #TIMERS)
+    c8("…and warm() says so rather than leaving the state unknown",
+       dhD.started == false, tostring(dhD.started))
+
+    local st = dhD.status()
+    c8("👁 _G.dialogs() says it is OFF", st:find("OFF", 1, true) ~= nil)
+    c8("…and names the ONE line that brings it back, so the switch is "
+       .. "findable without reading the module",
+       st:find("settings = { dialog_home = { enabled = true } }", 1, true) ~= nil,
+       st)
+    c8("🚨 a dialog is NOT moved while it is off", (function()
+        local d = dialogEl(1500, 300, 400, 200)
+        local ok2, why2 = dhD.place(d, "Finder", "appeared")
+        return ok2 == false and d.sets == 0 and why2 == "off"
+    end)())
+
+    -- 📍 HIS CAPTURED SPOT IS NOT DELETED. 6.254.0's rule: closing a door
+    -- is not emptying the room, and a report that cannot say what is
+    -- still there invites a second question.
+    SETTINGS["dialogHome.pos"] = { x = 120, y = 60 }
+    local dhKeep = boot()
+    c8("📍 the spot captured before this release is still remembered",
+       dhKeep.pos and dhKeep.pos.x == 120, dhKeep.pos and dhKeep.pos.x)
+    c8("…and the OFF status says so, rather than reading as data lost",
+       dhKeep.status():find("still remembered", 1, true) ~= nil)
+    SETTINGS["dialogHome.pos"] = nil
+
+    -- 🔌 THE DIRECTION THAT IS USUALLY BROKEN (6.228.0): a profile's
+    -- settings land AFTER setup returns, so a module that starts its
+    -- watchers inside setup can never be started by an override. This
+    -- release moved the wiring into warm() precisely so that turning it
+    -- back ON works — and off by default makes that the important half.
+    local before2, obs2 = WATCHERS, #OBSERVERS
+    local dhOn = boot(ON)
+    c8("🔌 settings = { enabled = true } applied between setup and warm "
+       .. "REALLY starts it", WATCHERS == before2 + 1, WATCHERS - before2)
+    c8("…and it says it is running", dhOn.started == true)
+    c8("…and a dialog is placed again", (function()
+        local d = dialogEl(1500, 300, 400, 200)
+        NOW = NOW + 5
+        return dhOn.place(d, "Finder", "appeared") == true
+    end)())
+
+    -- 🔎 "ON" AND "RUNNING" ARE TWO QUESTIONS (6.196.1): warm() is where
+    -- the watchers go up, so a Mac that enabled it and never warmed must
+    -- not read as healthy.
+    local dhNo = boot({ settings = { enabled = true }, noWarm = true })
+    c8("🔎 enabled but never warmed reads as a FAULT, not as health",
+       dhNo.status():find("warm() has not run yet", 1, true) ~= nil,
+       dhNo.status())
+    c8("…while a warmed, running one does not say that",
+       dhOn.status():find("warm() has not run yet", 1, true) == nil)
+
+    -- 📋 the cheat sheet is part of the feature (6.181.0 / 6.196.0)
+    c8("📋 the cheat sheet says OFF in its title, so ⇪/ does not promise "
+       .. "behaviour that no longer happens",
+       MD.cheatsheet.title:find("OFF", 1, true) ~= nil, MD.cheatsheet.title)
+    c8("…and carries the settings line as a row", (function()
+        for _, e in ipairs(MD.cheatsheet.entries) do
+            if tostring(e[2]):find("dialog_home = { enabled = true }", 1, true) then
+                return true
+            end
+        end
+        return false
+    end)())
+
+    check("§8 ran every one of its checks", n8 == 16, n8)
+end
 
 print = realPrint
 out(("\n%d passed, %d failed\n"):format(pass, fail))

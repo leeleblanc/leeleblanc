@@ -546,6 +546,36 @@ work Mac.
   (6.186.0 on top). It pcalls now and returns three values, which is the
   whole reason "no document" can be told from "could not be asked".
 
+- 🎯 A TOOL THAT ANNOUNCES ITSELF IN THE MIDDLE OF SOMETHING ELSE IS A
+  TOOL YOU SWITCH OFF (6.259.0, modules/dialog_home.lua — LL, with a
+  photograph of its own capture toast, "🎯 Dialogs will open here now —
+  _G.dialogHome.reset() undoes it", sitting over a film he was
+  watching: "Turn off this feature in all future releases").
+  `dh.enabled` ships FALSE. 🗑 NOTHING IS DELETED (6.254.0's shape):
+  every line is here, the spot he captured is still in hs.settings and
+  the OFF status SAYS so rather than leaving him to wonder, and one
+  settings line brings it back.
+  🔌 THE RELEASE'S REAL WORK IS THAT THE SWITCH IS REAL IN BOTH
+  DIRECTIONS: the wiring moved out of setup() into `M.warm`, because
+  init.lua applies a profile's `settings` AFTER setup returns — a module
+  that STARTS its watchers in setup can only ever be stopped by an
+  override, never started (6.228.0 named this module's shape and said to
+  fix it when it was next opened). With OFF as the default the broken
+  direction is the useful one, so a removal that did not move the wiring
+  would have been a removal with no way back.
+  🔎 OFF IS OFF, NOT MADE-AND-HIDDEN — no app watcher, no AX observer, no
+  held timer, asserted rather than claimed; and "enabled" is not
+  "running", so a Mac that turned it on and never warmed reads as a
+  FAULT (6.196.1). 📋 The ⇪/ sheet says OFF in its title and carries the
+  settings line (6.181.0: a sheet promising behaviour that no longer
+  happens is a broken feature).
+  🧪 AND THE SUITE DIED INSTEAD OF FAILING, fourth time: the mutation
+  that stops the app watcher being registered left `WATCH_FN(...)`
+  calling a nil and the run ended with "0 failed" never printed. A test
+  HELPER answers falsely (6.186.0). GENERAL: a suite that boots a module
+  must boot it the way init.lua does — setup, THEN settings, THEN warm —
+  or it cannot tell a real switch from a decorative one.
+
 - ⏲ A WINDOW THAT HIDES ITSELF OWES A WAY BACK THAT DOES NOT DEPEND
   ON THE THING IT HID FOR (6.255.0, modules/screenshot_editor.lua +
   screenshots.lua — LL: "Add a delayed screenshot feature with a delay
@@ -2267,8 +2297,9 @@ as the fix when a loss lands.
 | 6.256.0 | 🖥 ⌘F: the whole screen, now, with the editor out of the picture — and it waits a beat for the window to actually go | pending |
 | 6.257.0 | 📄 the documents list finally names Word's documents — the file the app has open, asked of doc_memory once per session, written as a sixth column | pending |
 | 6.258.0 | 🖼 ⌘O loads a prior shot onto this one and the canvas grows to hold both — the original stays at 0,0 so nothing already drawn moves | pending |
+| 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 
-Running total: 15 wins · 8 losses · 41 pending — every release from
+Running total: 15 wins · 8 losses · 42 pending — every release from
 6.215.0 on except the fifteen wins and eight losses named in the table
 above. (The enumeration that used to sit here stopped at 6.239.0 and was
 seventeen releases stale, which is a scoreboard that cannot be read;
@@ -2698,6 +2729,24 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.259.0 verify with LL — 🎯 THE DIALOG HOME IS OFF (KNOWN GROUND):
+  install (carries 6.257.0 and 6.258.0). Copy a file over one that already
+  exists so Finder asks "Replace?" — the dialog opens wherever macOS puts
+  it, and nothing moves it. Drag a dialog somewhere: NO "🎯 Dialogs will
+  open here now" toast, ever again. That is the whole release.
+  Console: `_G.dialogs()` — "OFF — switched off in 6.259.0 on your word",
+  and it names the one line that brings it back. If you ever want it:
+  `settings = { dialog_home = { enabled = true } }` in the machine profile.
+  🗑 NOTHING WAS DELETED: the spot you had captured is still remembered and
+  the report prints it, so turning it back on puts you exactly where you
+  were. Say if you would rather the module were removed outright — that is
+  its own release and easier after a month of not missing it.
+  🔌 AND THE SWITCH WAS FIXED WHILE IT WAS OPEN: this tool started its
+  watchers before the settings file was read, which meant a switch could
+  only ever turn it OFF, never back on. It starts in the warm phase now, so
+  the line above really works. If you turn it on and nothing happens, paste
+  `_G.dialogs()` — it distinguishes "on" from "running" and will say which.
+
 - 6.258.0 verify with LL — 🖼 TWO SHOTS ON ONE CANVAS (KNOWN GROUND):
   install (carries 6.257.0). Open the editor on any screenshot (⇪⇧1). Beside
   🖥 Full screen there is now 🖼 Load shot — press it, or ⌘O.

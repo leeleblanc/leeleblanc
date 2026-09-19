@@ -5,6 +5,54 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.259.0 — 🎯 THE DIALOG HOME IS OFF (modules/dialog_home.lua):
+  LL, with a photograph of this tool's own capture toast — "🎯 Dialogs will
+  open here now — _G.dialogHome.reset() undoes it" — sitting over a film he
+  was watching: "Turn off this feature in all future releases."
+
+  He is right, and the photograph is the argument. A tool that announces
+  itself in the middle of something else is a tool you switch off; this one
+  captured a spot from an ordinary window drag and said so on screen, which
+  is a reasonable design and the wrong one for a machine you also watch
+  films on. `dh.enabled` ships false.
+
+  🗑 NOTHING IS DELETED, which is 6.254.0's shape: every line of the feature
+  is still here, the spot he captured at some point is still in hs.settings,
+  and the OFF status says so in as many words rather than leaving him to
+  wonder whether it was thrown away. One settings line brings the whole
+  thing back. Closing a door is not emptying the room.
+
+  🔌 AND THE SWITCH IS REAL IN BOTH DIRECTIONS — which is this release's
+  actual work, and the reason it is not a one-word diff. The wiring moved
+  out of setup() and into warm(), because init.lua applies a profile's
+  `settings` AFTER setup returns: a module that starts its watchers inside
+  setup can never be STARTED by an override, only stopped. 6.228.0 wrote
+  that rule down, named this exact shape as the thing to repair when the
+  module was next opened, and the module is now open. With off as the
+  default, the broken direction would have been the useful one.
+
+  🔎 OFF IS OFF, NOT MADE-AND-HIDDEN: with it off there is no application
+  watcher, no Accessibility observer and no timer held — asserted in the
+  suite rather than claimed here. And "enabled" is not "running": warm() is
+  where the watchers go up, so a Mac that enabled it and never warmed reads
+  as a FAULT and not as health (6.196.1's rule, in a new place).
+
+  📋 The ⇪/ sheet says OFF in its own title and carries the settings line as
+  a row. A cheat sheet that promises behaviour that no longer happens is a
+  broken feature (6.181.0), and the gate audits those rows.
+
+  🧪 AND THE SUITE DIED INSTEAD OF FAILING under one of its own mutations,
+  for the fourth time this project has paid for that shape: the mutation
+  that stops the app watcher being registered left `WATCH_FN(...)` calling
+  a nil and the run ended with "0 failed" never printed. A test HELPER
+  answers falsely now (6.186.0).
+
+    settings = { dialog_home = { enabled = true } }
+
+  · 10,092 -> 10,110 checks · nine mutations, nine bites.
+```
+
+```text
 NEW IN 6.258.0 — 🖼 ⌘O: A PRIOR SHOT ONTO THIS ONE, AND THE CANVAS GROWS
                  (modules/screenshot_editor.lua, modules/screenshots.lua):
   LL: "Allow me to load a prior screenshot on to the current screenshot and

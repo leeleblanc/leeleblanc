@@ -52,21 +52,27 @@
 -- deliberately never touched: they belong to their window, not to a
 -- spot.
 
+-- 6.259.0 — file scope, because warm() needs them too (the wiring moved
+-- there so the enabled switch is real in both directions).
+local function say(m)  if _G.diag then _G.diag.say("dialogHome", m)  end end
+local function warn(m) if _G.diag then _G.diag.warn("dialogHome", m) end end
+
 local M = {
     name   = "Dialog Home",
     order  = 6.8,
     family = "windows",
     cheatsheet = {
-        title = "🎯 DIALOG HOME (automatic — dialogs land at your spot)",
+        title = "🎯 DIALOG HOME (OFF since 6.259.0 — dialogs land where macOS puts them)",
         entries = {
-            { "auto",     "Dialogs (Replace? Save? Delete?) open at ONE spot on the PRIMARY monitor" },
+            { "off",      "Switched off on your word. Nothing watches, nothing moves, nothing announces itself" },
+            { "back on",  "settings = { dialog_home = { enabled = true } } in the machine profile" },
+            { "auto",     "When ON: dialogs (Replace? Save? Delete?) open at ONE spot on the PRIMARY monitor" },
             { "capture",  "Drag any dialog somewhere better — that spot becomes the new home" },
             { "default",  "Centred, a little high, on the primary screen — until you drag one" },
             { "scope",    "Frontmost app; a background app's dialog is placed when you switch to it" },
             { "sheets",   "Panels glued to a window's title bar are never touched" },
             { "_G.dialogs()", "Console: the spot, the last dialog seen, and who refused" },
             { "reset",    "_G.dialogHome.reset() forgets the captured spot" },
-            { "off",      "dh.enabled = false in modules/dialog_home.lua's EDIT HERE" },
         },
     },
 }
@@ -75,7 +81,15 @@ function M.setup(core)
     local dh = {}
 
     -- ✏️ EDIT HERE ---------------------------------------------------------
-    dh.enabled     = true
+    -- 🎯 6.259.0 — OFF BY DEFAULT, on LL's word: "Turn off this feature in
+    -- all future releases", sent with a photograph of its own capture
+    -- toast ("🎯 Dialogs will open here now") over a film he was watching.
+    -- A tool that announces itself in the middle of something else is a
+    -- tool you switch off, and he did. Nothing is deleted: every line of
+    -- it is here, the spot he captured is still on disk, and one settings
+    -- line brings it back — which is 6.254.0's shape (close the door,
+    -- keep the room).
+    dh.enabled     = false
     -- Which subroles count as "this kind of window". These are the
     -- accessibility API's own labels; _G.dialogs() shows the subrole of
     -- the last window created, so if a dialog slips through you can read
@@ -105,8 +119,6 @@ function M.setup(core)
 
     local SETTINGS_KEY = "dialogHome.pos"
 
-    local function say(m)  if _G.diag then _G.diag.say("dialogHome", m)  end end
-    local function warn(m) if _G.diag then _G.diag.warn("dialogHome", m) end end
 
     -- The timeout goes on BEFORE anything is asked — the ordering is the
     -- whole protection (menubar_items 6.47.0, copy_on_select since 6.55).
@@ -125,6 +137,7 @@ function M.setup(core)
     -- as Window Return and Window Pin.
     local axOK = false
     pcall(function() axOK = hs.accessibilityState() == true end)
+    dh.axOK = axOK    -- 6.259.0: warm() reads the same answer
 
     dh.pos          = nil    -- the captured spot; nil = the computed default
     dh.last         = nil    -- the last dialog seen, for _G.dialogs()
@@ -463,8 +476,22 @@ function M.setup(core)
     function dh.status()
         local out = { "🎯 Dialog Home — dialogs land at one spot" }
         if not dh.enabled then
-            out[#out + 1] = "  OFF (dh.enabled = false)"
+            out[#out + 1] = "  OFF — switched off in 6.259.0 on your word."
+            out[#out + 1] = "  Nothing is running: no app watcher, no Accessibility"
+            out[#out + 1] = "  observer, no timer. Back on, no release:"
+            out[#out + 1] = "    settings = { dialog_home = { enabled = true } }"
+            if dh.pos then
+                out[#out + 1] = string.format(
+                    "  the spot you captured is still remembered: %d,%d",
+                    dh.pos.x, dh.pos.y)
+            end
             return table.concat(out, "\n")
+        end
+        -- 🔎 ON but never STARTED is its own fact: warm() is where the
+        -- watchers go up, so "enabled" and "running" are two questions
+        -- (6.196.1 — not yet and never must not read the same).
+        if dh.started == nil then
+            out[#out + 1] = "  ⚠️ ON, but warm() has not run yet — nothing is watching"
         end
         if not axOK then
             out[#out + 1] = "  OFF — macOS Accessibility is not granted; no"
@@ -502,11 +529,31 @@ function M.setup(core)
     end
 
     -- ---- wiring -----------------------------------------------------------
+    -- 🔌 6.259.0 — THIS MOVED OUT OF setup() AND INTO warm(), and that is
+    -- the whole reason the switch is worth anything: init.lua applies a
+    -- profile's `settings` AFTER setup returns, so a module that STARTS
+    -- its watchers inside setup can never be started by an override —
+    -- the flag is written and nobody reads it again (6.228.0, named there
+    -- as the thing to fix when the module is next opened). Off is the
+    -- default now, so the broken direction would have been the useful
+    -- one: turning it back ON.
+    _G.dialogHome = dh
+    _G.dialogs    = function() print(dh.status()) end
+    M.config      = dh
+end
+
+-- 🔌 6.259.0 — warm() runs AFTER a profile's settings have been applied,
+-- which is the only place a switch like this can be read (6.228.0).
+function M.warm(core)
+    local dh = M.config
+    if type(dh) ~= "table" then return end
     if not dh.enabled then
-        _G.dialogHome = dh
-        M.config = dh
+        -- Nothing started: no application watcher, no AX observer, no
+        -- timer held. Off is off, not made-and-hidden.
+        dh.started = false
         return
     end
+    local axOK = dh.axOK
 
     if not axOK then
         -- Stand down completely, and say what that costs — the same
@@ -517,8 +564,7 @@ function M.setup(core)
                               "dialogs cannot be moved to the spot")
         end
         say("Accessibility is off — nothing started")
-        _G.dialogHome = dh
-        M.config = dh
+        dh.started = false
         return
     end
 
@@ -541,9 +587,7 @@ function M.setup(core)
         if app then dh.attach(app) end
     end)
 
-    _G.dialogHome = dh
-    _G.dialogs    = function() print(dh.status()) end
-    M.config      = dh
+    dh.started = true
 end
 
 return M
