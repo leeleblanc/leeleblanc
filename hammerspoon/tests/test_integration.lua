@@ -904,6 +904,23 @@ check("🔗 NO CARD ON THE SHEET DRAWS A TITLE OVER NOTHING", (function()
     return false, table.concat(why, "; ")
 end)())
 
+-- A2. ...AND EVERY EMPTY CARD THE REAL CONFIG REGISTERS IS A DELIBERATE
+-- one. The fault list above is the loader's own verdict; this asks the
+-- registered cards directly, so a card that goes empty for a reason the
+-- loader never saw (a module that builds its rows during setup and fails)
+-- is still caught. `family = "auto"` cards are marked by the loader.
+check("🔗 EVERY EMPTY CARD ON THE REAL SHEET IS A HEADING ON PURPOSE", (function()
+    local bad = {}
+    for _, g in ipairs(_G.moduleCheatsheets or {}) do
+        local n = (type(g.entries) == "table") and #g.entries or 0
+        if n == 0 and not g.empties then
+            bad[#bad + 1] = tostring(g.title) .. " (from " .. tostring(g.source) .. ")"
+        end
+    end
+    if #bad > 0 then return false, table.concat(bad, "; ") end
+    return true
+end)())
+
 -- B. THE SOURCE SENTRY, about the CLASS rather than the one module: a
 -- titled group whose rows sit under a key the sheet never reads. Read
 -- with COMMENTS STRIPPED (6.262.0) — the comment this release leaves in

@@ -301,6 +301,7 @@ local function loadOneModule(name, settings)
             table.insert(_G.moduleCheatsheets, {
                 title   = g.title,
                 entries = g.entries or {},
+                empties = synthetic or nil,
                 order   = (mod.order or 500) + (gi - 1) / 1000,
                 family  = g.family  or mod.family,
                 summary = g.summary or mod.summary,

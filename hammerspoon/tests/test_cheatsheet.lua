@@ -1958,6 +1958,40 @@ do
   check("§6.269.0 ...and it does NOT still claim every card has rows",
         r.ok and r.text:find("every card on the sheet has rows", 1, true) == nil, r.text)
 
+  -- 🔎 TWO KINDS OF EMPTY, AND THEY ARE OPPOSITE FACTS. `family = "auto"`
+  -- registers a card for a tool with no cheat sheet of its own so the tool
+  -- is LISTED at all; that card is a heading alone ON PURPOSE. Counting it
+  -- beside a real one prints a ⚠️ on a healthy Mac — which is exactly what
+  -- this report did when it was first written, and it is 6.196.1's rule
+  -- broken by the instrument built to keep it. copy_on_select is the one
+  -- real instance in this config today.
+  _G.moduleCheatsheets = {
+    { title = "🅰 ONE", entries = { { "⇪A", "a" } }, source = "one" },
+    { title = "Copy-on-Select", entries = {}, source = "Copy-on-Select",
+      empties = true, family = "auto" },
+  }
+  _G.cheatsheetFaults = {}
+  r = runReport()
+  check("§6.269.0 a card that is a heading ON PURPOSE is NOT counted as "
+        .. "empty — a ⚠️ on a healthy Mac is a report you stop reading",
+        r.ok and r.text:find("empty  : none", 1, true) ~= nil
+            and r.text:find("draw a title over nothing", 1, true) == nil, r.text)
+  check("§6.269.0 ...but it is still NAMED, so a deliberate heading is not "
+        .. "simply hidden from him",
+        r.ok and r.text:find("ON PURPOSE", 1, true) ~= nil
+            and r.text:find("Copy-on-Select", 1, true) ~= nil, r.text)
+
+  -- and the two must be told apart in the SAME sheet, which is the case
+  -- no single-state fixture can prove.
+  _G.moduleCheatsheets[#_G.moduleCheatsheets + 1] =
+    { title = "🔗 ANCHORS (⇪⇧U …)", entries = {}, source = "anchors" }
+  r = runReport()
+  check("§6.269.0 a deliberate heading and a broken card on ONE sheet are "
+        .. "counted apart, not summed",
+        r.ok and r.text:find("1 card(s) draw a title over nothing", 1, true) ~= nil
+            and r.text:find("🔗 ANCHORS", 1, true) ~= nil
+            and r.text:find("ON PURPOSE", 1, true) ~= nil, r.text)
+
   -- 🔔 THE DIAGNOSIS, not the symptom: where the loader worked out WHICH
   -- key the rows are hiding under, the report hands over the one-word fix.
   _G.cheatsheetFaults = { {
@@ -1991,7 +2025,7 @@ do
   check("§6.269.0 ran to the end — a throw here deletes the checks after it",
         okSection == true, secErr)
   local ran = (pass + fail) - before
-  check("§6.269.0 ran all of its checks (" .. ran .. " of 11+)", ran >= 11, ran)
+  check("§6.269.0 ran all of its checks (" .. ran .. " of 14+)", ran >= 14, ran)
 end
 
 print(("\n%d passed, %d failed\n"):format(pass, fail))

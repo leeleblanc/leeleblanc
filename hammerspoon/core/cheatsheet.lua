@@ -1838,12 +1838,22 @@ return function(core)
             return
         end
 
-        local rows, empty, sources = 0, {}, {}
+        -- 🔎 6.269.0 — TWO KINDS OF EMPTY, AND THEY ARE OPPOSITE FACTS.
+        -- `family = "auto"` registers a card even for a tool with no
+        -- cheat sheet of its own, so the tool is LISTED at all; that card
+        -- is a heading alone ON PURPOSE and the loader marks it. Counting
+        -- it beside a real one would print a ⚠️ on a healthy Mac — which
+        -- is 6.196.1's rule broken by the very instrument built to keep
+        -- it, and it is what this report did when it was first written.
+        local rows, empty, onPurpose, sources = 0, {}, {}, {}
         for _, g in ipairs(cards) do
             local n = (type(g.entries) == "table") and #g.entries or 0
             rows = rows + n
             sources[tostring(g.source)] = true
-            if n == 0 then empty[#empty + 1] = g end
+            if n == 0 then
+                if g.empties then onPurpose[#onPurpose + 1] = g
+                else               empty[#empty + 1] = g end
+            end
         end
         local nSrc = 0
         for _ in pairs(sources) do nSrc = nSrc + 1 end
@@ -1856,13 +1866,22 @@ return function(core)
         -- entries at setup and fail), so the count he can SEE on the
         -- sheet is stated first and the diagnosis second.
         if #empty == 0 then
-            L[#L + 1] = "   empty  : none — every card on the sheet has rows under it"
+            L[#L + 1] = "   empty  : none — every card that should have rows has them"
         else
             L[#L + 1] = string.format("   empty  : ⚠️ %d card(s) draw a title over nothing", #empty)
             for _, g in ipairs(empty) do
                 L[#L + 1] = "      ↳ " .. tostring(g.title)
                          .. "   (from " .. tostring(g.source) .. ")"
             end
+        end
+
+        if #onPurpose > 0 then
+            local names = {}
+            for _, g in ipairs(onPurpose) do names[#names + 1] = tostring(g.title) end
+            L[#L + 1] = string.format(
+                "   listed : %d card(s) are a heading alone ON PURPOSE — no cheat "
+             .. "sheet of their own, listed by family = \"auto\": %s",
+                #onPurpose, table.concat(names, ", "))
         end
 
         if #faults == 0 then

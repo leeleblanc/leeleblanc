@@ -973,10 +973,10 @@ CREATED AUTOMATICALLY (never make these yourself):
 
 ## 6. Tests
 
-Seventy-one Lua suites, 9,514 checks, plus five more that run the Capture
+Seventy-one Lua suites, 9,518 checks, plus five more that run the Capture
 Pad's, the screenshot editor's, unified search's, the vault's and the
 music player's page JavaScript under `node` for a further 614 —
-**10,128 checks over seventy-eight stages** in
+**10,132 checks over seventy-eight stages** in
 all. Every Lua stage runs with `lua5.4` on any machine — no Mac required,
 they stub the `hs` API:
 

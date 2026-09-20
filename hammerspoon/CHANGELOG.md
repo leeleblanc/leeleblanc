@@ -66,8 +66,26 @@ WITH A TITLE AND NO ROWS NAMES ITSELF (modules/anchors.lua + init.lua's
 
   🔌 EXEMPT ON PURPOSE: `family = "auto"` registers a card even with no
   cheatsheet at all, so the tool is listed somewhere. The loader builds
-  that group itself, empty, and flags it as synthetic; five modules use
-  it and none of them is a fault.
+  that group itself, empty, and MARKS it; five modules carry that family
+  and exactly one — copy_on_select — has no cheat sheet of its own, so
+  the real sheet carries exactly one deliberate heading-alone card.
+
+  🚨 AND THE FIRST VERSION OF THIS REPORT CRIED WOLF ABOUT THAT CARD.
+  Written straight through, it counted every card with no rows, so on a
+  perfectly healthy Mac it printed "⚠️ 1 card(s) draw a title over
+  nothing" and named Copy-on-Select — beside "faults : none". That is
+  6.196.1's own rule ("on purpose" and "broken" must not read the same)
+  broken by the instrument built to keep it, and a report that warns on
+  day one is a report nobody reads, which would have cost this release
+  its entire point. Caught by the mutation sweep before delivery: the
+  mutation that removes the loader's exemption named Copy-on-Select, and
+  the only reason that module was empty was the deliberate path. THREE
+  STATES NOW: "empty" (broken), "listed" (a heading alone on purpose,
+  named rather than hidden), "faults" (why). GENERAL, and it is the
+  sharper half of this whole release: A NEW INSTRUMENT IS MEASURED
+  AGAINST THE HEALTHY CASE FIRST — its first duty is to be silent when
+  nothing is wrong, and an instrument that is not silent then will be
+  switched off long before it ever sees the fault it was built for.
 
   🔎 `_G.cheatSheetReport()` — THE SHEET HAD NO REPORT. It is the surface
   LL reads to find out what this config can do, and it was the last big
@@ -87,8 +105,20 @@ WITH A TITLE AND NO ROWS NAMES ITSELF (modules/anchors.lua + init.lua's
       key the sheet never reads, read with COMMENTS STRIPPED (6.262.0),
       because the comment this release leaves in anchors.lua quotes both
       `rows` and `entries` on purpose and would satisfy a naive grep;
+    · every empty card the REAL config registers must be a marked,
+      deliberate one — the loader's verdict is one thing, the registered
+      cards are another, and a module that builds its rows during setup
+      and fails would show in the second and not the first;
     · init.lua's registration block and tests/loader_test.lua's must be
       the SAME CODE, comments stripped and whitespace flattened.
+
+  🧪 NINE MUTATIONS, NINE BITES, each against the full gate with the
+  restore verified by SHA (6.239.0). Two are worth naming: restoring the
+  loader's silence while leaving anchors broken still fails the SOURCE
+  sentry, so the two are genuinely independent; and the drift sentry
+  bites on a local RENAMED inside loader_test's block — 1216 characters
+  against 1216, behaviour identical — while a comment-only change does
+  not trip it at all. A sentry that fired on prose would be edited away.
 
   🚨 AND THAT THIRD ONE WAS ALREADY PROMISED IN WRITING. loader_test.lua
   — the copy of §1.12 the whole gate runs on — carries this comment, and

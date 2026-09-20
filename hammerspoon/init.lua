@@ -15,23 +15,22 @@
 --      registered as a card with nothing under it. One key is the fix.
 --   🔎 NOTHING COULD SEE IT, and that is the durable half. The 6.196.0
 --      auditor joins a key COLUMN to the module that bound it, so it is
---      blind to a card with no key columns at all: it flags
---      MISATTRIBUTION, never ABSENCE, on purpose. A silent coercion
---      under an auditor blind to absence is a defect with no instrument
---      pointed at it — it survived eighty-nine releases.
---   🔔 SO THE LOADER SAYS SO. A titled group registering with no rows
---      takes the 🔔 degrade door — alert, ⚠️ Console line, a row in
---      `_G.cheatsheetFaults` — and NAMES the key the rows sit under. The
---      `or {}` STAYS: a thin card beats a sheet that throws; a
---      family = "auto" card is empty on purpose and is exempt.
---   🔎 `_G.cheatSheetReport()` — the sheet was the last big surface with
---      no report at all. "empty" and "faults" are the two lines, and "no
---      card registered yet" differs from "no card empty" (6.196.1).
---   🧪 THREE CHECKS AT THREE DISTANCES: the loader's fault list must be
---      empty; no module SOURCE may declare rows under a key the sheet
---      does not read (comments stripped, 6.262.0); and init.lua's
---      registration block must equal tests/loader_test.lua's — the drift
---      sentry its comment has claimed since 6.101.0. 10,112 -> 10,128.
+--      blind to a card with NO key columns: it flags MISATTRIBUTION,
+--      never ABSENCE, on purpose. A silent coercion under an auditor
+--      blind to absence is a defect with no instrument pointed at it.
+--   🔔 SO THE LOADER SAYS SO. A titled group with no rows takes the 🔔
+--      door — alert, ⚠️ line, a `_G.cheatsheetFaults` row — and NAMES the
+--      key the rows sit under. The `or {}` STAYS. A family = "auto" card
+--      is a heading alone ON PURPOSE: the loader marks it, and it is
+--      exempt, or the report cries wolf on a healthy Mac.
+--   🔎 `_G.cheatSheetReport()` — the sheet's first report. "empty",
+--      "listed" (a heading alone on purpose) and "faults" are THREE
+--      states, never two (6.196.1); so is "nothing registered yet".
+--   🧪 FOUR CHECKS AT FOUR DISTANCES: the loader's fault list must be
+--      empty; every empty card must be a deliberate one; no module SOURCE
+--      may hide rows under an unread key (comments stripped); init.lua's
+--      block must equal loader_test.lua's — the drift sentry its comment
+--      has claimed since 6.101.0. Nine mutations, nine bites.
 --
 -- NEW IN 6.268.0 — 🗑 THE SHORTCUT HINT CARD IS DELETED, NOT SWITCHED
 --   OFF (modules/shortcut_hints.lua and its suite are GONE):
@@ -3452,6 +3451,7 @@ local function loadOneModule(name, settings)
             table.insert(_G.moduleCheatsheets, {
                 title   = g.title,
                 entries = g.entries or {},
+                empties = synthetic or nil,
                 -- ⚠️ A SLOT PER GROUP, NOT PER MODULE. Two groups sharing
                 -- one order number is a real bug and not a cosmetic one:
                 -- Lua's table.sort is not stable, so they would swap

@@ -2283,6 +2283,21 @@ a live one on its first run: the Vault's sheet still offered ⇪1 after
   report at all, which is exactly why nothing could be ASKED about this.
   "empty" (what he can see) is printed before "faults" (why), because a
   card can be empty without the loader having caught a reason.
+  🚨 AND ITS FIRST VERSION CRIED WOLF ON A HEALTHY MAC, which is the
+  sharper lesson and was caught by the mutation sweep before delivery.
+  `family = "auto"` registers a card for a tool with no cheat sheet of
+  its own so the tool is LISTED at all; copy_on_select is the one such
+  card in this config, and the report counted it beside a broken one and
+  printed "⚠️ 1 card(s) draw a title over nothing" next to "faults :
+  none". 6.196.1's rule broken BY THE INSTRUMENT BUILT TO KEEP IT.
+  THREE STATES: "empty" (broken) · "listed" (a heading alone on purpose,
+  NAMED rather than hidden — hiding it would be the same silence one
+  layer up) · "faults" (why). GENERAL, and it applies to every report
+  this project adds: A NEW INSTRUMENT IS MEASURED AGAINST THE HEALTHY
+  CASE FIRST. Its first duty is to be SILENT when nothing is wrong; one
+  that warns on day one is switched off long before it ever sees the
+  fault it was built for — and then the next defect is invisible again,
+  with a report sitting beside it saying so.
   🚨 AND A COMMENT CLAIMED A GUARD THAT HAS NEVER EXISTED:
   tests/loader_test.lua — the hand-kept copy of §1.12 that the whole
   gate runs on — has said since 6.101.0 that "test_tools asserts the two
@@ -3436,8 +3451,13 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   📋 AND THE SHEET HAS A REPORT FOR THE FIRST TIME. Console:
   `_G.cheatSheetReport()`. Healthy reads:
       cards  : <N> card(s) · <N> row(s) from 71 module(s)
-      empty  : none — every card on the sheet has rows under it
+      empty  : none — every card that should have rows has them
+      listed : 1 card(s) are a heading alone ON PURPOSE — no cheat sheet
+               of their own, listed by family = "auto": Copy-on-Select
       faults : none — no module registered a card with no rows
+  That "listed" line is not a warning and is not a fault: Copy-on-Select
+  has no cheat sheet of its own and is listed so the tool appears at all.
+  It is named rather than hidden so you never wonder what it is.
   If "empty" ever has a number on it, the ↳ line under it NAMES the card
   and the tool it came from. Paste the whole thing — it prints as one
   block on purpose.
