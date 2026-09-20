@@ -1489,8 +1489,19 @@ do
 
     -- (e) the notes filter never reaches the ☑ box
     v.openNote("Alpha"); v.filter = "alp"; v.setMode("tasks"); v.render()
+    -- 🧪 the FILTER BOX IS ASKED FOR ITS VALUE, not for a literal run of
+    -- attributes (6.263.0): this read `id="q" placeholder="…" value=""`
+    -- as one string and failed the day spellcheck="false" went in between,
+    -- on a check about an empty box.
     check("a rebuild in ☑ TASKS mode leaves the box empty, not on the notes filter",
-          WEBVIEWS[#WEBVIEWS].htmlSet:find('id="q" placeholder="filter notes… ⌘F" value=""', 1, true) ~= nil)
+          (function()
+              local h = WEBVIEWS[#WEBVIEWS].htmlSet or ""
+              local at = h:find('id="q"', 1, true)
+              local shut = at and h:find(">", at, true)
+              local tag = shut and h:sub(at, shut) or ""
+              return tag:find('placeholder="filter notes', 1, true) ~= nil
+                     and tag:find('value=""', 1, true) ~= nil
+          end)())
     v.setMode("notes"); v.render()
 
     -- (f) a note that starts with a blank line reaches the page whole

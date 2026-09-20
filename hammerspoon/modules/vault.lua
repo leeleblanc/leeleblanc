@@ -2255,7 +2255,7 @@ body.board #board{display:flex}
 <button onclick="say({a:'hide'})" title="Close ⇪3 / ⇪1 / Esc">✕</button></header>
 <div id="tip"></div>
 <div id="main">
-<div id="side"><div id="mode" hidden></div><input id="q" placeholder="filter notes… ⌘F" value="]==] .. escapeHtml(v.mode == "notes" and v.filter or "") .. [==["><ul id="rows"></ul></div>
+<div id="side"><div id="mode" hidden></div><input id="q" spellcheck="false" autocorrect="off" placeholder="filter notes… ⌘F" value="]==] .. escapeHtml(v.mode == "notes" and v.filter or "") .. [==["><ul id="rows"></ul></div>
 <div id="ed">]==] .. (v.formatBar == false and "" or [==[<div id="fmt">
 <button onclick="blockAt('# ')" title="Heading 1 — types &quot;# &quot; at the start of the line">H1</button>
 <button onclick="blockAt('## ')" title="Heading 2 — types &quot;## &quot;">H2</button>
@@ -2272,7 +2272,7 @@ body.board #board{display:flex}
 <button onclick="insertAtCaret('[[', ']]')" title="Link to another note — types [[ ]] and lists your notes to pick from">[[ ]]</button>
 <button onclick="insertAtCaret('#')" title="Tag — type a word after the # and it joins the 🏷 TAGS list">#</button>
 <button onclick="slashMenu()" title="Every block, in a list — or just type / at the start of an empty line">/ …</button>
-</div>]==]) .. [==[<textarea id="t" spellcheck="true" ]==] .. (d and "" or "disabled placeholder=\"⌘N a new note · ⌘D today · click a note on the left\"") .. [==[>]==] .. "\n" .. escapeHtml(d and d.text or "") .. [==[</textarea><div id="ac"></div><div id="pr"><div class="lab" id="prlab"></div><input id="prin" spellcheck="false"><div class="warn" id="prwarn"></div><div class="hint">⏎ create · esc cancel</div></div><div id="foot"></div></div>
+</div>]==]) .. [==[<textarea id="t" spellcheck="false" autocorrect="off" ]==] .. (d and "" or "disabled placeholder=\"⌘N a new note · ⌘D today · click a note on the left\"") .. [==[>]==] .. "\n" .. escapeHtml(d and d.text or "") .. [==[</textarea><div id="ac"></div><div id="pr"><div class="lab" id="prlab"></div><input id="prin" spellcheck="false" autocorrect="off"><div class="warn" id="prwarn"></div><div class="hint">⏎ create · esc cancel</div></div><div id="foot"></div></div>
 <div id="links">]==] .. (isTab and "" or '<div id="chips" hidden></div>') .. [==[<h4>LINKS OUT</h4><ul id="outs">]==] .. (#outs > 0 and table.concat(outs) or '<div class="none">type [[ to link</div>') .. [==[</ul>
 ]==] .. (isTab and ('<h4>HISTORY · closed tabs</h4><ul id="hist">' .. (#hist > 0 and table.concat(hist) or '<div class="none">closed tabs land here — ⌘W</div>') .. '</ul>')
              or ('<h4>BACKLINKS</h4><ul id="backs">' .. (#backs > 0 and table.concat(backs) or '<div class="none">nothing links here yet</div>') .. '</ul>' .. unlBlock .. '<div id="qbox" hidden><h4 id="qh">\240\159\148\142 QUERY</h4><ul id="qres"></ul></div><h4>OUTLINE</h4><ul id="outline"></ul>')) .. [==[</div>

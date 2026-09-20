@@ -1000,7 +1000,7 @@ function M.setup(core)
 </style></head><body>
 <div id="bar"><span class="ttl">🔎 Unified Search</span>
 <span class="hint">drag here · hover or ↑↓ · ⏎ copy · ⌘⏎ path · Esc</span></div>
-<input id="q" placeholder="Search everything — every word must match · a @tag pins one source">
+<input id="q" spellcheck="false" autocorrect="off" placeholder="Search everything — every word must match · a @tag pins one source">
 <div id="count"></div>
 <div id="list"></div>]] .. (uni.pane and '\n<div id="pane"></div>' or "") .. [[
 

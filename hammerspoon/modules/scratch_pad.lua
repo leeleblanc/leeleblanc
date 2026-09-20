@@ -799,8 +799,8 @@ textarea{flex:1;margin:0;padding:10px;border:0;outline:0;resize:none;background:
 <button id="send" title="Create today's Asana task now instead of waiting for 16:00">→ Asana now</button>
 <button id="close" title="Close (⇪1)">✕</button></header>
 <div id="tabs">]] .. table.concat(tabsHtml) .. [[<div class="tab add" id="add" title="New tab ⌘T">+</div></div>
-<textarea id="t" spellcheck="false" autofocus>]] .. escapeHtml(cur.text) .. [[</textarea>
-<div id="hist"><div class="bar"><span class="lab">HISTORY</span><input id="q" placeholder="filter closed tabs…" value="]] .. escapeHtml(sp.filter) .. [["><span class="lab" id="cnt"></span></div><div id="rows"></div></div>
+<textarea id="t" spellcheck="false" autocorrect="off" autofocus>]] .. escapeHtml(cur.text) .. [[</textarea>
+<div id="hist"><div class="bar"><span class="lab">HISTORY</span><input id="q" spellcheck="false" autocorrect="off" placeholder="filter closed tabs…" value="]] .. escapeHtml(sp.filter) .. [["><span class="lab" id="cnt"></span></div><div id="rows"></div></div>
 </div><script>
 var ROWS = ]] .. sp.historyJson() .. [[;
 var t = document.getElementById('t'), q = document.getElementById('q');

@@ -278,7 +278,7 @@ function M.setup(core)
   <div id="wrap">
     <canvas id="cv"></canvas>
     <canvas id="ov"></canvas>
-    <input id="tin" spellcheck="false" placeholder="type, then ⏎">
+    <input id="tin" spellcheck="false" autocorrect="off" placeholder="type, then ⏎">
   </div>
   <div id="band"></div>
 </div>

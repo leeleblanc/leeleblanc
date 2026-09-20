@@ -353,7 +353,7 @@ function M.setup(core)
     <span><b>!</b> task</span><span><b>?</b> note</span>
     <span>no prefix = Log · closing files everything</span>
   </div>
-  <textarea id="t" placeholder="One entry per line. * idea · + log · ! task · ? note — plain lines are Logs."
+  <textarea id="t" spellcheck="false" autocorrect="off" placeholder="One entry per line. * idea · + log · ! task · ? note — plain lines are Logs."
             autofocus>]] .. escapeHtml(np.draft) .. [[</textarea>
   <div class="bar">
     <button class="go" onclick="fileIt()">File it all &nbsp;⌘⏎</button>

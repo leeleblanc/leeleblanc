@@ -240,11 +240,40 @@ _G.asanaCustomFields = {
     { gid = "F9", name = "Some Formula", subtype = "formula", options = {} },
 }
 _G.taskFormShow()
+-- 🧪 ASK THE TAG, NOT THE ADJACENCY (6.263.0). These four read
+-- `id="sd" type="date"` as one literal string, so adding ANY attribute
+-- between them failed a check that has nothing to say about attribute
+-- order — which is what happened the day every box in this config
+-- stopped asking macOS to spell-check it. `tagWith` pulls out the one
+-- <...> that carries the id and asks THAT for the type, which is the
+-- thing the check was always about.
+local function tagWith(html, needle)
+    local at = html and html:find(needle, 1, true)
+    if not at then return nil end
+    local open = html:sub(1, at):match(".*()<")
+    local shut = html:find(">", at, true)
+    if not (open and shut) then return nil end
+    return html:sub(open, shut)
+end
+local function tagHas(html, needle, want)
+    local t = tagWith(html, needle)
+    return t ~= nil and t:find(want, 1, true) ~= nil
+end
 check("the schedule is on the page: date AND time inputs for both ends",
-      LAST_HTML:find('id="sd" type="date"', 1, true) ~= nil
-      and LAST_HTML:find('id="st" type="time"', 1, true) ~= nil
-      and LAST_HTML:find('id="ed" type="date"', 1, true) ~= nil
-      and LAST_HTML:find('id="et" type="time"', 1, true) ~= nil)
+      tagHas(LAST_HTML, 'id="sd"', 'type="date"')
+      and tagHas(LAST_HTML, 'id="st"', 'type="time"')
+      and tagHas(LAST_HTML, 'id="ed"', 'type="date"')
+      and tagHas(LAST_HTML, 'id="et"', 'type="time"'))
+check("✏️ …and every one of this form's boxes refuses macOS's spell "
+      .. "checker — its correction panel aborted the process on 2026-09-19",
+      (function()
+          for _, id in ipairs({ 'id="sd"', 'id="st"', 'id="ed"', 'id="et"',
+                                'id="title"', 'id="desc"', 'id="assignee"',
+                                'id="attach"' }) do
+              if not tagHas(LAST_HTML, id, 'spellcheck="false"') then return false, id end
+          end
+          return true
+      end)())
 check("each project field renders under its own permanent label",
       LAST_HTML:find("Task Priority:", 1, true) ~= nil
       and LAST_HTML:find("SAC Values:", 1, true) ~= nil
@@ -259,8 +288,8 @@ check("🚨 6.153.0 — a multi_enum renders as CHECKBOX CHIPS, and the old "
       LAST_HTML:find('class="cf chips" data-gid="F2"', 1, true) ~= nil
       and LAST_HTML:find("multiple", 1, true) == nil)
 check("…each option is one labelled chip carrying its Asana gid",
-      LAST_HTML:find('<label class="chip"><input type="checkbox" value="M1"',
-                     1, true) ~= nil)
+      LAST_HTML:find('<label class="chip"><input', 1, true) ~= nil
+      and tagHas(LAST_HTML, 'value="M1"', 'type="checkbox"'))
 check("a people field types against the same team datalist as Assignee",
       LAST_HTML:find('data-gid="F3" list="team"', 1, true) ~= nil)
 check("an unsupported subtype is SKIPPED whole, not half-drawn",

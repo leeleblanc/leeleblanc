@@ -2034,6 +2034,156 @@ do
           init:find("function _G.screenReport()", 1, true) ~= nil)
 end
 
+-- =====================================================================
+-- ✏️ NO PAGE THIS CONFIG DRAWS ASKS macOS TO SPELL-CHECK IT (6.263.0)
+-- =====================================================================
+-- LL's 15:58:26 crash report, 2026-09-19. macOS's OWN "did you mean"
+-- correction bubble threw an uncaught Objective-C exception inside one
+-- of our webviews and aborted the process:
+--
+--   WebKit::WebPageProxy::showCorrectionPanel
+--     -> -[NSSpellChecker showCorrectionIndicatorOfType:...]
+--       -> -[NSCorrectionPanel showPanelAtRect:inView:...]
+--         -> NSPerformVisuallyAtomicChange   <- throws, nobody catches
+--
+-- The throwing code is Apple's. THE SURFACE IS OURS: a <textarea> or a
+-- text <input> asks for text checking BY DEFAULT, so every box in every
+-- page we draw had it on — and the vault's note editor, the biggest one,
+-- had spellcheck="true" written in by hand.
+--
+-- 🔑 IT COSTS HIM NOTHING, which is why this is a deletion and not a
+-- trade: THIS CONFIG ALREADY CORRECTS HIS TYPING (modules/autocorrect.lua
+-- runs over these boxes through the tap like any other app's). Two
+-- correctors on one field was the state before, and one of them was a
+-- beta-OS panel that ends the process.
+--
+-- 🚨 THE SENTRY READS THE CLASS, NOT THE EIGHT BOXES. Fixing twenty-two
+-- tags is worth one release; a NEW input added in six months brings the
+-- panel straight back, and nothing functional would notice — the page
+-- looks identical until macOS decides to correct a word. So the gate
+-- walks every module and core file and fails on ANY text-entry tag that
+-- does not carry the attribute, which is the only form of this fix that
+-- stays fixed. (6.218.0's injection sentry and test_scratch_pad's rename
+-- sentry are the same shape: the functional check cannot see it.)
+-- =====================================================================
+do
+    -- PURE given a source string: every text-entry tag that does NOT
+    -- carry spellcheck="false" within the attributes that follow it.
+    -- A WINDOW, not "somewhere in the file" — a file with one correct
+    -- box and one bare one must fail, and a `spellcheck="false"` sitting
+    -- in a comment two hundred lines away must not excuse anything.
+    -- 🚨 THE WINDOW ENDS AT THIS TAG'S OWN `>`. The first version of this
+    -- sentry read a flat 200 characters and PASSED the mutation it exists
+    -- to catch: ⇪T's form stacks eight fields within a few lines, so a
+    -- covered neighbour sat inside the bare field's window and excused it.
+    -- A check about one tag that can be satisfied by a different tag is
+    -- not a check about that tag — 6.221.0's rule, and the fixture that
+    -- bites is two ADJACENT boxes where only the second is covered.
+    local function offenders(src)
+        local out = {}
+        for _, tag in ipairs({ "<textarea", "<input" }) do
+            local i = 1
+            while true do
+                local a = src:find(tag, i, true)
+                if not a then break end
+                local shut = src:find(">", a, true)
+                -- these tags are built by Lua concatenation, so a `>` may
+                -- be a line or two away; 200 is the floor to stop a
+                -- runaway, never the measure.
+                local last = math.min(shut or (a + 199), a + 199)
+                local win = src:sub(a, last)
+                if not win:find('spellcheck="false"', 1, true) then
+                    out[#out + 1] = src:sub(a, a + 70):gsub("\n", " ")
+                end
+                i = a + 1
+            end
+        end
+        return out
+    end
+
+    -- 🧪 THE SENTRY BITES BEFORE IT IS TRUSTED. A check that a scanner
+    -- found nothing is not a check that the scanner works — 6.197.2's
+    -- rule, and the fixture whose wanted rows come first.
+    check("✏️ the spell-check sentry catches a bare textarea",
+          #offenders('<textarea id="x" autofocus>') == 1)
+    check("✏️ ...and a bare text input", #offenders('<input id="q">') == 1)
+    check("✏️ ...and passes one that is covered",
+          #offenders('<input id="q" spellcheck="false" autocorrect="off">') == 0)
+    check("✏️ ...and a covered box does NOT excuse a bare one in the same "
+          .. "file — the window is per TAG",
+          #offenders('<input id="a" spellcheck="false">\n<input id="b">') == 1)
+    check("✏️ ...and the attribute must be inside THIS tag's window, not "
+          .. "two hundred characters of unrelated page away",
+          #offenders('<input id="a">' .. string.rep("x", 260)
+                     .. 'spellcheck="false"') == 1)
+    -- 🚨 THE ROW THAT CAUGHT THE FIRST SENTRY BEING WRONG. ⇪T's form is
+    -- eight fields in a dozen lines; with a flat window the NEXT field's
+    -- attribute covered for the bare one and the mutation passed.
+    check("🚨 ✏️ ...and a COVERED NEIGHBOUR does not cover for a bare box "
+          .. "beside it — the window stops at this tag's own >",
+          #offenders('<input id="a" value="x">'
+                     .. '<input id="b" spellcheck="false" value="y">') == 1)
+    check("✏️ ...and both covered is still clean",
+          #offenders('<input id="a" spellcheck="false" value="x">'
+                     .. '<input id="b" spellcheck="false" value="y">') == 0)
+
+    local files, seen = {}, 0
+    do
+        local p = io.popen('ls "' .. HS .. '"/modules/*.lua "' .. HS
+                           .. '"/core/*.lua 2>/dev/null')
+        if p then
+            for line in p:lines() do files[#files + 1] = line end
+            p:close()
+        end
+    end
+    check("✏️ the sentry has files to read (without them it proves nothing)",
+          #files >= 40, #files)
+
+    local bad = {}
+    for _, path in ipairs(files) do
+        local f = io.open(path, "r")
+        local src = f and f:read("*a") or ""
+        if f then f:close() end
+        for _, tag in ipairs({ "<textarea", "<input" }) do
+            local i = 1
+            while true do
+                local a = src:find(tag, i, true)
+                if not a then break end
+                seen = seen + 1
+                i = a + 1
+            end
+        end
+        for _, o in ipairs(offenders(src)) do
+            bad[#bad + 1] = path:match("[^/]+$") .. ": " .. o
+        end
+    end
+
+    check("✏️ the sentry really found the text boxes — if this is zero it "
+          .. "is passing over an empty set", seen >= 20, seen)
+    check("🚨 ✏️ NO <textarea> OR <input> IN ANY PAGE THIS CONFIG DRAWS IS "
+          .. "LEFT FOR macOS TO SPELL-CHECK — its correction panel threw "
+          .. "an uncaught exception in one of these boxes and killed "
+          .. "Hammerspoon (his .ips, 2026-09-19 15:58:26)",
+          #bad == 0, #bad .. " uncovered: " .. table.concat(bad, " | "))
+
+    -- 🚨 THE ONE THAT WAS DELIBERATELY ON. Every other box merely
+    -- defaulted to checked; the vault's note editor said spellcheck="true"
+    -- in so many words, and it is the box he types paragraphs into. A
+    -- future edit that restores it is the crash coming back, so it gets
+    -- its own row rather than hiding inside the count above.
+    do
+        local f = io.open(HS .. "/modules/vault.lua", "r")
+        local src = f and f:read("*a") or ""
+        if f then f:close() end
+        check("🚨 ✏️ the vault's note editor no longer asks to be "
+              .. "spell-checked — it is the only box that said so by hand, "
+              .. "and it is the one he types into",
+              src:find('spellcheck="true"', 1, true) == nil)
+        check("✏️ ...and it is covered, not merely un-true'd",
+              src:find('<textarea id="t" spellcheck="false"', 1, true) ~= nil)
+    end
+end
+
 realPrint(table.concat(printed, "\n"))
 out("\n")
 if fail > 0 then

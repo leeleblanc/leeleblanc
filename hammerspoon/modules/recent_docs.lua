@@ -706,7 +706,7 @@ scan M "$modq"
 </style></head><body>
 <div id="bar"><span class="ttl">📂 Recent Documents</span>
 <span class="hint">drag here · ⏎ open · ⌘⏎ reveal · ⌥⏎ path · ⌘1–9 · Esc</span></div>
-<input id="q" placeholder="Search recent documents — name, folder, date, extension · a @tag pins one type">
+<input id="q" spellcheck="false" autocorrect="off" placeholder="Search recent documents — name, folder, date, extension · a @tag pins one type">
 <div id="count"></div>
 <div id="list"></div>
 <script>

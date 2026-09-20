@@ -5,6 +5,95 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.263.0 — ✏️ NO PAGE THIS CONFIG DRAWS ASKS macOS TO SPELL-CHECK IT
+  (modules/capture_pad.lua, note_pad.lua, ocr_engine.lua, recent_docs.lua,
+   scratch_pad.lua, screenshot_editor.lua, task_form.lua,
+   unified_search.lua, vault.lua — one attribute each; the rule lives in
+   tests/test_integration.lua):
+
+  LL asked twice for the crash reports and then sent them, and they named
+  something neither of us expected. NEITHER CRASH IS ⇪⇧U. Neither has a
+  single Lua, LuaSkin, NSTask or hs.task frame on it — on any of the 36
+  threads across the two files. Both are uncaught Objective-C exceptions
+  (EXC_CRASH / SIGABRT, "abort() called", through Hammerspoon's OWN
+  SentryCrash handler) on macOS 27.0 beta, build 26A5388g.
+
+  The 15:08:27 one is Apple's alone: AppKit connecting the app's own menu
+  bar status-item scene —
+
+    -[NSStatusItemVariantSceneDelegate scene:willConnectToSession:]
+      -> -[NSSceneStatusItem _wakeStatusItem]
+        -> orderWindowFrontInAppKitOnly -> _doWindowWillBeVisibleAsSheet:
+          -> -[NSRemoteView containingWindowWillOrderOnScreen:]  <- throws
+
+  Nothing of ours is on that stack and nothing of ours can be. It has no
+  fix from here and this release does not pretend to be one.
+
+  THE 15:58:26 ONE IS THIS RELEASE, and it is the half that sits on a
+  surface we own:
+
+    WebKit::WebPageProxy::showCorrectionPanel
+      -> -[NSSpellChecker showCorrectionIndicatorOfType:...]
+        -> -[NSCorrectionPanel showPanelAtRect:inView:...]
+          -> NSPerformVisuallyAtomicChange  <- throws, nobody catches it
+
+  That is macOS's own "did you mean" bubble, inside one of our webviews,
+  aborting the process while he typed. The throwing code is Apple's. The
+  surface is ours: a <textarea> or a text <input> asks to be text-checked
+  BY DEFAULT, so every box in every page this config draws had it on —
+  and the vault's note editor, the one he writes paragraphs in, said
+  spellcheck="true" in so many words rather than merely defaulting to it.
+
+  🔑 IT COSTS HIM NOTHING, WHICH IS WHY THIS IS A REMOVAL AND NOT A TRADE.
+  This config already corrects his typing in those boxes: autocorrect.lua
+  runs over a webview through the tap like any other app. Two correctors
+  on one field was the state before, and one of them was a beta-OS panel
+  that ends the process. What he loses is the red squiggle, which he has
+  never asked for and which no rule here has ever promised.
+
+  🚨 THE SENTRY READS THE CLASS, NOT THE TWENTY-TWO TAGS. Fixing the boxes
+  is worth one evening; a NEW input added in six months brings the panel
+  straight back, and NOTHING FUNCTIONAL WOULD NOTICE — the page looks
+  identical until macOS decides to correct a word, which is the same
+  reason 6.218.0's injection guard and test_scratch_pad's rename sentry
+  read source rather than behaviour. test_integration walks every file in
+  modules/ and core/ and fails on any <textarea> or <input> that does not
+  carry spellcheck="false".
+
+  🚨 AND THE FIRST VERSION OF THAT SENTRY PASSED THE MUTATION IT EXISTS TO
+  CATCH. It read a flat 200-character window after each tag; ⇪T's task
+  form stacks eight fields inside a dozen lines, so the NEXT field's
+  attribute sat inside the bare field's window and excused it — a check
+  about one tag satisfied by a different tag (6.221.0's rule, in a
+  scanner). The window stops at the tag's own `>` now, and the fixture
+  that bites is two ADJACENT boxes where only the second is covered.
+  Seven mutations, one per page, seven bites.
+
+  🧪 THREE CHECKS ASSERTED ADJACENCY WHERE THEY MEANT STRUCTURE and went
+  red on an attribute inserted between two others: test_taskform read
+  `id="sd" type="date"` as one literal string (and the chip row the same
+  way), test_vault read `id="q" placeholder="filter notes… ⌘F" value=""`
+  as one. None of the three is about attribute ORDER. They pull the tag
+  carrying the id out of the page and ask THAT for the type or the value
+  now — which is what they were always about.
+
+  🧪 AND THE MUTATION HARNESS TRIED TO RESTORE WITH `git checkout`, which
+  reverted the release's own uncommitted work along with the mutation.
+  6.239.0's rule — a harness that edits the working tree verifies the
+  restore by SHA — caught it in the same minute rather than three hours
+  later, which is the entire reason that rule is written down.
+
+  📏 NO SWITCH BACK, stated rather than left as an omission. Its only
+  effect would be to re-arm a panel that aborts the process on his OS,
+  and a switch whose one function is to restore a crash is a trap, not a
+  setting. 6.254.0's "nothing is deleted, one settings line brings it
+  back" is right for a door and wrong for a loaded gun.
+
+  📏 NAMED, NOT FIXED: the menu-bar crash above. And macOS 27.0 is a BETA
+  — two aborts from inside AppKit in fifty minutes, in two unrelated
+  subsystems, is a fact about that OS as much as about anything here.
+    · 10,098 -> 10,111 checks over 79 stages · 72 modules.
+
 NEW IN 6.262.0 — 🚨 ⇪⇧U STEPS OFF ITS OWN CALLBACK (modules/anchors.lua):
   LL, after Hammerspoon went down: "Hammerspoon just crashed while I was
   using the Hyper+shift+U feature I think... I'm not sure." What he sent

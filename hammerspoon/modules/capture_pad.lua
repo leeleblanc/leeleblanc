@@ -1008,7 +1008,7 @@ function M.setup(core)
     .. escapeHtml(pad.sendAt) .. [[</span>
 </header>
 <div id="wrap">
-  <textarea id="t" placeholder="Type a note. Start with ! to force a task, ? to force a note."
+  <textarea id="t" spellcheck="false" autocorrect="off" placeholder="Type a note. Start with ! to force a task, ? to force a note."
             autofocus>]] .. escapeHtml(pad.draft) .. [[</textarea>
   <div id="thumbs">]] .. table.concat(thumbs) .. [[</div>
   <div class="bar">

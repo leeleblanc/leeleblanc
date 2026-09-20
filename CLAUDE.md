@@ -20,7 +20,38 @@ work Mac.
   `snippets/` stays gitignored (output + any private extras) and delivered
   zips carry ONLY `snippets/bundled.lua`. textpanders (real addresses, a
   phone number, an employee ID) lives in LL's OneDrive snippets folder —
-  never in the repo, never in a zip. Release zips are never committed.
+  never in the repo, never in a zip.
+- 📦 A ZIP IS NOT SHIPPED UNTIL HE CAN OPEN IT, AND IT IS VERIFIED BEFORE
+  IT IS SENT (6.263.0, LL: "The zip is empty again. Why is that
+  happening?" — twice now, 6.260.0 and 6.262.0). BUILDING IS NOT
+  DELIVERING AND DELIVERING IS NOT ARRIVING; a release he cannot unpack
+  is a release that did not ship, however green the gate was. THE ORDER,
+  every time, no step skipped:
+  1. Build to `/tmp/pkg` by the recipe in repo-root `.gitignore`, run
+     `tools/run-tests.sh` from INSIDE it, zip at the repo root.
+  2. 🔍 VERIFY THE ARTEFACT, never the intention: `unzip -t` (integrity),
+     `unzip -l | tail -1` (entry count and bytes), and `init.lua` present
+     AT THE ROOT carrying THIS release's version stamp — unzip it to a
+     scratch folder and grep line 7. A zip built from a stale `/tmp/pkg`
+     is the failure mode that looks exactly like success.
+  3. 📣 SAY THE NUMBERS IN THE MESSAGE — entry count, megabytes, the
+     version grepped out of the unpacked init.lua. That turns "it's
+     empty" from a mood into an artefact: if he opens it and sees none of
+     what was named, the TRANSPORT dropped it and nothing about the build
+     is in question. Without the numbers there is no way to tell a bad
+     build from a bad delivery, which is why this went two rounds.
+  4. 🗂 THE ZIP IS COMMITTED. This reverses "release zips are never
+     committed", on evidence: it has been delivered twice with the file
+     untracked — once gitignored, once un-ignored — and both times he got
+     nothing openable. Tracked is the one variable never tried, and repo
+     tidiness does not outrank him being able to install the release.
+     ONE AT A TIME: the previous release's zip is deleted in the same
+     commit, so the working tree carries exactly one. COST, NAMED, and it
+     is real: git history keeps every blob for ever, so this is ~3 MB per
+     release that never comes back. That is the price of a delivery that
+     works. IF A COMMITTED ZIP STILL ARRIVES EMPTY, the cause is not git
+     and the next thing to change is the format — say so rather than
+     shipping a third identical attempt.
 - Backups copy only `~/.ssh/config` — never the keys beside it, never the
   Keychain. daily_backup excludes `secret.lua` and `applock.json` from every
   rsync.
@@ -1484,6 +1515,34 @@ uncaught-exception handler — on macOS 27.0 BETA (26A5388g).
   error and can never reach them — which is why this lives outside")
   extends to this whole class, and the outside instrument here is the
   `.ips`, which is why 6.197.0 backs it up. Ask for it FIRST.
+✏️ 6.263.0 — AND NO PAGE THIS CONFIG DRAWS ASKS macOS TO SPELL-CHECK IT
+(nine modules, one attribute each; the rule lives in test_integration).
+The 15:58 crash above is Apple's code on OUR surface: a `<textarea>` or a
+text `<input>` asks to be text-checked BY DEFAULT, so every box in every
+page here had it on, and vault.lua's note editor — the one he writes
+paragraphs in — said `spellcheck="true"` outright. 🔑 IT COSTS HIM
+NOTHING, which is what makes it a removal rather than a trade:
+autocorrect.lua already corrects his typing in those boxes through the
+tap, so two correctors were running on one field and one of them ends the
+process. What goes is the red squiggle, which no rule here ever promised.
+🚨 THE SENTRY READS THE CLASS, NOT THE TWENTY-TWO TAGS — a new input
+added in six months brings the panel back and NOTHING FUNCTIONAL WOULD
+NOTICE, because the page looks identical until macOS decides to correct a
+word. Every file in modules/ and core/ is walked; any text-entry tag
+without the attribute fails the gate. 🚨 AND THE FIRST SENTRY PASSED ITS
+OWN MUTATION: a flat 200-character window let ⇪T's NEXT form field cover
+for a bare one — a check about one tag satisfied by a different tag
+(6.221.0, in a scanner). The window stops at the tag's own `>`, and the
+fixture that bites is two ADJACENT boxes where only the second is
+covered. GENERAL: a scanner with a fixed-width window is a scanner that
+can be satisfied by its neighbour — end the window at the thing's own
+boundary. 🧪 AND THREE CHECKS ASSERTED ADJACENCY WHERE THEY MEANT
+STRUCTURE (`id="sd" type="date"` as one literal string) and went red on
+an attribute inserted between two others; they pull out the tag carrying
+the id and ask THAT for the type now. 📏 NO SWITCH BACK, and that is
+stated rather than omitted: its only effect would be to re-arm a panel
+that aborts the process, and 6.254.0's "one settings line brings it back"
+is right for a door and wrong for a loaded gun.
 🧪 AND THE GATE'S ONE WALL-CLOCK SUITE WAS PUT ON FIRM GROUND in the
 same release, because it is what held 6.261.0's zip back: one package
 gate run read `9993 checks (partial) · 1 stage failed` and every run
@@ -2455,9 +2514,10 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
+| 6.263.0 | ✏️ no box in any page this config draws asks macOS to spell-check it — its correction panel threw an uncaught exception inside one of our webviews and aborted the process (his own `.ips`) | pending |
 | 6.262.0 | 🚨 ⇪⇧U no longer starts a task from inside another task's callback — the 6.196.1 use-after-free, twice, on the key he named | pending — and his two `.ips` files say it is NOT his crash: both are uncaught ObjC exceptions in Apple's code on macOS 27 beta (the menu-bar status-item scene; macOS's correction bubble in one of our webviews), with no Lua frame anywhere. The fix is real and stays; it is not the answer to what he saw |
 
-Running total: 15 wins · 8 losses · 45 pending — every release from
+Running total: 15 wins · 8 losses · 46 pending — every release from
 6.215.0 on except the fifteen wins and eight losses named in the table
 above. (The enumeration that used to sit here stopped at 6.239.0 and was
 seventeen releases stale, which is a scoreboard that cannot be read;
@@ -2943,6 +3003,40 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.263.0 verify with LL — ✏️ macOS STOPS CORRECTING INSIDE OUR WINDOWS
+  (KNOWN GROUND): install (carries 6.262.0). THE TEST IS A MISSPELLING:
+  open ⇪N (Hamsidian), type `teh recieve seperate` and look at it. NO RED
+  SQUIGGLES, and — the part that matters — NO "did you mean" bubble pops
+  up over the text. Same in ⇪3's note editor, ⇪T's Title and Description,
+  ⇪D's search box, ⇪⇧V's edit window, the screenshot editor's text tool.
+  🚨 OUR OWN CORRECTIONS MUST STILL WORK, and that is the check that says
+  this took the right thing away: in CHROME (not in our window) type
+  `teh ` — it still becomes `the `. This config's autocorrect is a
+  keyboard tap and is untouched; what is gone is macOS's second opinion
+  inside our own boxes.
+  🔎 WHAT THIS WAS, and it is your own crash report that said it: your
+  15:58:26 `.ips` ends in `NSCorrectionPanel` — macOS's correction bubble
+  threw an exception nobody caught, inside one of our webviews, and
+  killed the process. Apple's code; our surface. Every text box we draw
+  had asked to be spell-checked, by default, since the day it was
+  written, and the vault's note editor asked for it in writing.
+  📏 WHAT YOU LOSE, so it is not a surprise in a week: the red squiggle
+  under a misspelled word in OUR windows. Nowhere else — Chrome, Mail,
+  Word and Asana are untouched.
+  📏 AND THERE IS NO SWITCH TO TURN IT BACK ON. That is deliberate and
+  it is the one place I have not given you a settings line: the only
+  thing it could do is re-arm a panel that aborts Hammerspoon on your OS.
+  If you decide you want the squiggle back anyway, say so and it is one
+  line — but I will not leave a switch lying there whose sole effect is
+  the crash you just sent me.
+  🚨 THE OTHER CRASH IS NOT FIXED AND CANNOT BE FROM HERE. Your 15:08:27
+  one is AppKit connecting its own menu bar status item, with nothing of
+  ours anywhere on the stack. If Hammerspoon vanishes again, send the
+  `.ips` — if it ends in `NSStatusItem` that is the same Apple bug and
+  the answer is macOS, not this config. You are on a BETA (macOS 27.0,
+  26A5388g), and two aborts from inside AppKit in fifty minutes in two
+  unrelated subsystems is a fact about that build.
+
 - 6.262.0 verify with LL — 🚨 ⇪⇧U AFTER THE CRASH (KNOWN GROUND for the
   code, and honest about the rest): install (carries 6.261.0). Use ⇪⇧U
   the way you were using it — and the case that matters is a document or

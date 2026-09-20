@@ -203,7 +203,7 @@ function M.setup(core)
                 local o = { '<div class="cf chips" data-gid="'
                             .. escapeHtml(f.gid) .. '">' }
                 for _, opt in ipairs(f.options or {}) do
-                    o[#o + 1] = '<label class="chip"><input type="checkbox" value="'
+                    o[#o + 1] = '<label class="chip"><input spellcheck="false" autocorrect="off" type="checkbox" value="'
                                 .. escapeHtml(opt.gid) .. '"'
                                 .. (sel[opt.gid] and " checked" or "") .. '>'
                                 .. escapeHtml(opt.name) .. '</label>'
@@ -211,12 +211,12 @@ function M.setup(core)
                 o[#o + 1] = '</div></div>'
                 cfRows[#cfRows + 1] = label .. table.concat(o)
             elseif f.subtype == "people" then
-                cfRows[#cfRows + 1] = label .. '<input class="cf" data-gid="'
+                cfRows[#cfRows + 1] = label .. '<input spellcheck="false" autocorrect="off" class="cf" data-gid="'
                     .. escapeHtml(f.gid) .. '" list="team" value="'
                     .. escapeHtml(type(cur) == "string" and cur or "")
                     .. '" placeholder="name or email — optional"></div>'
             elseif f.subtype == "number" or f.subtype == "text" then
-                cfRows[#cfRows + 1] = label .. '<input class="cf"'
+                cfRows[#cfRows + 1] = label .. '<input spellcheck="false" autocorrect="off" class="cf"'
                     .. (f.subtype == "number" and ' type="number"' or "")
                     .. ' data-gid="' .. escapeHtml(f.gid) .. '" value="'
                     .. escapeHtml(type(cur) ~= "table" and cur or "")
@@ -240,11 +240,11 @@ function M.setup(core)
         local detailsHtml = [[
   <div class="sect">Schedule — optional (a start needs an end)</div>
   <div class="row"><label for="sd">Start:</label>
-    <input id="sd" type="date" value="]] .. escapeHtml(d.startDate) .. [[">
-    <input id="st" type="time" value="]] .. escapeHtml(d.startTime) .. [["></div>
+    <input id="sd" spellcheck="false" autocorrect="off" type="date" value="]] .. escapeHtml(d.startDate) .. [[">
+    <input id="st" spellcheck="false" autocorrect="off" type="time" value="]] .. escapeHtml(d.startTime) .. [["></div>
   <div class="row"><label for="ed">End:</label>
-    <input id="ed" type="date" value="]] .. escapeHtml(d.dueDate) .. [[">
-    <input id="et" type="time" value="]] .. escapeHtml(d.dueTime) .. [["></div>
+    <input id="ed" spellcheck="false" autocorrect="off" type="date" value="]] .. escapeHtml(d.dueDate) .. [[">
+    <input id="et" spellcheck="false" autocorrect="off" type="time" value="]] .. escapeHtml(d.dueTime) .. [["></div>
   <div class="sect full">Project fields — optional</div>
 ]] .. cfHtml
 
@@ -330,16 +330,16 @@ function M.setup(core)
 </header>
 <div id="wrap">
   <div class="row"><label for="title">Title:</label>
-    <input id="title" value="]] .. escapeHtml(d.title) .. [[" autofocus></div>
+    <input id="title" spellcheck="false" autocorrect="off" value="]] .. escapeHtml(d.title) .. [[" autofocus></div>
   <div class="row"><label for="desc">Description:</label>
-    <textarea id="desc" placeholder="optional — ⌥⏎ for a new line">]]
+    <textarea id="desc" spellcheck="false" autocorrect="off" placeholder="optional — ⌥⏎ for a new line">]]
       .. escapeHtml(d.desc) .. [[</textarea></div>
   <div class="row"><label for="assignee">Assignee:</label>
-    <input id="assignee" list="team" value="]] .. escapeHtml(d.assignee)
+    <input id="assignee" spellcheck="false" autocorrect="off" list="team" value="]] .. escapeHtml(d.assignee)
       .. [[" placeholder="name, email, GID, or “me”"></div>
   <datalist id="team">]] .. table.concat(opts) .. [[</datalist>
   <div class="row"><label for="attach">Attachment:</label>
-    <input id="attach" value="]] .. escapeHtml(d.attach)
+    <input id="attach" spellcheck="false" autocorrect="off" value="]] .. escapeHtml(d.attach)
       .. [[" placeholder="/path/to/file — or use the 📸 button">
     <span class="after"><button type="button" onclick="say({a:'latest'})"
       title="Newest file from the ⇪4 screenshots folder (⌘L)">📸 newest</button></span></div>

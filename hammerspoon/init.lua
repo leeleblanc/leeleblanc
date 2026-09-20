@@ -2,11 +2,46 @@
 -- * Working VERSION *
 -- =====================================================================
 -- =====================================================================
--- 09-19-26 using Claude          ← EDITED date. Bumped with every release.
+-- 09-20-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.262.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.263.0
 -- =====================================================================
 
+-- NEW IN 6.263.0 — ✏️ NO PAGE THIS CONFIG DRAWS ASKS macOS TO
+--   SPELL-CHECK IT (nine modules, one attribute each):
+--   LL sent the two crash reports and they named something else entirely.
+--      Neither is ⇪⇧U; neither has a line of Lua on it. The 15:58:26 one
+--      is macOS's OWN "did you mean" correction bubble, thrown inside one
+--      of our webviews and never caught:
+--        WebPageProxy::showCorrectionPanel -> NSSpellChecker
+--          -> NSCorrectionPanel -> NSPerformVisuallyAtomicChange -> throw
+--      Apple's code; OUR surface. A <textarea> or a text <input> asks to
+--      be text-checked BY DEFAULT, so every box in every page we draw had
+--      it on — and the vault's note editor, the one he writes paragraphs
+--      in, said spellcheck="true" in so many words.
+--   🔑 IT COSTS HIM NOTHING, which is why this is a removal and not a
+--      trade: modules/autocorrect.lua already corrects his typing in
+--      those boxes through the tap. Two correctors on one field was the
+--      state before, and one of them ends the process.
+--   🚨 THE SENTRY READS THE CLASS, NOT THE TWENTY-TWO TAGS. A new input
+--      added in six months brings the panel straight back and nothing
+--      functional would notice — the page looks identical until macOS
+--      decides to correct a word. test_integration walks every module and
+--      core file and fails on ANY text-entry tag without the attribute.
+--   🚨 AND THE FIRST SENTRY PASSED ITS OWN MUTATION: it read a flat
+--      200-character window, and ⇪T's form stacks eight fields in a dozen
+--      lines, so a covered NEIGHBOUR sat inside a bare field's window and
+--      excused it. The window stops at the tag's own `>` now, and the row
+--      that bites is two adjacent boxes where only the second is covered.
+--   🧪 THREE CHECKS ASSERTED ADJACENCY WHERE THEY MEANT STRUCTURE —
+--      `id="sd" type="date"` as one literal string — and failed on an
+--      attribute inserted between them. They pull out the tag carrying
+--      the id and ask THAT for the type now.
+--   📏 NO SWITCH BACK. Its only effect would be to re-arm a panel that
+--      aborts the process on his OS; that is a trap, not a setting.
+--      COST, NAMED: no red squiggle under a misspelling in Hamsidian.
+--        · 10,098 -> 10,111 checks · seven mutations, seven bites.
+--
 -- NEW IN 6.262.0 — 🚨 ⇪⇧U STEPS OFF ITS OWN CALLBACK (modules/
 --   anchors.lua): LL, after Hammerspoon went down: "Hammerspoon just
 --   crashed while I was using the Hyper+shift+U feature I think... I'm
@@ -46,42 +81,12 @@
 --      so the test was stopping a process that was not measuring yet.
 --        · 10,079 -> 10,098 checks · three mutations, thirteen bites.
 --
--- NEW IN 6.261.0 — 🗑 THE DIALOG HOME IS DELETED (modules/dialog_home.lua
---   and tests/test_dialog_home.lua, gone):
---   LL, with a photograph of the ⇪/ card the switched-OFF tool was still
---      drawing: "Remove this feature from future releases." 6.259.0 shut
---      the doors and left the room furnished — the card, the report, the
---      module and its 700 lines were all still here, announcing a tool
---      that does nothing. He asked for the room.
---   🗑 WHAT WENT: the module, its suite, its line in the §1.12 loader, its
---      ⇪/ card, `_G.dialogs()` and `_G.dialogHome`. A REMOVAL IS NOT A
---      SWITCH: there is no settings line that brings this back, and that
---      is the ask — 6.259.0 was the switch and he did not want one.
---   🔑 DELETED IN THE TREE IS NOT DELETED IN THE ARCHIVE. Every line is in
---      git at 6.260.0 (f16e286) and the whole story is in CHANGELOG.md, so
---      "remove it" costs nothing that cannot be rebuilt from a commit.
---      That is what the rollback ladder is for, and it is why a removal
---      never needs to be hedged with a flag nobody will ever set.
---   📏 NAMED, NOT SWEPT: the spot he once captured is still in hs.settings
---      under "dialogHome.pos" — a few bytes nothing reads now, because the
---      code that could clear it is the code being deleted.
---      `hs.settings.clear("dialogHome.pos")` removes it; it is inert
---      either way. A consequence you decide not to act on is one you are
---      obliged to name.
---   🧪 AND THE BAN SWEEP KEEPS ITS PIN: test_features asks six modules BY
---      NAME whether they reach for hs.window.filter, and dialog_home was
---      on that list because watching windows appear is the ban's textbook
---      temptation. mouse_follows inherits the slot — the same application
---      watcher plus AX observer shape, by its own header — so deleting a
---      module does not quietly retire the guard it was carrying.
---      · 10,151 -> 10,079 checks · 73 -> 72 modules · 73 -> 72 suites.
---
--- (6.260.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.261.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.262.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.263.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -178,7 +183,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.262.0"
+_G.configVersion = "6.263.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the

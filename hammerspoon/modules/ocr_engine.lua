@@ -1017,7 +1017,7 @@ function M.setup(core)
 [[</h1><div class="sub">]], esc(opts.sub), [[</div></header>
 <div id="wrap">
   <textarea id="t" rows="]], tostring(opts.rows or 16),
-            [[" spellcheck="false" placeholder="]],
+            [[" spellcheck="false" autocorrect="off" placeholder="]],
             esc(opts.placeholder or "The extracted text. Empty it to delete this entry."), [[">]],
             esc(opts.text), [[</textarea>
   <div class="bar">
