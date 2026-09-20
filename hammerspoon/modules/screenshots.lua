@@ -135,15 +135,15 @@ local M = {
     cheatsheet = {
         title = "📸 SCREENSHOTS (⇪4 area · every tool on its own key)",
         entries = {
-            { "⇪4",   "Area capture: crosshair · SPACE = window · Esc = cancel" },
+            { "⇪4",   "Area capture: drag on our selector, live size · Esc = cancel" },
             { "",     "saves to OneDrive/2026 Screenshots + copies to clipboard" },
             { "⇪⇧1",  "🖌 Blur / edit the newest screenshot" },
             { "⇪⇧2",  "🪟 Capture the active window — no clicking" },
             { "⇪⇧3",  "⏲ Delayed capture, full screen after the countdown" },
             { "⇪⇧4",  "🔤 Recognize text / QR — the words go to the clipboard" },
             { "⇪5",   "🧻 Scrolling capture (experimental) — best in browsers · the result is saved AND on the clipboard" },
-            { "📐 size", "⇪5 / “repeat area” / the editor's ⌘A show a LIVE 1280 × 720" },
-            { "",        "white on 90%-opaque black · ⇪4 keeps macOS's own HUD" },
+            { "📐 size", "⇪4 / ⇪5 / “repeat area” / the editor's ⌘A show a LIVE 1280 × 720" },
+            { "",        "white on 90%-opaque black · areaNative = true for macOS's" },
             { "check", "_G.screenshotsReport() — the folder, the watcher, and the last scrolling run slice by slice" },
             { "⇪⇧5",  "Panel: 9 actions (⌘1–⌘9) + history below · ⌘8 = BIG thumbnails" },
             { "🏷 names", "Every capture — ⇪4's AND other tools' SCR- files — gets" },
@@ -240,6 +240,13 @@ function M.setup(core)
     -- selector would give it one and would cost the native magnifier and
     -- SPACE-to-capture-a-window, which he never asked to pay — his call,
     -- and its own release.
+    -- 📐 6.264.0 — ⇪4 DRAGS ON OUR SELECTOR, so the live size readout
+    -- appears on the key he actually presses. LL, on 6.260.0: "The
+    -- screenshot crosshairs, yes I get it that's Mac, but I wanted a
+    -- visual that shows the pixels measurements better." 6.260.0 named
+    -- this as his call and its own release; this is him making it.
+    -- true here goes back to `screencapture -i` and macOS's own HUD.
+    shots.areaNative   = false
     shots.sizeReadout  = true    -- the live W × H while you drag
     shots.sizeAlpha    = 0.9     -- the black box: "90 %-opaque" == "10% translucent"
     shots.sizeFontSize = 15
@@ -505,24 +512,80 @@ function M.setup(core)
         return false
     end
 
+    -- ⇪4, and the "📐 Capture area" row of the ⇪⇧5 panel — ONE function,
+    -- two callers, so the key and its panel row cannot come to mean
+    -- different things (6.194.0's rule about shots.toolKeys, here in the
+    -- one action that pre-dates it).
     function shots.capture(thenEdit)
         if not shots.ensureDir() then return end
+        local started, why
+        if not shots.areaNative then
+            -- 🚨 READ THREE VALUES (6.179.0). selectArea answers
+            -- false, why since 6.264.0, and reading two would make a
+            -- refusal look like a successful start — ⇪4 would then do
+            -- nothing at all, which is the one outcome worse than
+            -- keeping macOS's HUD.
+            local ok, a, b = pcall(shots.selectArea, function(rect)
+                shots.captureRect(rect, thenEdit, true)
+            end)
+            if ok then started, why = a, b
+            else started, why = false, "the selector threw: " .. tostring(a) end
+        end
+        local how, note = shots.areaPlan(shots.areaNative, started, why)
+        local at = 0
+        pcall(function() at = hs.timer.secondsSinceEpoch() end)
+        shots.areaLast = { how = how, why = note, at = at }
+        -- 🔔 A DEGRADE IS SEEN, NEVER ONLY LOGGED (6.215.0) — but only
+        -- when it IS one: his own settings line choosing the native
+        -- crosshair is a decision, not a fault, so it never alerts.
+        if how == "native" and not shots.areaNative then
+            if type(core.degrade) == "function" then
+                pcall(core.degrade, "Screenshot area selector", note)
+            end
+        end
+        if how == "ours" then return true end
         local path = freshPath()
         shots.runCapture({ "-i", path }, path, thenEdit)
+        return true
     end
 
     -- Panel action 5 — the exact same rectangle again. The rect comes
     -- from our own selector (native -i cannot report where you dragged),
     -- is remembered for the session, and -R re-shoots it on demand.
-    function shots.captureRect(rect, thenEdit)
+    -- `withSound` is 6.264.0 and it exists to keep a SWAP faithful rather
+    -- than to add anything: this path has always passed -x (silent),
+    -- which is right for "repeat that rectangle" and wrong for ⇪4, where
+    -- the shutter has been the confirmation since the day it was bound.
+    -- Swapping one crosshair for another must not quietly also remove a
+    -- sound. Existing callers pass nothing and are unchanged.
+    function shots.captureRect(rect, thenEdit, withSound)
         if not shots.ensureDir() then return end
         local path = freshPath()
         shots.lastRect = rect
-        shots.runCapture({
-            "-x",
-            ("-R%d,%d,%d,%d"):format(rect.x, rect.y, rect.w, rect.h),
-            path,
-        }, path, thenEdit)
+        local args = {}
+        if not withSound then args[#args + 1] = "-x" end
+        args[#args + 1] = ("-R%d,%d,%d,%d"):format(rect.x, rect.y, rect.w, rect.h)
+        args[#args + 1] = path
+        shots.runCapture(args, path, thenEdit)
+    end
+
+    -- 📐 6.264.0 — WHICH CROSSHAIR, PURE, and it answers WHY as well as
+    -- which, because ⇪4 looking unchanged has three different causes and
+    -- a report that cannot tell them apart is the 6.196.1 failure again:
+    -- he asked for it (his settings line) · this Mac could not draw ours
+    -- (a real degrade) · it is ours and working. Three branches, three
+    -- mutations. `started` is only ever consulted when we actually tried.
+    function shots.areaPlan(native, started, why)
+        if native then
+            return "native", "macOS's own crosshair and HUD — your settings line "
+                   .. "asked for it (screenshots = { areaNative = true })"
+        end
+        if started == false then
+            return "native", "our selector could not start ("
+                   .. tostring(why or "no reason given")
+                   .. ") — macOS's crosshair instead, so ⇪4 still captures"
+        end
+        return "ours", "our selector, with the live size readout"
     end
 
     -- 📏 6.255.0 — THE VERDICT ON A CAPTURE, PURE: exit code, file size and
@@ -753,6 +816,15 @@ function M.setup(core)
                            why = why, at = os.time() }
     end
 
+    -- 📐 6.264.0 — IT ANSWERS WHETHER IT STARTED. Until now every failure
+    -- here was a bare `return`: no canvas, no screen, and the caller was
+    -- told nothing while the callback simply never fired. That was
+    -- survivable while the only callers were ⇪5 and the editor's ⌘A,
+    -- which have nowhere else to go — and it is not survivable now that
+    -- ⇪4 routes through here, because ⇪4 has somewhere very good to go
+    -- (macOS's own crosshair) and a key that silently captures nothing is
+    -- worse than a key that captures without our numbers on it.
+    -- true / false, why — read THREE values at the call site (6.179.0).
     function shots.selectArea(cb)
         shots.cancelSelect()
         local scr
@@ -763,14 +835,14 @@ function M.setup(core)
                       or hs.screen.mainScreen()
             end)
         end
-        if not scr then return end
+        if not scr then return false, "this Mac named no screen to draw on" end
         local sf
         pcall(function() sf = scr:frame() end)
-        if not sf then return end
+        if not sf then return false, "the screen would not give its frame" end
 
         local canvas
         pcall(function() canvas = hs.canvas.new(sf) end)
-        if not canvas then return end
+        if not canvas then return false, "hs.canvas would not make the selector" end
         canvas:appendElements(
             { type = "rectangle", action = "fill",
               fillColor = { black = 1, alpha = 0.18 } },
@@ -880,6 +952,7 @@ function M.setup(core)
             _G.showCanvasSafely(canvas, "area selector")
         end
         shots.selCanvas = canvas   -- HELD
+        shots.selStarted = true
 
         -- Esc = never mind. keyDown 53 is Escape; the callback is
         -- pcall'd and answers true (swallow) only for that one key.
@@ -908,6 +981,7 @@ function M.setup(core)
             shots.selTap:start()
         end)
         pcall(function() hs.alert.show("🖱 Drag an area · Esc cancels", 1.2) end)
+        return true
     end
 
     -- ---- scrolling capture (EXPERIMENTAL — see header) -------------------
@@ -1206,8 +1280,25 @@ function M.setup(core)
                         os.date("%H:%M:%S", shots.sizeLast.at))
                 or ("white on black at alpha " .. tostring(shots.sizeAlpha)
                     .. " · nothing dragged yet this session")))
-        L[#L + 1] = "             ↳ ⇪5, the editor's ⌘A and 'repeat area' drag on OUR "
-                    .. "selector · ⇪4 is macOS's own crosshair and keeps its HUD"
+        -- 📐 6.264.0 — the line under it used to end "⇪4 is macOS's own
+        -- crosshair and keeps its HUD". It is not, by default, any more.
+        L[#L + 1] = "             ↳ ⇪4, ⇪5, the editor's ⌘A and 'repeat area' all "
+                    .. "drag on OUR selector now"
+        -- 🔎 THREE STATES (6.196.1): ⇪4 looking unchanged is either his
+        -- own settings line or a Mac that could not draw ours, and those
+        -- are opposite facts. Never asked is a third.
+        L[#L + 1] = "   area    : " .. (
+            shots.areaLast
+                and ((shots.areaLast.how == "native" and not shots.areaNative
+                        and "⚠️ " or "")
+                     .. tostring(shots.areaLast.why)
+                     .. " · last pressed "
+                     .. os.date("%H:%M:%S", shots.areaLast.at))
+            or (shots.areaNative
+                    and "macOS's own crosshair — settings = { screenshots = "
+                        .. "{ areaNative = true } } · not pressed yet this session"
+                    or "our selector, with the live size readout · not pressed "
+                       .. "yet this session"))
         local r = shots.scrollLast
         if not r then
             L[#L + 1] = "   scroll  : never run this session (⇪5)"

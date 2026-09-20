@@ -5,6 +5,74 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.264.0 — 📐 ⇪4 DRAGS ON OUR OWN SELECTOR, SO IT CARRIES THE SIZE
+  (modules/screenshots.lua):
+
+  LL, having read 6.260.0's note that the numbers beside the crosshair
+  are macOS's and not ours: "The screenshot crosshairs, yes I get it
+  that's Mac, but I wanted a visual that shows the pixels measurements
+  better."
+
+  6.260.0 BUILT THE READOUT AND PUT IT WHERE HE COULD NOT SEE IT. It
+  draws on shots.selectArea — ⇪5, the editor's ⌘A, "repeat area" the
+  first time — and ⇪4, the key he actually presses for an area, was
+  `screencapture -i`: macOS's crosshair with macOS's HUD, which
+  Hammerspoon can neither restyle, move nor read. That release named
+  routing ⇪4 through our selector as HIS call and its own release,
+  because it costs the native magnifier and SPACE-to-capture-a-window.
+  This is him making it.
+
+  🔑 ONE FUNCTION, TWO CALLERS. ⇪4 and the ⇪⇧5 panel's "📐 Capture area"
+  row both go through shots.capture, so the key and its panel row cannot
+  come to mean different things — 6.194.0's rule about shots.toolKeys,
+  here in the one action that pre-dates that table.
+
+  🚨 IT DEGRADES, IT NEVER BREAKS — AND THE GATE DRIVES IT, WHICH IS THE
+  WHOLE STORY OF THIS RELEASE. shots.selectArea answers true / false, why
+  now; until today every failure inside it was a bare `return` with the
+  callback simply never firing, which was survivable while its only
+  callers had nowhere else to go. ⇪4 HAS SOMEWHERE VERY GOOD TO GO, so a
+  Mac that cannot draw our selector takes macOS's crosshair instead: a
+  ⇪4 that captures nothing is worse than a ⇪4 with Apple's HUD on it.
+
+  🧪 AND THE PURE CHECKS ALL PASSED WITH THE FALLBACK DISCONNECTED. Five
+  mutations bit; the sixth — selectArea back to a bare `return`, exactly
+  as it was before this release — passed every one of areaPlan's three
+  branch checks, because nothing drove shots.capture on a Mac without a
+  canvas. The check that closes it TAKES hs.canvas AWAY and presses the
+  key. GENERAL, and this project keeps re-learning it: proving a pure
+  decision function is not proving that anything CALLS it with the
+  values that matter.
+
+  🔎 THREE STATES, NEVER TWO (6.196.1). ⇪4 looking unchanged has two
+  opposite causes — his own settings line asked for the native crosshair,
+  or this Mac fell back to it — and they are indistinguishable on screen.
+  `_G.screenshotsReport()`'s new "area :" line puts a ⚠️ on the fallback
+  and never on the choice, and "not pressed yet" is the third.
+
+  🔔 A SWAP MUST NOT QUIETLY TAKE A SOUND AWAY. shots.captureRect has
+  always passed -x (silent), which is right for "repeat that rectangle"
+  and wrong for ⇪4, where the shutter has been the confirmation since the
+  day it was bound. It takes `withSound` now; every existing caller
+  passes nothing and is unchanged. Exchanging one crosshair for another
+  is not licence to also remove a sound he has heard for two years.
+
+  🎁 AND ⇪4 NOW FEEDS "repeat area" A RECTANGLE, which it never could:
+  macOS's -i cannot report where you dragged, so ⌘5 had nothing to repeat
+  after a ⇪4. That falls out of the change rather than being built.
+
+  📋 THE CHEAT SHEET MOVED IN THE SAME COMMIT, and one of its rows was a
+  promise this release breaks: the ⇪4 row offered "SPACE = window" (a
+  macOS feature of -i, gone here) and the 📐 row said "⇪4 keeps macOS's
+  own HUD". A stale key on the sheet IS a broken feature (6.181.0), and
+  the test that pinned the old sentence is what made anyone notice.
+
+  📏 COST, NAMED, because it is real and it is his to weigh: no native
+  magnifier and no SPACE-to-shoot-a-window on ⇪4 any more. One line puts
+  it back with no release — settings = { screenshots = { areaNative =
+  true } } — and the gate drives the switch in BOTH directions (6.259.0).
+    · 10,111 -> 10,134 checks over 79 stages · 72 modules.
+
 NEW IN 6.263.0 — ✏️ NO PAGE THIS CONFIG DRAWS ASKS macOS TO SPELL-CHECK IT
   (modules/capture_pad.lua, note_pad.lua, ocr_engine.lua, recent_docs.lua,
    scratch_pad.lua, screenshot_editor.lua, task_form.lua,

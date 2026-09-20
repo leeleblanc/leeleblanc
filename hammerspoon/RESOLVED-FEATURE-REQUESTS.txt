@@ -1,5 +1,5 @@
 ========================================================================
-RESOLVED FEATURE REQUESTS — Hammerspoon config 6.263.0
+RESOLVED FEATURE REQUESTS — Hammerspoon config 6.264.0
 Every feature and how to use it. Generated from the modules' own
 cheat sheets (the rows ⇪/ draws), so it is never out of date.
 ⇪ = Caps Lock held (the hyper key). ⇪⇧X = Caps Lock + Shift + X.
@@ -493,15 +493,15 @@ In the Console, _G.<tool>Report() prints any tool's own report.
 ------------------------------------------------------------------------
 
 📸 SCREENSHOTS (⇪4 area · every tool on its own key)   [modules/screenshots.lua]
-  ⇪4      Area capture: crosshair · SPACE = window · Esc = cancel
+  ⇪4      Area capture: drag on our selector, live size · Esc = cancel
             saves to OneDrive/2026 Screenshots + copies to clipboard
   ⇪⇧1   🖌 Blur / edit the newest screenshot
   ⇪⇧2   🪟 Capture the active window — no clicking
   ⇪⇧3   ⏲ Delayed capture, full screen after the countdown
   ⇪⇧4   🔤 Recognize text / QR — the words go to the clipboard
   ⇪5      🧻 Scrolling capture (experimental) — best in browsers · the result is saved AND on the clipboard
-  📐 size ⇪5 / “repeat area” / the editor's ⌘A show a LIVE 1280 × 720
-            white on 90%-opaque black · ⇪4 keeps macOS's own HUD
+  📐 size ⇪4 / ⇪5 / “repeat area” / the editor's ⌘A show a LIVE 1280 × 720
+            white on 90%-opaque black · areaNative = true for macOS's
   check     _G.screenshotsReport() — the folder, the watcher, and the last scrolling run slice by slice
   ⇪⇧5   Panel: 9 actions (⌘1–⌘9) + history below · ⌘8 = BIG thumbnails
   🏷 names Every capture — ⇪4's AND other tools' SCR- files — gets
@@ -763,6 +763,7 @@ In the Console, _G.<tool>Report() prints any tool's own report.
 
 📜 RELEASE INDEX — newest first, one line per release (the full story of each is in CHANGELOG.md)
 ------------------------------------------------------------------------
+  6.264.0  📐 ⇪4 DRAGS ON OUR OWN SELECTOR, SO IT CARRIES THE SIZE
   6.263.0  ✏️ NO PAGE THIS CONFIG DRAWS ASKS macOS TO SPELL-CHECK IT
   6.262.0  🚨 ⇪⇧U STEPS OFF ITS OWN CALLBACK (modules/anchors.lua)
   6.261.0  🗑 THE DIALOG HOME IS DELETED (modules/dialog_home.lua

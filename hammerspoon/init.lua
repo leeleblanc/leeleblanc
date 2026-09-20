@@ -4,9 +4,44 @@
 -- =====================================================================
 -- 09-20-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.263.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.264.0
 -- =====================================================================
 
+-- NEW IN 6.264.0 — 📐 ⇪4 DRAGS ON OUR OWN SELECTOR, SO IT CARRIES THE
+--   SIZE (modules/screenshots.lua):
+--   LL, having read 6.260.0's note that those numbers are Apple's: "The
+--      screenshot crosshairs, yes I get it that's Mac, but I wanted a
+--      visual that shows the pixels measurements better." 6.260.0 built
+--      the readout and named this as HIS call and its own release —
+--      because it costs the native magnifier and SPACE-to-capture-a-
+--      window. This is him making it.
+--   🔑 ONE FUNCTION, TWO CALLERS: ⇪4 and the ⇪⇧5 panel's "📐 Capture
+--      area" row both go through shots.capture, so the key and its panel
+--      row cannot come to mean different things (6.194.0's rule).
+--   🚨 IT DEGRADES, IT NEVER BREAKS, AND THE GATE DRIVES IT: selectArea
+--      answers true / false, why now — every failure in it used to be a
+--      bare `return` with the callback simply never firing. A Mac that
+--      cannot draw our selector takes macOS's crosshair instead, because
+--      a ⇪4 that captures nothing is worse than a ⇪4 with Apple's HUD.
+--      The check that proves it TAKES hs.canvas AWAY and presses the key:
+--      the pure checks all passed with the fallback disconnected.
+--   🔎 THREE STATES, NEVER TWO (6.196.1): ⇪4 looking unchanged is either
+--      his own settings line or a Mac that fell back, and those are
+--      opposite facts. The report's "area :" line puts a ⚠️ on the
+--      second and never on the first.
+--   🔔 A SWAP MUST NOT QUIETLY TAKE A SOUND AWAY: this path has always
+--      passed -x (silent), right for "repeat that rectangle" and wrong
+--      for ⇪4, where the shutter has been the confirmation since it was
+--      bound. captureRect takes `withSound`; existing callers unchanged.
+--   🎁 AND ⇪4 NOW FEEDS "repeat area" A RECTANGLE, which it never could:
+--      macOS's -i cannot report where you dragged.
+--   📋 THE CHEAT SHEET MOVED IN THE SAME COMMIT — its ⇪4 row promised
+--      "SPACE = window" and its 📐 row said "⇪4 keeps macOS's own HUD".
+--      A stale key on the sheet IS a broken feature (6.181.0).
+--   📏 COST, NAMED: no native magnifier and no SPACE-to-shoot-a-window on
+--      ⇪4. Back with settings = { screenshots = { areaNative = true } }.
+--        · 10,111 -> 10,134 checks · six mutations, six bites.
+--
 -- NEW IN 6.263.0 — ✏️ NO PAGE THIS CONFIG DRAWS ASKS macOS TO
 --   SPELL-CHECK IT (nine modules, one attribute each):
 --   LL sent the two crash reports and they named something else entirely.
@@ -42,51 +77,12 @@
 --      COST, NAMED: no red squiggle under a misspelling in Hamsidian.
 --        · 10,098 -> 10,111 checks · seven mutations, seven bites.
 --
--- NEW IN 6.262.0 — 🚨 ⇪⇧U STEPS OFF ITS OWN CALLBACK (modules/
---   anchors.lua): LL, after Hammerspoon went down: "Hammerspoon just
---   crashed while I was using the Hyper+shift+U feature I think... I'm
---   not sure." The Console log he sent was the RELAUNCH — 6.260.0, 73
---   modules, All green, 485 ms — and it carried no 🧊 stall-guard line,
---   so this was not a beach ball the guard killed: the process went
---   down on its own.
---   🚨 AND THE KEY HE NAMED CONTAINS THE DOCUMENTED CRASH, TWICE.
---      6.196.1's rule is NEVER START A TASK FROM INSIDE ANOTHER TASK'S
---      CALLBACK, and never drop the last reference to the task whose
---      callback is RUNNING — hs.task's finaliser then tears the NSTask
---      and the callback block down underneath the live frame, which
---      kills Hammerspoon natively with NO Lua error and NOTHING in the
---      Console. anc.notesFor's grep callback did both: it cleared its
---      own task slot and started the NEXT grep from inside itself.
---      anc.identify's finish() cleared the osascript task's slot from
---      inside that task's callback.
---   🔎 AND IT IS THE COMMON PATH, not a corner: the second grep runs
---      whenever the first found nothing, which is every ⇪⇧U on a
---      document that has no note yet.
---   🪜 ONE DOOR: anc.hop(slot, fn) — SEPARATE SLOTS keyed by what the
---      task is doing (anc.tasks.tab / .grep), so starting one can never
---      release another, and a HELD doAfter(0) so the callback has
---      RETURNED before the next task starts or the slot is let go.
---   🔎 THE REPORT'S ⚠️ OUTRANKS ITS COUNT: a Mac that cannot arm the
---      timer runs the old shape, and says so, rather than printing a
---      healthy-looking number over it (6.196.1's own lesson).
---   🧪 ASSERTED AGAINST THE SOURCE, deliberately — a stub hs.task is
---      collected by nobody, so a functional test of this class passes
---      just as happily with the bug in.
---   🧪 AND THE GATE'S ONE WALL-CLOCK SUITE WAS PUT ON FIRM GROUND:
---      test_stall_guard drives the REAL script and failed about one run
---      in eight under load, which is how 6.261.0's package gate went red
---      once. Its own log named it — a fork costs SECONDS on a loaded
---      machine (one log line's two timestamps were four seconds apart),
---      and the guard writes its pid BEFORE it takes its first reading,
---      so the test was stopping a process that was not measuring yet.
---        · 10,079 -> 10,098 checks · three mutations, thirteen bites.
---
--- (6.261.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.262.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.263.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.264.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -183,7 +179,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.263.0"
+_G.configVersion = "6.264.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the

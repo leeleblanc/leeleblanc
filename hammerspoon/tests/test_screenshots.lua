@@ -315,8 +315,16 @@ check("macOS-shaped timestamped name, dots not colons",
       S.filenameAt(t0))
 
 -- =====================================================================
-out("3. capture — the happy path\n")
+out("3. capture — the NATIVE crosshair (settings = { areaNative = true })\n")
 -- =====================================================================
+-- 📐 6.264.0 — ⇪4 DRAGS ON OUR OWN SELECTOR NOW (section 3b proves the
+-- default). This section keeps the `screencapture -i` path under test
+-- end to end, because it is no longer decoration: it is BOTH his
+-- settings line AND the degrade a Mac that cannot draw our selector
+-- falls back to, and a fallback nobody exercises is a fallback nobody
+-- can trust. 6.259.0's rule — a switch is only real if the gate drives
+-- it in both directions.
+S.areaNative = true
 check("the screenshots folder does not exist yet", DIRS[DIR] == nil)
 HYPER["|4"]()   -- press ⇪4
 check("capture creates the folder on first use", DIRS[DIR] == true)
@@ -329,9 +337,15 @@ check("…interactive (-i), writing into the folder", TASKS[1]
       TASKS[1] and table.concat(TASKS[1].args, " "))
 
 -- "screencapture" writes the file, then exits:
-local shot1 = TASKS[1].args[2]
+-- 🧪 6.186.0, FIFTH time in this project and the first in this suite:
+-- when 6.264.0 changed which task ⇪4 starts, `TASKS[1].args[2]` indexed
+-- a nil and the whole run ended with "0 failed" never printed. A test
+-- HELPER answers falsely so a change fails a check instead of the suite.
+check("…there IS a task to read (without it the rest of this section "
+      .. "proves nothing)", TASKS[1] ~= nil and TASKS[1].args ~= nil)
+local shot1 = TASKS[1] and TASKS[1].args and TASKS[1].args[2] or "<no task>"
 FILES[shot1] = { size = 240000, modification = 1000 }
-TASKS[1].cb()
+if TASKS[1] then TASKS[1].cb() end
 check("the image is on the clipboard", CLIP.kind == "image"
       and CLIP.v.__path == shot1, CLIP.kind)
 check("…and the alert says saved AND copied",
@@ -350,6 +364,144 @@ check("…and the interactive capture told the hyper hold to expect a release (1
       HYPERREL[1] and HYPERREL[1].who)
 check("…no sync decode of the shot: hs.image was not asked for it",
       not IMG_DECODED or IMG_DECODED[shot1] == nil)
+
+-- =====================================================================
+out("3b. 📐 6.264.0 — ⇪4 drags on OUR selector, so it carries the size\n")
+-- =====================================================================
+-- LL, having read 6.260.0's note that the crosshair numbers are macOS's:
+-- "The screenshot crosshairs, yes I get it that's Mac, but I wanted a
+-- visual that shows the pixels measurements better." 6.260.0 named this
+-- as his call and its own release; this is him making it. ⇪4 and the
+-- panel's "📐 Capture area" row are ONE function, so both move together.
+do
+    local n3b, ck = 0, nil
+    ck = function(label, cond, extra) n3b = n3b + 1; check(label, cond, extra) end
+
+    -- ---- PURE: which crosshair, and WHY -------------------------------
+    -- 🔎 THREE OUTCOMES, NEVER TWO (6.196.1): ⇪4 looking unchanged is
+    -- either his own settings line or a Mac that could not draw ours,
+    -- and those are opposite facts. A report that cannot tell them apart
+    -- is the failure this project keeps paying for.
+    local how, why = S.areaPlan(false, true, nil)
+    ck("the ordinary case is OUR selector", how == "ours"
+       and why:find("readout", 1, true) ~= nil, tostring(how) .. " / " .. tostring(why))
+    how, why = S.areaPlan(true, nil, nil)
+    ck("his settings line asks for macOS's, and the reason SAYS it was asked for",
+       how == "native" and why:find("areaNative", 1, true) ~= nil, tostring(why))
+    ck("…and that is NOT a degrade — it never reads as a fault",
+       select(2, S.areaPlan(true, nil, nil)):find("could not", 1, true) == nil)
+    how, why = S.areaPlan(false, false, "hs.canvas would not make the selector")
+    ck("🚨 a Mac that cannot draw ours still CAPTURES — it falls back to "
+       .. "macOS's crosshair rather than doing nothing",
+       how == "native" and why:find("could not start", 1, true) ~= nil, tostring(why))
+    ck("…and the fallback names the real reason, not a generic one",
+       select(2, S.areaPlan(false, false, "hs.canvas would not make the selector"))
+         :find("hs.canvas", 1, true) ~= nil)
+
+    -- ---- the key itself -----------------------------------------------
+    S.areaNative = false
+    local tBefore, canvasBefore = #TASKS, _G.__lastCanvas
+    HYPER["|4"]()
+    local sel4 = _G.__lastCanvas
+    ck("🚨 ⇪4 opens OUR selector overlay, not screencapture -i",
+       sel4 ~= nil and sel4 ~= canvasBefore and sel4.shown
+       and type(sel4.cb) == "function")
+    ck("…and NO task has started yet — nothing is captured until he drags",
+       #TASKS == tBefore, #TASKS - tBefore)
+    ck("…the report says which crosshair this press used, and why",
+       type(S.areaLast) == "table" and S.areaLast.how == "ours"
+       and type(S.areaLast.why) == "string",
+       S.areaLast and tostring(S.areaLast.how))
+
+    if sel4 and sel4.cb then
+        sel4.cb(sel4, "mouseDown", "_canvas_", 100, 200)
+        sel4.cb(sel4, "mouseMove", "_canvas_", 1380, 920)
+        ck("…the live readout draws his string on the way through",
+           (function()
+               for _, e in ipairs(sel4.elements or {}) do
+                   if e.type == "text" and tostring(e.text) == "1280 × 720" then
+                       return true
+                   end
+               end
+               return false
+           end)(),
+           (function()
+               for _, e in ipairs(sel4.elements or {}) do
+                   if e.type == "text" then return tostring(e.text) end
+               end
+               return "no text element at all"
+           end)())
+        sel4.cb(sel4, "mouseUp", "_canvas_", 1380, 920)
+    end
+    ck("…and releasing shoots exactly that rectangle with -R",
+       #TASKS == tBefore + 1
+       and TASKS[#TASKS] and TASKS[#TASKS].args
+       and TASKS[#TASKS].args[1] == "-R100,200,1280,720",
+       TASKS[#TASKS] and TASKS[#TASKS].args
+         and table.concat(TASKS[#TASKS].args, " ") or "no task")
+    -- 🚨 THE SHUTTER SURVIVES THE SWAP. This path has always passed -x
+    -- (silent), which is right for "repeat that rectangle" and wrong for
+    -- ⇪4, where the sound has been the confirmation since it was bound.
+    -- Swapping one crosshair for another must not also remove a sound.
+    ck("🚨 …WITH the shutter: -x is not passed, because ⇪4 has always "
+       .. "made a sound and a swap must not quietly take one away",
+       TASKS[#TASKS] and TASKS[#TASKS].args
+       and TASKS[#TASKS].args[1] ~= "-x",
+       TASKS[#TASKS] and TASKS[#TASKS].args
+         and table.concat(TASKS[#TASKS].args, " ") or "no task")
+    ck("…and ⇪4 now feeds 'repeat area' a rectangle, which it never could "
+       .. "before (macOS's -i cannot report where you dragged)",
+       type(S.lastRect) == "table" and S.lastRect.w == 1280
+       and S.lastRect.h == 720,
+       S.lastRect and (S.lastRect.w .. "×" .. S.lastRect.h))
+
+    -- ---- 🚨 IT DEGRADES, IT NEVER BREAKS, DRIVEN FOR REAL ---------------
+    -- The pure checks above prove areaPlan's three branches. They do NOT
+    -- prove that shots.capture ever REACHES the fallback branch, and the
+    -- mutation that makes selectArea go back to a bare `return` (telling
+    -- the caller nothing, exactly as before 6.264.0) passed every one of
+    -- them. On that Mac ⇪4 would open nothing, capture nothing and say
+    -- nothing — the one outcome worse than keeping macOS's HUD. So the
+    -- canvas is TAKEN AWAY and the key is really pressed.
+    local realNew = hs.canvas.new
+    hs.canvas.new = function() return nil end
+    tBefore = #TASKS
+    HYPER["|4"]()
+    hs.canvas.new = realNew
+    ck("🚨 a Mac that cannot draw our selector STILL CAPTURES — ⇪4 falls "
+       .. "back to macOS's crosshair rather than doing nothing at all",
+       #TASKS == tBefore + 1 and TASKS[#TASKS] and TASKS[#TASKS].args
+       and TASKS[#TASKS].args[1] == "-i",
+       TASKS[#TASKS] and TASKS[#TASKS].args
+         and table.concat(TASKS[#TASKS].args, " ") or "NO TASK AT ALL")
+    ck("…and it is recorded as a FALLBACK, never as his own choice",
+       S.areaLast and S.areaLast.how == "native"
+       and tostring(S.areaLast.why):find("could not start", 1, true) ~= nil,
+       S.areaLast and tostring(S.areaLast.why))
+    ck("…and the report puts a ⚠️ on it, because a silent fallback reads "
+       .. "exactly like the settings line he never wrote",
+       (_G.screenshotsReport():match("area    :[^\n]*") or ""):find("⚠️", 1, true) ~= nil,
+       _G.screenshotsReport():match("area    :[^\n]*"))
+    if TASKS[#TASKS] then TASKS[#TASKS].cb() end
+
+    -- ---- and back, because a switch is only real in both directions ----
+    S.areaNative = true
+    tBefore = #TASKS
+    HYPER["|4"]()
+    ck("🔌 with areaNative = true ⇪4 is macOS's crosshair again, "
+       .. "interactive, first press",
+       #TASKS == tBefore + 1 and TASKS[#TASKS] and TASKS[#TASKS].args
+       and TASKS[#TASKS].args[1] == "-i",
+       TASKS[#TASKS] and TASKS[#TASKS].args
+         and table.concat(TASKS[#TASKS].args, " ") or "no task")
+    ck("…and the report says so without calling it a failure",
+       S.areaLast and S.areaLast.how == "native"
+       and not tostring(S.areaLast.why):find("could not", 1, true))
+    if TASKS[#TASKS] then TASKS[#TASKS].cb() end
+
+    -- 🧪 a section that can throw asserts its own check count (6.186.0)
+    check("3b ran all of its checks", n3b == 17, n3b)
+end
 
 -- =====================================================================
 out("4. capture — cancelled with Esc\n")
@@ -1725,10 +1877,48 @@ do
        r2:find("⚠️ the readout threw", 1, true) ~= nil
        and r2:find("240 × 180", 1, true) == nil, r2:match("size    :[^\\n]*"))
     S.sizeLast, S.sizeFailed = keptLast, keptFailed
-    ck("…and the line names WHERE the readout appears — ⇪4 keeps macOS's own HUD",
-       _G.screenshotsReport():find("⇪4 is macOS's own crosshair", 1, true) ~= nil)
+    -- 📐 6.264.0 — THIS ROW MOVED WITH THE BEHAVIOUR, in the same commit.
+    -- It used to require the line to say "⇪4 is macOS's own crosshair and
+    -- keeps its HUD", which stopped being true the moment ⇪4 routed
+    -- through our selector. A report sentence that promises behaviour
+    -- that no longer happens is a broken feature (6.181.0), and a check
+    -- pinning the old sentence is what makes anyone notice.
+    ck("…and the line names WHERE the readout appears, ⇪4 among them",
+       (function()
+           local r = _G.screenshotsReport()
+           return r:find("⇪4", 1, true) ~= nil
+                  and r:find("⇪4 is macOS's own crosshair", 1, true) == nil
+       end)(), _G.screenshotsReport():match("↳ ⇪4[^\n]*"))
 
-    check("the 6.260.0 block ran every one of its checks", n14 == 40, n14)
+    -- ---- 📐 6.264.0 — the area line's three states ---------------------
+    local keptLastArea, keptNative = S.areaLast, S.areaNative
+    S.areaLast, S.areaNative = nil, false
+    ck("never pressed reads as never pressed, not as a fault",
+       (function()
+           local l = _G.screenshotsReport():match("area    :[^\n]*") or ""
+           return l:find("not pressed yet", 1, true) ~= nil
+                  and l:find("⚠️", 1, true) == nil
+       end)(), _G.screenshotsReport():match("area    :[^\n]*"))
+    S.areaLast = { how = "ours", why = "our selector, with the live size readout",
+                   at = 1000 }
+    ck("our selector reads as health",
+       (_G.screenshotsReport():match("area    :[^\n]*") or ""):find("⚠️", 1, true) == nil)
+    S.areaNative = true
+    S.areaLast = { how = "native", why = "macOS's own crosshair and HUD — your "
+                   .. "settings line asked for it", at = 1000 }
+    ck("🚨 HIS OWN SETTINGS LINE IS NOT A FAULT — no ⚠️ when he asked for it",
+       (_G.screenshotsReport():match("area    :[^\n]*") or ""):find("⚠️", 1, true) == nil,
+       _G.screenshotsReport():match("area    :[^\n]*"))
+    S.areaNative = false
+    S.areaLast = { how = "native", why = "our selector could not start (hs.canvas "
+                   .. "would not make the selector)", at = 1000 }
+    ck("🚨 …but a Mac that FELL BACK to it says so with a ⚠️, because those "
+       .. "two look identical on screen and are opposite facts",
+       (_G.screenshotsReport():match("area    :[^\n]*") or ""):find("⚠️", 1, true) ~= nil,
+       _G.screenshotsReport():match("area    :[^\n]*"))
+    S.areaLast, S.areaNative = keptLastArea, keptNative
+
+    check("the 6.260.0 block ran every one of its checks", n14 == 44, n14)
 end
 
 -- =====================================================================
