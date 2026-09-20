@@ -68,4 +68,4 @@ hammerspoon*.zip
 #   tar -xzf hammerspoonX.Y.Z.tar.gz -C /tmp/verify && sed -n 7p /tmp/verify/init.lua
 #
 hammerspoon*.tar.gz
-!hammerspoon6.269.0.tar.gz
+!hammerspoon6.271.0.tar.gz
