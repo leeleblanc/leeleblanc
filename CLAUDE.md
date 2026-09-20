@@ -2585,6 +2585,54 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   the 15:08 crash (the menu bar status item) has NO fix from here; it is
   AppKit connecting its own scene and nothing of ours is on the stack.
   Say so rather than shipping something that looks like an answer.
+- 🪟 ⇪⇧V'S EDIT WINDOW BRINGS FINDER AND CHROME FORWARD, ALTERNATELY, AND
+  THE POINTER JUMPS AMONG MONITORS (LL, 2026-09-20: "When I use the edit
+  function of the copy history, finder and Chrome will alternately be
+  brought forward, as examples. Also it jumps among monitors"). NOT
+  DIAGNOSED, NO CODE — the artefact first, and this one has a
+  one-keystroke experiment that decides it outright.
+  🔎 READ, NOT PROVEN, and it is a TWO-MODULE interaction where each
+  module is correct alone (6.221.0's rule: read the other global watcher
+  before blaming the one you are looking at):
+    1. ⏎ on a row hides the chooser, and macOS restores focus to whatever
+       was frontmost BEFORE it — Finder, or Chrome.
+    2. `editor.open` shows the webview and starts 6.225.0's caret chase:
+       `win:focus()`, up to `editorFocusTries` (4) × `editorFocusDelay`
+       (0.08 s).
+    3. FOCUSING A HAMMERSPOON WINDOW ACTIVATES THE HAMMERSPOON APP —
+       6.251.0 named that price in the music card and it is unpaid here,
+       because this module's report never mentions it.
+    4. Each activation and each bounce back is an APPLICATION SWITCH, and
+       modules/mouse_follows.lua is ON by default (`mf.enabled = true`)
+       with an app watcher plus an AXFocusedWindowChanged observer: it
+       WARPS THE POINTER to the newly focused window every time.
+  So a focus fight between the chooser's restore and our chase reads
+  exactly as "Finder and Chrome alternately brought forward", and because
+  those two live on different displays, the pointer warping after each
+  switch is "it jumps among monitors". Both halves of his sentence, from
+  one mechanism.
+  🧪 THE EXPERIMENT, and it is binary: `_G.mouseFollows.stop()` (or
+  `settings = { mouse_follows = { enabled = false } }`), then edit a
+  clipboard entry again. If the monitor-jumping stops and the app
+  flapping stops, mouse_follows is the amplifier and 6.225.0's chase is
+  the trigger — two releases, in that order. If the apps STILL flap with
+  it off, the chase alone is the whole bug and mouse_follows is
+  innocent.
+  📋 THE ARTEFACTS: `_G.ocrReport()`'s "edit box :" line names which of
+  the four states the chase reached ("caret placed on try 1" is healthy;
+  a high try count or "gave up" is the fight); `_G.mouseFollowsReport()`
+  gives "jumped : N time(s)" and a "last : <app> → <app>" line, so a
+  BURST of jumps at the moment of one edit is the proof.
+  🗳 THE FIX SHAPE IS NOT DECIDED and must not be guessed: candidates are
+  (a) the chase stops the moment the window IS key AND does not re-ask
+  after a bounce, (b) the chooser is hidden and its focus restore allowed
+  to settle BEFORE the editor is shown (an ordering change, 6.246.0's
+  shape), (c) mouse_follows stands down for a short grace after any
+  Hammerspoon activation, the way it already stands down on a mousedown.
+  (c) is the widest and is NOT the first move. 🚨 AND DO NOT BUILD ON
+  THIS PARAGRAPH: it is a reading, not a verdict — 6.262.0 is what a
+  correct fix for a plausible mechanism costs when nobody asked for the
+  artefact first.
 - 🖱 TRACKPAD HYPERSENSITIVE (LL, 2026-09-20: "Something is making my
   trackpad hypersensitive"). NOT diagnosed, NO code — the artefact first
   (6.201.0). Read, not proven, and the reason it is NOT obviously ours:
