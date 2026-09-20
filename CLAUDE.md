@@ -1443,6 +1443,47 @@ every task there has its own slot); and `anchors.grepTimeout` is a knob
 nobody reads, so a hung grep is unbounded where the osascript read is
 not. 🔎 A SUSPECT, NOT A VERDICT (6.198.0) — the `.ips` decides it; this
 shipped anyway, because it breaks a rule we wrote after a native crash.
+🚨 AND THE `.ips` ANSWERED: NO. BOTH OF HIS CRASHES ARE APPLE'S, AND
+NEITHER IS ⇪⇧U (2026-09-19, two reports, 15:08:27 and 15:58:26 — the
+second is the one whose relaunch boot log he pasted). NOT ONE Lua,
+LuaSkin, NSTask or hs.task frame appears anywhere in either, on any of
+36 threads. Both are UNCAUGHT OBJECTIVE-C EXCEPTIONS — EXC_CRASH /
+SIGABRT, `abort() called`, through Hammerspoon's OWN SentryCrash
+uncaught-exception handler — on macOS 27.0 BETA (26A5388g).
+  🍫 15:08:27 IS THE MENU BAR: `-[NSStatusItemVariantSceneDelegate
+  scene:willConnectToSession:]` → `-[NSSceneStatusItem _wakeStatusItem]`
+  → `orderWindowFrontInAppKitOnly` → `_doWindowWillBeVisibleAsSheet:` →
+  a notification into `-[NSRemoteView containingWindowWillOrderOnScreen:]`
+  → `_CFBundleGetValueForInfoKey` throws. macOS connecting the app's own
+  status-item scene, in AppKit's new scene machinery. Nothing of ours is
+  on the stack and nothing of ours can be: we do not drive that callout.
+  ✏️ 15:58:26 IS macOS'S OWN "DID YOU MEAN" BUBBLE INSIDE ONE OF OUR
+  WEBVIEWS: `WebPageProxy::showCorrectionPanel` → `-[NSSpellChecker
+  showCorrectionIndicatorOfType:…]` → `-[NSCorrectionPanel
+  showPanelAtRect:inView:…]` → `NSPerformVisuallyAtomicChange` → rethrow,
+  uncaught. The throwing code is Apple's; THE SURFACE IS OURS. Every
+  textarea and contenteditable in every page this config draws asks for
+  spell checking by DEFAULT, and our own autocorrect is already running
+  over the same box — two correctors on one field, one of which is a
+  beta-OS panel that aborts the process. `spellcheck="false"
+  autocorrect="off" autocapitalize="off"` takes it out of the process
+  entirely and costs nothing we want. Its own release.
+  📏 SO 6.262.0 IS A CORRECT FIX FOR A REAL BUG AND IS NOT HIS CRASH —
+  6.198.0's rule, third time, and this is the costly direction of it: the
+  fix is right, both use-after-free shapes were real, and none of that is
+  evidence. Its scoreboard row is NOT scored on this; the verify block's
+  ⇪⇧U step is a regression test now, not a diagnosis.
+  🔑 GENERAL, AND IT IS WHY THE ARTEFACT RULE HAS TEETH: READ THE CRASHED
+  THREAD BEFORE BELIEVING A SYMPTOM'S NAME. "I was using ⇪⇧U I think…
+  I'm not sure" names WHEN, never WHAT — and a guess offered with a
+  hedge is still the thing a diagnosis will bend towards. Two crashes,
+  two entirely different Apple subsystems, fifty minutes apart.
+  🔕 AND NEITHER COULD EVER HAVE REACHED THE ⛔/⚠️ CONSOLE GATE, the
+  error report or `_G.degradeReport()`: an uncaught ObjC exception aborts
+  the process from inside AppKit. 6.208.0's rule ("a stall is not an
+  error and can never reach them — which is why this lives outside")
+  extends to this whole class, and the outside instrument here is the
+  `.ips`, which is why 6.197.0 backs it up. Ask for it FIRST.
 🧪 AND THE GATE'S ONE WALL-CLOCK SUITE WAS PUT ON FIRM GROUND in the
 same release, because it is what held 6.261.0's zip back: one package
 gate run read `9993 checks (partial) · 1 stage failed` and every run
@@ -2414,7 +2455,7 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
-| 6.262.0 | 🚨 ⇪⇧U no longer starts a task from inside another task's callback — the 6.196.1 native crash, twice, on the key he named | pending |
+| 6.262.0 | 🚨 ⇪⇧U no longer starts a task from inside another task's callback — the 6.196.1 use-after-free, twice, on the key he named | pending — and his two `.ips` files say it is NOT his crash: both are uncaught ObjC exceptions in Apple's code on macOS 27 beta (the menu-bar status-item scene; macOS's correction bubble in one of our webviews), with no Lua frame anywhere. The fix is real and stays; it is not the answer to what he saw |
 
 Running total: 15 wins · 8 losses · 45 pending — every release from
 6.215.0 on except the fifteen wins and eight losses named in the table
@@ -2440,6 +2481,64 @@ next boot announced it (LL: "fortunately hammerspoon caught itself"). LL is on
 built. The work Mac's storm report is still owed, on 6.215.0 now.
 
 ## Open items — update as they move
+
+- ✏️ macOS'S CORRECTION BUBBLE ABORTS THE PROCESS INSIDE OUR WEBVIEWS —
+  NEXT RELEASE, and it is the only half of his two crashes that is on a
+  surface we own. His 15:58:26 `.ips`: `showCorrectionPanel` →
+  `NSSpellChecker` → `NSCorrectionPanel` → uncaught ObjC exception →
+  abort. THE FIX IS ONE ATTRIBUTE SET, in every page this config draws:
+  `spellcheck="false" autocorrect="off" autocapitalize="off"` on every
+  textarea, input and contenteditable — Hamsidian/vault, capture pad,
+  note pad, the screenshot editor's text notes, the OCR/`editor.open`
+  box, the task form, unified search, the music card. It costs him
+  nothing he uses: our OWN autocorrect already runs over those boxes
+  (two correctors on one field was the state before), and macOS's red
+  squiggle is not a thing he has ever asked for. 🔎 COUNT WHAT IS LEFT:
+  a source sentry per page, because a NEW input added later brings the
+  panel back — that is the whole class, not the eight boxes. 📏 NAMED:
+  the 15:08 crash (the menu bar status item) has NO fix from here; it is
+  AppKit connecting its own scene and nothing of ours is on the stack.
+  Say so rather than shipping something that looks like an answer.
+- 🖱 TRACKPAD HYPERSENSITIVE (LL, 2026-09-20: "Something is making my
+  trackpad hypersensitive"). NOT diagnosed, NO code — the artefact first
+  (6.201.0). Read, not proven, and the reason it is NOT obviously ours:
+  nothing in this config posts, scales or re-posts a mouse-MOVE or
+  scroll event. The only pointer WRITES are absolute jumps at a keypress
+  (mouse_grid's landing and nudges, mouse_follows ⇪1, menubar_items,
+  screenshots' selector centre); window_move taps leftMouseDragged but
+  moves a WINDOW, not the pointer; the cheat sheet reads scroll deltas
+  and never posts one. So a config that makes the pointer JUMP is
+  plausible and a config that makes it FASTER is not, on a read.
+  ASK, in this order: is it the pointer speed or three-finger drag
+  behaviour · does it happen with Hammerspoon QUIT (the one test that
+  separates us from macOS 27 beta) · System Settings › Trackpad ›
+  Tracking speed, and Accessibility › Pointer Control › Trackpad Options
+  › three-finger drag (still unanswered from 6.232.0, and still the
+  desktop-jumping suspect) · `_G.mouseFollowsReport()` and
+  `_G.mouseGridReport()`. He is on a BETA OS that has already aborted
+  his process twice from inside AppKit.
+- 🔄 ASANA AUTO-REFRESH EVERY 15 MINUTES (LL, 2026-09-20, with a draft:
+  a `hs.timer.doEvery(900)` that activates Asana, posts ⌘R and activates
+  the previous app back). WANTED — but not as written, and the design
+  question goes to him before any code. WHAT IS WRONG WITH THE DRAFT,
+  each a rule this project already has: (1) `hs.eventtap.keyStroke`
+  POSTS, so that ⌘R arrives back through our own taps as typing —
+  6.218.0, and it needs `_G.withInjection` or it is a keystroke our
+  autocorrect and key trail both see; (2) it STEALS FOCUS twice every
+  fifteen minutes with 0.6 s of nobody-owns-the-keyboard in between, so
+  a ⌘R can land in whatever he clicked into mid-flight; (3) the nested
+  `doAfter`s are unheld and unslotted — 6.196.1's shape in hs.timer,
+  which is exactly what 6.198.0 found in power_tools; (4) no switch, no
+  report, no degrade when Asana is not running or refuses.
+  🔑 THE DESIGN THAT COSTS HIM NOTHING is `app:selectMenuItem({"View",
+  "Reload"})` — it reaches the app WITHOUT activating it, so no focus
+  theft, no posted key, no injection guard, nothing to put back. ASK FOR
+  THE ARTEFACT FIRST (6.201.0): `hs.inspect(hs.application.get("Asana")
+  :getMenuItems())` in the Console names the real menu path, and whether
+  that app has one at all decides the release. Fall back to the
+  activate-and-⌘R shape only if it does not, and then say the cost out
+  loud. Also ask: PAUSE IT WHILE HE IS TYPING? A reload that discards a
+  half-written comment is worse than a stale board.
 
 - ✅ DOCUMENTS YOU WORKED IN — NAMED AND SHIPPED AS 6.257.0. LL, with two
   screenshots: "It's not showing the documents I just worked on … Am I
@@ -2855,11 +2954,14 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   callback, and dropped that running task at the same time. When that
   bites, Hammerspoon dies with no error, nothing in the Console, and no
   beach ball. Your log matched all three.
-  🚨 AND IT IS STILL A SUSPECT, NOT A VERDICT. A correct fix for a real
-  bug is not proof I found YOUR bug. The file that decides it is the
-  crash report: Console → `_G.crashReport()`, and send me the `.ips` it
-  names. If it says there is no crash report at all, that is a different
-  diagnosis entirely and I want to know.
+  🚨 AND IT WAS A SUSPECT, NOT A VERDICT — AND THE VERDICT CAME BACK NO.
+  He sent both `.ips` files and neither crash is ⇪⇧U; neither has a
+  single line of this config on it. Both are Apple's, on macOS 27 beta:
+  the menu bar's status-item scene at 15:08, and macOS's own "did you
+  mean" correction bubble inside one of our webviews at 15:58. This
+  release is still right and still ships — the two use-after-free shapes
+  it fixes were real — but it is NOT the fix for what he saw, its row is
+  not scored on it, and the ⇪⇧U step below is a regression test now.
   Console: `_G.anchorsReport()` — a new "tasks :" line. "N callback(s)
   stepped off a held timer before the next task started · slots: none
   held" is healthy. If it ever reads "⚠️ N callback(s) could NOT step off

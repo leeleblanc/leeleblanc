@@ -42,5 +42,7 @@ hammerspoon*.zip
 # itself rather than only being installed to ~/.hammerspoon from it.
 .DS_Store
 
-# 6.260.0: un-ignored ONLY so the file panel can see it for download; never committed
-!hammerspoon6.260.0.zip
+# 6.262.0: un-ignored ONLY so the file panel can see it for download; never committed
+# (one at a time: the previous exception is removed with the zip it named —
+#  every release is rebuildable from its commit, the ladder in CLAUDE.md)
+!hammerspoon6.262.0.zip
