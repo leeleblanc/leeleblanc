@@ -641,6 +641,24 @@ work Mac.
   only. 📋 The cheat sheet moved in the same commit (its ⇪4 row promised
   "SPACE = window"). 📏 COST: no native magnifier, no SPACE-to-shoot-a-
   window on ⇪4; `settings = { screenshots = { areaNative = true } }`.
+  🚨 6.265.0 — AND THAT RELEASE THREW ⇪4 AWAY FOR A DAY (LL: "Hyper+4 no
+  longer works to screenshot"). `_G.showCanvasSafely` returns FALSE when
+  macOS refuses the first `:show()`, and selectArea called it for EFFECT
+  and answered `true` regardless — so on a refusal ⇪4 drew nothing, shot
+  nothing and said nothing, with the correct fallback one branch away.
+  THE FALLBACK EXISTED AND WAS UNREACHABLE. A second door had the same
+  silence: the show sat inside `if _G.showCanvasSafely then`, so a
+  Hammerspoon without that global never showed the selector and still
+  reported success; it shows the canvas itself now. A refused canvas is
+  TORN DOWN (an abandoned one keeps its Esc tap and the retry timer that
+  can order an owner-less overlay on screen a turn later — the 🟡
+  frozen-grid-box shape). 🧪 GENERAL, AND IT IS THE ONE TO CARRY: 6.264.0's
+  degrade check took `hs.canvas.new` AWAY, and the real failure is
+  "created, wired, REFUSED TO SHOW" — driving a path with the dependency
+  MISSING is not the same as driving it with the dependency REFUSING, and
+  on a beta OS the second is the shape this config keeps meeting. When a
+  helper answers true/false, the check that earns its place makes it
+  answer FALSE. (6.193.0, fourth time.)
   🏃 AND IT MOVES, NEVER REBUILDS: two elements on the selector's
   existing canvas, appended once. 6.247.0 priced a rebuild on a path
   that runs per event. 🧪 The suite DIED instead of failing under its
@@ -2443,7 +2461,7 @@ THE METHOD, when something breaks after a stacked zip:
    6.216.0 6f06071 · 6.217.0 a475bef · 6.218.0 41b002b · 6.219.0 862c177
    · 6.220.0 ac3975e · 6.221.0 ead07d9 · 6.222.0 1842ca7 · 6.223.0
    86ac82b · 6.224.0 67957ea · 6.225.0 98434fe · 6.226.0 304f1f9 ·
-   6.227.0 14e953a · 6.228.0 2aa3dfe · 6.229.0 a1318e1 · 6.230.0 0740c07 · 6.231.0 c1921af · 6.231.1 5a5c298 · 6.232.0 1ca3f6f · 6.233.0 2328c8c · 6.234.0 57f78d0 · 6.235.0 52e5b21 · 6.236.0 34cff8b · 6.236.1 fdce771 · 6.237.0 adf9256 · 6.238.0 3adad4f · 6.239.0 3adad4f (one commit, two releases) · 6.240.0 8f44bec · 6.241.0 dce517e · 6.242.0 1a1dab0 · 6.243.0 8fba04f · 6.244.0 9320906 · 6.245.0 9c1a8b1 · 6.246.0 1400abd · 6.247.0 3b92e99 · 6.248.0 e4e3a03 · 6.249.0 e4edc3f · 6.250.0 c267c1b · 6.251.0 f7b0d57 · 6.252.0 6307253 · 6.253.0 ef20313 · 6.254.0 14493e5 · 6.255.0 d371b34 · 6.256.0 3c29888 · 6.257.0 7f55d2b · 6.258.0 10d2250 · 6.259.0 2bcda06 · 6.260.0 f16e286 · 6.261.0 8680504 · 6.262.0 595dc2e · 6.263.0 014ddf6 · 6.264.0 5e41879.
+   6.227.0 14e953a · 6.228.0 2aa3dfe · 6.229.0 a1318e1 · 6.230.0 0740c07 · 6.231.0 c1921af · 6.231.1 5a5c298 · 6.232.0 1ca3f6f · 6.233.0 2328c8c · 6.234.0 57f78d0 · 6.235.0 52e5b21 · 6.236.0 34cff8b · 6.236.1 fdce771 · 6.237.0 adf9256 · 6.238.0 3adad4f · 6.239.0 3adad4f (one commit, two releases) · 6.240.0 8f44bec · 6.241.0 dce517e · 6.242.0 1a1dab0 · 6.243.0 8fba04f · 6.244.0 9320906 · 6.245.0 9c1a8b1 · 6.246.0 1400abd · 6.247.0 3b92e99 · 6.248.0 e4e3a03 · 6.249.0 e4edc3f · 6.250.0 c267c1b · 6.251.0 f7b0d57 · 6.252.0 6307253 · 6.253.0 ef20313 · 6.254.0 14493e5 · 6.255.0 d371b34 · 6.256.0 3c29888 · 6.257.0 7f55d2b · 6.258.0 10d2250 · 6.259.0 2bcda06 · 6.260.0 f16e286 · 6.261.0 8680504 · 6.262.0 595dc2e · 6.263.0 014ddf6 · 6.264.0 5e41879 · 6.265.0 (this commit).
    Keep this list current: one line per release, appended at ceremony
    time.
 4. A BISECT IS AN OPTION, NOT THE FIRST MOVE — it costs him an install
@@ -2539,11 +2557,12 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
-| 6.264.0 | 📐 ⇪4 drags on our own selector, so the live 1280 × 720 is on the key he actually presses — the native magnifier and SPACE-to-shoot-a-window are the price | pending |
+| 6.265.0 | 🚨 ⇪4 captures again — 6.264.0's fallback to macOS's crosshair existed and was unreachable, because selectArea discarded the one value saying whether it drew | pending |
+| 6.264.0 | 📐 ⇪4 drags on our own selector, so the live 1280 × 720 is on the key he actually presses — the native magnifier and SPACE-to-shoot-a-window are the price | **LOSS** — LL: "Hyper+4 no longer works to screenshot." The selector's canvas can be refused by macOS and selectArea reported success anyway, so the key did nothing at all → fix 6.265.0 |
 | 6.263.0 | ✏️ no box in any page this config draws asks macOS to spell-check it — its correction panel threw an uncaught exception inside one of our webviews and aborted the process (his own `.ips`) | pending |
 | 6.262.0 | 🚨 ⇪⇧U no longer starts a task from inside another task's callback — the 6.196.1 use-after-free, twice, on the key he named | pending — and his two `.ips` files say it is NOT his crash: both are uncaught ObjC exceptions in Apple's code on macOS 27 beta (the menu-bar status-item scene; macOS's correction bubble in one of our webviews), with no Lua frame anywhere. The fix is real and stays; it is not the answer to what he saw |
 
-Running total: 15 wins · 8 losses · 47 pending — every release from
+Running total: 15 wins · 9 losses · 47 pending — every release from
 6.215.0 on except the fifteen wins and eight losses named in the table
 above. (The enumeration that used to sit here stopped at 6.239.0 and was
 seventeen releases stale, which is a scoreboard that cannot be read;
@@ -3080,6 +3099,29 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.265.0 verify with LL — 🚨 ⇪4 SHOOTS AGAIN (KNOWN GROUND): install.
+  Press ⇪4 and drag. It captures. That is the whole test, and it is a
+  regression I caused in 6.264.0, so do it first.
+  🔎 WHAT IT WAS: 6.264.0 put ⇪4 on our own selector and wrote a fallback
+  to macOS's crosshair for a Mac that could not draw ours — and then
+  ignored the one value that says whether it drew. When macOS refused to
+  put the selector on screen (another app's popup mid-transition, which
+  your beta does often), the key thought it had opened, never fell back,
+  and did nothing at all — no crosshair, no shot, no message. The fallback
+  was correct and unreachable.
+  🔁 IF IT EVER DOES NOTHING AGAIN, it will now SAY so instead: an alert
+  reads "⚠️ Screenshot area selector — our selector could not start
+  (macOS would not put the selector on screen) — macOS's crosshair
+  instead", and you get macOS's crosshair for that press. Paste it if you
+  see it; that is the degrade working, and the shot still lands.
+  Console: `_G.screenshotsReport()` — the "area :" line. "our selector,
+  with the live size readout" is healthy; a "⚠️ … could not start" there
+  names the refusal.
+  📏 NOTHING ELSE MOVED: ⇪4 still has the live 1280 × 720, still shoots
+  with the shutter, still feeds "repeat area". `settings = { screenshots =
+  { areaNative = true } }` is still the way back to macOS's crosshair and
+  its magnifier if you would rather have those.
+
 - 6.264.0 verify with LL — 📐 ⇪4 CARRIES THE SIZE (KNOWN GROUND): install
   (carries 6.263.0). Press ⇪4. The crosshair you get is OURS now: a dashed
   blue band, and a black box following the drag with the size in white —

@@ -948,8 +948,40 @@ function M.setup(core)
         -- showCanvasSafely, not canvas:show(): show() THROWS when another
         -- process's remote view is mid-transition (the Safari/Spotlight
         -- bug every canvas popup in this config guards against)
+        --
+        -- 🚨 6.265.0 — AND ITS ANSWER IS READ. This threw ⇪4 away for a
+        -- release. 6.264.0 routed ⇪4 through here and wrote a fallback to
+        -- macOS's crosshair for "a Mac that cannot draw our selector",
+        -- with a whole paragraph swearing that a ⇪4 which captures
+        -- nothing is worse than a ⇪4 with Apple's HUD on it — and then
+        -- DISCARDED the one value that says whether it drew. init.lua's
+        -- showCanvasSafely returns FALSE when macOS refuses the first
+        -- :show() (it retries 50 ms later and tells nobody), so on the
+        -- refusal this function answered `true`, areaPlan said "ours",
+        -- the fallback never ran, and the key did nothing at all and said
+        -- nothing. THE FALLBACK EXISTED AND WAS UNREACHABLE.
+        -- 🧪 The check that was supposed to prove it stubbed hs.canvas.new
+        -- to return nil — "cannot CREATE" — and never "created, refused to
+        -- SHOW", which is the case that actually happens on his Mac
+        -- (6.193.0: a stub gentler than the real provider). Both are
+        -- driven now.
+        -- 🪟 AND A REFUSED CANVAS IS TORN DOWN rather than left holding a
+        -- keyDown tap and a retry timer that can order an owner-less
+        -- overlay on screen a turn later — the 🟡 frozen-grid-box shape,
+        -- in the module that would have grown it next.
+        local shown
         if _G.showCanvasSafely then
-            _G.showCanvasSafely(canvas, "area selector")
+            shown = _G.showCanvasSafely(canvas, "area selector") and true or false
+        else
+            -- No helper at all: show it ourselves rather than never
+            -- showing it. Before 6.265.0 a Hammerspoon without that
+            -- global drew no selector AND reported success.
+            shown = pcall(function() canvas:show() end) and true or false
+        end
+        if not shown then
+            shots.selCanvas = canvas
+            shots.cancelSelect()
+            return false, "macOS would not put the selector on screen"
         end
         shots.selCanvas = canvas   -- HELD
         shots.selStarted = true

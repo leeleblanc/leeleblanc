@@ -4,9 +4,40 @@
 -- =====================================================================
 -- 09-20-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.264.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.265.0
 -- =====================================================================
 
+-- NEW IN 6.265.0 — 🚨 ⇪4 CAPTURES AGAIN (modules/screenshots.lua):
+--   LL: "Hyper+4 no longer works to screenshot." MY REGRESSION, from
+--      6.264.0, on the key he uses most.
+--   🔎 THE FALLBACK EXISTED AND WAS UNREACHABLE. 6.264.0 routed ⇪4 through
+--      our selector and wrote a fallback to macOS's crosshair for "a Mac
+--      that cannot draw our selector", with a paragraph swearing a ⇪4 that
+--      captures nothing is worse than one with Apple's HUD — and then
+--      DISCARDED the single value that says whether it drew.
+--      `_G.showCanvasSafely` returns FALSE when macOS refuses the first
+--      :show() (it retries 50 ms later and tells nobody), so on a refusal
+--      selectArea answered "started", areaPlan said "ours", the fallback
+--      never ran, and the key drew nothing, shot nothing and said nothing.
+--   🪟 SECOND DOOR, same silence: the show sat inside
+--      `if _G.showCanvasSafely then`, so a Hammerspoon without that global
+--      built the selector, wired it and never put it on screen — and still
+--      reported success. It shows the canvas itself now.
+--   🪟 A REFUSED CANVAS IS TORN DOWN, not left holding an Esc tap and a
+--      retry timer that can order an owner-less overlay on screen a turn
+--      later (the 🟡 frozen-grid-box shape, in the module that was about
+--      to grow it).
+--   🧪 AND THE CHECK THAT WAS MEANT TO PROVE THIS STUBBED THE WRONG
+--      FAILURE: it took hs.canvas.new away — "cannot CREATE" — and never
+--      "created, refused to SHOW", which is the case that actually
+--      happens. 6.193.0, fourth time: a stub gentler than the real
+--      provider is a hole with a tick beside it. Both doors are driven
+--      now, and a mutation restoring 6.264.0 fails three checks.
+--   📏 NOTHING ELSE CHANGED. ⇪4 still drags on our selector with the live
+--      size; `settings = { screenshots = { areaNative = true } }` is still
+--      the way back to macOS's crosshair.
+--        · 10,134 -> 10,139 checks · five mutations, five bites.
+--
 -- NEW IN 6.264.0 — 📐 ⇪4 DRAGS ON OUR OWN SELECTOR, SO IT CARRIES THE
 --   SIZE (modules/screenshots.lua):
 --   LL, having read 6.260.0's note that those numbers are Apple's: "The
@@ -42,47 +73,12 @@
 --      ⇪4. Back with settings = { screenshots = { areaNative = true } }.
 --        · 10,111 -> 10,134 checks · six mutations, six bites.
 --
--- NEW IN 6.263.0 — ✏️ NO PAGE THIS CONFIG DRAWS ASKS macOS TO
---   SPELL-CHECK IT (nine modules, one attribute each):
---   LL sent the two crash reports and they named something else entirely.
---      Neither is ⇪⇧U; neither has a line of Lua on it. The 15:58:26 one
---      is macOS's OWN "did you mean" correction bubble, thrown inside one
---      of our webviews and never caught:
---        WebPageProxy::showCorrectionPanel -> NSSpellChecker
---          -> NSCorrectionPanel -> NSPerformVisuallyAtomicChange -> throw
---      Apple's code; OUR surface. A <textarea> or a text <input> asks to
---      be text-checked BY DEFAULT, so every box in every page we draw had
---      it on — and the vault's note editor, the one he writes paragraphs
---      in, said spellcheck="true" in so many words.
---   🔑 IT COSTS HIM NOTHING, which is why this is a removal and not a
---      trade: modules/autocorrect.lua already corrects his typing in
---      those boxes through the tap. Two correctors on one field was the
---      state before, and one of them ends the process.
---   🚨 THE SENTRY READS THE CLASS, NOT THE TWENTY-TWO TAGS. A new input
---      added in six months brings the panel straight back and nothing
---      functional would notice — the page looks identical until macOS
---      decides to correct a word. test_integration walks every module and
---      core file and fails on ANY text-entry tag without the attribute.
---   🚨 AND THE FIRST SENTRY PASSED ITS OWN MUTATION: it read a flat
---      200-character window, and ⇪T's form stacks eight fields in a dozen
---      lines, so a covered NEIGHBOUR sat inside a bare field's window and
---      excused it. The window stops at the tag's own `>` now, and the row
---      that bites is two adjacent boxes where only the second is covered.
---   🧪 THREE CHECKS ASSERTED ADJACENCY WHERE THEY MEANT STRUCTURE —
---      `id="sd" type="date"` as one literal string — and failed on an
---      attribute inserted between them. They pull out the tag carrying
---      the id and ask THAT for the type now.
---   📏 NO SWITCH BACK. Its only effect would be to re-arm a panel that
---      aborts the process on his OS; that is a trap, not a setting.
---      COST, NAMED: no red squiggle under a misspelling in Hamsidian.
---        · 10,098 -> 10,111 checks · seven mutations, seven bites.
---
--- (6.262.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.263.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.264.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.265.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -179,7 +175,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.264.0"
+_G.configVersion = "6.265.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the

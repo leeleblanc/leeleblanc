@@ -5,6 +5,58 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.265.0 — 🚨 ⇪4 CAPTURES AGAIN (modules/screenshots.lua):
+
+  LL: "Hyper+4 no longer works to screenshot." My regression, introduced
+  one release earlier, on the key he presses most.
+
+  6.264.0 routed ⇪4 through our own selector and wrote a fallback to
+  macOS's crosshair for "a Mac that cannot draw our selector" — with a
+  paragraph in this file swearing that a ⇪4 which captures nothing is
+  worse than a ⇪4 with Apple's HUD on it. THEN IT DISCARDED THE ONE VALUE
+  THAT SAYS WHETHER IT DREW.
+
+  `_G.showCanvasSafely` (init.lua) returns FALSE when macOS refuses the
+  first `:show()` — it retries 50 ms later and tells nobody — and
+  `shots.selectArea` called it for effect and answered `true` regardless.
+  So on a refusal: selectArea said "started", areaPlan said "ours",
+  shots.capture returned before reaching `screencapture -i`, and the key
+  drew nothing, shot nothing and said nothing. THE FALLBACK EXISTED, WAS
+  CORRECT, AND WAS UNREACHABLE — one branch away from the failure it was
+  written for.
+
+  🪟 SECOND DOOR, THE SAME SILENCE: the show sat inside `if
+  _G.showCanvasSafely then`, so a Hammerspoon without that global built
+  the selector, wired its mouse callback and its Esc tap, never put it on
+  screen, and still reported success. It shows the canvas itself there
+  now.
+
+  🪟 AND A REFUSED CANVAS IS TORN DOWN. Left alone it keeps a keyDown tap
+  and the retry timer that can order an owner-less overlay on screen a
+  turn later — the 🟡 frozen-grid-box shape, about to be grown in a second
+  module.
+
+  🧪 THE CHECK THAT WAS SUPPOSED TO PROVE THIS STUBBED THE WRONG FAILURE,
+  and that is the durable half. 6.264.0's degrade check took `hs.canvas.
+  new` away — "this Mac cannot CREATE a canvas" — and the real failure is
+  "created, wired, and macOS refused to SHOW it", which is what happens on
+  his Mac and never happened in the suite because the stub's show always
+  succeeded. 6.193.0 for the fourth time: a stub gentler than the real
+  provider is a hole with a tick beside it. GENERAL, sharper: when a
+  helper answers true/false, the check that matters makes it answer FALSE
+  — driving the path with the DEPENDENCY MISSING is not the same as
+  driving it with the dependency REFUSING, and only the second is the
+  shape this config keeps meeting on a beta OS.
+
+  Five mutations now bite where one did: restoring 6.264.0's discarded
+  return fails three checks, deleting the teardown fails one, and
+  short-circuiting either show branch fails its own.
+
+  📏 NOTHING ELSE CHANGED. ⇪4 still drags on our selector with the live
+  1280 × 720; `settings = { screenshots = { areaNative = true } }` is
+  still the way back to macOS's crosshair and its magnifier.
+    · 10,134 -> 10,139 checks over 79 stages · 72 modules.
+
 NEW IN 6.264.0 — 📐 ⇪4 DRAGS ON OUR OWN SELECTOR, SO IT CARRIES THE SIZE
   (modules/screenshots.lua):
 

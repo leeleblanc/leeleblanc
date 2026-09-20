@@ -484,6 +484,65 @@ do
        _G.screenshotsReport():match("area    :[^\n]*"))
     if TASKS[#TASKS] then TASKS[#TASKS].cb() end
 
+    -- ---- 🚨 THE CASE THAT ACTUALLY HAPPENED (6.265.0) -------------------
+    -- The check above takes hs.canvas.new away — "this Mac cannot CREATE
+    -- a canvas". That is NOT the failure LL hit. His Mac creates it fine
+    -- and macOS REFUSES TO SHOW IT: init.lua's showCanvasSafely returns
+    -- false on a refused :show() (another process's popup mid-transition,
+    -- and he is on a beta that has already aborted twice inside AppKit).
+    -- 6.264.0 discarded that answer, so ⇪4 reported "ours", drew nothing,
+    -- captured nothing and said nothing — with a working fallback sitting
+    -- one branch away. 6.193.0, exactly: the stub was gentler than macOS.
+    local realShow = _G.showCanvasSafely
+    _G.showCanvasSafely = function() return false end
+    tBefore = #TASKS
+    local canvasBefore2 = _G.__lastCanvas
+    HYPER["|4"]()
+    local refused = _G.__lastCanvas
+    _G.showCanvasSafely = realShow
+    ck("🚨 a selector macOS REFUSES TO SHOW still captures — ⇪4 falls back "
+       .. "to macOS's crosshair instead of doing nothing at all",
+       #TASKS == tBefore + 1 and TASKS[#TASKS] and TASKS[#TASKS].args
+       and TASKS[#TASKS].args[1] == "-i",
+       TASKS[#TASKS] and TASKS[#TASKS].args
+         and table.concat(TASKS[#TASKS].args, " ") or "NO TASK AT ALL")
+    ck("…and it is recorded as a fallback, with macOS's refusal as the reason",
+       S.areaLast and S.areaLast.how == "native"
+       and tostring(S.areaLast.why):find("not put the selector on screen", 1, true) ~= nil,
+       S.areaLast and tostring(S.areaLast.why))
+    -- 🪟 and nothing is left holding the keyboard: a refused canvas that
+    -- kept its Esc tap and its retry timer is the frozen-grid-box shape.
+    -- 🪟 ASSERT THE OBJECT, NOT THE SLOT. "S.selCanvas is nil" passes with
+    -- the teardown deleted, because the slot was already nil — the
+    -- abandoned canvas simply never reaches it. The thing only the
+    -- teardown does is DELETE the canvas it built, so ask that canvas.
+    ck("…and the refused selector is DELETED, not abandoned live with its "
+       .. "Esc tap and a retry timer that can order it on screen later",
+       refused ~= nil and refused ~= canvasBefore2
+       and refused.deleted == true and S.selCanvas == nil,
+       refused and tostring(refused.deleted) or "no canvas was built at all")
+    if TASKS[#TASKS] then TASKS[#TASKS].cb() end
+
+    -- ---- 🪟 AND A HAMMERSPOON WITH NO showCanvasSafely AT ALL -----------
+    -- Before 6.265.0 the show was inside `if _G.showCanvasSafely then`,
+    -- so without that global the selector was BUILT, wired and never put
+    -- on screen — and the function still answered "started". Same silent
+    -- dead key, second door. It shows the canvas itself now.
+    local keepShow = _G.showCanvasSafely
+    _G.showCanvasSafely = nil
+    tBefore = #TASKS
+    local before3 = _G.__lastCanvas
+    HYPER["|4"]()
+    local own = _G.__lastCanvas
+    _G.showCanvasSafely = keepShow
+    ck("🪟 with no showCanvasSafely helper the selector still REACHES THE "
+       .. "SCREEN — it shows itself rather than reporting success blind",
+       own ~= nil and own ~= before3 and own.shown == true,
+       own and tostring(own.shown) or "no canvas built")
+    ck("…and it is our selector, so no screencapture -i ran",
+       #TASKS == tBefore, (#TASKS - tBefore) .. " task(s)")
+    S.cancelSelect()
+
     -- ---- and back, because a switch is only real in both directions ----
     S.areaNative = true
     tBefore = #TASKS
@@ -500,7 +559,7 @@ do
     if TASKS[#TASKS] then TASKS[#TASKS].cb() end
 
     -- 🧪 a section that can throw asserts its own check count (6.186.0)
-    check("3b ran all of its checks", n3b == 17, n3b)
+    check("3b ran all of its checks", n3b == 22, n3b)
 end
 
 -- =====================================================================
