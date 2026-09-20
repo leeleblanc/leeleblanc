@@ -201,7 +201,13 @@ end
 -- ftNeedsMigration in particular is per-setup state, and a suite that
 -- reused one instance would be testing a flag that latched on the first
 -- fixture and never cleared.
-local function boot()
+-- ⏱ 6.267.0 - IT BOOTS THE WAY init.lua BOOTS: setup, THEN warm. The
+-- 90-day history is no longer read during setup, so a suite that stopped
+-- at setup would be asserting against a module that has not opened its
+-- CSV yet and would fail every schema check below for the wrong reason
+-- (6.259.0's rule). §A drives setup ALONE, deliberately, to prove the read
+-- really did leave the boot path.
+local function bootOnly(extra)
     local M = dofile(HS .. "/modules/file_tracker.lua")
     M.setup({
         homeDir = DIR, cloudDir = nil, logsDir = DIR, hostTag = "Test-Mac",
@@ -211,6 +217,12 @@ local function boot()
         adoptLegacyFile = function() end,
         showPopup = function() end,
     })
+    return M
+end
+
+local function boot()
+    local M = bootOnly()
+    if type(M.warm) == "function" then pcall(M.warm) end
     return M
 end
 
@@ -1404,6 +1416,120 @@ end
 check("🚨 ...and it asserted every check it was written to make (a throw "
       .. "deletes the rest while the run still says 0 failed)",
       (pass + fail) - before241 >= 28, (pass + fail) - before241)
+
+-- =====================================================================
+out("\n=== A. 6.267.0 — the 90 days are read when they are first needed ===\n")
+-- =====================================================================
+-- LL, with a boot log reading 453 ms and file_tracker 200 of them: "How
+-- can I wrap the file_tracker and activity_tracker initialization in an
+-- asynchronous timer to speed up the boot?" The read left setup(). What
+-- must NOT have left with it is the answer: a reader that arrives before
+-- the warm phase gets the rows, never an empty list dressed as an answer.
+local beforeA, okA, errA = pass + fail, pcall(function()
+
+wipe()
+put(CSV, HEADER .. "\n"
+    .. '"' .. ISO_JUL .. '","budget.xlsx","budget final.xlsx","~/Documents","","Renamed",' .. T_JUL .. "\n")
+
+-- 1. SETUP ALONE READS NOTHING. This is the release, and the mutation
+--    that puts the read back in setup() fails exactly here.
+_G.fileTrackerLog = nil
+local MA = bootOnly()
+check("🚨 setup() alone does NOT read the history — that is the 200 ms "
+      .. "leaving the boot path",
+      _G.fileTrackerLog == nil, tostring(_G.fileTrackerLog))
+printed = {}
+_G.fileTrackerReport()
+local repA1 = table.concat(printed, "\n")
+check("...and the report says NOT READ YET rather than reporting zero rows "
+      .. "— a Mac that has not been asked must not read like a Mac whose "
+      .. "history came back empty",
+      (repA1:match("history[^\n]*") or ""):find("not read yet", 1, true) ~= nil,
+      repA1:match("history[^\n]*") or "no history line")
+
+-- 2. A READER THAT ARRIVES FIRST GETS THE ROWS. The whole reason this is a
+--    lazy read and not a blind timer: ⇪F pressed one second after boot
+--    must draw the history, not an empty window.
+check("🚨 a reader before the warm phase is handed the REAL rows, and pays "
+      .. "for the read itself",
+      #_G.fileTracker.history() == 1, #_G.fileTracker.history())
+check("...and the global is published once it holds them",
+      type(_G.fileTrackerLog) == "table" and #_G.fileTrackerLog == 1,
+      type(_G.fileTrackerLog))
+check("...and it is the SAME list, not a copy — a copy would let a row "
+      .. "recorded now vanish from the picker's view",
+      _G.fileTrackerLog == _G.fileTracker.history())
+printed = {}
+_G.fileTrackerReport()
+check("...and the report now names the rows and the milliseconds",
+      (table.concat(printed, "\n"):match("history[^\n]*") or "")
+        :find("read 1 row", 1, true) ~= nil,
+      table.concat(printed, "\n"):match("history[^\n]*"))
+
+-- 3. THE WARM PHASE IS THE ONE THAT PAYS, on an ordinary Mac.
+_G.fileTrackerLog = nil
+local MA2 = bootOnly()
+check("...setup left it unread", _G.fileTrackerLog == nil)
+if type(MA2.warm) == "function" then pcall(MA2.warm) end
+check("🚨 warm() reads it, so no keypress ever waits on an idle Mac",
+      type(_G.fileTrackerLog) == "table" and #_G.fileTrackerLog == 1,
+      tostring(_G.fileTrackerLog and #_G.fileTrackerLog))
+check("...and warmAfter is set, so this read and activity_tracker's land "
+      .. "on different turns of the run loop rather than one long stall",
+      type(MA2.warmAfter) == "number" and MA2.warmAfter > 0,
+      tostring(MA2.warmAfter))
+
+-- 4. THE MIGRATION MOVED WITH IT, rather than being left behind on the
+--    boot path where it would still open and REWRITE the file.
+wipe()
+put(CSV,
+    "file_name,new_name,present_location,moved_location,timestamp,event,epoch\n"
+    .. '"budget.xlsx","budget final.xlsx","~/Documents","","11/07/26 14:30","Renamed",' .. T_JUL .. "\n")
+local MA3 = bootOnly()
+check("🚨 setup() does not rewrite a 6.114.0 file either — the write is off "
+      .. "the boot path too, not just the read",
+      (lines(CSV)[1] or ""):match("^file_name,") ~= nil, lines(CSV)[1])
+if type(MA3.warm) == "function" then pcall(MA3.warm) end
+check("...and the warm phase performs the migration exactly as boot used to",
+      lines(CSV)[1] == HEADER, lines(CSV)[1])
+
+-- 5. SOURCE SENTRY. One caller left reading the bare global is a caller
+--    that sees nil before the read — the whole class this shape closes,
+--    and nothing functional would notice it until he pressed the key.
+--    Comments are stripped, because the comments here quote the very line
+--    they exist to forbid (6.262.0's rule, in a new file).
+local srcFT = (function()
+    local f = io.open(HS .. "/modules/file_tracker.lua", "r")
+    local t = f:read("*a") ; f:close()
+    local kept = {}
+    for line in (t .. "\n"):gmatch("([^\n]*)\n") do
+        kept[#kept + 1] = line:gsub("%-%-.*$", "")
+    end
+    return table.concat(kept, "\n")
+end)()
+local ftGlobalUses = {}
+for line in (srcFT .. "\n"):gmatch("([^\n]*)\n") do
+    if line:find("_G.fileTrackerLog", 1, true) then
+        ftGlobalUses[#ftGlobalUses + 1] = line:gsub("^%s+", "")
+    end
+end
+check("🔒 the bare global is written in exactly the two places that publish "
+      .. "it, and READ in none — every other caller asks the door",
+      #ftGlobalUses == 2, table.concat(ftGlobalUses, " | "))
+for _, line in ipairs(ftGlobalUses) do
+    check("🔒 ...and that use is an assignment, never a read: " .. line,
+          line:match("^_G%.fileTrackerLog%s*=") ~= nil, line)
+end
+
+wipe()
+
+end)
+if not okA then
+    check("🚨 the 6.267.0 section ran to the end without throwing", false,
+          tostring(errA))
+end
+check("🚨 ...and it asserted every check it was written to make",
+      (pass + fail) - beforeA >= 13, (pass + fail) - beforeA)
 
 os.execute("rm -rf '" .. DIR .. "'")
 

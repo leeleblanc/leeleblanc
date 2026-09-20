@@ -5,6 +5,90 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.267.0 — ⏱ TWO STORES ARE READ WHEN THEY ARE FIRST NEEDED, NEVER
+DURING BOOT (modules/file_tracker.lua + modules/activity_tracker.lua):
+
+  LL, with his own boot log pasted underneath it: "How can I wrap the
+  file_tracker and activity_tracker initialization in an asynchronous
+  timer to speed up the boot?"
+
+      ⏱  Boot cost: 453 ms across 72 modules — slowest:
+         file_tracker 200ms, activity_tracker 150ms, autocorrect 12ms.
+
+  Three hundred and fifty of four hundred and fifty-three milliseconds,
+  in two modules out of seventy-two. He is right, and the number is not
+  the interesting part of it.
+
+  WHAT THEY WERE DOING. Each module's setup() opened a CSV that lives in
+  OneDrive, read the whole thing, parsed every row — ninety days of file
+  moves in one, four months of sessions in the other — purged, pruned,
+  and on a migration or a prune REWROTE the file. All of it
+  synchronously, all of it on the main thread, all of it before a single
+  ⇪ shortcut had been bound. A boot is the one moment when nothing else
+  is competing for that thread, which is exactly why it is the wrong
+  place to spend it: everything else is waiting behind it.
+
+  A TIMER IS THE RIGHT INSTRUMENT AND A BARE doAfter IS THE WRONG ONE,
+  for two reasons this project has already paid for.
+
+  The first is that the config already HAS this timer. `M.warm` is run
+  by init.lua's loader a couple of seconds after boot, inside its own
+  pcall, and a warm that throws is named in the Console rather than
+  lost (6.33.0). A second, unheld `hs.timer.doAfter` beside it would be
+  a second mechanism to keep in step, and 6.196.1 is what an unheld
+  timer chain costs.
+
+  The second is worse. Between boot and whenever a blind timer landed,
+  `_G.fileTrackerLog` and `_G.activityLog` would be EMPTY TABLES — so
+  ⇪F pressed in that window draws a ninety-day history with nothing in
+  it, and ⇪⇧W says "0 documents today" over a morning's work. Both
+  answers look like data and are not. "Not read yet" and "there is
+  nothing here" are opposite facts and must never read the same
+  (6.196.1).
+
+  SO THE READ IS LAZY, AND THERE IS EXACTLY ONE DOOR TO IT. The first
+  caller that wants the rows performs the read and everything after it
+  is served from memory. On an ordinary Mac that caller is `M.warm`, a
+  few seconds after boot, when nothing is happening — so no keypress
+  ever waits. A keypress that does arrive first gets the read rather
+  than an empty list: his press, his two hundred milliseconds, and the
+  honest answer.
+
+  `M.warmAfter` (3.0 for the file tracker, 4.5 for the activity
+  tracker) puts the two reads on DIFFERENT turns of the run loop. Two
+  OneDrive CSVs parsed in one turn is one long main-thread stall
+  wearing two names, and a main thread this config is busy on is a
+  mouse this Mac has lost (6.228.0).
+
+  THE SENTRY, per module, because one caller left reading the bare
+  global is a caller that sees nil before the read — and nothing
+  functional would notice until he pressed the key. The suites read the
+  source with comments stripped (the comments quote the very line they
+  forbid) and require that `_G.fileTrackerLog` and `_G.activityLog` are
+  WRITTEN where they are published and READ nowhere: every other caller
+  asks the door.
+
+  AND THE SUITES NOW BOOT THE WAY init.lua BOOTS — setup, then warm
+  (6.259.0's rule). Three of them had been installing fixtures by
+  assigning the published global, which under the new shape is the
+  module's OUTPUT rather than its input; they write a CSV and let the
+  loader parse it now, which is a better test than the one they
+  replaced (6.203.0: a harness that hand-builds the data cannot see a
+  bug in the building). Two mutations killed a suite instead of failing
+  it until its helpers answered falsely rather than indexing a nil —
+  6.186.0, sixth time.
+
+  COST, NAMED: the read is still synchronous and still on the main
+  thread when it happens. What moved is WHEN. Taking the parse off the
+  thread altogether is a different release with a different mechanism
+  (/bin/cat in an hs.task, the 6.170.3 shape), it is not what was asked
+  for, and it is not smuggled in here.
+
+  Reports: both modules' reports gained a "history" line with three
+  states — not read yet · read N rows in N ms at HH:MM:SS · and what
+  the read cost. 10,166 -> 10,195 checks. Twelve mutations, twelve
+  bites.
+
 NEW IN 6.266.0 — 🧊 A PANEL YOU GAVE UP ON IS NEVER PUT BACK ON SCREEN
 (init.lua §_G.showCanvasSafely + modules/mouse_grid.lua):
 

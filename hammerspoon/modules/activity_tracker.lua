@@ -673,29 +673,72 @@ function M.setup(core)
         return kept
     end
 
-    -- Boot: load existing OneDrive CSV data (or migrate from the old
-    -- ~/.hammerspoon files if this is the first run since upgrading),
-    -- purge known junk rows and prune anything past the retention window,
-    -- and rewrite the file (with header) if it's brand new or cleanup
-    -- removed something.
-    local _existedBefore = activityFileExists()
-    local _loaded, _oldHeader
-    if _existedBefore then
-        _loaded, _oldHeader = loadActivityCSV(activityHistoryFile)
-    else
-        _loaded, _oldHeader = migrateOldDataIfAny(), false
-    end
-    local _purged = purgeJunkApps(_loaded)
-    local _pruned = pruneActivityLog(_purged)
-    _G.activityLog = _pruned
-    -- 6.123.0: _oldHeader forces exactly one rewrite on the first load after
-    -- upgrading, so the url column exists in the header rather than only in
-    -- the rows written from now on.
-    if not _existedBefore or #_pruned ~= #_loaded or _oldHeader then
-        if not rewriteActivityLog(_pruned) then
-            hs.alert.show("⚠️ Can't write activity_history.csv — is the OneDrive Logs folder available?", 6)
+    -- =====================================================================
+    -- ⏱ 6.267.0 - THE FOUR MONTHS ARE READ WHEN THEY ARE FIRST NEEDED
+    -- =====================================================================
+    -- The same change as file_tracker's, for the same reason and in the
+    -- same release, because LL asked about the two of them in one sentence
+    -- and they are one shape: 150 ms of a 453 ms boot went on opening a
+    -- CSV in OneDrive, parsing four months of sessions, purging, pruning
+    -- and sometimes REWRITING it - all of it on the main thread, before a
+    -- single shortcut was bound.
+    --
+    -- 🔑 ONE DOOR, and the global is published only once it is REAL.
+    -- `_G.activityLog` an empty table before the read would make ⇪0 draw
+    -- an empty day and ⇪⇧W say "0 documents today" over a morning's
+    -- work - true-looking and false, which is the failure 6.196.1 exists
+    -- to stop. Every reader and writer below asks `atLog()`; a source
+    -- sentry in the suite fails if one of them reaches for the bare
+    -- global again.
+    --
+    -- 📏 COST, NAMED: the read is still synchronous and still on the main
+    -- thread when it happens. What moved is WHEN. And a keypress that
+    -- arrives before the warm phase pays for it - the honest direction,
+    -- because the alternative is answering him with an empty list.
+    local atLoadState = "not read yet"
+    local atLoadMs    = 0
+    local _atLog      = nil
+
+    local function atNowMs()
+        if hs.timer and hs.timer.absoluteTime then
+            local ok, v = pcall(hs.timer.absoluteTime)
+            if ok and tonumber(v) then return tonumber(v) / 1e6 end
         end
+        return os.clock() * 1000
     end
+
+    local function atLog()
+        if _atLog then return _atLog end
+        local t0 = atNowMs()
+        -- Load the existing OneDrive CSV (or migrate from the old
+        -- ~/.hammerspoon files if this is the first run since upgrading),
+        -- purge known junk rows and prune anything past the retention
+        -- window, and rewrite the file (with header) if it is brand new or
+        -- cleanup removed something.
+        local existedBefore = activityFileExists()
+        local loaded, oldHeader
+        if existedBefore then
+            loaded, oldHeader = loadActivityCSV(activityHistoryFile)
+        else
+            loaded, oldHeader = migrateOldDataIfAny(), false
+        end
+        local pruned = pruneActivityLog(purgeJunkApps(loaded))
+        _atLog = pruned
+        _G.activityLog = _atLog
+        -- 6.123.0: oldHeader forces exactly one rewrite on the first load
+        -- after upgrading, so the url column exists in the header rather
+        -- than only in the rows written from now on.
+        if not existedBefore or #pruned ~= #loaded or oldHeader then
+            if not rewriteActivityLog(pruned) then
+                hs.alert.show("⚠️ Can't write activity_history.csv — is the OneDrive Logs folder available?", 6)
+            end
+        end
+        atLoadMs = atNowMs() - t0
+        atLoadState = ("read %d session(s) in %d ms at %s")
+                      :format(#_atLog, math.floor(atLoadMs + 0.5), os.date("%H:%M:%S"))
+        return _atLog
+    end
+    _G.activityHistory = atLog     -- the door, for the Console and any module
 
     -- The session currently being tracked (app + window title + when it
     -- started). Closed out and recorded whenever the poller notices either
@@ -784,7 +827,7 @@ function M.setup(core)
                 url     = s.url or "",
                 doc     = s.doc or "",
             }
-            table.insert(_G.activityLog, entry)
+            table.insert(atLog(), entry)
             appendActivityRow(entry)
         end
     end
@@ -891,7 +934,7 @@ function M.setup(core)
     -- correctly with plain >= / <= since they're zero-padded YYYY-MM-DD.
     local function appTotalsInRange(startStr, endStr)
         local totals = {}
-        for _, e in ipairs(_G.activityLog) do
+        for _, e in ipairs(atLog()) do
             if e.date >= startStr and e.date <= endStr then
                 totals[e.app] = (totals[e.app] or 0) + e.seconds
             end
@@ -904,7 +947,7 @@ function M.setup(core)
     -- proxy for a document that generalizes across arbitrary apps.
     local function appAndTitleTotalsInRange(startStr, endStr)
         local appTotals, titleTotals = {}, {}
-        for _, e in ipairs(_G.activityLog) do
+        for _, e in ipairs(atLog()) do
             if e.date >= startStr and e.date <= endStr then
                 appTotals[e.app] = (appTotals[e.app] or 0) + e.seconds
                 local label = ad.rowLabel(e)
@@ -996,7 +1039,7 @@ function M.setup(core)
             -- in this file lists its columns explicitly, so it never reaches
             -- the CSV.
             local matchTotals, matchURL = {}, {}
-            for _, e in ipairs(_G.activityLog) do
+            for _, e in ipairs(atLog()) do
                 local haystack = e._hay
                 if not haystack then
                     -- 6.123.0: the url joins the haystack, so typing a domain
@@ -1191,7 +1234,7 @@ function M.setup(core)
         end
 
         local rows, withURL = 0, 0
-        for _, e in ipairs(_G.activityLog) do
+        for _, e in ipairs(atLog()) do
             rows = rows + 1
             if type(e.url) == "string" and e.url ~= "" then withURL = withURL + 1 end
         end
@@ -1303,7 +1346,7 @@ function M.setup(core)
     -- instead of kept alongside them.
     local function docRows()
         local index, order = {}, {}
-        for _, e in ipairs(_G.activityLog or {}) do
+        for _, e in ipairs(atLog()) do
             -- 📄 6.257.0 — the file the app NAMED wins; the title is the
             -- fallback it always was. Both callers of this join ask the one
             -- function, so the list and the editor cannot disagree about
@@ -1337,7 +1380,7 @@ function M.setup(core)
     -- rather than stored, so an edit can never act on a stale index.
     local function docSessionsFor(row)
         local hits = {}
-        for i, e in ipairs(_G.activityLog or {}) do
+        for i, e in ipairs(atLog()) do
             if e.date == row.date and ad.docName(e, docFileFromTitle) == row.file then
                 hits[#hits + 1] = i
             end
@@ -1535,7 +1578,7 @@ function M.setup(core)
     -- the earlier indices stay valid while removing.
     local function docDelete(row)
         local hits = docSessionsFor(row)
-        for i = #hits, 1, -1 do table.remove(_G.activityLog, hits[i]) end
+        for i = #hits, 1, -1 do table.remove(atLog(), hits[i]) end
         return #hits
     end
 
@@ -1556,7 +1599,7 @@ function M.setup(core)
             local removed = 0
             for _, r in ipairs(picked) do removed = removed + docDelete(r) end
             if removed > 0 then
-                if not rewriteActivityLog(_G.activityLog) then
+                if not rewriteActivityLog(atLog()) then
                     hs.alert.show("⚠️ Could not write activity_history.csv — the deletion "
                                   .. "will come back on reload", 6)
                 else
@@ -1592,7 +1635,7 @@ function M.setup(core)
 
         if text == "" then
             local removed = docDelete(row)
-            if rewriteActivityLog(_G.activityLog) then
+            if rewriteActivityLog(atLog()) then
                 hs.alert.show("🗑 Deleted " .. row.file .. " (" .. removed .. " sessions)")
             else
                 hs.alert.show("⚠️ Could not write activity_history.csv", 6)
@@ -1601,8 +1644,8 @@ function M.setup(core)
             -- The filename IS the title for these rows once the app suffix
             -- is stripped, so writing the new name straight into the title
             -- is what makes it come back as the new name.
-            for _, i in ipairs(hits) do _G.activityLog[i].title = text end
-            if rewriteActivityLog(_G.activityLog) then
+            for _, i in ipairs(hits) do atLog()[i].title = text end
+            if rewriteActivityLog(atLog()) then
                 hs.alert.show("✏️ Renamed to " .. text)
             else
                 hs.alert.show("⚠️ Could not write activity_history.csv", 6)
@@ -1657,6 +1700,11 @@ function M.setup(core)
         local L = { "📄 DOCUMENTS — where the names come from" }
         local function line(s) L[#L + 1] = s end
 
+        -- ⏱ 6.267.0 - three states, not two. "not read yet" is a Mac that
+        -- has booted and not been asked, which is health; it must not read
+        -- like a Mac whose four months came back empty.
+        line("  history: " .. atLoadState)
+
         if ad.askDocs == false then
             line("  asking : OFF — settings = { activity_tracker = "
                  .. "{ askDocs = false } }")
@@ -1697,7 +1745,7 @@ function M.setup(core)
               .. "%d read out of a title"):format(#rows, byApp, byTitle))
 
         local n, withDoc = 0, 0
-        for _, e in ipairs(_G.activityLog or {}) do
+        for _, e in ipairs(atLog()) do
             n = n + 1
             if type(e.doc) == "string" and e.doc ~= "" then withDoc = withDoc + 1 end
         end
@@ -1710,6 +1758,17 @@ function M.setup(core)
         return L
     end
     core.provide("activity.docsReport", function() return _G.activityDocsReport() end)
+
+    -- ⏱ 6.267.0 - THE WARM PHASE PAYS FOR THE READ, so no keypress does,
+    -- and `warmAfter` puts it on a different turn from file_tracker's. Two
+    -- OneDrive CSVs parsed in one turn is one long main-thread stall
+    -- wearing two names (6.228.0). 4.5 s, not 3.0: the file tracker reads
+    -- first and this one follows it.
+    M.warmAfter = 4.5
+    M.warm = function()
+        atLog()
+        return true
+    end
 
     core.provide("activity.docs",     function() return docRows() end)
     core.provide("activity.docList",  function() renderDocList("") end)
@@ -1737,7 +1796,7 @@ function M.setup(core)
         local r = docFindRow(key)
         if not r then return 0 end
         local n = docDelete(r)
-        rewriteActivityLog(_G.activityLog)
+        rewriteActivityLog(atLog())
         return n
     end
 

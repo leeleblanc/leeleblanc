@@ -231,7 +231,20 @@ function M.setup(core)
     end
 
     function rd.trackerIndex()
-        local log = _G.fileTrackerLog
+        -- ⏱ 6.267.0 - ASK THE DOOR, NOT THE GLOBAL. The file tracker
+        -- reads its 90 days when they are first needed rather than during
+        -- boot, so the global it publishes is nil until that read has
+        -- happened. Asking `history()` makes THIS the reader that pays for
+        -- it when it arrives first, which is the right answer: reading the
+        -- bare global would quietly hand back "no renames on this Mac"
+        -- and every moved file would look unfindable (6.196.1).
+        local log = nil
+        if type(_G.fileTracker) == "table"
+           and type(_G.fileTracker.history) == "function" then
+            local ok, rows = pcall(_G.fileTracker.history)
+            if ok then log = rows end
+        end
+        if type(log) ~= "table" then log = _G.fileTrackerLog end
         if type(log) ~= "table" then return {}, false end
         local map = {}
         for _, e in ipairs(log) do

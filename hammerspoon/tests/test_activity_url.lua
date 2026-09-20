@@ -23,6 +23,17 @@ local function check(label, cond, extra)
     else fail = fail + 1
          failures[#failures + 1] = label .. (extra ~= nil and ("\n        got: " .. tostring(extra)) or "") end
 end
+
+-- ⏱ 6.267.0 - A TEST HELPER ANSWERS FALSELY RATHER THAN INDEXING A NIL
+-- (6.186.0, sixth time). The history is read lazily now, so the mutation
+-- that stops it being read at all leaves `_G.activityLog` nil - and a
+-- suite that says `#rows()` there DIES mid-file with "0 failed"
+-- never printed, instead of failing the checks written to catch it.
+local function rows()
+    local l = _G.activityLog
+    return (type(l) == "table") and l or {}
+end
+local function row(i) return rows()[i] or {} end
 local function out(s) io.write(s) end
 
 local printed = {}
@@ -198,6 +209,10 @@ os.remove(EXPECTED_CSV)
 local chunk = assert(loadfile(HS .. "/modules/activity_tracker.lua"))
 local M = chunk()
 M.setup(core)
+-- ⏱ 6.267.0 - setup, THEN warm, the way init.lua runs a module. The four
+-- months of sessions are no longer read during setup, so a suite that
+-- stopped at setup would be driving a module that has not opened its CSV.
+if type(M.warm) == "function" then M.warm() end
 
 local au = _G.activityURL   -- rebound in §5 after the fresh load
 check("the module exposes its URL engine as _G.activityURL", type(au) == "table")
@@ -472,16 +487,17 @@ do
 
     local fresh = assert(loadfile(HS .. "/modules/activity_tracker.lua"))()
     fresh.setup(core)
+    if type(fresh.warm) == "function" then fresh.warm() end
 
     check("🔁 every pre-6.123.0 row survives the upgrade — none dropped",
-          #_G.activityLog == 2, #_G.activityLog)
+          #rows() == 2, #rows())
     check("🔁 ...with their data intact",
-          _G.activityLog[1].app == "Safari" and _G.activityLog[1].seconds == 120)
+          row(1).app == "Safari" and row(1).seconds == 120)
     check("🔁 ...a quoted title containing a comma still reads as ONE field",
-          _G.activityLog[2].title == "A title, with a comma",
-          _G.activityLog[2].title)
+          row(2).title == "A title, with a comma",
+          row(2).title)
     check("🔁 ...and the missing url reads as empty rather than nil",
-          _G.activityLog[1].url == "")
+          row(1).url == "")
 
     local firstLine = io.open(EXPECTED_CSV):read("l")
     check("🔁 the file was rewritten ONCE with the six-column header, so it "
@@ -505,12 +521,28 @@ end
 out("\n== 6. SEARCH SEES URLS ==\n")
 -- =====================================================================
 
-_G.activityLog = {
-    { date = "2026-08-20", app = "Google Chrome", title = "Invoice — Acme",
-      seconds = 600, url = "https://billing.acme.example/invoices/88" },
-    { date = "2026-08-20", app = "Sublime Text", title = "init.lua",
-      seconds = 300, url = "" },
-}
+-- ⏱ 6.267.0 - THE FIXTURE GOES ON DISK AND THE MODULE PARSES IT, which
+-- is not ceremony: assigning `_G.activityLog` by hand used to install the
+-- rows, and since the read became lazy that global is the module's OUTPUT
+-- rather than its input. Writing the CSV drives the loader the way a Mac
+-- does, so this section can see a bug in the reading as well as in the
+-- searching (6.203.0's rule: a harness that hand-builds the data cannot
+-- see a bug in the building).
+do
+    local f = io.open(EXPECTED_CSV, "w")
+    f:write("date,app,title,seconds,url,doc\n")
+    f:write('2026-08-20,Google Chrome,"Invoice — Acme",600,'
+            .. "https://billing.acme.example/invoices/88,\n")
+    f:write("2026-08-20,Sublime Text,init.lua,300,,\n")
+    f:close()
+    local fresh6 = assert(loadfile(HS .. "/modules/activity_tracker.lua"))()
+    fresh6.setup(core)
+    if type(fresh6.warm) == "function" then fresh6.warm() end
+    au = _G.activityURL
+end
+check("🔁 the two fixture rows were read off the CSV, not assigned",
+      type(_G.activityLog) == "table" and #rows() == 2,
+      type(_G.activityLog) == "table" and #rows() or "nil")
 local ch = _G.choosers.appTracker
 check("(the tracker chooser exists)", ch ~= nil)
 _G.service.call("activity.renderChoices", "billing.acme")
@@ -522,7 +554,8 @@ check("🔎 ...and the row shows the URL it matched",
       hits[2] and hits[2].subText:find("billing.acme.example", 1, true) ~= nil,
       hits[2] and hits[2].subText)
 check("...the cache was built including the url",
-      _G.activityLog[1]._hay:find("billing.acme.example", 1, true) ~= nil)
+      (row(1)._hay or ""):find("billing.acme.example", 1, true) ~= nil,
+      tostring(row(1)._hay))
 
 _G.service.call("activity.renderChoices", "init.lua")
 check("a row with no url still searches by title as before",
@@ -855,6 +888,7 @@ do
 
     local fresh = assert(loadfile(HS .. "/modules/activity_tracker.lua"))()
     fresh.setup(core)
+    if type(fresh.warm) == "function" then fresh.warm() end
     ad = _G.activityDocWatch
     installDocs({ ["Microsoft Word"] = true })
     ANSWER = { path = "/Users/x/Documents/Strategies of the Directors.docx",
@@ -882,7 +916,7 @@ do
     FRONT = { name = "Finder", title = "Downloads", kind = 1 }
     _G.activityPoller.fn()
 
-    local last = _G.activityLog[#_G.activityLog]
+    local last = row(#rows())
     check("📄 the closed session records the document",
           last and last.app == "Microsoft Word"
           and last.doc == "/Users/x/Documents/Strategies of the Directors.docx",
@@ -944,7 +978,7 @@ do
     -- nothing at all when he asked it to, which is worse than not showing
     -- it. One function, two callers (6.231.0), asserted here.
     do
-        local before = #_G.activityLog
+        local before = #rows()
         local key
         for _, r in ipairs(_G.activityDocsForTest()) do
             if r.file == "Strategies of the Directors.docx" then key = r.key end
@@ -952,7 +986,7 @@ do
         check("(the Word row is there to delete)", key ~= nil)
         local removed = _G.activityDocDeleteForTest(key)
         check("🗑 deleting a document the APP named removes its sessions",
-              removed == 1 and #_G.activityLog == before - 1, removed)
+              removed == 1 and #rows() == before - 1, removed)
         check("🗑 ...and the row is gone from the list", (function()
                   for _, r in ipairs(_G.activityDocsForTest()) do
                       if r.file == "Strategies of the Directors.docx" then return false end
@@ -969,12 +1003,13 @@ do
     g:close()
     local fresh2 = assert(loadfile(HS .. "/modules/activity_tracker.lua"))()
     fresh2.setup(core)
+    if type(fresh2.warm) == "function" then fresh2.warm() end
     check("🔁 a five-column row survives the upgrade with its url intact",
-          #_G.activityLog == 1
-          and _G.activityLog[1].url == "https://example.com/a", #_G.activityLog)
+          #rows() == 1
+          and row(1).url == "https://example.com/a", #rows())
     check("🔁 ...and its missing doc reads as EMPTY rather than nil, so every "
           .. "reader can treat both shapes the same",
-          _G.activityLog[1].doc == "")
+          row(1).doc == "")
     check("🔁 the file was rewritten ONCE into the six-column header",
           io.open(EXPECTED_CSV):read("l") == "date,app,title,seconds,url,doc",
           io.open(EXPECTED_CSV):read("l"))
@@ -1017,6 +1052,113 @@ do
           .. "`Microsoft Wordpad` is not `Microsoft Word`",
           dmSrc:find("return dm.apps%[name%] == true") ~= nil)
 end
+
+-- =====================================================================
+out("\n== A. 6.267.0 — the four months are read when first needed ==\n")
+-- =====================================================================
+-- LL's boot log: 453 ms across 72 modules, activity_tracker 150 of them.
+-- All of it was a OneDrive CSV opened, parsed, purged, pruned and
+-- sometimes rewritten inside setup(), before a single shortcut was bound.
+local beforeA, okA, errA = pass + fail, pcall(function()
+
+os.remove(EXPECTED_CSV)
+local g = io.open(EXPECTED_CSV, "w")
+g:write("date,app,title,seconds,url,doc\n")
+g:write("2026-09-02,Microsoft Word,Budget.docx,900,,Budget.docx\n")
+g:close()
+
+_G.activityLog = nil
+local MA = assert(loadfile(HS .. "/modules/activity_tracker.lua"))()
+MA.setup(core)
+check("🚨 setup() alone does NOT read the four months — that is the 150 ms "
+      .. "leaving the boot path",
+      _G.activityLog == nil, tostring(_G.activityLog))
+printed = {}
+_G.activityDocsReport()
+local repA = table.concat(printed, "\n")
+check("...and the report says NOT READ YET rather than counting zero "
+      .. "sessions — those are opposite facts about the same Mac",
+      (repA:match("history[^\n]*") or ""):find("not read yet", 1, true) ~= nil,
+      repA:match("history[^\n]*") or "no history line")
+
+check("🚨 a reader before the warm phase is handed the REAL sessions — ⇪0 "
+      .. "one second after boot must not draw an empty day",
+      type(_G.activityHistory) == "function" and #_G.activityHistory() == 1,
+      type(_G.activityHistory) == "function" and #_G.activityHistory() or "no door")
+check("...and the global is published once it holds them, and is the SAME "
+      .. "list rather than a copy",
+      type(_G.activityLog) == "table" and _G.activityLog == _G.activityHistory())
+printed = {}
+_G.activityDocsReport()
+check("...and the report then names the sessions and the milliseconds",
+      (table.concat(printed, "\n"):match("history[^\n]*") or "")
+        :find("read 1 session", 1, true) ~= nil,
+      table.concat(printed, "\n"):match("history[^\n]*"))
+
+_G.activityLog = nil
+local MB = assert(loadfile(HS .. "/modules/activity_tracker.lua"))()
+MB.setup(core)
+check("...setup left it unread", _G.activityLog == nil)
+if type(MB.warm) == "function" then MB.warm() end
+check("🚨 warm() reads it, so no keypress ever waits on an idle Mac",
+      type(_G.activityLog) == "table" and #rows() == 1,
+      type(_G.activityLog) == "table" and #rows() or "nil")
+check("...and warmAfter is set, so this read and file_tracker's land on "
+      .. "different turns of the run loop rather than one long stall",
+      type(MB.warmAfter) == "number" and MB.warmAfter > 0, tostring(MB.warmAfter))
+
+-- 🔁 THE REWRITE MOVED TOO. A four-column file used to be migrated during
+-- boot; the migration is a WRITE into OneDrive and had no business there.
+os.remove(EXPECTED_CSV)
+local h = io.open(EXPECTED_CSV, "w")
+h:write("date,app,title,seconds\n")
+h:write("2026-09-03,Safari,Some page,120\n")
+h:close()
+_G.activityLog = nil
+local MC = assert(loadfile(HS .. "/modules/activity_tracker.lua"))()
+MC.setup(core)
+check("🚨 setup() does not rewrite a four-column file either — the write is "
+      .. "off the boot path as well as the read",
+      io.open(EXPECTED_CSV):read("l") == "date,app,title,seconds",
+      io.open(EXPECTED_CSV):read("l"))
+if type(MC.warm) == "function" then MC.warm() end
+check("...and the warm phase migrates it exactly as boot used to",
+      io.open(EXPECTED_CSV):read("l") == "date,app,title,seconds,url,doc",
+      io.open(EXPECTED_CSV):read("l"))
+
+-- 🔒 SOURCE SENTRY, comments stripped because the comments quote the very
+-- line they forbid. One reader left on the bare global is a reader that
+-- sees nil before the read, and nothing functional would notice.
+local srcAT = (function()
+    local f = io.open(HS .. "/modules/activity_tracker.lua", "r")
+    local t = f:read("*a") ; f:close()
+    local kept = {}
+    for line in (t .. "\n"):gmatch("([^\n]*)\n") do
+        kept[#kept + 1] = line:gsub("%-%-.*$", "")
+    end
+    return table.concat(kept, "\n")
+end)()
+local uses = {}
+for line in (srcAT .. "\n"):gmatch("([^\n]*)\n") do
+    if line:find("_G.activityLog", 1, true) then
+        uses[#uses + 1] = line:gsub("^%s+", "")
+    end
+end
+check("🔒 the bare global is written in exactly ONE place and read in none "
+      .. "— every other caller asks the door",
+      #uses == 1, table.concat(uses, " | "))
+for _, line in ipairs(uses) do
+    check("🔒 ...and that use is an assignment, never a read: " .. line,
+          line:match("^_G%.activityLog%s*=") ~= nil, line)
+end
+
+end)
+if not okA then
+    check("🚨 the 6.267.0 section ran to the end without throwing", false,
+          tostring(errA))
+end
+check("🚨 ...and it asserted every check it was written to make",
+      (pass + fail) - beforeA >= 12, (pass + fail) - beforeA)
 
 -- ---- cleanup ------------------------------------------------------------
 os.remove(EXPECTED_CSV)

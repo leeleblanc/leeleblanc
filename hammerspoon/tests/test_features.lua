@@ -2642,9 +2642,15 @@ do
   check("the file-tracker picker exists and is query-driven",
         ftChooser ~= nil and type(ftChooser._onQuery) == "function")
 
-  _G.fileTrackerLog = {}
+  -- ⏱ 6.267.0 - THE FIXTURE GOES THROUGH THE DOOR. The 90 days are read
+  -- when first needed now, so `_G.fileTrackerLog` is this module's OUTPUT
+  -- and assigning it by hand installs a list nothing reads. Asking
+  -- `history()` performs the (empty) read, publishes the list, and hands
+  -- back the one the picker itself walks.
+  _G.fileTrackerLog = nil
+  local ftRows = _G.fileTracker.history()
   for i = 1, 50 do
-    table.insert(_G.fileTrackerLog, {
+    table.insert(ftRows, {
       fileName = "Report " .. i .. ".xlsx", newName = "", presentLoc = "/Finance",
       movedLoc = "", event = "Renamed", timestamp = "07/08/26 09:0" .. (i % 10),
       epoch = os.time(),
@@ -2673,9 +2679,12 @@ do
 
   local actMod = load("activity_tracker")
   actMod.setup(core)
-  _G.activityLog = {}
+  -- ⏱ 6.267.0 - through the door, for the same reason as the file
+  -- tracker's fixture above.
+  _G.activityLog = nil
+  local actRows = _G.activityHistory()
   for i = 1, 50 do
-    table.insert(_G.activityLog, {
+    table.insert(actRows, {
       date = "2026-08-07", app = (i % 2 == 0) and "Safari" or "Mail",
       title = "Message " .. i, seconds = 60,
     })

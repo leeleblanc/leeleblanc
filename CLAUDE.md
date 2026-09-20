@@ -77,6 +77,18 @@ work Mac.
      🚨 IF THE TAR.GZ ALSO ARRIVES EMPTY, do not try a fourth
      container: the GitHub link is then the delivery, and the next thing
      to change is that he installs from a clone or a single curl line.
+- ✍️ LL DOES NOT EDIT init.lua AND A SETTINGS LINE IS NOT AN ANSWER
+  (6.267.0, LL: "I do not edit the init.lua so I don't cause simple
+  errors. You are to generate and test a new init.lua."). Every
+  `settings = { ... }` line handed to him as the fix for something he
+  reported is work he has said he will not do, and a knob nobody turns
+  is a default that is wrong. So: when a default is wrong, CHANGE THE
+  DEFAULT AND SHIP IT. Knobs are still written — they are how a release
+  stays reversible and how the gate proves a switch is real — but they
+  are documented, never prescribed. The one exception is a decision that
+  is genuinely his taste and has two defensible answers; there, ask him
+  which he wants and ship the answer, rather than leaving the line in a
+  message for him to type.
 - Backups copy only `~/.ssh/config` — never the keys beside it, never the
   Keychain. daily_backup excludes `secret.lua` and `applock.json` from every
   rsync.
@@ -730,6 +742,41 @@ work Mac.
   retry that acts a turn later is acting on a decision that may have
   been reversed, and it holds the only reference to the thing it acts
   on — which makes it unreachable by the code that owns it.
+- ⏱ A STORE IS READ WHEN IT IS FIRST NEEDED, NEVER DURING BOOT
+  (6.267.0, modules/file_tracker.lua + activity_tracker.lua — LL, with
+  his own ⏱ line: "How can I wrap the file_tracker and activity_tracker
+  initialization in an asynchronous timer to speed up the boot?" 453 ms
+  across 72 modules, 350 of them in those two). Each setup() opened a CSV
+  in OneDrive, parsed it whole, pruned it and sometimes REWROTE it — on
+  the main thread, before a single ⇪ shortcut was bound.
+  🔑 THE TIMER ALREADY EXISTS AND A BARE doAfter IS THE WRONG ONE.
+  `M.warm` runs seconds after boot in its own pcall and a warm that
+  throws is NAMED (6.33.0); a second unheld timer beside it is 6.196.1's
+  shape. And a blind timer leaves the published list EMPTY until it
+  lands, so ⇪F in that window draws a 90-day history with nothing in it
+  — "not read yet" and "you have no history" reading the same, which is
+  exactly what 6.196.1 forbids.
+  🚪 SO: LAZY, THROUGH ONE DOOR. The first caller pays; warm() is that
+  caller on an ordinary Mac, so no keypress waits; a keypress that
+  arrives first gets the read rather than an empty answer. `M.warmAfter`
+  (3.0 · 4.5) puts the two reads on DIFFERENT turns — two OneDrive CSVs
+  parsed in one turn is one long stall wearing two names (6.228.0).
+  🔒 A SOURCE SENTRY PER MODULE: the published global is WRITTEN where
+  it is published and READ nowhere. One caller left on the bare global
+  sees nil before the read and nothing functional would notice.
+  🧪 AND THE SUITES BOOT THE WAY init.lua BOOTS — setup, THEN warm
+  (6.259.0). Three suites installed fixtures by ASSIGNING the published
+  global, which is now the module's OUTPUT, not its input; they write a
+  CSV and let the loader parse it (6.203.0). Two mutations killed a
+  suite instead of failing it until the helpers answered falsely rather
+  than indexing a nil — 6.186.0, sixth time.
+  📏 COST, NAMED: the read is still synchronous and still on the main
+  thread when it happens. What moved is WHEN. Taking the parse off the
+  thread is a different release with a different mechanism (/bin/cat in
+  an hs.task, 6.170.3's shape) and was not smuggled in here.
+  🚨 GENERAL: anything a module reads from DISK at setup is a tax every
+  other module and every key pays. Ask whether the first keypress could
+  pay it instead — and if it could, the answer is a door, not a timer.
 - 🎯 A TOOL THAT ANNOUNCES ITSELF IN THE MIDDLE OF SOMETHING ELSE IS A
   TOOL YOU SWITCH OFF (6.259.0, modules/dialog_home.lua — LL, with a
   photograph of its own capture toast, "🎯 Dialogs will open here now —
@@ -2525,7 +2572,7 @@ THE METHOD, when something breaks after a stacked zip:
    6.216.0 6f06071 · 6.217.0 a475bef · 6.218.0 41b002b · 6.219.0 862c177
    · 6.220.0 ac3975e · 6.221.0 ead07d9 · 6.222.0 1842ca7 · 6.223.0
    86ac82b · 6.224.0 67957ea · 6.225.0 98434fe · 6.226.0 304f1f9 ·
-   6.227.0 14e953a · 6.228.0 2aa3dfe · 6.229.0 a1318e1 · 6.230.0 0740c07 · 6.231.0 c1921af · 6.231.1 5a5c298 · 6.232.0 1ca3f6f · 6.233.0 2328c8c · 6.234.0 57f78d0 · 6.235.0 52e5b21 · 6.236.0 34cff8b · 6.236.1 fdce771 · 6.237.0 adf9256 · 6.238.0 3adad4f · 6.239.0 3adad4f (one commit, two releases) · 6.240.0 8f44bec · 6.241.0 dce517e · 6.242.0 1a1dab0 · 6.243.0 8fba04f · 6.244.0 9320906 · 6.245.0 9c1a8b1 · 6.246.0 1400abd · 6.247.0 3b92e99 · 6.248.0 e4e3a03 · 6.249.0 e4edc3f · 6.250.0 c267c1b · 6.251.0 f7b0d57 · 6.252.0 6307253 · 6.253.0 ef20313 · 6.254.0 14493e5 · 6.255.0 d371b34 · 6.256.0 3c29888 · 6.257.0 7f55d2b · 6.258.0 10d2250 · 6.259.0 2bcda06 · 6.260.0 f16e286 · 6.261.0 8680504 · 6.262.0 595dc2e · 6.263.0 014ddf6 · 6.264.0 5e41879 · 6.265.0 f0c487c · 6.266.0 9135f7b.
+   6.227.0 14e953a · 6.228.0 2aa3dfe · 6.229.0 a1318e1 · 6.230.0 0740c07 · 6.231.0 c1921af · 6.231.1 5a5c298 · 6.232.0 1ca3f6f · 6.233.0 2328c8c · 6.234.0 57f78d0 · 6.235.0 52e5b21 · 6.236.0 34cff8b · 6.236.1 fdce771 · 6.237.0 adf9256 · 6.238.0 3adad4f · 6.239.0 3adad4f (one commit, two releases) · 6.240.0 8f44bec · 6.241.0 dce517e · 6.242.0 1a1dab0 · 6.243.0 8fba04f · 6.244.0 9320906 · 6.245.0 9c1a8b1 · 6.246.0 1400abd · 6.247.0 3b92e99 · 6.248.0 e4e3a03 · 6.249.0 e4edc3f · 6.250.0 c267c1b · 6.251.0 f7b0d57 · 6.252.0 6307253 · 6.253.0 ef20313 · 6.254.0 14493e5 · 6.255.0 d371b34 · 6.256.0 3c29888 · 6.257.0 7f55d2b · 6.258.0 10d2250 · 6.259.0 2bcda06 · 6.260.0 f16e286 · 6.261.0 8680504 · 6.262.0 595dc2e · 6.263.0 014ddf6 · 6.264.0 5e41879 · 6.265.0 f0c487c · 6.266.0 9135f7b · 6.267.0 PENDING-SHA.
    Keep this list current: one line per release, appended at ceremony
    time.
 4. A BISECT IS AN OPTION, NOT THE FIRST MOVE — it costs him an install
@@ -2621,6 +2668,7 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
+| 6.267.0 | ⏱ the boot stops reading two OneDrive CSVs — the 90-day file history and the four months of sessions are read when they are first needed (350 ms of a 453 ms boot) | pending |
 | 6.266.0 | 🧊 the frozen grid box: a panel the caller gave up on is never put back on screen — the retry hands the canvas back instead of showing it itself | pending |
 | 6.265.0 | 🚨 ⇪4 captures again — 6.264.0's fallback to macOS's crosshair existed and was unreachable, because selectArea discarded the one value saying whether it drew | pending |
 | 6.264.0 | 📐 ⇪4 drags on our own selector, so the live 1280 × 720 is on the key he actually presses — the native magnifier and SPACE-to-shoot-a-window are the price | **LOSS** — LL: "Hyper+4 no longer works to screenshot." The selector's canvas can be refused by macOS and selectArea reported success anyway, so the key did nothing at all → fix 6.265.0 |
@@ -2651,6 +2699,97 @@ next boot announced it (LL: "fortunately hammerspoon caught itself"). LL is on
 built. The work Mac's storm report is still owed, on 6.215.0 now.
 
 ## Open items — update as they move
+
+- 📥 LL'S QUEUE, 2026-09-20 (asked in two messages; NONE built yet,
+  and the order below is MINE until he says otherwise — removals and
+  bugs first, features after, one change per release):
+  1. 🗑 SHORTCUT HINTS DELETED, not switched off. LL, with a photograph
+     of the ⇪/ card: "this should be completely gone." 6.240.0 turned
+     the card off in both profiles and the tool went on DRAWING ITS OWN
+     CHEAT-SHEET CARD, advertising a feature that no longer happens —
+     6.261.0's shape exactly (he asked for the room, not the door).
+     modules/shortcut_hints.lua, its suite, its loader line, its card and
+     `_G.shortcutHintsReport()` go; `hint.groups` is the map init.lua's
+     hyperBind calls into, so the CALL SITE must degrade rather than be
+     left calling a nil, and whatever sentry names that module gets a new
+     name in the SAME commit (6.261.0's rule).
+  2. ✅ ⇪T IS MISSING FROM THE ASANA CARD. His screenshot: the ⇪/ card
+     lists ⇪A ⇪B ⇪C ⇪L and NOT ⇪T, which is the key that CREATES a
+     task — the tool's main door, undocumented on its own card.
+     🔎 AND THE AUDITOR CANNOT SEE IT: 6.196.0's cheat-sheet audit flags
+     MISATTRIBUTION, never ABSENCE, on purpose (§0.4's migration map binds
+     a dozen keys outside hyperAddShortcut, so "is it bound at all" would
+     report every one as dead). So a key with no row is invisible to the
+     gate. The release adds the row AND asks whether the audit can now be
+     run the other way for keys bound through hyperAddShortcut ALONE,
+     where the owner IS known — a bound key with no cheat-sheet row is a
+     feature he cannot find.
+  3. 🗑 HAMSIDIAN HAS NO DELETE. LL: "I don't understand why there is no
+     delete. Can you fix this?" It is not a bug, it is a DECISION nobody
+     revisited: vault.lua's header says "No file delete or rename —
+     Finder and Obsidian do", written when the vault was new. He is
+     asking for it now. Design answer owed with the release: a note goes
+     to the TRASH (hs.fs has no trash; /usr/bin/osascript tell Finder to
+     delete, or a move into <Vault>/.trash which Obsidian already
+     ignores), never os.remove — an unrecoverable delete of his writing
+     is the one failure with no way back.
+  4. 📝 "SCRATCH" IS STILL ON SCREEN. LL: "I don't understand why
+     scratch is still there… I prefer to have everything a Hamsidian
+     entry." 6.253.0 renamed every visible string BUT the note list's own
+     section header, which still reads 📝 SCRATCH NOTES (vault.lua's
+     drawRows). 🔎 THE DEEPER HALF, and it is the ask under the ask: a
+     scratch TAB is not a .md note — it lives in scratch.json and only
+     becomes a note on ⌘⇧S. "Everything a Hamsidian entry" means the two
+     sections become one, which is a DATA decision (does a tab become a
+     file the moment it is made?), not a rename. Ask before building.
+  5. 🖼 THE EDITOR'S TOOLS DOWN THE SIDES. LL, twice: "the screenshot
+     editor does not have the integrated tools displayed down the left
+     and right side… I must be doing something wrong." HE IS NOT: it was
+     queued as 6.261.0, displaced by the dialog-home deletion, and never
+     built. All seventeen buttons are in ONE wrapping header strip at the
+     top today. Two vertical rails — tools left, actions right.
+  6. 🔎 NOTHING NAMES THE @ SEARCHES. LL: "there's nothing that tells me
+     what @ searches there are." There are FOURTEEN (clip · cmd · shots ·
+     note · asana · ocr · images · doc · file · pad · scratch · vault ·
+     web · tool) and the only place they appear is as section headers in
+     the results. The fix is at the point of use: typing "@" alone in
+     ⇪D lists every source with its tag and what it holds.
+  7. ⌘ ⌥⌥ TO THE MENU BAR. LL: "doesn't option+option move me to the
+     application bar? I made this request several releases back." He is
+     right that he asked — it is the ⌘⌘ / ⌥⌥ pair from 6.198.0 and it was
+     NEVER BUILT. 🔑 THE MACHINERY EXISTS AND IS PROVEN ON HIS MAC:
+     editor_picker.lua has a full double-tap-modifier engine (⌃⌃, with
+     per-side keycodes, intruder types and a flagsChanged tap). ⌥⌥ opens
+     menu_search (⇪., the front app's own menus); ⌘⌘ opens the clipboard
+     history. One release each, the tap engine LIFTED out of
+     editor_picker rather than written twice.
+  8. 🖥 ⇪7'S macOS LINE WANTS MORE DETAIL. His screenshot reads
+     "macOS 27.0 (26A5388g)". Decide what "more" is before building:
+     the marketing name, that it is a BETA, the Darwin kernel version,
+     and the install date are all readable without a binary.
+
+- ⚙️ HIS FOUR MISSPELLINGS, MEASURED AGAINST THE REAL WORD LIST
+  (2026-09-20, he typed them on purpose: "I have deliberately missed
+  what I thought were common Mispellings and the two of down and right").
+  Run against web2 (236,007 lines) through the module's own lifted
+  `acSpellCorrection`, so this is measurement, not reading:
+    · donw  (4 letters) — SILENT. Below `acSpell.minLen` (5). At 4 it
+      would answer "down"; 5 is a MEASURED floor (6.200.0: at 4, "repo"
+      became "rope"), so this is the rule working as decided.
+    · wiht  (4 letters) — SILENT, and silent at ANY floor: "whit" and
+      "with" are both one swap away and both are words. Two candidates
+      is a guess and this rule never guesses.
+    · rihgt (5 letters) — ANSWERS "right". It should have corrected.
+    · Mispellings — ANSWERS "Misspellings", capital kept. Should have
+      corrected.
+  🔎 SO TWO OF THE FOUR ARE EXPLAINED AND TWO ARE NOT, and the missing
+  fact is WHICH APP he typed them in — `acSpell.offIn` holds every
+  terminal and code editor, and the word list is also silent while it is
+  still loading, in a password field, and on a Mac that cannot answer
+  about Secure Input. ASK FOR `_G.autocorrectReport()` and the app name
+  before theorising further (6.201.0). "Sometimes it does work" is the
+  5-letter floor, exactly.
+
 
 - ✏️ macOS'S CORRECTION BUBBLE ABORTS THE PROCESS INSIDE OUR WEBVIEWS —
   NEXT RELEASE, and it is the only half of his two crashes that is on a
@@ -3164,6 +3303,33 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.267.0 verify with LL — ⏱ THE BOOT (KNOWN GROUND): install (carries
+  6.266.0, so do that block's ⇪X check too). Reload, and read the ⏱ line
+  in the Console. It used to say:
+      ⏱  Boot cost: 453 ms across 72 modules — slowest: file_tracker
+         200ms, activity_tracker 150ms, autocorrect 12ms.
+  It should now be a fraction of that, with NEITHER of those two modules
+  at the top. Paste the new line — that is the whole measurement, and it
+  is the number to compare.
+  🔎 WHAT MOVED: both of those modules opened a CSV in OneDrive during
+  boot, read it whole, parsed months of rows and sometimes rewrote the
+  file — on the main thread, before any ⇪ key was bound. They read it a
+  few seconds after boot now, when nothing is happening.
+  🚨 THE TWO THINGS THAT MUST STILL WORK, and they are the point:
+  ⇪F opens the file history with your 90 days in it, exactly as before.
+  ⇪0 and ⇪⇧W show your app and document time, exactly as before. If
+  either ever opens EMPTY and then has rows a moment later, that is a
+  real break and I want to know — it would mean a reader got in front of
+  the read, which is the one thing this release is built not to allow.
+  Console: `_G.fileTrackerReport()` and `_G.activityDocsReport()` each
+  have a new "history" line. Straight after a reload it reads "not read
+  yet" — that is health, not a fault. A few seconds later it reads "read
+  N row(s) in N ms". If it still says "not read yet" a minute after boot,
+  paste it: the warm phase did not run.
+  📏 NAMED, NOT FIXED: the read is still a synchronous main-thread read
+  when it happens; it has moved off the boot, not off the thread. Taking
+  the parse off the thread entirely is its own release.
+
 - 6.266.0 verify with LL — 🧊 THE FROZEN GRID BOX (KNOWN GROUND):
   install (carries 6.265.0, so do THAT block's ⇪4 test first — it is the
   one I owe you). Then use ⇪X normally for a few days. Nothing about it

@@ -4,9 +4,40 @@
 -- =====================================================================
 -- 09-20-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.266.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.267.0
 -- =====================================================================
 
+-- NEW IN 6.267.0 — ⏱ TWO STORES ARE READ WHEN THEY ARE FIRST NEEDED,
+--   NEVER DURING BOOT (modules/file_tracker.lua + activity_tracker.lua):
+--   LL, with his own boot log: "How can I wrap the file_tracker and
+--      activity_tracker initialization in an asynchronous timer to speed
+--      up the boot?" His ⏱ line read 453 ms across 72 modules — and
+--      350 of them were those two, by a wide margin the slowest things
+--      in the boot.
+--   🔎 WHAT THEY WERE DOING: each setup() opened a CSV that lives in
+--      OneDrive, read it whole, parsed every row (90 days of file moves ·
+--      four months of sessions), pruned it and — on a migration or a
+--      prune — REWROTE it. Synchronously, on the main thread, before a
+--      single ⇪ shortcut had been bound.
+--   🔑 A TIMER IS RIGHT AND A BARE doAfter IS WRONG, twice over. The
+--      config already HAS the timer: `M.warm` runs seconds after boot in
+--      its own pcall and a warm that throws is NAMED (6.33.0). And a
+--      blind timer would leave the published list EMPTY until it landed,
+--      so ⇪F pressed in that window would draw a 90-day history with
+--      nothing in it — "not read yet" and "you have no history" reading
+--      the same, which is the failure 6.196.1 exists to stop.
+--   🚪 SO THE READ IS LAZY AND THERE IS ONE DOOR. The first caller that
+--      wants the rows pays for them; warm() is that caller on an ordinary
+--      Mac, and `M.warmAfter` (3.0 and 4.5) puts the two reads on
+--      DIFFERENT turns of the run loop — two OneDrive CSVs parsed in one
+--      turn is one long stall wearing two names (6.228.0). A keypress
+--      that arrives first gets the read rather than an empty answer.
+--   🔒 A source sentry per module fails if any caller reaches for the
+--      bare global again; each report has a "history" line with THREE
+--      states. 📏 COST, NAMED: the read is still synchronous and still
+--      on the main thread when it happens. What moved is WHEN.
+--        · 10,166 -> 10,195 checks · twelve mutations, twelve bites.
+--
 -- NEW IN 6.266.0 — 🧊 A PANEL YOU GAVE UP ON IS NEVER PUT BACK ON
 --   SCREEN (init.lua §_G.showCanvasSafely + modules/mouse_grid.lua):
 --   LL, with a photograph of the yellow landed-box outline sitting over a
@@ -41,43 +72,12 @@
 --   🔎 `_G.canvasShowReport()` (the helper had none).
 --        · 10,139 -> 10,166 checks · six mutations, six bites.
 --
--- NEW IN 6.265.0 — 🚨 ⇪4 CAPTURES AGAIN (modules/screenshots.lua):
---   LL: "Hyper+4 no longer works to screenshot." MY REGRESSION, from
---      6.264.0, on the key he uses most.
---   🔎 THE FALLBACK EXISTED AND WAS UNREACHABLE. 6.264.0 routed ⇪4 through
---      our selector and wrote a fallback to macOS's crosshair for "a Mac
---      that cannot draw our selector", with a paragraph swearing a ⇪4 that
---      captures nothing is worse than one with Apple's HUD — and then
---      DISCARDED the single value that says whether it drew.
---      `_G.showCanvasSafely` returns FALSE when macOS refuses the first
---      :show() (it retries 50 ms later and tells nobody), so on a refusal
---      selectArea answered "started", areaPlan said "ours", the fallback
---      never ran, and the key drew nothing, shot nothing and said nothing.
---   🪟 SECOND DOOR, same silence: the show sat inside
---      `if _G.showCanvasSafely then`, so a Hammerspoon without that global
---      built the selector, wired it and never put it on screen — and still
---      reported success. It shows the canvas itself now.
---   🪟 A REFUSED CANVAS IS TORN DOWN, not left holding an Esc tap and a
---      retry timer that can order an owner-less overlay on screen a turn
---      later (the 🟡 frozen-grid-box shape, in the module that was about
---      to grow it).
---   🧪 AND THE CHECK THAT WAS MEANT TO PROVE THIS STUBBED THE WRONG
---      FAILURE: it took hs.canvas.new away — "cannot CREATE" — and never
---      "created, refused to SHOW", which is the case that actually
---      happens. 6.193.0, fourth time: a stub gentler than the real
---      provider is a hole with a tick beside it. Both doors are driven
---      now, and a mutation restoring 6.264.0 fails three checks.
---   📏 NOTHING ELSE CHANGED. ⇪4 still drags on our selector with the live
---      size; `settings = { screenshots = { areaNative = true } }` is still
---      the way back to macOS's crosshair.
---        · 10,134 -> 10,139 checks · five mutations, five bites.
---
--- (6.264.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.265.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.266.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.267.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -174,7 +174,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.266.0"
+_G.configVersion = "6.267.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the

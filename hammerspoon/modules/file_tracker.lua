@@ -876,20 +876,79 @@ function M.setup(core)
         return kept
     end
 
-    local _ftLoaded = fileTrackerLoad()
-    _G.fileTrackerLog = fileTrackerPrune(_ftLoaded)
-    -- 📅 THE MIGRATION, and note the ORDER: back up, then rewrite. A
-    -- backup taken after the rewrite would be a backup of the new file,
-    -- which is not a backup of anything.
-    if ftNeedsMigration then fileTrackerBackupOnce() end
-    if ftNeedsMigration or #_G.fileTrackerLog ~= #_ftLoaded or #_ftLoaded == 0 then
-        if not fileTrackerRewrite(_G.fileTrackerLog) then
-            core.warnWriteFailed("file tracker CSV")
-        elseif ftNeedsMigration then
-            print(("📅 File tracker: migrated %d rows to date-first ISO "
-                   .. "timestamps (%s)"):format(#_G.fileTrackerLog, fileTrackerFile))
+    -- =====================================================================
+    -- ⏱ 6.267.0 - THE 90 DAYS ARE READ WHEN THEY ARE FIRST NEEDED
+    -- =====================================================================
+    -- LL, with a boot log: "How can I wrap the file_tracker and
+    -- activity_tracker initialization in an asynchronous timer to speed up
+    -- the boot?" His ⏱ line read 453 ms across 72 modules, and 200 of
+    -- them were THIS module - by a wide margin the slowest thing in the
+    -- boot. All of it was here: setup() opened a CSV that lives in
+    -- OneDrive, read it whole, parsed every row, pruned it, and on a
+    -- migration or a prune REWROTE it - synchronously, on the main thread,
+    -- before a single ⇪ shortcut had been bound.
+    --
+    -- 🔑 A TIMER IS THE RIGHT INSTRUMENT AND A BARE doAfter IS THE WRONG
+    -- ONE, for two reasons this project has already paid for. The first is
+    -- that the config HAS this timer: `M.warm` runs a couple of seconds
+    -- after boot, inside its own pcall, and a warm that throws is named
+    -- rather than lost (6.33.0). A second unheld timer beside it is a
+    -- second thing to keep in step. The second is worse: between boot and
+    -- whenever the timer landed, `_G.fileTrackerLog` would be an EMPTY
+    -- LIST, and ⇪F pressed in that window would draw a 90-day history
+    -- with nothing in it. "Not read yet" and "you have no history" are
+    -- opposite facts and must not read the same (6.196.1).
+    --
+    -- So the read is LAZY and there is exactly ONE DOOR to it. The first
+    -- caller that wants the rows pays for them; `M.warm` is that caller on
+    -- an ordinary Mac, a few seconds after boot when nothing is happening,
+    -- so no keypress ever waits. A keypress that does arrive first gets
+    -- the read rather than an empty answer - his press, his 200 ms, and
+    -- the honest one.
+    --
+    -- 📏 COST, NAMED: the read is still synchronous when it happens, and
+    -- it still happens on the main thread. What changes is WHEN - off the
+    -- boot path, where it was delaying every other module and every key.
+    -- Moving the parse itself off the thread is a different release and
+    -- needs a different mechanism (/bin/cat in an hs.task, 6.170.3's
+    -- shape); it is not what was asked for and is not smuggled in here.
+    ft.loadState = "not read yet"
+    ft.loadMs    = 0
+    ft.loadedAt  = nil
+    local _ftLog = nil
+
+    -- 🔒 THE ONE DOOR. Every reader and every writer below asks for the
+    -- rows through this, and a source sentry in the suite fails if any of
+    -- them reaches for the bare global instead - a single caller left
+    -- reading `_G.fileTrackerLog` directly is a caller that sees nil
+    -- before the read, which is the whole class this shape exists to
+    -- close. The global is still published, because that is what it has
+    -- always been, but it is published only once it holds real rows.
+    local function ftLog()
+        if _ftLog then return _ftLog end
+        local t0 = ft.nowMs()
+        local loaded = fileTrackerLoad()
+        _ftLog = fileTrackerPrune(loaded)
+        _G.fileTrackerLog = _ftLog
+        -- 📅 THE MIGRATION, and note the ORDER: back up, then rewrite. A
+        -- backup taken after the rewrite would be a backup of the new file,
+        -- which is not a backup of anything.
+        if ftNeedsMigration then fileTrackerBackupOnce() end
+        if ftNeedsMigration or #_ftLog ~= #loaded or #loaded == 0 then
+            if not fileTrackerRewrite(_ftLog) then
+                core.warnWriteFailed("file tracker CSV")
+            elseif ftNeedsMigration then
+                print(("📅 File tracker: migrated %d rows to date-first ISO "
+                       .. "timestamps (%s)"):format(#_ftLog, fileTrackerFile))
+            end
         end
+        ft.loadMs   = ft.nowMs() - t0
+        ft.loadedAt = os.date("%H:%M:%S")
+        ft.loadState = ("read %d row(s) in %d ms at %s")
+                       :format(#_ftLog, math.floor(ft.loadMs + 0.5), ft.loadedAt)
+        return _ftLog
     end
+    ft.history = ftLog   -- the door other modules ask (recent_docs does)
 
     local function fileTrackerAppendRow(e)
         local t0 = ft.nowMs()
@@ -917,7 +976,7 @@ function M.setup(core)
             timestamp  = os.date("%Y-%m-%d %H:%M"),
             epoch      = os.time(),
         }
-        table.insert(_G.fileTrackerLog, entry)
+        table.insert(ftLog(), entry)
         fileTrackerAppendRow(entry)
 
         -- ⚡ 6.44.4 — PRUNE DURING THE SESSION, NOT ONLY AT BOOT. The
@@ -931,11 +990,12 @@ function M.setup(core)
         _ftSincePrune = _ftSincePrune + 1
         if _ftSincePrune >= fileTrackerPruneEvery then
             _ftSincePrune = 0
-            local before = #_G.fileTrackerLog
-            _G.fileTrackerLog = fileTrackerPrune(_G.fileTrackerLog)
-            if #_G.fileTrackerLog ~= before then
+            local before = #ftLog()
+            _ftLog = fileTrackerPrune(_ftLog)
+            _G.fileTrackerLog = _ftLog     -- the two names are ONE list
+            if #_ftLog ~= before then
                 _G.diag.say("fileTracker", string.format(
-                    "pruned in-session: %d → %d rows", before, #_G.fileTrackerLog))
+                    "pruned in-session: %d → %d rows", before, #_ftLog))
             end
         end
     end
@@ -1079,7 +1139,16 @@ function M.setup(core)
         return true
     end
 
-    M.warm = function() return ft.startWatching() end
+    -- ⏱ 6.267.0 - THE WARM PHASE PAYS FOR THE READ, so no keypress does.
+    -- `warmAfter` puts this module's read and activity_tracker's onto
+    -- DIFFERENT turns of the run loop: two reads of two OneDrive CSVs in
+    -- one turn is one long stall wearing two names, and a main thread this
+    -- config is busy on is a mouse this Mac has lost (6.228.0).
+    M.warmAfter = 3.0
+    M.warm = function()
+        ftLog()
+        return ft.startWatching()
+    end
 
     -- (6.10.0: the daily 5 PM copy-to-OneDrive timer is gone — the live
     --  CSV above already IS in OneDrive, machine-tagged.)
@@ -1108,8 +1177,9 @@ function M.setup(core)
         -- entries; cached it is ~18x faster. `_hay` is prefixed with _ and
         -- both CSV writers in this file name their columns explicitly, so
         -- the cache never reaches disk.
-        for i = #_G.fileTrackerLog, 1, -1 do  -- newest first
-            local e = _G.fileTrackerLog[i]
+        local log = ftLog()
+        for i = #log, 1, -1 do                -- newest first
+            local e = log[i]
             local haystack = e._hay
             if not haystack then
                 haystack = (e.fileName .. " " .. e.newName .. " " .. e.presentLoc .. " "
@@ -1242,7 +1312,8 @@ function M.setup(core)
                 line("     so the write no longer wakes this module (6.241.0)")
             end
         end
-        line("   rows     : " .. #(_G.fileTrackerLog or {}) .. " in memory · kept "
+        line("   history  : " .. ft.loadState)
+        line("   rows     : " .. (_ftLog and #_ftLog or 0) .. " in memory · kept "
              .. tostring(fileTrackerRetentionDays) .. " days")
         line("   clock    : " .. tostring(ft.clockName))
 
