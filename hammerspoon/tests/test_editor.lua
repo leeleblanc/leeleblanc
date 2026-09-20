@@ -521,7 +521,80 @@ ck("the page's #stage height is measured from the SAME header height the "
    E.dragStripH)
 E.close()
 
-check("§10 ran every one of its checks", mine == 10, mine)
+-- 🖼 6.270.0 — THE RAILS EXIST, AND THEY ARE SIZED FROM THE CONFIG.
+-- LL, three times: the editor "has not had the tools that run across the
+-- top of the editor and a column on the left-hand side and the right hand
+-- side". It never had them — all eighteen buttons were in ONE wrapping
+-- strip. These checks are about the STRUCTURE, because a rail that is
+-- present but empty, or present but sized by a literal, is the same
+-- complaint again next month.
+E.open(SRC)
+ck("🖼 there is a rail on the LEFT and a rail on the RIGHT",
+   LAST_HTML:find('id="railL"', 1, true) ~= nil
+   and LAST_HTML:find('id="railR"', 1, true) ~= nil)
+-- 🚨 MATCHED WITH ITS CLOSING QUOTE, and that is not fussiness: the first
+-- version of this check searched for the bare id, and `tool-blur` is a
+-- PREFIX of `tool-blur-moved`, so a renamed button satisfied it and the
+-- mutation that renames one passed the gate. 6.236.0's rule — a name
+-- sentry matches the delimiter — in a check written to catch exactly this
+-- shape of silent regression.
+ck("🖼 the drawing TOOLS are in the left rail, not the top strip",
+   (function()
+       local l = LAST_HTML:match('<nav id="railL".-</nav>') or ""
+       for _, id in ipairs({ "tool-blur", "tool-text", "tool-arrow", "tool-line",
+                             "tool-oval", "tool-hl", "tool-count", "tool-spot",
+                             "tool-mag" }) do
+           if not l:find('id="' .. id .. '"', 1, true) then
+               return false, id .. " is not in the left rail"
+           end
+       end
+       return true
+   end)())
+ck("🖼 the capture and edit ACTIONS are in the right rail",
+   (function()
+       local r = LAST_HTML:match('<nav id="railR".-</nav>') or ""
+       for _, w in ipairs({ "a:'paste'", "a:'capture'", "a:'delay'", "a:'full'",
+                            "a:'loadshot'", "undoLast()" }) do
+           if not r:find(w, 1, true) then return false, w .. " is not in the right rail" end
+       end
+       return true
+   end)())
+-- 🚨 THE CHECK THAT STOPS IT SILENTLY REGRESSING: a button left behind in
+-- the header is a rail that only LOOKS built. The top strip keeps the
+-- title, the three finish actions and the hint — and nothing else.
+ck("🖼 the top strip carries ONLY the title, the finish actions and the "
+   .. "hint — a tool left behind there is a rail that only looks built",
+   (function()
+       local h = LAST_HTML:match("<header>.-</header>") or ""
+       for _, w in ipairs({ "setTool(", "a:'paste'", "a:'capture'", "a:'delay'",
+                            "a:'full'", "a:'loadshot'", "undoLast()" }) do
+           if h:find(w, 1, true) then return false, w .. " is still in the header" end
+       end
+       return h:find("saveIt('png')", 1, true) ~= nil
+          and h:find("stashAndCancel()", 1, true) ~= nil
+   end)())
+-- 6.239.0 — the rail width is ONE number, read by the CSS and by
+-- ed.windowSizeFor. Move it and the page must move with it, or the window
+-- reserves 136 points for a rail drawn 200 wide.
+ck("🖼 the rail's CSS width is written from ed.railW, not typed in",
+   LAST_HTML:find("width:" .. E.railW .. "px", 1, true) ~= nil, E.railW)
+ck("🖼 …and the canvas leaves room for BOTH rails, which is his "
+   .. "'big enough to accommodate the tool buttons on each side'",
+   LAST_HTML:find("max-width:calc(100vw - " .. (E.railW * 2 + 24) .. "px)", 1, true) ~= nil,
+   E.railW * 2 + 24)
+E.close()
+
+-- Now MOVE it, and require the drawing to follow.
+local savedRail = E.railW
+E.railW = 210
+E.open(SRC)
+ck("🖼 moving ed.railW moves the rail AND the canvas budget together",
+   LAST_HTML:find("width:210px", 1, true) ~= nil
+   and LAST_HTML:find("max-width:calc(100vw - " .. (210 * 2 + 24) .. "px)", 1, true) ~= nil)
+E.close()
+E.railW = savedRail
+
+check("§10 ran every one of its checks", mine == 17, mine)
 
 -- =====================================================================
 out("\n11. 6.255.0 — ⌘D: a delayed FULL-SCREEN capture, onto the shot\n")
@@ -877,15 +950,56 @@ do
         (select(2, E.growPlan(2560, 1440, 800, 600)) or ""):find("800x600", 1, true) ~= nil)
 
     -- ---- the window follows -------------------------------------------
-    local w1, h1 = E.windowSizeFor(800, 600, { x = 0, y = 0, w = 1440, h = 900 })
-    c13("🪟 a small shot gets a window its own size plus the chrome",
-        w1 == 828 and h1 == 682, w1 .. "x" .. h1)
-    local w2, h2 = E.windowSizeFor(3840, 2160, { x = 0, y = 0, w = 1440, h = 900 })
-    c13("🪟 a 4K shot is CLAMPED to the screen rather than opening off it",
+    -- 🖼 6.270.0 — THE RAILS ARE ROOM, NOT PADDING. These checks used to
+    -- assert 828 and 320, which were the numbers before there was a rail
+    -- to fit; asserting a constant is how a check ends up with nothing to
+    -- say about the change it should be proving (6.248.0). They ask the
+    -- RULE now, in terms of the config, so moving a rail moves the check.
+    local SCR = { x = 0, y = 0, w = 1440, h = 900 }
+    local w1, h1 = E.windowSizeFor(800, 600, SCR)
+    c13("🪟 a small shot gets its own size, the chrome, AND BOTH RAILS — "
+        .. "the window grows; the picture is not squeezed to make room",
+        w1 == 800 + 28 + E.railW * 2 and h1 == 600 + E.dragStripH + 28,
+        w1 .. "x" .. h1 .. " (railW " .. tostring(E.railW) .. ")")
+    c13("🪟 …which is strictly wider than the pre-rail window, or the "
+        .. "buttons would be sitting on the screenshot",
+        w1 > 828, w1)
+    local w2, h2 = E.windowSizeFor(3840, 2160, SCR)
+    c13("🪟 a 4K shot is CLAMPED to the screen rather than opening off it, "
+        .. "rails included",
         w2 <= 1440 * 0.85 + 28 and h2 <= 900 * 0.85 + 82, w2 .. "x" .. h2)
-    local w3, h3 = E.windowSizeFor(10, 10, { x = 0, y = 0, w = 1440, h = 900 })
-    c13("🪟 …and there is a floor, so a tiny shot is still a usable window",
-        w3 == 720 and h3 == 320, w3 .. "x" .. h3)
+    local w3, h3 = E.windowSizeFor(10, 10, SCR)
+    c13("🪟 …and the floor now fits the TOOLBAR, not just a usable window: "
+        .. "a tiny shot no longer opens too short to show its own tools",
+        w3 == 720 and h3 == E.railMinH + E.dragStripH, w3 .. "x" .. h3)
+
+    -- 6.239.0 — move the config and the arithmetic must follow. Asserting
+    -- the shipped 136 passes on a build where the number is typed twice.
+    local wWide = E.windowSizeFor(800, 600, SCR, { railW = 200, headerH = 54,
+                                                   railMinH = 344 })
+    c13("🪟 a WIDER rail makes a wider window, by exactly twice the "
+        .. "difference — the reservation is real arithmetic, not a constant",
+        wWide == 800 + 28 + 400, wWide)
+    local wNone = E.windowSizeFor(800, 600, SCR, { railW = 0, headerH = 54,
+                                                   railMinH = 0 })
+    c13("🪟 …and with no rails at all it is the old window exactly, which "
+        .. "is what proves the rails are the whole difference",
+        wNone == 828, wNone)
+
+    -- The picture must keep the size it would have had. A screen with room
+    -- to spare must not shrink the shot just because rails now exist.
+    local _, hPlain = E.windowSizeFor(800, 600, SCR, { railW = 0, headerH = 54,
+                                                       railMinH = 0 })
+    c13("🪟 the SHOT is unchanged by the rails on a screen with room — the "
+        .. "height is the picture plus chrome either way",
+        h1 == hPlain, h1 .. " vs " .. hPlain)
+
+    -- A screen narrower than its own rails must not invert the arithmetic.
+    local wTiny, hTiny = E.windowSizeFor(800, 600, { x = 0, y = 0, w = 200, h = 200 },
+                                         { railW = 300, headerH = 54, railMinH = 344 })
+    c13("🪟 a screen narrower than the rails themselves still answers a "
+        .. "positive window rather than a negative one",
+        type(wTiny) == "number" and wTiny > 0 and hTiny > 0, wTiny .. "x" .. hTiny)
     local w4 = E.windowSizeFor(nil, nil, nil)
     c13("🪟 garbage in does not throw — it sizes for a default shot",
         type(w4) == "number" and w4 > 0, w4)
@@ -1068,7 +1182,7 @@ do
         rep3:find("never asked this session", 1, true) ~= nil)
     E.close()
 
-    check("§13 ran every one of its checks", n13 == 61, n13)
+    check("§13 ran every one of its checks", n13 == 66, n13)
 end
 
 out(("\n%d passed, %d failed\n"):format(pass, fail))

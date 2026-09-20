@@ -4,9 +4,42 @@
 -- =====================================================================
 -- 09-20-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.269.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.270.0
 -- =====================================================================
 
+-- NEW IN 6.270.0 — 🖼 THE SCREENSHOT EDITOR GETS ITS TWO RAILS, AND THE
+--   WINDOW MAKES ROOM FOR THEM (modules/screenshot_editor.lua):
+--   LL, for the THIRD time and the first with the sizing spelled out:
+--      the editor "has not had the tools that run across the top and a
+--      column on the left-hand side and the right hand side so at a
+--      minimum, the canvas that the screenshot is placed on would be big
+--      enough to accommodate the tool buttons on each side."
+--   🚨 HE WAS RIGHT AND IT WAS NEVER BUILT. All eighteen buttons sat in
+--      ONE wrapping strip across the top; there was no rail in the page
+--      at all. It was queued as 6.261.0, displaced by the dialog-home
+--      deletion, and never rebuilt — so every build he installed and
+--      checked could not have had it. Nine drawing tools go LEFT, six
+--      capture/edit actions go RIGHT, the top keeps the title, Save &
+--      copy, Small JPEG and Cancel.
+--   📏 THE SIZING IS THE ASK, not the decoration. `ed.windowSizeFor`
+--      reserved 28 points of chrome — twelve a side — so there was no
+--      ROOM for a rail even in principle. It reserves `railW * 2` before
+--      the picture is measured now: the shot keeps the size it would have
+--      had and the WINDOW grows. The vertical half is a floor too
+--      (`railMinH` + the header), so a tiny shot no longer opens a window
+--      too short to show its own toolbar; past that the rails scroll,
+--      they never clip.
+--   🔑 ONE NUMBER, TWO READERS: the CSS is written from `ed.railW` and
+--      the arithmetic reserves the same field, so a check moves the
+--      config and requires both to follow (6.239.0). A rail drawn 200
+--      wide in a window reserving 136 is the bug that shape prevents.
+--   🧪 The checks that earn their place are the ones about STRUCTURE: a
+--      tool left behind in the header is a rail that only LOOKS built,
+--      so the header is asserted to carry nothing but the title, the
+--      finish actions and the hint. The old size checks asserted 828 and
+--      320 — the numbers from before there was a rail to fit — and now
+--      ask the rule in terms of the config (6.248.0).
+--
 -- NEW IN 6.269.0 — 🔗 THE ANCHORS CARD DRAWS ITS EIGHT ROWS, AND A CARD
 --   WITH NO ROWS NAMES ITSELF (modules/anchors.lua + the §1.12 loader):
 --   ⇪⇧U's card has been a heading over empty space since 6.180.0:
@@ -32,53 +65,12 @@
 --      block must equal loader_test.lua's — the drift sentry its comment
 --      has claimed since 6.101.0. Nine mutations, nine bites.
 --
--- NEW IN 6.268.0 — 🗑 THE SHORTCUT HINT CARD IS DELETED, NOT SWITCHED
---   OFF (modules/shortcut_hints.lua and its suite are GONE):
---   LL, with a photograph of the 💡 SHORTCUT HINTS card in the ⇪/ sheet:
---      "this should be completely gone."
---   🔎 HE WAS LOOKING AT A SWITCHED-OFF TOOL ADVERTISING ITSELF. 6.240.0
---      turned the card off in BOTH machine profiles and the module went
---      on loading, printing its own boot line and drawing its own ⇪/
---      card about a thing that no longer happened. 6.261.0's shape
---      exactly, and its rule: KEEPING EVERYTHING IS RIGHT FOR A DOOR AND
---      WRONG FOR A TOOL HE DOES NOT WANT.
---   🗑 WHAT WENT: the module, tests/test_shortcut_hints.lua, the §1.12
---      loader line, the ⇪/ card, `_G.shortcutHint`, the hyperBind call
---      site, `_G.shortcutHintsReport()` and BOTH profiles' settings
---      lines. 72 modules -> 71, 72 Lua suites -> 71, and the counts in
---      hs-doctor.sh, INSTALL.md and GUIDE.md moved in the same commit (a
---      count printed to a human is a lie the moment a file goes).
---   🔑 THE DATA IS NOT THE FEATURE, and this is the half worth reading.
---      `hint.coreRows` — the sixteen keys init.lua and core/ bind
---      THEMSELVES, which no module's cheatsheet claims — was read out of
---      this module by tools/build-feature-list.lua and printed into
---      RESOLVED-FEATURE-REQUESTS.txt, a file LL opens. Deleting the
---      module would have silently dropped sixteen rows out of a shipped
---      document. It moved to that generator, its ONE reader, rather than
---      keeping a module alive to hold a table. `hint.groups` did NOT
---      move: its only purpose was the card, and two suites reading it to
---      assert "this key is filed" were asserting a fact about a table
---      nothing draws — both now rest on the real binding and the real
---      cheat sheet instead (6.261.0: a sentry that names a deleted module
---      gets a new name in the SAME commit or it is weaker than it reads).
---   🧪 SIX SENTRIES REPLACE THE ONE THAT COUNTED THE SETTINGS LINES, and
---      they are about the CLASS: the module file, the suite file, the
---      loader line, any profile key, the CALL SITE and run-tests.sh. The
---      call site is the one that could have been left behind quietly —
---      `if _G.shortcutHint then …` is nil-guarded, so the config boots
---      green for ever with a hook nothing can ever set. Both it and the
---      profile check READ THE SOURCE WITH COMMENTS STRIPPED (6.262.0),
---      because init.lua's own comments now quote the very lines they
---      forbid, to say where they were and why they went.
---        · 10,195 -> 10,112 checks · six mutations, six bites, each on
---          its own check.
---
--- (6.267.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.268.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.269.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.270.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -175,7 +167,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.269.0"
+_G.configVersion = "6.270.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the

@@ -872,6 +872,58 @@ work Mac.
   6.166.0) — the rungs are literals, not offsets, so removing one buys
   nothing and risks a silent re-levelling of every panel above it.
 
+- 🖼 A CHROME YOU HAVE NOT RESERVED IS A CHROME THAT SITS ON THE WORK
+  (6.270.0, modules/screenshot_editor.lua — LL, THIRD time: the editor
+  "has not had the tools that run across the top of the editor and a
+  column on the left-hand side and the right hand side so at a minimum,
+  the canvas that the screenshot is placed on would be big enough to
+  accommodate the tool buttons on each side").
+  🚨 IT WAS NEVER BUILT, and that is the first thing to say. All
+  eighteen buttons sat in ONE `<header>` with flex-wrap; there was no
+  rail anywhere in the page. Queued as 6.261.0, displaced by the
+  dialog-home deletion, never rebuilt — and the queue note reading "HE
+  IS NOT doing something wrong" sat there for nine releases while he
+  installed build after build and checked for it. A queue item that
+  records its own displacement still has to be REQUEUED; writing down
+  why it slipped is not the same as putting it back.
+  📏 HIS SENTENCE NAMED THE ARITHMETIC, not the decoration:
+  `ed.windowSizeFor` reserved 28 points of chrome — twelve a side — so
+  there was no ROOM for a rail even in principle. The rails are reserved
+  BEFORE the picture is measured now; the shot keeps the size it would
+  have had and the WINDOW grows. GENERAL: when a panel gains furniture
+  down its sides, the reservation goes in the sizing function first —
+  add the furniture first and it either covers the content or squeezes
+  it, and both read as "the new thing is broken".
+  📐 A FLOOR, NOT PADDING, in the other axis: nine stacked tools need
+  `railMinH` + the header, so a tiny shot cannot open a window too short
+  to show its own toolbar. Past that the rails SCROLL and never clip — a
+  button you cannot reach is the complaint being fixed.
+  🔑 ONE NUMBER, TWO READERS: the CSS is written from `ed.railW` and the
+  arithmetic reserves the same field, so a rail drawn 200 wide in a
+  window reserving 136 cannot happen. The check moves the config to a
+  width this Mac has never shipped (6.239.0).
+  🧪 THE CHECKS ARE ABOUT STRUCTURE: a tool left behind in the header is
+  a rail that only LOOKS built and is the same complaint next month, so
+  the header is asserted to carry NOTHING but the title, the finish
+  actions and the hint.
+  🚨 AND THE FIRST VERSION OF THAT CHECK PASSED ITS OWN MUTATION: it
+  searched for the bare id, and `tool-blur` is a PREFIX of
+  `tool-blur-moved`, so renaming a button satisfied a check written to
+  notice a button going missing. 6.236.0's rule — a name sentry matches
+  the DELIMITER — broken in a check built to catch that very shape, and
+  found only because the mutation was run. It matches `id="tool-blur"`
+  with its closing quote now. GENERAL, third time in this file: any
+  sentry that looks for a NAME looks for its boundary too.
+  🪜 AND THE HARNESS ORDER IS A RULE NOW, not a habit: COMMIT FIRST,
+  THEN MUTATE. A sweep that edits the working tree before the work is
+  committed leaves a window in which any commit captures a deliberately
+  broken file, and it cost this session three stalls. Once the release
+  is committed a stray mutation is a `git checkout` away (which is the
+  one moment that command is safe — 6.268.0 learned the other half). And the two old size checks asserted 828 and 320
+  — the numbers from before there was a rail to fit — which is 6.248.0
+  again: they would have gone red with nothing to say about the change
+  they existed to prove. Assert the RULE in terms of the config.
+
 - ⏲ A WINDOW THAT HIDES ITSELF OWES A WAY BACK THAT DOES NOT DEPEND
   ON THE THING IT HID FOR (6.255.0, modules/screenshot_editor.lua +
   screenshots.lua — LL: "Add a delayed screenshot feature with a delay
@@ -2767,6 +2819,7 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
+| 6.270.0 | 🖼 the screenshot editor's tools move into two vertical rails — nine left, six right — and the window reserves their width so the shot is never squeezed to make room | pending |
 | 6.269.0 | 🔗 the ⇪⇧U anchors card draws its eight rows — one key was misspelled since 6.180.0 — and a card with a title and no rows now names itself, with `_G.cheatSheetReport()` to ask | pending |
 | 6.268.0 | 🗑 the shortcut hint card is deleted, not switched off — the module, its suite, its ⇪/ card, its boot line and both profiles' settings lines are gone | pending |
 | 6.267.0 | ⏱ the boot stops reading two OneDrive CSVs — the 90-day file history and the four months of sessions are read when they are first needed (350 ms of a 453 ms boot) | pending |
@@ -2867,12 +2920,13 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
      becomes a note on ⌘⇧S. "Everything a Hamsidian entry" means the two
      sections become one, which is a DATA decision (does a tab become a
      file the moment it is made?), not a rename. Ask before building.
-  5. 🖼 THE EDITOR'S TOOLS DOWN THE SIDES. LL, twice: "the screenshot
-     editor does not have the integrated tools displayed down the left
-     and right side… I must be doing something wrong." HE IS NOT: it was
-     queued as 6.261.0, displaced by the dialog-home deletion, and never
-     built. All seventeen buttons are in ONE wrapping header strip at the
-     top today. Two vertical rails — tools left, actions right.
+  5. ✅ THE EDITOR'S TOOLS DOWN THE SIDES — SHIPPED AS 6.270.0, on his
+     THIRD telling ("Ever release that I've installed, has not had...").
+     He was right every time: all eighteen buttons were in ONE wrapping
+     header strip and there was no rail in the page at all. The durable
+     rule is above, and the half worth carrying is that the sizing was
+     the ask — the window reserved 28 points of chrome, so there was no
+     ROOM for a rail even in principle.
   6. 🔎 NOTHING NAMES THE @ SEARCHES. LL: "there's nothing that tells me
      what @ searches there are." There are FOURTEEN (clip · cmd · shots ·
      note · asana · ocr · images · doc · file · pad · scratch · vault ·
@@ -3428,6 +3482,42 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.270.0 verify with LL — 🖼 THE EDITOR'S TWO RAILS (KNOWN GROUND):
+  install (it carries 6.269.0 and 6.268.0). ⇪⇧1 on any screenshot, or ⌥⏎
+  on a history row.
+  THE WHOLE TEST IS THE FIRST LOOK: there is a column of TOOLS down the
+  LEFT — Blur, Text, Arrow, Line, Oval, Highlight, Counter, Spotlight,
+  Magnifier — and a column down the RIGHT with Paste image, Add capture,
+  Delayed, Full screen, Load shot and Undo. Across the top: 🖌 Edit,
+  Save & copy, Small JPEG, Cancel. That is what you have been asking for
+  three times, and you were right every time that it was not there.
+  📏 THE PART THAT WAS THE REAL ASK: the shot is NOT squeezed to make
+  room. The window is wider than it used to be by exactly the two rails
+  (136 points each), so the picture opens at the size it always did with
+  the buttons beside it rather than on top of it. Open a small shot and
+  a big one; neither should have a rail overlapping the image.
+  🚨 WHAT I WANT TO KNOW, because it is the one thing I cannot see from
+  here: whether 136 points is the right width on YOUR screen. If a label
+  is cut off ("🖍 Highlight", "📸 Add capture" and "⏲ Delayed 5s" are the
+  longest), or if the rails feel too wide and steal room from the shot,
+  it is a number and not a release:
+  `settings = { screenshot_editor = { railW = 160 } }`. Tell me and I
+  will move the default.
+  📐 If you open a very SMALL screenshot the window is now taller than
+  the picture needs — that is deliberate, it is the floor that makes the
+  nine tools fit. On a window shorter than that the rails scroll rather
+  than cutting a button off.
+  Console: `_G.screenshotEditorReport()` — a new "layout :" line names
+  the rail width and what a window reserves. Paste it if anything looks
+  wrong, because "the buttons are on top of the picture" and "the
+  picture is squeezed" look the same in a screenshot and are opposite
+  faults.
+  🚨 EVERY KEY IS UNCHANGED and this is worth thirty seconds: B T A L O
+  H C S M still pick tools, ⌘V ⌘A ⌘D ⌘F ⌘O still work, ⌘Z undoes, ⌘⏎
+  saves, ⌘⇧⏎ makes the small JPEG, esc keeps the draft. ⌘-drag still
+  moves the window by its top strip only — a ⌘-click on the picture is
+  still "edit this mark", exactly as in 6.221.0.
+
 - 6.269.0 verify with LL — 🔗 THE ANCHORS CARD HAS ROWS (KNOWN GROUND):
   install (it carries 6.268.0, so do that block too — you said to skip
   installing that one on its own).

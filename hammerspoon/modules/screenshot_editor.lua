@@ -82,6 +82,26 @@ function M.setup(core)
     -- CSS is 54 pt tall. Everything below it belongs to the page, which
     -- reads ⌘ as "edit this mark".
     ed.dragStripH = 54
+    -- 🖼 6.270.0 — THE TWO RAILS. LL, for the third time and the first
+    -- time with the sizing spelled out: "the tools that run across the
+    -- top of the editor and a column on the left-hand side and the right
+    -- hand side so at a minimum, the canvas that the screenshot is placed
+    -- on would be big enough to accommodate the tool buttons on each
+    -- side." Every button lived in ONE wrapping strip across the top, and
+    -- the window was sized as the image plus 28 points — twelve a side —
+    -- so there was not only no rail, there was no ROOM for one.
+    -- 🔑 THESE NUMBERS ARE READ IN TWO PLACES AND TYPED IN NONE: the
+    -- page's CSS is written from them and `ed.windowSizeFor` reserves
+    -- them, so a check moves the config and requires both to follow
+    -- (6.239.0 — asserting a shipped default passes when the number is
+    -- typed in twice).
+    ed.railW      = 136    -- each rail, points. Both rails are the same
+                           -- width: a canvas centred between two unequal
+                           -- rails is off-centre in the window.
+    ed.railMinH   = 344    -- what the TALLER rail (nine tools) needs to
+                           -- show every button without scrolling. The
+                           -- window floor is this plus the header, which
+                           -- is the vertical half of his "big enough".
     ed.blurRadius = 12     -- box-blur radius in image pixels (Retina = 2x)
     ed.blurPasses = 3      -- 3 box passes ≈ gaussian
     ed.maxUndo    = 20
@@ -216,6 +236,12 @@ function M.setup(core)
         -- neither. 6.239.0's rule — asserting the shipped default passes
         -- when the number is typed in two places.
         local delaySecs = math.floor(num(ed.delaySecs, 5))
+        -- 🖼 6.270.0 — the page is GIVEN the rail numbers rather than
+        -- carrying its own copies, so `ed.windowSizeFor` and this CSS can
+        -- never disagree about how wide a rail is. A check moves the
+        -- config and requires the drawing to follow (6.239.0).
+        local railW   = math.floor(num(ed.railW, 136))
+        local headerH = math.floor(num(ed.dragStripH, 54))
         return [[
 <meta charset="utf-8">
 <style>
@@ -224,7 +250,7 @@ function M.setup(core)
          font-size:14px; background:#141418; color:#e8e8ec; overflow:hidden; }
   header { padding:8px 12px; display:flex; gap:8px; align-items:center;
            border-bottom:1px solid #2a2a32; user-select:none; -webkit-user-select:none;
-           flex-wrap:wrap; }
+           height:]] .. tostring(headerH) .. [[px; box-sizing:border-box; }
   h1 { font-size:15px; margin:0 4px 0 0; font-weight:600; }
   .hint { color:#8a8a96; font-size:12px; margin-left:auto; }
   button { background:#2a2a34; color:#e8e8ec; border:1px solid #3b3b47;
@@ -232,11 +258,25 @@ function M.setup(core)
   button.go { background:#3566cc; border-color:#4a7fe0; }
   button.tool.on { background:#3d3d52; border-color:#7aa0e8; }
   button:hover { filter:brightness(1.18); }
-  #stage { position:relative; display:flex; justify-content:center;
-           align-items:flex-start; padding:12px; height:calc(100vh - 54px);
+  /* 🖼 6.270.0 — header across the top, a rail down each side, the shot
+     between them. The rails SCROLL rather than clip on a window too short
+     to hold them: a button you cannot reach is the bug being fixed. */
+  #body { display:flex; height:calc(100vh - ]] .. tostring(headerH) .. [[px);
+          box-sizing:border-box; }
+  .rail { width:]] .. tostring(railW) .. [[px; flex:0 0 ]] .. tostring(railW) .. [[px;
+          box-sizing:border-box; padding:8px 8px 12px; display:flex;
+          flex-direction:column; gap:6px; overflow-y:auto; background:#17171c; }
+  .rail .lbl { color:#7c7c8a; font-size:11px; letter-spacing:.06em;
+               text-transform:uppercase; margin:2px 0 2px 2px; }
+  .rail button { width:100%; text-align:left; padding:6px 10px; }
+  #railL { border-right:1px solid #2a2a32; }
+  #railR { border-left:1px solid #2a2a32; }
+  #stage { position:relative; flex:1 1 auto; display:flex; justify-content:center;
+           align-items:flex-start; padding:12px;
            box-sizing:border-box; overflow:auto; }
   #wrap { position:relative; display:inline-block; }
-  #cv { display:block; max-width:calc(100vw - 24px); max-height:calc(100vh - 78px);
+  #cv { display:block; max-width:calc(100vw - ]] .. tostring(railW * 2 + 24) .. [[px);
+        max-height:calc(100vh - ]] .. tostring(headerH + 24) .. [[px);
         box-shadow:0 4px 24px rgba(0,0,0,.5); }
   /* the overlay rides EXACTLY on the displayed canvas — annotations are
      drawn here so they stay movable until save */
@@ -254,33 +294,42 @@ function M.setup(core)
 </style>
 <header>
   <h1 id="grip" style="cursor:grab" title="drag to move">🖌 Edit</h1>
-  <button id="tool-blur" class="tool on" onclick="setTool('blur')" title="B">▦ Blur</button>
-  <button id="tool-text" class="tool" onclick="setTool('text')" title="T">🅣 Text</button>
-  <button id="tool-arrow" class="tool" onclick="setTool('arrow')" title="A">➤ Arrow</button>
-  <button id="tool-line" class="tool" onclick="setTool('line')" title="L">／ Line</button>
-  <button id="tool-oval" class="tool" onclick="setTool('oval')" title="O">◯ Oval</button>
-  <button id="tool-hl" class="tool" onclick="setTool('hl')" title="H">🖍 Highlight</button>
-  <button id="tool-count" class="tool" onclick="setTool('count')" title="C">① Counter</button>
-  <button id="tool-spot" class="tool" onclick="setTool('spot')" title="S">🔦 Spotlight</button>
-  <button id="tool-mag" class="tool" onclick="setTool('mag')" title="M">🔍 Magnifier</button>
-  <button onclick="say({a:'paste'})" title="⌘V">📋 Paste image</button>
-  <button onclick="say({a:'capture'})" title="⌘A">📸 Add capture</button>
-  <button id="btn-delay" onclick="say({a:'delay'})" title="⌘D">⏲ Delayed ]] .. tostring(delaySecs) .. [[s</button>
-  <button id="btn-full" onclick="say({a:'full'})" title="⌘F">🖥 Full screen</button>
-  <button id="btn-load" onclick="say({a:'loadshot'})" title="⌘O">🖼 Load shot</button>
-  <button onclick="undoLast()" title="⌘Z">↩︎ Undo</button>
   <button class="go" onclick="saveIt('png')" title="⌘⏎">Save &amp; copy&nbsp;&nbsp;⌘⏎</button>
   <button onclick="saveIt('jpg')" title="⌘⇧⏎">Small JPEG</button>
   <button onclick="stashAndCancel()" title="esc">Cancel</button>
   <span class="hint">hold ⌘ and click a mark to edit it · ⌫ deletes a note · saved as “… (edited)” next to the original</span>
 </header>
-<div id="stage">
-  <div id="wrap">
-    <canvas id="cv"></canvas>
-    <canvas id="ov"></canvas>
-    <input id="tin" spellcheck="false" autocorrect="off" placeholder="type, then ⏎">
+<div id="body">
+  <nav id="railL" class="rail">
+    <div class="lbl">Tools</div>
+    <button id="tool-blur" class="tool on" onclick="setTool('blur')" title="B">▦ Blur</button>
+    <button id="tool-text" class="tool" onclick="setTool('text')" title="T">🅣 Text</button>
+    <button id="tool-arrow" class="tool" onclick="setTool('arrow')" title="A">➤ Arrow</button>
+    <button id="tool-line" class="tool" onclick="setTool('line')" title="L">／ Line</button>
+    <button id="tool-oval" class="tool" onclick="setTool('oval')" title="O">◯ Oval</button>
+    <button id="tool-hl" class="tool" onclick="setTool('hl')" title="H">🖍 Highlight</button>
+    <button id="tool-count" class="tool" onclick="setTool('count')" title="C">① Counter</button>
+    <button id="tool-spot" class="tool" onclick="setTool('spot')" title="S">🔦 Spotlight</button>
+    <button id="tool-mag" class="tool" onclick="setTool('mag')" title="M">🔍 Magnifier</button>
+  </nav>
+  <div id="stage">
+    <div id="wrap">
+      <canvas id="cv"></canvas>
+      <canvas id="ov"></canvas>
+      <input id="tin" spellcheck="false" autocorrect="off" placeholder="type, then ⏎">
+    </div>
+    <div id="band"></div>
   </div>
-  <div id="band"></div>
+  <nav id="railR" class="rail">
+    <div class="lbl">Add</div>
+    <button onclick="say({a:'paste'})" title="⌘V">📋 Paste image</button>
+    <button onclick="say({a:'capture'})" title="⌘A">📸 Add capture</button>
+    <button id="btn-delay" onclick="say({a:'delay'})" title="⌘D">⏲ Delayed ]] .. tostring(delaySecs) .. [[s</button>
+    <button id="btn-full" onclick="say({a:'full'})" title="⌘F">🖥 Full screen</button>
+    <button id="btn-load" onclick="say({a:'loadshot'})" title="⌘O">🖼 Load shot</button>
+    <div class="lbl">Edit</div>
+    <button onclick="undoLast()" title="⌘Z">↩︎ Undo</button>
+  </nav>
 </div>
 <script>
   var RADIUS = ]] .. tostring(math.floor(ed.blurRadius)) .. [[;
@@ -1236,15 +1285,40 @@ function M.setup(core)
     -- 6.258.0 LIFTED this out of ed.open so the grow can ask the same
     -- question: two copies of this arithmetic is how a window that opens
     -- right comes to resize wrong (6.231.0, one function two callers).
-    function ed.windowSizeFor(imgW, imgH, sf)
+    -- 🖼 6.270.0 — THE RAILS ARE RESERVED BEFORE THE IMAGE IS MEASURED,
+    -- which is the whole of LL's "at a minimum, the canvas that the
+    -- screenshot is placed on would be big enough to accommodate the tool
+    -- buttons on each side". Two rails is 272 points that are not the
+    -- picture, and a window sized for the picture alone puts them over it
+    -- or squeezes it. The shot keeps the width it would have had; the
+    -- WINDOW grows to carry the rails.
+    -- 🔒 PURE, and the rail numbers arrive as ARGUMENTS with the config as
+    -- the default (6.230.0), so the gate can drive a rail width this Mac
+    -- has never shipped and prove the arithmetic rather than the constant.
+    -- 📏 THE VERTICAL HALF IS A FLOOR, not padding: nine stacked tools
+    -- need `railMinH`, so a tiny shot no longer opens a window too short
+    -- to show its own toolbar. The rails scroll past that, they never clip.
+    function ed.windowSizeFor(imgW, imgH, sf, opts)
         imgW, imgH = tonumber(imgW) or 0, tonumber(imgH) or 0
         if imgW <= 0 or imgH <= 0 then imgW, imgH = 900, 600 end
         sf = (type(sf) == "table" and sf.w and sf.h) and sf
              or { x = 0, y = 0, w = 1440, h = 900 }
+        opts = (type(opts) == "table") and opts or {}
+        local railW   = math.max(0, tonumber(opts.railW)    or tonumber(ed.railW)      or 0)
+        local headerH = math.max(0, tonumber(opts.headerH)  or tonumber(ed.dragStripH) or 0)
+        local railMin = math.max(0, tonumber(opts.railMinH) or tonumber(ed.railMinH)   or 0)
+        local rails   = railW * 2
         local maxW, maxH = sf.w * 0.85, sf.h * 0.85
-        local scale = math.min(1, maxW / imgW, (maxH - 60) / imgH)
-        local w = math.max(720, math.floor(imgW * scale) + 28)
-        local h = math.max(320, math.floor(imgH * scale) + 82)
+        -- The room left for the PICTURE is the screen budget less the
+        -- rails; a screen narrower than its own rails would give a
+        -- negative scale, so the picture floors at nothing rather than
+        -- inverting.
+        local roomW = math.max(1, maxW - rails)
+        local roomH = math.max(1, maxH - headerH - 28)
+        local scale = math.max(0, math.min(1, roomW / imgW, roomH / imgH))
+        local w = math.max(720, math.floor(imgW * scale) + 28 + rails)
+        local h = math.max(320, railMin + headerH,
+                           math.floor(imgH * scale) + headerH + 28)
         return w, h
     end
 
@@ -1649,6 +1723,15 @@ function M.setup(core)
         L[#L + 1] = "   kept    : " .. (ed.kept
                         and ("work held for " .. tostring(ed.kept.path))
                         or "nothing kept from a cancel")
+        -- 🖼 6.270.0 — the layout, and what it RESERVES. Printed because
+        -- "the buttons are on top of the picture" and "the picture is
+        -- squeezed" look the same in a screenshot and are opposite faults.
+        L[#L + 1] = string.format(
+            "   layout  : tools left · actions right · %d pt each rail, "
+         .. "so a window reserves %d pt that is not the picture "
+         .. "(floor %d pt tall, to fit the taller rail)",
+            math.floor(num(ed.railW, 136)), math.floor(num(ed.railW, 136)) * 2,
+            math.floor(num(ed.railMinH, 344)) + math.floor(num(ed.dragStripH, 54)))
         local asked = num(d.asked, 0)
         if asked == 0 then
             L[#L + 1] = "   capture : never asked this session (⌘D or ⌘F in the editor)"

@@ -5,6 +5,77 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.270.0 — 🖼 THE SCREENSHOT EDITOR GETS ITS TWO RAILS, AND THE
+WINDOW MAKES ROOM FOR THEM (modules/screenshot_editor.lua):
+
+  LL, for the third time, and the first time with the sizing spelled out:
+
+      "Did we fix the screenshot editor? Ever release that I've
+       installed, has not had the tools that run across the top of the
+       editor and a column on the left-hand side and the right hand side
+       so at a minimum, the canvas that the screenshot is placed on would
+       be big enough to accommodate the tool buttons on each side."
+
+  🚨 HE WAS RIGHT, AND THE HONEST ANSWER IS THAT IT WAS NEVER BUILT. All
+  eighteen buttons — Blur, Text, Arrow, Line, Oval, Highlight, Counter,
+  Spotlight, Magnifier, Paste image, Add capture, Delayed, Full screen,
+  Load shot, Undo, Save & copy, Small JPEG, Cancel — sat in ONE `<header>`
+  with `flex-wrap:wrap`. There was no left column and no right column
+  anywhere in the page. It was queued as 6.261.0, that number was taken by
+  the dialog-home deletion, and it was never rebuilt; the queue note
+  against it has read "HE IS NOT doing something wrong — queued,
+  displaced, never built" for nine releases while he went on installing
+  builds that could not possibly have had it and checking.
+
+  📏 AND THE SIZING WAS THE REAL ASK. `ed.windowSizeFor` sized the window
+  as the image plus 28 points — twelve a side — so there was not merely no
+  rail, there was no ROOM for one. His sentence names the requirement
+  exactly: the canvas must be big enough to accommodate the buttons on
+  each side. So the rails are reserved BEFORE the picture is measured:
+
+      local roomW = math.max(1, maxW - railW * 2)
+      local w     = math.max(720, math.floor(imgW * scale) + 28 + railW * 2)
+
+  The shot keeps the size it would have had; the WINDOW grows. A check
+  computes the same call with `railW = 0` and requires it to equal the old
+  828 exactly — which is what proves the rails are the whole difference
+  and that nothing else about the sizing moved.
+
+  📐 THE VERTICAL HALF IS A FLOOR, not padding. Nine stacked tools need
+  `railMinH` (344) plus the header, so a tiny shot no longer opens a
+  window too short to show its own toolbar — the old floor was 320, which
+  was a usable window for a picture and not for a toolbar. Past that the
+  rails SCROLL (`overflow-y:auto`); they never clip, because a button you
+  cannot reach is the complaint being fixed.
+
+  🔑 ONE NUMBER, TWO READERS. The page's CSS is written from `ed.railW`
+  and the arithmetic reserves the same field, so a rail drawn 200 wide in
+  a window reserving 136 cannot happen. 6.239.0's rule: a check moves the
+  config to a width this Mac has never shipped and requires both the
+  drawing and the window to follow, because asserting the shipped 136
+  passes on a build where the number is simply typed in twice.
+
+  🧪 THE CHECKS THAT EARN THEIR PLACE ARE ABOUT STRUCTURE, not about
+  whether a rail exists. A tool left behind in the header is a rail that
+  only LOOKS built and is the same complaint again next month, so the
+  header is asserted to carry NOTHING but the title, the three finish
+  actions and the hint; each rail is asserted to hold every one of its
+  buttons by name. And the two old size checks asserted 828 and 320 — the
+  numbers from before there was a rail to fit — which is 6.248.0's lesson
+  exactly: they would have gone red with nothing to say about the change
+  they should have been proving. They ask the rule in terms of the config
+  now.
+
+  🔎 `_G.screenshotEditorReport()` gains a "layout :" line naming the rail
+  width and what a window reserves, because "the buttons are on top of the
+  picture" and "the picture is squeezed to make room" look identical in a
+  screenshot and are opposite faults.
+
+  📏 NAMED, NOT CHANGED: every keyboard shortcut is untouched (B T A L O
+  H C S M, ⌘V ⌘A ⌘D ⌘F ⌘O ⌘Z ⌘⏎ ⌘⇧⏎ esc), and ⌘-drag still grabs the
+  header strip and nothing else — `ed.dragStripH` is the header height in
+  both the CSS and `ed.stripOf`, as it has been since 6.221.0.
+
 NEW IN 6.269.0 — 🔗 THE ANCHORS CARD DRAWS ITS EIGHT ROWS, AND A CARD
 WITH A TITLE AND NO ROWS NAMES ITSELF (modules/anchors.lua + init.lua's
 §1.12 loader + core/cheatsheet.lua):
