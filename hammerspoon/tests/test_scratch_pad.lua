@@ -553,7 +553,6 @@ local src   = slurp(HS .. "/modules/scratch_pad.lua")
 local init  = slurp(HS .. "/init.lua")
 local coex  = slurp(HS .. "/core/coexist.lua")
 local uni   = slurp(HS .. "/modules/unified_search.lua")
-local hints = slurp(HS .. "/modules/shortcut_hints.lua")
 local tc    = slurp(HS .. "/modules/task_creator.lua")
 local rt    = slurp(HS .. "/tools/run-tests.sh")
 check("🚨 the module owns NO eventtap — nothing can swallow a key system-wide", src:find("hs%.eventtap%.new") == nil)
@@ -563,12 +562,11 @@ check("every hs.timer result is assigned (held)", not src:find("\n%s*hs%.timer%.
 check("init.lua loads scratch_pad", init:find('"scratch_pad"', 1, true) ~= nil)
 check("the escape ladder has a scratchpad rung under taskform", coex:find("scratchpad =  74", 1, true) ~= nil)
 check("⇪space has a Scratch pad source", uni:find('tag = "scratch"', 1, true) ~= nil and uni:find("scratch = 200", 1, true) ~= nil)
--- 6.182.0 — ⇪N and ⇪2 are filed; ⇪1 came OUT, because a group row for a
--- key nothing binds is dead config that outlives the key it described.
-check("⇪N and ⇪2 are filed in the hint groups",
-      hints:find('n = "Notes & capture"', 1, true) ~= nil
-      and hints:find('["2"] = "Clipboard & OCR"', 1, true) ~= nil)
-check("…and ⇪1's row is gone with the key", hints:find('["1"] = "Notes & capture"', 1, true) == nil)
+-- 6.182.0 filed ⇪N and ⇪2 in the hint module's groups and a check here
+-- read them back. 6.268.0 — THAT MODULE IS DELETED, so the rows are gone
+-- with it and the assertion had nothing left to be about. The keys
+-- themselves are unchanged and still proven: ⇪N by this module's own
+-- cheat sheet and its binding above, ⇪2 by the sequential-copy section.
 check("asanaSubmitTask honours extra.comment", tc:find("extra.comment", 1, true) ~= nil)
 check("run-tests lists this suite", rt:find("test_scratch_pad", 1, true) ~= nil)
 

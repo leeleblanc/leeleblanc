@@ -555,16 +555,13 @@ do
             local ok, err = pcall(w.SB.hyperDispatch["a"].pressed)
             return ok == false and tostring(err):find("stack traceback", 1, true) ~= nil
         end)(), select(2, pcall(w.SB.hyperDispatch["a"].pressed)))
-    check("⌨️ ...and a shortcut that threw gains NO hint card it never had before",
-        (function()
-            local hints = {}
-            w.SB.shortcutHint = function(c) hints[#hints + 1] = c end
-            tap.fn(w.mkEvent({}, "a", true))          -- throws
-            local afterThrow = #hints
-            tap.fn(w.mkEvent({}, "d", true))          -- runs
-            w.SB.shortcutHint = nil
-            return afterThrow == 0 and #hints == 1 and hints[1] == "d"
-        end)())
+  -- 6.268.0 — A CHECK THAT A THROWN SHORTCUT DREW NO HINT CARD STOOD
+  -- HERE. It was proving an ORDERING inside hyperBind: the error left the
+  -- wrapper before the `_G.shortcutHint` line, so a shortcut that failed
+  -- never claimed to have succeeded. The hint module is deleted and that
+  -- call with it, so there is no longer an ordering to get wrong. The two
+  -- checks above still prove the half that matters and did not go away —
+  -- the error really leaves the wrapper, carrying its traceback.
 
   -- and a press the pause switch stands down is recorded as such
   TRAIL, w.ran = {}, {}

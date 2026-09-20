@@ -5,6 +5,120 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.268.0 — 🗑 THE SHORTCUT HINT CARD IS DELETED, NOT SWITCHED OFF
+(modules/shortcut_hints.lua + tests/test_shortcut_hints.lua are gone):
+
+  LL, with a photograph of the 💡 SHORTCUT HINTS card sitting in the ⇪/
+  cheat sheet: "this should be completely gone."
+
+  He was looking at a switched-off tool advertising itself. 6.240.0 put
+  `shortcut_hints = { enabled = false }` in both machine profiles, and
+  that release did exactly what it said: no card is drawn after a ⇪ key,
+  no dismiss tap is created, no timer is held. What it did NOT do is stop
+  the module loading, printing its own boot line every morning —
+
+      💡 shortcut hints 6.167.0 — card 810 wide …
+
+  — or stop it contributing its own card to the ⇪/ sheet, describing a
+  behaviour that no longer happens on either of his Macs. That is
+  6.261.0's shape exactly, and 6.261.0's rule applies unchanged: KEEPING
+  EVERYTHING IS RIGHT FOR A DOOR AND WRONG FOR A TOOL HE DOES NOT WANT.
+  A switched-off feature still loads, still draws its sheet card and
+  still answers its report, so the only thing it does is describe itself.
+
+  🗑 WHAT WENT, all in one commit: the module, its suite, the §1.12
+  loader line, the ⇪/ card (it travelled with M.cheatsheet), the
+  `_G.shortcutHint` hook, hyperBind's call to it, the
+  `_G.shortcutHintsReport()` global, the "shortcutHints.report" service
+  and BOTH profiles' settings lines. Seventy-two modules become
+  seventy-one and seventy-two Lua suites become seventy-one, and the
+  counts printed to a human in tools/hs-doctor.sh, INSTALL.md and
+  GUIDE.md moved in the same commit — a count printed to a person is a
+  lie the moment a file goes.
+
+  🔑 THE DATA IS NOT THE FEATURE. This is the half that decided the shape
+  of the release, and it is the reason a deletion is not just `rm`.
+  Three other files read modules/shortcut_hints.lua as a DATA SOURCE, none
+  of them for the card:
+
+    · tools/build-feature-list.lua read `hint.coreRows` — the sixteen
+      keys init.lua and core/ bind THEMSELVES (⇪A, ⇪B, ⇪C, ⇪L, ⇪/, ⇪=,
+      ⇪E, ⇪-, ⇪P, ⇪⇧C, ⇪⇧D, ⇪⇧R and the four picker nudges), which no
+      module's own cheatsheet claims — and printed them into
+      RESOLVED-FEATURE-REQUESTS.txt, a file that ships in every archive
+      and that LL opens. Deleting the module would have dropped sixteen
+      rows out of a shipped document in silence, and the gate could not
+      have seen it: the generator reads with `readAll(...) or ""`, so a
+      missing file is an empty table, not an error.
+    · tests/test_bluetooth.lua asserted that `hint.groups` filed ⇪⇧7.
+    · tests/test_scratch_pad.lua asserted that it filed ⇪N and ⇪2.
+
+  THE TWO TABLES GOT OPPOSITE ANSWERS, on one test: is this data ABOUT
+  the card, or data the card happened to hold?
+
+  `coreRows` is documentation of keys that exist whether or not any card
+  is ever drawn, so it MOVED — into build-feature-list.lua, its one and
+  only reader, as a literal list rather than a map (a Lua table with
+  string keys has no order, and these rows are printed in the order a
+  person looks for them). Nothing is lost from the feature list.
+
+  `groups` was the card's own layout and nothing else, so it went WITH
+  the card. The two suites reading it were, after the deletion, asserting
+  a fact about a table nothing draws — the definition of a check that
+  cannot fail for a reason anyone cares about. Both were replaced by a
+  comment naming what they were really protecting, which their own
+  neighbours already prove: ⇪⇧7 by its real binding and this module's own
+  cheat sheet two lines above; ⇪N and ⇪2 by the scratch pad's cheat sheet
+  and its sequential-copy section. That is 6.261.0's rule — when you
+  delete a module a sentry names, the sentry gets a new name in the SAME
+  commit or it is weaker than it reads.
+
+  A fourth check went for the same reason: test_hyper_key proved that a
+  shortcut which THREW gained no hint card, which was an assertion about
+  the ORDER of two lines inside hyperBind. With the second line gone
+  there is no ordering left to get wrong. The half that mattered — the
+  error really leaves the wrapper, carrying its traceback — is untouched.
+
+  🧪 SIX SENTRIES REPLACE THE ONE THAT COUNTED THE SETTINGS LINES
+  (test_integration). 6.240.0's check counted the two profile lines and
+  bit if either was removed; it had to go with them, and replacing it
+  with nothing would have left the removal unguarded. The new ones are
+  deliberately about the CLASS rather than the file, because a deletion
+  is only finished when nothing is left pointing at the hole, and each
+  leftover is a DIFFERENT fault: the module file, the suite file, the
+  loader line (a dead one is a boot error), any profile settings key (a
+  dead one is a knob nobody reads), run-tests.sh's list, and the CALL
+  SITE.
+
+  The call site is the one that would have been quietest. `if
+  _G.shortcutHint then pcall(_G.shortcutHint, combo, source) end` is
+  nil-guarded by design, so init.lua would have gone on booting green for
+  ever, on both Macs, calling a hook that nothing can ever set again —
+  invisible to every functional test there is.
+
+  🔒 AND TWO OF THE SIX READ THE SOURCE WITH ITS COMMENTS STRIPPED. This
+  is 6.262.0's rule and it bit during the build rather than after it: the
+  comments left behind in init.lua NAME the deleted hook and quote the
+  removed settings line, on purpose, to record where they were and why
+  they went. A sentry that greps the raw file matches its own explanation
+  and fails for ever. The profile check was written without the strip,
+  went red on the first gate run, and is the reason the rule is restated
+  here.
+
+  📏 NAMED, NOT SWEPT: core/coexist.lua keeps the panel-ladder rung
+  `hint = 4`, with a note saying the module went in 6.268.0. That follows
+  the precedent three lines above it — `pinbadge` has been a kept rung
+  since win_pin was removed in 6.166.0. A rung costs one table entry, the
+  numbers around it are literals rather than offsets, and removing one
+  buys nothing while risking a silent re-levelling of every panel above.
+
+  🔑 IT IS DELETED, NOT LOST: every line is in git at 6.267.0 (a621a60)
+  and the whole story is here. Bringing it back is a checkout, not a
+  rewrite.
+
+    · 10,195 -> 10,112 checks · 78 stages · six mutations, six bites,
+      each on its own check, every restore verified by SHA.
+
 NEW IN 6.267.0 — ⏱ TWO STORES ARE READ WHEN THEY ARE FIRST NEEDED, NEVER
 DURING BOOT (modules/file_tracker.lua + modules/activity_tracker.lua):
 

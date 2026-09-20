@@ -562,15 +562,50 @@ do
     local n = select(2, profileBlock:gsub("profileFrom", ""))
     check("...and all three profiles use it", n >= 3, n)
 
-    -- 💡 6.240.0 — THE HINT CARD IS OFF ON BOTH OF HIS MACS, and that is a
-    -- SETTINGS line rather than module code, so the only place it can be
-    -- proven is here, in init.lua's own source. test_shortcut_hints proves
-    -- that hint.enabled = false stops the card; this proves his two Macs
-    -- actually carry the false. Counted, so removing EITHER one bites.
-    local offs = select(2, profileBlock:gsub(
-        "shortcut_hints%s*=%s*{%s*enabled%s*=%s*false", ""))
-    check("💡 the shortcut hint card is switched off in BOTH named profiles "
-          .. "(6.240.0 — a settings line, no module code)", offs == 2, offs)
+    -- 🗑 6.268.0 — THE SHORTCUT HINT CARD IS DELETED, NOT SWITCHED OFF.
+    -- 6.240.0 put `shortcut_hints = { enabled = false }` in both named
+    -- profiles and a check here counted the two. The tool went on loading,
+    -- printing its own boot line and drawing its own ⇪/ card about a thing
+    -- that no longer happened, so LL asked for the room rather than the
+    -- door ("this should be completely gone") and the module went.
+    --
+    -- THIS IS THE SENTRY THAT REPLACES THE COUNT, and it is deliberately
+    -- about the CLASS rather than the file: a deletion is only finished
+    -- when nothing is left pointing at the hole. Four places could each
+    -- have been missed on their own, and a leftover in any one of them is
+    -- a different fault — a dead loader line is a boot error, a dead
+    -- settings key is a knob nobody reads, a dead call is a nil guard
+    -- carrying a module that cannot come back.
+    local function gone(rel)
+        local fh = io.open(HS .. "/" .. rel, "r")
+        if fh then fh:close() ; return false end
+        return true
+    end
+    local function slurpOr(rel)
+        local fh = io.open(HS .. "/" .. rel, "r")
+        if not fh then return "" end
+        local t = fh:read("*a") ; fh:close() ; return t or ""
+    end
+    check("🗑 the shortcut hints MODULE FILE is gone", gone("modules/shortcut_hints.lua"))
+    check("🗑 ...and its suite with it", gone("tests/test_shortcut_hints.lua"))
+    check("🗑 ...init.lua's §1.12 loader no longer names it",
+          init:find('"shortcut_hints"', 1, true) == nil)
+    -- Comments stripped here for the same reason as the call site below:
+    -- the Air profile's comment records what the line WAS and why it went.
+    check("🗑 ...no profile still carries a shortcut_hints settings key",
+          profileBlock:gsub("%-%-[^\n]*", ""):find("shortcut_hints", 1, true) == nil)
+    -- 🔒 THE CALL SITE IS READ WITH ITS COMMENTS STRIPPED (6.262.0's rule):
+    -- init.lua's own comment NAMES the deleted hook, to say where it used
+    -- to be and why it went, so a sentry that greps the raw file matches
+    -- its own explanation and fails for ever. This is also the leftover
+    -- that would have been quietest: `if _G.shortcutHint then …` is
+    -- nil-guarded, so the config boots green with a hook nothing can set.
+    local code = init:gsub("%-%-[^\n]*", "")
+    check("🗑 ...and hyperBind no longer CALLS _G.shortcutHint (comments stripped)",
+          code:find("shortcutHint", 1, true) == nil,
+          code:match("[^\n]*shortcutHint[^\n]*"))
+    check("🗑 ...run-tests.sh does not list the deleted suite",
+          slurpOr("tools/run-tests.sh"):find("test_shortcut_hints", 1, true) == nil)
 end
 
 -- ⚠️ loader_test.lua LOADS THE REAL LIST as a side effect of being

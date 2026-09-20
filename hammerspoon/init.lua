@@ -4,9 +4,50 @@
 -- =====================================================================
 -- 09-20-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.267.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.268.0
 -- =====================================================================
 
+-- NEW IN 6.268.0 — 🗑 THE SHORTCUT HINT CARD IS DELETED, NOT SWITCHED
+--   OFF (modules/shortcut_hints.lua and its suite are GONE):
+--   LL, with a photograph of the 💡 SHORTCUT HINTS card in the ⇪/ sheet:
+--      "this should be completely gone."
+--   🔎 HE WAS LOOKING AT A SWITCHED-OFF TOOL ADVERTISING ITSELF. 6.240.0
+--      turned the card off in BOTH machine profiles and the module went
+--      on loading, printing its own boot line and drawing its own ⇪/
+--      card about a thing that no longer happened. 6.261.0's shape
+--      exactly, and its rule: KEEPING EVERYTHING IS RIGHT FOR A DOOR AND
+--      WRONG FOR A TOOL HE DOES NOT WANT.
+--   🗑 WHAT WENT: the module, tests/test_shortcut_hints.lua, the §1.12
+--      loader line, the ⇪/ card, `_G.shortcutHint`, the hyperBind call
+--      site, `_G.shortcutHintsReport()` and BOTH profiles' settings
+--      lines. 72 modules -> 71, 72 Lua suites -> 71, and the counts in
+--      hs-doctor.sh, INSTALL.md and GUIDE.md moved in the same commit (a
+--      count printed to a human is a lie the moment a file goes).
+--   🔑 THE DATA IS NOT THE FEATURE, and this is the half worth reading.
+--      `hint.coreRows` — the sixteen keys init.lua and core/ bind
+--      THEMSELVES, which no module's cheatsheet claims — was read out of
+--      this module by tools/build-feature-list.lua and printed into
+--      RESOLVED-FEATURE-REQUESTS.txt, a file LL opens. Deleting the
+--      module would have silently dropped sixteen rows out of a shipped
+--      document. It moved to that generator, its ONE reader, rather than
+--      keeping a module alive to hold a table. `hint.groups` did NOT
+--      move: its only purpose was the card, and two suites reading it to
+--      assert "this key is filed" were asserting a fact about a table
+--      nothing draws — both now rest on the real binding and the real
+--      cheat sheet instead (6.261.0: a sentry that names a deleted module
+--      gets a new name in the SAME commit or it is weaker than it reads).
+--   🧪 SIX SENTRIES REPLACE THE ONE THAT COUNTED THE SETTINGS LINES, and
+--      they are about the CLASS: the module file, the suite file, the
+--      loader line, any profile key, the CALL SITE and run-tests.sh. The
+--      call site is the one that could have been left behind quietly —
+--      `if _G.shortcutHint then …` is nil-guarded, so the config boots
+--      green for ever with a hook nothing can ever set. Both it and the
+--      profile check READ THE SOURCE WITH COMMENTS STRIPPED (6.262.0),
+--      because init.lua's own comments now quote the very lines they
+--      forbid, to say where they were and why they went.
+--        · 10,195 -> 10,112 checks · six mutations, six bites, each on
+--          its own check.
+--
 -- NEW IN 6.267.0 — ⏱ TWO STORES ARE READ WHEN THEY ARE FIRST NEEDED,
 --   NEVER DURING BOOT (modules/file_tracker.lua + activity_tracker.lua):
 --   LL, with his own boot log: "How can I wrap the file_tracker and
@@ -38,46 +79,12 @@
 --      on the main thread when it happens. What moved is WHEN.
 --        · 10,166 -> 10,195 checks · twelve mutations, twelve bites.
 --
--- NEW IN 6.266.0 — 🧊 A PANEL YOU GAVE UP ON IS NEVER PUT BACK ON
---   SCREEN (init.lua §_G.showCanvasSafely + modules/mouse_grid.lua):
---   LL, with a photograph of the yellow landed-box outline sitting over a
---      Finder dialog: "Frozen grid again." A SUSPECT in CLAUDE.md for
---      eight releases; the two halves were never read side by side.
---   🔎 THE MECHANISM, CONFIRMED: when macOS refuses a canvas:show() this
---      helper retried 50 ms later and SHOWED IT ITSELF, telling nobody.
---      mouse_grid records what it shows in `grid.shown`; grid.hide()
---      hides that list and EMPTIES it. So an Esc inside that window hid
---      the box, threw away the only handle to it, and the retry then put
---      it back with nothing able to reach it — not grid.hide(), not
---      `_G.mouseGrid.hide()`. Only hs.reload().
---   🔑 `onLate`: the retry HANDS THE CANVAS BACK and the CALLER decides
---      whether it still wants the panel. A caller that passes nothing
---      gets NO second show at all — the safe default, and the one all
---      fifteen callers but mouse_grid take today, so the whole orphan
---      class closes in one change instead of in fifteen modules.
---      `_G.canvasRetryPlan` is PURE: give up · give up (no timer) · hand
---      back, with the reason. mouse_grid takes the door first and its
---      `late` re-records the canvas — enterLanded() empties the hide list
---      while the grid is still UP, so a retry landing there is the same
---      orphan one turn on.
---   📏 COST, NAMED: a panel refused once no longer reappears by itself a
---      moment later — press the key again, which is what the message has
---      always said. It is said on the FIRST refusal now, because there is
---      no second one to wait for. The hs.alert retry is deliberately
---      untouched: an alert owns itself and expires in two seconds.
---   🧪 The canvas stub can REFUSE now, and the helper is LIFTED out of
---      this file rather than re-written in the suite (6.264.0's lesson).
---      The re-record check first passed with the line DELETED — 6.199.0,
---      fourth time — until it was moved to the landed grid.
---   🔎 `_G.canvasShowReport()` (the helper had none).
---        · 10,139 -> 10,166 checks · six mutations, six bites.
---
--- (6.265.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.266.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.267.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.268.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -174,7 +181,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.267.0"
+_G.configVersion = "6.268.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the
@@ -2068,13 +2075,7 @@ local function hyperBind(mods, key, pressedFn, releasedFn, repeatFn, source)
     end
     _G.hyperBound[combo] = source or "?"
     _G.hyperBoundCount = _G.hyperBoundCount + 1
-    -- 6.163.0 — after the shortcut has run, the hint card (modules/
-    -- shortcut_hints.lua) names the group's other keys. Wrapped HERE, the
-    -- one place every hyper shortcut passes, so both dispatch paths get
-    -- it; INSIDE the pause wrap, so a paused press never hints; never for
-    -- the forwarded chords. Nil-guarded and pcall'd: the module is
-    -- optional and this block runs bare in test_hyper_key's sandbox.
-    -- 6.179.0 — and the KEY TRAIL is timed around the same call: how
+    -- 6.179.0 — the KEY TRAIL is timed around the shortcut: how
     -- long the shortcut took, and whether it threw. core/key_trail.lua
     -- keeps the last two dozen in memory (combos only, never text).
     -- Nil-guarded and pcall'd like the hint above, for the same reason.
@@ -2102,11 +2103,15 @@ local function hyperBind(mods, key, pressedFn, releasedFn, repeatFn, source)
             if _G.hyperStormNote then pcall(_G.hyperStormNote, combo, source) end
             -- A shortcut that throws must still SAY so, exactly as it did
             -- when it was unwrapped: the pcall here is for the timing, not
-            -- a place to swallow a fault. And it must not gain a hint card
-            -- it never had — before 6.179.0 the error left this function
-            -- BEFORE the hint line, so a failed shortcut showed none.
+            -- a place to swallow a fault.
+            -- 6.268.0 — the hint card's own hook was called on the line
+            -- below this one until the module was DELETED on LL's word
+            -- ("this should be completely gone"). Nothing replaces it: the
+            -- trail and the storm guard above are the two things that
+            -- still watch a press, and both DO something with what they
+            -- see. test_integration reads this file with its comments
+            -- stripped and fails if the call ever comes back.
             if not ok then error(r, 0) end
-            if _G.shortcutHint then pcall(_G.shortcutHint, combo, source) end
             return r
         end
     end
@@ -3163,7 +3168,6 @@ local BASE = {
     "settings_panes",     -- ⚙️ ⇪,  System Settings, by name
     "app_kill",           -- 💀 ⇪⇧; end a process, politely then not · macOS's own 🔒
     "power_tools",        -- 🧰 ⇪;  type the clipboard · count · grayscale · free keys
-    "shortcut_hints",     -- 💡 after a ⇪ key, a card of the group's other keys (no key)
     "ground_probe",       -- 🧭 6.242.0 what THIS Mac answers about the surfaces the next releases need (no key)
     "scratch_pad",        -- 📝 the SCORP PAD — ⇪N tabs (⇪1 until 6.182.0), saved as you type, history under the text, 4 PM task
     "vault",              -- 🕸 HAMSIDIAN — ⇪3 linked Markdown notes in OneDrive, backlinks, graph (6.172.0)
@@ -3240,16 +3244,12 @@ _G.moduleProfiles = {
     -- 6.170.0: the LG runs 2560×1440@2x ("looks like 1440") — outcome (b)
     -- of 6.167.0: the screen was NOT why the card read small, so pin it.
     ["Lees-MacBook-Air"] = profileFrom{ settings = {
-        -- 💡 6.240.0 — THE HINT CARD IS OFF, on LL's ask, and this line is
-        -- the whole release: `hint.enabled` is read at PRESS time inside
-        -- _G.shortcutHint, not at setup, so the switch the module already
-        -- documents needs no module code at all. With it false nothing is
-        -- drawn, no dismiss tap is created and no timer is held — the card
-        -- is not hidden, it is never built. The scale stays beside it on
-        -- purpose: it is his 6.167.0 measurement for the LG, and deleting
-        -- it would cost him that tuning the day he turns the card back on.
-        -- Back on, no release: enabled = true here.
-        shortcut_hints = { enabled = false, scale = 1.5 },
+        -- 💡 6.268.0 — a hint-card settings line stood here and another in
+        -- the work profile below. 6.240.0 switched the card OFF from here
+        -- and the tool went on loading, printing its own boot line and
+        -- drawing its own ⇪/ card about a thing that no longer happened,
+        -- so LL asked for the room rather than the door and the module is
+        -- deleted. Both lines went with it.
         -- 6.213.2, LL: "solid when I go over, about 30% when I move off".
         -- The hover poll (6.152.0) already switches between the two.
         pomodoro = { alphaIdle = 0.30, alphaAlert = 1 },
@@ -3261,7 +3261,6 @@ _G.moduleProfiles = {
     -- on that Mac, or read the 🧭 line at the top of its Console.
     ["Lees-Work-MacBook"] = profileFrom({
         settings = {
-            shortcut_hints = { enabled = false },              -- 6.240.0, as on the Air
             pomodoro = { alphaIdle = 0.30, alphaAlert = 1 },   -- 6.213.2, as on the Air
             -- Examples — delete or edit freely. These are exactly the
             -- knobs a work Mac tends to want different:

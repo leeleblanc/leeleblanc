@@ -77,13 +77,31 @@ for _, path in ipairs(names) do
     end
 end
 
--- the keys init.lua still binds itself (the hint module's coreRows table)
-local coreRows = {}
-do
-    local hints = readAll(HS .. "/modules/shortcut_hints.lua") or ""
-    local block = hints:match("coreRows%s*=%s*{(.-)\n%s*},")
-    for k, v in (block or ""):gmatch('%["([^"]+)"%]%s*=%s*"([^"]*)"') do coreRows[#coreRows + 1] = { k, v } end
-end
+-- The keys init.lua and core/ bind themselves, which no module's own
+-- cheatsheet claims. 6.268.0 — THIS TABLE LIVES HERE NOW. It was read
+-- out of modules/shortcut_hints.lua's `coreRows` until that module was
+-- deleted on LL's word; this generator was its only reader, so the data
+-- moved to its one consumer rather than keeping a module alive to hold
+-- it. A LIST, not a map: a Lua table with string keys has no order, and
+-- these rows are printed in the order a person looks for them.
+local coreRows = {
+    { "⇪A", "Format Asana URL from clipboard" },
+    { "⇪B", "Browse Asana Teams — Enter copies a name for Assignee" },
+    { "⇪C", "Comment on a task" },
+    { "⇪L", "List tasks — Today / Week / Overdue" },
+    { "⇪⇧C", "Toggle copy-on-select" },
+    { "⇪/", "Toggle the cheat sheet" },
+    { "⇪=", "Add your own entry to the cheat sheet" },
+    { "⇪E", "Edit a custom cheat sheet entry" },
+    { "⇪-", "Remove a custom cheat sheet entry" },
+    { "⇪⇧D", "Diagnostic report — Console + clipboard + Logs file" },
+    { "⇪P", "Hide / show the front app" },
+    { "⇪⇧R", "Reset the panel nudge offset" },
+    { "⇪⇧↑", "Nudge the open picker up" },
+    { "⇪⇧↓", "Nudge it down" },
+    { "⇪⇧←", "Nudge it left" },
+    { "⇪⇧→", "Nudge it right" },
+}
 
 -- the release index, newest first, from CHANGELOG.md
 local releases = {}

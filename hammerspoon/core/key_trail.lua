@@ -28,9 +28,10 @@
 --
 -- IT WATCHES, IT NEVER INTERVENES. init.lua's hyperBind calls
 -- _G.keyTrailRecord() AFTER the shortcut has run, nil-guarded and
--- pcall'd, exactly as it calls _G.shortcutHint. This file cannot make a
--- shortcut fail, slow one down measurably (one table write per press),
--- or change what any key does.
+-- pcall'd, exactly as it calls _G.hyperStormNote. (It named
+-- _G.shortcutHint here as the other example until 6.268.0 deleted that
+-- module.) This file cannot make a shortcut fail, slow one down
+-- measurably (one table write per press), or change what any key does.
 -- =====================================================================
 
 return function(core)

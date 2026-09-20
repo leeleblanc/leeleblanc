@@ -1,5 +1,5 @@
 ========================================================================
-RESOLVED FEATURE REQUESTS — Hammerspoon config 6.267.0
+RESOLVED FEATURE REQUESTS — Hammerspoon config 6.268.0
 Every feature and how to use it. Generated from the modules' own
 cheat sheets (the rows ⇪/ draws), so it is never out of date.
 ⇪ = Caps Lock held (the hyper key). ⇪⇧X = Caps Lock + Shift + X.
@@ -712,13 +712,6 @@ In the Console, _G.<tool>Report() prints any tool's own report.
   check     _G.bluetoothReport() — the engine, the devices, the last action
   off       settings = { bluetooth = { on = false } }
 
-💡 SHORTCUT HINTS (automatic — after a ⇪ key, its group's other keys)   [modules/shortcut_hints.lua]
-  any ⇪ key A card top-right lists the group's other keys — Asana after ⇪T, and so on
-            Sized to the screen: 540 wide / 20 pt on a 1440-pt-tall screen, ×1.5 on a 4K at full points; settings shortcut_hints.scale pins it
-  10 s      It fades by itself; any key or click makes it vanish at once (Esc included, and Esc still reaches the picker)
-  settings  settings = { shortcut_hints = { enabled = false } } turns it off; hint.groups reshapes a group
-  Console   _G.shortcutHintsReport() — what the last press resolved to
-
 📎 DEFAULT APPS (which app opens a file type)   [modules/default_apps.lua]
   📎      Pick a file type, then the app that opens it — ⇪space, then @tool
   list      Only apps that CLAIM the type are offered; ⭐ marks today's default
@@ -763,6 +756,7 @@ In the Console, _G.<tool>Report() prints any tool's own report.
 
 📜 RELEASE INDEX — newest first, one line per release (the full story of each is in CHANGELOG.md)
 ------------------------------------------------------------------------
+  6.268.0  🗑 THE SHORTCUT HINT CARD IS DELETED, NOT SWITCHED OFF
   6.267.0  ⏱ TWO STORES ARE READ WHEN THEY ARE FIRST NEEDED, NEVER
   6.266.0  🧊 A PANEL YOU GAVE UP ON IS NEVER PUT BACK ON SCREEN
   6.265.0  🚨 ⇪4 CAPTURES AGAIN (modules/screenshots.lua)

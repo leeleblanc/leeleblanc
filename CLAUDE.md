@@ -833,6 +833,44 @@ work Mac.
   📏 NAMED, NOT SWEPT: the captured spot stays in hs.settings under
   "dialogHome.pos", inert, because the code that could clear it is the
   code deleted; `hs.settings.clear("dialogHome.pos")` removes it.
+  🗑 6.268.0 — SECOND TIME, AND THE RULE HELD: modules/shortcut_hints.lua
+  is deleted (LL, with a photograph of its ⇪/ card: "this should be
+  completely gone"). 6.240.0 had switched the card OFF in both profiles
+  and the tool went on loading, printing its own boot line and drawing
+  its own cheat-sheet card about a thing that no longer happened. 72
+  modules → 71, 72 suites → 71, counts moved in the same commit.
+  🔑 THE NEW HALF, AND IT IS THE ONE TO CARRY: **A DELETED MODULE MAY BE
+  HOLDING DATA THAT IS NOT ITS FEATURE.** Three files read this module as
+  a DATA SOURCE, none of them for the card. `hint.coreRows` — the sixteen
+  keys init.lua and core/ bind THEMSELVES, which no module's cheatsheet
+  claims — was read by tools/build-feature-list.lua and printed into
+  RESOLVED-FEATURE-REQUESTS.txt, a file that ships and that LL opens. A
+  plain `rm` would have dropped those rows in SILENCE, and no gate could
+  have caught it: the generator reads with `readAll(...) or ""`, so a
+  missing file is an empty table, never an error.
+  🗳 THE TEST THAT DECIDES: is this data ABOUT the feature, or data the
+  feature happened to hold? `coreRows` documents keys that exist whether
+  or not a card is ever drawn → it MOVED, to its ONE reader, as a literal
+  list (a Lua table with string keys has no order, and those rows are
+  printed for a human to scan). `hint.groups` was the card's own layout →
+  it went WITH the card, and the two suites asserting "this key is filed
+  in it" were left asserting a fact about a table nothing draws, so both
+  now rest on the real binding and the real cheat sheet. GENERAL: before
+  deleting a module, grep every reader of it and sort them into the two
+  piles — the ones that wanted the FEATURE die with it, the ones that
+  wanted a FACT get rehomed to whoever still needs the fact.
+  🧪 SIX SENTRIES ABOUT THE CLASS, not the file: the module, the suite,
+  the loader line, any profile settings key, run-tests.sh's list, and the
+  CALL SITE. The call site is the quiet one — `if _G.shortcutHint then …`
+  is nil-guarded, so the config boots green for ever calling a hook
+  nothing can set. Two of the six READ THE SOURCE WITH COMMENTS STRIPPED
+  (6.262.0), because the comments left behind deliberately quote the very
+  lines they forbid; the profile check was written WITHOUT the strip and
+  went red on the first gate run.
+  📏 NAMED, NOT SWEPT: core/coexist.lua keeps the ladder rung `hint = 4`
+  with a note, following `pinbadge`'s precedent (win_pin, removed
+  6.166.0) — the rungs are literals, not offsets, so removing one buys
+  nothing and risks a silent re-levelling of every panel above it.
 
 - ⏲ A WINDOW THAT HIDES ITSELF OWES A WAY BACK THAT DOES NOT DEPEND
   ON THE THING IT HID FOR (6.255.0, modules/screenshot_editor.lua +
@@ -2572,7 +2610,7 @@ THE METHOD, when something breaks after a stacked zip:
    6.216.0 6f06071 · 6.217.0 a475bef · 6.218.0 41b002b · 6.219.0 862c177
    · 6.220.0 ac3975e · 6.221.0 ead07d9 · 6.222.0 1842ca7 · 6.223.0
    86ac82b · 6.224.0 67957ea · 6.225.0 98434fe · 6.226.0 304f1f9 ·
-   6.227.0 14e953a · 6.228.0 2aa3dfe · 6.229.0 a1318e1 · 6.230.0 0740c07 · 6.231.0 c1921af · 6.231.1 5a5c298 · 6.232.0 1ca3f6f · 6.233.0 2328c8c · 6.234.0 57f78d0 · 6.235.0 52e5b21 · 6.236.0 34cff8b · 6.236.1 fdce771 · 6.237.0 adf9256 · 6.238.0 3adad4f · 6.239.0 3adad4f (one commit, two releases) · 6.240.0 8f44bec · 6.241.0 dce517e · 6.242.0 1a1dab0 · 6.243.0 8fba04f · 6.244.0 9320906 · 6.245.0 9c1a8b1 · 6.246.0 1400abd · 6.247.0 3b92e99 · 6.248.0 e4e3a03 · 6.249.0 e4edc3f · 6.250.0 c267c1b · 6.251.0 f7b0d57 · 6.252.0 6307253 · 6.253.0 ef20313 · 6.254.0 14493e5 · 6.255.0 d371b34 · 6.256.0 3c29888 · 6.257.0 7f55d2b · 6.258.0 10d2250 · 6.259.0 2bcda06 · 6.260.0 f16e286 · 6.261.0 8680504 · 6.262.0 595dc2e · 6.263.0 014ddf6 · 6.264.0 5e41879 · 6.265.0 f0c487c · 6.266.0 9135f7b · 6.267.0 a621a60.
+   6.227.0 14e953a · 6.228.0 2aa3dfe · 6.229.0 a1318e1 · 6.230.0 0740c07 · 6.231.0 c1921af · 6.231.1 5a5c298 · 6.232.0 1ca3f6f · 6.233.0 2328c8c · 6.234.0 57f78d0 · 6.235.0 52e5b21 · 6.236.0 34cff8b · 6.236.1 fdce771 · 6.237.0 adf9256 · 6.238.0 3adad4f · 6.239.0 3adad4f (one commit, two releases) · 6.240.0 8f44bec · 6.241.0 dce517e · 6.242.0 1a1dab0 · 6.243.0 8fba04f · 6.244.0 9320906 · 6.245.0 9c1a8b1 · 6.246.0 1400abd · 6.247.0 3b92e99 · 6.248.0 e4e3a03 · 6.249.0 e4edc3f · 6.250.0 c267c1b · 6.251.0 f7b0d57 · 6.252.0 6307253 · 6.253.0 ef20313 · 6.254.0 14493e5 · 6.255.0 d371b34 · 6.256.0 3c29888 · 6.257.0 7f55d2b · 6.258.0 10d2250 · 6.259.0 2bcda06 · 6.260.0 f16e286 · 6.261.0 8680504 · 6.262.0 595dc2e · 6.263.0 014ddf6 · 6.264.0 5e41879 · 6.265.0 f0c487c · 6.266.0 9135f7b · 6.267.0 a621a60 · 6.268.0 PENDING.
    Keep this list current: one line per release, appended at ceremony
    time.
 4. A BISECT IS AN OPTION, NOT THE FIRST MOVE — it costs him an install
@@ -2668,6 +2706,7 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
+| 6.268.0 | 🗑 the shortcut hint card is deleted, not switched off — the module, its suite, its ⇪/ card, its boot line and both profiles' settings lines are gone | pending |
 | 6.267.0 | ⏱ the boot stops reading two OneDrive CSVs — the 90-day file history and the four months of sessions are read when they are first needed (350 ms of a 453 ms boot) | pending |
 | 6.266.0 | 🧊 the frozen grid box: a panel the caller gave up on is never put back on screen — the retry hands the canvas back instead of showing it itself | pending |
 | 6.265.0 | 🚨 ⇪4 captures again — 6.264.0's fallback to macOS's crosshair existed and was unreachable, because selectArea discarded the one value saying whether it drew | pending |
@@ -2703,16 +2742,13 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
 - 📥 LL'S QUEUE, 2026-09-20 (asked in two messages; NONE built yet,
   and the order below is MINE until he says otherwise — removals and
   bugs first, features after, one change per release):
-  1. 🗑 SHORTCUT HINTS DELETED, not switched off. LL, with a photograph
-     of the ⇪/ card: "this should be completely gone." 6.240.0 turned
-     the card off in both profiles and the tool went on DRAWING ITS OWN
-     CHEAT-SHEET CARD, advertising a feature that no longer happens —
-     6.261.0's shape exactly (he asked for the room, not the door).
-     modules/shortcut_hints.lua, its suite, its loader line, its card and
-     `_G.shortcutHintsReport()` go; `hint.groups` is the map init.lua's
-     hyperBind calls into, so the CALL SITE must degrade rather than be
-     left calling a nil, and whatever sentry names that module gets a new
-     name in the SAME commit (6.261.0's rule).
+  1. ✅ SHORTCUT HINTS DELETED — SHIPPED AS 6.268.0. The durable rule is
+     above (6.261.0's block). The one thing that was NOT foreseen when
+     this was queued: `hint.coreRows` fed sixteen rows of
+     RESOLVED-FEATURE-REQUESTS.txt, so the module was holding data that
+     was not its feature — it moved to build-feature-list.lua, its only
+     reader, and the generated file is byte-for-byte identical to
+     6.267.0's in that section.
   2. ✅ ⇪T IS MISSING FROM THE ASANA CARD. His screenshot: the ⇪/ card
      lists ⇪A ⇪B ⇪C ⇪L and NOT ⇪T, which is the key that CREATES a
      task — the tool's main door, undocumented on its own card.
@@ -3303,6 +3339,29 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.268.0 verify with LL — 🗑 THE HINT CARD IS GONE (KNOWN GROUND):
+  install (carries 6.267.0, so do that block's ⏱ boot-line check too).
+  ⇪/ and search `hint` — the 💡 SHORTCUT HINTS card you photographed is
+  NOT in the sheet, because the tool is not in the config.
+  Console: `_G.shortcutHintsReport()` → "attempt to call a nil value".
+  That error IS the release working; an error is the only honest proof
+  that a thing is gone.
+  The boot log no longer carries the `💡 shortcut hints 6.167.0 — card
+  810 wide …` line, and the module count reads 71, not 72.
+  🚨 EVERY ⇪ KEY MUST BEHAVE EXACTLY AS IT DID. This is the one thing to
+  actually exercise, because the deleted hook was called from hyperBind —
+  the single place every hyper shortcut in the config passes through. Use
+  ⇪T, ⇪D, ⇪N, ⇪3, ⇪space, ⇪X, ⇪V for a day. Nothing should look or feel
+  different; no card was appearing anyway, since 6.240.0.
+  📏 ONE THING LEFT ON PURPOSE, so it is not a surprise: the panel ladder
+  in core/coexist.lua still has a rung named `hint`, unused, with a note
+  saying why. It is one line of a table and removing it would re-level
+  every panel above it for no gain — the same call made when win_pin went
+  in 6.166.0.
+  🔑 IT IS DELETED, NOT LOST: every line is in git at 6.267.0 (a621a60)
+  and the whole story is in CHANGELOG.md. If you ever want it back it is
+  a checkout, not a rewrite.
+
 - 6.267.0 verify with LL — ⏱ THE BOOT (KNOWN GROUND): install (carries
   6.266.0, so do that block's ⇪X check too). Reload, and read the ⏱ line
   in the Console. It used to say:

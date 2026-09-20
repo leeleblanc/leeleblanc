@@ -154,11 +154,12 @@ check("name / order / family", M.name == "Bluetooth" and M.order == 14.08 and M.
 check("⇪⇧7 is the key (mods shift, key 7)", BOUND["shift+7"] ~= nil and BOUND["shift+7"].src == "bluetooth")
 check("the cheat sheet's key column names ⇪⇧7", M.cheatsheet.entries[1][1] == "⇪⇧7")
 check("services: bluetooth.show / bluetooth.report", PROVIDED["bluetooth.show"] ~= nil and PROVIDED["bluetooth.report"] ~= nil)
-do
-    local hints = readAll(HS .. "/modules/shortcut_hints.lua") or ""
-    check("hint.groups files shift+7 under This Mac (or the card never draws)",
-          hints:find('%["shift%+7"%]%s*=%s*"This Mac"') ~= nil)
-end
+-- 6.268.0 — A CHECK THAT hint.groups FILED shift+7 STOOD HERE. It was
+-- real while the hint card drew from that table; the module is deleted,
+-- so the table is gone and the check would have asserted a fact about
+-- nothing. What it was ACTUALLY protecting — that ⇪⇧7 is bound and is
+-- documented where a person can find it — is the two checks directly
+-- above, which read the real binding and this module's own cheat sheet.
 
 -- =====================================================================
 out("2) the parsers are pure and read the real shapes\n")
