@@ -42,7 +42,13 @@ hammerspoon*.zip
 # itself rather than only being installed to ~/.hammerspoon from it.
 .DS_Store
 
-# 6.262.0: un-ignored ONLY so the file panel can see it for download; never committed
-# (one at a time: the previous exception is removed with the zip it named —
-#  every release is rebuildable from its commit, the ladder in CLAUDE.md)
-!hammerspoon6.262.0.zip
+# 📦 THE CURRENT RELEASE ZIP IS UN-IGNORED **AND COMMITTED** (6.263.0).
+# This reverses "release zips are never committed", on evidence: it was
+# delivered twice with the file untracked — once gitignored, once merely
+# un-ignored — and both times LL got nothing he could open. Tracked is the
+# one variable never tried, and repo tidiness does not outrank him being
+# able to install the release.
+# ONE AT A TIME: the previous release's zip is deleted in the same commit,
+# so the working tree carries exactly one. The COST is real and named in
+# CLAUDE.md — git history keeps every blob for ever, ~3 MB a release.
+!hammerspoon6.264.0.zip
