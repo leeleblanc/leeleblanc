@@ -1,5 +1,5 @@
 ========================================================================
-RESOLVED FEATURE REQUESTS — Hammerspoon config 6.271.0
+RESOLVED FEATURE REQUESTS — Hammerspoon config 6.272.0
 Every feature and how to use it. Generated from the modules' own
 cheat sheets (the rows ⇪/ draws), so it is never out of date.
 ⇪ = Caps Lock held (the hyper key). ⇪⇧X = Caps Lock + Shift + X.
@@ -597,6 +597,7 @@ In the Console, _G.<tool>Report() prints any tool's own report.
   🔂 · 🔁 Repeat one · repeat all · off — click to cycle
   🕘      History: the last tracks played, click one to play it again
   ⌫       Take the highlighted track out of the queue
+  ✕       On a 🕘 history row: forget that track (the file is not touched)
   drag      Move the card: grab its title strip — or ⌘-drag anywhere on it. It reopens where you left it
   volume    Use the Mac's own volume keys — this player has none, by design
   focus     The card takes the keyboard when it opens — no click first
@@ -764,6 +765,7 @@ In the Console, _G.<tool>Report() prints any tool's own report.
 
 📜 RELEASE INDEX — newest first, one line per release (the full story of each is in CHANGELOG.md)
 ------------------------------------------------------------------------
+  6.272.0  🗑 A TRACK CAN BE FORGOTTEN FROM THE 🕘 HISTORY
   6.271.0  🧪 THE TEST PLAN SHIPS WITH THE RELEASE (TESTING.md +
   6.270.0  🖼 THE SCREENSHOT EDITOR GETS ITS TWO RAILS, AND THE
   6.269.0  🔗 THE ANCHORS CARD DRAWS ITS EIGHT ROWS, AND A CARD

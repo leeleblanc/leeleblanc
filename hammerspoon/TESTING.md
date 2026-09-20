@@ -1,4 +1,4 @@
-# TESTING — how to score release 6.271.0
+# TESTING — how to score release 6.272.0
 
 You install ONE archive and it carries several releases. Below are the
 steps for each release this archive is new for, newest first. Run the
@@ -26,6 +26,68 @@ else is a LOSS and I fix it before building further. You are the only
 scorer; I never mark my own.
 
 ---
+
+## 6.272.0
+
+6.272.0 verify with LL — 🗑 FORGET A TRACK FROM THE HISTORY (KNOWN GROUND)
+WHAT CHANGED: you could not remove anything from the 🕘 history list —
+⌫ took a track out of the QUEUE, and clicking a history row PLAYED it.
+Every history row now has a ✕ on its right. It forgets the row; it never
+touches the file.
+WHY IT MATTERS: you asked whether this existed and did not want to have
+to ask again. It did not. It does now.
+
+A. THE HEADLINE.
+A1. Press ⇪⇧pad. to open the player. Play two or three tracks so the
+    🕘 history at the bottom has rows in it.
+    EXPECT: a history section with one row per file.
+A2. Look at the right-hand end of any history row.
+    EXPECT: a ✕, visible WITHOUT hovering (dim grey), brightening when
+    the pointer is over it.
+A3. Click the ✕ on a history row.
+    EXPECT: that row disappears from the list, AND NOTHING STARTS
+    PLAYING. If the track begins playing, that is a FAIL and the most
+    important one in this release — tell me immediately.
+A4. Check the track that WAS playing is still playing, and the queue
+    above is unchanged.
+    EXPECT: the ✕ touched the history list and nothing else.
+A5. Close the card (⇪⇧pad.) and reopen it.
+    EXPECT: the row you forgot is still gone — it was saved, not just
+    hidden.
+A6. In Finder, confirm the actual audio FILE is still on disk.
+    EXPECT: it is. This forgets a row, never a file.
+
+B. MUST STILL WORK.
+B1. Click a history row on its NAME (not the ✕).
+    EXPECT: it plays again, exactly as before.
+B2. Select a row in the QUEUE with ↑↓ and press ⌫.
+    EXPECT: it leaves the queue. This is the old behaviour and must be
+    unchanged.
+B3. Drop two or three files on the card.
+    EXPECT: they queue and the first plays.
+B4. Press space, then → and ←.
+    EXPECT: pause/resume, then seek forward and back 5 s.
+
+C. PASTE BACK, PASS OR FAIL.
+C1. Console: `_G.musicReport()` — the whole block. The new "forgot :"
+    line counts the rows you removed this session.
+C2. After step A3, the "history :" line should show one fewer track.
+
+D. THE BULK DOORS, worth one try each.
+D1. Console: `_G.musicForgetHistory("/full/path/to/a/track.mp3")`
+    EXPECT: it names how many rows it removed, or says there was no row
+    for that path.
+D2. Console: `_G.musicClearHistory()`
+    EXPECT: the list empties, and the message says the files themselves
+    are untouched. Only run this if you do not mind losing the list.
+
+E. A JUDGEMENT ONLY YOU CAN MAKE.
+E1. Is a ✕ per row the right control, or would you rather select a
+    history row and press ⌫ the way the queue works? The second is a
+    bigger change — the history rows are not keyboard-selectable today
+    — so I did the simpler one. "✕ is fine" or "I want ⌫" decides it.
+
+
 
 ## 6.271.0
 
@@ -199,33 +261,6 @@ E. FOR YOUR EYES, not a test: one of the eight rows now visible says
    That is the Obsidian wording you asked about, and fixing this card
    has SURFACED it rather than changed it. Rewording those strings is
    your call and its own release — say the word.
-
-
-
-## 6.268.0
-
-6.268.0 verify with LL — 🗑 THE HINT CARD IS GONE (KNOWN GROUND):
-install (carries 6.267.0, so do that block's ⏱ boot-line check too).
-⇪/ and search `hint` — the 💡 SHORTCUT HINTS card you photographed is
-NOT in the sheet, because the tool is not in the config.
-Console: `_G.shortcutHintsReport()` → "attempt to call a nil value".
-That error IS the release working; an error is the only honest proof
-that a thing is gone.
-The boot log no longer carries the `💡 shortcut hints 6.167.0 — card
-810 wide …` line, and the module count reads 71, not 72.
-🚨 EVERY ⇪ KEY MUST BEHAVE EXACTLY AS IT DID. This is the one thing to
-actually exercise, because the deleted hook was called from hyperBind —
-the single place every hyper shortcut in the config passes through. Use
-⇪T, ⇪D, ⇪N, ⇪3, ⇪space, ⇪X, ⇪V for a day. Nothing should look or feel
-different; no card was appearing anyway, since 6.240.0.
-📏 ONE THING LEFT ON PURPOSE, so it is not a surprise: the panel ladder
-in core/coexist.lua still has a rung named `hint`, unused, with a note
-saying why. It is one line of a table and removing it would re-level
-every panel above it for no gain — the same call made when win_pin went
-in 6.166.0.
-🔑 IT IS DELETED, NOT LOST: every line is in git at 6.267.0 (a621a60)
-and the whole story is in CHANGELOG.md. If you ever want it back it is
-a checkout, not a rewrite.
 
 
 

@@ -1898,6 +1898,73 @@ end
 
 realPrint(table.concat(PRINTED, "\n"))
 out("\n")
+-- =====================================================================
+-- §6.272.0 — 🗑 FORGETTING A TRACK FROM THE HISTORY
+-- =====================================================================
+-- LL: "did you make it so I could delete entries from my music history
+-- list? … I don't wanna have to ask a second time or third time or
+-- fourth time wondering if it's there." He could not: ⌫ took a track out
+-- of the QUEUE and a history row only ever PLAYED. `mp.forgetHistory` is
+-- PURE, so every edge is proven here with no Mac and no store.
+do
+    local H = {
+        { path = "/m/a.mp3", title = "a", at = 100 },
+        { path = "/m/b.mp3", title = "b", at = 90 },
+        { path = "/m/c.mp3", title = "c", at = 80 },
+    }
+    local out1, gone1 = mp.forgetHistory(H, "/m/b.mp3")
+    check("🗑 forgetting a track removes exactly that row",
+          gone1 == 1 and #out1 == 2
+          and out1[1].path == "/m/a.mp3" and out1[2].path == "/m/c.mp3",
+          tostring(gone1) .. " gone, " .. #out1 .. " left")
+    check("🗑 ...and the ORIGINAL list is untouched — it answers a new one, "
+          .. "so a refused save cannot half-apply a removal",
+          #H == 3 and H[2].path == "/m/b.mp3", #H)
+
+    -- 🔑 BY PATH, NEVER BY INDEX (6.186.0). The page draws 40 rows of a
+    -- store holding up to 400 and a redraw renumbers every one of them,
+    -- so an index would delete a DIFFERENT track than the one clicked.
+    local shifted = { { path = "/m/z.mp3", title = "z", at = 101 } }
+    for _, r in ipairs(H) do shifted[#shifted + 1] = r end
+    local out2, gone2 = mp.forgetHistory(shifted, "/m/b.mp3")
+    check("🗑 a row that has MOVED is still the row that goes — the path "
+          .. "names the track, the number names a position",
+          gone2 == 1 and #out2 == 3
+          and out2[1].path == "/m/z.mp3" and out2[2].path == "/m/a.mp3"
+          and out2[3].path == "/m/c.mp3")
+
+    local out3, gone3 = mp.forgetHistory(H, "/m/nope.mp3")
+    check("🗑 a path that is not there removes nothing and says so",
+          gone3 == 0 and #out3 == 3)
+    local out4, gone4 = mp.forgetHistory(H, "")
+    check("🗑 an EMPTY path is refused rather than matching a row with no "
+          .. "path — a blank message must never empty the list",
+          gone4 == 0 and #out4 == 3)
+    local out5, gone5 = mp.forgetHistory(H, nil)
+    check("🗑 nil is refused too, and does not throw", gone5 == 0 and #out5 == 3)
+    local out6, gone6 = mp.forgetHistory(nil, "/m/a.mp3")
+    check("🗑 no list at all answers an empty one rather than indexing a nil",
+          type(out6) == "table" and #out6 == 0 and gone6 == 0)
+
+    -- 6.199.0's forget rule: leaving a duplicate behind after a command
+    -- that said it removed the track is worse than not removing it.
+    local dupes = {
+        { path = "/m/d.mp3", title = "d", at = 70 },
+        { path = "/m/e.mp3", title = "e", at = 60 },
+        { path = "/m/d.mp3", title = "d", at = 50 },
+    }
+    local out7, gone7 = mp.forgetHistory(dupes, "/m/d.mp3")
+    check("🗑 EVERY matching row goes, not just the first — a store written "
+          .. "by an older build can hold two rows for one file",
+          gone7 == 2 and #out7 == 1 and out7[1].path == "/m/e.mp3")
+
+    -- a row that is not a table must not take the whole removal down
+    local messy = { { path = "/m/a.mp3" }, "junk", { path = "/m/b.mp3" } }
+    local out8, gone8 = mp.forgetHistory(messy, "/m/a.mp3")
+    check("🗑 a malformed row is carried through rather than throwing",
+          gone8 == 1 and #out8 == 2)
+end
+
 if fail > 0 then
     out("FAILURES:\n")
     for _, f in ipairs(failures) do out("   ❌ " .. f .. "\n") end

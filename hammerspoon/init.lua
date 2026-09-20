@@ -4,9 +4,39 @@
 -- =====================================================================
 -- 09-20-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.271.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.272.0
 -- =====================================================================
 
+-- NEW IN 6.272.0 — 🗑 A TRACK CAN BE FORGOTTEN FROM THE 🕘 HISTORY
+--   (modules/music_player.lua):
+--   LL: "did you make it so I could delete entries from my music history
+--      list? … I don't wanna have to ask a second time or third time or
+--      fourth time wondering if it's there."
+--   🚨 HE COULD NOT, AND HE HAD NOT ASKED BEFORE — checked in the source
+--      rather than remembered: ⌫ sent `{a:'remove', i}`, which is the
+--      QUEUE index, and a history row only ever sent `{a:'hist'}`, which
+--      PLAYS it. There was no way to take a row out. Every history row
+--      carries a ✕ now; `_G.musicForgetHistory(path)` and
+--      `_G.musicClearHistory()` are the bulk doors.
+--   🔑 BY PATH, NEVER BY INDEX, and that is 6.186.0's rule rather than
+--      taste: the card draws `historyShow` (40) rows of a store holding
+--      up to `maxHistory` (400), and a redraw between the click and Lua
+--      reading it — a track ending, a drop landing — renumbers every row
+--      under his hand. An index would then forget a DIFFERENT track,
+--      silently, and the only evidence would be a row he did not lose on
+--      purpose. `mp.forgetHistory(list, path)` is PURE and answers a NEW
+--      list plus the count, so every edge is proven with no Mac.
+--   🚨 THE ✕ IS ASKED BEFORE THE ROW IT SITS IN, or a shared click
+--      handler PLAYS the track on its way to forgetting it — the worst
+--      possible answer to "remove this". Its own check.
+--   🧪 AND THE DOM STUB ANSWERED EVERY SELECTOR WITH THE SAME ELEMENT,
+--      so `closest('[data-x]')` matched a plain row and three existing
+--      checks went red. 6.193.0 in a DOM stub: a stub more forgiving
+--      than the provider is a hole with a tick beside it. It matches the
+--      selector now, as the real closest() does.
+--   📏 NOTHING ON DISK IS TOUCHED — this forgets a row, never a file, and
+--      both Console commands say so where he is reading them.
+--
 -- NEW IN 6.271.0 — 🧪 THE TEST PLAN SHIPS WITH THE RELEASE (TESTING.md,
 --   tools/build-test-plan.lua):
 --   LL: "if we want to score each release, I need a set of directions
@@ -34,45 +64,12 @@
 --      — PASS · FAIL with what happened instead · BLOCKED, which is a
 --      different fact from a failure and changes what I look at.
 --
--- NEW IN 6.270.0 — 🖼 THE SCREENSHOT EDITOR GETS ITS TWO RAILS, AND THE
---   WINDOW MAKES ROOM FOR THEM (modules/screenshot_editor.lua):
---   LL, for the THIRD time and the first with the sizing spelled out:
---      the editor "has not had the tools that run across the top and a
---      column on the left-hand side and the right hand side so at a
---      minimum, the canvas that the screenshot is placed on would be big
---      enough to accommodate the tool buttons on each side."
---   🚨 HE WAS RIGHT AND IT WAS NEVER BUILT. All eighteen buttons sat in
---      ONE wrapping strip across the top; there was no rail in the page
---      at all. It was queued as 6.261.0, displaced by the dialog-home
---      deletion, and never rebuilt — so every build he installed and
---      checked could not have had it. Nine drawing tools go LEFT, six
---      capture/edit actions go RIGHT, the top keeps the title, Save &
---      copy, Small JPEG and Cancel.
---   📏 THE SIZING IS THE ASK, not the decoration. `ed.windowSizeFor`
---      reserved 28 points of chrome — twelve a side — so there was no
---      ROOM for a rail even in principle. It reserves `railW * 2` before
---      the picture is measured now: the shot keeps the size it would have
---      had and the WINDOW grows. The vertical half is a floor too
---      (`railMinH` + the header), so a tiny shot no longer opens a window
---      too short to show its own toolbar; past that the rails scroll,
---      they never clip.
---   🔑 ONE NUMBER, TWO READERS: the CSS is written from `ed.railW` and
---      the arithmetic reserves the same field, so a check moves the
---      config and requires both to follow (6.239.0). A rail drawn 200
---      wide in a window reserving 136 is the bug that shape prevents.
---   🧪 The checks that earn their place are the ones about STRUCTURE: a
---      tool left behind in the header is a rail that only LOOKS built,
---      so the header is asserted to carry nothing but the title, the
---      finish actions and the hint. The old size checks asserted 828 and
---      320 — the numbers from before there was a rail to fit — and now
---      ask the rule in terms of the config (6.248.0).
---
--- (6.269.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.270.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.271.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.272.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -169,7 +166,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.271.0"
+_G.configVersion = "6.272.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the

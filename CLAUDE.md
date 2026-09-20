@@ -495,6 +495,24 @@ work Mac.
   no binary, identical on the work Mac; "a full Apple Keyboard" on both →
   ⇪⇧pad. needs no fallback; "native volume keys work" → NO volume and NO
   seek in the player, stated as a decision rather than left as a gap.
+  🗑 6.272.0 — AND A ROW CAN BE FORGOTTEN (LL: "did you make it so I
+  could delete entries from my music history list? … I don't wanna have
+  to ask a second time or third time"). He could not: ⌫ was the QUEUE
+  and a history row only PLAYED. A ✕ per row, plus
+  `_G.musicForgetHistory(path)` / `_G.musicClearHistory()`.
+  🔑 BY PATH, NEVER BY INDEX — 6.186.0's rule: the card draws 40 rows of
+  a store holding 400, and any redraw renumbers them under his hand, so
+  an index forgets a DIFFERENT track than the one clicked, silently, in
+  the one list whose purpose is remembering. `mp.forgetHistory` is PURE;
+  an EMPTY path is refused (a blank message must never empty the list)
+  and EVERY match goes (6.199.0 — a duplicate left behind after a
+  command that said it removed the track).
+  🚨 THE ✕ IS ASKED BEFORE THE ROW IT SITS INSIDE, or the shared click
+  handler PLAYS the track on its way to forgetting it. Its own check,
+  which asserts exactly ONE message was posted.
+  🧪 The DOM stub's `closest` ignored its selector, so `[data-x]` matched
+  a plain row and three existing checks went red — 6.193.0 in a stub, and
+  the fix is that it matches the selector now, as the real one does.
   🕘 THIRTY DAYS, ONE ROW PER FILE (6.234.0, LL: "remember 30 days of
   music track history. But, if it's the same file it should only be listed
   once"). `mp.noteHistory(list, row, now, days, max)` is PURE and carries
@@ -2850,6 +2868,7 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
+| 6.272.0 | 🗑 a ✕ on every 🕘 music history row forgets that track — by path, never by index, and it never plays the row it is removing | pending |
 | 6.271.0 | 🧪 the steps to test a release ship IN the archive as TESTING.md — seventy-two verify blocks existed and none of them was in the package | pending |
 | 6.270.0 | 🖼 the screenshot editor's tools move into two vertical rails — nine left, six right — and the window reserves their width so the shot is never squeezed to make room | pending |
 | 6.269.0 | 🔗 the ⇪⇧U anchors card draws its eight rows — one key was misspelled since 6.180.0 — and a card with a title and no rows now names itself, with `_G.cheatSheetReport()` to ask | pending |
@@ -3514,6 +3533,64 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.272.0 verify with LL — 🗑 FORGET A TRACK FROM THE HISTORY (KNOWN GROUND)
+  WHAT CHANGED: you could not remove anything from the 🕘 history list —
+  ⌫ took a track out of the QUEUE, and clicking a history row PLAYED it.
+  Every history row now has a ✕ on its right. It forgets the row; it never
+  touches the file.
+  WHY IT MATTERS: you asked whether this existed and did not want to have
+  to ask again. It did not. It does now.
+
+  A. THE HEADLINE.
+  A1. Press ⇪⇧pad. to open the player. Play two or three tracks so the
+      🕘 history at the bottom has rows in it.
+      EXPECT: a history section with one row per file.
+  A2. Look at the right-hand end of any history row.
+      EXPECT: a ✕, visible WITHOUT hovering (dim grey), brightening when
+      the pointer is over it.
+  A3. Click the ✕ on a history row.
+      EXPECT: that row disappears from the list, AND NOTHING STARTS
+      PLAYING. If the track begins playing, that is a FAIL and the most
+      important one in this release — tell me immediately.
+  A4. Check the track that WAS playing is still playing, and the queue
+      above is unchanged.
+      EXPECT: the ✕ touched the history list and nothing else.
+  A5. Close the card (⇪⇧pad.) and reopen it.
+      EXPECT: the row you forgot is still gone — it was saved, not just
+      hidden.
+  A6. In Finder, confirm the actual audio FILE is still on disk.
+      EXPECT: it is. This forgets a row, never a file.
+
+  B. MUST STILL WORK.
+  B1. Click a history row on its NAME (not the ✕).
+      EXPECT: it plays again, exactly as before.
+  B2. Select a row in the QUEUE with ↑↓ and press ⌫.
+      EXPECT: it leaves the queue. This is the old behaviour and must be
+      unchanged.
+  B3. Drop two or three files on the card.
+      EXPECT: they queue and the first plays.
+  B4. Press space, then → and ←.
+      EXPECT: pause/resume, then seek forward and back 5 s.
+
+  C. PASTE BACK, PASS OR FAIL.
+  C1. Console: `_G.musicReport()` — the whole block. The new "forgot :"
+      line counts the rows you removed this session.
+  C2. After step A3, the "history :" line should show one fewer track.
+
+  D. THE BULK DOORS, worth one try each.
+  D1. Console: `_G.musicForgetHistory("/full/path/to/a/track.mp3")`
+      EXPECT: it names how many rows it removed, or says there was no row
+      for that path.
+  D2. Console: `_G.musicClearHistory()`
+      EXPECT: the list empties, and the message says the files themselves
+      are untouched. Only run this if you do not mind losing the list.
+
+  E. A JUDGEMENT ONLY YOU CAN MAKE.
+  E1. Is a ✕ per row the right control, or would you rather select a
+      history row and press ⌫ the way the queue works? The second is a
+      bigger change — the history rows are not keyboard-selectable today
+      — so I did the simpler one. "✕ is fine" or "I want ⌫" decides it.
+
 - 6.271.0 verify with LL — 🧪 THE TEST PLAN IS IN THE ARCHIVE (KNOWN GROUND)
   WHAT CHANGED: there is a TESTING.md at the root of the archive with the
   steps for each release it carries. You asked for it; the honest finding

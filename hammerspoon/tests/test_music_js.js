@@ -317,8 +317,16 @@ console.log("── Music player: page JavaScript, executed ──");
 {
   const env = load();
   env.draw(ROWS);
-  const row = (attrs) => ({ target: { closest: () => ({
-    getAttribute: (k) => (k in attrs ? attrs[k] : null) }) } });
+  // 🧪 6.272.0 — closest() IS SELECTOR-AWARE, because the real one is.
+  // This stub answered every selector with the same element, so when the
+  // ✕ handler asked closest('[data-x]') it got a history row back and
+  // "forget" fired on a click meant to play. 6.193.0, in a DOM stub: a
+  // stub more forgiving than the provider is a hole with a tick beside it.
+  const row = (attrs) => ({ target: { closest: (sel) => {
+    const wanted = String(sel).split(",").map((t) => t.trim().replace(/^\[|\]$/g, ""));
+    if (!wanted.some((k) => k in attrs)) return null;
+    return { getAttribute: (k) => (k in attrs ? attrs[k] : null) };
+  } } });
   env.listeners.el["list:click"](row({ "data-i": "2" }));
   check("clicking a track plays it",
         at(env, 0).a === "pick" && at(env, 0).i === 2);
@@ -328,6 +336,39 @@ console.log("── Music player: page JavaScript, executed ──");
   env.listeners.el["list:click"]({ target: { closest: () => null } });
   check("clicking the empty part of the list does nothing",
         env.sent.length === 2);
+
+  // =====================================================================
+  // 🗑 6.272.0 — FORGETTING A HISTORY ROW
+  // =====================================================================
+  // LL: "did you make it so I could delete entries from my music history
+  // list?" He could not — ⌫ took a track out of the QUEUE and a history
+  // row only ever played.
+  const L2 = env.byId.list.innerHTML;
+  check("🗑 every history row carries a ✕",
+        (L2.match(/data-x="/g) || []).length ===
+        (L2.match(/data-h="/g) || []).length,
+        (L2.match(/data-x="/g) || []).length + " ✕ vs "
+        + (L2.match(/data-h="/g) || []).length + " rows");
+  check("🗑 …and it is in the markup ALWAYS, not conjured on hover — a "
+        + "control you can only find by hovering is one you never find",
+        L2.indexOf('data-x="0"') !== -1, L2.slice(0, 300));
+
+  env.sent.length = 0;
+  env.listeners.el["list:click"](row({ "data-x": "0" }));
+  check("🗑 clicking the ✕ asks Lua to forget that track",
+        at(env, 0).a === "forget", JSON.stringify(env.sent));
+  // 🔑 BY PATH, NEVER BY INDEX (6.186.0): the page draws 40 rows of a store
+  // holding up to 400, and any redraw renumbers them under his hand.
+  check("🗑 …and it names the track by its PATH, so a redraw between the "
+        + "click and Lua reading it cannot forget a different one",
+        typeof at(env, 0).p === "string" && at(env, 0).p.length > 0
+        && at(env, 0).i === undefined && at(env, 0).h === undefined,
+        JSON.stringify(at(env, 0)));
+  // 🚨 THE ONE THAT EARNS ITS PLACE: the ✕ sits INSIDE the row, so a
+  // handler testing the row first would PLAY the track on its way to
+  // forgetting it — the worst possible answer to "remove this".
+  check("🗑 …and it does NOT also play the track it is removing",
+        env.sent.length === 1, JSON.stringify(env.sent));
 }
 
 // =====================================================================
@@ -370,8 +411,16 @@ console.log("── Music player: page JavaScript, executed ──");
 {
   const env = load();
   env.draw(ROWS);
-  const row = (attrs) => ({ target: { closest: () => ({
-    getAttribute: (k) => (k in attrs ? attrs[k] : null) }) } });
+  // 🧪 6.272.0 — closest() IS SELECTOR-AWARE, because the real one is.
+  // This stub answered every selector with the same element, so when the
+  // ✕ handler asked closest('[data-x]') it got a history row back and
+  // "forget" fired on a click meant to play. 6.193.0, in a DOM stub: a
+  // stub more forgiving than the provider is a hole with a tick beside it.
+  const row = (attrs) => ({ target: { closest: (sel) => {
+    const wanted = String(sel).split(",").map((t) => t.trim().replace(/^\[|\]$/g, ""));
+    if (!wanted.some((k) => k in attrs)) return null;
+    return { getAttribute: (k) => (k in attrs ? attrs[k] : null) };
+  } } });
   env.listeners.el["list:click"](row({ "data-i": "2" }));
   check("🚨 a press on a ROW still picks the track — the grip is the strip, "
         + "never the whole card",

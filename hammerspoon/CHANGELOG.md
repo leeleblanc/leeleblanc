@@ -5,6 +5,66 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.272.0 — 🗑 A TRACK CAN BE FORGOTTEN FROM THE 🕘 HISTORY
+(modules/music_player.lua):
+
+  LL: "And by the way, CC, did you make it so I could delete entries from
+  my music history list? That's part of our whole. I don't wanna have to
+  ask a second time or third time or fourth time wondering if it's there."
+
+  🚨 CHECKED IN THE SOURCE RATHER THAN REMEMBERED, and the answer was no:
+  ⌫ sent `{a:'remove', i: S.sel}` — the QUEUE index — and a history row
+  only ever sent `{a:'hist', h}`, which ADDS it to the queue and plays it.
+  There was no message, no key and no button that took a history row out.
+  And there is no record of him having asked before; that is said rather
+  than leaned on, because the record of this project is that an ask can
+  be made and lost.
+
+  🗑 Every history row carries a ✕ now. `_G.musicForgetHistory(path)`
+  removes one from the Console and `_G.musicClearHistory()` empties the
+  list; both say, where he is reading them, that the FILES are untouched.
+
+  🔑 BY PATH, NEVER BY INDEX, and this is 6.186.0's rule rather than
+  taste. The card draws `historyShow` (40) rows of a store holding up to
+  `maxHistory` (400). A redraw between the click and Lua reading the
+  message — a track ending, a drop landing, the belt advancing — renumbers
+  every row under his hand, so an index would forget a DIFFERENT track
+  than the one he clicked. Silently. And the only evidence would be a row
+  he did not mean to lose, in a list whose whole purpose is remembering.
+  The path names the thing itself and cannot drift.
+
+  📏 `mp.forgetHistory(list, path)` is PURE and answers a NEW list plus
+  how many rows went, so the whole rule is proven with no Mac and no
+  store: a row that has MOVED still goes; a path that is not there removes
+  nothing; an EMPTY path is refused rather than matching a row with no
+  path, because a blank message must never empty the list; a nil list
+  answers an empty one rather than indexing a nil; and EVERY matching row
+  goes rather than the first, which is 6.199.0's forget rule — leaving a
+  duplicate behind after a command that said it removed the track is worse
+  than not removing it.
+
+  🚨 THE ✕ IS ASKED BEFORE THE ROW IT SITS INSIDE. The cross is a child of
+  the history row, so a click handler that tested the row first would
+  PLAY the track on its way to forgetting it — the worst possible answer
+  to "remove this". It has its own check, and the check asserts only ONE
+  message was posted.
+
+  🧪 AND THE DOM STUB ANSWERED EVERY SELECTOR WITH THE SAME ELEMENT.
+  test_music_js's `row()` helper returned a `closest` that ignored its
+  argument, so the moment the page asked `closest('[data-x]')` it got a
+  plain history row back and three existing checks went red — "clicking a
+  track plays it" among them. 6.193.0 in a DOM stub, and the fix is the
+  same one as ever: the stub matches the selector now, because the real
+  `closest` does. A stub more forgiving than the provider is a hole with a
+  tick beside it.
+
+  🎨 The ✕ is in the markup ALWAYS and only brightens under the pointer —
+  a control that appears only on hover cannot be found by someone who does
+  not know it is there. Its own check.
+
+  🔎 `_G.musicReport()` gains a "forgot :" line counting the rows removed
+  this session and naming the bulk command beside it.
+
 NEW IN 6.271.0 — 🧪 THE TEST PLAN SHIPS WITH THE RELEASE (TESTING.md +
 tools/build-test-plan.lua):
 

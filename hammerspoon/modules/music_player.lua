@@ -68,6 +68,7 @@ local M = {
             { "🔂 · 🔁",  "Repeat one · repeat all · off — click to cycle" },
             { "🕘",       "History: the last tracks played, click one to play it again" },
             { "⌫",       "Take the highlighted track out of the queue" },
+            { "✕",       "On a 🕘 history row: forget that track (the file is not touched)" },
             { "drag",    "Move the card: grab its title strip — or ⌘-drag anywhere on it. It reopens where you left it" },
             { "volume",  "Use the Mac's own volume keys — this player has none, by design" },
             { "focus",   "The card takes the keyboard when it opens — no click first" },
@@ -215,6 +216,38 @@ function M.setup(core)
     -- older row for the SAME FILE is removed rather than left behind, and
     -- anything past the window is dropped. The cap stays as a bound — a
     -- runaway list is still a runaway list — but the DAYS are the rule.
+    -- 🗑 6.272.0 — FORGET ONE TRACK, BY PATH (LL: "did you make it so I
+    -- could delete entries from my music history list? … I don't wanna
+    -- have to ask a second time or third time"). He could not: ⌫ removed
+    -- from the QUEUE (`{a:'remove', i}`) and a history row only ever sent
+    -- `{a:'hist'}`, which PLAYS it. There was no way to take a row out.
+    -- 🔑 BY PATH, NEVER BY INDEX, and that is 6.186.0's rule rather than
+    -- taste: the page draws `historyShow` (40) of a store holding up to
+    -- `maxHistory` (400), and a redraw between the click and the message
+    -- — a track ending, a drop landing — renumbers every row under his
+    -- hand. An index would then delete a DIFFERENT track than the one he
+    -- clicked, silently, and the only evidence would be a row he did not
+    -- mean to lose. The path names the thing itself.
+    -- 📏 PURE: it answers a NEW list and how many rows went, so the whole
+    -- rule is proven with no Mac and no store. One row per file is
+    -- 6.234.0's invariant, so the count is normally 1 — it removes EVERY
+    -- match anyway, because leaving a duplicate behind after a command
+    -- that said it removed the track is 6.199.0's forget rule exactly.
+    function mp.forgetHistory(list, path)
+        if type(list) ~= "table" then return {}, 0 end
+        path = tostring(path or "")
+        if path == "" then return list, 0 end
+        local out, gone = {}, 0
+        for _, row in ipairs(list) do
+            if type(row) == "table" and tostring(row.path or "") == path then
+                gone = gone + 1
+            else
+                out[#out + 1] = row
+            end
+        end
+        return out, gone
+    end
+
     function mp.noteHistory(list, row, now, days, max)
         local out = {}
         now = tonumber(now) or 0
@@ -757,6 +790,12 @@ button.armed { background:#25406b; border-color:#3b5f96; }
 .row.cur .nm { color:#8fc0ff; font-weight:600; }
 .num { color:#6e7079; width:20px; text-align:right; flex:none; }
 .nm { overflow:hidden; text-overflow:ellipsis; }
+/* 🗑 6.272.0 — the forget cross. It is always in the DOM (a control that
+   appears only on hover cannot be found by someone who does not know it
+   is there) and only brightens under the pointer. */
+.x { margin-left:auto; padding:0 4px; color:#5a5c66; cursor:pointer; flex:none; }
+.row:hover .x { color:#9a9ca6; }
+.x:hover { color:#ff9a9a; }
 .bad { color:#ff9a9a; font-size:%dpx; }
 .sec { padding:6px 10px 2px; font-size:%dpx; color:#7d7f89;
   text-transform:uppercase; letter-spacing:.06em; }
@@ -826,7 +865,9 @@ function draw(s){
     L.push('<div class="sec">&#128336; history</div>');
     for (var h = 0; h < S.hist.length; h++) {
       L.push('<div class="row" data-h="' + h + '"><span class="num">&#183;</span>'
-             + '<span class="nm">' + esc(S.hist[h].n) + '</span></div>');
+             + '<span class="nm">' + esc(S.hist[h].n) + '</span>'
+             + '<span class="x" data-x="' + h + '" title="forget this track">'
+             + '&#10005;</span></div>');
     }
   }
   el('list').innerHTML = L.join('');
@@ -877,6 +918,18 @@ el('play').addEventListener('click', function(){ say({a:'play'}); });
 el('rep').addEventListener('click',  function(){ say({a:'repeat'}); });
 el('clr').addEventListener('click',  function(){ say({a:'clear'}); });
 el('list').addEventListener('click', function(e){
+  /* 🗑 6.272.0 — the ✕ is asked BEFORE the row, and it returns. The ✕
+     lives INSIDE the row, so a shared handler that tested the row first
+     would play the track on its way to forgetting it. And the message
+     carries the PATH the page is showing, never the row number: a redraw
+     between this click and Lua reading it renumbers every row. */
+  var x = e.target.closest ? e.target.closest('[data-x]') : null;
+  if (x) {
+    var hx = +x.getAttribute('data-x');
+    var hrow = (S.hist || [])[hx];
+    if (hrow) say({a:'forget', p: hrow.p});
+    return;
+  }
   var r = e.target.closest ? e.target.closest('[data-i],[data-h]') : null;
   if (!r) return;
   if (r.getAttribute('data-i')) say({a:'pick', i: +r.getAttribute('data-i')});
@@ -1045,6 +1098,15 @@ say({a:'ready'});
                 if wasCurrent then stopSound() ; mp.index = 0 ; mp.elapsed = 0 end
                 if mp.index > i then mp.index = mp.index - 1 end
                 if mp.sel > #mp.queue then mp.sel = math.max(1, #mp.queue) end
+                saveSoon() ; mp.render()
+            end
+            return
+        end
+        if a == "forget" then
+            local list, gone = mp.forgetHistory(mp.history, b.p)
+            if gone > 0 then
+                mp.history  = list
+                mp.forgotten = (tonumber(mp.forgotten) or 0) + gone
                 saveSoon() ; mp.render()
             end
             return
@@ -1631,6 +1693,9 @@ say({a:'ready'});
         else
             line("   refused  : none from the last drop")
         end
+        line("   forgot   : " .. (tonumber(mp.forgotten) or 0)
+             .. " history row(s) removed with ✕ this session"
+             .. " — _G.musicClearHistory() empties the list")
         line("   history  : " .. #mp.history .. " track(s) over the last "
              .. tostring(mp.historyDays) .. " day(s) — one row per file"
              .. (#mp.history > 0 and (", oldest "
@@ -1726,6 +1791,31 @@ say({a:'ready'});
             saveSoon()
         end,
     })
+
+    -- 🗑 6.272.0 — the bulk doors, beside the per-row ✕. Named after what
+    -- they do to the LIST, never to the files: nothing here deletes audio.
+    function _G.musicForgetHistory(path)
+        local list, gone = mp.forgetHistory(mp.history, path)
+        if gone == 0 then
+            print("🎵 no history row for " .. tostring(path))
+            return false
+        end
+        mp.history = list
+        mp.forgotten = (tonumber(mp.forgotten) or 0) + gone
+        mp.save() ; mp.render()
+        print("🎵 forgot " .. gone .. " history row(s) for " .. tostring(path))
+        return true
+    end
+
+    function _G.musicClearHistory()
+        local n = #mp.history
+        mp.history = {}
+        mp.forgotten = (tonumber(mp.forgotten) or 0) + n
+        mp.save() ; mp.render()
+        print("🎵 history cleared — " .. n .. " row(s) forgotten. The files "
+              .. "themselves are untouched.")
+        return n
+    end
 
     _G.musicPlayer = mp
     M.mp     = mp
