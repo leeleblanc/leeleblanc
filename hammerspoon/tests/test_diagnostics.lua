@@ -2212,6 +2212,29 @@ do
   check("...built by tools/build-feature-list.lua, which the zip recipe runs",
         (readAll(HS .. "/tools/build-feature-list.lua") or ""):find("RESOLVED-FEATURE-REQUESTS.txt", 1, true) ~= nil
         and (recipe == nil or recipe:find("build-feature-list.lua", 1, true) ~= nil))
+  -- 🧪 6.271.0 — THE TEST PLAN RIDES IN EVERY ARCHIVE. LL: "if we want to
+  -- score each release, I need a set of directions that explicitly state
+  -- the steps that you want me to take to test each release." They
+  -- EXISTED — seventy-two verify blocks over 1,451 lines in CLAUDE.md —
+  -- and CLAUDE.md is not in the package, so not one of them ever reached
+  -- him and he was left walking the cheat sheet inventing his own tests.
+  -- A plan stamped with an older version is worse than none: he would run
+  -- the wrong steps and report a pass on something that was not built.
+  local testPlan = readAll(HS .. "/TESTING.md") or ""
+  check("TESTING.md exists and names the config version init.lua reports",
+        testPlan:find("# TESTING — how to score release " .. tostring(entries[1]), 1, true) ~= nil,
+        testPlan:sub(1, 120))
+  check("...and it carries this release's own steps, not only older ones",
+        testPlan:find("\n## " .. tostring(entries[1]) .. "\n", 1, true) ~= nil,
+        tostring(entries[1]))
+  check("...and it tells him HOW to report back, or the steps produce a "
+        .. "verdict instead of data",
+        testPlan:find("PASS", 1, true) ~= nil and testPlan:find("FAIL", 1, true) ~= nil
+        and testPlan:find("BLOCKED", 1, true) ~= nil)
+  check("...built by tools/build-test-plan.lua, which the archive recipe runs",
+        (readAll(HS .. "/tools/build-test-plan.lua") or ""):find("TESTING.md", 1, true) ~= nil
+        and (recipe == nil or recipe:find("build-test-plan.lua", 1, true) ~= nil))
+
   local newIn = init:find("\n%-%- NEW IN ") or math.huge
   local hdr   = init:find("WHAT EACH TOOL DOES :: ARCHITECTURE", 1, true) or 0
   check("the NEW IN blocks sit ABOVE the WHAT EACH TOOL DOES header, where the reader looks",

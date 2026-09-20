@@ -1,5 +1,5 @@
 ========================================================================
-RESOLVED FEATURE REQUESTS — Hammerspoon config 6.270.0
+RESOLVED FEATURE REQUESTS — Hammerspoon config 6.271.0
 Every feature and how to use it. Generated from the modules' own
 cheat sheets (the rows ⇪/ draws), so it is never out of date.
 ⇪ = Caps Lock held (the hyper key). ⇪⇧X = Caps Lock + Shift + X.
@@ -764,6 +764,7 @@ In the Console, _G.<tool>Report() prints any tool's own report.
 
 📜 RELEASE INDEX — newest first, one line per release (the full story of each is in CHANGELOG.md)
 ------------------------------------------------------------------------
+  6.271.0  🧪 THE TEST PLAN SHIPS WITH THE RELEASE (TESTING.md +
   6.270.0  🖼 THE SCREENSHOT EDITOR GETS ITS TWO RAILS, AND THE
   6.269.0  🔗 THE ANCHORS CARD DRAWS ITS EIGHT ROWS, AND A CARD
   6.268.0  🗑 THE SHORTCUT HINT CARD IS DELETED, NOT SWITCHED OFF

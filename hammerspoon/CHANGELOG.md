@@ -5,6 +5,71 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.271.0 — 🧪 THE TEST PLAN SHIPS WITH THE RELEASE (TESTING.md +
+tools/build-test-plan.lua):
+
+  LL, after a conversation about why he has had to ask for the same fixes
+  more than once:
+
+      "if we want to score each release, I need a set of directions
+       that's explicitly state the steps that you want me to take to test
+       each release. I just realized a lot of times I'm running through
+       the cheat sheet checking features. But, that is a basic level of
+       tests … could you provide a set of testing steps? That way I can
+       return to you with robust data for you to analyze rather than me
+       just saying that worked or that didn't work fix it."
+
+  🚨 THE STEPS ALREADY EXISTED, AND THAT IS THE FINDING. CLAUDE.md carries
+  SEVENTY-TWO "verify with LL" blocks — 1,451 lines, one per release,
+  written for months — and CLAUDE.md is not in the package. The archive he
+  unpacks has six files at its root:
+
+      GUIDE.md · HAMSIDIAN.md · RESOLVED-FEATURE-REQUESTS.txt ·
+      INSTALL.md · init.lua · CHANGELOG.md
+
+  Not one of them is a test plan. So every step I have ever asked him to
+  run was filed where only I can read it, and he was left walking the
+  cheat sheet inventing his own testing — which is exactly what he
+  described. He has been scoring blind, and the scoreboard's 47 pending
+  rows out of 76 is what that looks like from the other side.
+
+  🔑 GENERATED, NEVER HAND-WRITTEN, for the same reason
+  RESOLVED-FEATURE-REQUESTS.txt is: a plan kept in step by hand stops
+  matching the release it describes, and a STALE test plan is worse than
+  none — he would run the wrong steps and report a pass on a feature that
+  was not built. `tools/build-test-plan.lua` lifts the blocks out of
+  CLAUDE.md (still the single source) and writes TESTING.md at the
+  archive root, newest four releases, because he installs one archive
+  carrying several. Four gate checks: it exists, it names THIS version,
+  it carries this release's own section and not only older ones, and it
+  tells him how to report back.
+
+  📋 AND THE BLOCKS THEMSELVES ARE STEPS NOW, which is the half that
+  actually answers him. They were prose — true, complete, and not
+  runnable. Each release's block is now numbered, every step carries its
+  own EXPECT, and they are grouped:
+    · **THE HEADLINE** — what this release is. If it fails, stop; nothing
+      else tells me anything.
+    · **MUST STILL WORK** — not new, but what this release could have
+      broken. 6.270.0 moved every button in the editor, so its B section
+      presses all nine tool keys.
+    · **PASTE BACK, PASS OR FAIL** — the Console reports. A report from a
+      WORKING Mac is what tells me what a broken one is missing; without
+      it I am comparing a failure against nothing.
+    · **A JUDGEMENT ONLY HE CAN MAKE** — the rail width on his display,
+      which no gate on Linux can answer and which I should not decide for
+      him.
+  🔎 THREE ANSWERS, NEVER TWO (6.196.1, in the reporting rather than the
+  code): PASS · FAIL with what happened INSTEAD · BLOCKED, meaning he
+  could not run the step at all. "Blocked" and "failed" send me to
+  different places, and collapsing them is how "it didn't work" becomes
+  three releases of guessing.
+
+  📏 NAMED, NOT DONE: the sixty-eight older verify blocks are still prose.
+  They stay in CLAUDE.md and in git, and they get the step treatment when
+  a release touches them rather than in one sweep — a bulk rewrite of
+  1,451 lines nobody is about to run is work that proves nothing.
+
 NEW IN 6.270.0 — 🖼 THE SCREENSHOT EDITOR GETS ITS TWO RAILS, AND THE
 WINDOW MAKES ROOM FOR THEM (modules/screenshot_editor.lua):
 

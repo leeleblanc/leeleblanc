@@ -4,9 +4,36 @@
 -- =====================================================================
 -- 09-20-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.270.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.271.0
 -- =====================================================================
 
+-- NEW IN 6.271.0 — 🧪 THE TEST PLAN SHIPS WITH THE RELEASE (TESTING.md,
+--   tools/build-test-plan.lua):
+--   LL: "if we want to score each release, I need a set of directions
+--      that explicitly state the steps that you want me to take to test
+--      each release … I'm running through the cheat sheet checking
+--      features, but that is a basic level of tests … that way I can
+--      return to you with robust data rather than me just saying that
+--      worked or that didn't work."
+--   🚨 AND THE STEPS ALREADY EXISTED. CLAUDE.md carries SEVENTY-TWO
+--      "verify with LL" blocks over 1,451 lines — one per release for
+--      months — and CLAUDE.md is NOT in the package. The archive he
+--      opens has six files at its root and none is a test plan. Every
+--      step I ever asked him to run was filed where only I can read it,
+--      while he walked the cheat sheet inventing his own testing. He was
+--      scoring blind because the instructions never shipped.
+--   🔑 GENERATED, NEVER HAND-WRITTEN, for the reason the feature list is:
+--      a plan kept in step by hand stops matching the release it
+--      describes, and then it is worse than nothing — he runs the wrong
+--      steps and reports a pass on something that was not built. The
+--      gate fails on a TESTING.md stamped with another version.
+--   📋 THE BLOCKS ARE STEPS NOW, not prose: numbered, each with its own
+--      EXPECT, split into the HEADLINE (this release), MUST STILL WORK
+--      (what it could have broken), PASTE BACK (the reports, pass or
+--      fail) and A JUDGEMENT ONLY HE CAN MAKE. Three answers, never two
+--      — PASS · FAIL with what happened instead · BLOCKED, which is a
+--      different fact from a failure and changes what I look at.
+--
 -- NEW IN 6.270.0 — 🖼 THE SCREENSHOT EDITOR GETS ITS TWO RAILS, AND THE
 --   WINDOW MAKES ROOM FOR THEM (modules/screenshot_editor.lua):
 --   LL, for the THIRD time and the first with the sizing spelled out:
@@ -40,37 +67,12 @@
 --      320 — the numbers from before there was a rail to fit — and now
 --      ask the rule in terms of the config (6.248.0).
 --
--- NEW IN 6.269.0 — 🔗 THE ANCHORS CARD DRAWS ITS EIGHT ROWS, AND A CARD
---   WITH NO ROWS NAMES ITSELF (modules/anchors.lua + the §1.12 loader):
---   ⇪⇧U's card has been a heading over empty space since 6.180.0:
---      anchors.lua declared its rows under `rows =`, the loader reads
---      `g.entries` and coerces a missing one to {}, so eight real rows
---      registered as a card with nothing under it. One key is the fix.
---   🔎 NOTHING COULD SEE IT, and that is the durable half. The 6.196.0
---      auditor joins a key COLUMN to the module that bound it, so it is
---      blind to a card with NO key columns: it flags MISATTRIBUTION,
---      never ABSENCE, on purpose. A silent coercion under an auditor
---      blind to absence is a defect with no instrument pointed at it.
---   🔔 SO THE LOADER SAYS SO. A titled group with no rows takes the 🔔
---      door — alert, ⚠️ line, a `_G.cheatsheetFaults` row — and NAMES the
---      key the rows sit under. The `or {}` STAYS. A family = "auto" card
---      is a heading alone ON PURPOSE: the loader marks it, and it is
---      exempt, or the report cries wolf on a healthy Mac.
---   🔎 `_G.cheatSheetReport()` — the sheet's first report. "empty",
---      "listed" (a heading alone on purpose) and "faults" are THREE
---      states, never two (6.196.1); so is "nothing registered yet".
---   🧪 FOUR CHECKS AT FOUR DISTANCES: the loader's fault list must be
---      empty; every empty card must be a deliberate one; no module SOURCE
---      may hide rows under an unread key (comments stripped); init.lua's
---      block must equal loader_test.lua's — the drift sentry its comment
---      has claimed since 6.101.0. Nine mutations, nine bites.
---
--- (6.268.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.269.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.270.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.271.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -167,7 +169,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.270.0"
+_G.configVersion = "6.271.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the
