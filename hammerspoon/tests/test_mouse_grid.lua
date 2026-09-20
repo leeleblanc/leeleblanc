@@ -101,6 +101,7 @@ local function mkScreen(id, x, y, w, h)
 end
 local function setScreens(list) SCREENS = list end
 
+local REFUSE_SHOW = false   -- 6.266.0: make hs.canvas:show() throw
 local function mkCanvas(frame)
     CANVAS_NEW = CANVAS_NEW + 1
     local c = { frame = frame, elements = {}, visible = false, deleted = false, lvl = nil }
@@ -147,7 +148,21 @@ local function mkCanvas(frame)
         self.moved = (self.moved or 0) + 1
         return self
     end
-    function c:show()   self.visible = true;  return self end
+    -- 🚨 6.266.0 — IT CAN REFUSE, because that is the failure this
+    -- release exists for and a stub that always says yes cannot show it.
+    -- The real hs.canvas THROWS when AppKit asserts mid-transition (the
+    -- NSInternalInconsistencyException quoted in mouse_grid.lua), and
+    -- 6.265.0 was a LOSS precisely because a check drove the path with
+    -- the dependency MISSING instead of REFUSING.
+    function c:show()
+        if REFUSE_SHOW then
+            error("NSInternalInconsistencyException: <NSRemoteView> notified "
+                  .. "of <HSCanvasWindow> but expected (null)", 2)
+        end
+        self.visible = true
+        self.shows = (self.shows or 0) + 1
+        return self
+    end
     function c:hide()   self.visible = false; return self end
     function c:delete() self.visible = false; self.deleted = true; return self end
     function c:level(l) self.lvl = l; return self end
@@ -3024,6 +3039,239 @@ do
           okSection == true, secErr)
     local ran = (pass + fail) - before
     check("§6.248.0 ran all of its checks (" .. ran .. " of 14+)", ran >= 14, ran)
+end
+
+-- =====================================================================
+-- §6.266.0 — A BOX THE GRID HAS GIVEN UP ON IS NEVER PUT BACK ON SCREEN
+-- =====================================================================
+-- LL, with a photograph of the yellow landed-box outline sitting over a
+-- Finder replace dialog: "Frozen grid again." It was a suspect in
+-- CLAUDE.md for eight releases and it is not a suspect now — the two
+-- halves are here, and this section makes the orphan happen.
+--
+-- `_G.showCanvasSafely` used to re-show a refused canvas BY ITSELF, 50 ms
+-- later, telling nobody. showCanvas records every canvas it shows in
+-- `grid.shown`, and hideAllShown() hides that list and EMPTIES it. So an
+-- Esc inside that window hid the box, threw away the only handle to it,
+-- and the retry then put it back with nothing able to reach it: not
+-- grid.hide(), not _G.mouseGrid.hide(). Only hs.reload().
+--
+-- 🔑 THE REAL HELPER IS LIFTED OUT OF init.lua, not re-written here. A
+-- stub of it would be a stub of the thing under test (6.193.0), and
+-- 6.264.0 is what it costs to prove one half while nothing drives the
+-- other.
+do
+    local before = pass + fail
+    local okSection, secErr = pcall(function()
+
+    local f = io.open(HS .. "/init.lua", "r")
+    local init = f and f:read("*a") or ""
+    if f then f:close() end
+
+    local planSrc = init:match("(function _G%.canvasRetryPlan%(hasLate, canTimer%).-\nend)")
+    local showSrc = init:match(
+        "(function _G%.showCanvasSafely%(canvas, label, onLate%).-\n    return false\nend)")
+    check("🖼 the retry rule was lifted out of init.lua", planSrc ~= nil)
+    check("🖼 showCanvasSafely was lifted out of init.lua", showSrc ~= nil)
+
+    -- ---- the PURE rule, three answers ----------------------------------
+    -- A stand-in that answers falsely rather than throwing, so a mutation
+    -- FAILS these checks instead of killing the run (6.186.0).
+    local plan = function() return "?", "the rule could not be read" end
+    if planSrc then
+        local chunk = load(planSrc .. "\nreturn _G.canvasRetryPlan")
+        if chunk then plan = chunk() or plan end
+    end
+
+    local how, why = plan(false, true)
+    check("no caller asked to be told → GIVE UP, never a second show",
+          how == "give up" and why:find("no owner", 1, true) ~= nil, tostring(why))
+    how, why = plan(true, false)
+    check("a Mac that cannot arm the timer → give up, and says which half",
+          how == "give up" and why:find("timer", 1, true) ~= nil, tostring(why))
+    how, why = plan(true, true)
+    check("a caller that wants to know → HAND IT BACK, the caller decides",
+          how == "hand back" and why:find("caller decides", 1, true) ~= nil,
+          tostring(why))
+
+    -- ---- the helper itself, with a canvas macOS REFUSES ----------------
+    -- 🚨 REFUSING, not missing. 6.264.0's degrade check took hs.canvas.new
+    -- AWAY and passed with the fallback disconnected; the shape this
+    -- config keeps meeting on a beta OS is "created, wired, refused".
+    local LATE = {}
+    if showSrc and planSrc then
+        local chunk = load(planSrc .. "\n" .. showSrc
+                           .. "\nreturn _G.showCanvasSafely")
+        local shower = chunk and chunk()
+        check("the lifted helper loaded", type(shower) == "function")
+        if shower then
+            _G.canvasLate = { refused = 0, handed = 0, dropped = 0 }
+        _G.canvasShowTimers = {}
+            REFUSE_SHOW = true
+            local c = mkCanvas({ x = 0, y = 0, w = 10, h = 10 })
+            local n0 = #TIMERS
+
+            -- (a) NO onLate: no retry is armed at all, and the canvas is
+            -- never shown a second time behind anybody's back.
+            local ans = shower(c, "no owner")
+            check("a refused show answers FALSE", ans == false, tostring(ans))
+            check("🚨 with no onLate NOTHING is scheduled — the orphan cannot "
+                  .. "happen because there is no second show to happen",
+                  #TIMERS == n0, #TIMERS - n0)
+            check("...and it is COUNTED as dropped on purpose, not as a retry",
+                  _G.canvasLate.dropped == 1 and _G.canvasLate.handed == 0,
+                  tostring(_G.canvasLate.dropped) .. "/"
+                  .. tostring(_G.canvasLate.handed))
+
+            -- (b) WITH onLate: the helper hands the canvas back and does
+            -- NOT show it itself. Asserted by the show COUNT, because
+            -- "onLate was called" passes with a blind show left in front
+            -- of it (6.212.0's stroke-counting row).
+            LATE = {}
+            local ans2 = shower(c, "an owner", function(cv) LATE[#LATE + 1] = cv end)
+            check("a refused show still answers FALSE with an owner",
+                  ans2 == false, tostring(ans2))
+            check("a retry IS armed when somebody is there to answer it",
+                  #TIMERS == n0 + 1, #TIMERS - n0)
+            check("nothing is handed back until the turn actually comes",
+                  #LATE == 0, #LATE)
+            local t = TIMERS[#TIMERS]
+            check("the retry is a run-loop turn away, not a second later",
+                  t.secs == 0.05, tostring(t.secs))
+            -- macOS would say yes NOW, which is the whole reason a retry
+            -- exists — and the only state in which "the helper showed it
+            -- itself" is distinguishable from "the helper did nothing".
+            REFUSE_SHOW = false
+            t.fn()
+            check("the caller is handed the CANVAS, not a boolean",
+                  #LATE == 1 and LATE[1] == c, #LATE)
+            check("🚨 the helper itself never showed it — the caller's show "
+                  .. "is the only show there is",
+                  (c.shows or 0) == 0, tostring(c.shows))
+            check("...and the hand-back is counted apart from the drops",
+                  _G.canvasLate.handed == 1, tostring(_G.canvasLate.handed))
+            REFUSE_SHOW = false
+        end
+    end
+
+    -- ---- and now the grid, end to end ----------------------------------
+    -- The module is given the real helper, so this is the shipped path.
+    local realShower
+    if showSrc and planSrc then
+        local chunk = load(planSrc .. "\n" .. showSrc
+                           .. "\nreturn _G.showCanvasSafely")
+        realShower = chunk and chunk()
+    end
+    local saved = _G.showCanvasSafely
+    _G.showCanvasSafely = realShower
+    check("the grid is running against init.lua's own helper",
+          type(_G.showCanvasSafely) == "function")
+
+    if realShower then
+        -- THE ORPHAN, reproduced. macOS refuses the first show; the user
+        -- presses Esc before the turn comes round; the turn comes round.
+        _G.canvasLate = { refused = 0, handed = 0, dropped = 0 }
+        _G.canvasShowTimers = {}
+        loadModule()
+        _G.showCanvasSafely = realShower
+        REFUSE_SHOW = true
+        local tBefore = #TIMERS
+        grid.show(false)
+        local late = {}
+        for i = tBefore + 1, #TIMERS do
+            if TIMERS[i].secs == 0.05 then late[#late + 1] = TIMERS[i] end
+        end
+        check("macOS refused the grid's canvases and a retry was handed to "
+              .. "the module", #late > 0, #late)
+        grid.hide("esc")          -- the user gives up
+        check("the grid is down — the invariant says so",
+              grid.state == nil, tostring(grid.state))
+        REFUSE_SHOW = false       -- macOS would say yes now
+        local shownBefore = 0
+        for _, c in ipairs(CANVASES) do
+            if c.visible then shownBefore = shownBefore + 1 end
+        end
+        for _, t in ipairs(late) do pcall(t.fn) end
+        local shownAfter = 0
+        for _, c in ipairs(CANVASES) do
+            if c.visible then shownAfter = shownAfter + 1 end
+        end
+        check("🚨 THE FROZEN BOX: the retry lands after Esc and puts NOTHING "
+              .. "on screen — a canvas the grid has given up on is not its "
+              .. "to show", shownAfter == shownBefore,
+              shownBefore .. " → " .. shownAfter)
+
+        -- The other direction, and it is what stops the fix being "never
+        -- retry": while the grid IS up, the retry still works.
+        _G.canvasLate = { refused = 0, handed = 0, dropped = 0 }
+        _G.canvasShowTimers = {}
+        loadModule()
+        _G.showCanvasSafely = realShower
+        REFUSE_SHOW = true
+        tBefore = #TIMERS
+        grid.show(false)
+        late = {}
+        for i = tBefore + 1, #TIMERS do
+            if TIMERS[i].secs == 0.05 then late[#late + 1] = TIMERS[i] end
+        end
+        REFUSE_SHOW = false
+        for _, t in ipairs(late) do pcall(t.fn) end
+        local up = 0
+        for _, c in ipairs(CANVASES) do if c.visible then up = up + 1 end end
+        check("the grid is still up, so the retry DOES bring the overlay in "
+              .. "— the fix is not 'stop retrying'", up > 0, up)
+        check("...and the grid knows the box is up", grid.state ~= nil)
+
+        grid.hide("done")
+
+        -- 🚨 RE-RECORDED, AND THIS IS THE CASE THAT PROVES IT. The first
+        -- version of this check asserted the re-record after a plain
+        -- show/hide and passed with the line DELETED — because showCanvas
+        -- records every canvas on the way out anyway, so hide() reached it
+        -- regardless. A guard no test can fail is dead code with a comment
+        -- on it (6.199.0, fourth time), so here is the state where the two
+        -- differ: enterLanded() calls hideAllShown(), which EMPTIES the
+        -- list while `grid.state` stays non-nil. A retry from the refused
+        -- first draw then fires into a live grid holding a canvas the list
+        -- no longer knows about. Refused draw, then type the three letters
+        -- — an ordinary press on a Mac that said no once.
+        _G.canvasLate = { refused = 0, handed = 0, dropped = 0 }
+        _G.canvasShowTimers = {}
+        loadModule()
+        _G.showCanvasSafely = realShower
+        setScreens(ONE)
+        REFUSE_SHOW = true
+        tBefore = #TIMERS
+        grid.show(false)
+        late = {}
+        for i = tBefore + 1, #TIMERS do
+            if TIMERS[i].secs == 0.05 then late[#late + 1] = TIMERS[i] end
+        end
+        check("the refused draw handed its canvases back", #late > 0, #late)
+        pickKey("a"); pickKey("s"); pickKey("d")      -- land: hideAllShown()
+        check("the grid is LANDED — still up, and the hide list was emptied "
+              .. "underneath it", grid.state ~= nil
+              and grid.state.phase == "landed",
+              grid.state and tostring(grid.state.phase))
+        REFUSE_SHOW = false
+        for _, t in ipairs(late) do pcall(t.fn) end
+        grid.hide("done")
+        local stillUp = 0
+        for _, c in ipairs(CANVASES) do
+            if c.visible then stillUp = stillUp + 1 end
+        end
+        check("🚨 hide() REACHES a canvas the retry showed into a landed "
+              .. "grid — it was put back on the list, or the frozen box is "
+              .. "simply one turn later", stillUp == 0, stillUp)
+    end
+    _G.showCanvasSafely = saved
+    REFUSE_SHOW = false
+
+    end)
+    check("§6.266.0 ran to the end — a throw here deletes the checks after it",
+          okSection == true, secErr)
+    local ran = (pass + fail) - before
+    check("§6.266.0 ran all of its checks (" .. ran .. " of 22+)", ran >= 22, ran)
 end
 
 -- =====================================================================

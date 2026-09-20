@@ -403,8 +403,23 @@ function M.setup(core)
         -- a permanent state, which is why the shared helper retries once a run
         -- loop turn later and only then reports. A bare :show() throws, abandons
         -- the rest of the open sequence, and leaves a half-ordered ghost.
+        -- 🚨 6.266.0 — AND THE RETRY IS OURS TO ANSWER NOW. The helper
+        -- used to re-show a refused canvas by itself 50 ms later; this
+        -- list is emptied by hideAllShown(), so an Esc in that window
+        -- left a box on screen that grid.hide() could no longer reach —
+        -- LL's "Frozen grid again", clearable only by a reload. The
+        -- helper hands the canvas BACK now and this decides.
+        local function late(panel)
+            -- `grid.state ~= nil` ⟺ a modal is entered (the invariant at
+            -- the top of this file). The grid is gone: do NOT show it.
+            if not grid.state then return end
+            if not pcall(function() panel:show() end) then return end
+            -- RE-RECORDED, or it is on screen and off the only list
+            -- hide() walks — which is the whole bug, one turn later.
+            grid.shown[#grid.shown + 1] = panel
+        end
         if _G.showCanvasSafely then
-            _G.showCanvasSafely(c, "mouse grid")
+            _G.showCanvasSafely(c, "mouse grid", late)
         else
             pcall(function() c:show() end)
         end

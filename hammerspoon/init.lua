@@ -4,9 +4,43 @@
 -- =====================================================================
 -- 09-20-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.265.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.266.0
 -- =====================================================================
 
+-- NEW IN 6.266.0 — 🧊 A PANEL YOU GAVE UP ON IS NEVER PUT BACK ON
+--   SCREEN (init.lua §_G.showCanvasSafely + modules/mouse_grid.lua):
+--   LL, with a photograph of the yellow landed-box outline sitting over a
+--      Finder dialog: "Frozen grid again." A SUSPECT in CLAUDE.md for
+--      eight releases; the two halves were never read side by side.
+--   🔎 THE MECHANISM, CONFIRMED: when macOS refuses a canvas:show() this
+--      helper retried 50 ms later and SHOWED IT ITSELF, telling nobody.
+--      mouse_grid records what it shows in `grid.shown`; grid.hide()
+--      hides that list and EMPTIES it. So an Esc inside that window hid
+--      the box, threw away the only handle to it, and the retry then put
+--      it back with nothing able to reach it — not grid.hide(), not
+--      `_G.mouseGrid.hide()`. Only hs.reload().
+--   🔑 `onLate`: the retry HANDS THE CANVAS BACK and the CALLER decides
+--      whether it still wants the panel. A caller that passes nothing
+--      gets NO second show at all — the safe default, and the one all
+--      fifteen callers but mouse_grid take today, so the whole orphan
+--      class closes in one change instead of in fifteen modules.
+--      `_G.canvasRetryPlan` is PURE: give up · give up (no timer) · hand
+--      back, with the reason. mouse_grid takes the door first and its
+--      `late` re-records the canvas — enterLanded() empties the hide list
+--      while the grid is still UP, so a retry landing there is the same
+--      orphan one turn on.
+--   📏 COST, NAMED: a panel refused once no longer reappears by itself a
+--      moment later — press the key again, which is what the message has
+--      always said. It is said on the FIRST refusal now, because there is
+--      no second one to wait for. The hs.alert retry is deliberately
+--      untouched: an alert owns itself and expires in two seconds.
+--   🧪 The canvas stub can REFUSE now, and the helper is LIFTED out of
+--      this file rather than re-written in the suite (6.264.0's lesson).
+--      The re-record check first passed with the line DELETED — 6.199.0,
+--      fourth time — until it was moved to the landed grid.
+--   🔎 `_G.canvasShowReport()` (the helper had none).
+--        · 10,139 -> 10,166 checks · six mutations, six bites.
+--
 -- NEW IN 6.265.0 — 🚨 ⇪4 CAPTURES AGAIN (modules/screenshots.lua):
 --   LL: "Hyper+4 no longer works to screenshot." MY REGRESSION, from
 --      6.264.0, on the key he uses most.
@@ -38,47 +72,12 @@
 --      the way back to macOS's crosshair.
 --        · 10,134 -> 10,139 checks · five mutations, five bites.
 --
--- NEW IN 6.264.0 — 📐 ⇪4 DRAGS ON OUR OWN SELECTOR, SO IT CARRIES THE
---   SIZE (modules/screenshots.lua):
---   LL, having read 6.260.0's note that those numbers are Apple's: "The
---      screenshot crosshairs, yes I get it that's Mac, but I wanted a
---      visual that shows the pixels measurements better." 6.260.0 built
---      the readout and named this as HIS call and its own release —
---      because it costs the native magnifier and SPACE-to-capture-a-
---      window. This is him making it.
---   🔑 ONE FUNCTION, TWO CALLERS: ⇪4 and the ⇪⇧5 panel's "📐 Capture
---      area" row both go through shots.capture, so the key and its panel
---      row cannot come to mean different things (6.194.0's rule).
---   🚨 IT DEGRADES, IT NEVER BREAKS, AND THE GATE DRIVES IT: selectArea
---      answers true / false, why now — every failure in it used to be a
---      bare `return` with the callback simply never firing. A Mac that
---      cannot draw our selector takes macOS's crosshair instead, because
---      a ⇪4 that captures nothing is worse than a ⇪4 with Apple's HUD.
---      The check that proves it TAKES hs.canvas AWAY and presses the key:
---      the pure checks all passed with the fallback disconnected.
---   🔎 THREE STATES, NEVER TWO (6.196.1): ⇪4 looking unchanged is either
---      his own settings line or a Mac that fell back, and those are
---      opposite facts. The report's "area :" line puts a ⚠️ on the
---      second and never on the first.
---   🔔 A SWAP MUST NOT QUIETLY TAKE A SOUND AWAY: this path has always
---      passed -x (silent), right for "repeat that rectangle" and wrong
---      for ⇪4, where the shutter has been the confirmation since it was
---      bound. captureRect takes `withSound`; existing callers unchanged.
---   🎁 AND ⇪4 NOW FEEDS "repeat area" A RECTANGLE, which it never could:
---      macOS's -i cannot report where you dragged.
---   📋 THE CHEAT SHEET MOVED IN THE SAME COMMIT — its ⇪4 row promised
---      "SPACE = window" and its 📐 row said "⇪4 keeps macOS's own HUD".
---      A stale key on the sheet IS a broken feature (6.181.0).
---   📏 COST, NAMED: no native magnifier and no SPACE-to-shoot-a-window on
---      ⇪4. Back with settings = { screenshots = { areaNative = true } }.
---        · 10,111 -> 10,134 checks · six mutations, six bites.
---
--- (6.263.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.264.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.265.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.266.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -175,7 +174,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.265.0"
+_G.configVersion = "6.266.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the
@@ -1244,31 +1243,120 @@ end)
 -- another app's popup mid-transition, whose assertion throws into OUR
 -- canvas:show(). So: catch it, retry once next run-loop turn, and if it
 -- still refuses, say so and let the caller clean up. Story: NEW IN 6.56.0.
+--
+-- 🚨 6.266.0 — AND THE RETRY NEVER SHOWS A CANVAS BEHIND ITS CALLER'S
+-- BACK. Until this release the retry called `canvas:show()` itself, a
+-- run-loop turn later, telling nobody. mouse_grid's showCanvas records
+-- every canvas it shows in `grid.shown`, and grid.hide() hides that list
+-- and EMPTIES it — so an Esc inside that 50 ms window hid the box, threw
+-- away the only handle to it, and then the retry put it back on screen
+-- with nothing able to reach it. `_G.mouseGrid.hide()` could not clear
+-- it; only hs.reload() could. That is LL's "Frozen grid again", and it
+-- was a suspect in CLAUDE.md for eight releases until the two halves
+-- were read side by side.
+-- 🔑 THE ANSWER IS `onLate`: the retry HANDS THE CANVAS BACK and the
+-- CALLER decides whether it still wants the panel. A caller that passes
+-- nothing gets NO second show at all — the safe default, and the one
+-- every caller but mouse_grid takes today, so the whole orphan class
+-- closes in one change rather than in fifteen modules.
+-- 📏 COST, NAMED: a panel whose first show is refused no longer comes up
+-- by itself a moment later — you press the key again, which is what the
+-- message has always told you to do. It is said on the FIRST refusal now
+-- (there is no second one to wait for), so a panel that did not open is
+-- a panel that says so.
+-- 🔔 The hs.alert retry below is deliberately NOT changed: an alert owns
+-- itself, expires in two seconds and has no caller to orphan.
 _G.canvasShowTimers = _G.canvasShowTimers or {}
-function _G.showCanvasSafely(canvas, label)
+_G.canvasLate = _G.canvasLate
+    or { refused = 0, handed = 0, dropped = 0, last = nil, lastAt = nil }
+
+-- PURE. Three answers and the reason for each, so the whole rule is
+-- provable with no Mac — and `showCanvasSafely` below ASKS it rather
+-- than repeating it, because 6.264.0 proved a pure decision function
+-- while nothing called it with the values that mattered.
+function _G.canvasRetryPlan(hasLate, canTimer)
+    if not hasLate then
+        return "give up",
+               "no caller asked to be told — a second show would have no owner"
+    end
+    if not canTimer then
+        return "give up", "this Mac could not arm the retry timer"
+    end
+    return "hand back", "the caller decides whether it still wants the panel"
+end
+
+function _G.showCanvasSafely(canvas, label, onLate)
     if not canvas then return false end
     local ok = pcall(function() canvas:show() end)
     if ok then return true end
-    -- One retry, a run loop turn later.
-    local t = hs.timer.doAfter(0.05, function()
-        local ok2 = pcall(function() canvas:show() end)
-        if ok2 then return end
-        print("⚠️ " .. tostring(label or "canvas") .. ": macOS refused to show "
-              .. "it twice — usually another app's popup (Safari's URL "
+
+    local name = tostring(label or "canvas")
+    _G.canvasLate.refused = _G.canvasLate.refused + 1
+    _G.canvasLate.last    = name
+    pcall(function() _G.canvasLate.lastAt = os.date("%H:%M:%S") end)
+
+    local function saySo(twice)
+        print("⚠️ " .. name .. ": macOS refused to show it"
+              .. (twice and " twice" or "")
+              .. " — usually another app's popup (Safari's URL "
               .. "completion, Spotlight) was mid-transition. Press the key "
               .. "again.")
         if _G.notices then
-            _G.notices.record("runtime", tostring(label or "canvas"),
-                              "AppKit refused to order the window on screen")
-            _G.notices.tell("A panel would not open",
-                            tostring(label or "canvas") .. " — press the key again",
-                            { key = "canvas:" .. tostring(label), every = 300 })
+            pcall(_G.notices.record, "runtime", name,
+                  "AppKit refused to order the window on screen")
+            pcall(_G.notices.tell, "A panel would not open",
+                  name .. " — press the key again",
+                  { key = "canvas:" .. name, every = 300 })
         end
+    end
+
+    local canTimer = (type(hs) == "table" and type(hs.timer) == "table"
+                      and type(hs.timer.doAfter) == "function")
+    local plan = _G.canvasRetryPlan(type(onLate) == "function", canTimer)
+    if plan ~= "hand back" then
+        _G.canvasLate.dropped = _G.canvasLate.dropped + 1
+        saySo(false)
+        return false
+    end
+
+    local okT, t = pcall(hs.timer.doAfter, 0.05, function()
+        _G.canvasLate.handed = _G.canvasLate.handed + 1
+        -- The caller's own show, in the caller's own bookkeeping. A throw
+        -- in here is a silence inside a timer callback (6.235.0), so it is
+        -- guarded and reported rather than swallowed.
+        if not pcall(onLate, canvas) then saySo(true) end
     end)
+    if not (okT and t) then
+        _G.canvasLate.dropped = _G.canvasLate.dropped + 1
+        saySo(false)
+        return false
+    end
     -- HELD: an unreferenced timer is collected and never fires.
     _G.canvasShowTimers[#_G.canvasShowTimers + 1] = t
     while #_G.canvasShowTimers > 8 do table.remove(_G.canvasShowTimers, 1) end
     return false
+end
+
+-- 🔎 The tool had no report, which is why a frozen box could only be
+-- described and never counted. "refused" is how often macOS said no;
+-- "handed back" is how often a caller was given the chance to try again;
+-- "dropped" is how often nothing was tried, on purpose.
+function _G.canvasShowReport()
+    local L = { "🖼 CANVAS SHOW" }
+    local c = _G.canvasLate or {}
+    L[#L + 1] = "   refused    : " .. tostring(c.refused or 0) .. " time(s)"
+    L[#L + 1] = "   handed back: " .. tostring(c.handed or 0)
+        .. " — a caller asked to decide again"
+    L[#L + 1] = "   dropped    : " .. tostring(c.dropped or 0)
+        .. " — no retry, on purpose (no owner to hand it to)"
+    if c.last then
+        L[#L + 1] = "   last       : " .. tostring(c.last)
+            .. (c.lastAt and (" at " .. tostring(c.lastAt)) or "")
+    else
+        L[#L + 1] = "   last       : macOS has not refused a panel this session"
+    end
+    L[#L + 1] = "   timers held: " .. tostring(#(_G.canvasShowTimers or {}))
+    print(table.concat(L, "\n"))
 end
 
 -- 6.88.0 — hs.alert draws with hs.canvas underneath, so ITS show hits

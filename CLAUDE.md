@@ -49,9 +49,34 @@ work Mac.
      commit, so the working tree carries exactly one. COST, NAMED, and it
      is real: git history keeps every blob for ever, so this is ~3 MB per
      release that never comes back. That is the price of a delivery that
-     works. IF A COMMITTED ZIP STILL ARRIVES EMPTY, the cause is not git
-     and the next thing to change is the format — say so rather than
-     shipping a third identical attempt.
+     works.
+  🚚 AND IT STILL ARRIVED EMPTY — SO THE FORMAT CHANGED (6.266.0, LL
+     on the committed 6.265.0 zip: "265 was an empty zip. I'm honestly
+     tired of fixing that. Not mad at you. Just tired."). THIRD TIME.
+     The clause that used to sit here said that if a COMMITTED zip still
+     arrived empty the cause was not git and the format was next; that
+     condition is met, so it is spent and this is what replaced it.
+     BOTH THE FORMAT AND THE TRANSPORT CHANGE, because each earlier fix
+     changed something INSIDE the same pipeline:
+       · The delivered archive is a **.tar.gz**, never a .zip. macOS
+         opens one on a double-click exactly as it opens the other, and
+         it is written by a different tool and unpacked by a different
+         code path on his Mac — every layer that could be eating the
+         bytes is a layer that is no longer in the way.
+       · AND IT IS COMMITTED AND LINKED, so there is a SECOND and
+         entirely separate way to get it: his browser → GitHub → his
+         Downloads folder, with nothing in the chat touching the bytes.
+         The message carries that URL every time, not only on request.
+       · SAY THE NUMBERS FOR WHAT HE ACTUALLY RECEIVES (entries, MB,
+         the version grepped out of an unpacked init.lua), so a bad
+         delivery stays distinguishable from a bad build.
+     🔑 THE PRINCIPLE, and it generalises past archives: when a
+     delivery fails three times and every fix so far changed something
+     inside the SAME pipeline, the pipeline IS the variable — stop
+     refining it and route around it.
+     🚨 IF THE TAR.GZ ALSO ARRIVES EMPTY, do not try a fourth
+     container: the GitHub link is then the delivery, and the next thing
+     to change is that he installs from a clone or a single curl line.
 - Backups copy only `~/.ssh/config` — never the keys beside it, never the
   Keychain. daily_backup excludes `secret.lua` and `applock.json` from every
   rsync.
@@ -666,6 +691,45 @@ work Mac.
   RAISE, and a raise inside a check's expression ends the run with "0
   failed" never printed. 6.186.0, fifth time: a test HELPER answers
   falsely.
+- 🧊 A PANEL THE CALLER HAS GIVEN UP ON IS NEVER PUT BACK ON SCREEN
+  (6.266.0, init.lua `_G.showCanvasSafely` + modules/mouse_grid.lua — LL:
+  "Frozen grid again", with the yellow landed-box outline over a Finder
+  dialog). A SUSPECT in this file for eight releases, and the reading
+  was right: the retry that has caught AppKit's mid-transition assertion
+  since 6.56.0 called `canvas:show()` ITSELF a run-loop turn later,
+  telling nobody. mouse_grid records what it shows in `grid.shown`, and
+  `hideAllShown()` hides that list and EMPTIES it — so an Esc inside
+  those 50 ms hid the box, threw away the only handle to it, and the
+  retry put it back with nothing able to reach it. Not `grid.hide()`,
+  not `_G.mouseGrid.hide()`. Only `hs.reload()`.
+  🔑 `onLate` — THE RETRY HANDS THE CANVAS BACK AND THE CALLER DECIDES.
+  A caller that passes nothing gets NO second show at all, which is the
+  safe default and the one all fifteen callers but mouse_grid take
+  today, so the class closes in ONE change instead of fifteen modules.
+  `_G.canvasRetryPlan(hasLate, canTimer)` is PURE (give up · give up, no
+  timer · hand back, each with its reason) and the helper ASKS it —
+  6.264.0 priced proving a pure decision nothing drives.
+  🚨 AND THE RE-RECORD IS NOT DECORATION: `enterLanded()` calls
+  `hideAllShown()` while `grid.state` is still non-nil, so a retry
+  landing after the three letters are typed is the SAME orphan one turn
+  on. Its check first passed with the line deleted (showCanvas records
+  every canvas on the way out anyway) and had to move to the landed grid
+  — 6.199.0, fourth time.
+  📏 COST, NAMED: a panel refused once no longer reappears by itself;
+  press the key again, which the message has said since 6.56.0, and it
+  is said on the FIRST refusal now because there is no second one to
+  wait for. The hs.alert retry beside it is deliberately untouched — an
+  alert owns itself and expires in two seconds.
+  🧪 The canvas stub THROWS the real NSInternalInconsistencyException
+  now: 6.265.0 was a loss for driving a path with the dependency MISSING
+  when the shape that happens on a beta OS is "created, wired, REFUSED".
+  `_G.canvasShowReport()` — refused / handed back / dropped, three
+  different facts.
+  🚨 GENERAL, and it is the one to carry: ANY HELPER IN THIS CONFIG THAT
+  RETRIES SOMETHING ON A CALLER'S BEHALF MUST ASK THE CALLER FIRST. A
+  retry that acts a turn later is acting on a decision that may have
+  been reversed, and it holds the only reference to the thing it acts
+  on — which makes it unreachable by the code that owns it.
 - 🎯 A TOOL THAT ANNOUNCES ITSELF IN THE MIDDLE OF SOMETHING ELSE IS A
   TOOL YOU SWITCH OFF (6.259.0, modules/dialog_home.lua — LL, with a
   photograph of its own capture toast, "🎯 Dialogs will open here now —
@@ -2557,12 +2621,13 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
+| 6.266.0 | 🧊 the frozen grid box: a panel the caller gave up on is never put back on screen — the retry hands the canvas back instead of showing it itself | pending |
 | 6.265.0 | 🚨 ⇪4 captures again — 6.264.0's fallback to macOS's crosshair existed and was unreachable, because selectArea discarded the one value saying whether it drew | pending |
 | 6.264.0 | 📐 ⇪4 drags on our own selector, so the live 1280 × 720 is on the key he actually presses — the native magnifier and SPACE-to-shoot-a-window are the price | **LOSS** — LL: "Hyper+4 no longer works to screenshot." The selector's canvas can be refused by macOS and selectArea reported success anyway, so the key did nothing at all → fix 6.265.0 |
 | 6.263.0 | ✏️ no box in any page this config draws asks macOS to spell-check it — its correction panel threw an uncaught exception inside one of our webviews and aborted the process (his own `.ips`) | pending |
 | 6.262.0 | 🚨 ⇪⇧U no longer starts a task from inside another task's callback — the 6.196.1 use-after-free, twice, on the key he named | pending — and his two `.ips` files say it is NOT his crash: both are uncaught ObjC exceptions in Apple's code on macOS 27 beta (the menu-bar status-item scene; macOS's correction bubble in one of our webviews), with no Lua frame anywhere. The fix is real and stays; it is not the answer to what he saw |
 
-Running total: 15 wins · 9 losses · 47 pending — every release from
+Running total: 15 wins · 9 losses · 48 pending — every release from
 6.215.0 on except the fifteen wins and eight losses named in the table
 above. (The enumeration that used to sit here stopped at 6.239.0 and was
 seventeen releases stale, which is a scoreboard that cannot be read;
@@ -3099,6 +3164,41 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.266.0 verify with LL — 🧊 THE FROZEN GRID BOX (KNOWN GROUND):
+  install (carries 6.265.0, so do THAT block's ⇪4 test first — it is the
+  one I owe you). Then use ⇪X normally for a few days. Nothing about it
+  should look different: the grid draws, the three letters land, the box
+  splits, the arrows nudge, Esc closes it.
+  🔎 WHAT THIS FIXES IS THE THING YOU TOLD ME TO DISREGARD. When you sent
+  the photograph of the yellow box stuck over a Finder dialog, I wrote
+  down what I thought caused it and left it as a suspect. The reading was
+  right, and here it is in one sentence: when macOS refused to draw the
+  grid, this config retried 50 ms later and showed the box ITSELF — and
+  if you had pressed Esc in the meantime, it came up with nothing able to
+  close it. Not Esc, not `_G.mouseGrid.hide()`. Only a reload, which is
+  what you had to do.
+  📏 THE ONE THING YOU MAY NOTICE, so it is not a surprise: if macOS
+  refuses a panel, it no longer appears half a second later on its own —
+  you press the key again, and the Console says so straight away
+  ("⚠️ <panel>: macOS refused to show it … Press the key again"). You
+  used to get that message only when it failed TWICE. If you see that
+  line for a panel that used to open fine, paste it.
+  Console: `_G.canvasShowReport()` — new, this helper never had one.
+  "macOS has not refused a panel this session" is the healthy line.
+  "refused N · handed back N · dropped N" is the story when it has: a
+  hand-back means a tool was given the chance to try again, a drop means
+  nothing was tried on purpose because there was no owner to hand it to.
+  🚨 IF A STUCK BOX EVER HAPPENS AGAIN, it is a real finding and I want
+  the report plus `_G.mouseGridReport()` — because the mechanism this
+  release closes is the only one I can see from the source, and a second
+  one would have to be found the same way.
+  📏 NAMED, NOT FIXED: fourteen other panels go through the same helper
+  and none of them asks to be told yet. They can no longer orphan
+  anything — that is what this release guarantees — but a panel of theirs
+  that macOS refuses simply does not open now. mouse_grid took the door
+  first because it is the one that demonstrably broke. The others follow,
+  one per release.
+
 - 6.265.0 verify with LL — 🚨 ⇪4 SHOOTS AGAIN (KNOWN GROUND): install.
   Press ⇪4 and drag. It captures. That is the whole test, and it is a
   regression I caused in 6.264.0, so do it first.
@@ -4000,25 +4100,16 @@ CLAUDE-archive.md at the repo root, which is NOT auto-loaded — this
 file rides into every context window. A block comes back here only if
 LL reopens it.)
 
-- 🟡 FROZEN GRID BOX, SUSPECT ONLY (2026-09-12, LL: "Frozen grid
-  again." with a screenshot of the yellow landed-box outline over a
-  Finder replace dialog while installing 6.215.0, then "disregard").
-  NOT diagnosed, NOT built. Read, not proven: init.lua's
-  `_G.showCanvasSafely` returns false on the first refused :show()
-  and then RETRIES 50 ms later and shows the canvas anyway, telling
-  nobody; mouse_grid's `showBox` / `showCrosshair` are the callers
-  that ACT on false (grid.hide, boxDraw never assigned) — so a box
-  refused once while another app's popup was mid-transition (a
-  Finder sheet appearing is exactly 6.56.0's trigger) can come up a
-  turn later with NO owner, kept alive by the retry timer's closure
-  in `_G.canvasShowTimers`, and nothing can delete it but a reload.
-  `_G.mouseGrid.hide()` cannot clear such a box; `hs.reload()` can.
-  The first refusal prints nothing — a 🔔 gap too. If LL reopens it:
-  the artefact first (was ⇪X / ⌥+arrow pressed just before; any
-  "grid halved box" Console line; did `_G.mouseGrid.hide("stuck")`
-  clear it — if not, that is the orphan). Fix shape: the retry hands
-  the canvas back (callback) or deletes it when the caller already
-  gave up; never a second owner-less show.
+- ✅ FROZEN GRID BOX — NAMED AND FIXED AS 6.266.0 (2026-09-12, LL:
+  "Frozen grid again." with a screenshot of the yellow landed-box
+  outline over a Finder replace dialog, then "disregard"). The 6.215.0
+  reading was RIGHT and sat here for eight releases because nobody put
+  `_G.showCanvasSafely`'s blind retry and `hideAllShown()`'s emptying of
+  `grid.shown` side by side. The durable rule is above. The original
+  reading, kept because the method is the lesson: it was written from
+  the source alone, on a symptom he told me to disregard, and it named
+  the mechanism exactly — including that `_G.mouseGrid.hide()` could not
+  clear such a box and `hs.reload()` could.
 - 6.215.0 verify with LL — THE DEGRADE DOOR: install (carries
   6.214.2). Boot: no new alert on a healthy Mac (the door is silent
   until something degrades). Console: `_G.degradeReport()` reads

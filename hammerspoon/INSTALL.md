@@ -71,14 +71,29 @@ config detects this and tells you.
 
 ## Step 3 — Put the files in place
 
-Download the latest release zip, then (the zip has `init.lua` at its
-root — no wrapper folder — so the unzip folder IS the source folder):
+Download the latest release archive. Since 6.266.0 it is a **`.tar.gz`**
+rather than a `.zip` — three zips in a row arrived unopenable, so the
+container changed; macOS unpacks a `.tar.gz` on a double-click exactly as
+it unpacks a `.zip`. It has `init.lua` at its root — no wrapper folder —
+so the unpacked folder IS the source folder:
 
 ```sh
-unzip ~/Downloads/hammerspoon-*.zip -d ~/Downloads/hs-new
+mkdir -p ~/Downloads/hs-new
+tar -xzf ~/Downloads/hammerspoon*.tar.gz -C ~/Downloads/hs-new
 sh ~/Downloads/hs-new/tools/hs-install.sh ~/Downloads/hs-new  --dry-run
 sh ~/Downloads/hs-new/tools/hs-install.sh ~/Downloads/hs-new
 ```
+
+Check you got the whole thing before installing — this prints the number
+of files and the version stamp the archive actually carries:
+
+```sh
+tar -tzf ~/Downloads/hammerspoon*.tar.gz | wc -l
+sed -n 7p ~/Downloads/hs-new/init.lua
+```
+
+(An older `.zip` still unpacks the same way: `unzip
+~/Downloads/hammerspoon-*.zip -d ~/Downloads/hs-new`.)
 
 `--dry-run` shows what it would do and changes nothing. The real run backs
 up whatever is already there, installs, verifies, and **rolls itself back

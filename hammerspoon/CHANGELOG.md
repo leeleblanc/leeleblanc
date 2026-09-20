@@ -5,6 +5,81 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.266.0 — 🧊 A PANEL YOU GAVE UP ON IS NEVER PUT BACK ON SCREEN
+(init.lua §_G.showCanvasSafely + modules/mouse_grid.lua):
+
+  LL, with a photograph of the yellow landed-box outline sitting over a
+  Finder replace dialog while he installed a release: "Frozen grid
+  again." It went into CLAUDE.md as a SUSPECT, with a reading of what
+  might cause it, and sat there for eight releases. The reading was
+  right. Nobody had put the two halves side by side.
+
+  THE MECHANISM. Ordering a window on screen notifies every AppKit
+  observer, including another app's popup mid-transition, whose assertion
+  throws into our `canvas:show()`. `_G.showCanvasSafely` has caught that
+  since 6.56.0 and retried once, a run-loop turn later — and the retry
+  called `canvas:show()` ITSELF, telling nobody.
+
+  mouse_grid's showCanvas records every canvas it puts up in
+  `grid.shown`, and `hideAllShown()` hides that list and EMPTIES it. So:
+  press ⇪X, macOS refuses the draw, press Esc inside the next 50 ms. The
+  hide runs against an empty-by-then list, throws away the only handle to
+  the canvas, and the retry then puts the box on screen with nothing able
+  to reach it. `grid.hide()` cannot. `_G.mouseGrid.hide()` cannot. Only
+  `hs.reload()` can, which is exactly what LL had to do.
+
+  THE FIX IS `onLate`. The retry HANDS THE CANVAS BACK and the CALLER
+  decides whether it still wants the panel:
+
+      _G.showCanvasSafely(canvas, label, onLate)
+
+  A caller that passes nothing gets NO second show at all. That is the
+  safe default and it is the one every caller but mouse_grid takes today,
+  so the whole orphan class closes in ONE change rather than in fifteen
+  modules — fifteen panels go through this helper.
+
+  `_G.canvasRetryPlan(hasLate, canTimer)` is PURE and carries the whole
+  rule: "give up" when nobody asked to be told (a second show would have
+  no owner), "give up" when this Mac cannot arm a timer, "hand back"
+  otherwise — each with its reason. `showCanvasSafely` ASKS it rather
+  than repeating it, because 6.264.0 is what it costs to prove a pure
+  decision function while nothing drives it with the values that matter.
+
+  mouse_grid takes the door first (one module per release, the shape the
+  🔔 degrade door used). Its `late` refuses to show when `grid.state` is
+  nil — the file's own invariant for "a modal is entered" — and
+  RE-RECORDS the canvas when it does show. That second half is not
+  decoration: `enterLanded()` calls `hideAllShown()` while the grid is
+  still UP, so a retry landing after you type the three letters is the
+  same orphan one turn on.
+
+  COST, NAMED: a panel whose first show is refused no longer comes up by
+  itself a moment later. You press the key again — which is what the
+  message has told you to do since 6.56.0. It is now said on the FIRST
+  refusal, because there is no second one to wait for, so a panel that
+  did not open is a panel that says so.
+
+  NOT CHANGED, deliberately: the hs.alert retry a few lines below. An
+  alert owns itself, expires in two seconds and has no caller to orphan.
+
+  🧪 THE SUITE. The canvas stub can REFUSE now — it throws the real
+  NSInternalInconsistencyException — because 6.265.0 was a LOSS for
+  driving a path with the dependency MISSING when the real failure is
+  "created, wired, refused to show". The helper is LIFTED out of
+  init.lua's own source rather than re-written in the suite. And the
+  re-record check first passed with the line DELETED, because showCanvas
+  records every canvas on the way out anyway; it was moved to the landed
+  grid, where the two genuinely differ. 6.199.0, fourth time: a guard no
+  test can fail is dead code with a comment on it.
+
+  `_G.canvasShowReport()` — the helper had none, which is why a frozen
+  box could be described and never counted. refused / handed back /
+  dropped are three different facts.
+
+  10,139 -> 10,166 checks. Six mutations, six bites.
+```
+
+```text
 NEW IN 6.265.0 — 🚨 ⇪4 CAPTURES AGAIN (modules/screenshots.lua):
 
   LL: "Hyper+4 no longer works to screenshot." My regression, introduced

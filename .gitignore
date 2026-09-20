@@ -42,13 +42,28 @@ hammerspoon*.zip
 # itself rather than only being installed to ~/.hammerspoon from it.
 .DS_Store
 
-# 📦 THE CURRENT RELEASE ZIP IS UN-IGNORED **AND COMMITTED** (6.263.0).
-# This reverses "release zips are never committed", on evidence: it was
-# delivered twice with the file untracked — once gitignored, once merely
-# un-ignored — and both times LL got nothing he could open. Tracked is the
-# one variable never tried, and repo tidiness does not outrank him being
-# able to install the release.
-# ONE AT A TIME: the previous release's zip is deleted in the same commit,
-# so the working tree carries exactly one. The COST is real and named in
-# CLAUDE.md — git history keeps every blob for ever, ~3 MB a release.
-!hammerspoon6.265.0.zip
+# 📦 THE CURRENT RELEASE ARCHIVE IS UN-IGNORED **AND COMMITTED** (6.263.0),
+# and since 6.266.0 it is a **.tar.gz, not a .zip**.
+#
+# The committing came first, on evidence: the release was delivered twice
+# with the file untracked — once gitignored, once merely un-ignored — and
+# both times LL got nothing he could open. Tracked was the one variable
+# never tried. IT WAS TRIED, AND 6.265.0 ARRIVED EMPTY TOO ("265 was an
+# empty zip. I'm honestly tired of fixing that."), which spent the last
+# variable inside that pipeline. So the format and the transport both
+# changed:
+#   · tar.gz — a different writer here, a different unpacker on his Mac,
+#     and macOS opens it on a double-click exactly as it opens a .zip;
+#   · committed AND LINKED, so his browser → GitHub → Downloads is a
+#     second, entirely separate way to get the same bytes.
+# ONE AT A TIME: the previous release's archive is deleted in the same
+# commit, so the working tree carries exactly one. The COST is real and
+# named in CLAUDE.md — git history keeps every blob for ever, ~3 MB a
+# release.
+#
+#   (cd /tmp/pkg && tar -czf ../hammerspoonX.Y.Z.tar.gz .)
+#   tar -tzf hammerspoonX.Y.Z.tar.gz | wc -l     ← entries
+#   tar -xzf hammerspoonX.Y.Z.tar.gz -C /tmp/verify && sed -n 7p /tmp/verify/init.lua
+#
+hammerspoon*.tar.gz
+!hammerspoon6.266.0.tar.gz
