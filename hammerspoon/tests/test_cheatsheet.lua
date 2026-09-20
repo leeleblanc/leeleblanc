@@ -1882,5 +1882,117 @@ do
   check("§6.250.0 ran all of its checks (" .. ran .. " of 16+)", ran >= 16, ran)
 end
 
+-- =====================================================================
+-- §6.269.0 — `_G.cheatSheetReport()`: the sheet's first report
+-- =====================================================================
+-- The sheet is the surface LL reads to find out what this config can do,
+-- and until 6.269.0 it was the last big one with nothing to ask. It
+-- exists because anchors.lua drew a heading over empty space for
+-- eighty-nine releases and there was no question that would have said so.
+-- 🧪 THE SECTION WRAPS ITSELF (6.186.0): a throw in here would delete the
+-- checks after it while the run still printed "0 failed".
+do
+  local before = pass + fail
+  local okSection, secErr = pcall(function()
+
+  -- A capture that answers FALSELY rather than indexing a nil: a mutation
+  -- must fail a check, never kill the run.
+  local function runReport()
+    local realPrint, out = print, {}
+    print = function(...)                            -- luacheck: ignore
+      local parts = {}
+      for i = 1, select("#", ...) do parts[#parts + 1] = tostring((select(i, ...))) end
+      out[#out + 1] = table.concat(parts, "\t")
+    end
+    local ok, err = pcall(function()
+      if type(_G.cheatSheetReport) ~= "function" then error("no report", 0) end
+      _G.cheatSheetReport()
+    end)
+    print = realPrint                                -- luacheck: ignore
+    return { ok = ok, err = err, calls = #out, text = table.concat(out, "\n") }
+  end
+
+  loadSheet()   -- publishes _G.cheatSheetReport
+  check("§6.269.0 the sheet publishes _G.cheatSheetReport()",
+        type(_G.cheatSheetReport) == "function", type(_G.cheatSheetReport))
+
+  local savedCards, savedFaults = _G.moduleCheatsheets, _G.cheatsheetFaults
+
+  -- 🔎 THREE STATES, NEVER TWO (6.196.1). "nothing has registered yet"
+  -- and "nothing is empty" are opposite facts about the same sheet.
+  _G.moduleCheatsheets, _G.cheatsheetFaults = {}, {}
+  local r = runReport()
+  check("§6.269.0 a sheet NOTHING has registered into says so rather than "
+        .. "reporting a clean bill of health",
+        r.ok and r.text:find("has not been filled in", 1, true) ~= nil
+            and r.text:find("empty  : none", 1, true) == nil, r.text)
+
+  -- 📏 ONE STRING, ONE print (6.179.1): core/console.lua's gate silences
+  -- repeated short lines and splices ⛔/⚠️ banners through a report
+  -- printed row by row, so a multi-print report loses rows in the wild.
+  _G.moduleCheatsheets = {
+    { title = "🅰 ONE", entries = { { "⇪A", "a" }, { "⇪B", "b" } }, source = "one" },
+    { title = "🅱 TWO", entries = { { "⇪C", "c" } },                source = "two" },
+  }
+  _G.cheatsheetFaults = {}
+  r = runReport()
+  check("§6.269.0 the report prints as ONE string, not row by row",
+        r.ok and r.calls == 1, tostring(r.calls) .. " print call(s)")
+  check("§6.269.0 a healthy sheet counts its cards, rows and modules",
+        r.ok and r.text:find("2 card(s) · 3 row(s) from 2 module(s)", 1, true) ~= nil,
+        r.text)
+  check("§6.269.0 ...and says plainly that no card is empty",
+        r.ok and r.text:find("empty  : none", 1, true) ~= nil
+            and r.text:find("faults : none", 1, true) ~= nil, r.text)
+
+  -- 🔗 THE BUG THIS REPORT EXISTS FOR: a card with a title and no rows.
+  -- The check asserts the TITLE is named — a count alone ("1 empty") is
+  -- the shape that left anchors invisible, because it does not say WHICH.
+  _G.moduleCheatsheets[#_G.moduleCheatsheets + 1] =
+    { title = "🔗 ANCHORS (⇪⇧U …)", entries = {}, source = "anchors" }
+  r = runReport()
+  check("§6.269.0 an EMPTY card is counted AND named, never just counted",
+        r.ok and r.text:find("1 card(s) draw a title over nothing", 1, true) ~= nil
+            and r.text:find("🔗 ANCHORS", 1, true) ~= nil
+            and r.text:find("(from anchors)", 1, true) ~= nil, r.text)
+  check("§6.269.0 ...and it does NOT still claim every card has rows",
+        r.ok and r.text:find("every card on the sheet has rows", 1, true) == nil, r.text)
+
+  -- 🔔 THE DIAGNOSIS, not the symptom: where the loader worked out WHICH
+  -- key the rows are hiding under, the report hands over the one-word fix.
+  _G.cheatsheetFaults = { {
+    source = "anchors", title = "🔗 ANCHORS (⇪⇧U …)", key = "rows", rows = 8,
+    why = "anchors's cheat-sheet card has a title and no rows — 8 row(s) "
+       .. "are under `rows`, and the sheet only reads `entries`",
+  } }
+  r = runReport()
+  check("§6.269.0 a fault is repeated in full, with the key the rows hid under",
+        r.ok and r.text:find("8 row(s) are under `rows`", 1, true) ~= nil, r.text)
+  check("§6.269.0 ...and names the file and the one-word fix",
+        r.ok and r.text:find("`rows =` becomes `entries =`", 1, true) ~= nil
+            and r.text:find("modules/anchors.lua", 1, true) ~= nil, r.text)
+  check("§6.269.0 ...and the ⚠️ outranks the counts, so a faulty sheet "
+        .. "never reads as a healthy one",
+        r.ok and r.text:find("faults : none", 1, true) == nil, r.text)
+
+  -- A fault recorded with no other key still reads as a sentence.
+  _G.cheatsheetFaults = { { source = "x", title = "T",
+    why = "x's cheat-sheet card has a title and no rows (its `entries` "
+       .. "list is missing or empty)" } }
+  r = runReport()
+  check("§6.269.0 a fault with no other key to name still prints, and "
+        .. "offers no one-word fix it cannot justify",
+        r.ok and r.text:find("missing or empty", 1, true) ~= nil
+            and r.text:find("becomes `entries =`", 1, true) == nil, r.text)
+
+  _G.moduleCheatsheets, _G.cheatsheetFaults = savedCards, savedFaults
+
+  end)
+  check("§6.269.0 ran to the end — a throw here deletes the checks after it",
+        okSection == true, secErr)
+  local ran = (pass + fail) - before
+  check("§6.269.0 ran all of its checks (" .. ran .. " of 11+)", ran >= 11, ran)
+end
+
 print(("\n%d passed, %d failed\n"):format(pass, fail))
 os.exit(fail == 0 and 0 or 1)

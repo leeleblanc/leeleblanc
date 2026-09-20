@@ -1808,6 +1808,87 @@ return function(core)
         showPopup(_G.choosers.editShortcut)
     end)
 
+    -- =================================================================
+    -- 🔎 6.269.0 — `_G.cheatSheetReport()`
+    -- =================================================================
+    -- The sheet is the surface LL reads to find out what this config
+    -- can do, and it was the last big one with NO report at all — which
+    -- is why anchors.lua drew a heading over nothing for eighty-nine
+    -- releases with no way to ask about it. The two lines that matter
+    -- are "empty" and "faults": a card with a title and no rows is a
+    -- tool he cannot find, and it looks exactly like a tool that has
+    -- nothing to say.
+    -- 🔎 THREE STATES, NEVER TWO (6.196.1): "no card is empty" and "no
+    -- module has registered yet" are opposite facts and must not read
+    -- the same, so a run before the loader has finished says so.
+    -- 📏 IT PRINTS AS ONE STRING (6.179.1) — core/console.lua's gate
+    -- silences repeated short lines and splices banners through a
+    -- report printed row by row.
+    function _G.cheatSheetReport()
+        local L = {}
+        local cards   = _G.moduleCheatsheets or {}
+        local faults  = _G.cheatsheetFaults  or {}
+        L[#L + 1] = "📋 CHEAT SHEET — ⇪/"
+
+        if #cards == 0 then
+            L[#L + 1] = "   cards  : NO module has registered a card yet —"
+                     .. " this is not an empty sheet, it is a sheet that"
+                     .. " has not been filled in"
+            print(table.concat(L, "\n"))
+            return
+        end
+
+        local rows, empty, sources = 0, {}, {}
+        for _, g in ipairs(cards) do
+            local n = (type(g.entries) == "table") and #g.entries or 0
+            rows = rows + n
+            sources[tostring(g.source)] = true
+            if n == 0 then empty[#empty + 1] = g end
+        end
+        local nSrc = 0
+        for _ in pairs(sources) do nSrc = nSrc + 1 end
+
+        L[#L + 1] = string.format("   cards  : %d card(s) · %d row(s) from %d module(s)",
+                                  #cards, rows, nSrc)
+
+        -- EMPTY comes before FAULTS on purpose: a card can be empty
+        -- without the loader having caught why (a module may build its
+        -- entries at setup and fail), so the count he can SEE on the
+        -- sheet is stated first and the diagnosis second.
+        if #empty == 0 then
+            L[#L + 1] = "   empty  : none — every card on the sheet has rows under it"
+        else
+            L[#L + 1] = string.format("   empty  : ⚠️ %d card(s) draw a title over nothing", #empty)
+            for _, g in ipairs(empty) do
+                L[#L + 1] = "      ↳ " .. tostring(g.title)
+                         .. "   (from " .. tostring(g.source) .. ")"
+            end
+        end
+
+        if #faults == 0 then
+            L[#L + 1] = "   faults : none — no module registered a card with no rows"
+        else
+            L[#L + 1] = string.format("   faults : ⚠️ %d — each one alerted as it happened", #faults)
+            for _, f in ipairs(faults) do
+                L[#L + 1] = "      ↳ " .. tostring(f.why)
+                if f.key then
+                    L[#L + 1] = "        the fix is one word: `" .. tostring(f.key)
+                             .. " =` becomes `entries =` in modules/"
+                             .. tostring(f.source) .. ".lua"
+                end
+            end
+        end
+
+        L[#L + 1] = string.format("   custom : %d entr%s of your own (⌃⌥⌘= adds, ⌃⌥⌘- edits)",
+                                  #(_G.customShortcuts or {}),
+                                  (#(_G.customShortcuts or {}) == 1) and "y" or "ies")
+        L[#L + 1] = "   window : " .. (_G.cheatSheetCanvas and "open right now" or "closed")
+        L[#L + 1] = "   audit  : the gate joins every key column to the module that"
+                 .. " bound it — it catches a key on the WRONG card, and"
+                 .. " since 6.269.0 a card with NO keys at all"
+        print(table.concat(L, "\n"))
+    end
+
     -- Handed back so a test can drive the real namespace without this
     -- file having to publish a global purely for testing. init.lua
     -- ignores it; tests/test_cheatsheet.lua runs against it.

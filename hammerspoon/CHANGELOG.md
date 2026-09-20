@@ -5,6 +5,113 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.269.0 — 🔗 THE ANCHORS CARD DRAWS ITS EIGHT ROWS, AND A CARD
+WITH A TITLE AND NO ROWS NAMES ITSELF (modules/anchors.lua + init.lua's
+§1.12 loader + core/cheatsheet.lua):
+
+  A pass down the cheat sheet, asked for in plain words: "please make a
+  good pass down the cheat sheet." One card came back empty.
+
+  🔗 THE INSTANCE. modules/anchors.lua has declared its cheat-sheet rows
+  like this since the day it was written in 6.180.0:
+
+      cheatsheet = {
+          title = "🔗 ANCHORS (⇪⇧U — link what is in front of you …)",
+          rows  = { … eight rows … },
+      }
+
+  Every other module in this config writes `entries =`. The loader reads
+  `g.entries`, finds nothing, and registers the card with `entries =
+  g.entries or {}` — so ⇪/ drew the heading "🔗 ANCHORS (⇪⇧U …)" over
+  empty space for eighty-nine releases. The eight rows were correct, in
+  the file, and unreachable. Renaming one key is the entire fix; not one
+  row changed.
+
+  🔎 NOTHING IN THIS PROJECT COULD SEE IT, and that is the half worth
+  keeping. 6.196.0 put the cheat sheets under a gate check precisely so
+  "a stale key on the sheet IS a broken feature" stopped being a promise
+  kept by hand. That auditor joins each card's KEY COLUMN to the module
+  that claimed the key — which means it can only ever speak about rows
+  that exist. It flags MISATTRIBUTION, never ABSENCE, and that was a
+  deliberate decision with a good reason behind it: §0.4's migration map
+  binds about thirty keys outside `hyperAddShortcut`, so a check asking
+  "is this key bound at all" would have reported every one of those as
+  dead and been switched off inside a week.
+
+  So the shape that got through is the one nobody was looking for: not a
+  wrong row, not a stale row — NO rows. A silent coercion sitting under
+  an auditor that is blind to absence is a defect with no instrument
+  pointed at it, and it stayed invisible until someone read the sheet.
+
+  🔔 SO THE LOADER SAYS SO NOW. A group that arrives with a title and no
+  usable `entries` is recorded in `_G.cheatsheetFaults` and takes the 🔔
+  degrade door (6.215.0) — an alert naming the module, a ⚠️ Console line,
+  a ledger row. The message does the diagnosis rather than reporting a
+  symptom: where the rows are sitting under some other key, it NAMES the
+  key and the count —
+
+      ⚠️ Cheat sheet — anchors's cheat-sheet card has a title and no
+         rows — 8 row(s) are under `rows`, and the sheet only reads
+         `entries`
+
+  That sentence is the whole bug. Had it existed in 6.180.0 this would
+  have been a five-minute fix on the day it was written.
+
+  📏 THE COERCION STAYS, deliberately. `g.entries or {}` is what stops a
+  malformed group taking the whole sheet down — core/cheatsheet.lua:1498
+  walks `ipairs(g.entries)` unguarded, so a nil there is every card gone,
+  not one. IT DEGRADES, IT NEVER BREAKS is unchanged; what changes is A
+  BREAK IS SEEN, NEVER ONLY LOGGED, which this coercion had been quietly
+  exempt from. A thin card beats a sheet that throws — but not silently.
+
+  🔌 EXEMPT ON PURPOSE: `family = "auto"` registers a card even with no
+  cheatsheet at all, so the tool is listed somewhere. The loader builds
+  that group itself, empty, and flags it as synthetic; five modules use
+  it and none of them is a fault.
+
+  🔎 `_G.cheatSheetReport()` — THE SHEET HAD NO REPORT. It is the surface
+  LL reads to find out what this config can do, and it was the last big
+  one with nothing to ask. Cards, rows, the modules behind them, the
+  custom entries, and the two lines that matter: "empty" (what he can SEE
+  on the sheet) before "faults" (why), because a card can be empty
+  without the loader having caught the reason — a module that builds its
+  rows during setup and fails would show the first and not the second.
+  6.196.1's rule holds the top of it: "no module has registered a card
+  yet" and "no card is empty" are opposite facts and do not read alike.
+
+  🧪 THREE CHECKS, AT THREE DISTANCES FROM THE BUG, because one of them
+  would have been a check about anchors rather than about the class:
+    · the shipped loader's fault list must be EMPTY after the real
+      config loads — the production rule, run for real;
+    · no module SOURCE may declare a titled group whose rows sit under a
+      key the sheet never reads, read with COMMENTS STRIPPED (6.262.0),
+      because the comment this release leaves in anchors.lua quotes both
+      `rows` and `entries` on purpose and would satisfy a naive grep;
+    · init.lua's registration block and tests/loader_test.lua's must be
+      the SAME CODE, comments stripped and whitespace flattened.
+
+  🚨 AND THAT THIRD ONE WAS ALREADY PROMISED IN WRITING. loader_test.lua
+  — the copy of §1.12 the whole gate runs on — carries this comment, and
+  has since 6.101.0:
+
+      "a copy that drifts tests a loader nobody ships … and test_tools
+       asserts the two blocks agree."
+
+  test_tools asserts no such thing. It never has. The comment describes a
+  guard that was never written, which is 6.199.0's rule inverted and
+  worse than the case it was written for: a guard no test can fail is
+  dead code with a comment on it; a comment claiming a guard that does
+  not exist is an invitation to edit one copy and trust the other. Both
+  files were edited by hand in this release, which is exactly the moment
+  that gap costs something, so the sentry is written now and the comment
+  is true.
+
+  📏 NAMED, NOT SWEPT: `family = "capture"` on anchors is left as it is
+  (it decides which section of the sheet the card sits in, and the card
+  is where LL expects it); and the row this card draws under "in a note"
+  mentions Obsidian, which is a separate question he has asked about and
+  which is answered in its own release, not smuggled into this one.
+
 NEW IN 6.268.0 — 🗑 THE SHORTCUT HINT CARD IS DELETED, NOT SWITCHED OFF
 (modules/shortcut_hints.lua + tests/test_shortcut_hints.lua are gone):
 

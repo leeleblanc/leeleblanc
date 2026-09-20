@@ -4,9 +4,35 @@
 -- =====================================================================
 -- 09-20-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.268.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.269.0
 -- =====================================================================
 
+-- NEW IN 6.269.0 — 🔗 THE ANCHORS CARD DRAWS ITS EIGHT ROWS, AND A CARD
+--   WITH NO ROWS NAMES ITSELF (modules/anchors.lua + the §1.12 loader):
+--   ⇪⇧U's card has been a heading over empty space since 6.180.0:
+--      anchors.lua declared its rows under `rows =`, the loader reads
+--      `g.entries` and coerces a missing one to {}, so eight real rows
+--      registered as a card with nothing under it. One key is the fix.
+--   🔎 NOTHING COULD SEE IT, and that is the durable half. The 6.196.0
+--      auditor joins a key COLUMN to the module that bound it, so it is
+--      blind to a card with no key columns at all: it flags
+--      MISATTRIBUTION, never ABSENCE, on purpose. A silent coercion
+--      under an auditor blind to absence is a defect with no instrument
+--      pointed at it — it survived eighty-nine releases.
+--   🔔 SO THE LOADER SAYS SO. A titled group registering with no rows
+--      takes the 🔔 degrade door — alert, ⚠️ Console line, a row in
+--      `_G.cheatsheetFaults` — and NAMES the key the rows sit under. The
+--      `or {}` STAYS: a thin card beats a sheet that throws; a
+--      family = "auto" card is empty on purpose and is exempt.
+--   🔎 `_G.cheatSheetReport()` — the sheet was the last big surface with
+--      no report at all. "empty" and "faults" are the two lines, and "no
+--      card registered yet" differs from "no card empty" (6.196.1).
+--   🧪 THREE CHECKS AT THREE DISTANCES: the loader's fault list must be
+--      empty; no module SOURCE may declare rows under a key the sheet
+--      does not read (comments stripped, 6.262.0); and init.lua's
+--      registration block must equal tests/loader_test.lua's — the drift
+--      sentry its comment has claimed since 6.101.0. 10,112 -> 10,128.
+--
 -- NEW IN 6.268.0 — 🗑 THE SHORTCUT HINT CARD IS DELETED, NOT SWITCHED
 --   OFF (modules/shortcut_hints.lua and its suite are GONE):
 --   LL, with a photograph of the 💡 SHORTCUT HINTS card in the ⇪/ sheet:
@@ -48,43 +74,12 @@
 --        · 10,195 -> 10,112 checks · six mutations, six bites, each on
 --          its own check.
 --
--- NEW IN 6.267.0 — ⏱ TWO STORES ARE READ WHEN THEY ARE FIRST NEEDED,
---   NEVER DURING BOOT (modules/file_tracker.lua + activity_tracker.lua):
---   LL, with his own boot log: "How can I wrap the file_tracker and
---      activity_tracker initialization in an asynchronous timer to speed
---      up the boot?" His ⏱ line read 453 ms across 72 modules — and
---      350 of them were those two, by a wide margin the slowest things
---      in the boot.
---   🔎 WHAT THEY WERE DOING: each setup() opened a CSV that lives in
---      OneDrive, read it whole, parsed every row (90 days of file moves ·
---      four months of sessions), pruned it and — on a migration or a
---      prune — REWROTE it. Synchronously, on the main thread, before a
---      single ⇪ shortcut had been bound.
---   🔑 A TIMER IS RIGHT AND A BARE doAfter IS WRONG, twice over. The
---      config already HAS the timer: `M.warm` runs seconds after boot in
---      its own pcall and a warm that throws is NAMED (6.33.0). And a
---      blind timer would leave the published list EMPTY until it landed,
---      so ⇪F pressed in that window would draw a 90-day history with
---      nothing in it — "not read yet" and "you have no history" reading
---      the same, which is the failure 6.196.1 exists to stop.
---   🚪 SO THE READ IS LAZY AND THERE IS ONE DOOR. The first caller that
---      wants the rows pays for them; warm() is that caller on an ordinary
---      Mac, and `M.warmAfter` (3.0 and 4.5) puts the two reads on
---      DIFFERENT turns of the run loop — two OneDrive CSVs parsed in one
---      turn is one long stall wearing two names (6.228.0). A keypress
---      that arrives first gets the read rather than an empty answer.
---   🔒 A source sentry per module fails if any caller reaches for the
---      bare global again; each report has a "history" line with THREE
---      states. 📏 COST, NAMED: the read is still synchronous and still
---      on the main thread when it happens. What moved is WHEN.
---        · 10,166 -> 10,195 checks · twelve mutations, twelve bites.
---
--- (6.266.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.267.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.268.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.269.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -181,7 +176,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.268.0"
+_G.configVersion = "6.269.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the
@@ -3072,6 +3067,9 @@ end
 _G.moduleDir         = hs.configdir .. "/modules"
 _G.moduleStatus      = {}    -- one record per module, for the report
 _G.moduleCheatsheets = {}    -- groups contributed by loaded modules
+-- 🔎 6.269.0 — cards that registered a title with NO rows. Empty on a
+-- healthy Mac; `_G.cheatSheetReport()` prints it.
+_G.cheatsheetFaults  = {}
 _G.moduleWarmTimers  = {}    -- HELD: an unreferenced hs.timer is collected
 
 -- =====================================================================
@@ -3414,13 +3412,43 @@ local function loadOneModule(name, settings)
     -- SEVERAL groups (`cheatsheet` as a LIST — numpad_layer serves two
     -- families); family = "auto" registers EVEN WITH NO CHEATSHEET.
     local cs     = mod.cheatsheet
-    local groups = nil
+    local groups, synthetic = nil, false
     if type(cs) == "table" then groups = cs.title and { cs } or cs end
     if (not groups or #groups == 0) and mod.family == "auto" then
         groups = { { title = mod.name or name, entries = {} } }
+        synthetic = true   -- empty ON PURPOSE: family = "auto" registers
+                           -- a card so the tool is listed at all.
     end
     for gi, g in ipairs(groups or {}) do
         if type(g) == "table" and g.title then
+            -- 🔎 6.269.0 — A CARD WITH A TITLE AND NO ROWS NAMES ITSELF.
+            -- The `or {}` below is the degrade that stops a malformed
+            -- group taking the sheet down; it also made anchors.lua's
+            -- `rows =` (instead of `entries =`) look like a design
+            -- choice for eighty-nine releases, and the 6.196.0 auditor
+            -- is blind to it BY DESIGN — it flags MISATTRIBUTION, never
+            -- ABSENCE. The coercion STAYS, a thin card beats a sheet
+            -- that throws; what changes is that the loader says so and
+            -- names the key the rows are hiding under. CHANGELOG 6.269.0.
+            local rows = (type(g.entries) == "table") and #g.entries or 0
+            if rows == 0 and not synthetic then
+                local other, otherN = nil, 0
+                for k, v in pairs(g) do
+                    if k ~= "entries" and type(v) == "table" and #v > otherN then
+                        other, otherN = k, #v
+                    end
+                end
+                local why = (mod.name or name)
+                    .. "'s cheat-sheet card has a title and no rows"
+                    .. (other and (" — " .. otherN .. " row(s) are under `"
+                                   .. other .. "`, and the sheet only reads `entries`")
+                              or " (its `entries` list is missing or empty)")
+                _G.cheatsheetFaults[#_G.cheatsheetFaults + 1] = {
+                    source = mod.name or name, title = g.title,
+                    key    = other,            rows  = otherN, why = why,
+                }
+                degrade("Cheat sheet", why)
+            end
             table.insert(_G.moduleCheatsheets, {
                 title   = g.title,
                 entries = g.entries or {},

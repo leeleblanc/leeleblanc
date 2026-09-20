@@ -55,7 +55,15 @@ local M = {
     family = "capture",
     cheatsheet = {
         title = "🔗 ANCHORS (⇪⇧U — link what is in front of you to a note)",
-        rows = {
+        -- 🚨 6.269.0 — THIS KEY IS `entries`, AND IT WAS `rows` FROM THE
+        -- DAY THIS MODULE WAS WRITTEN (6.180.0). The loader reads
+        -- `g.entries` and coerces a missing one to {}, so all eight rows
+        -- below were registered as a card with a title and nothing under
+        -- it: ⇪/ drew "🔗 ANCHORS …" over empty space for eighty-nine
+        -- releases. Renaming the key is the whole fix; the rows never
+        -- changed. The loader NAMES this shape now and a gate sentry
+        -- refuses it, so it cannot come back silently in another module.
+        entries = {
             { "⇪⇧U",      "Link the front document / tab / app to a vault note" },
             { "again",     "Already linked? The rows at the top are the notes that mention it" },
             { "⏎",         "Open that note in Hamsidian (⇪3)" },

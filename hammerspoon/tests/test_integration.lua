@@ -294,6 +294,7 @@ _G.hyperAddShortcut = function(mods, key, fn, src)
     HYPER_OWNER[combo] = HYPER_OWNER[combo] or (_G.moduleLoading or "init.lua")
 end
 _G.moduleStatus, _G.moduleCheatsheets = {}, {}
+_G.cheatsheetFaults = {}
 _G.choosers, _G.configVersion = {}, "test"
 
 -- The §0.1/§1.5 globals loader_test.lua closes over when it builds the
@@ -615,6 +616,7 @@ end
 -- harness did not.
 HYPER_CLAIMS, SERVICES, GLOBAL_HOTKEYS = {}, {}, {}
 _G.moduleStatus, _G.moduleCheatsheets = {}, {}
+_G.cheatsheetFaults = {}
 printed = {}
 
 local loaded, failed = _G.loadModules(MODULES)
@@ -877,6 +879,92 @@ check("its globals do not stomp anything else's", _G.mouseGrid ~= nil
 out("   -- the cheat sheet --\n")
 check("every loaded module registered a cheat sheet group",
       #_G.moduleCheatsheets >= 1, #_G.moduleCheatsheets)
+
+-- 🔗 6.269.0 — A CARD WITH A TITLE AND NO ROWS UNDER IT.
+-- anchors.lua declared its eight rows under `rows =` from the day it was
+-- written; the loader reads `g.entries` and coerces a missing one to {},
+-- so ⇪⇧U's card was a heading over empty space for eighty-nine releases
+-- and NOTHING here could see it: the 6.196.0 auditor above joins a key
+-- COLUMN to the module that bound the key, which makes it blind to a card
+-- with no key columns at all. It flags MISATTRIBUTION, never ABSENCE.
+-- Three checks, at three different distances from the bug.
+local function slurpFile(p)
+    local fh = io.open(p, "r"); if not fh then return nil end
+    local s = fh:read("*a"); fh:close(); return s
+end
+
+-- A. THE PRODUCTION RULE, RUN FOR REAL: the shipped loader records every
+-- group that registers with no rows, and on a healthy config that list is
+-- empty. This is the check that bites if any module regresses.
+check("🔗 NO CARD ON THE SHEET DRAWS A TITLE OVER NOTHING", (function()
+    local f = _G.cheatsheetFaults or {}
+    if #f == 0 then return true end
+    local why = {}
+    for _, x in ipairs(f) do why[#why + 1] = tostring(x.why) end
+    return false, table.concat(why, "; ")
+end)())
+
+-- B. THE SOURCE SENTRY, about the CLASS rather than the one module: a
+-- titled group whose rows sit under a key the sheet never reads. Read
+-- with COMMENTS STRIPPED (6.262.0) — the comment this release leaves in
+-- anchors.lua quotes both `rows` and `entries` on purpose.
+check("🔗 NO MODULE DECLARES ITS CHEAT-SHEET ROWS UNDER A KEY THE SHEET "
+      .. "DOES NOT READ (`entries`, never `rows`)", (function()
+    local bad = {}
+    for _, name in ipairs(MODULES) do
+        local src = slurpFile(HS .. "/modules/" .. name .. ".lua")
+        local i   = src and src:find("cheatsheet = {", 1, true)
+        if i then
+            local j = src:find("{", i, true)
+            local k, d = j, 0
+            while k <= #src do
+                local c = src:sub(k, k)
+                if c == "{" then d = d + 1
+                elseif c == "}" then d = d - 1; if d == 0 then break end end
+                k = k + 1
+            end
+            local blk = src:sub(j, k):gsub("%-%-[^\n]*", "")
+            local titles, entries = 0, 0
+            for _ in blk:gmatch("title%s*=")   do titles  = titles  + 1 end
+            for _ in blk:gmatch("entries%s*=") do entries = entries + 1 end
+            if titles > entries then
+                bad[#bad + 1] = name .. " (" .. titles .. " titled group(s), "
+                             .. entries .. " `entries` key(s))"
+            end
+        end
+    end
+    if #bad > 0 then return false, table.concat(bad, "; ") end
+    return true
+end)())
+
+-- C. THE DRIFT SENTRY loader_test.lua's OWN COMMENT HAS CLAIMED SINCE
+-- 6.101.0 ("test_tools asserts the two blocks agree") — and no such check
+-- has ever existed. A hand-kept copy of the shipped loader with nothing
+-- holding it in step tests a loader nobody ships, which is the same
+-- silence this whole release is about. Comments stripped, whitespace
+-- flattened: the CODE must agree, the prose need not.
+check("🔗 init.lua's cheat-sheet REGISTRATION BLOCK and "
+      .. "tests/loader_test.lua's are the same code", (function()
+    local function regBlock(p)
+        local src = slurpFile(p)
+        if not src then return nil, p .. " could not be read" end
+        local i = src:find("local cs     = mod.cheatsheet", 1, true)
+        local e = "source  = mod.name  or name,"
+        local j = i and src:find(e, i, true)
+        if not (i and j) then return nil, "registration block not found in " .. p end
+        local b = src:sub(i, j + #e - 1):gsub("%-%-[^\n]*", ""):gsub("%s+", " ")
+        return (b:gsub("^ ", ""):gsub(" $", ""))
+    end
+    local a, ea = regBlock(HS .. "/init.lua")
+    local b, eb = regBlock(HS .. "/tests/loader_test.lua")
+    if not a then return false, ea end
+    if not b then return false, eb end
+    if a ~= b then
+        return false, "they differ — " .. #a .. " vs " .. #b
+                   .. " chars once comments are stripped"
+    end
+    return true
+end)())
 check("NO TWO MODULES SHARE A CHEAT-SHEET ORDER — a tie makes the sheet's "
       .. "running order depend on table iteration, which is not stable",
       (function()

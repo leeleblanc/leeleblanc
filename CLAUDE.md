@@ -2248,6 +2248,52 @@ get a PAIR exemption (`AUDIT_SHARED["Vault||n"]`), never a bare combo —
 exempting "|n" would blind it to every future misprint of ⇪N. It caught
 a live one on its first run: the Vault's sheet still offered ⇪1 after
 6.194.0 moved ⇪1 to mouse-follows.
+🔗 6.269.0 — AND WHAT IT CANNOT SEE IS A CARD WITH NO ROWS AT ALL
+  (modules/anchors.lua + init.lua's §1.12 loader). anchors.lua declared
+  its eight rows under `rows =` from the day it was written (6.180.0);
+  the loader reads `g.entries` and coerces a missing one to `{}`, so ⇪⇧U
+  drew the heading "🔗 ANCHORS (⇪⇧U …)" over empty space for eighty-nine
+  releases with the eight correct rows sitting in the file. ONE KEY was
+  the whole fix.
+  🔑 THE GENERAL RULE, and it is the expensive half: AN AUDITOR THAT
+  JOINS TWO THINGS CAN ONLY EVER SPEAK ABOUT ROWS THAT EXIST. The audit
+  above joins a card's KEY COLUMN to the module that bound the key, so
+  it is structurally blind to a card with no key columns — it flags
+  MISATTRIBUTION, never ABSENCE, and that is the right call for the
+  reason stated above. The shape that got through was therefore the one
+  nobody was looking for: not a wrong row, not a stale row, NO rows.
+  When a check works by joining A to B, ask what it says about a
+  MISSING A — and put a different instrument on that, because widening
+  the join is what makes an auditor cry wolf and get switched off.
+  🔔 THE LOADER NAMES IT NOW: a titled group registering with no usable
+  `entries` is recorded in `_G.cheatsheetFaults` and takes the 🔔 door,
+  and the message DOES THE DIAGNOSIS rather than reporting the symptom —
+  it names the key the rows are hiding under and the count ("8 row(s)
+  are under `rows`, and the sheet only reads `entries`"). Had that
+  sentence existed in 6.180.0 this was a five-minute fix on day one.
+  📏 THE COERCION STAYS: `g.entries or {}` is what stops one malformed
+  group taking the WHOLE sheet down (cheatsheet.lua walks
+  `ipairs(g.entries)` unguarded). IT DEGRADES, IT NEVER BREAKS is
+  unchanged; what this release pays is A BREAK IS SEEN, NEVER ONLY
+  LOGGED, which every silent `or {}` in this config is quietly exempt
+  from. GENERAL: a nil-coercion that converts a STRUCTURAL defect into a
+  plausible-looking empty answer owes a line that says it happened.
+  `family = "auto"` cards are empty on purpose and are exempt.
+  🔎 `_G.cheatSheetReport()` — the sheet was the last big surface with no
+  report at all, which is exactly why nothing could be ASKED about this.
+  "empty" (what he can see) is printed before "faults" (why), because a
+  card can be empty without the loader having caught a reason.
+  🚨 AND A COMMENT CLAIMED A GUARD THAT HAS NEVER EXISTED:
+  tests/loader_test.lua — the hand-kept copy of §1.12 that the whole
+  gate runs on — has said since 6.101.0 that "test_tools asserts the two
+  blocks agree". It does not, and never did. That is 6.199.0's rule
+  inverted and worse than the case it was written for: a guard no test
+  can fail is dead code with a comment on it; a comment describing a
+  guard that does not exist is an invitation to edit one copy and trust
+  the other — which is precisely what this release had to do. The drift
+  sentry is written now (both blocks, comments stripped, whitespace
+  flattened) and the comment is true. GENERAL: when a comment claims a
+  check, grep for the check.
 🔁 ⇪space = APP LAUNCHER, ⇪D = UNIFIED SEARCH (6.196.0, LL's swap).
 🚨 The SHIFTED half did NOT follow: ⇪⇧D must stay UNCLAIMED so it forwards
 as ⌘⇧⌃⌥D to core/diagnostics.lua's plain hotkey — every boot line names
@@ -2706,6 +2752,7 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
+| 6.269.0 | 🔗 the ⇪⇧U anchors card draws its eight rows — one key was misspelled since 6.180.0 — and a card with a title and no rows now names itself, with `_G.cheatSheetReport()` to ask | pending |
 | 6.268.0 | 🗑 the shortcut hint card is deleted, not switched off — the module, its suite, its ⇪/ card, its boot line and both profiles' settings lines are gone | pending |
 | 6.267.0 | ⏱ the boot stops reading two OneDrive CSVs — the 90-day file history and the four months of sessions are read when they are first needed (350 ms of a 453 ms boot) | pending |
 | 6.266.0 | 🧊 the frozen grid box: a panel the caller gave up on is never put back on screen — the retry hands the canvas back instead of showing it itself | pending |
@@ -2738,6 +2785,33 @@ next boot announced it (LL: "fortunately hammerspoon caught itself"). LL is on
 built. The work Mac's storm report is still owed, on 6.215.0 now.
 
 ## Open items — update as they move
+
+- 🔗 THE CHEAT-SHEET PASS, 2026-09-20 (LL: "please make a good pass down
+  the cheat sheet"). WHAT IT FOUND, and what is left:
+  1. ✅ THE 🔗 ANCHORS CARD WAS EMPTY — SHIPPED AS 6.269.0. The durable
+     rule is above. Eight rows under `rows =` instead of `entries =`,
+     invisible to the 6.196.0 auditor by design.
+  2. 📏 MEASURED AND CLEAN, so it is not re-asked: 106 ⇪ combos bound
+     across every route; ZERO dead key promises (every key printed on a
+     card is really bound); zero misattributed; 71 Console commands
+     named on cards and all 71 real. ⇪⇧Z is the only free combo left —
+     the keyboard is genuinely full.
+  3. 🗳 OPEN, HIS CALL: four visible strings still tell him to use
+     Obsidian — ⇪3's card row whose KEY COLUMN is the word "Obsidian",
+     ⇪N's ⌘⇧S row ("Obsidian opens them"), `_G.vaultReport()`, and the
+     vault summary — plus the ⇪⇧U row 6.269.0 has just made visible.
+     Nothing in this config launches, links to or requires Obsidian
+     (grep for `obsidian://|open -a Obsidian|md.obsidian`: zero hits);
+     it is a FILE-FORMAT lineage so his notes stay portable. The
+     behaviour stays either way; the question is only the wording, and
+     it is one release when he answers.
+  4. ❌ DIALOG HOME FREED NO KEYS, asked and answered: at its last commit
+     (f16e286) it had no `hyperAddShortcut`, no `hs.hotkey` and no
+     `hyperBind` — its card's left column held WORDS (off, back on,
+     auto, capture, default, scope, sheets, reset), not combos. If he is
+     remembering a key for "make a window stay put", the candidate is
+     win_pin, removed 6.166.0, which held ⇪⇧U — freed then and spent
+     again by anchors in 6.180.0. Ask before building.
 
 - 📥 LL'S QUEUE, 2026-09-20 (asked in two messages; NONE built yet,
   and the order below is MINE until he says otherwise — removals and
@@ -3339,6 +3413,48 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.269.0 verify with LL — 🔗 THE ANCHORS CARD HAS ROWS (KNOWN GROUND):
+  install (it carries 6.268.0, so do that block too — you said to skip
+  installing that one on its own).
+  ⇪/ and search `anchors`. The 🔗 ANCHORS card now has EIGHT ROWS under
+  it — ⇪⇧U, again, ⏎, new, pick, in a note, moved, Console. On every
+  release you have ever installed, that card was a heading with nothing
+  underneath it, and I only found it by reading the sheet.
+  🔎 WHAT IT WAS, in one sentence: the module wrote `rows =` where every
+  other module writes `entries =`, the loader turned the missing
+  `entries` into an empty list without comment, and the card drew a
+  title over nothing. The eight rows were correct and in the file the
+  whole time. Renaming one word is the entire fix.
+  🚨 THE PART THAT MATTERS MORE, and it is the reason this release is
+  worth its own zip: THE CONFIG NOW TELLS YOU. If any card ever
+  registers with no rows again, you get an alert as it happens —
+      ⚠️ Cheat sheet — <tool>'s cheat-sheet card has a title and no rows
+         — 8 row(s) are under `rows`, and the sheet only reads `entries`
+  — plus a ⚠️ Console line. That sentence is the whole diagnosis; send it
+  to me and the fix is one word. Nothing should ever print it, so if you
+  DO see it, that is a real finding.
+  📋 AND THE SHEET HAS A REPORT FOR THE FIRST TIME. Console:
+  `_G.cheatSheetReport()`. Healthy reads:
+      cards  : <N> card(s) · <N> row(s) from 71 module(s)
+      empty  : none — every card on the sheet has rows under it
+      faults : none — no module registered a card with no rows
+  If "empty" ever has a number on it, the ↳ line under it NAMES the card
+  and the tool it came from. Paste the whole thing — it prints as one
+  block on purpose.
+  📜 A SECOND, INDEPENDENT PROOF you can see without the Console: open
+  RESOLVED-FEATURE-REQUESTS.txt at the root of the archive and ⌘F for
+  "Link the front document". Those rows are in that shipped document for
+  the FIRST time — the generator reads the same cheat sheets the sheet
+  does, so it had been missing them for eighty-nine releases too.
+  🚨 NOTHING ELSE CHANGED. ⇪⇧U itself is untouched: it still identifies
+  the front tab, document or app, still greps Hamsidian for notes that
+  mention it, still writes plain Markdown. No key moved.
+  📏 NAMED, NOT FIXED, so it is not a surprise: one of those eight rows
+  says the link is "plain Markdown under '## Linked' — Obsidian opens
+  it". That is the Obsidian wording you asked about, and it is now
+  VISIBLE where it was hidden before. I have left every Obsidian string
+  alone on purpose — rewording them is your call and its own release.
+
 - 6.268.0 verify with LL — 🗑 THE HINT CARD IS GONE (KNOWN GROUND):
   install (carries 6.267.0, so do that block's ⏱ boot-line check too).
   ⇪/ and search `hint` — the 💡 SHORTCUT HINTS card you photographed is

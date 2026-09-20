@@ -63,6 +63,7 @@
 _G.moduleDir         = hs.configdir .. "/modules"
 _G.moduleStatus      = {}    -- one record per module, for the report
 _G.moduleCheatsheets = {}    -- groups contributed by loaded modules
+_G.cheatsheetFaults  = {}    -- 6.269.0: cards that registered with no rows
 _G.moduleWarmTimers  = {}    -- HELD: an unreferenced hs.timer is collected
 
 -- =====================================================================
@@ -184,6 +185,16 @@ _G.core = core   -- so a module author can inspect it from the Console
 
 -- Load one module. Returns a status record; never throws, whatever the
 -- module does.
+-- 🔔 6.269.0 — init.lua's degrade fallback, lifted, so the cheat-sheet
+-- registration block below can be a VERBATIM copy of the shipped one.
+-- test_integration diffs the two blocks with comments stripped.
+local function degrade(tool, why)
+    if _G.notices and _G.notices.degrade then return _G.notices.degrade(tool, why) end
+    why = tostring(why or "no reason given")
+    print("⚠️ " .. tostring(tool or "?") .. ": " .. why)
+    return false, why
+end
+
 local function loadOneModule(name, settings)
     local path = _G.moduleDir .. "/" .. name .. ".lua"
     local rec  = { name = name, path = path, ok = false, ms = 0 }
@@ -260,13 +271,33 @@ local function loadOneModule(name, settings)
     -- changed three things here — families, several groups per module, and
     -- a slot per GROUP — and test_tools asserts the two blocks agree.
     local cs     = mod.cheatsheet
-    local groups = nil
+    local groups, synthetic = nil, false
     if type(cs) == "table" then groups = cs.title and { cs } or cs end
     if (not groups or #groups == 0) and mod.family == "auto" then
         groups = { { title = mod.name or name, entries = {} } }
+        synthetic = true
     end
     for gi, g in ipairs(groups or {}) do
         if type(g) == "table" and g.title then
+            local rows = (type(g.entries) == "table") and #g.entries or 0
+            if rows == 0 and not synthetic then
+                local other, otherN = nil, 0
+                for k, v in pairs(g) do
+                    if k ~= "entries" and type(v) == "table" and #v > otherN then
+                        other, otherN = k, #v
+                    end
+                end
+                local why = (mod.name or name)
+                    .. "'s cheat-sheet card has a title and no rows"
+                    .. (other and (" — " .. otherN .. " row(s) are under `"
+                                   .. other .. "`, and the sheet only reads `entries`")
+                              or " (its `entries` list is missing or empty)")
+                _G.cheatsheetFaults[#_G.cheatsheetFaults + 1] = {
+                    source = mod.name or name, title = g.title,
+                    key    = other,            rows  = otherN, why = why,
+                }
+                degrade("Cheat sheet", why)
+            end
             table.insert(_G.moduleCheatsheets, {
                 title   = g.title,
                 entries = g.entries or {},

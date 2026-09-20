@@ -1,5 +1,5 @@
 ========================================================================
-RESOLVED FEATURE REQUESTS — Hammerspoon config 6.268.0
+RESOLVED FEATURE REQUESTS — Hammerspoon config 6.269.0
 Every feature and how to use it. Generated from the modules' own
 cheat sheets (the rows ⇪/ draws), so it is never out of date.
 ⇪ = Caps Lock held (the hyper key). ⇪⇧X = Caps Lock + Shift + X.
@@ -229,6 +229,14 @@ In the Console, _G.<tool>Report() prints any tool's own report.
   if dead   Accessibility → Pointer Control → Mouse Keys steals the pad
 
 🔗 ANCHORS (⇪⇧U — link what is in front of you to a note)   [modules/anchors.lua]
+  ⇪⇧U   Link the front document / tab / app to a vault note
+  again     Already linked? The rows at the top are the notes that mention it
+  ⏎       Open that note in Hamsidian (⇪3)
+  new       First row makes a note named after the thing and links it
+  pick      Last row: choose any existing note to link it into
+  in a note The link is plain Markdown under '## Linked' — Obsidian opens it
+  moved     A renamed or moved file is found again by name (the ⇪D index)
+  Console   _G.anchorsReport()
 
 📋 CLIPBOARD HISTORY (⇪V — every copy, searchable)   [modules/clipboard_history.lua]
   ⇪V      Search clipboard history — matches the FULL text
@@ -756,6 +764,7 @@ In the Console, _G.<tool>Report() prints any tool's own report.
 
 📜 RELEASE INDEX — newest first, one line per release (the full story of each is in CHANGELOG.md)
 ------------------------------------------------------------------------
+  6.269.0  🔗 THE ANCHORS CARD DRAWS ITS EIGHT ROWS, AND A CARD
   6.268.0  🗑 THE SHORTCUT HINT CARD IS DELETED, NOT SWITCHED OFF
   6.267.0  ⏱ TWO STORES ARE READ WHEN THEY ARE FIRST NEEDED, NEVER
   6.266.0  🧊 A PANEL YOU GAVE UP ON IS NEVER PUT BACK ON SCREEN
