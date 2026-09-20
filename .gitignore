@@ -51,4 +51,4 @@ hammerspoon*.zip
 # ONE AT A TIME: the previous release's zip is deleted in the same commit,
 # so the working tree carries exactly one. The COST is real and named in
 # CLAUDE.md — git history keeps every blob for ever, ~3 MB a release.
-!hammerspoon6.264.0.zip
+!hammerspoon6.265.0.zip
