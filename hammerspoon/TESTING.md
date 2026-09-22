@@ -1,4 +1,4 @@
-# TESTING — how to score release 6.274.0
+# TESTING — how to score release 6.275.0
 
 You install ONE archive and it carries several releases. Below are the
 steps for each release this archive is new for, newest first. Run the
@@ -26,6 +26,67 @@ else is a LOSS and I fix it before building further. You are the only
 scorer; I never mark my own.
 
 ---
+
+## 6.275.0
+
+6.275.0 verify with LL — 📘 THE INSTALL GUIDE (KNOWN GROUND, docs only)
+WHAT CHANGED: INSTALL.md is rewritten and HAMSIDIAN.md has a new §7b on
+linking. NO code changed — same modules, same keys, same behaviour.
+WHY IT MATTERS: you missed the install on the work Mac, and the old
+guide made that easy. The step that matters is the one that puts files
+in ~/.hammerspoon, and skipping it looks exactly like doing nothing.
+
+A. THE HEADLINE — do this ON THE WORK MAC.
+A1. Open INSTALL.md from the archive root. Read the box at the very top.
+    EXPECT: one command, and what ✅ and ❌ look like.
+A2. Run that command on the work Mac:
+      ls ~/.hammerspoon/init.lua && sed -n 7p ~/.hammerspoon/init.lua
+    EXPECT: either a version line (installed) or "No such file or
+    directory" (not installed). Either answer is useful — tell me which
+    you got, because it settles what happened there.
+A3. If it says not installed, follow Step 3 end to end and run 3d.
+    EXPECT 3d prints: a path · the version · 12 · 71 · a path.
+    If any line is missing, that is the bug and I want the output.
+
+B. THE SNIPPETS QUESTION, ANSWERED — check it rather than take my word.
+B1. On the work Mac: `ls ~/.hammerspoon/snippets/bundled.lua`
+    EXPECT: a path. The 1,926 public snippets ship IN the archive and
+    the installer places them. Nothing to install.
+B2. Press ⇪⇧S. EXPECT: the picker, with sections.
+B3. Console: `_G.snippetsList()`. EXPECT: a count in the thousands.
+B4. Type a trigger in any app. EXPECT: it expands.
+    ❌ If the picker works but typing does nothing, Accessibility is off
+    or was granted AFTER launch — quit and relaunch Hammerspoon.
+
+C. THE IT SECTION — read it before you talk to them.
+C1. Read "What IT has to say yes to". Four rows, each with what you lose
+    if refused, plus the list of what they do NOT have to allow.
+C2. Tell me if anything there is wrong for YOUR employer, or if they
+    ask for something the list does not cover. That is the one part I
+    cannot verify from here, and it is the part that decides whether
+    this runs at work at all.
+
+D. HAMSIDIAN §7b — linking out.
+D1. Read §7b. Then do it: open a Word document, press ⇪⇧U, press ⌘2,
+    pick a note.
+    EXPECT: the note gains a `## Linked` section with one Markdown line.
+D2. In Hamsidian, press ⌘K and pick a screenshot from OneDrive.
+    EXPECT: a Markdown link at the caret; ⌘⏎ on it opens the image.
+
+E. QUESTIONS — ANSWERS WANTED, NOTHING TO RUN.
+E1. What is the work Mac's computer name (`scutil --get ComputerName`)?
+    It gets its own profile in the next release, which is how we switch
+    anything off there without you editing init.lua.
+E2. Scratch tabs vs notes: do you want a ⇪N tab to become a real .md
+    note the moment you make it (one list, everything a file, and every
+    keystroke writes to OneDrive), or to stay a tab until you press ⌘⇧S
+    (fast and local, two lists)? That one answer is the whole release —
+    see the queue note.
+E3. Did the archive open? Both a .tar.gz and a .zip are in this one
+    because you asked for the zip by name. Tell me which you used and
+    whether it worked, and the next release carries only that one.
+
+
 
 ## 6.274.0
 
@@ -241,59 +302,6 @@ E1. Is a ✕ per row the right control, or would you rather select a
     history row and press ⌫ the way the queue works? The second is a
     bigger change — the history rows are not keyboard-selectable today
     — so I did the simpler one. "✕ is fine" or "I want ⌫" decides it.
-
-
-
-## 6.271.0
-
-6.271.0 verify with LL — 🧪 THE TEST PLAN IS IN THE ARCHIVE (KNOWN GROUND)
-WHAT CHANGED: there is a TESTING.md at the root of the archive with the
-steps for each release it carries. You asked for it; the honest finding
-is that I had been writing these for every release since June and filing
-them in CLAUDE.md, which is not in the package — so none ever reached
-you and you were left inventing your own testing off the cheat sheet.
-WHY IT MATTERS: it is the thing that turns "that worked" into data.
-
-A. THE HEADLINE.
-A1. Unpack the archive and list what is at its root.
-    EXPECT: TESTING.md is there, beside GUIDE.md and INSTALL.md.
-A2. Open TESTING.md. Read the first line.
-    EXPECT: "# TESTING — how to score release 6.271.0" — THIS version.
-    Any older number is a FAIL and means the plan describes a build you
-    are not holding.
-A3. Scroll to the "How to report back" section.
-    EXPECT: it names three answers — PASS, FAIL, BLOCKED — and says to
-    paste the Console reports whether or not anything failed.
-A4. Count the release sections (## 6.2xx.0 headings).
-    EXPECT: four, newest first, starting with 6.271.0.
-A5. Read the 6.270.0 section.
-    EXPECT: numbered steps with an EXPECT on each, grouped A/B/C/D —
-    not the paragraphs the older sections are still written in.
-
-B. THE REAL TEST OF THIS RELEASE IS THE NEXT ONE. There is nothing to
-   exercise in the config: no key, no panel, no behaviour changed.
-B1. Run the 6.270.0 section of TESTING.md end to end and send me the
-    results in its format.
-    EXPECT: you get through it without having to ask me what a step
-    means. If a step is ambiguous, THAT is the bug in this release —
-    tell me which number and what was unclear.
-B2. Then the 6.269.0 section the same way.
-
-C. PASTE BACK.
-C1. Nothing new. The reports the two sections above ask for are the
-    whole of it — which is the point: this release adds instructions,
-    not instruments.
-
-D. A JUDGEMENT ONLY YOU CAN MAKE.
-D1. Is four releases per plan the right depth, or do you want only the
-    newest? "four is right" · "just the newest" · "all of them".
-D2. Are the steps at the right grain? Too coarse and they miss things;
-    too fine and you will not run them. Tell me which way to move, on
-    the 6.270.0 section specifically, since that is the one with the
-    most steps.
-D3. Anything you routinely check that I have NOT asked for — that is
-    the most valuable answer here, because it is a test I do not know
-    to write.
 
 
 

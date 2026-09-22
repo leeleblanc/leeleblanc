@@ -4,9 +4,35 @@
 -- =====================================================================
 -- 09-22-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.274.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.275.0
 -- =====================================================================
 
+-- NEW IN 6.275.0 — 📘 THE INSTALL GUIDE TELLS YOU WHAT FAILURE LOOKS LIKE
+--   (INSTALL.md, HAMSIDIAN.md — documentation only, no behaviour change):
+--   LL, after missing the install on his IT-managed work Mac: "These
+--      install steps are not detailed enough … give me what is a failure,
+--      along with a success at each step."
+--   🚨 THE MISSED STEP WAS THE ONLY ONE THAT MATTERS — the files have to
+--      land in ~/.hammerspoon, and unpacking into ~/Downloads and
+--      reloading looks exactly like doing nothing. It is a box at the TOP
+--      of the file now, with the one command that answers "is this Mac
+--      installed at all", and Step 3 ends with a five-line proof.
+--   ✅❌ EVERY STEP CARRIES BOTH OUTCOMES and the fix on the same line, so
+--      a failure is a thing he can act on rather than a thing to report.
+--   🔒 AND A SECTION HE CAN HAND TO IT: the four things they must allow,
+--      what each costs if refused, and the list of things they do NOT
+--      have to allow — no admin, no sudo, no launchd, no system-wide
+--      install, removable with one rm. Plus the 90% ask (the app and
+--      Accessibility) for when he wants to ask for as little as possible.
+--   📎 SNIPPETS, EXPLICITLY: the 1,926 public ones SHIP in the archive and
+--      the installer already places them — nothing to install. His own
+--      textpanders are the OneDrive half, and the guide warns rather than
+--      instructs, because that folder holds an address, a phone number
+--      and an employee ID and the work Mac is not his disk.
+--   🔗 HAMSIDIAN.md §7b — how to link OUT: ⇪⇧U for what is in front of
+--      you, ⌘K for a file you have to go and find, ⇪space @images for a
+--      screenshot you cannot name, and what each actually writes.
+--
 -- NEW IN 6.274.0 — 🔔 ⇪4 CAN NO LONGER FAIL WITHOUT LEAVING A NUMBER
 --   BEHIND (init.lua's alert wrap, core/notices.lua, modules/screenshots.lua):
 --   LL: "hyper+4 is intermittently working", with eight hours of Console
@@ -24,38 +50,12 @@
 --      crosshair, and how many of those were a REFUSAL rather than his
 --      own settings line. 🚪 `ensureDir` takes the 🔔 door too.
 --
--- NEW IN 6.273.0 — 🔌 ⇪⇧U COULD ONLY EVER DO ONE OF THE FOUR THINGS ITS
---   CARD PROMISES (modules/anchors.lua, modules/vault.lua,
---   tests/service_registry.lua):
---   LL, scoring 6.269.0's newly visible anchors card BLOCKED, with a
---      screenshot of ⇪⇧U over Transmission and a report whose `note` line
---      read "table: 0x77fdbff940".
---   🔎 A TABLE PRINTED WHERE A SENTENCE BELONGS IS A VALUE IN THE WRONG
---      SLOT. `_G.service.call` returns the PROVIDER'S OWN values, raw,
---      with no `ok` in front, and all four of this module's call sites
---      read one as if there were — every value a slot late, since
---      6.180.0. The front document was never named, 🚚 move survival
---      never resolved, "📁 Link it into an existing note…" always said
---      "No notes to pick yet", and every failed write was reported as
---      "Hamsidian is not loaded".
---   🔑 ROOT CAUSE: A WRAPPER WHOSE TWO SHAPES DISAGREED — `false, "not
---      loaded"` for a missing provider (a STATUS in slot one) against the
---      registry's raw values (DATA in slot one). It answers nil now.
---   🧪 AND THE SUITE INVENTED THE CONVENTION IT WAS WRITTEN AGAINST:
---      `return true, SERVICES[n](...)`, under a comment reading "exactly
---      as init.lua publishes it". tests/service_registry.lua LIFTS the
---      real block now; six checks went red and named all four dead legs.
---      GENERAL: a stub that invents a calling convention certifies the
---      bug rather than missing it (6.193.0, 7th time).
---   🔎 The report counts the legs apart, because "the app only" is both a
---      real degrade and the only thing ⇪⇧U could ever say (6.196.1).
---
--- (6.272.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.273.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.274.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.275.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -152,7 +152,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.274.0"
+_G.configVersion = "6.275.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the

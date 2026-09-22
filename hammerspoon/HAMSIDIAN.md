@@ -265,6 +265,115 @@ the next rescan (or `_G.vaultRescan()` in the Console).
 
 ---
 
+## 7b. 🔗 Linking to things OUTSIDE Hamsidian
+
+Notes link to each other with `[[double brackets]]` (§2). This section is
+the other direction: linking a note to a **document, a screenshot, a
+browser tab or a file in OneDrive**.
+
+There are two doors, and they do different jobs.
+
+---
+
+### ⇪⇧U — "link what I am looking at RIGHT NOW to a note"
+
+Use this when the thing is already open in front of you. You do not have
+to find it, name it, or know where it lives.
+
+**How to use it, step by step:**
+
+1. Put the thing in front. A Word document, an Excel sheet, a PDF in
+   Preview, a Chrome tab — anything.
+2. Press **⇪⇧U**.
+3. The panel's title names what it found:
+   - `🔗 document: Strategies of the Directors.docx` — it read the file
+     the app has open.
+   - `🔗 tab: <the page title>` — it read the browser's front tab.
+   - `🔗 app: Transmission  (no document or tab — the app only)` — that
+     app has no document to name. **This is correct, not a failure.**
+4. Any note that **already** links this thing is listed at the top.
+   Press ⏎ on one to open it in Hamsidian.
+5. Otherwise pick one of the two bottom rows:
+   - **⌘1 — ➕ New note: `<name>`** — makes a note named after the thing
+     and writes the link into it.
+   - **⌘2 — 📁 Link it into an existing note…** — a picker of all your
+     notes; choose one and the link is written there.
+
+**What it actually writes** — plain Markdown, under a `## Linked`
+heading, at the top of that section:
+
+```markdown
+## Linked
+- [Strategies of the Directors.docx](file:///Users/leeleblanc/Library/CloudStorage/OneDrive-Personal/Docs/Strategies%20of%20the%20Directors.docx)
+- [Q4 planning board](https://app.asana.com/0/12345/67890)
+```
+
+Nothing proprietary, no database, no sidecar file. Any Markdown editor
+opens those links, and so does ⌘⏎ inside Hamsidian.
+
+**Linking the same thing twice** is one line, not two — press ⇪⇧U again
+on the same document and it says *"Already in `<note>`"*.
+
+**🚚 If the file later moves or is renamed**, ⌘⏎ on that link asks the ⇪D
+file index for the same filename and opens it where it is now, saying
+*"🕸 Moved — opening …"*. If it cannot find it, it says the link is
+broken rather than opening the wrong thing.
+
+---
+
+### ⌘K — "link a file I have to go and find"
+
+Use this when the file is **not** open — an old screenshot, a
+spreadsheet three folders deep, a PDF somebody sent you.
+
+1. Open Hamsidian (**⇪3**) and put the caret where you want the link.
+2. Press **⌘K** (or click the 📎 button).
+3. A file picker opens, **starting in your OneDrive folder**.
+4. Pick a file. A Markdown link is written **at the caret**, relative to
+   the note.
+
+Because it is written relative to the note, the pair keeps working if you
+move the whole Vault folder to another Mac — which is the reason it is
+relative rather than absolute.
+
+---
+
+### 📸 Linking a screenshot
+
+Screenshots land in your OneDrive screenshots folder, so all three of
+these work:
+
+**The one I would use** — you took it a moment ago:
+1. ⇪3 to open Hamsidian, caret where you want it.
+2. ⌘K, navigate to the screenshots folder, pick the file.
+
+**If the screenshot is open in Preview:** put Preview in front and press
+**⇪⇧U**. It names the file and offers to write the link.
+
+**If you cannot remember which screenshot it was:** press **⇪space** and
+type `@images`. Every screenshot this config has ever read text out of is
+there, searchable **by the words inside the picture**, with a thumbnail.
+⌥⏎ opens the file; then use ⇪⇧U on it, or note the name and use ⌘K.
+
+> ⚠️ **A link is a link, not a copy.** The note points at the file where
+> it lives. Move the file out of OneDrive and the link goes looking for
+> it (see 🚚 above); delete the file and the link is dead. If you want the
+> picture *inside* the note, that is a different thing and Hamsidian does
+> not do it yet — say the word and it is a release.
+
+---
+
+### Which door, in one line
+
+| You are… | Use |
+|---|---|
+| looking at the thing right now | **⇪⇧U** |
+| writing a note and need to point at a file | **⌘K** |
+| pointing at another note | `[[double brackets]]` |
+| pointing at a screenshot you cannot name | **⇪space** `@images`, then ⇪⇧U or ⌘K |
+
+---
+
 ## 8. The rest, briefly
 
 | Key | What |

@@ -2898,7 +2898,7 @@ THE METHOD, when something breaks after a stacked zip:
    6.216.0 6f06071 · 6.217.0 a475bef · 6.218.0 41b002b · 6.219.0 862c177
    · 6.220.0 ac3975e · 6.221.0 ead07d9 · 6.222.0 1842ca7 · 6.223.0
    86ac82b · 6.224.0 67957ea · 6.225.0 98434fe · 6.226.0 304f1f9 ·
-   6.227.0 14e953a · 6.228.0 2aa3dfe · 6.229.0 a1318e1 · 6.230.0 0740c07 · 6.231.0 c1921af · 6.231.1 5a5c298 · 6.232.0 1ca3f6f · 6.233.0 2328c8c · 6.234.0 57f78d0 · 6.235.0 52e5b21 · 6.236.0 34cff8b · 6.236.1 fdce771 · 6.237.0 adf9256 · 6.238.0 3adad4f · 6.239.0 3adad4f (one commit, two releases) · 6.240.0 8f44bec · 6.241.0 dce517e · 6.242.0 1a1dab0 · 6.243.0 8fba04f · 6.244.0 9320906 · 6.245.0 9c1a8b1 · 6.246.0 1400abd · 6.247.0 3b92e99 · 6.248.0 e4e3a03 · 6.249.0 e4edc3f · 6.250.0 c267c1b · 6.251.0 f7b0d57 · 6.252.0 6307253 · 6.253.0 ef20313 · 6.254.0 14493e5 · 6.255.0 d371b34 · 6.256.0 3c29888 · 6.257.0 7f55d2b · 6.258.0 10d2250 · 6.259.0 2bcda06 · 6.260.0 f16e286 · 6.261.0 8680504 · 6.262.0 595dc2e · 6.263.0 014ddf6 · 6.264.0 5e41879 · 6.265.0 f0c487c · 6.266.0 9135f7b · 6.267.0 a621a60 · 6.268.0 c2e513f · 6.269.0 f6552ea (078cece is the same release before the report was corrected) · 6.270.0 b8eda88 · 6.271.0 b8edbe1 · 6.272.0 881a91b · 6.273.0 56b0d2b.
+   6.227.0 14e953a · 6.228.0 2aa3dfe · 6.229.0 a1318e1 · 6.230.0 0740c07 · 6.231.0 c1921af · 6.231.1 5a5c298 · 6.232.0 1ca3f6f · 6.233.0 2328c8c · 6.234.0 57f78d0 · 6.235.0 52e5b21 · 6.236.0 34cff8b · 6.236.1 fdce771 · 6.237.0 adf9256 · 6.238.0 3adad4f · 6.239.0 3adad4f (one commit, two releases) · 6.240.0 8f44bec · 6.241.0 dce517e · 6.242.0 1a1dab0 · 6.243.0 8fba04f · 6.244.0 9320906 · 6.245.0 9c1a8b1 · 6.246.0 1400abd · 6.247.0 3b92e99 · 6.248.0 e4e3a03 · 6.249.0 e4edc3f · 6.250.0 c267c1b · 6.251.0 f7b0d57 · 6.252.0 6307253 · 6.253.0 ef20313 · 6.254.0 14493e5 · 6.255.0 d371b34 · 6.256.0 3c29888 · 6.257.0 7f55d2b · 6.258.0 10d2250 · 6.259.0 2bcda06 · 6.260.0 f16e286 · 6.261.0 8680504 · 6.262.0 595dc2e · 6.263.0 014ddf6 · 6.264.0 5e41879 · 6.265.0 f0c487c · 6.266.0 9135f7b · 6.267.0 a621a60 · 6.268.0 c2e513f · 6.269.0 f6552ea (078cece is the same release before the report was corrected) · 6.270.0 b8eda88 · 6.271.0 b8edbe1 · 6.272.0 881a91b · 6.273.0 56b0d2b · 6.274.0 c6e9b6b.
    Keep this list current: one line per release, appended at ceremony
    time.
 4. A BISECT IS AN OPTION, NOT THE FIRST MOVE — it costs him an install
@@ -2994,6 +2994,7 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
+| 6.275.0 | 📘 the install guide says what FAILURE looks like at every step, has a section to hand to IT, and HAMSIDIAN.md gains §7b on linking out (docs only) | pending |
 | 6.274.0 | 🔔 ⇪4 can no longer fail without leaving a number behind — a refused alert is counted and its words kept, and ⇪4's routes are counted apart | pending |
 | 6.273.0 | 🔌 ⇪⇧U can finally do all four things its card promises — `_G.service.call` hands back the provider's own values and all four call sites read one a slot late, since 6.180.0 | pending |
 | 6.272.0 | 🗑 a ✕ on every 🕘 music history row forgets that track — by path, never by index, and it never plays the row it is removing | **WIN** — LL, 2026-09-20: "Pass on music player", and his report carried the proof: `forgot : 2 history row(s) removed with ✕ this session` |
@@ -3090,15 +3091,34 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
      delete, or a move into <Vault>/.trash which Obsidian already
      ignores), never os.remove — an unrecoverable delete of his writing
      is the one failure with no way back.
-  4. 📝 "SCRATCH" IS STILL ON SCREEN. LL: "I don't understand why
-     scratch is still there… I prefer to have everything a Hamsidian
-     entry." 6.253.0 renamed every visible string BUT the note list's own
-     section header, which still reads 📝 SCRATCH NOTES (vault.lua's
-     drawRows). 🔎 THE DEEPER HALF, and it is the ask under the ask: a
-     scratch TAB is not a .md note — it lives in scratch.json and only
-     becomes a note on ⌘⇧S. "Everything a Hamsidian entry" means the two
-     sections become one, which is a DATA decision (does a tab become a
-     file the moment it is made?), not a rename. Ask before building.
+  4. 📝 "SCRATCH" IS STILL ON SCREEN — ASKED TWICE NOW (LL, 2026-09-20 and
+     again 2026-09-22: "I still want to remove the scratch note and
+     consider any entry as an entry into Hamsidian"). 6.253.0 renamed
+     every visible string BUT the note list's own section header, which
+     still reads 📝 SCRATCH NOTES (vault.lua's drawRows).
+     🔎 THE ASK UNDER THE ASK IS A DATA DECISION, not a rename: a scratch
+     TAB is not a .md note — it lives in scratch.json and only becomes a
+     file on ⌘⇧S. "Everything a Hamsidian entry" means the two sections
+     become ONE, which means deciding when a tab becomes a file.
+     🗳 THE ONE QUESTION, put to him in 6.275.0's verify block E2, because
+     the two answers are different releases and both are defensible:
+       (a) EVERY TAB IS A FILE FROM THE MOMENT IT IS MADE. One list, one
+           kind of thing, searchable by ⇪D and openable in any Markdown
+           editor immediately. COST: every keystroke eventually writes a
+           .md into OneDrive (today it is one local JSON), an untitled
+           scratch needs a filename the second it exists, and ⌘W on a
+           throwaway leaves a file behind rather than nothing.
+       (b) A TAB STAYS A TAB UNTIL ⌘⇧S, and only the HEADER and the
+           wording change. COST: two sections remain, which is the thing
+           he is objecting to — so this is the cheap answer, not the one
+           he asked for.
+     📏 MY RECOMMENDATION IF HE DOES NOT ANSWER: (a), but with the file
+     written on the FIRST PAUSE rather than the first keystroke, and an
+     auto-name from the first line (the pad already names exports that
+     way), so a throwaway is a file he can delete rather than a prompt he
+     has to answer. Do NOT build it before he says which — 6.201.1's rule
+     about what a store already holds applies to scratch.json, which has
+     his text in it.
   5. ✅ THE EDITOR'S TOOLS DOWN THE SIDES — SHIPPED AS 6.270.0, on his
      THIRD telling ("Ever release that I've installed, has not had...").
      He was right every time: all eighteen buttons were in ONE wrapping
@@ -3689,6 +3709,63 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.275.0 verify with LL — 📘 THE INSTALL GUIDE (KNOWN GROUND, docs only)
+  WHAT CHANGED: INSTALL.md is rewritten and HAMSIDIAN.md has a new §7b on
+  linking. NO code changed — same modules, same keys, same behaviour.
+  WHY IT MATTERS: you missed the install on the work Mac, and the old
+  guide made that easy. The step that matters is the one that puts files
+  in ~/.hammerspoon, and skipping it looks exactly like doing nothing.
+
+  A. THE HEADLINE — do this ON THE WORK MAC.
+  A1. Open INSTALL.md from the archive root. Read the box at the very top.
+      EXPECT: one command, and what ✅ and ❌ look like.
+  A2. Run that command on the work Mac:
+        ls ~/.hammerspoon/init.lua && sed -n 7p ~/.hammerspoon/init.lua
+      EXPECT: either a version line (installed) or "No such file or
+      directory" (not installed). Either answer is useful — tell me which
+      you got, because it settles what happened there.
+  A3. If it says not installed, follow Step 3 end to end and run 3d.
+      EXPECT 3d prints: a path · the version · 12 · 71 · a path.
+      If any line is missing, that is the bug and I want the output.
+
+  B. THE SNIPPETS QUESTION, ANSWERED — check it rather than take my word.
+  B1. On the work Mac: `ls ~/.hammerspoon/snippets/bundled.lua`
+      EXPECT: a path. The 1,926 public snippets ship IN the archive and
+      the installer places them. Nothing to install.
+  B2. Press ⇪⇧S. EXPECT: the picker, with sections.
+  B3. Console: `_G.snippetsList()`. EXPECT: a count in the thousands.
+  B4. Type a trigger in any app. EXPECT: it expands.
+      ❌ If the picker works but typing does nothing, Accessibility is off
+      or was granted AFTER launch — quit and relaunch Hammerspoon.
+
+  C. THE IT SECTION — read it before you talk to them.
+  C1. Read "What IT has to say yes to". Four rows, each with what you lose
+      if refused, plus the list of what they do NOT have to allow.
+  C2. Tell me if anything there is wrong for YOUR employer, or if they
+      ask for something the list does not cover. That is the one part I
+      cannot verify from here, and it is the part that decides whether
+      this runs at work at all.
+
+  D. HAMSIDIAN §7b — linking out.
+  D1. Read §7b. Then do it: open a Word document, press ⇪⇧U, press ⌘2,
+      pick a note.
+      EXPECT: the note gains a `## Linked` section with one Markdown line.
+  D2. In Hamsidian, press ⌘K and pick a screenshot from OneDrive.
+      EXPECT: a Markdown link at the caret; ⌘⏎ on it opens the image.
+
+  E. QUESTIONS — ANSWERS WANTED, NOTHING TO RUN.
+  E1. What is the work Mac's computer name (`scutil --get ComputerName`)?
+      It gets its own profile in the next release, which is how we switch
+      anything off there without you editing init.lua.
+  E2. Scratch tabs vs notes: do you want a ⇪N tab to become a real .md
+      note the moment you make it (one list, everything a file, and every
+      keystroke writes to OneDrive), or to stay a tab until you press ⌘⇧S
+      (fast and local, two lists)? That one answer is the whole release —
+      see the queue note.
+  E3. Did the archive open? Both a .tar.gz and a .zip are in this one
+      because you asked for the zip by name. Tell me which you used and
+      whether it worked, and the next release carries only that one.
+
 - 6.274.0 verify with LL — 🔔 ⇪4 LEAVES A NUMBER BEHIND (KNOWN GROUND)
   WHAT CHANGED: nothing about how ⇪4 captures. This release exists so that
   the NEXT time it does not, we can tell which of four things happened

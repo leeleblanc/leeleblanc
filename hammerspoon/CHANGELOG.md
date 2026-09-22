@@ -5,6 +5,68 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.275.0 — 📘 THE INSTALL GUIDE TELLS YOU WHAT FAILURE LOOKS LIKE
+(INSTALL.md, HAMSIDIAN.md — documentation only, no behaviour change):
+
+  LL, after missing the install on the MacBook his employer issues him:
+  "These install steps are not detailed enough. I missed installing into
+  .hammerspoon on my work Mac… Be far more detailed and give me what is a
+  failure, along with a success at each step."
+
+  🚨 HE MISSED THE ONLY STEP THAT MATTERS, and the old guide made that
+  easy. Unpacking the archive into ~/Downloads and pressing Reload looks
+  exactly like doing nothing: Hammerspoon never looks there, there is no
+  error, and the Console is simply empty. The guide now opens with that in
+  a box, with the one command that answers "is this Mac installed at all",
+  and Step 3 ends with a five-line proof that the files actually landed.
+
+  ✅❌ EVERY STEP CARRIES BOTH OUTCOMES. Each one says what success looks
+  like and what the failures look like, with the fix on the same line —
+  including the ones specific to a managed Mac: /Applications refusing a
+  drag (use ~/Applications), Gatekeeper's "unverified developer"
+  (right-click → Open), Terminal lacking Downloads access (Privacy &
+  Security → Files and Folders), and an Accessibility switch that will not
+  stay on (an MDM profile — keep going, you lose only window moving).
+
+  🔒 A SECTION HE CAN HAND TO IT. Four things they must allow, what each
+  one costs if refused, and — the half that heads off most objections —
+  the list of things they do NOT have to allow: no admin password, no
+  sudo, nothing system-wide, no LaunchAgent or launchd, no network
+  listening, no kernel extension or profile, and removable with one
+  `rm -rf ~/.hammerspoon`. Plus the 90% ask: the app and Accessibility
+  alone give every shortcut, picker, snippet, tracker, the clipboard
+  history, Hamsidian and the screenshots.
+
+  📎 SNIPPETS, EXPLICITLY, because he asked how to get them working there.
+  The 1,926 public ones SHIP inside the archive at snippets/bundled.lua
+  and hs-install.sh already places them — there is nothing to install and
+  no Homebrew involved. The guide gives the two checks (⇪⇧S, and
+  _G.snippetsList() in the Console) and the one real dependency:
+  expansion is a keyboard tap, so it needs Accessibility, granted BEFORE
+  launch.
+  ⚠️ HIS OWN textpanders ARE THE OTHER HALF AND THE GUIDE WARNS RATHER
+  THAN INSTRUCTS. They live in the OneDrive Logs folder, which this config
+  reads in addition to the bundled file, and they hold a home address, a
+  phone number and an employee ID. Copying that onto an IT-managed Mac
+  puts it on a disk his employer administers and may back up. The advice
+  is to leave them off the work Mac and add a single snippet by hand.
+
+  🛠 AND EVERY OTHER TOOL, named. Everything this config runs —
+  osascript, sqlite3, rsync, grep, find, sips, mdfind, screencapture,
+  shortcuts, open, defaults, hidutil — already ships with macOS. Four
+  optional Homebrew binaries (blueutil, speedtest, zbarimg, wn) power four
+  small features, each with its own "without it" row, and Homebrew itself
+  installs into ~/homebrew with no sudo.
+
+  🔗 HAMSIDIAN.md §7b — LINKING OUT, which had no documentation at all.
+  ⇪⇧U for the thing in front of you (with the three titles it can answer
+  and why "app only" is correct rather than a failure), ⌘K for a file you
+  have to go and find, ⇪space @images for a screenshot you cannot name —
+  and what each actually writes into the note, which is plain Markdown
+  under a ## Linked heading and nothing else.
+```
+
+```text
 NEW IN 6.274.0 — 🔔 ⇪4 CAN NO LONGER FAIL WITHOUT LEAVING A NUMBER BEHIND
 (init.lua's alert wrap, core/notices.lua, modules/screenshots.lua):
 
