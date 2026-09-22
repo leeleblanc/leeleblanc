@@ -2324,6 +2324,62 @@ do
     end
 end
 
+-- =====================================================================
+-- 🔌 NO SUITE INVENTS A CALLING CONVENTION (6.273.0)
+-- =====================================================================
+-- test_anchors.lua carried a hand-written service registry under the
+-- comment "exactly as init.lua publishes it". It was not: its call()
+-- read `return true, SERVICES[n](...)`, which PREPENDS a status the real
+-- one never sends and truncates the provider to a single value.
+-- modules/anchors.lua was written against that invented convention at
+-- all four of its call sites, so on LL's Mac ⇪⇧U could never name a
+-- document, never resolve a moved file and never offer the "pick a note"
+-- row — while 106 checks stayed green for eighty-nine releases. The
+-- registry is LIFTED out of init.lua now (tests/service_registry.lua);
+-- this is the sentry that stops another suite retyping one.
+do
+    local reg = io.open(HS .. "/tests/service_registry.lua", "r")
+    local helper = reg and reg:read("*a") or ""
+    if reg then reg:close() end
+    check("🔌 the shared registry helper exists", #helper > 0)
+    -- It must LIFT from init.lua's source, never carry a copy — a copy is
+    -- the same divergence one file further out (6.269.0's "when a comment
+    -- claims a check, grep for the check").
+    check("🔌 ...and it reads init.lua rather than defining its own call()",
+          helper:find("init%.lua") ~= nil and helper:find("_G%.service = %{") ~= nil)
+
+    -- Every suite that stands in for the registry gets the real shape.
+    -- `return true, <provider>` is the exact defect: a literal status in
+    -- front of the provider's values.
+    local bad = {}
+    local dir = io.popen('ls "' .. HS .. '/tests" 2>/dev/null')
+    local names = {}
+    if dir then
+        for line in dir:lines() do names[#names + 1] = line end
+        dir:close()
+    end
+    for _, name in ipairs(names) do
+        if name:match("%.lua$") and name ~= "service_registry.lua" then
+            local fh = io.open(HS .. "/tests/" .. name, "r")
+            local body = fh and fh:read("*a") or ""
+            if fh then fh:close() end
+            local code = body:gsub("%-%-[^\n]*", "")   -- 6.262.0
+            -- A registry table (has `call =`) whose call prepends a
+            -- literal true in front of a provider lookup.
+            if code:find("return true, SERVICES%[") then bad[#bad + 1] = name end
+        end
+    end
+    check("🔌 no suite prepends a status the real service.call never sends",
+          #bad == 0, table.concat(bad, ", "))
+    check("🔌 at least one suite is on the lifted registry, so it is really used",
+          (function()
+              local fh = io.open(HS .. "/tests/test_anchors.lua", "r")
+              local b = fh and fh:read("*a") or ""
+              if fh then fh:close() end
+              return b:find("service_registry%.lua") ~= nil
+          end)())
+end
+
 realPrint(table.concat(printed, "\n"))
 out("\n")
 if fail > 0 then

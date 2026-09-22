@@ -30,6 +30,9 @@ end
 local function out(s) io.write(s) end
 
 -- ---- a controllable world ------------------------------------------------
+-- 6.273.0: the REAL opener, kept before the fake replaces it, so
+-- tests/service_registry.lua can still lift init.lua's own registry.
+local REAL_OPEN = io.open
 local FILES, WRITE_FAILS, READS = {}, false, {}
 io.open = function(path, mode)
     if (mode or "r"):find("w") then
@@ -627,6 +630,59 @@ do
         v.follow("message://%3Cabc@example.com%3E", true)
         check("...and a scheme only its own app understands is handed to macOS",
               (OPENED[#OPENED] or ""):find("^message://") ~= nil, OPENED[#OPENED])
+    end
+
+    -- 🚚 6.273.0 — MOVE SURVIVAL, DRIVEN FOR THE FIRST TIME. The mirror
+    -- of the anchors bug lived here: `local okS, res = _G.service.call
+    -- ("anchors.resolve", path)` read TWO values from a provider that
+    -- answers ONE, so `res` was always nil and a moved file could never
+    -- be found. The mutation restoring it did not fail a single check,
+    -- because this suite never stubbed `_G.service` AND its hs.fs had no
+    -- `attributes` — so `gone` was false on every path and the whole
+    -- branch was unreachable. 6.193.0 twice over: a stub gentler than the
+    -- real provider hides the class, and the fix is untestable until the
+    -- stub answers what a Mac answers.
+    do
+        local keepSvc, keepAttrs = _G.service, hs.fs.attributes
+        local REG = dofile(HS .. "/tests/service_registry.lua")(HS, REAL_OPEN)
+        check("🚚 the registry was LIFTED out of init.lua, not stood in for",
+              REG.src ~= nil)
+        _G.service = REG.service
+        -- A real hs.fs.attributes answers nil for a path that is gone.
+        hs.fs.attributes = function(pth)
+            if pth == "/tmp/it-moved.docx" then return nil end
+            return { mode = "file" }
+        end
+
+        local asked = {}
+        REG.provide("anchors.resolve", function(pth)
+            asked[#asked + 1] = pth
+            return "/tmp/found/it-moved.docx"   -- the REAL signature: ONE value
+        end)
+
+        OPENED, ALERTS = {}, {}
+        local moved = v.follow("file:///tmp/it-moved.docx", true)
+        check("🚚 6.273.0: a link whose file has moved ASKS anchors.resolve",
+              asked[1] == "/tmp/it-moved.docx", tostring(asked[1]))
+        check("🚚 ...and opens the path it ANSWERED, not the dead one",
+              moved == true and OPENED[#OPENED] == "/tmp/found/it-moved.docx",
+              tostring(OPENED[#OPENED]))
+        check("🚚 ...and says it moved, so a redirect is never silent",
+              (ALERTS[#ALERTS] or ""):find("Moved", 1, true) ~= nil,
+              tostring(ALERTS[#ALERTS]))
+
+        -- 🔎 And a resolver with no answer must still be the honest
+        -- refusal — the state this branch reported on every Mac until now.
+        REG.service.registry["anchors.resolve"] = function() return nil end
+        OPENED, ALERTS = {}, {}
+        local dead = v.follow("file:///tmp/it-moved.docx", true)
+        check("🚚 ...a resolver with nothing to say leaves the link honestly broken",
+              dead == false and #OPENED == 0
+              and (ALERTS[#ALERTS] or ""):find("not where the link says", 1, true) ~= nil,
+              tostring(ALERTS[#ALERTS]))
+
+        hs.fs.attributes = keepAttrs
+        _G.service = keepSvc
     end
 
     check("the report has the scratch line", _G.vaultReport():find("scratch: 3 tabs shown here", 1, true) ~= nil)

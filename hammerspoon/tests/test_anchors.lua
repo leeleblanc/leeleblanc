@@ -80,20 +80,31 @@ hs = {
 
 _G.diag = { say = function() end, warn = function() end, err = function() end }
 
--- ---- the service registry, exactly as init.lua publishes it ------------
-local SERVICES, CALLS = {}, {}
-_G.service = {
-    has  = function(n) return SERVICES[n] ~= nil end,
-    call = function(n, ...)
-        CALLS[#CALLS + 1] = n
-        if not SERVICES[n] then return false, "not loaded" end
-        return true, SERVICES[n](...)
+-- ---- the service registry — init.lua's OWN, lifted (6.273.0) -----------
+-- 🔌 WHAT USED TO BE HERE, and it cost the whole module: a hand-written
+-- registry under the comment "exactly as init.lua publishes it", whose
+-- call() read `return true, SERVICES[n](...)`. init.lua's returns the
+-- provider's values RAW — no `true` in front, and three of them, not
+-- one. anchors.lua was written against the stub's convention at all four
+-- of its call sites, so on LL's Mac the document leg, the moved-file
+-- resolver and the "pick a note" row could never work, while every check
+-- in this file stayed green. tests/service_registry.lua lifts the real
+-- block out of init.lua now, so no suite can invent a convention again.
+local REG = dofile(HS .. "/tests/service_registry.lua")(HS)
+_G.service = REG.service
+-- SERVICES stays as a VIEW onto that registry, so the sections below
+-- that take a provider away still take it away from the table the
+-- module really asks.
+local SERVICES = setmetatable({}, {
+    __index    = function(_, n) return REG.service.registry[n] end,
+    __newindex = function(_, n, f)
+        if f == nil then REG.service.registry[n] = nil else REG.provide(n, f) end
     end,
-}
+})
 local HYPER = {}
 local CORE = {
     logsDir = "/logs",
-    provide = function(n, f) SERVICES[n] = f end,
+    provide = function(n, f) SERVICES[n] = f end,  -- → REG.provide, via the view
     hyperAddShortcut = function(mods, key, fn, _, _, src)
         HYPER[table.concat(mods or {}, "+") .. "|" .. tostring(key)] = { fn = fn, src = src }
     end,
@@ -240,7 +251,7 @@ check("the front document becomes a file target",
       and got.t.url == "file:///Users/lee/Contract.docx", got and got.t and got.t.url)
 check("...read through the docs.front SERVICE, never by reaching into the module", (function()
     local saw = false
-    for _, c in ipairs(CALLS) do if c == "docs.front" then saw = true end end
+    saw = REG.called("docs.front")
     local src = (function() local f = io.open(HS .. "/modules/anchors.lua"); local s = f:read("a"); f:close(); return s end)()
     return saw and not src:find("axuielement", 1, true) and not src:find("_G.docMemory", 1, true)
 end)())
@@ -482,6 +493,124 @@ do
                and v:find('anchors.resolve', 1, true)
                and v:find('provide("vault.link"', 1, true)
     end)())
+end
+
+-- =======================================================================
+out("10) 🔌 the calling convention — what cost this module three of its\n")
+out("    four legs for eighty-nine releases\n")
+-- =======================================================================
+-- LL, 2026-09-20, scoring 6.269.0's anchors card BLOCKED with a
+-- screenshot of ⇪⇧U over Transmission, and pasting a report whose `note`
+-- line read "table: 0x77fdbff940". That address was a Lua table printed
+-- where a sentence belonged — and it named the whole defect: every one
+-- of this module's four service call sites read _G.service.call as if it
+-- prepended an `ok`. It does not. The document leg, the moved-file
+-- resolver and the "pick a note" row were dead from 6.180.0, each
+-- failing into an answer that looked deliberate.
+do
+    check("🔌 the gate's registry was LIFTED out of init.lua, not retyped here",
+          REG.src ~= nil)
+
+    -- 🚨 THE CHECK THAT WOULD HAVE CAUGHT IT IN 6.180.0, and it is four
+    -- lines. A provider's values come back RAW, in order, with nothing in
+    -- front of them — and there can be three of them, which the old
+    -- hand-written stub could not express at all (`return true, f(...)`
+    -- truncates f to one value).
+    SERVICES["probe.three"] = function() return "one", "two", "three" end
+    local a, b, c = _G.service.call("probe.three")
+    check("🔌 service.call hands back the provider's OWN values, no ok in front",
+          a == "one" and b == "two" and c == "three", tostring(a) .. "/" .. tostring(b))
+    SERVICES["probe.three"] = nil
+
+    -- A provider nobody registered answers nil — the same shape as a
+    -- provider that answered nil. This module's own `call` wrapper used
+    -- to answer `false, "not loaded"` here, which is a STATUS in the slot
+    -- the success path fills with DATA, and that mismatch is what every
+    -- call site was written against.
+    check("🔌 a missing provider answers nil, not a status pair",
+          _G.service.call("nobody.provides.this") == nil)
+
+    local src = io.open(HS .. "/modules/anchors.lua", "r")
+    local body = src and src:read("*a") or ""
+    if src then src:close() end
+    local code = body:gsub("%-%-[^\n]*", "")   -- 6.262.0: the comments quote the banned line
+    check("🔌 the wrapper answers nil for a missing provider, so both shapes agree",
+          code:find('if not has%(name%) then return nil end') ~= nil)
+    -- 🚫 AND NO SYNTACTIC SENTRY HERE, ON PURPOSE. The obvious one —
+    -- "no call site binds a leading ok" — was written, and it FAILED on
+    -- correct code: `local ok, why = call("vault.link", …)` is right,
+    -- because vault.link's OWN first value is a boolean. A grep cannot
+    -- tell a status the provider returned from a status the caller
+    -- imagined, so that check would have gone red on a healthy tree and
+    -- been switched off inside a week (6.269.0: a new instrument is
+    -- measured against the healthy case FIRST).
+    --
+    -- 🔑 WHAT CLOSES THE CLASS INSTEAD is the lifted registry above. A
+    -- site written to the wrong convention now fails a FUNCTIONAL check,
+    -- which is what happened the moment this suite stopped retyping
+    -- init.lua: six checks went red and named the four dead legs. That is
+    -- stronger than any pattern match, and it needs no maintenance.
+
+    -- 🔎 A REPORT THAT PRINTS AN ADDRESS IS A REPORT THAT ANSWERS
+    -- NOTHING. This is the line LL pasted, and it is asserted on the
+    -- REAL report over the real identify path, never on a hand-set field.
+    anc.lastWhy = nil
+    SERVICES["docs.front"] = function() return nil, "no document in the front window",
+                                    { app = "Transmission", title = nil } end
+    anc.identify(function() end)
+    _G.anchorsReport()
+    local printed = table.concat(PRINTED, "\n")
+    check("🔎 the report never prints a table address where a reason belongs",
+          printed:find("table: 0x") == nil, anc.lastWhy)
+    check("🔎 ...it prints the provider's own words instead",
+          tostring(anc.lastWhy):find("no document in the front window") ~= nil,
+          anc.lastWhy)
+end
+
+-- =======================================================================
+out("11) 🔎 which leg answered, counted apart (6.196.1)\n")
+-- =======================================================================
+-- "The app only" is a legitimate degrade AND was the only thing ⇪⇧U
+-- could ever say. A count per leg is what tells those two apart on his
+-- Mac without another screenshot.
+do
+    SERVICES["docs.front"] = function()
+        return { path = "/Users/lee/Contract.docx", title = "Contract.docx",
+                 app = "Microsoft Word" }
+    end
+    anc.legs = { tab = 0, file = 0, app = 0 }
+    anc.lastLeg, anc.opens = nil, 0
+    anc.show()
+    check("a document press counts a DOCUMENT, not an app",
+          anc.legs.file == 1 and anc.legs.app == 0,
+          "file " .. anc.legs.file .. " app " .. anc.legs.app)
+    check("...and the last leg is named in words",
+          anc.lastLeg == "file")
+
+    SERVICES["docs.front"] = function() return nil, "no document in the front window" end
+    anc.show()
+    check("an app-only press counts the app leg and leaves documents alone",
+          anc.legs.app == 1 and anc.legs.file == 1)
+
+    PRINTED = {}
+    _G.anchorsReport()
+    local printed = table.concat(PRINTED, "\n")
+    check("the report names all three legs", printed:find("named  :") ~= nil
+          and printed:find("1 document%(s%)") ~= nil)
+
+    -- 🔎 THREE STATES: never pressed · pressed and a leg answered ·
+    -- pressed and EVERY press fell back to the app name, which is the
+    -- shape this whole release exists to make visible.
+    anc.legs = { tab = 0, file = 0, app = 3 }
+    PRINTED = {}
+    _G.anchorsReport()
+    check("every press falling back to the app name is NAMED as a fault shape",
+          table.concat(PRINTED, "\n"):find("shape of a fault") ~= nil)
+    anc.legs, anc.opens = { tab = 0, file = 0, app = 0 }, 0
+    PRINTED = {}
+    _G.anchorsReport()
+    check("...and a Mac that has never pressed it is not accused of anything",
+          table.concat(PRINTED, "\n"):find("shape of a fault") == nil)
 end
 
 print = realPrint

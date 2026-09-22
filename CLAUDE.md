@@ -942,6 +942,85 @@ work Mac.
   again: they would have gone red with nothing to say about the change
   they existed to prove. Assert the RULE in terms of the config.
 
+- 🔌 A WRAPPER WHOSE SUCCESS AND FAILURE RETURNS DIFFER IN ARITY WILL BE
+  READ WRONGLY (6.273.0, modules/anchors.lua + vault.lua +
+  tests/service_registry.lua — LL, scoring 6.269.0's newly visible
+  anchors card BLOCKED, pasted `note   : table: 0x77fdbff940`). A Lua
+  table printed where a SENTENCE belongs is a value in the wrong slot,
+  and that address named the whole defect in one line.
+  🔑 `_G.service.call` RETURNS THE PROVIDER'S OWN VALUES, RAW — `return
+  a, b, c` after its pcall, with NO status in front. anchors.lua's own
+  helper answered `false, "not loaded"` for a missing provider (a STATUS
+  in slot one) and passed the registry through raw on success (DATA in
+  slot one), so all four of its call sites were written to the failure
+  shape — the shape you see when you write the guard first — and read
+  every value a slot late. It answers nil now, as the registry does.
+  🚨 THREE OF ⇪⇧U'S FOUR LEGS WERE DEAD FROM 6.180.0, each failing into
+  an answer that looks deliberate, which is why nothing ever looked
+  broken: the front document never named (a Word document read as "the
+  app only", on both Macs, for eighty-nine releases — the tool this file
+  describes as reading "the front document via `docs.front`" had never
+  read one); 🚚 move survival never resolving, with vault.lua's caller
+  carrying the MIRROR bug (`anchors.resolve` answers ONE value and that
+  site read two, so even a working resolver could not have been heard);
+  and "📁 Link it into an existing note…" — the row in his photograph —
+  always answering "No notes to pick yet" over a vault holding twenty.
+  Plus every failed write reported as "Hamsidian is not loaded",
+  whatever the cause, in the one line he would have looked at.
+  🧪 AND THE SUITE INVENTED THE CONVENTION THE MODULE WAS WRITTEN
+  AGAINST: `call = function(n, ...) return true, SERVICES[n](...) end`,
+  under a comment reading "the service registry, exactly as init.lua
+  publishes it". Two divergences, both invisible at a call site — it
+  PREPENDS a status the real one never sends, and `return true, f(...)`
+  truncates f to ONE value, so it could not hand back three at all. 106
+  checks green for eighty-nine releases, certifying a module that could
+  do one of its four jobs. `tests/service_registry.lua` LIFTS the real
+  block out of init.lua's source (6.236.0's `_G.baseScreenPick`
+  technique) so no suite retypes it; the moment this suite used it, SIX
+  checks went red and named all four dead legs — which is the evidence
+  this release rests on rather than a reading. GENERAL, 6.193.0 for the
+  SEVENTH time and the costliest: A STUB THAT INVENTS A CALLING
+  CONVENTION DOES NOT MERELY MISS THE BUG, IT CERTIFIES IT. And when a
+  comment claims a stub matches the real thing, DIFF IT — 6.269.0's
+  grep-for-the-check, one layer out.
+  🚫 NO SYNTACTIC SENTRY, written and taken out again: "no call site
+  binds a leading ok" FAILED on correct code, because `vault.link`'s own
+  first value IS a boolean. A grep cannot tell a status the provider
+  RETURNED from one the caller IMAGINED, so it would have gone red on a
+  healthy tree and been switched off inside a week (6.269.0: a new
+  instrument is measured against the healthy case first). The lifted
+  registry closes the class instead — a wrong-convention site now fails
+  a FUNCTIONAL check, which needs no maintenance — and a gate sentry in
+  test_integration refuses any suite that prepends a status again.
+  🔎 THE LEGS ARE COUNTED APART ("named : N browser tab(s) · N
+  document(s) · N app only · last: …"), with a THIRD state that says so
+  when every press has fallen back to the app name: "the app only" is
+  both a legitimate degrade and the only thing this tool could ever say,
+  and no number in the old report could tell those two apart (6.196.1).
+  🧪 AND THE MUTATION SWEEP FOUND A TENTH DEAD LINE. Restoring vault.lua's
+  mirror bug failed NOTHING: 🚚 move survival had never been driven, because
+  test_vault never stubbed `_G.service` AND its hs.fs had no `attributes`,
+  so `gone` was false on every path and the branch was unreachable. 6.193.0
+  twice in one branch. It is driven now, both ways — a resolver that answers
+  and one that does not. GENERAL: when a fix lands on a line no mutation can
+  kill, the line is not the finding, the missing check is.
+  🔌 AND A SUITE WITH A FAKE io.open CANNOT LIFT ANYTHING. test_vault
+  replaces io.open before loading the module, so the helper read no
+  init.lua, fell back to its own stand-in — whose `has()` answers false —
+  and the four new checks passed while testing NOTHING. The helper takes an
+  `opener` now and every consumer asserts `reg.src ~= nil`. GENERAL, and it
+  is the sharper half: A FALLBACK THAT KEEPS A TEST GREEN WHILE
+  DISCONNECTING IT IS WORSE THAN A CRASH — a stand-in built so a mutation
+  fails a check instead of killing the run (6.186.0) must still be ASSERTED
+  against, or it silently becomes the thing under test.
+  🗳 AND THE TEST PLAN'S OWN FINDING, from the same report: step C1 said
+  "press ⇪⇧U with a document or browser tab in front" and he pressed it
+  over Transmission, then could not score what he saw. A STEP THAT DOES
+  NOT NAME ITS SETUP CANNOT BE SCORED — and a section headed "for your
+  eyes, not a test" was scored anyway, because everything inside a
+  numbered document reads as a step. Questions go in their own lettered
+  block, marked as answers wanted rather than steps to run.
+
 - ⏲ A WINDOW THAT HIDES ITSELF OWES A WAY BACK THAT DOES NOT DEPEND
   ON THE THING IT HID FOR (6.255.0, modules/screenshot_editor.lua +
   screenshots.lua — LL: "Add a delayed screenshot feature with a delay
@@ -2868,19 +2947,19 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
-| 6.272.0 | 🗑 a ✕ on every 🕘 music history row forgets that track — by path, never by index, and it never plays the row it is removing | pending |
-| 6.271.0 | 🧪 the steps to test a release ship IN the archive as TESTING.md — seventy-two verify blocks existed and none of them was in the package | pending |
-| 6.270.0 | 🖼 the screenshot editor's tools move into two vertical rails — nine left, six right — and the window reserves their width so the shot is never squeezed to make room | pending |
-| 6.269.0 | 🔗 the ⇪⇧U anchors card draws its eight rows — one key was misspelled since 6.180.0 — and a card with a title and no rows now names itself, with `_G.cheatSheetReport()` to ask | pending |
+| 6.272.0 | 🗑 a ✕ on every 🕘 music history row forgets that track — by path, never by index, and it never plays the row it is removing | **WIN** — LL, 2026-09-20: "Pass on music player", and his report carried the proof: `forgot : 2 history row(s) removed with ✕ this session` |
+| 6.271.0 | 🧪 the steps to test a release ship IN the archive as TESTING.md — seventy-two verify blocks existed and none of them was in the package | **WIN** — LL: "TESTING.MD · Pass", and he ran it: the first report in its own PASS/BLOCKED vocabulary, which found 6.180.0's bug |
+| 6.270.0 | 🖼 the screenshot editor's tools move into two vertical rails — nine left, six right — and the window reserves their width so the shot is never squeezed to make room | **WIN** — LL: "Screenshot · Pass", on his third telling of an ask that had never been built |
+| 6.269.0 | 🔗 the ⇪⇧U anchors card draws its eight rows — one key was misspelled since 6.180.0 — and a card with a title and no rows now names itself, with `_G.cheatSheetReport()` to ask | BLOCKED — LL: "Anchor · Blocked/Uncertain", with a screenshot. NOT a fail: `_G.cheatSheetReport()` came back clean on every line, and the card's rows sent him to ⇪⇧U, where he found that three of its four legs have never worked → 6.273.0. A release whose only claim was the CARD, scoring blocked because the TOOL behind it was broken |
 | 6.268.0 | 🗑 the shortcut hint card is deleted, not switched off — the module, its suite, its ⇪/ card, its boot line and both profiles' settings lines are gone | pending |
 | 6.267.0 | ⏱ the boot stops reading two OneDrive CSVs — the 90-day file history and the four months of sessions are read when they are first needed (350 ms of a 453 ms boot) | pending |
 | 6.266.0 | 🧊 the frozen grid box: a panel the caller gave up on is never put back on screen — the retry hands the canvas back instead of showing it itself | pending |
-| 6.265.0 | 🚨 ⇪4 captures again — 6.264.0's fallback to macOS's crosshair existed and was unreachable, because selectArea discarded the one value saying whether it drew | pending |
+| 6.265.0 | 🚨 ⇪4 captures again — 6.264.0's fallback to macOS's crosshair existed and was unreachable, because selectArea discarded the one value saying whether it drew | **LOSS** — LL, 2026-09-20: "hyper+4 is intermittently working". Not dead, INTERMITTENT — and his Console carries three `⚠️ an alert could not draw — another app's popup was mid-transition` lines, which is the same refusal class 6.265.0/6.266.0 are about → 6.274.0 |
 | 6.264.0 | 📐 ⇪4 drags on our own selector, so the live 1280 × 720 is on the key he actually presses — the native magnifier and SPACE-to-shoot-a-window are the price | **LOSS** — LL: "Hyper+4 no longer works to screenshot." The selector's canvas can be refused by macOS and selectArea reported success anyway, so the key did nothing at all → fix 6.265.0 |
 | 6.263.0 | ✏️ no box in any page this config draws asks macOS to spell-check it — its correction panel threw an uncaught exception inside one of our webviews and aborted the process (his own `.ips`) | pending |
 | 6.262.0 | 🚨 ⇪⇧U no longer starts a task from inside another task's callback — the 6.196.1 use-after-free, twice, on the key he named | pending — and his two `.ips` files say it is NOT his crash: both are uncaught ObjC exceptions in Apple's code on macOS 27 beta (the menu-bar status-item scene; macOS's correction bubble in one of our webviews), with no Lua frame anywhere. The fix is real and stays; it is not the answer to what he saw |
 
-Running total: 15 wins · 9 losses · 48 pending — every release from
+Running total: 18 wins · 10 losses · 1 blocked — count the rows; from
 6.215.0 on except the fifteen wins and eight losses named in the table
 above. (The enumeration that used to sit here stopped at 6.239.0 and was
 seventeen releases stale, which is a scoreboard that cannot be read;
@@ -2993,6 +3072,15 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
      menu_search (⇪., the front app's own menus); ⌘⌘ opens the clipboard
      history. One release each, the tap engine LIFTED out of
      editor_picker rather than written twice.
+  9. 🎵 ⌥TAB SHOULD LIST THE MUSIC CARD (LL, 2026-09-20, with his
+     6.272.0 pass: "Can I add it to Opt+Tab?"). Yes, and it is small:
+     window_switcher serves its rows from `altTab.known`, and the card is
+     a real webview window, so it is a question of whether our own panels
+     are offered at all — today they are not, deliberately (a picker you
+     ⌥Tab into is a picker you cannot ⌥Tab out of). 🗳 HIS CALL, and ASK
+     BEFORE BUILDING: just the music card, or every panel this config
+     draws? The music card is the only one that keeps PLAYING when it is
+     not in front, which is the argument for doing it alone.
   8. 🖥 ⇪7'S macOS LINE WANTS MORE DETAIL. His screenshot reads
      "macOS 27.0 (26A5388g)". Decide what "more" is before building:
      the marketing name, that it is a BETA, the Darwin kernel version,
@@ -3533,6 +3621,91 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.273.0 verify with LL — 🔌 ⇪⇧U CAN FINALLY DO ALL FOUR THINGS (KNOWN GROUND)
+  WHAT CHANGED: your BLOCKED report on the anchors card was right, and the
+  one line that proved it was `note : table: 0x77fdbff940`. A Lua table
+  printed where a sentence belongs meant a value had landed in the wrong
+  slot — and it had, at all four places this tool asks another module for
+  an answer. Three of ⇪⇧U's four legs have never worked, on any Mac, since
+  6.180.0. They work now.
+  WHY IT MATTERS: you could not have found this by reading the card. You
+  found it by TRYING the card, and the report did the diagnosing.
+  🚨 A STEP I OWE YOU AN APOLOGY FOR: my 6.269.0 step C1 said "press ⇪⇧U
+  with a document or browser tab in front" and gave you no setup, so you
+  pressed it over Transmission — which genuinely has no document and no
+  tab, making "the app only" both the correct answer AND indistinguishable
+  from the bug. That is a defect in the STEP, not in your testing. The
+  steps below name the app to use.
+
+  A. THE HEADLINE — THE DOCUMENT LEG. This is the one that was dead.
+  A1. Open a real document in Microsoft Word (or Excel, Preview, TextEdit,
+      Pages, Numbers, Keynote, PowerPoint, Acrobat). Click into it so it
+      is the front window. Press ⇪⇧U.
+      EXPECT the title at the top of the panel to name THE FILE:
+      `🔗 document: Strategies of the Directors.docx`
+      A FAIL is `🔗 app: Microsoft Word  (no document or tab — the app
+      only)` — that is the old behaviour and means this release did not
+      take. Tell me and stop here.
+  A2. Press Esc. Now click into a Chrome tab and press ⇪⇧U.
+      EXPECT `🔗 tab: <the page title>`. (This leg was NOT broken — it is
+      here so you can see the two named differently.)
+  A3. Press Esc. Click into Transmission — or anything with no document,
+      which is what you had last time — and press ⇪⇧U.
+      EXPECT `🔗 app: Transmission  (no document or tab — the app only)`.
+      THIS IS CORRECT, and it is what you photographed. It is only a fault
+      when it happens in A1.
+
+  B. THE PICK ROW — the row in your screenshot that could never work.
+  B1. Press ⇪⇧U anywhere. Press ⌘2, or click "📁 Link it into an existing
+      note…".
+      EXPECT a picker listing your notes — you have about twenty.
+      A FAIL is "🔗 No notes to pick yet — make one with the first row".
+      That was the answer EVERY time before this release.
+  B2. Pick a note. EXPECT "🔗 Linked into <note>", Hamsidian opens, and
+      the note has a `## Linked` section with a plain Markdown line in it.
+  B3. Press ⇪⇧U again on the SAME thing.
+      EXPECT that note now listed at the TOP as already linking it, and
+      ⏎ on it opens the note.
+  B4. Do B2 again on the same note. EXPECT "🔗 Already in <note>" — one
+      line, not two. (The "already linked" wording was also broken.)
+
+  C. ⌘1 — the leg that DID work, so it must still.
+  C1. Press ⇪⇧U in a Word document, then ⌘1 ("➕ New note: <file>").
+      EXPECT a new note named after the file, with the link written in.
+
+  D. PASTE BACK, PASS OR FAIL.
+  D1. Console: `_G.anchorsReport()` — the whole block. Two things to read:
+      · `note :` must be a SENTENCE now, never `table: 0x…`.
+      · the new `named :` line counts the legs apart:
+        `named  : 1 browser tab(s) · 1 document(s) · 1 app only  — last: …`
+        After doing A1–A3 that is exactly what it should say. If
+        `document(s)` is 0 after A1, this release failed.
+  D2. If every press has fallen back to the app name, the report says so
+      in its own line ("the shape of a fault"). That line existing is the
+      point — it is what would have told us in 6.180.0.
+
+  E. MUST STILL WORK — this release also touched Hamsidian.
+  E1. In Hamsidian, open a note with a `file://` link in it and ⌘⏎ the
+      link. EXPECT the file opens. (I changed the one line that handles a
+      link whose file has MOVED — it had the mirror image of the same bug.)
+  E2. If you have a file you have renamed or moved since linking it, try
+      that link. EXPECT "🕸 Moved — opening <name>". This has never worked
+      before; if it still does not, say so — it needs the ⇪D index to hold
+      the new name, which is a different question from this fix.
+
+  F. QUESTIONS — ANSWERS WANTED, NOTHING TO RUN. (Separated on purpose:
+     last time a block like this sat inside the lettered steps and you
+     scored it BLOCKED, which was my formatting's fault, not yours.)
+  F1. Four visible strings still tell you to use Obsidian — ⇪3's card row,
+      ⇪N's ⌘⇧S row, `_G.vaultReport()`, the vault summary — plus the ⇪⇧U
+      row 6.269.0 made visible ("plain Markdown under '## Linked' —
+      Obsidian opens it"). Nothing in this config launches or requires
+      Obsidian; it is a FILE-FORMAT lineage, so your notes stay portable.
+      The behaviour stays either way. Do you want the wording changed?
+      "leave it" · "call it Markdown" · "call it Hamsidian" decides it.
+  F2. You asked: can the music player go in ⌥Tab? Yes — it is a real
+      window and ⌥Tab is ours. One release, when you want it. Say the word.
+
 - 6.272.0 verify with LL — 🗑 FORGET A TRACK FROM THE HISTORY (KNOWN GROUND)
   WHAT CHANGED: you could not remove anything from the 🕘 history list —
   ⌫ took a track out of the QUEUE, and clicking a history row PLAYED it.

@@ -5,6 +5,135 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.273.0 — 🔌 ⇪⇧U COULD ONLY EVER DO ONE OF THE FOUR THINGS ITS CARD
+PROMISES (modules/anchors.lua, modules/vault.lua, tests/service_registry.lua):
+
+  LL, scoring 6.269.0 — the release that made the 🔗 ANCHORS card visible
+  for the first time in eighty-nine releases — marked it BLOCKED/Uncertain,
+  sent a screenshot of ⇪⇧U over Transmission, and pasted this:
+
+      note   : table: 0x77fdbff940
+
+  🔎 THAT ADDRESS IS THE WHOLE DIAGNOSIS, and nothing else in the report
+  was wrong. A Lua table printed where a sentence belongs means a value
+  landed in a slot meant for something else — so something upstream is
+  handing back a different number of values than the reader expects.
+
+  It was. `_G.service.call` (init.lua §1) ends:
+
+      local ok, a, b, c = pcall(fn, ...)
+      ...
+      return a, b, c
+
+  The PROVIDER'S OWN values, raw, with no status in front of them. All
+  four of anchors.lua's call sites read one as if there were:
+
+      local okS, doc, why = call("docs.front")
+
+  `docs.front` answers `{path=…}` on success and `nil, why, {app,title}`
+  when the front window holds no document — so on the failure path `why`
+  was the TABLE, and that is the address he pasted.
+
+  🚨 AND THE SAME SHIFT KILLED THREE OF ⇪⇧U'S FOUR LEGS FROM 6.180.0.
+  Each failed into an answer that looks deliberate, which is why nothing
+  ever looked broken:
+
+    · THE FRONT DOCUMENT. On success `doc` was nil, so
+      `type(doc) == "table"` was false and the leg never fired. Every
+      press fell through to "the app only" — in Word, in Excel, in
+      Preview, on both Macs, for eighty-nine releases. The tool CLAUDE.md
+      describes as reading "the front document via docs.front" has never
+      once read one.
+    · 🚚 MOVE SURVIVAL. `local okS, rows = call("index.search", …)` left
+      `rows` nil, so `anc.resolve` returned nil on every path. His report
+      said "moved : … 0 so far" and that zero was unreachable, not unused.
+      vault.lua's caller had the mirror-image bug — `anchors.resolve`
+      answers ONE value and that site read two — so even a working
+      resolver could not have been heard.
+    · 📁 "LINK IT INTO AN EXISTING NOTE…", the row in his photograph.
+      `local okS, names = call("vault.names")` left `names` nil, so the
+      guard fired every time: "No notes to pick yet — make one with the
+      first row", over a vault holding twenty notes.
+
+  A failed write was also mis-reported: vault.link's own `false` landed in
+  the slot this code read as the registry's, so EVERY cause — a read-only
+  note, a refused open, nothing to link — came back as "Hamsidian is not
+  loaded". The one line he would have looked at was a lie.
+
+  🔑 THE ROOT CAUSE IS A WRAPPER WHOSE TWO SHAPES DISAGREED, and it is the
+  durable half. The module's own helper read:
+
+      local function call(name, ...)
+          if not has(name) then return false, "not loaded" end
+          return _G.service.call(name, ...)
+      end
+
+  A STATUS in slot one on the failure path; DATA in slot one on the
+  success path. Every call site was written against the failure shape,
+  which is the shape you see when you write the guard first. It answers
+  nil now — exactly what init.lua's registry answers for a missing
+  provider — so neither path has anything extra in front to strip.
+  GENERAL: a wrapper whose success and failure returns differ in ARITY
+  will be read wrongly, and the reading that wins is whichever one the
+  author wrote first.
+
+  🧪 AND THE SUITE HAD INVENTED THE CONVENTION THE MODULE WAS WRITTEN
+  AGAINST. test_anchors.lua carried this, under a comment reading "the
+  service registry, exactly as init.lua publishes it":
+
+      call = function(n, ...) return true, SERVICES[n](...) end
+
+  Two divergences, both invisible at a call site: it PREPENDS a status the
+  real one never sends, and `return true, f(...)` truncates f to a single
+  value, so it could not hand back three at all. 106 checks, green, for
+  eighty-nine releases, certifying a module that could do one of its four
+  jobs.
+
+  tests/service_registry.lua LIFTS the real block out of init.lua's source
+  (6.236.0's technique for `_G.baseScreenPick`), so no suite retypes it
+  and a change to the registry reaches every suite in the same commit.
+  The moment this suite used it, SIX checks went red and named all four
+  dead legs — which is the evidence this release rests on, not a reading.
+  GENERAL, and it is 6.193.0 for the seventh time and the most expensive:
+  A STUB THAT INVENTS A CALLING CONVENTION IS WORSE THAN NO STUB, because
+  it does not merely miss the bug — it certifies it. And 6.269.0's rule
+  again: when a comment claims a stub matches the real thing, diff it.
+
+  🚫 NO SYNTACTIC SENTRY, and the reason is worth keeping. The obvious one
+  — "no call site binds a leading ok" — was written and FAILED on correct
+  code: `local ok, why = call("vault.link", …)` is right, because
+  vault.link's own first value IS a boolean. A grep cannot tell a status
+  the provider returned from a status the caller imagined, so that check
+  would have gone red on a healthy tree and been switched off inside a
+  week (6.269.0: a new instrument is measured against the healthy case
+  first). What closes the class is the lifted registry: a site written to
+  the wrong convention now fails a FUNCTIONAL check. A gate sentry in
+  test_integration.lua refuses any suite that prepends a status again.
+
+  🔎 THE REPORT COUNTS THE LEGS APART (6.196.1). "The app only" is both a
+  legitimate degrade and the only thing ⇪⇧U could ever say, and no number
+  in the old report could tell those apart:
+
+      named  : 0 browser tab(s) · 1 document(s) · 2 app only  — last: document
+
+  With a third state that says so out loud when every press has fallen
+  back to the app name — which, in a browser or a Word document, is the
+  shape of a fault rather than a preference.
+
+  📏 NAMED, NOT FIXED: an app outside doc_memory's ten (Sublime, a
+  browser that is not in `anc.browsers`) is still named by its app alone,
+  which is the honest answer — those apps do not answer AXDocument.
+
+  🗳 AND THE TEST PLAN'S OWN FINDING, from the same report: his step C1
+  said "press ⇪⇧U with a document or browser tab in front" and he pressed
+  it over Transmission, then could not tell whether "the app only" was a
+  failure or the design. A step that does not name its SETUP cannot be
+  scored, and a section labelled "for your eyes, not a test" was scored
+  anyway because everything in a numbered document reads as a step.
+  Both are fixed in TESTING.md's 6.273.0 block.
+```
+
+```text
 NEW IN 6.272.0 — 🗑 A TRACK CAN BE FORGOTTEN FROM THE 🕘 HISTORY
 (modules/music_player.lua):
 

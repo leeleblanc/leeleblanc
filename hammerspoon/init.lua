@@ -2,11 +2,44 @@
 -- * Working VERSION *
 -- =====================================================================
 -- =====================================================================
--- 09-20-26 using Claude          ← EDITED date. Bumped with every release.
+-- 09-22-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.272.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.273.0
 -- =====================================================================
 
+-- NEW IN 6.273.0 — 🔌 ⇪⇧U COULD ONLY EVER DO ONE OF THE FOUR THINGS ITS
+--   CARD PROMISES (modules/anchors.lua, modules/vault.lua,
+--   tests/service_registry.lua):
+--   LL, scoring 6.269.0's newly visible anchors card BLOCKED, with a
+--      screenshot of ⇪⇧U over Transmission and a report whose `note` line
+--      read "table: 0x77fdbff940".
+--   🔎 THAT ADDRESS WAS THE WHOLE DIAGNOSIS. A Lua table printed where a
+--      sentence belongs means a value landed in the wrong slot, and it
+--      had: `_G.service.call` returns the PROVIDER'S OWN values, raw,
+--      with no `ok` in front of them, and all four of this module's call
+--      sites read one as if there were. Every value was a slot late.
+--   🚨 SO THREE OF THE FOUR LEGS WERE DEAD FROM 6.180.0: the front
+--      document could never be named (the test for it read a nil),
+--      🚚 move survival could never resolve (same), and "📁 Link it into
+--      an existing note…" — the row in his photograph — always answered
+--      "No notes to pick yet" over a vault holding twenty. A failed write
+--      was reported as "Hamsidian is not loaded", whatever the cause.
+--   🔑 ROOT CAUSE: A WRAPPER WHOSE TWO SHAPES DISAGREED. The module's own
+--      call() answered `false, "not loaded"` for a missing provider — a
+--      STATUS in slot one — while passing the registry's values through
+--      raw, where slot one is DATA. It answers nil now, as init.lua does.
+--   🧪 AND THE SUITE HAD INVENTED THE CONVENTION IT WAS WRITTEN AGAINST:
+--      test_anchors.lua's registry, under the comment "exactly as
+--      init.lua publishes it", read `return true, SERVICES[n](...)`.
+--      tests/service_registry.lua LIFTS the real block out of init.lua
+--      now; the moment it did, six checks went red and named all four
+--      dead legs. GENERAL: a stub that invents a calling convention is
+--      worse than no stub — it certifies the bug (6.193.0, 7th time).
+--   🔎 THE REPORT COUNTS THE LEGS APART ("named : N browser tab(s) · N
+--      document(s) · N app only"), because "the app only" is both a
+--      legitimate degrade and the only thing ⇪⇧U could ever say — one
+--      line that tells a working Mac from a broken one (6.196.1).
+--
 -- NEW IN 6.272.0 — 🗑 A TRACK CAN BE FORGOTTEN FROM THE 🕘 HISTORY
 --   (modules/music_player.lua):
 --   LL: "did you make it so I could delete entries from my music history
@@ -18,58 +51,23 @@
 --      PLAYS it. There was no way to take a row out. Every history row
 --      carries a ✕ now; `_G.musicForgetHistory(path)` and
 --      `_G.musicClearHistory()` are the bulk doors.
---   🔑 BY PATH, NEVER BY INDEX, and that is 6.186.0's rule rather than
---      taste: the card draws `historyShow` (40) rows of a store holding
---      up to `maxHistory` (400), and a redraw between the click and Lua
---      reading it — a track ending, a drop landing — renumbers every row
---      under his hand. An index would then forget a DIFFERENT track,
---      silently, and the only evidence would be a row he did not lose on
---      purpose. `mp.forgetHistory(list, path)` is PURE and answers a NEW
---      list plus the count, so every edge is proven with no Mac.
+--   🔑 BY PATH, NEVER BY INDEX (6.186.0): the card draws 40 rows of a
+--      store holding up to 400, and any redraw renumbers them under his
+--      hand, so an index forgets a DIFFERENT track — silently, in the one
+--      list whose purpose is remembering. `mp.forgetHistory` is PURE.
 --   🚨 THE ✕ IS ASKED BEFORE THE ROW IT SITS IN, or a shared click
---      handler PLAYS the track on its way to forgetting it — the worst
---      possible answer to "remove this". Its own check.
---   🧪 AND THE DOM STUB ANSWERED EVERY SELECTOR WITH THE SAME ELEMENT,
---      so `closest('[data-x]')` matched a plain row and three existing
---      checks went red. 6.193.0 in a DOM stub: a stub more forgiving
---      than the provider is a hole with a tick beside it. It matches the
---      selector now, as the real closest() does.
---   📏 NOTHING ON DISK IS TOUCHED — this forgets a row, never a file, and
---      both Console commands say so where he is reading them.
+--      handler PLAYS the track on its way to forgetting it. Its own check.
+--   🧪 AND THE DOM STUB ANSWERED EVERY SELECTOR WITH THE SAME ELEMENT, so
+--      `closest('[data-x]')` matched a plain row and three existing checks
+--      went red — 6.193.0 in a stub. It matches the selector now.
+--   📏 NOTHING ON DISK IS TOUCHED — a row, never a file.
 --
--- NEW IN 6.271.0 — 🧪 THE TEST PLAN SHIPS WITH THE RELEASE (TESTING.md,
---   tools/build-test-plan.lua):
---   LL: "if we want to score each release, I need a set of directions
---      that explicitly state the steps that you want me to take to test
---      each release … I'm running through the cheat sheet checking
---      features, but that is a basic level of tests … that way I can
---      return to you with robust data rather than me just saying that
---      worked or that didn't work."
---   🚨 AND THE STEPS ALREADY EXISTED. CLAUDE.md carries SEVENTY-TWO
---      "verify with LL" blocks over 1,451 lines — one per release for
---      months — and CLAUDE.md is NOT in the package. The archive he
---      opens has six files at its root and none is a test plan. Every
---      step I ever asked him to run was filed where only I can read it,
---      while he walked the cheat sheet inventing his own testing. He was
---      scoring blind because the instructions never shipped.
---   🔑 GENERATED, NEVER HAND-WRITTEN, for the reason the feature list is:
---      a plan kept in step by hand stops matching the release it
---      describes, and then it is worse than nothing — he runs the wrong
---      steps and reports a pass on something that was not built. The
---      gate fails on a TESTING.md stamped with another version.
---   📋 THE BLOCKS ARE STEPS NOW, not prose: numbered, each with its own
---      EXPECT, split into the HEADLINE (this release), MUST STILL WORK
---      (what it could have broken), PASTE BACK (the reports, pass or
---      fail) and A JUDGEMENT ONLY HE CAN MAKE. Three answers, never two
---      — PASS · FAIL with what happened instead · BLOCKED, which is a
---      different fact from a failure and changes what I look at.
---
--- (6.270.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.271.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.272.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.273.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -166,7 +164,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.272.0"
+_G.configVersion = "6.273.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the

@@ -439,10 +439,24 @@ end
 
 -- B. ONE stale reading then a fresh beat: no relaunch (two in a row are required)
 do
-    local s = scenario({ beatAge = 30, check = 2 })
-    sleep(3)                                            -- the first check (t=2) saw it stale
+    -- 🧪 6.273.0 — THE FLAKE WAS THE THRESHOLD, NOT THE LOAD, and the
+    -- arithmetic says so: this ran with stall = 2 (the scenario default)
+    -- and check = 2, so a beat written "now" is EXACTLY at the threshold
+    -- when the next reading lands — `age < STALL` is a coin toss on sub-
+    -- second rounding. It passed alone (88/0) and failed under the gate
+    -- (86/2) because load moves the toss, which reads as load-dependence
+    -- and is really a test with no margin. Two fixes, both needed:
+    --   · the beat stays fresh for THREE readings (stall 6, check 2), so
+    --     "then a fresh beat" is unambiguous rather than borderline;
+    --   · the fresh beat is written when the first stale reading has been
+    --     OBSERVED, not after a sleep that presumes it (6.263.0's rule —
+    --     wait for the state, never time it). The guard logs its near
+    --     miss now, which is what makes that possible.
+    local s = scenario({ beatAge = 30, stall = 6, check = 2 })
+    check("B: the first stale reading is announced as a near miss",
+          s.waitFor("stale 1 of 2", 10), s.log())
     writeFile(s.dir .. "/heartbeat", tostring(os.time()))
-    sleep(3.5)                                          -- the second (t=4) and third (t=6) saw it fresh
+    sleep(5)                                            -- two more readings, both fresh
     check("B: stale once then fresh — nothing killed", s.kills() == "", s.kills())
     check("B: ...no relaunch line", not s.log():find("relaunched", 1, true), s.log())
     s.quit()

@@ -130,7 +130,20 @@ while :; do
     fi
 
     stale=$((stale + 1))
-    [ "$stale" -ge 2 ] || continue
+    if [ "$stale" -lt 2 ]; then
+        # 🔎 6.273.0 — ONE STALE READING IS A NEAR MISS, AND IT IS SAID.
+        # It used to be silent, which cost two things. On LL's Mac a beat
+        # that goes stale and comes back leaves no trace, so "Hammerspoon
+        # felt frozen for a moment" can never be confirmed or ruled out.
+        # And in the gate it made section B nondeterministic: the suite had
+        # to SLEEP and hope its fresh beat landed between two readings,
+        # which on a loaded machine it does not — two readings land first
+        # and the guard relaunches, failing a check about not relaunching.
+        # A line here is the state, so the test can wait for it instead of
+        # timing it (6.263.0's rule, in the section that never got it).
+        log "stale 1 of 2 (${age}s old, pid=$pid) — one more and it is a relaunch"
+        continue
+    fi
 
     # two stale readings in a row, Hammerspoon running: it is hung.
     recent=$(awk -v since="$((t - WINDOW))" '$1 >= since && /relaunched/ { n++ } END { print n + 0 }' "$LOG" 2>/dev/null)

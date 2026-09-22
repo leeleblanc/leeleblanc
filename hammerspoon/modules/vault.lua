@@ -1512,8 +1512,10 @@ function M.setup(core)
         if gone then
             local found = nil
             if _G.service and _G.service.has and _G.service.has("anchors.resolve") then
-                local okS, res = _G.service.call("anchors.resolve", path)
-                if okS and type(res) == "string" and res ~= "" then found = res end
+                -- 6.273.0: service.call returns the provider's own values,
+                -- and anchors.resolve answers with ONE — the path, or nil.
+                local res = _G.service.call("anchors.resolve", path)
+                if type(res) == "string" and res ~= "" then found = res end
             end
             if found then
                 path = found

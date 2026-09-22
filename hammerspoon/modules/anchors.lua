@@ -103,6 +103,14 @@ function M.setup(core)
         tasks = {}, hops = {}, killer = nil, chooser = nil,
         hopped = 0, hopsMissed = 0,
         last = nil, opens = 0, links = 0, resolved = 0, lastWhy = nil,
+        -- 🔎 6.273.0 — WHICH LEG ANSWERED, counted apart. ⇪⇧U can name a
+        -- browser tab, a document or the app alone, and for eighty-nine
+        -- releases only the third could ever happen (a shifted read of
+        -- _G.service.call killed the other two). Nothing said so, because
+        -- "the app only" is also a perfectly honest degrade. A count per
+        -- leg is the one line that tells a working Mac from a broken one:
+        -- documents at 0 after a day in Word is the fault, in a number.
+        legs = { tab = 0, file = 0, app = 0 }, lastLeg = nil,
     }
     M.config = anc
     _G.anchors = anc
@@ -116,8 +124,19 @@ function M.setup(core)
     local function has(name)
         return _G.service and _G.service.has and _G.service.has(name)
     end
+    -- 🔌 6.273.0 — A WRAPPER'S TWO SHAPES HAVE TO AGREE, AND THESE DID
+    -- NOT. This answered `false, "not loaded"` for a missing provider —
+    -- a STATUS in slot one — while handing back _G.service.call's values
+    -- RAW on success, where slot one is DATA. Every call site in this
+    -- module was written to the failure shape and so read the provider
+    -- one slot late: the document leg, the moved-file resolver and the
+    -- "pick a note" row could not work on any Mac from 6.180.0 to
+    -- 6.272.0, and each failed into a plausible answer ("the app only",
+    -- "no notes yet") so nothing ever looked wrong. init.lua's registry
+    -- answers nil for a missing provider; this answers nil too, so
+    -- neither path has anything extra in front to strip.
     local function call(name, ...)
-        if not has(name) then return false, "not loaded" end
+        if not has(name) then return nil end
         return _G.service.call(name, ...)
     end
 
@@ -257,8 +276,12 @@ function M.setup(core)
         -- 2. the front window's document, via doc_memory (the only
         --    AXDocument reader in the config)
         if has("docs.front") then
-            local okS, doc, why = call("docs.front")
-            if okS and type(doc) == "table" and doc.path then
+            -- 🔌 6.273.0. _G.service.call hands back the PROVIDER'S OWN
+            -- values, raw — there is no `ok` in front of them. Reading one
+            -- put `doc` a slot late, so `type(doc) == "table"` was false on
+            -- every success and this leg has never once fired on a Mac.
+            local doc, why = call("docs.front")
+            if type(doc) == "table" and doc.path then
                 return cb({ kind = "file", url = anc.fileURL(doc.path), path = doc.path,
                             title = doc.title or doc.path:match("[^/]+$"), app = doc.app or app })
             end
@@ -328,8 +351,8 @@ function M.setup(core)
         local base = path:match("[^/]+$")
         if not base or base == "" then return nil end
         if not has("index.search") then return nil end
-        local okS, rows = call("index.search", base, 10)
-        if not (okS and type(rows) == "table") then return nil end
+        local rows = call("index.search", base, 10)          -- 6.273.0: raw
+        if type(rows) ~= "table" then return nil end
         for _, r in ipairs(rows) do
             local p = type(r) == "table" and (r.path or r.subText or r.text) or tostring(r)
             if type(p) == "string" and p ~= "" and p:match("[^/]+$") == base and p ~= path then
@@ -345,9 +368,13 @@ function M.setup(core)
     function anc.linkInto(name, t)
         local line = anc.linkLine(t)
         if not line then return false, "nothing to link" end
-        local okS, ok, why = call("vault.link", name, line,
-                                  anc.folder ~= "" and anc.folder or nil)
-        if not okS then return false, "Hamsidian is not loaded" end
+        -- 🚨 6.273.0. "Hamsidian is not loaded" used to be the answer to
+        -- EVERY failed write, because vault.link's own `false` landed in
+        -- the slot this code read as the registry's. The two questions are
+        -- asked apart now: is there a provider, and what did it say.
+        if not has("vault.link") then return false, "Hamsidian is not loaded" end
+        local ok, why = call("vault.link", name, line,
+                             anc.folder ~= "" and anc.folder or nil)
         if not ok then return false, tostring(why or "could not write the note") end
         anc.links = anc.links + 1
         anc.last = { name = name, title = t.title, url = t.url, at = os.time(), why = why }
@@ -380,8 +407,8 @@ function M.setup(core)
     end
 
     local function pickNote(t)
-        local okS, names = call("vault.names")
-        if not okS or type(names) ~= "table" or #names == 0 then
+        local names = call("vault.names")                    -- 6.273.0: raw
+        if type(names) ~= "table" or #names == 0 then
             alert("🔗 No notes to pick yet — make one with the first row", 3)
             return
         end
@@ -444,6 +471,12 @@ function M.setup(core)
                 alert("🔗 " .. anc.lastWhy, 3)
                 return
             end
+            -- counted HERE, the one place every leg passes through — three
+            -- increments at the three cb() sites is three places for one
+            -- to drift (6.231.0).
+            local leg = tostring(t.kind or "app")
+            anc.legs[leg] = (anc.legs[leg] or 0) + 1
+            anc.lastLeg = leg
             anc.notesFor(t, function(notes, gwhy)
                 anc.present(t, notes, why or gwhy)
             end)
@@ -484,6 +517,17 @@ function M.setup(core)
                         .. (anc.tasks.grep and "grep" or "") .. ((not anc.tasks.tab and not anc.tasks.grep) and "none held" or "")
         end
         L[#L + 1] = "   used   : opened " .. anc.opens .. " · linked " .. anc.links
+        local LEGNAME = { tab = "browser tab", file = "document", app = "the app alone" }
+        L[#L + 1] = "   named  : " .. anc.legs.tab .. " browser tab(s) · " .. anc.legs.file
+                    .. " document(s) · " .. anc.legs.app .. " app only"
+                    .. (anc.lastLeg and ("  — last: " .. (LEGNAME[anc.lastLeg] or anc.lastLeg)) or "")
+        -- 🔎 THREE STATES, NEVER TWO (6.196.1): never pressed is not the
+        -- same fact as pressed-and-never-named-a-document, and before
+        -- 6.273.0 the second was guaranteed on every Mac.
+        if anc.opens > 0 and anc.legs.tab == 0 and anc.legs.file == 0 then
+            L[#L + 1] = "   ↳ every press so far has fallen back to the app name."
+                        .. " In a browser or a Word document that is the shape of a fault"
+        end
         local l = anc.last
         L[#L + 1] = "   last   : " .. (l and (l.name .. " — " .. tostring(l.title) .. " ("
                     .. os.date("%b %d %H:%M", l.at) .. ")") or "nothing yet")

@@ -1,4 +1,4 @@
-# TESTING — how to score release 6.272.0
+# TESTING — how to score release 6.273.0
 
 You install ONE archive and it carries several releases. Below are the
 steps for each release this archive is new for, newest first. Run the
@@ -26,6 +26,95 @@ else is a LOSS and I fix it before building further. You are the only
 scorer; I never mark my own.
 
 ---
+
+## 6.273.0
+
+6.273.0 verify with LL — 🔌 ⇪⇧U CAN FINALLY DO ALL FOUR THINGS (KNOWN GROUND)
+WHAT CHANGED: your BLOCKED report on the anchors card was right, and the
+one line that proved it was `note : table: 0x77fdbff940`. A Lua table
+printed where a sentence belongs meant a value had landed in the wrong
+slot — and it had, at all four places this tool asks another module for
+an answer. Three of ⇪⇧U's four legs have never worked, on any Mac, since
+6.180.0. They work now.
+WHY IT MATTERS: you could not have found this by reading the card. You
+found it by TRYING the card, and the report did the diagnosing.
+🚨 A STEP I OWE YOU AN APOLOGY FOR: my 6.269.0 step C1 said "press ⇪⇧U
+with a document or browser tab in front" and gave you no setup, so you
+pressed it over Transmission — which genuinely has no document and no
+tab, making "the app only" both the correct answer AND indistinguishable
+from the bug. That is a defect in the STEP, not in your testing. The
+steps below name the app to use.
+
+A. THE HEADLINE — THE DOCUMENT LEG. This is the one that was dead.
+A1. Open a real document in Microsoft Word (or Excel, Preview, TextEdit,
+    Pages, Numbers, Keynote, PowerPoint, Acrobat). Click into it so it
+    is the front window. Press ⇪⇧U.
+    EXPECT the title at the top of the panel to name THE FILE:
+    `🔗 document: Strategies of the Directors.docx`
+    A FAIL is `🔗 app: Microsoft Word  (no document or tab — the app
+    only)` — that is the old behaviour and means this release did not
+    take. Tell me and stop here.
+A2. Press Esc. Now click into a Chrome tab and press ⇪⇧U.
+    EXPECT `🔗 tab: <the page title>`. (This leg was NOT broken — it is
+    here so you can see the two named differently.)
+A3. Press Esc. Click into Transmission — or anything with no document,
+    which is what you had last time — and press ⇪⇧U.
+    EXPECT `🔗 app: Transmission  (no document or tab — the app only)`.
+    THIS IS CORRECT, and it is what you photographed. It is only a fault
+    when it happens in A1.
+
+B. THE PICK ROW — the row in your screenshot that could never work.
+B1. Press ⇪⇧U anywhere. Press ⌘2, or click "📁 Link it into an existing
+    note…".
+    EXPECT a picker listing your notes — you have about twenty.
+    A FAIL is "🔗 No notes to pick yet — make one with the first row".
+    That was the answer EVERY time before this release.
+B2. Pick a note. EXPECT "🔗 Linked into <note>", Hamsidian opens, and
+    the note has a `## Linked` section with a plain Markdown line in it.
+B3. Press ⇪⇧U again on the SAME thing.
+    EXPECT that note now listed at the TOP as already linking it, and
+    ⏎ on it opens the note.
+B4. Do B2 again on the same note. EXPECT "🔗 Already in <note>" — one
+    line, not two. (The "already linked" wording was also broken.)
+
+C. ⌘1 — the leg that DID work, so it must still.
+C1. Press ⇪⇧U in a Word document, then ⌘1 ("➕ New note: <file>").
+    EXPECT a new note named after the file, with the link written in.
+
+D. PASTE BACK, PASS OR FAIL.
+D1. Console: `_G.anchorsReport()` — the whole block. Two things to read:
+    · `note :` must be a SENTENCE now, never `table: 0x…`.
+    · the new `named :` line counts the legs apart:
+      `named  : 1 browser tab(s) · 1 document(s) · 1 app only  — last: …`
+      After doing A1–A3 that is exactly what it should say. If
+      `document(s)` is 0 after A1, this release failed.
+D2. If every press has fallen back to the app name, the report says so
+    in its own line ("the shape of a fault"). That line existing is the
+    point — it is what would have told us in 6.180.0.
+
+E. MUST STILL WORK — this release also touched Hamsidian.
+E1. In Hamsidian, open a note with a `file://` link in it and ⌘⏎ the
+    link. EXPECT the file opens. (I changed the one line that handles a
+    link whose file has MOVED — it had the mirror image of the same bug.)
+E2. If you have a file you have renamed or moved since linking it, try
+    that link. EXPECT "🕸 Moved — opening <name>". This has never worked
+    before; if it still does not, say so — it needs the ⇪D index to hold
+    the new name, which is a different question from this fix.
+
+F. QUESTIONS — ANSWERS WANTED, NOTHING TO RUN. (Separated on purpose:
+   last time a block like this sat inside the lettered steps and you
+   scored it BLOCKED, which was my formatting's fault, not yours.)
+F1. Four visible strings still tell you to use Obsidian — ⇪3's card row,
+    ⇪N's ⌘⇧S row, `_G.vaultReport()`, the vault summary — plus the ⇪⇧U
+    row 6.269.0 made visible ("plain Markdown under '## Linked' —
+    Obsidian opens it"). Nothing in this config launches or requires
+    Obsidian; it is a FILE-FORMAT lineage, so your notes stay portable.
+    The behaviour stays either way. Do you want the wording changed?
+    "leave it" · "call it Markdown" · "call it Hamsidian" decides it.
+F2. You asked: can the music player go in ⌥Tab? Yes — it is a real
+    window and ⌥Tab is ours. One release, when you want it. Say the word.
+
+
 
 ## 6.272.0
 
@@ -206,61 +295,6 @@ D1. Is 136 points the right rail width on YOUR display? The longest
 D2. On a very small screenshot the window is now taller than the
     picture needs, deliberately, so the nine tools fit. Is that
     annoying enough to change? "fine" or "annoying" is the whole answer.
-
-
-
-## 6.269.0
-
-6.269.0 verify with LL — 🔗 THE ANCHORS CARD HAS ROWS (KNOWN GROUND)
-WHAT CHANGED: ⇪⇧U's card on the cheat sheet has been a heading over
-empty space since 6.180.0 — its eight rows were written under the wrong
-key and the loader silently turned them into nothing. They are back. And
-a card that ever registers with no rows now says so out loud instead of
-drawing a blank space.
-WHY IT MATTERS: it was invisible for eighty-nine releases and only
-surfaced because you asked me to read the cheat sheet.
-
-A. THE HEADLINE.
-A1. Press ⇪/ and type `anchors` in the search box.
-    EXPECT: the 🔗 ANCHORS card, with EIGHT rows under it.
-A2. Read the eight key-column entries.
-    EXPECT: ⇪⇧U · again · ⏎ · new · pick · in a note · moved · Console.
-    On every release you have installed, that card had none of these.
-A3. Open RESOLVED-FEATURE-REQUESTS.txt at the root of the archive and
-    search for "Link the front document".
-    EXPECT: it is there. It never has been — the same bug hid those
-    rows from that file too, so this is a second, independent proof.
-
-B. THE NEW INSTRUMENT.
-B1. Console: `_G.cheatSheetReport()`.
-    EXPECT four lines, and this is the shape of a healthy answer:
-      cards  : <N> card(s) · <N> row(s) from 71 module(s)
-      empty  : none — every card that should have rows has them
-      listed : 1 card(s) are a heading alone ON PURPOSE … Copy-on-Select
-      faults : none — no module registered a card with no rows
-B2. Check that "empty" reads **none** and "faults" reads **none**.
-    A number on either is a real finding — paste it.
-    The "listed" line is NOT a warning: Copy-on-Select has no cheat
-    sheet of its own and is listed so the tool appears at all.
-
-C. MUST STILL WORK.
-C1. Press ⇪⇧U with a document or browser tab in front.
-    EXPECT: it identifies what is in front and offers notes that
-    mention it, exactly as before. Nothing about ⇪⇧U's behaviour moved
-    — only its cheat-sheet card.
-C2. Press ⇪/ and search for a punctuation key, e.g. `\`.
-    EXPECT: the sheet filters (6.250.0 — still working).
-
-D. PASTE BACK, pass or fail.
-D1. `_G.cheatSheetReport()` — the whole block.
-D2. `_G.anchorsReport()` — the "tasks :" line should say callbacks
-    stepped off a held timer, with no ⚠️.
-
-E. FOR YOUR EYES, not a test: one of the eight rows now visible says
-   the link is "plain Markdown under '## Linked' — Obsidian opens it".
-   That is the Obsidian wording you asked about, and fixing this card
-   has SURFACED it rather than changed it. Rewording those strings is
-   your call and its own release — say the word.
 
 
 
