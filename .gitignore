@@ -68,4 +68,11 @@ hammerspoon*.zip
 #   tar -xzf hammerspoonX.Y.Z.tar.gz -C /tmp/verify && sed -n 7p /tmp/verify/init.lua
 #
 hammerspoon*.tar.gz
-!hammerspoon6.274.0.tar.gz
+!hammerspoon6.275.0.tar.gz
+# 6.275.0 ONLY: a .zip beside the .tar.gz because LL asked for the zip by
+# name. The 6.266.0 rule (tar.gz, because three zips in a row arrived
+# unopenable) is NOT reversed — this is one release carrying both so he
+# can say which one actually opens on the work Mac, and the next release
+# carries only that one. COST: ~2.7 MB of git history that never comes
+# back, on top of the tar.gz's 2.6 MB.
+!hammerspoon6.275.0.zip
