@@ -5,6 +5,92 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.274.0 — 🔔 ⇪4 CAN NO LONGER FAIL WITHOUT LEAVING A NUMBER BEHIND
+(init.lua's alert wrap, core/notices.lua, modules/screenshots.lua):
+
+  LL, 2026-09-20: "hyper+4 is intermittently working" — and eight hours of
+  Console with THREE of these in it:
+
+      ⚠️ an alert could not draw — another app's popup was mid-transition.
+         Sweeping the half-drawn frame and retrying…
+
+  🚨 THE CAUSE IS NOT NAMED AND THIS RELEASE DOES NOT GUESS IT. Every
+  silent exit on the ⇪4 path was read and every one of them already
+  answers `false, why` — 6.265.0 closed that class. What is missing is
+  not a fix, it is the ability to tell which of four things happened,
+  and 6.198.0/6.262.0 are what a correct fix for a plausible mechanism
+  costs when nobody asked for the artefact first. So this release is the
+  instrument that decides the next one.
+
+  🔔 A REFUSED ALERT IS THE FAILURE OF THE THING THAT REPORTS FAILURES.
+  It is the one break this config has only ever LOGGED. Every rule here
+  ends in an hs.alert — the degrade door, "a break is seen never only
+  logged", every "it says so rather than failing silently" — so when
+  AppKit refuses one, the tool did its job, the message was written, and
+  he saw nothing. Worse, the printed line did not say WHAT the alert had
+  been about, so an alert explaining why ⇪4 captured nothing is
+  indistinguishable from one about the weather.
+
+  `_G.alertReport()` counts four outcomes and keeps the last refusal's
+  own words:
+
+      asked     : 41 this session
+      refused   : ⚠️ 3 could not draw at the first attempt
+      recovered : 2 drew on the retry a moment later (you saw those, late)
+      lost      : 1 never reached the screen at all
+      ↳ last refused said: "Screenshot area selector — our selector…"
+
+  THREE STATES, NEVER TWO (6.196.1): "you saw it late" and "you never saw
+  it" are different facts, and a Mac that refused nothing must read as
+  healthy rather than as a report you stop reading. A retry that could
+  never be ARMED counts as LOST too — without that branch a Mac with no
+  hs.timer reads as "still in flight" for ever, which is 6.196.1's exact
+  failure inside the instrument built to keep it.
+
+  🔎 AND "INTERMITTENT" IS A COUNT, NOT A SAMPLE. `shots.areaLast` names
+  only the LAST press, which cannot answer a question about a key that
+  works most of the time — 6.229.0's rule, where a day of wake-ups had to
+  be counted before anything could be said about them. `shots.areaRuns`
+  counts ⇪4's routes apart:
+
+      routes  : 3 press(es) — 1 on our selector · 2 on macOS's crosshair
+      ↳ ⚠️ 1 of those were a REFUSAL, not your settings line — that is
+        the intermittent one
+
+  The refusal is counted APART from the settings line deliberately: they
+  look identical on screen and are opposite facts, and a count that
+  summed them would be as useless as the single line it replaced.
+
+  🚪 AND `ensureDir` TAKES THE 🔔 DOOR. A ⇪4 with no folder to write to
+  returned with an hs.alert and nothing else — which is exactly the
+  channel macOS was refusing. It goes through `core.degrade` now (alert
+  AND ⚠️ line AND `_G.degradeReport()`) and is counted, so a ⇪4 that did
+  nothing leaves a record even on the day the message never drew.
+
+  🧪 TWO EXISTING CHECKS ASSERTED THE OLD ALERT'S WORDING and went red on
+  the move. The RULE they were written for — the refusal names the folder
+  it looked for — is unchanged, so they ask the door instead of one
+  channel's text (6.248.0: assert the rule, never the literal).
+
+  🧪 AND ONE NEW CHECK WAS WRONG BEFORE THE CODE WAS. `alertWords`
+  budgets in CHARACTERS, and the check measured its answer with `:len()`,
+  which is BYTES — "…" alone is three of them, so a correct answer failed
+  a check written to prove it. 6.226.0's rule, in the test rather than
+  the code, and the fixed check asserts `utf8.len`. Its sibling — "the cut
+  lands on a character boundary" — then passed its OWN mutation, because a
+  byte cut at a budget of 5 takes four bytes, which is exactly one whole
+  emoji and valid by luck; it asserts the character COUNT too now. A
+  fixture where the right and the wrong implementation agree proves
+  nothing (6.230.0's one-hop symlink, in a string budget).
+
+  📏 NAMED, NOT FIXED: this does not make ⇪4 more reliable. It makes the
+  next report say which of "our selector drew", "macOS refused and we
+  fell back", "your settings line", and "there was nowhere to write"
+  actually happened — and whether the message saying so ever reached the
+  screen.
+```
+
+```text
 NEW IN 6.273.0 — 🔌 ⇪⇧U COULD ONLY EVER DO ONE OF THE FOUR THINGS ITS CARD
 PROMISES (modules/anchors.lua, modules/vault.lua, tests/service_registry.lua):
 

@@ -377,6 +377,77 @@ return function(core)
         return s
     end
 
+    -- ---- 🔔 the channel every other tool reports through (6.274.0) ---------
+    -- LL, 2026-09-20, reporting "hyper+4 is intermittently working" and
+    -- pasting eight hours of Console with THREE of these in it:
+    --
+    --     ⚠️ an alert could not draw — another app's popup was
+    --        mid-transition. Sweeping the half-drawn frame and retrying…
+    --
+    -- 🚨 A REFUSED ALERT IS THE FAILURE OF THE THING THAT REPORTS
+    -- FAILURES, and it was the one break this config never counted. Every
+    -- rule here — 🔔 A BREAK IS SEEN NEVER ONLY LOGGED, the degrade door,
+    -- every "it says so rather than failing silently" — ends in an
+    -- hs.alert. When AppKit refuses one, the tool did its job, the message
+    -- was written, and he saw nothing. Worse, the line above does not say
+    -- WHAT the alert said, so an alert explaining why ⇪4 captured nothing
+    -- is indistinguishable from one about the weather.
+    --
+    -- init.lua's wrapper counts the four outcomes now (it has owned the
+    -- retry since 6.88.0 and must stay there — it wraps before any module
+    -- loads); the words and the report live here, where the degrade door
+    -- already lives.
+
+    -- ✂️ PURE. hs.alert takes a string OR a table of styled text, so this
+    -- never assumes either, and it flattens newlines because a report line
+    -- is one line. nil-tolerant by design: it is called from inside a
+    -- failure path and must not add a second one.
+    function _G.alertWords(v, max)
+        local s
+        if type(v) == "table" then s = tostring(v.text or v[1] or "styled text")
+        else s = tostring(v == nil and "(no text)" or v) end
+        s = s:gsub("%s+", " "):gsub("^ ", ""):gsub(" $", "")
+        if s == "" then s = "(empty)" end
+        max = tonumber(max) or 70
+        if utf8 and utf8.len and (utf8.len(s) or 0) > max then
+            local cut = utf8.offset(s, max) or (max + 1)
+            s = s:sub(1, cut - 1) .. "…"
+        elseif not (utf8 and utf8.len) and #s > max then
+            s = s:sub(1, max - 1) .. "…"
+        end
+        return s
+    end
+
+    -- 🔎 THREE STATES, NEVER TWO (6.196.1). "macOS has drawn every alert"
+    -- and "one never reached the screen" are opposite facts, and a
+    -- RECOVERED alert (drawn a moment later by the retry) is a third —
+    -- he saw it, just late, which is not a lost message.
+    function _G.alertReport()
+        local a = _G.alertLate or {}
+        local L = { "🔔 ALERTS — the channel every other tool reports through" }
+        L[#L + 1] = "   asked     : " .. tostring(a.asked or 0) .. " this session"
+        if (tonumber(a.refused) or 0) == 0 then
+            L[#L + 1] = "   refused   : none — macOS drew every alert it was asked for"
+        else
+            L[#L + 1] = "   refused   : ⚠️ " .. tostring(a.refused)
+                        .. " could not draw at the first attempt"
+            L[#L + 1] = "   recovered : " .. tostring(a.recovered or 0)
+                        .. " drew on the retry a moment later (you saw those, late)"
+            L[#L + 1] = "   lost      : " .. tostring(a.lost or 0)
+                        .. " never reached the screen at all"
+            L[#L + 1] = "   ↳ last refused said: \"" .. tostring(a.last or "?") .. "\""
+                        .. (a.lastAt and ("  at " .. tostring(a.lastAt)) or "")
+            if (tonumber(a.lost) or 0) > 0 then
+                L[#L + 1] = "   🚨 A LOST ALERT IS A TOOL THAT REPORTED A FAULT YOU NEVER SAW."
+                L[#L + 1] = "      Read this beside _G.degradeReport() and _G.canvasShowReport()"
+                L[#L + 1] = "      — the fault itself is recorded in one of those."
+            end
+        end
+        local s = table.concat(L, "\n")
+        print(s)
+        return s
+    end
+
     _G.notices = notices
     return notices
 end

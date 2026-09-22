@@ -416,6 +416,102 @@ check("SOURCE: init.lua's degrade falls back to its own ⚠️ print + hs.alert 
       initSrc:find("if _G.notices and _G.notices.degrade then return _G.notices.degrade(tool, why, opts) end", 1, true) ~= nil
       and initSrc:find('hs.alert.show("⚠️ " .. tostring(tool or "?") .. " — " .. why, 6)', 1, true) ~= nil)
 
+
+out("\n=== 10. 6.274.0 — 🔔 THE CHANNEL EVERY OTHER TOOL REPORTS THROUGH ===\n")
+-- LL: "hyper+4 is intermittently working", with eight hours of Console
+-- carrying THREE "⚠️ an alert could not draw" lines. A refused alert is
+-- the failure of the thing that reports failures, and nothing counted it
+-- or recorded what it had been about.
+boot()
+
+-- ✂️ PURE. hs.alert takes a string OR a table of styled text, and this is
+-- called from inside a failure path, so it must never add a second one.
+check("alertWords: a plain string comes back", _G.alertWords("hello") == "hello")
+check("alertWords: a styled table answers its .text",
+      _G.alertWords({ text = "styled one" }) == "styled one")
+check("alertWords: ...or its first element", _G.alertWords({ "first" }) == "first")
+check("alertWords: nil is named, never blank", _G.alertWords(nil) == "(no text)")
+check("alertWords: an empty string is named too", _G.alertWords("") == "(empty)")
+check("alertWords: a report line is ONE line — newlines and tabs flatten",
+      _G.alertWords("a\nb\tc") == "a b c", _G.alertWords("a\nb\tc"))
+local long = string.rep("x", 200)
+-- 🚨 MEASURED IN CHARACTERS, NOT BYTES — `#` and `:len()` count bytes,
+-- and "…" alone is three of them, so a byte-counted assertion here fails
+-- on a correct answer (6.226.0's rule, in the check rather than the code).
+check("alertWords: a long alert is cut to the budget with an ellipsis",
+      utf8.len(_G.alertWords(long, 20)) == 20
+      and _G.alertWords(long, 20):sub(-3) == "…",
+      _G.alertWords(long, 20) .. "  (" .. tostring(utf8.len(_G.alertWords(long, 20))) .. " chars)")
+-- 🚨 CUT ON A GLYPH, NEVER A BYTE (6.226.0's rule in a new place): one
+-- emoji is four bytes, and half of one is a string WebKit and the Console
+-- both render as rubbish.
+-- 🧪 AND THE FIRST VERSION OF THIS CHECK PASSED ITS OWN MUTATION. It
+-- asked only "is the answer still valid UTF-8" at max = 5, and a BYTE
+-- cut there takes s:sub(1, 4) — which is exactly one whole four-byte
+-- emoji, valid by luck. The mutation that cuts in bytes bit nothing. So
+-- it asserts the COUNT as well, which a byte cut cannot get right: five
+-- characters means five emoji and an ellipsis, not one.
+local emo = string.rep("😀", 10)
+local cutE = _G.alertWords(emo, 5)
+check("alertWords: the cut lands on a character boundary, not mid-emoji",
+      utf8.len(cutE) ~= nil, cutE)
+check("alertWords: ...and the budget is five CHARACTERS, not five bytes",
+      utf8.len(cutE) == 5 and cutE:sub(-3) == "…", tostring(utf8.len(cutE)))
+
+-- 🔎 THREE STATES, NEVER TWO (6.196.1). "you saw it late" and "you never
+-- saw it" are different facts, and a healthy Mac must read as healthy.
+_G.alertLate = { asked = 12, refused = 0, recovered = 0, lost = 0 }
+local healthy = _G.alertReport()
+check("alertReport: a Mac that refused nothing says so plainly",
+      healthy:find("refused   : none", 1, true) ~= nil
+      and healthy:find("⚠️", 1, true) == nil, healthy)
+check("alertReport: ...and it is NOT silent about how many it drew",
+      healthy:find("asked     : 12", 1, true) ~= nil)
+
+_G.alertLate = { asked = 9, refused = 3, recovered = 3, lost = 0,
+                 last = "Screenshot area selector — could not start", lastAt = "20:38:45" }
+local late = _G.alertReport()
+check("alertReport: alerts that drew on the RETRY are not counted as lost",
+      late:find("recovered : 3", 1, true) ~= nil
+      and late:find("🚨", 1, true) == nil, late)
+check("alertReport: ...and the last refusal's own words ride into it",
+      late:find("Screenshot area selector", 1, true) ~= nil
+      and late:find("20:38:45", 1, true) ~= nil, late)
+
+_G.alertLate = { asked = 9, refused = 3, recovered = 1, lost = 2,
+                 last = "File tracker — a CSV write took 400 ms", lastAt = "04:16:51" }
+local lost = _G.alertReport()
+check("alertReport: a LOST alert is a fault he never saw, and it says so",
+      lost:find("lost      : 2", 1, true) ~= nil
+      and lost:find("A TOOL THAT REPORTED A FAULT YOU NEVER SAW", 1, true) ~= nil, lost)
+check("alertReport: ...and it points at the reports that DID record it",
+      lost:find("_G.degradeReport()", 1, true) ~= nil
+      and lost:find("_G.canvasShowReport()", 1, true) ~= nil)
+_G.alertLate = nil
+
+-- 🔒 SOURCE: the counting lives in init.lua's wrapper, which is the only
+-- place it can (it wraps before any module loads). A stub hs.alert cannot
+-- prove this — the wrapper is installed at boot and the suite never runs
+-- init.lua — so it is asserted against the file, as 6.198.0's timer slot
+-- and 6.196.1's task slots are.
+local initSrc2 = (function() local f = realIoOpen(HS .. "/init.lua", "r")
+    if not f then return "" end local x = f:read("*a"); f:close(); return x end)()
+check("SOURCE: every alert asked for is counted",
+      initSrc2:find("_G.alertLate.asked = _G.alertLate.asked + 1", 1, true) ~= nil)
+check("SOURCE: a refusal is counted",
+      initSrc2:find("_G.alertLate.refused = _G.alertLate.refused + 1", 1, true) ~= nil)
+check("SOURCE: one that drew on the retry is counted as RECOVERED, not lost",
+      initSrc2:find("_G.alertLate.recovered = _G.alertLate.recovered + 1", 1, true) ~= nil)
+check("SOURCE: one the retry could not draw is counted LOST",
+      initSrc2:find("_G.alertLate.lost = _G.alertLate.lost + 1", 1, true) ~= nil)
+-- 🚨 AND A RETRY THAT COULD NEVER BE ARMED IS ALSO LOST — without this
+-- branch a Mac with no hs.timer reads as "still in flight" for ever,
+-- which is 6.196.1's exact failure in the instrument built to keep it.
+check("SOURCE: a retry that could not be ARMED is lost too, not left pending",
+      initSrc2:find("if not armed then _G.alertLate.lost = _G.alertLate.lost + 1 end", 1, true) ~= nil)
+check("SOURCE: the refusal remembers WHAT the alert said",
+      initSrc2:find("_G.alertWords(args[1])", 1, true) ~= nil)
+
 io.open = realIoOpen
 out("\n")
 if fail > 0 then

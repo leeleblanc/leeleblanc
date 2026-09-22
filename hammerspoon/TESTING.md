@@ -1,4 +1,4 @@
-# TESTING — how to score release 6.273.0
+# TESTING — how to score release 6.274.0
 
 You install ONE archive and it carries several releases. Below are the
 steps for each release this archive is new for, newest first. Run the
@@ -26,6 +26,72 @@ else is a LOSS and I fix it before building further. You are the only
 scorer; I never mark my own.
 
 ---
+
+## 6.274.0
+
+6.274.0 verify with LL — 🔔 ⇪4 LEAVES A NUMBER BEHIND (KNOWN GROUND)
+WHAT CHANGED: nothing about how ⇪4 captures. This release exists so that
+the NEXT time it does not, we can tell which of four things happened
+instead of guessing.
+🚨 I HAVE NOT FIXED YOUR ⇪4, and I am saying that first rather than
+letting you find it out. I read every path that could make that key do
+nothing and they all already say why — 6.265.0 closed that class. What
+I could not do is tell, from "intermittently working", WHICH of them you
+are hitting. So: instruments, then the fix.
+🔎 AND YOUR CONSOLE CARRIED THE CLUE I COULD ACT ON: three
+"⚠️ an alert could not draw" lines in eight hours. That is macOS
+refusing to draw one of OUR messages — and every message this config
+has ever given you goes through that one channel. So an alert
+explaining why ⇪4 did nothing could itself have been refused, and
+nothing recorded that it happened or what it said.
+
+A. THE HEADLINE — the new reports. Nothing to break, everything to read.
+A1. Console: `_G.alertReport()`.
+    EXPECT on a healthy Mac, and it should be BORING:
+      asked     : <N> this session
+      refused   : none — macOS drew every alert it was asked for
+    If "refused" is a number, paste the whole block. The "↳ last refused
+    said:" line names what you missed.
+A2. Console: `_G.screenshotsReport()` — look for the new "routes :" line.
+    EXPECT, before you have pressed ⇪4: "⇪4 has not been pressed this
+    session".
+A3. Press ⇪4 and drag a rectangle. Run it again.
+    EXPECT: "routes : 1 press(es) — 1 on our selector · 0 on macOS's
+    crosshair", and NO ⚠️ under it.
+
+B. THE ONE THAT MATTERS — use the Mac for a day, then read it.
+B1. After a normal day, Console: `_G.screenshotsReport()` and
+    `_G.alertReport()`. PASTE BOTH.
+    The three numbers that answer your report:
+    · "routes" — how many ⇪4 presses went to OUR selector vs macOS's.
+    · the ⚠️ line under it — how many of the macOS ones were a REFUSAL
+      rather than a setting. THAT number is your "intermittently".
+    · "↳ ⚠️ N press(es) found no folder to write to" — if this appears,
+      your screenshots folder was missing at that moment, which would
+      make ⇪4 do nothing at all. It is in OneDrive, so this is a real
+      candidate and it has never been counted before.
+B2. If ⇪4 does nothing at some point in that day, note roughly WHEN and
+    run both reports straight away. The clock in each line is what lets
+    me line it up with your Console.
+
+C. MUST STILL WORK.
+C1. ⇪4 captures, with the live 1280 × 720 readout and the shutter.
+C2. ⇪5 scrolling capture still works.
+C3. In the editor (⇪⇧1), ⌘A still drags on our selector.
+C4. Any alert you normally see — ⇪Z learning a word, a copy confirmation
+    — still appears. The wrapper counts; it does not gate.
+
+D. A JUDGEMENT ONLY YOU CAN MAKE.
+D1. When ⇪4 "does not work", what do you actually see? Three different
+    answers send me to three different places, and I cannot tell them
+    apart from here:
+    · nothing at all happens — no crosshair, no sound;
+    · macOS's PLAIN crosshair appears (no black size box) — that is the
+      fallback working, and the refusal count will prove it;
+    · our dashed blue selector appears but the drag does not capture.
+    One sentence is enough.
+
+
 
 ## 6.273.0
 
@@ -228,73 +294,6 @@ D2. Are the steps at the right grain? Too coarse and they miss things;
 D3. Anything you routinely check that I have NOT asked for — that is
     the most valuable answer here, because it is a test I do not know
     to write.
-
-
-
-## 6.270.0
-
-6.270.0 verify with LL — 🖼 THE EDITOR'S TWO RAILS (KNOWN GROUND)
-WHAT CHANGED: the screenshot editor's eighteen buttons were all in one
-wrapping strip across the top. Nine drawing tools now run down the LEFT
-edge, six capture/edit actions down the RIGHT, and the window is wider
-by exactly the two rails so the picture is not squeezed to make room.
-WHY IT MATTERS: this is the thing you asked for three times and were
-right about every time — it had never been built.
-
-A. THE HEADLINE. If any step in A fails, stop and tell me; the rest
-   tells me nothing until this works.
-A1. Press ⇪⇧1 on any screenshot (or ⌥⏎ on a row in ⇪space @shots).
-    EXPECT: the editor opens with a column of buttons down the LEFT
-    edge AND a column down the RIGHT edge.
-A2. Read the LEFT column top to bottom.
-    EXPECT exactly nine, in this order, under a "TOOLS" label: Blur,
-    Text, Arrow, Line, Oval, Highlight, Counter, Spotlight, Magnifier.
-A3. Read the RIGHT column top to bottom.
-    EXPECT six, under "ADD" then "EDIT": Paste image, Add capture,
-    Delayed 5s, Full screen, Load shot, then Undo.
-A4. Read the strip across the TOP.
-    EXPECT four things only: 🖌 Edit, Save & copy, Small JPEG, Cancel.
-    A drawing tool still up there is a FAIL — say which one.
-A5. Look at where the screenshot itself is drawn.
-    EXPECT: neither rail overlaps the picture, and the picture is not
-    cropped. The buttons sit BESIDE the shot, never on top of it.
-A6. Close it, then open the editor on a much SMALLER screenshot.
-    EXPECT: same nine and six buttons, none cut off at the bottom, and
-    still no rail over the picture.
-
-B. MUST STILL WORK. Not new — but this release moved every button, so
-   it is the most likely thing to have broken.
-B1. Press the letters B, T, A, L, O, H, C, S, M one at a time.
-    EXPECT: the armed tool changes each time and the matching button
-    in the LEFT rail highlights.
-B2. Drag on the picture with Blur armed. EXPECT: the area blurs.
-B3. Press T, click the picture, type a word, press ⏎.
-    EXPECT: the text lands where you clicked.
-B4. Hold ⌘ and click that text box. EXPECT: its words open for editing.
-B5. Press ⌘Z. EXPECT: the last mark is undone.
-B6. Hold ⌘ and drag the TOP strip. EXPECT: the window moves.
-B7. Hold ⌘ and drag the PICTURE. EXPECT: the window does NOT move
-    (⌘ on the picture means "edit this mark" — 6.221.0).
-B8. Press ⌘⏎. EXPECT: it saves "… (edited).png" beside the original
-    and puts it on the clipboard; ⌘V pastes it.
-
-C. PASTE THESE BACK, pass or fail. A report from a working Mac is what
-   tells me what a broken one is missing.
-C1. Console: `_G.screenshotEditorReport()` — the whole block. The new
-    "layout :" line names the rail width and what the window reserves.
-C2. Console: `_G.screenReport()` — which monitor placed the last panel.
-
-D. A JUDGEMENT ONLY YOU CAN MAKE, and the one number I could not
-   determine from here.
-D1. Is 136 points the right rail width on YOUR display? The longest
-    labels are "🖍 Highlight", "📸 Add capture" and "⏲ Delayed 5s".
-    Answer one of: "right" · "too narrow, <label> is cut off" · "too
-    wide, it steals room from the shot". If it is wrong it is a number
-    and not a release — I will move the default rather than hand you
-    `settings = { screenshot_editor = { railW = 160 } }` to type.
-D2. On a very small screenshot the window is now taller than the
-    picture needs, deliberately, so the nine tools fit. Is that
-    annoying enough to change? "fine" or "annoying" is the whole answer.
 
 
 

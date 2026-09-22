@@ -4,70 +4,58 @@
 -- =====================================================================
 -- 09-22-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.273.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.274.0
 -- =====================================================================
 
+-- NEW IN 6.274.0 — 🔔 ⇪4 CAN NO LONGER FAIL WITHOUT LEAVING A NUMBER
+--   BEHIND (init.lua's alert wrap, core/notices.lua, modules/screenshots.lua):
+--   LL: "hyper+4 is intermittently working", with eight hours of Console
+--      carrying THREE "⚠️ an alert could not draw" lines.
+--   🚨 THE CAUSE IS NOT NAMED AND THIS RELEASE DOES NOT GUESS IT
+--      (6.198.0/6.262.0). It is the instrument that decides the next one.
+--   🔔 A REFUSED ALERT IS THE FAILURE OF THE THING THAT REPORTS FAILURES,
+--      and it was the one break this config only ever LOGGED — every rule
+--      here ends in an hs.alert, and the printed line did not even say
+--      WHAT the alert had been about. `_G.alertReport()`: asked · refused
+--      · recovered on the retry · LOST outright, with the last refusal's
+--      own words. "Seen late" and "never seen" differ (6.196.1).
+--   🔎 AND "INTERMITTENT" IS A COUNT, NOT A SAMPLE (6.229.0):
+--      `shots.areaRuns` counts ⇪4's routes apart — our selector, macOS's
+--      crosshair, and how many of those were a REFUSAL rather than his
+--      own settings line. 🚪 `ensureDir` takes the 🔔 door too.
+--
 -- NEW IN 6.273.0 — 🔌 ⇪⇧U COULD ONLY EVER DO ONE OF THE FOUR THINGS ITS
 --   CARD PROMISES (modules/anchors.lua, modules/vault.lua,
 --   tests/service_registry.lua):
 --   LL, scoring 6.269.0's newly visible anchors card BLOCKED, with a
 --      screenshot of ⇪⇧U over Transmission and a report whose `note` line
 --      read "table: 0x77fdbff940".
---   🔎 THAT ADDRESS WAS THE WHOLE DIAGNOSIS. A Lua table printed where a
---      sentence belongs means a value landed in the wrong slot, and it
---      had: `_G.service.call` returns the PROVIDER'S OWN values, raw,
---      with no `ok` in front of them, and all four of this module's call
---      sites read one as if there were. Every value was a slot late.
---   🚨 SO THREE OF THE FOUR LEGS WERE DEAD FROM 6.180.0: the front
---      document could never be named (the test for it read a nil),
---      🚚 move survival could never resolve (same), and "📁 Link it into
---      an existing note…" — the row in his photograph — always answered
---      "No notes to pick yet" over a vault holding twenty. A failed write
---      was reported as "Hamsidian is not loaded", whatever the cause.
---   🔑 ROOT CAUSE: A WRAPPER WHOSE TWO SHAPES DISAGREED. The module's own
---      call() answered `false, "not loaded"` for a missing provider — a
---      STATUS in slot one — while passing the registry's values through
---      raw, where slot one is DATA. It answers nil now, as init.lua does.
---   🧪 AND THE SUITE HAD INVENTED THE CONVENTION IT WAS WRITTEN AGAINST:
---      test_anchors.lua's registry, under the comment "exactly as
---      init.lua publishes it", read `return true, SERVICES[n](...)`.
---      tests/service_registry.lua LIFTS the real block out of init.lua
---      now; the moment it did, six checks went red and named all four
---      dead legs. GENERAL: a stub that invents a calling convention is
---      worse than no stub — it certifies the bug (6.193.0, 7th time).
---   🔎 THE REPORT COUNTS THE LEGS APART ("named : N browser tab(s) · N
---      document(s) · N app only"), because "the app only" is both a
---      legitimate degrade and the only thing ⇪⇧U could ever say — one
---      line that tells a working Mac from a broken one (6.196.1).
+--   🔎 A TABLE PRINTED WHERE A SENTENCE BELONGS IS A VALUE IN THE WRONG
+--      SLOT. `_G.service.call` returns the PROVIDER'S OWN values, raw,
+--      with no `ok` in front, and all four of this module's call sites
+--      read one as if there were — every value a slot late, since
+--      6.180.0. The front document was never named, 🚚 move survival
+--      never resolved, "📁 Link it into an existing note…" always said
+--      "No notes to pick yet", and every failed write was reported as
+--      "Hamsidian is not loaded".
+--   🔑 ROOT CAUSE: A WRAPPER WHOSE TWO SHAPES DISAGREED — `false, "not
+--      loaded"` for a missing provider (a STATUS in slot one) against the
+--      registry's raw values (DATA in slot one). It answers nil now.
+--   🧪 AND THE SUITE INVENTED THE CONVENTION IT WAS WRITTEN AGAINST:
+--      `return true, SERVICES[n](...)`, under a comment reading "exactly
+--      as init.lua publishes it". tests/service_registry.lua LIFTS the
+--      real block now; six checks went red and named all four dead legs.
+--      GENERAL: a stub that invents a calling convention certifies the
+--      bug rather than missing it (6.193.0, 7th time).
+--   🔎 The report counts the legs apart, because "the app only" is both a
+--      real degrade and the only thing ⇪⇧U could ever say (6.196.1).
 --
--- NEW IN 6.272.0 — 🗑 A TRACK CAN BE FORGOTTEN FROM THE 🕘 HISTORY
---   (modules/music_player.lua):
---   LL: "did you make it so I could delete entries from my music history
---      list? … I don't wanna have to ask a second time or third time or
---      fourth time wondering if it's there."
---   🚨 HE COULD NOT, AND HE HAD NOT ASKED BEFORE — checked in the source
---      rather than remembered: ⌫ sent `{a:'remove', i}`, which is the
---      QUEUE index, and a history row only ever sent `{a:'hist'}`, which
---      PLAYS it. There was no way to take a row out. Every history row
---      carries a ✕ now; `_G.musicForgetHistory(path)` and
---      `_G.musicClearHistory()` are the bulk doors.
---   🔑 BY PATH, NEVER BY INDEX (6.186.0): the card draws 40 rows of a
---      store holding up to 400, and any redraw renumbers them under his
---      hand, so an index forgets a DIFFERENT track — silently, in the one
---      list whose purpose is remembering. `mp.forgetHistory` is PURE.
---   🚨 THE ✕ IS ASKED BEFORE THE ROW IT SITS IN, or a shared click
---      handler PLAYS the track on its way to forgetting it. Its own check.
---   🧪 AND THE DOM STUB ANSWERED EVERY SELECTOR WITH THE SAME ELEMENT, so
---      `closest('[data-x]')` matched a plain row and three existing checks
---      went red — 6.193.0 in a stub. It matches the selector now.
---   📏 NOTHING ON DISK IS TOUCHED — a row, never a file.
---
--- (6.271.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.272.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.273.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.274.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -164,7 +152,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.273.0"
+_G.configVersion = "6.274.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the
@@ -1376,19 +1364,39 @@ function _G.phantom(quiet)
     end
 end
 
+-- 🔔 6.274.0 — AND IT IS COUNTED. A refused alert is the failure of the
+-- thing that reports failures: every rule in this config ends in an
+-- hs.alert, so when AppKit refuses one the tool did its job and LL saw
+-- nothing. His Console carried three of these in eight hours and none of
+-- them said WHAT the alert had been about. `_G.alertReport()` lives in
+-- core/notices.lua (nil-guarded here: it loads after this line).
+_G.alertLate = _G.alertLate or { asked = 0, refused = 0, recovered = 0, lost = 0 }
+
 if _G.rawAlertShow then hs.alert.show = function(...)
+    _G.alertLate.asked = _G.alertLate.asked + 1
     local okA, r = pcall(_G.rawAlertShow, ...)
     if okA then return r end
-    print("⚠️ an alert could not draw — another app's popup was"
-          .. " mid-transition. Sweeping the half-drawn frame and retrying…")
     local args = table.pack(...)
+    _G.alertLate.refused = _G.alertLate.refused + 1
+    pcall(function()
+        _G.alertLate.last   = (type(_G.alertWords) == "function")
+                              and _G.alertWords(args[1]) or tostring(args[1])
+        _G.alertLate.lastAt = os.date("%H:%M:%S")
+    end)
+    print("⚠️ an alert could not draw — another app's popup was"
+          .. " mid-transition. Sweeping the half-drawn frame and retrying…"
+          .. "\n   ↳ it said: " .. tostring(_G.alertLate.last)
+          .. "   (_G.alertReport() counts these)")
     -- pcall'd: in a world where even hs.timer is broken, this wrapper
     -- still must never throw into whoever asked for an alert.
-    pcall(function()
+    local armed = pcall(function()
         local t = hs.timer.doAfter(0.05, function()
             _G.phantom(true)
             local ok2 = pcall(_G.rawAlertShow, table.unpack(args, 1, args.n))
-            if not ok2 then
+            if ok2 then
+                _G.alertLate.recovered = _G.alertLate.recovered + 1
+            else
+                _G.alertLate.lost = _G.alertLate.lost + 1
                 print("⚠️ …the retry failed too. If an empty pill is stuck"
                       .. " on screen: _G.phantom() — and Reload Config if"
                       .. " it survives that.")
@@ -1398,7 +1406,10 @@ if _G.rawAlertShow then hs.alert.show = function(...)
         _G.canvasShowTimers[#_G.canvasShowTimers + 1] = t
         while #_G.canvasShowTimers > 8 do table.remove(_G.canvasShowTimers, 1) end
     end)
-end end -- alert wrap (6.88.0, sweep-and-retry 6.100.1)
+    -- 🔎 A retry that could never be ARMED is a message lost outright, and
+    -- it must not read as one still in flight (6.196.1).
+    if not armed then _G.alertLate.lost = _G.alertLate.lost + 1 end
+end end -- alert wrap (6.88.0, sweep-and-retry 6.100.1, counted 6.274.0)
 
 -- =====================================================================
 -- 🖐 DRAGGABLE CANVAS PANELS (6.67.0)

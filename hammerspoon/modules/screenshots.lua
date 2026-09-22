@@ -247,6 +247,15 @@ function M.setup(core)
     -- this as his call and its own release; this is him making it.
     -- true here goes back to `screencapture -i` and macOS's own HUD.
     shots.areaNative   = false
+    -- 🔎 6.274.0 — "INTERMITTENTLY WORKING" IS A COUNT, NOT A SAMPLE.
+    -- `shots.areaLast` records the LAST press, which can never answer a
+    -- question about a key that works most of the time (6.229.0: when a
+    -- cost is paid per event, count the events). These count the routes
+    -- ⇪4 actually took, and `refused` is the one that matters — his own
+    -- settings line and a Mac that could not draw our selector both end
+    -- in "native", and they are opposite facts.
+    shots.areaRuns = { ours = 0, native = 0, refused = 0 }
+    shots.dirFails = 0
     shots.sizeReadout  = true    -- the live W × H while you drag
     shots.sizeAlpha    = 0.9     -- the black box: "90 %-opaque" == "10% translucent"
     shots.sizeFontSize = 15
@@ -323,9 +332,20 @@ function M.setup(core)
         -- mkdir cannot create parents; if OneDrive-Personal itself is
         -- missing (not signed in, different account name) say WHERE it
         -- looked rather than failing into the Console.
-        pcall(function()
-            hs.alert.show("📸 Screenshots folder unavailable:\n" .. shots.dir, 4)
-        end)
+        -- 🔔 6.274.0 — AND IT TAKES THE DOOR. An alert was the whole of
+        -- what this said, and an alert is exactly what macOS was refusing
+        -- on LL's Mac (three in eight hours). The degrade door alerts AND
+        -- prints AND lands in `_G.degradeReport()`, so a ⇪4 that did
+        -- nothing leaves a record even when the message never drew.
+        shots.dirFails = (shots.dirFails or 0) + 1
+        shots.dirFailWhy = "the screenshots folder is not there: " .. shots.dir
+        if type(core.degrade) == "function" then
+            pcall(core.degrade, "Screenshots folder", shots.dirFailWhy)
+        else
+            pcall(function()
+                hs.alert.show("📸 Screenshots folder unavailable:\n" .. shots.dir, 4)
+            end)
+        end
         warn("folder unavailable: " .. shots.dir)
         return nil
     end
@@ -535,10 +555,12 @@ function M.setup(core)
         local at = 0
         pcall(function() at = hs.timer.secondsSinceEpoch() end)
         shots.areaLast = { how = how, why = note, at = at }
+        shots.areaRuns[how] = (shots.areaRuns[how] or 0) + 1
         -- 🔔 A DEGRADE IS SEEN, NEVER ONLY LOGGED (6.215.0) — but only
         -- when it IS one: his own settings line choosing the native
         -- crosshair is a decision, not a fault, so it never alerts.
         if how == "native" and not shots.areaNative then
+            shots.areaRuns.refused = shots.areaRuns.refused + 1
             if type(core.degrade) == "function" then
                 pcall(core.degrade, "Screenshot area selector", note)
             end
@@ -1331,6 +1353,24 @@ function M.setup(core)
                         .. "{ areaNative = true } } · not pressed yet this session"
                     or "our selector, with the live size readout · not pressed "
                        .. "yet this session"))
+        -- 🔎 6.274.0 — the routes, counted apart, because "intermittent"
+        -- is the one thing a single last-press line cannot describe.
+        local ar = shots.areaRuns or {}
+        local pressed = (ar.ours or 0) + (ar.native or 0)
+        if pressed == 0 then
+            L[#L + 1] = "   routes  : ⇪4 has not been pressed this session"
+        else
+            L[#L + 1] = ("   routes  : %d press(es) — %d on our selector · %d on macOS's crosshair")
+                        :format(pressed, ar.ours or 0, ar.native or 0)
+            if (ar.refused or 0) > 0 then
+                L[#L + 1] = "   ↳ ⚠️ " .. ar.refused .. " of those were a REFUSAL, not your settings line"
+                            .. " — that is the intermittent one"
+            end
+        end
+        if (shots.dirFails or 0) > 0 then
+            L[#L + 1] = "   ↳ ⚠️ " .. shots.dirFails .. " press(es) found no folder to write to: "
+                        .. tostring(shots.dirFailWhy)
+        end
         local r = shots.scrollLast
         if not r then
             L[#L + 1] = "   scroll  : never run this session (⇪5)"

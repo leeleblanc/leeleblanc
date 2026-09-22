@@ -746,9 +746,19 @@ local tasksBefore = #TASKS
 HYPER["|4"]()
 check("no screencapture is launched at a folder that is not there",
       #TASKS == tasksBefore)
-check("…and the alert names the folder it looked for",
-      (ALERTS[#ALERTS] or ""):find("2026 Screenshots", 1, true) ~= nil,
-      ALERTS[#ALERTS])
+check("…and it names the folder it looked for, through the 🔔 door",
+      (function()
+          -- 🔔 6.274.0 — THE REFUSAL GOES THROUGH THE DEGRADE DOOR NOW. It
+          -- used to be an alert and nothing else, which is exactly the
+          -- channel macOS was refusing on LL's Mac. The RULE is unchanged
+          -- — it must name the folder it looked for — so it is asserted
+          -- wherever the message went, never against one channel's
+          -- wording (6.248.0: assert the rule, not the literal).
+          local d = DEGRADES[#DEGRADES]
+          return d ~= nil and d.tool == "Screenshots folder"
+                 and d.why:find("2026 Screenshots", 1, true) ~= nil
+      end)(),
+      DEGRADES[#DEGRADES] and DEGRADES[#DEGRADES].why)
 hs.fs.mkdir = realMkdir
 
 -- =====================================================================
@@ -1422,9 +1432,19 @@ do
     local ok = S.revealFolder()
     check("🛟 with no folder it refuses rather than opening nothing",
           ok == false and #TASKS == before, #TASKS - before)
-    check("🛟 …and the alert names the folder it looked for",
-          (ALERTS[#ALERTS] or ""):find("2026 Screenshots", 1, true) ~= nil,
-          ALERTS[#ALERTS])
+    check("🛟 …and it names the folder it looked for, through the 🔔 door",
+      (function()
+          -- 🔔 6.274.0 — THE REFUSAL GOES THROUGH THE DEGRADE DOOR NOW. It
+          -- used to be an alert and nothing else, which is exactly the
+          -- channel macOS was refusing on LL's Mac. The RULE is unchanged
+          -- — it must name the folder it looked for — so it is asserted
+          -- wherever the message went, never against one channel's
+          -- wording (6.248.0: assert the rule, not the literal).
+          local d = DEGRADES[#DEGRADES]
+          return d ~= nil and d.tool == "Screenshots folder"
+                 and d.why:find("2026 Screenshots", 1, true) ~= nil
+      end)(),
+      DEGRADES[#DEGRADES] and DEGRADES[#DEGRADES].why)
     hs.fs.mkdir = realMkdir
     DIRS[DIR] = true
 end
@@ -1978,6 +1998,89 @@ do
     S.areaLast, S.areaNative = keptLastArea, keptNative
 
     check("the 6.260.0 block ran every one of its checks", n14 == 44, n14)
+end
+
+-- =====================================================================
+out("\n15. 🔎 6.274.0 — \"intermittently working\" is a COUNT, not a sample\n")
+-- =====================================================================
+-- LL: "hyper+4 is intermittently working." `S.areaLast` names only the
+-- LAST press, which can never answer a question about a key that works
+-- most of the time (6.229.0: when a cost is paid per event, count the
+-- events). And the two "native" outcomes are opposite facts — his own
+-- settings line, and a Mac that could not draw ours — so a count that
+-- summed them would be as useless as the single line it replaced.
+do
+    local n15, ck = 0, nil
+    ck = function(label, cond, extra) n15 = n15 + 1; check(label, cond, extra) end
+
+    local keptNative, keptRuns, keptFails = S.areaNative, S.areaRuns, S.dirFails
+    S.areaRuns, S.dirFails = { ours = 0, native = 0, refused = 0 }, 0
+
+    ck("a session with no ⇪4 in it says so, rather than reading as zero presses"
+       .. " of a working key",
+       _G.screenshotsReport():find("has not been pressed this session", 1, true) ~= nil)
+
+    -- 1. the ordinary press, on our selector
+    S.areaNative = false
+    HYPER["|4"]()
+    ck("a press on OUR selector counts as ours",
+       S.areaRuns.ours == 1 and S.areaRuns.native == 0 and S.areaRuns.refused == 0,
+       S.areaRuns.ours .. "/" .. S.areaRuns.native .. "/" .. S.areaRuns.refused)
+
+    -- 2. macOS refuses to show it — the shape his beta keeps producing
+    local realShow = _G.showCanvasSafely
+    _G.showCanvasSafely = function() return false end
+    HYPER["|4"]()
+    _G.showCanvasSafely = realShow
+    ck("🚨 a press macOS REFUSED is counted as a refusal, not just as native",
+       S.areaRuns.ours == 1 and S.areaRuns.native == 1 and S.areaRuns.refused == 1,
+       S.areaRuns.ours .. "/" .. S.areaRuns.native .. "/" .. S.areaRuns.refused)
+    if TASKS[#TASKS] then TASKS[#TASKS].cb() end
+
+    -- 3. his own settings line — native, and NOT a refusal
+    S.areaNative = true
+    HYPER["|4"]()
+    ck("🔎 …while HIS OWN settings line is native and NOT a refusal — the two"
+       .. " look identical on screen and are opposite facts (6.196.1)",
+       S.areaRuns.native == 2 and S.areaRuns.refused == 1,
+       S.areaRuns.native .. " native / " .. S.areaRuns.refused .. " refused")
+    if TASKS[#TASKS] then TASKS[#TASKS].cb() end
+
+    local rep = _G.screenshotsReport()
+    ck("the report names the routes apart",
+       rep:find("3 press(es)", 1, true) ~= nil
+       and rep:find("1 on our selector", 1, true) ~= nil
+       and rep:find("2 on macOS's crosshair", 1, true) ~= nil,
+       rep:match("routes  :[^\n]*"))
+    ck("…and the ⚠️ sits on the REFUSAL count, which is the intermittent one",
+       (rep:match("routes  :.-\n[^\n]*") or ""):find("were a REFUSAL", 1, true) ~= nil,
+       rep:match("routes  :.-\n[^\n]*"))
+
+    -- 🚪 and a press with nowhere to write goes through the 🔔 door, so it
+    -- is recorded even on the day macOS refuses the alert that says so.
+    S.areaRuns, S.dirFails = { ours = 0, native = 0, refused = 0 }, 0
+    DIRS[DIR] = nil
+    local realMkdir2 = hs.fs.mkdir
+    hs.fs.mkdir = function() return nil end
+    local beforeD = #DEGRADES
+    HYPER["|4"]()
+    hs.fs.mkdir = realMkdir2
+    ck("🚪 a ⇪4 with no folder to write to takes the 🔔 door",
+       #DEGRADES == beforeD + 1
+       and DEGRADES[#DEGRADES].tool == "Screenshots folder",
+       DEGRADES[#DEGRADES] and DEGRADES[#DEGRADES].tool)
+    ck("…and it is COUNTED, so a silent ⇪4 is never a session with no evidence",
+       S.dirFails == 1, S.dirFails)
+    ck("…and the report names it with the folder it looked for",
+       (_G.screenshotsReport():match("found no folder[^\n]*") or ""):find(DIR, 1, true) ~= nil,
+       _G.screenshotsReport():match("found no folder[^\n]*"))
+    ck("…and that press is NOT counted as a route it never took",
+       S.areaRuns.ours == 0 and S.areaRuns.native == 0,
+       S.areaRuns.ours .. "/" .. S.areaRuns.native)
+
+    S.areaNative, S.areaRuns, S.dirFails = keptNative, keptRuns, keptFails
+    DIRS[DIR] = true
+    check("the 6.274.0 block ran every one of its checks", n15 == 10, n15)
 end
 
 -- =====================================================================

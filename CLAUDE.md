@@ -942,6 +942,53 @@ work Mac.
   again: they would have gone red with nothing to say about the change
   they existed to prove. Assert the RULE in terms of the config.
 
+- 🔔 A REFUSED ALERT IS THE FAILURE OF THE THING THAT REPORTS FAILURES
+  (6.274.0, init.lua's alert wrap + core/notices.lua + screenshots.lua —
+  LL: "hyper+4 is intermittently working", with eight hours of Console
+  carrying THREE `⚠️ an alert could not draw` lines). EVERY rule in this
+  file ends in an hs.alert — the 🔔 degrade door, A BREAK IS SEEN NEVER
+  ONLY LOGGED, every "it says so rather than failing silently". When
+  AppKit refuses one, the tool did its job, the message was written and
+  he saw nothing; and the line that printed did not even say WHAT the
+  alert had been about, so a message explaining a dead ⇪4 is
+  indistinguishable from one about the weather. `_G.alertReport()`:
+  asked · refused · RECOVERED on the retry · LOST outright, with the last
+  refusal's own words. "Seen late" and "never seen" are different facts
+  (6.196.1), and a retry that could never be ARMED counts as LOST — else
+  a Mac with no hs.timer reads as "still in flight" for ever, which is
+  6.196.1's exact failure inside the instrument built to keep it.
+  `_G.alertWords` is PURE, takes a string OR a styled table, flattens to
+  one line and cuts in CHARACTERS (utf8), never bytes.
+  🔎 AND "INTERMITTENT" IS A COUNT, NOT A SAMPLE (6.229.0's rule, second
+  time it has decided a release): `shots.areaLast` named only the LAST
+  ⇪4, which can never answer a question about a key that works most of
+  the time. `shots.areaRuns` counts the routes apart — and the REFUSAL is
+  counted apart from his own `areaNative` settings line deliberately,
+  because those look identical on screen and are opposite facts; a count
+  that summed them would be as useless as the line it replaced.
+  🚪 `ensureDir` TAKES THE DOOR: a ⇪4 with nowhere to write said so in an
+  hs.alert and nothing else — exactly the channel macOS was refusing.
+  🚨 THE CAUSE OF HIS ⇪4 IS STILL NOT NAMED, and this release does not
+  guess it: every silent exit on that path was read and all of them
+  already answer `false, why` (6.265.0 closed that class). 6.198.0's rule
+  — a correct fix for a plausible mechanism is not evidence — so the
+  release is the instrument, and the next one is whatever his report
+  names. GENERAL: when a symptom is INTERMITTENT, the missing half is
+  never a better guess, it is a per-outcome COUNT.
+  🧪 Two existing checks asserted the old alert's WORDING and went red on
+  the move; the rule they were written for (the refusal names the folder
+  it looked for) is unchanged, so they ask the door (6.248.0). And one
+  NEW check was wrong before the code was — it measured a
+  character-budgeted answer with `:len()`, which is bytes, so a correct
+  answer failed a check written to prove it (6.226.0, in the test).
+  🧪 AND THE GLYPH CHECK PASSED ITS OWN MUTATION at first: it asked only
+  "is the answer still valid UTF-8" at a budget of 5, and a BYTE cut
+  there takes `s:sub(1, 4)` — exactly one whole four-byte emoji, valid by
+  luck. It asserts the character COUNT as well now, which a byte cut
+  cannot get right. GENERAL, and it is the same shape as 6.230.0's
+  one-hop symlink: a fixture where the right and wrong implementations
+  AGREE proves nothing — pick the input where they must differ.
+
 - 🔌 A WRAPPER WHOSE SUCCESS AND FAILURE RETURNS DIFFER IN ARITY WILL BE
   READ WRONGLY (6.273.0, modules/anchors.lua + vault.lua +
   tests/service_registry.lua — LL, scoring 6.269.0's newly visible
@@ -2851,7 +2898,7 @@ THE METHOD, when something breaks after a stacked zip:
    6.216.0 6f06071 · 6.217.0 a475bef · 6.218.0 41b002b · 6.219.0 862c177
    · 6.220.0 ac3975e · 6.221.0 ead07d9 · 6.222.0 1842ca7 · 6.223.0
    86ac82b · 6.224.0 67957ea · 6.225.0 98434fe · 6.226.0 304f1f9 ·
-   6.227.0 14e953a · 6.228.0 2aa3dfe · 6.229.0 a1318e1 · 6.230.0 0740c07 · 6.231.0 c1921af · 6.231.1 5a5c298 · 6.232.0 1ca3f6f · 6.233.0 2328c8c · 6.234.0 57f78d0 · 6.235.0 52e5b21 · 6.236.0 34cff8b · 6.236.1 fdce771 · 6.237.0 adf9256 · 6.238.0 3adad4f · 6.239.0 3adad4f (one commit, two releases) · 6.240.0 8f44bec · 6.241.0 dce517e · 6.242.0 1a1dab0 · 6.243.0 8fba04f · 6.244.0 9320906 · 6.245.0 9c1a8b1 · 6.246.0 1400abd · 6.247.0 3b92e99 · 6.248.0 e4e3a03 · 6.249.0 e4edc3f · 6.250.0 c267c1b · 6.251.0 f7b0d57 · 6.252.0 6307253 · 6.253.0 ef20313 · 6.254.0 14493e5 · 6.255.0 d371b34 · 6.256.0 3c29888 · 6.257.0 7f55d2b · 6.258.0 10d2250 · 6.259.0 2bcda06 · 6.260.0 f16e286 · 6.261.0 8680504 · 6.262.0 595dc2e · 6.263.0 014ddf6 · 6.264.0 5e41879 · 6.265.0 f0c487c · 6.266.0 9135f7b · 6.267.0 a621a60 · 6.268.0 c2e513f · 6.269.0 f6552ea (078cece is the same release before the report was corrected) · 6.270.0 b8eda88 · 6.271.0 b8edbe1 · 6.272.0 881a91b.
+   6.227.0 14e953a · 6.228.0 2aa3dfe · 6.229.0 a1318e1 · 6.230.0 0740c07 · 6.231.0 c1921af · 6.231.1 5a5c298 · 6.232.0 1ca3f6f · 6.233.0 2328c8c · 6.234.0 57f78d0 · 6.235.0 52e5b21 · 6.236.0 34cff8b · 6.236.1 fdce771 · 6.237.0 adf9256 · 6.238.0 3adad4f · 6.239.0 3adad4f (one commit, two releases) · 6.240.0 8f44bec · 6.241.0 dce517e · 6.242.0 1a1dab0 · 6.243.0 8fba04f · 6.244.0 9320906 · 6.245.0 9c1a8b1 · 6.246.0 1400abd · 6.247.0 3b92e99 · 6.248.0 e4e3a03 · 6.249.0 e4edc3f · 6.250.0 c267c1b · 6.251.0 f7b0d57 · 6.252.0 6307253 · 6.253.0 ef20313 · 6.254.0 14493e5 · 6.255.0 d371b34 · 6.256.0 3c29888 · 6.257.0 7f55d2b · 6.258.0 10d2250 · 6.259.0 2bcda06 · 6.260.0 f16e286 · 6.261.0 8680504 · 6.262.0 595dc2e · 6.263.0 014ddf6 · 6.264.0 5e41879 · 6.265.0 f0c487c · 6.266.0 9135f7b · 6.267.0 a621a60 · 6.268.0 c2e513f · 6.269.0 f6552ea (078cece is the same release before the report was corrected) · 6.270.0 b8eda88 · 6.271.0 b8edbe1 · 6.272.0 881a91b · 6.273.0 56b0d2b.
    Keep this list current: one line per release, appended at ceremony
    time.
 4. A BISECT IS AN OPTION, NOT THE FIRST MOVE — it costs him an install
@@ -2947,6 +2994,8 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
+| 6.274.0 | 🔔 ⇪4 can no longer fail without leaving a number behind — a refused alert is counted and its words kept, and ⇪4's routes are counted apart | pending |
+| 6.273.0 | 🔌 ⇪⇧U can finally do all four things its card promises — `_G.service.call` hands back the provider's own values and all four call sites read one a slot late, since 6.180.0 | pending |
 | 6.272.0 | 🗑 a ✕ on every 🕘 music history row forgets that track — by path, never by index, and it never plays the row it is removing | **WIN** — LL, 2026-09-20: "Pass on music player", and his report carried the proof: `forgot : 2 history row(s) removed with ✕ this session` |
 | 6.271.0 | 🧪 the steps to test a release ship IN the archive as TESTING.md — seventy-two verify blocks existed and none of them was in the package | **WIN** — LL: "TESTING.MD · Pass", and he ran it: the first report in its own PASS/BLOCKED vocabulary, which found 6.180.0's bug |
 | 6.270.0 | 🖼 the screenshot editor's tools move into two vertical rails — nine left, six right — and the window reserves their width so the shot is never squeezed to make room | **WIN** — LL: "Screenshot · Pass", on his third telling of an ask that had never been built |
@@ -3174,6 +3223,25 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   THIS PARAGRAPH: it is a reading, not a verdict — 6.262.0 is what a
   correct fix for a plausible mechanism costs when nobody asked for the
   artefact first.
+- 🔔 ⇪4 INTERMITTENT — THE INSTRUMENT SHIPPED AS 6.274.0, THE CAUSE IS
+  STILL OPEN (LL, 2026-09-20: "hyper+4 is intermittently working"). NOT
+  diagnosed, and deliberately not guessed: every silent exit on that path
+  was read and all of them already answer `false, why` (6.265.0 closed
+  that class), so nothing in the source names it. What was missing is a
+  per-outcome COUNT, which is what 6.274.0 adds.
+  🔎 THE THREE CANDIDATES, in the order his report will rank them:
+  (1) macOS REFUSING the selector canvas — his beta does this, and the
+  fallback to `screencapture -i` then gives him a crosshair with no size
+  box, which could read as "it worked" or as "it did something odd";
+  (2) the SCREENSHOTS FOLDER missing at that moment — it is in OneDrive,
+  `ensureDir` returns with a message and nothing else, and that message
+  is an alert, which his Mac is demonstrably refusing sometimes;
+  (3) something on the path that is not visible from the source at all.
+  📋 ASK FOR: `_G.screenshotsReport()`'s "routes :" line and its ⚠️
+  follow-ups, and `_G.alertReport()`, after a full day — plus the one
+  sentence in D1 of the verify block (what he actually SEES when it
+  fails), because "nothing happened" and "macOS's crosshair appeared"
+  are opposite answers and the fix differs for each.
 - 🖱 TRACKPAD HYPERSENSITIVE (LL, 2026-09-20: "Something is making my
   trackpad hypersensitive"). NOT diagnosed, NO code — the artefact first
   (6.201.0). Read, not proven, and the reason it is NOT obviously ours:
@@ -3621,6 +3689,68 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.274.0 verify with LL — 🔔 ⇪4 LEAVES A NUMBER BEHIND (KNOWN GROUND)
+  WHAT CHANGED: nothing about how ⇪4 captures. This release exists so that
+  the NEXT time it does not, we can tell which of four things happened
+  instead of guessing.
+  🚨 I HAVE NOT FIXED YOUR ⇪4, and I am saying that first rather than
+  letting you find it out. I read every path that could make that key do
+  nothing and they all already say why — 6.265.0 closed that class. What
+  I could not do is tell, from "intermittently working", WHICH of them you
+  are hitting. So: instruments, then the fix.
+  🔎 AND YOUR CONSOLE CARRIED THE CLUE I COULD ACT ON: three
+  "⚠️ an alert could not draw" lines in eight hours. That is macOS
+  refusing to draw one of OUR messages — and every message this config
+  has ever given you goes through that one channel. So an alert
+  explaining why ⇪4 did nothing could itself have been refused, and
+  nothing recorded that it happened or what it said.
+
+  A. THE HEADLINE — the new reports. Nothing to break, everything to read.
+  A1. Console: `_G.alertReport()`.
+      EXPECT on a healthy Mac, and it should be BORING:
+        asked     : <N> this session
+        refused   : none — macOS drew every alert it was asked for
+      If "refused" is a number, paste the whole block. The "↳ last refused
+      said:" line names what you missed.
+  A2. Console: `_G.screenshotsReport()` — look for the new "routes :" line.
+      EXPECT, before you have pressed ⇪4: "⇪4 has not been pressed this
+      session".
+  A3. Press ⇪4 and drag a rectangle. Run it again.
+      EXPECT: "routes : 1 press(es) — 1 on our selector · 0 on macOS's
+      crosshair", and NO ⚠️ under it.
+
+  B. THE ONE THAT MATTERS — use the Mac for a day, then read it.
+  B1. After a normal day, Console: `_G.screenshotsReport()` and
+      `_G.alertReport()`. PASTE BOTH.
+      The three numbers that answer your report:
+      · "routes" — how many ⇪4 presses went to OUR selector vs macOS's.
+      · the ⚠️ line under it — how many of the macOS ones were a REFUSAL
+        rather than a setting. THAT number is your "intermittently".
+      · "↳ ⚠️ N press(es) found no folder to write to" — if this appears,
+        your screenshots folder was missing at that moment, which would
+        make ⇪4 do nothing at all. It is in OneDrive, so this is a real
+        candidate and it has never been counted before.
+  B2. If ⇪4 does nothing at some point in that day, note roughly WHEN and
+      run both reports straight away. The clock in each line is what lets
+      me line it up with your Console.
+
+  C. MUST STILL WORK.
+  C1. ⇪4 captures, with the live 1280 × 720 readout and the shutter.
+  C2. ⇪5 scrolling capture still works.
+  C3. In the editor (⇪⇧1), ⌘A still drags on our selector.
+  C4. Any alert you normally see — ⇪Z learning a word, a copy confirmation
+      — still appears. The wrapper counts; it does not gate.
+
+  D. A JUDGEMENT ONLY YOU CAN MAKE.
+  D1. When ⇪4 "does not work", what do you actually see? Three different
+      answers send me to three different places, and I cannot tell them
+      apart from here:
+      · nothing at all happens — no crosshair, no sound;
+      · macOS's PLAIN crosshair appears (no black size box) — that is the
+        fallback working, and the refusal count will prove it;
+      · our dashed blue selector appears but the drag does not capture.
+      One sentence is enough.
+
 - 6.273.0 verify with LL — 🔌 ⇪⇧U CAN FINALLY DO ALL FOUR THINGS (KNOWN GROUND)
   WHAT CHANGED: your BLOCKED report on the anchors card was right, and the
   one line that proved it was `note : table: 0x77fdbff940`. A Lua table
