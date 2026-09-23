@@ -1763,5 +1763,101 @@ do
     check("the source says why: visible strings only, and names what stays", real:find("VISIBLE STRINGS ONLY", 1, true) ~= nil)
 end
 
+-- =====================================================================
+out("\n6.277.0 — ⇪3 PUTS YOU BACK IN THE NOTE YOU WERE IN\n")
+-- =====================================================================
+-- LL: "Opening and closing Hamsidian puts me back on Scratch 1 and not
+-- the note I was working on. If I had 1000s of notes, I would have to
+-- find that note each time to work on it again. Since I might not
+-- remember, that's asking a lot of me."
+--
+-- 🔎 `vault.lastNote` has been WRITTEN on every open for releases and
+-- v.open() consulted it only `if not v.doc` — while v.doc survives
+-- hide(). One ⇪N pins it to a scratch tab for the whole session, so
+-- every ⇪3 after that renders the tab. The memory was correct and
+-- unreachable. These checks drive the state he actually had.
+do
+    v.hide()
+    v.openNote("Alpha")
+    check("the note he was in is remembered as he works",
+          SETTINGS["vault.lastNote"] == "Alpha.md")
+
+    -- 🎯 HIS EXACT STATE: a scratch tab left in v.doc by an earlier ⇪N,
+    -- surviving a close, with the note still remembered underneath it.
+    v.hide()
+    v.doc = { scratch = "s1", name = "Scratch 1", rel = "scratch:s1", text = "" }
+    v.show()
+    check("🎯 ⇪3 opens on ALPHA, not on the scratch tab that was pinned "
+          .. "in v.doc — the whole of what LL reported",
+          v.doc ~= nil and v.doc.rel == "Alpha.md",
+          v.doc and tostring(v.doc.rel))
+    check("...and it says so, in the report's own words",
+          tostring(v.lastPlaceState):find("Alpha.md", 1, true) ~= nil,
+          tostring(v.lastPlaceState))
+    v.hide()
+
+    -- 🚨 A REMEMBERED NOTE THAT IS GONE MUST NOT BE RE-CREATED. openNote
+    -- seeds a missing file, so restoring through it naively would answer
+    -- "you deleted that note" by writing it back out — a silent
+    -- resurrection in the one folder that holds his writing.
+    SETTINGS["vault.lastNote"] = "Vanished.md"
+    v.doc = nil
+    local before = FILES[VAULT .. "/Vanished.md"]
+    local okG, whyG = v.goToLastNote()
+    check("🚨 a remembered note this vault no longer holds is NOT "
+          .. "re-created — nothing is written back into the folder",
+          okG == false and before == nil
+          and FILES[VAULT .. "/Vanished.md"] == nil, tostring(whyG))
+    check("...and the state names it rather than reading like a fresh "
+          .. "vault — 'gone' and 'never had one' are different facts",
+          tostring(v.lastPlaceState):find("no longer holds", 1, true) ~= nil,
+          tostring(v.lastPlaceState))
+    check("...and the report prints the ⚠️ for it", (function()
+        local r = _G.vaultReport()
+        return r:find("back to:", 1, true) ~= nil
+               and r:find("could not put you back", 1, true) ~= nil
+    end)())
+
+    -- nothing remembered at all: honest, and still not a scratch tab
+    SETTINGS["vault.lastNote"] = nil
+    v.doc = nil
+    local okN = v.goToLastNote()
+    check("a vault with nothing remembered says exactly that",
+          okN == false
+          and tostring(v.lastPlaceState):find("nothing remembered", 1, true) ~= nil,
+          tostring(v.lastPlaceState))
+
+    -- 🔑 AND ⇪N IS UNCHANGED. Each door restores its own side; a single
+    -- shared "last place" would land ⇪3 back on Scratch 1 whenever the
+    -- tabs were used last, which is the complaint being fixed.
+    SETTINGS["vault.lastNote"] = "Alpha.md"
+    v.hide()
+    v.doc = nil
+    local okS, whyS = v.openScratch(nil)
+    -- The pad is not loaded in this suite, so ⇪N's door REFUSES by name
+    -- here. Either way the rule is the same and it is the one that
+    -- matters: the tabs door must never quietly become a second notes
+    -- door. Asserting "it opened a tab" would pass only where the pad
+    -- happens to be loaded and would say nothing about the rule.
+    check("⇪N's door goes to the tabs or refuses by name — it NEVER "
+          .. "falls through to the remembered note, or the notes door "
+          .. "restoring notes has turned the tabs door into a second one",
+          (okS == true and v.doc ~= nil and v.doc.scratch ~= nil)
+          or (okS == false and type(whyS) == "string" and whyS ~= ""
+              and (v.doc == nil or v.doc.rel ~= "Alpha.md")),
+          tostring(okS) .. " / " .. tostring(whyS)
+          .. " / " .. tostring(v.doc and v.doc.rel))
+
+    -- one door: a caller reaching v.open() directly still gets it back
+    v.hide()
+    v.doc = nil
+    v.open()
+    check("v.open() on its own restores too — the restore lives in ONE "
+          .. "function, not a second copy beside it (6.231.0)",
+          v.doc ~= nil and v.doc.rel == "Alpha.md",
+          v.doc and tostring(v.doc.rel))
+    v.hide()
+end
+
 out(string.format("\n%d passed, %d failed\n", pass, fail))
 os.exit(fail == 0 and 0 or 1)

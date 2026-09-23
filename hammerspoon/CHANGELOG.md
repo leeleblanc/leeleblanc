@@ -5,6 +5,56 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.277.0 — 🔖 ⇪3 PUTS YOU BACK IN THE NOTE YOU WERE IN
+(modules/vault.lua, tests/test_vault.lua):
+
+  LL: "Opening and closing Hamsidian puts me back on Scratch 1 and not
+  the note I was working on. If I had 1000s of notes, I would have to
+  find that note each time to work on it again. Since I might not
+  remember, that's asking a lot of me."
+
+🔎 THE MEMORY WAS CORRECT AND UNREACHABLE, which is 6.265.0's shape in a
+  different module. `openNote` has stamped `hs.settings` "vault.lastNote"
+  on every single open for releases — that half always worked. v.open()
+  consulted it only `if not v.doc`, and `v.doc` SURVIVES hide(): the only
+  line that clears it (3901) fires when a scratch TAB has been deleted.
+  So one press of ⇪N sets v.doc to a tab and pins it there for the rest
+  of the session, and every ⇪3 afterwards renders that tab without ever
+  looking at the note he had been writing in. The right answer sat one
+  branch away with nothing able to reach it, exactly as 6.264.0's
+  crosshair fallback did.
+
+🔑 EACH DOOR RESTORES ITS OWN SIDE. ⇪3 is the notes door and goes back to
+  the last NOTE; ⇪N is the tabs door and is unchanged. A single shared
+  "last place" was the obvious build and is wrong: it would land ⇪3 back
+  on Scratch 1 whenever the tabs happened to be used last, which is the
+  complaint. `v.goToLastNote()` is the one function; v.show() asks it
+  when there is no doc OR when the doc is a scratch tab, and v.open()'s
+  own restore now calls the same function instead of holding a second
+  copy of the logic (6.231.0 — two copies is how one stops matching the
+  other).
+
+🚨 A REMEMBERED NOTE THAT IS GONE IS NOT RE-CREATED. `openNote` seeds a
+  missing file with "# Name\n\n" by design, so restoring through it
+  naively would answer "you renamed or deleted that note" by writing it
+  silently back into the folder that holds his writing. The restore
+  stats the file first and refuses; nothing is created, nothing is lost,
+  and ⇪3 opens on the notes list instead. Its own check, because the
+  plausible wrong answer here writes to disk.
+
+🔎 THREE STATES, NEVER TWO (6.196.1). "nothing remembered yet" (a fresh
+  vault) and "remembered a note this vault no longer holds" (renamed,
+  deleted, or moved on the other Mac) send him to two different places,
+  and until this release both looked identical — they both looked like
+  Scratch 1. `_G.vaultReport()` has a `back to:` line, with a ⚠️ under it
+  when the restore could not land.
+
+🧪 THREE MUTATIONS, THREE BITES, and the first reproduces his report by
+  name: restoring the old `if not v.doc` guard fails the headline check
+  with `[scratch:s1]`. Removing the existence check fails the
+  "not re-created" check; dropping the state assignment fails the
+  wording check. The restore was verified by SHA (6.239.0).
+
 NEW IN 6.276.0 — 🆓 A CARD THAT SAYS A KEY IS FREE ASKS THE REGISTRY
 (modules/numpad_layer.lua, modules/power_tools.lua,
  tests/test_power_tools.lua, tests/test_integration.lua):

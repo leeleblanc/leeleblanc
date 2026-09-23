@@ -4,9 +4,27 @@
 -- =====================================================================
 -- 09-22-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.276.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.277.0
 -- =====================================================================
 
+-- NEW IN 6.277.0 — 🔖 ⇪3 PUTS YOU BACK IN THE NOTE YOU WERE IN
+--   (modules/vault.lua):
+--   LL: "Opening and closing Hamsidian puts me back on Scratch 1 and not
+--      the note I was working on. If I had 1000s of notes, I would have
+--      to find that note each time … that's asking a lot of me."
+--   🔎 THE MEMORY WAS CORRECT AND UNREACHABLE. openNote has stamped
+--      `vault.lastNote` on every open for releases; v.open() consulted it
+--      only `if not v.doc`, and v.doc SURVIVES hide(). So one press of ⇪N
+--      pinned it to a scratch tab for the rest of the session and every
+--      ⇪3 after that rendered the tab. 6.265.0's shape: the right answer,
+--      one branch away, with nothing able to reach it.
+--   🔑 EACH DOOR RESTORES ITS OWN SIDE — ⇪3 goes back to the last NOTE,
+--      ⇪N is the tabs and is unchanged. One shared "last place" would put
+--      ⇪3 back on Scratch 1 whenever the tabs were used last.
+--   🚨 A REMEMBERED NOTE THAT IS GONE IS NOT RE-CREATED: openNote seeds a
+--      missing file, so restoring through it naively answers "you deleted
+--      that" by writing it back. Three states (6.196.1), `back to:`.
+--
 -- NEW IN 6.276.0 — 🆓 A CARD THAT SAYS A KEY IS FREE ASKS THE REGISTRY
 --   (modules/numpad_layer.lua, modules/power_tools.lua):
 --   LL, handed ⇪⇧pad. as an available key: "are you saying the . on the
@@ -30,29 +48,14 @@
 --      B. A claim of ABSENCE now has its own instrument, and an
 --      unverifiable 🆓 row FAILS the gate rather than being skipped.
 --   🔎 THREE STATES (6.196.1): the rows ship saying they have not asked
---      yet, which is not "every key is claimed" and not the answer.
---      `_G.padProbe()` says which happened.
+--      yet — not "every key is claimed". `_G.padProbe()` says which.
 --
--- NEW IN 6.275.0 — 📘 THE INSTALL GUIDE TELLS YOU WHAT FAILURE LOOKS LIKE
---   (INSTALL.md, HAMSIDIAN.md — documentation only, no behaviour change):
---   LL, after missing the install on his IT-managed work Mac: "These
---      install steps are not detailed enough … give me what is a failure,
---      along with a success at each step."
---   🚨 THE MISSED STEP WAS THE ONLY ONE THAT MATTERS — the files have to
---      land in ~/.hammerspoon, and unpacking into ~/Downloads and
---      reloading looks exactly like doing nothing. A box at the TOP of the
---      file answers "is this Mac installed at all"; every step carries ✅
---      AND ❌ with the fix on the same line; and a section he can hand to
---      IT names the four things they must allow, what each costs if
---      refused, and what they do NOT have to allow. 🔗 HAMSIDIAN.md §7b:
---      ⇪⇧U · ⌘K · ⇪space @images, and what each actually writes.
---
--- (6.274.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.275.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.276.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.277.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -149,7 +152,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.276.0"
+_G.configVersion = "6.277.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the

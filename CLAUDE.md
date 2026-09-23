@@ -989,6 +989,34 @@ work Mac.
   one-hop symlink: a fixture where the right and wrong implementations
   AGREE proves nothing — pick the input where they must differ.
 
+- 🔖 A MEMORY THAT IS WRITTEN AND NEVER READ IS NOT A MEMORY (6.277.0,
+  modules/vault.lua — LL: "Opening and closing Hamsidian puts me back on
+  Scratch 1 and not the note I was working on. If I had 1000s of notes, I
+  would have to find that note each time … that's asking a lot of me").
+  `openNote` has stamped `vault.lastNote` on EVERY open for releases;
+  v.open() consulted it only `if not v.doc`, and v.doc SURVIVES hide()
+  (the one line that clears it fires when a scratch TAB has been
+  deleted). One press of ⇪N pins v.doc to a tab for the session and every
+  ⇪3 after it renders that tab. 6.265.0's shape in a new module: the
+  right answer one branch away, unreachable.
+  🔑 EACH DOOR RESTORES ITS OWN SIDE — ⇪3 the last NOTE, ⇪N the tabs,
+  unchanged. A single shared "last place" is the obvious build and is
+  wrong: it puts ⇪3 back on Scratch 1 whenever the tabs were used last,
+  which is the complaint. `v.goToLastNote()` is the ONE function and
+  v.open()'s own restore calls it rather than holding a second copy
+  (6.231.0).
+  🚨 A REMEMBERED NOTE THAT IS GONE IS NOT RE-CREATED: openNote seeds a
+  missing file by design, so restoring through it naively answers "you
+  deleted that note" by writing it back into the folder holding his
+  writing. Stat first, refuse, open on the list. Its own check, because
+  the plausible wrong answer writes to disk.
+  🔎 THREE STATES (6.196.1): nothing remembered yet · the note is gone ·
+  restored. Until now all three looked like Scratch 1.
+  GENERAL: when a feature "does not remember", check whether the write is
+  happening before touching the write — a value stored correctly and
+  consulted under a condition that is almost never true is the commoner
+  bug and looks identical from outside.
+
 - 🆓 A CARD THAT SAYS A KEY IS FREE IS MAKING A PROMISE, AND NOTHING WAS
   CHECKING IT (6.276.0, modules/numpad_layer.lua + power_tools.lua — LL,
   handed ⇪⇧pad. as available: "are you saying the . on the numpad is free
@@ -3051,6 +3079,7 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
+| 6.277.0 | 🔖 ⇪3 reopens the note you were writing in — the last note has been recorded on every open for releases and was read only when nothing was open | pending |
 | 6.276.0 | 🆓 a cheat-sheet row that says a key is free now ASKS the live registry — ⇪⇧pad. had been advertised as available since the music player took it in 6.231.0 | pending |
 | 6.275.0 | 📘 the install guide says what FAILURE looks like at every step, has a section to hand to IT, and HAMSIDIAN.md gains §7b on linking out (docs only) | pending |
 | 6.274.0 | 🔔 ⇪4 can no longer fail without leaving a number behind — a refused alert is counted and its words kept, and ⇪4's routes are counted apart | pending |
@@ -3767,6 +3796,56 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.277.0 verify with LL — 🔖 ⇪3 PUTS YOU BACK (KNOWN GROUND)
+  WHAT CHANGED: ⇪3 reopens the note you were last writing in, instead of
+  whatever was left on screen. ⇪N is unchanged — it still opens the tabs.
+  WHY IT MATTERS: your words. With thousands of notes, having to find the
+  one you were in every time is the tool asking you to do its job.
+  🔎 AND THE HONEST PART: the note was ALREADY being remembered, on every
+  open, for releases. It was only ever read when nothing was open — and
+  one press of ⇪N left a scratch tab "open" for the rest of the session,
+  so it was almost never read. Nothing was lost; it just could not be
+  reached.
+
+  A. THE HEADLINE.
+  A1. Press ⇪3, open a real note, type a word in it. Press ⇪3 to close.
+  A2. Press ⇪N (the tabs), look at Scratch 1, press ⇪N to close.
+  A3. Press ⇪3.
+      EXPECT: the NOTE from A1, open, with your word in it.
+      A FAIL is landing on Scratch 1 — that is the old behaviour exactly.
+  A4. Do A1–A3 again but reload Hammerspoon between closing and reopening.
+      EXPECT: the same note. This is the path that used to work, so if A3
+      passes and A4 fails, tell me — that is a different bug.
+
+  B. MUST STILL WORK.
+  B1. ⇪N still opens on the tabs, never on the note. Press it twice.
+  B2. ⌘F filter, ↑↓, ⏎ to open a note — all as before.
+  B3. Open a note, close with ⇪3, reopen: your unsaved keystrokes are
+      still there (the save-on-close path is untouched).
+
+  C. THE ONE THAT PROTECTS YOUR WRITING — worth doing once.
+  C1. Open a note, close Hamsidian, then RENAME or delete that note's .md
+      file in Finder (pick something you do not mind losing).
+  C2. Press ⇪3.
+      EXPECT: it opens on the notes list, and it does NOT re-create the
+      note you just removed. Check Finder: the file must still be gone.
+      A FAIL here — the file reappearing — is the worst outcome in this
+      release and I want to know immediately.
+  C3. Console: `_G.vaultReport()`, the new "back to:" line.
+      EXPECT: "remembered <name> — this vault no longer holds it", with a
+      ⚠️ under it. In normal use it reads "reopened <name>".
+
+  D. PASTE BACK, PASS OR FAIL.
+  D1. `_G.vaultReport()` — the whole block, after doing A1–A3.
+
+  E. A JUDGEMENT ONLY YOU CAN MAKE.
+  E1. ⇪3 now always goes back to the last NOTE, even if the last thing
+      you touched was a scratch tab. Is that right, or would you rather
+      it returned to whichever of the two you saw last, whatever it was?
+      "notes always" · "whatever I saw last" decides it. I picked the
+      first because it is what you described, and because ⇪N already
+      gives you the tabs in one press.
+
 - 6.276.0 verify with LL — 🆓 THE FREE-KEY CARDS TELL THE TRUTH (KNOWN GROUND)
   WHAT CHANGED: the ⇪/ cards that list which keys are still free no longer
   have that list typed into them. They ask the live key registry when

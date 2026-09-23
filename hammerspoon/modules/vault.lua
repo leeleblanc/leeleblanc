@@ -3924,9 +3924,69 @@ else {
         v.saveNow()
     end
 
+    -- 🔖 6.277.0 — WHERE YOU WERE, AND ONE PLACE THAT ANSWERS IT.
+    --
+    -- LL: "Opening and closing Hamsidian puts me back on Scratch 1 and
+    -- not the note I was working on. If I had 1000s of notes, I would
+    -- have to find that note each time to work on it again. Since I
+    -- might not remember, that's asking a lot of me."
+    --
+    -- 🔎 THE SETTING WAS BEING WRITTEN AND NEVER READ. openNote has
+    -- stamped `vault.lastNote` on every open for releases, and v.open()
+    -- consulted it ONLY `if not v.doc` — while v.doc survives hide()
+    -- (3901 clears it only when a scratch TAB has been deleted). So one
+    -- press of ⇪N pins v.doc to a tab for the rest of the session, and
+    -- every ⇪3 after it renders that tab and never looks at the note he
+    -- was in. The memory was correct and unreachable, which is 6.265.0's
+    -- shape exactly.
+    --
+    -- 🔑 EACH DOOR RESTORES ITS OWN SIDE. ⇪3 is the notes door and goes
+    -- back to the last NOTE; ⇪N is the tabs door and is unchanged. A
+    -- single "last place" shared by both would land ⇪3 on Scratch 1
+    -- again whenever the tabs were used last, which is the complaint.
+    --
+    -- 🔎 THREE STATES (6.196.1), because "nothing remembered" and "the
+    -- note is gone" are different facts and the second is data LL may
+    -- want to hear about: restored · nothing remembered yet · remembered
+    -- a note this vault no longer holds.
+    v.lastPlaceState = "nothing remembered yet"
+
+    function v.goToLastNote()
+        local okL, last = pcall(function() return hs.settings.get("vault.lastNote") end)
+        if not (okL and type(last) == "string" and last ~= "") then
+            v.lastPlaceState = "nothing remembered yet"
+            return false, "nothing remembered yet"
+        end
+        local name = last:match("([^/]+)%.md$")
+        local sub  = last:match("^(.*)/[^/]*$")
+        if not name then
+            v.lastPlaceState = "remembered '" .. last .. "', which is not a note name"
+            return false, v.lastPlaceState
+        end
+        if readFile(v.dir .. "/" .. last) == nil then
+            -- 🚨 NEVER CREATE ONE. openNote seeds a new note when the file
+            -- is missing, and doing that here would answer "you deleted
+            -- that note" by writing it back — 6.174.0's data-loss rule in
+            -- the other direction.
+            v.lastPlaceState = "remembered " .. last .. " — this vault no longer holds it"
+            return false, v.lastPlaceState
+        end
+        local okO, whyO = v.openNote(name, sub)
+        if not okO then
+            v.lastPlaceState = "could not reopen " .. last .. " — " .. tostring(whyO)
+            return false, v.lastPlaceState
+        end
+        v.lastPlaceState = "reopened " .. last
+        return true
+    end
+
     function v.show()
         if not v.enabled then return end
         if v.webview then v.hide() return end
+        -- ⇪3 is the NOTES door. A scratch tab left in v.doc by an earlier
+        -- ⇪N is not where this key is meant to land, and it is the whole
+        -- of what LL reported.
+        if (not v.doc) or v.doc.scratch then v.goToLastNote() end
         return v.open()
     end
 
@@ -3934,13 +3994,11 @@ else {
         if not v.enabled then return end
         if v.webview then return end
         mkdirp(v.dir)
-        if not v.doc then
-            local okL, last = pcall(function() return hs.settings.get("vault.lastNote") end)
-            if okL and type(last) == "string" and last ~= "" then
-                local name, sub = last:match("([^/]+)%.md$"), last:match("^(.*)/[^/]*$")
-                if name and readFile(v.dir .. "/" .. last) ~= nil then v.openNote(name, sub) end
-            end
-        end
+        -- 6.277.0 — ONE DOOR. This block used to hold a second copy of
+        -- the restore, and a second copy is how one stops matching the
+        -- other (6.231.0). v.show() has usually already run it; a caller
+        -- that reaches v.open() directly still gets the note back.
+        if not v.doc then v.goToLastNote() end
         if not (hs.webview and hs.webview.usercontent) then promptFallback() return end
 
         local screen = hs.screen.mainScreen and hs.screen.mainScreen()
@@ -4135,6 +4193,17 @@ else {
                     .. (v.mode ~= "notes" and (" · mode: " .. v.mode) or "")
                     .. (v.dirty and " · unsaved keystrokes pending" or "") .. " · saves: " .. v.saves
                     .. " · failed writes: " .. v.saveFails .. (v.lastSaveErr and ("  ⚠️ " .. v.lastSaveErr) or "")
+        -- 🔖 6.277.0 — WHERE ⇪3 PUT YOU, AND WHY. Three states, because
+        -- "nothing remembered yet" (a fresh vault) and "remembered a note
+        -- this vault no longer holds" (renamed, deleted, or moved on the
+        -- other Mac) send LL to two different places, and until this
+        -- release both looked like Scratch 1.
+        L[#L + 1] = "   back to: " .. tostring(v.lastPlaceState)
+        if tostring(v.lastPlaceState):find("no longer holds", 1, true)
+           or tostring(v.lastPlaceState):find("could not reopen", 1, true) then
+            L[#L + 1] = "      ⚠️ ⇪3 could not put you back — it opened on the notes"
+            L[#L + 1] = "         list instead. Nothing was created and nothing was lost."
+        end
         L[#L + 1] = "   help   : format bar " .. (v.formatBar == false and "off (formatBar)" or "on")
                     .. " · \"/\" on an empty line lists every block · ⌘B ⌘I ⌘E "
                     .. "· the footer names the line you are on"
