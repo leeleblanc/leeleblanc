@@ -294,6 +294,173 @@ return function(core)
     notices.degradeOrder = {}    -- tools, oldest first
     notices.degradeTotal = 0
 
+    -- =================================================================
+    -- 📓 6.279.0 — THE FAILURE LOG: WHAT BROKE TODAY, AFTER A RELOAD
+    -- =================================================================
+    -- LL: "Can you also create an error message log for any of my tools
+    -- that fail? I can check this log at 4pm for a double verification
+    -- that anything I was using today that should capture information
+    -- worked."
+    --
+    -- 🚨 THE LEDGER ABOVE IS MEMORY ONLY. `notices.degrades` is a Lua
+    -- table: every reload empties it, and this config reloads whenever a
+    -- file is saved. So "what failed today" was only ever answerable for
+    -- as long as Hammerspoon had been running — which is the opposite of
+    -- what a 4 PM check needs, and it is also exactly when a reload is
+    -- most likely (something broke, so something got edited).
+    --
+    -- 📎 APPEND-ONLY, and that is a rule rather than a convenience: an
+    -- append cannot shrink a file, so there is no write-ledger row to
+    -- keep and no rewrite that can lose yesterday while saving today.
+    -- 6.179.0's boot_cost CSV is the same shape for the same reason.
+    --
+    -- 🔁 IT NEVER TAKES THE DOOR ITSELF. A logger that reported its own
+    -- failure through core.degrade would call itself, for ever, on the
+    -- first unwritable disk. It counts its failures and the report names
+    -- them — that is the whole of its complaint.
+    --
+    -- ⏳ AND IT BUFFERS UNTIL IT KNOWS WHERE TO WRITE. This file loads
+    -- before §0.1 exists (deliberately — it has to be able to report a
+    -- module-load failure), so it is handed an EMPTY core table and
+    -- cannot know logsDir. init.lua calls notices.logTo() once the path
+    -- is real. Without the buffer every BOOT-TIME degrade would be
+    -- missing from the log, and those are the ones worth having.
+    notices.logPath   = nil
+    notices.logQueue  = {}
+    notices.logMax    = 200     -- pending rows held before the path is known
+    notices.logWrote  = 0
+    notices.logFails  = 0
+    notices.logWhy    = nil
+
+    -- ✏️ PURE — one CSV row. Commas, quotes and newlines all appear in a
+    -- real "why" (a path, a shell error, macOS's own words), and a row
+    -- the reader cannot parse vanishes in silence (6.179.0).
+    function notices.logRow(tool, why, at)
+        local function q(v)
+            v = tostring(v or ""):gsub("\r", " "):gsub("\n", " ")
+            return '"' .. v:gsub('"', '""') .. '"'
+        end
+        at = tonumber(at) or os.time()
+        return table.concat({ q(os.date("%Y-%m-%d", at)), q(os.date("%H:%M:%S", at)),
+                              tostring(at), q(tool), q(why) }, ",")
+    end
+
+    local function appendRow(row)
+        local f, err = io.open(notices.logPath, "a")
+        if not f then
+            notices.logFails = notices.logFails + 1
+            notices.logWhy   = tostring(err or "could not open the log")
+            return false
+        end
+        local okW = pcall(function() f:write(row .. "\n") end)
+        pcall(function() f:close() end)
+        if okW then notices.logWrote = notices.logWrote + 1
+        else notices.logFails = notices.logFails + 1
+             notices.logWhy = "the write itself failed" end
+        return okW
+    end
+
+    function notices.logDegrade(tool, why, at)
+        local row = notices.logRow(tool, why, at)
+        if not notices.logPath then
+            local q = notices.logQueue
+            -- bounded, NEWEST kept: if a boot degrades two hundred times
+            -- the recent ones are the ones still true when it settles
+            q[#q + 1] = row
+            while #q > notices.logMax do table.remove(q, 1) end
+            return false
+        end
+        return appendRow(row)
+    end
+
+    function notices.logTo(path)
+        if type(path) ~= "string" or path == "" then return false end
+        notices.logPath = path
+        local q = notices.logQueue
+        notices.logQueue = {}
+        for _, row in ipairs(q) do appendRow(row) end
+        return true
+    end
+
+    -- 📓 `_G.todayReport()` — LL's 4 PM double-check, in one command.
+    -- 🔎 THREE STATES, NEVER TWO (6.196.1), and here it is the whole
+    -- point: "no log to read" must NOT print as "nothing failed today".
+    -- The second is the most reassuring sentence this config can say and
+    -- it would be a lie on exactly the day the disk is full.
+    function _G.todayReport(day)
+        day = day or os.date("%Y-%m-%d")
+        local L = { "📓 WHAT FAILED " .. (day == os.date("%Y-%m-%d") and "TODAY" or "ON " .. day)
+                    .. " — " .. day }
+        -- 🚨 EVERY EXIT CARRIES THE WRITE FAILURES. The first version
+        -- returned early on an unreadable log and skipped them — in the
+        -- one situation where failing writes are all but guaranteed,
+        -- which is the same disk. The suite caught it, which is what a
+        -- check on an instrument is for.
+        local function finish()
+            if notices.logFails > 0 then
+                L[#L + 1] = "   ⚠️ " .. notices.logFails .. " row(s) could not be written this"
+                L[#L + 1] = "      session — " .. tostring(notices.logWhy)
+                L[#L + 1] = "      so this report may be missing failures it never saw."
+            end
+            L[#L + 1] = "   wrote  : " .. notices.logWrote .. " row(s) this session"
+            local out = table.concat(L, "\n")
+            print(out)
+            return out
+        end
+        if not notices.logPath then
+            L[#L + 1] = "   ⚠️ no log file yet — notices.logTo() has not been called."
+            L[#L + 1] = "      This is NOT 'nothing failed'. " .. #notices.logQueue
+                        .. " row(s) are waiting in memory."
+            return finish()
+        end
+        L[#L + 1] = "   log    : " .. notices.logPath
+        local f = io.open(notices.logPath, "r")
+        if not f then
+            L[#L + 1] = "   ⚠️ COULD NOT READ IT — so this report cannot say whether"
+            L[#L + 1] = "      anything failed today. Treat it as unknown, not as clear."
+            return finish()
+        end
+        -- the tail only: this file is uncapped by design (6.179.0)
+        local size = f:seek("end")
+        local want = notices.logTail or 64 * 1024
+        f:seek("set", math.max(0, size - want))
+        local text = f:read("a") or ""
+        f:close()
+        local tools, order, n = {}, {}, 0
+        for line in text:gmatch("[^\n]+") do
+            local d, clock, _, rest = line:match('^"([^"]*)","([^"]*)",(%d+),(.*)$')
+            if d == day and rest then
+                local tool, why = rest:match('^"(.-)",?"?(.*)"?$')
+                tool = (tool or "?"):gsub('""', '"')
+                why  = (why  or ""):gsub('^"', ""):gsub('"$', ""):gsub('""', '"')
+                local e = tools[tool]
+                if not e then e = { n = 0, first = clock, causes = {}, order = {} }
+                             tools[tool] = e; order[#order + 1] = tool end
+                e.n, e.last, n = e.n + 1, clock, n + 1
+                if not e.causes[why] then
+                    e.causes[why] = 0; e.order[#e.order + 1] = why
+                end
+                e.causes[why] = e.causes[why] + 1
+            end
+        end
+        if n == 0 then
+            L[#L + 1] = "   ✅ nothing failed " .. (day == os.date("%Y-%m-%d") and "today" or "that day")
+                        .. " — the log was read and holds no row for " .. day .. "."
+        else
+            L[#L + 1] = "   ⚠️ " .. n .. " failure(s) across " .. #order .. " tool(s):"
+            for _, tool in ipairs(order) do
+                local e = tools[tool]
+                L[#L + 1] = "      " .. tool .. " ×" .. e.n
+                            .. "  (" .. e.first .. (e.n > 1 and (" → " .. e.last) or "") .. ")"
+                for _, why in ipairs(e.order) do
+                    L[#L + 1] = "         ↳ " .. why
+                                .. (e.causes[why] > 1 and ("  ×" .. e.causes[why]) or "")
+                end
+            end
+        end
+        return finish()
+    end
+
     function notices.degrade(tool, why, opts)
         opts = type(opts) == "table" and opts or {}
         tool = tostring(tool or "?")
@@ -312,6 +479,8 @@ return function(core)
         end
         d.n, d.last, d.why, d.clock = d.n + 1, t, why, os.date("%H:%M:%S")
         notices.degradeTotal = notices.degradeTotal + 1
+        -- 📓 6.279.0 — AND IT OUTLIVES THE RELOAD (see below).
+        notices.logDegrade(tool, why)
         -- 1. the ledger — ⇪⇧D, _G.noticesReport(), the storm report's notices section
         notices.record("degrade", tool, why)
         -- 2. the Console line, every time

@@ -1,4 +1,4 @@
-# TESTING — how to score release 6.278.0
+# TESTING — how to score release 6.279.0
 
 You install ONE archive and it carries several releases. Below are the
 steps for each release this archive is new for, newest first. Run the
@@ -26,6 +26,64 @@ else is a LOSS and I fix it before building further. You are the only
 scorer; I never mark my own.
 
 ---
+
+## 6.279.0
+
+6.279.0 verify with LL — 📓 WHAT FAILED TODAY (KNOWN GROUND)
+WHAT CHANGED: one command, `_G.todayReport()`, names every tool that
+failed today with the time and the reason — read back off a file, so it
+survives a reload.
+WHY IT MATTERS: your 4 PM double-check. The old ledger was in memory
+only, so every reload wiped it — and a reload is likeliest exactly when
+something has broken and you have just edited something.
+
+A. THE HEADLINE.
+A1. Console: `_G.todayReport()`.
+    EXPECT on a healthy Mac, and it should be BORING:
+      📓 WHAT FAILED TODAY — 2026-09-23
+         log    : …/Logs/degrades-<your Mac>.csv
+         ✅ nothing failed today — the log was read and holds no row…
+         wrote  : 0 row(s) this session
+A2. Make something fail on purpose: `_G.degrade("Test tool", "on purpose")`.
+A3. `_G.todayReport()` again.
+    EXPECT: "⚠️ 1 failure(s) across 1 tool(s)" and a line naming Test
+    tool, the time, and "on purpose".
+
+B. THE ONE THAT MATTERS — it has to survive a reload.
+B1. Reload Hammerspoon (⌘⌃R, or the menu).
+B2. `_G.todayReport()`.
+    EXPECT: the Test tool row is STILL THERE. On every build before
+    this one it would be gone. That is the whole release.
+B3. `_G.degradeReport()` for contrast.
+    EXPECT: it says nothing has degraded THIS SESSION — correct, and
+    the difference between the two is the point.
+
+C. IT MUST NOT LIE TO YOU WHEN IT CANNOT READ.
+C1. Look at the "log :" path in A1 and confirm the file exists in your
+    Logs folder. Open it — it is plain CSV, one row per failure:
+    date, time, epoch, tool, reason.
+C2. You do not need to break it on purpose, but know the rule: if that
+    file ever cannot be read, the report says "COULD NOT READ IT …
+    treat it as unknown, not as clear". It will never print "nothing
+    failed today" about a log it could not open.
+
+D. PASTE BACK, PASS OR FAIL.
+D1. `_G.todayReport()` at the end of a normal day. That is the artefact
+    I want from now on whenever anything feels off — it turns "I think
+    something didn't work" into a list with times on it.
+
+E. A JUDGEMENT ONLY YOU CAN MAKE.
+E1. Is the Console the right place, or do you want this somewhere you
+    will actually look at 4 PM? The obvious next step is making it a
+    ⇪D source (`@fails`) so it is in the search you already use. Say
+    the word and it is one line plus a release.
+E2. The file grows for ever, one short line per failure. On a healthy
+    Mac that is a few rows a week. Tell me if you would rather it kept
+    only the last N days — I left it uncapped deliberately, because a
+    log that prunes itself is a log that can lose the thing you are
+    looking for.
+
+
 
 ## 6.278.0
 
@@ -204,67 +262,6 @@ E1. The cards now show raw key NAMES as the registry stores them —
     trade, or do you want me to render them back into ranges? "keep it
     plain" · "make it pretty again" decides it, and pretty is only safe
     because it is now generated rather than typed.
-
-
-
-## 6.275.0
-
-6.275.0 verify with LL — 📘 THE INSTALL GUIDE (KNOWN GROUND, docs only)
-WHAT CHANGED: INSTALL.md is rewritten and HAMSIDIAN.md has a new §7b on
-linking. NO code changed — same modules, same keys, same behaviour.
-WHY IT MATTERS: you missed the install on the work Mac, and the old
-guide made that easy. The step that matters is the one that puts files
-in ~/.hammerspoon, and skipping it looks exactly like doing nothing.
-
-A. THE HEADLINE — do this ON THE WORK MAC.
-A1. Open INSTALL.md from the archive root. Read the box at the very top.
-    EXPECT: one command, and what ✅ and ❌ look like.
-A2. Run that command on the work Mac:
-      ls ~/.hammerspoon/init.lua && sed -n 7p ~/.hammerspoon/init.lua
-    EXPECT: either a version line (installed) or "No such file or
-    directory" (not installed). Either answer is useful — tell me which
-    you got, because it settles what happened there.
-A3. If it says not installed, follow Step 3 end to end and run 3d.
-    EXPECT 3d prints: a path · the version · 12 · 71 · a path.
-    If any line is missing, that is the bug and I want the output.
-
-B. THE SNIPPETS QUESTION, ANSWERED — check it rather than take my word.
-B1. On the work Mac: `ls ~/.hammerspoon/snippets/bundled.lua`
-    EXPECT: a path. The 1,926 public snippets ship IN the archive and
-    the installer places them. Nothing to install.
-B2. Press ⇪⇧S. EXPECT: the picker, with sections.
-B3. Console: `_G.snippetsList()`. EXPECT: a count in the thousands.
-B4. Type a trigger in any app. EXPECT: it expands.
-    ❌ If the picker works but typing does nothing, Accessibility is off
-    or was granted AFTER launch — quit and relaunch Hammerspoon.
-
-C. THE IT SECTION — read it before you talk to them.
-C1. Read "What IT has to say yes to". Four rows, each with what you lose
-    if refused, plus the list of what they do NOT have to allow.
-C2. Tell me if anything there is wrong for YOUR employer, or if they
-    ask for something the list does not cover. That is the one part I
-    cannot verify from here, and it is the part that decides whether
-    this runs at work at all.
-
-D. HAMSIDIAN §7b — linking out.
-D1. Read §7b. Then do it: open a Word document, press ⇪⇧U, press ⌘2,
-    pick a note.
-    EXPECT: the note gains a `## Linked` section with one Markdown line.
-D2. In Hamsidian, press ⌘K and pick a screenshot from OneDrive.
-    EXPECT: a Markdown link at the caret; ⌘⏎ on it opens the image.
-
-E. QUESTIONS — ANSWERS WANTED, NOTHING TO RUN.
-E1. What is the work Mac's computer name (`scutil --get ComputerName`)?
-    It gets its own profile in the next release, which is how we switch
-    anything off there without you editing init.lua.
-E2. Scratch tabs vs notes: do you want a ⇪N tab to become a real .md
-    note the moment you make it (one list, everything a file, and every
-    keystroke writes to OneDrive), or to stay a tab until you press ⌘⇧S
-    (fast and local, two lists)? That one answer is the whole release —
-    see the queue note.
-E3. Did the archive open? Both a .tar.gz and a .zip are in this one
-    because you asked for the zip by name. Tell me which you used and
-    whether it worked, and the next release carries only that one.
 
 
 

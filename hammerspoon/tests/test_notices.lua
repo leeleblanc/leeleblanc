@@ -512,6 +512,145 @@ check("SOURCE: a retry that could not be ARMED is lost too, not left pending",
 check("SOURCE: the refusal remembers WHAT the alert said",
       initSrc2:find("_G.alertWords(args[1])", 1, true) ~= nil)
 
+out("\n=== 11. 6.279.0 — 📓 WHAT FAILED TODAY, AFTER A RELOAD ===\n")
+-- =====================================================================
+-- LL: "Can you also create an error message log for any of my tools that
+-- fail? I can check this log at 4pm for a double verification that
+-- anything I was using today that should capture information worked."
+--
+-- 🚨 The ledger is a Lua TABLE — every reload empties it, and a reload is
+-- likeliest exactly when something broke and got edited. These checks run
+-- against a REAL file on disk, because the whole claim is that the answer
+-- outlives the process.
+do
+    local DIR = os.getenv("TMPDIR") or "/tmp"
+    local LOG = DIR .. "/hs-degrades-test-" .. tostring(os.time()) .. ".csv"
+    os.remove(LOG)
+
+    -- ✏️ PURE first: a row the reader cannot parse vanishes in silence
+    -- (6.179.0), and a real `why` carries commas, quotes and newlines —
+    -- a path, a shell error, macOS's own words.
+    boot()
+    local row = N.logRow("Screenshots", 'folder "A, B" missing\nsecond line', 1700000000)
+    check("📓 the row is CSV-safe: the comma stays inside its field",
+          select(2, row:gsub(",", "")) == 4 or row:find('"folder ""A, B"" missing', 1, true) ~= nil,
+          row)
+    check("...a quote in the cause is doubled, not left to end the field",
+          row:find('""A, B""', 1, true) ~= nil, row)
+    check("...and a newline never becomes a second row",
+          row:find("\n") == nil, row)
+    check("...the date, the clock and the epoch are all there, so a row "
+          .. "can be filtered by day and still sorted exactly",
+          row:find("^\"%d%d%d%d%-%d%d%-%d%d\",\"%d%d:%d%d:%d%d\",1700000000,") ~= nil,
+          row)
+
+    -- ⏳ BUFFERED UNTIL IT KNOWS WHERE TO WRITE. notices.lua loads before
+    -- §0.1 exists, so without this every BOOT-TIME degrade — the ones
+    -- most worth having — would simply not be in the log.
+    boot()
+    N.degrade("Early tool", "broke during boot")
+    check("⏳ a degrade before the path is known is BUFFERED, not lost — "
+          .. "boot-time failures are the ones worth having",
+          #N.logQueue == 1 and N.logWrote == 0, #N.logQueue)
+    check("...and _G.todayReport() says so rather than reading clean: "
+          .. "'no log yet' must never print as 'nothing failed'", (function()
+        local r = _G.todayReport()
+        return r:find("no log file yet", 1, true) ~= nil
+               and r:find("NOT 'nothing failed'", 1, true) ~= nil
+               and r:find("nothing failed today", 1, true) == nil
+    end)())
+
+    N.logTo(LOG)
+    check("...and logTo() flushes the buffer to disk", N.logWrote == 1 and #N.logQueue == 0,
+          N.logWrote .. "/" .. #N.logQueue)
+
+    -- and from here it appends as it goes
+    N.degrade("Hamsidian 4 PM send", "Asana would not accept it")
+    N.degrade("Hamsidian 4 PM send", "Asana would not accept it")
+    N.degrade("Screenshots", "no folder to write to")
+    check("every later degrade appends immediately", N.logWrote == 4, N.logWrote)
+
+    local rep = _G.todayReport()
+    check("📓 the 4 PM answer names every tool that failed today",
+          rep:find("Early tool", 1, true) ~= nil
+          and rep:find("Hamsidian 4 PM send", 1, true) ~= nil
+          and rep:find("Screenshots", 1, true) ~= nil, rep)
+    check("...with the CAUSE, not just a count — a tool name alone sends "
+          .. "him nowhere", rep:find("Asana would not accept it", 1, true) ~= nil)
+    check("...and repeats are collapsed with a count rather than listed "
+          .. "twice", rep:find("×2", 1, true) ~= nil, rep)
+    check("...and the total is stated", rep:find("4 failure", 1, true) ~= nil, rep)
+
+    -- 🔁 IT SURVIVES THE RELOAD. This is the entire claim of the release:
+    -- a FRESH notices (an empty ledger, exactly as after a reload) reads
+    -- the same answer back off disk.
+    boot()
+    check("the fresh ledger really is empty — otherwise the next check "
+          .. "proves nothing", N.degradeTotal == 0)
+    N.logTo(LOG)
+    local after = _G.todayReport()
+    check("🔁 AFTER A RELOAD the answer is still there — the ledger is "
+          .. "empty and the log is not",
+          after:find("Hamsidian 4 PM send", 1, true) ~= nil
+          and after:find("Asana would not accept it", 1, true) ~= nil, after)
+
+    -- a different day reads clean, and says which day it read
+    local other = _G.todayReport("1999-01-01")
+    check("a day with no rows reads CLEAN and says the log was read",
+          other:find("nothing failed", 1, true) ~= nil
+          and other:find("the log was read", 1, true) ~= nil, other)
+
+    -- 🚨 AND AN UNREADABLE LOG IS NOT A CLEAN ONE (6.196.1). This is the
+    -- state the whole report exists to keep honest: "nothing failed
+    -- today" is the most reassuring sentence this config can print, and
+    -- it would be a lie on exactly the day the disk is full.
+    boot()
+    N.logTo(DIR .. "/no-such-dir-" .. tostring(os.time()) .. "/x.csv")
+    local unread = _G.todayReport()
+    check("🚨 a log that cannot be READ says UNKNOWN, never 'nothing "
+          .. "failed today'",
+          unread:find("COULD NOT READ", 1, true) ~= nil
+          and unread:find("not as clear", 1, true) ~= nil
+          and unread:find("nothing failed today", 1, true) == nil, unread)
+
+    -- 🔁 AND THE LOGGER NEVER TAKES THE DOOR ITSELF. A logger reporting
+    -- its own failure through core.degrade calls itself, for ever, on the
+    -- first unwritable disk — so a degrade must stay exactly one degrade
+    -- however badly the write goes.
+    local before = N.degradeTotal
+    N.degrade("Some tool", "something broke")
+    check("🔁 an unwritable log does not make the degrade recurse — one "
+          .. "degrade stays one degrade",
+          N.degradeTotal == before + 1, N.degradeTotal - before)
+    check("...the failed write is COUNTED instead", N.logFails >= 1, N.logFails)
+    check("...and named in the report, with the warning that it may be "
+          .. "missing failures it never saw", (function()
+        local r = _G.todayReport()
+        return r:find("could not be written", 1, true) ~= nil
+               and r:find("missing failures", 1, true) ~= nil
+    end)())
+
+    -- bounded, newest kept
+    boot()
+    for i = 1, N.logMax + 25 do N.degrade("Flood", "cause " .. i) end
+    check("the pending buffer is BOUNDED", #N.logQueue == N.logMax, #N.logQueue)
+    -- 🧪 ANSWERS FALSELY RATHER THAN INDEXING A NIL (6.186.0, and this
+    -- suite learned it the same way every other one has): the mutation
+    -- that deletes the buffer leaves logQueue empty, and `last():find`
+    -- on a nil ENDS THE RUN with "0 failed" never printed. A dead suite
+    -- looks like a passing one in a gate that only reads the tail.
+    local function lastQueued()
+        local q = N.logQueue
+        return (type(q) == "table" and type(q[#q]) == "string") and q[#q] or ""
+    end
+    check("...and it keeps the NEWEST — if a boot degrades two hundred "
+          .. "times, the recent ones are the ones still true afterwards",
+          lastQueued():find("cause " .. (N.logMax + 25), 1, true) ~= nil,
+          lastQueued())
+
+    os.remove(LOG)
+end
+
 io.open = realIoOpen
 out("\n")
 if fail > 0 then

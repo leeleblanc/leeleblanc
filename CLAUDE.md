@@ -989,6 +989,40 @@ work Mac.
   one-hop symlink: a fixture where the right and wrong implementations
   AGREE proves nothing — pick the input where they must differ.
 
+- 📓 A LEDGER THAT LIVES IN MEMORY CANNOT ANSWER "WHAT FAILED TODAY"
+  (6.279.0, core/notices.lua + init.lua — LL: "Can you also create an
+  error message log for any of my tools that fail? I can check this log
+  at 4pm for a double verification"). `notices.degrades` is a Lua table,
+  so every reload emptied it — and a reload is likeliest at exactly the
+  wrong moment, because something broke and therefore something got
+  edited. Each degrade appends a row to <Logs>/degrades-<Mac>.csv;
+  `_G.todayReport()` reads it back.
+  📎 APPEND-ONLY is a rule, not a convenience: an append cannot shrink a
+  file, so no write-ledger row and no rewrite that loses yesterday while
+  saving today. The reader takes the TAIL, never the whole file.
+  🔁 THE LOGGER NEVER TAKES THE DOOR ITSELF — reporting its own failure
+  through core.degrade calls itself for ever on the first unwritable
+  disk (the mutation ends the suite in a stack overflow). It counts.
+  ⏳ AND IT BUFFERS UNTIL IT KNOWS WHERE TO WRITE: notices.lua loads
+  before §0.1 and is handed an EMPTY core table, so without the buffer
+  every BOOT-TIME degrade — the ones worth having — would be missing.
+  Bounded, NEWEST kept.
+  🔎 THREE STATES (6.196.1) and it is the whole point: "✅ nothing failed
+  today" is the most reassuring sentence this config can print and would
+  be a lie on exactly the day the disk is full. No log yet · could not be
+  READ ("unknown, not clear") · read and clean.
+  🚨 EVERY EXIT CARRIES THE WRITE FAILURES — the first version returned
+  early on an unreadable log and skipped them, in the one case where
+  failing writes are guaranteed because it is the same disk. GENERAL: an
+  early return in a report skips whatever the report appends at the end,
+  and the branch that returns early is usually the broken one.
+  🧪 The suite DIED instead of failing (6.186.0, seventh time): deleting
+  the buffer leaves logQueue empty and indexing it ends the run with "0
+  failed" never printed — which in a gate that reads the tail looks like
+  a pass.
+  📏 NAMED, NOT BUILT: the log is not yet a ⇪D source. One uni.sources
+  row, its own release.
+
 - 🔔 A TOOL THAT COMPLETES AN ACTION OWES YOU ITS OUTCOME, NOT ONLY ITS
   FAILURE (6.278.0, modules/scratch_pad.lua — LL: "for any tool that
   completes an action, like the 4pm send of Asana tasks from Hamsidian,
@@ -3116,6 +3150,7 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
+| 6.279.0 | 📓 `_G.todayReport()` — every tool that failed today, read back off disk so it survives a reload; the ledger had only ever been in memory | pending |
 | 6.278.0 | 🔔 a 4 PM Asana send that fails is seen — an alert, a notification that survives Focus, and a sticky line in the report; it had only ever been a Console line | pending |
 | 6.277.0 | 🔖 ⇪3 reopens the note you were writing in — the last note has been recorded on every open for releases and was read only when nothing was open | pending |
 | 6.276.0 | 🆓 a cheat-sheet row that says a key is free now ASKS the live registry — ⇪⇧pad. had been advertised as available since the music player took it in 6.231.0 | pending |
@@ -3834,6 +3869,60 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.279.0 verify with LL — 📓 WHAT FAILED TODAY (KNOWN GROUND)
+  WHAT CHANGED: one command, `_G.todayReport()`, names every tool that
+  failed today with the time and the reason — read back off a file, so it
+  survives a reload.
+  WHY IT MATTERS: your 4 PM double-check. The old ledger was in memory
+  only, so every reload wiped it — and a reload is likeliest exactly when
+  something has broken and you have just edited something.
+
+  A. THE HEADLINE.
+  A1. Console: `_G.todayReport()`.
+      EXPECT on a healthy Mac, and it should be BORING:
+        📓 WHAT FAILED TODAY — 2026-09-23
+           log    : …/Logs/degrades-<your Mac>.csv
+           ✅ nothing failed today — the log was read and holds no row…
+           wrote  : 0 row(s) this session
+  A2. Make something fail on purpose: `_G.degrade("Test tool", "on purpose")`.
+  A3. `_G.todayReport()` again.
+      EXPECT: "⚠️ 1 failure(s) across 1 tool(s)" and a line naming Test
+      tool, the time, and "on purpose".
+
+  B. THE ONE THAT MATTERS — it has to survive a reload.
+  B1. Reload Hammerspoon (⌘⌃R, or the menu).
+  B2. `_G.todayReport()`.
+      EXPECT: the Test tool row is STILL THERE. On every build before
+      this one it would be gone. That is the whole release.
+  B3. `_G.degradeReport()` for contrast.
+      EXPECT: it says nothing has degraded THIS SESSION — correct, and
+      the difference between the two is the point.
+
+  C. IT MUST NOT LIE TO YOU WHEN IT CANNOT READ.
+  C1. Look at the "log :" path in A1 and confirm the file exists in your
+      Logs folder. Open it — it is plain CSV, one row per failure:
+      date, time, epoch, tool, reason.
+  C2. You do not need to break it on purpose, but know the rule: if that
+      file ever cannot be read, the report says "COULD NOT READ IT …
+      treat it as unknown, not as clear". It will never print "nothing
+      failed today" about a log it could not open.
+
+  D. PASTE BACK, PASS OR FAIL.
+  D1. `_G.todayReport()` at the end of a normal day. That is the artefact
+      I want from now on whenever anything feels off — it turns "I think
+      something didn't work" into a list with times on it.
+
+  E. A JUDGEMENT ONLY YOU CAN MAKE.
+  E1. Is the Console the right place, or do you want this somewhere you
+      will actually look at 4 PM? The obvious next step is making it a
+      ⇪D source (`@fails`) so it is in the search you already use. Say
+      the word and it is one line plus a release.
+  E2. The file grows for ever, one short line per failure. On a healthy
+      Mac that is a few rows a week. Tell me if you would rather it kept
+      only the last N days — I left it uncapped deliberately, because a
+      log that prunes itself is a log that can lose the thing you are
+      looking for.
+
 - 6.278.0 verify with LL — 🔔 YOU FIND OUT WHEN A SEND FAILS (KNOWN GROUND)
   WHAT CHANGED: when Hamsidian's Asana send does not go through, you now
   get an alert, a macOS notification, and a line in the report that stays

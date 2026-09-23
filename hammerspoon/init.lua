@@ -4,57 +4,50 @@
 -- =====================================================================
 -- 09-22-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.278.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.279.0
 -- =====================================================================
 
+-- NEW IN 6.279.0 — 📓 WHAT FAILED TODAY, AFTER A RELOAD
+--   (core/notices.lua, init.lua):
+--   LL: "Can you also create an error message log for any of my tools
+--      that fail? I can check this log at 4pm for a double verification
+--      that anything I was using today … worked."
+--   🚨 THE LEDGER WAS MEMORY ONLY — a Lua table every reload empties,
+--      and a reload is likeliest exactly when something broke and was
+--      edited. Each degrade appends a row to <Logs>/degrades-<Mac>.csv.
+--      APPEND-ONLY: no rewrite can lose yesterday while saving today.
+--   🔁 THE LOGGER NEVER TAKES THE DOOR ITSELF (it would call itself for
+--      ever on the first unwritable disk); it counts, and the report
+--      names it. ⏳ It buffers until told where to write, or boot-time
+--      degrades would be the missing ones.
+--   🔎 THREE STATES (6.196.1): "no log to read" must NEVER print as
+--      "nothing failed today" — a lie on the day the disk is full.
+--
 -- NEW IN 6.278.0 — 🔔 A SEND THAT FAILED IS SEEN, NOT ONLY LOGGED
 --   (modules/scratch_pad.lua):
 --   LL: "for any tool that completes an action, like the 4pm send of
 --      Asana tasks from Hamsidian, how do I know if it didn't work? I
 --      think I need a persistent screen message … I could lose important
 --      information if not."
---   🚨 HE WAS RIGHT AND THIS MODULE HAD NEVER PAID THE RULE. A rejected
---      send called `warn()` — `_G.diag.warn`, the Console and nothing
---      else. No alert, no notification, nothing on screen. 6.214.0's
---      rule, written from his own words, unpaid in the one place where
---      not knowing costs him the thing he captured.
---   🔑 ONE PLACE DECIDES WHAT A SEND SAYS (`sp.announce`), and the
---      channels follow the OUTCOME rather than the exit: sent → a short
---      alert (SUCCESS IS VISIBLE TOO, or silence means both "it worked"
---      and "it never ran"); skipped → Console only, so a quiet day never
---      cries wolf; failed → the 🔔 door AND a notification AND a flag.
---   🕰 THE NOTIFICATION IS THE PERSISTENT HALF: an hs.alert is gone in
---      six seconds and 16:00 lands while he is in a meeting. notices.tell
---      HOLDS it through Focus and delivers it when Focus ends.
---   📌 AND `sp.unsent` OUTLIVES BOTH — he can be away, the Mac asleep, or
---      macOS can refuse the alert (6.274.0 counted three in eight hours).
---      It is still in the report at 4 PM, and clears only on a real send.
---   🚨 THE TEXT IS NEVER DISCARDED: `sp.sent[today]` is stamped in the
---      success branch ONLY, so a failure retries instead of looking done.
---      Its own check — the tempting way to write it stamps early.
+--   🚨 HE WAS RIGHT AND THIS MODULE HAD NEVER PAID THE RULE: a rejected
+--      send called `warn()` — the Console and nothing else. 6.214.0's
+--      rule, from his own words, unpaid where it costs him a capture.
+--   🔑 ONE PLACE DECIDES WHAT A SEND SAYS (`sp.announce`), channels
+--      following the OUTCOME not the exit: sent → an alert (SUCCESS IS
+--      VISIBLE TOO, or silence means both "worked" and "never ran");
+--      skipped → Console only, so a quiet day never cries wolf; failed →
+--      the 🔔 door AND a notification AND a sticky flag.
+--   🕰 THE NOTIFICATION IS THE PERSISTENT HALF (an alert is gone in six
+--      seconds; 16:00 lands mid-meeting) and `sp.unsent` outlives both.
+--   🚨 THE TEXT IS NEVER DISCARDED: the day is stamped in the SUCCESS
+--      branch only, so a failure retries instead of looking done.
 --
--- NEW IN 6.277.0 — 🔖 ⇪3 PUTS YOU BACK IN THE NOTE YOU WERE IN
---   (modules/vault.lua):
---   LL: "Opening and closing Hamsidian puts me back on Scratch 1 and not
---      the note I was working on. If I had 1000s of notes, I would have
---      to find that note each time … that's asking a lot of me."
---   🔎 THE MEMORY WAS CORRECT AND UNREACHABLE. openNote has stamped
---      `vault.lastNote` on every open for releases; v.open() read it only
---      `if not v.doc`, and v.doc SURVIVES hide() — so one ⇪N pinned it to
---      a tab for the session and every ⇪3 after rendered that tab.
---   🔑 EACH DOOR RESTORES ITS OWN SIDE — ⇪3 goes back to the last NOTE,
---      ⇪N is the tabs and is unchanged. One shared "last place" would put
---      ⇪3 back on Scratch 1 whenever the tabs were used last.
---   🚨 A REMEMBERED NOTE THAT IS GONE IS NOT RE-CREATED: openNote seeds a
---      missing file, so restoring through it naively answers "you deleted
---      that" by writing it back. Three states (6.196.1), `back to:`.
---
--- (6.276.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.277.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.278.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.279.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -151,7 +144,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.278.0"
+_G.configVersion = "6.279.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the
@@ -468,6 +461,14 @@ end
 if forceLogsDir   then logsDir   = forceLogsDir   end
 if forceBackupDir then backupDir = forceBackupDir end
 pcall(function() hs.fs.mkdir(logsDir) end)
+
+-- 📓 6.279.0 — core/notices.lua loads before this line exists (it has to,
+-- so it can report a module-load failure), so it buffers its rows until
+-- it is told where to write them. Everything that degraded during boot is
+-- flushed here — those are the rows most worth having.
+pcall(function()
+    _G.notices.logTo(logsDir .. "/degrades-" .. hostTag .. ".csv")
+end)
 
 -- One-time adoption: if this machine's new-location file doesn't exist
 -- yet but the old one does, copy its contents in — so nothing already

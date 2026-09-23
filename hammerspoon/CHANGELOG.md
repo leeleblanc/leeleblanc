@@ -5,6 +5,70 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.279.0 — 📓 WHAT FAILED TODAY, AFTER A RELOAD
+(core/notices.lua, init.lua, tests/test_notices.lua):
+
+  LL: "Can you also create an error message log for any of my tools that
+  fail? I can check this log at 4pm for a double verification that
+  anything I was using today that should capture information worked."
+
+🚨 THE LEDGER WAS MEMORY ONLY. `notices.degrades` has been a Lua table
+  since 6.215.0, so every reload emptied it — and a reload is likeliest
+  at exactly the wrong moment, because something broke and therefore
+  something got edited. "What failed today" was answerable only for as
+  long as Hammerspoon happened to have been running, which is the
+  opposite of what a 4 PM check needs. Each degrade now appends one row
+  to <Logs>/degrades-<Mac>.csv.
+
+📎 APPEND-ONLY, AND THAT IS A RULE RATHER THAN A CONVENIENCE: an append
+  cannot shrink a file, so there is no write-ledger row to keep and no
+  rewrite that can lose yesterday while saving today. 6.179.0's boot_cost
+  CSV is the same shape for the same reason. The reader takes the TAIL
+  (64 KB), never the whole file, because this one is uncapped by design.
+
+🔁 THE LOGGER NEVER TAKES THE DOOR ITSELF. A logger that reported its own
+  failure through core.degrade would call itself, for ever, on the first
+  unwritable disk — the mutation that does exactly that ends the suite
+  with a stack overflow rather than a failure. It counts its failures
+  instead, and the report names them.
+
+⏳ AND IT BUFFERS UNTIL IT KNOWS WHERE TO WRITE. core/notices.lua loads
+  before §0.1 exists — deliberately, so it can report a module-load
+  failure — and is handed an EMPTY core table, so it cannot know logsDir.
+  init.lua calls `notices.logTo()` once the path is settled and the
+  buffer flushes. Without that, every BOOT-TIME degrade would be missing
+  from the log, and those are the ones worth having. The buffer is
+  bounded and keeps the NEWEST: if a boot degrades two hundred times, the
+  recent ones are the ones still true when it settles (6.170.0's rule in
+  notices.queue, applied again here).
+
+🔎 THREE STATES, NEVER TWO (6.196.1), and here it is the entire point of
+  the report. "✅ nothing failed today" is the most reassuring sentence
+  this config can print and it would be a lie on exactly the day the disk
+  is full. So: no log file yet (with the pending count, and the words
+  "this is NOT 'nothing failed'") · the log could not be READ ("treat it
+  as unknown, not as clear") · the log was read and holds no row for that
+  day. `_G.todayReport()`, optionally for any day.
+
+🚨 AND EVERY EXIT CARRIES THE WRITE FAILURES. The first version returned
+  early on an unreadable log and skipped them — in the one situation
+  where failing writes are all but guaranteed, since it is the same disk.
+  The suite caught it, which is what a check on an instrument is for.
+
+🧪 FIVE MUTATIONS, FIVE BITES: dropping the buffer, printing "nothing
+  failed" on an unreadable log, letting the logger degrade itself,
+  dropping the CSV quoting, and keeping the OLDEST rows instead of the
+  newest. Restore verified by SHA (6.239.0).
+
+🧪 AND THE SUITE DIED INSTEAD OF FAILING under the first of them — 6.186.0
+  for the seventh time. Deleting the buffer leaves `logQueue` empty and
+  `logQueue[#logQueue]:find(...)` ends the run with "0 failed" never
+  printed, which in a gate that reads the tail looks exactly like a pass.
+  A test HELPER answers falsely rather than indexing a nil.
+
+📏 NAMED, NOT BUILT: the log is not yet a ⇪D source. That is a row in
+  uni.sources and its own release; this one is the log and the command.
+
 NEW IN 6.278.0 — 🔔 A SEND THAT FAILED IS SEEN, NOT ONLY LOGGED
 (modules/scratch_pad.lua, tests/test_scratch_pad.lua):
 
