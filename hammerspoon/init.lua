@@ -4,20 +4,44 @@
 -- =====================================================================
 -- 09-22-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.277.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.278.0
 -- =====================================================================
 
+-- NEW IN 6.278.0 — 🔔 A SEND THAT FAILED IS SEEN, NOT ONLY LOGGED
+--   (modules/scratch_pad.lua):
+--   LL: "for any tool that completes an action, like the 4pm send of
+--      Asana tasks from Hamsidian, how do I know if it didn't work? I
+--      think I need a persistent screen message … I could lose important
+--      information if not."
+--   🚨 HE WAS RIGHT AND THIS MODULE HAD NEVER PAID THE RULE. A rejected
+--      send called `warn()` — `_G.diag.warn`, the Console and nothing
+--      else. No alert, no notification, nothing on screen. 6.214.0's
+--      rule, written from his own words, unpaid in the one place where
+--      not knowing costs him the thing he captured.
+--   🔑 ONE PLACE DECIDES WHAT A SEND SAYS (`sp.announce`), and the
+--      channels follow the OUTCOME rather than the exit: sent → a short
+--      alert (SUCCESS IS VISIBLE TOO, or silence means both "it worked"
+--      and "it never ran"); skipped → Console only, so a quiet day never
+--      cries wolf; failed → the 🔔 door AND a notification AND a flag.
+--   🕰 THE NOTIFICATION IS THE PERSISTENT HALF: an hs.alert is gone in
+--      six seconds and 16:00 lands while he is in a meeting. notices.tell
+--      HOLDS it through Focus and delivers it when Focus ends.
+--   📌 AND `sp.unsent` OUTLIVES BOTH — he can be away, the Mac asleep, or
+--      macOS can refuse the alert (6.274.0 counted three in eight hours).
+--      It is still in the report at 4 PM, and clears only on a real send.
+--   🚨 THE TEXT IS NEVER DISCARDED: `sp.sent[today]` is stamped in the
+--      success branch ONLY, so a failure retries instead of looking done.
+--      Its own check — the tempting way to write it stamps early.
+--
 -- NEW IN 6.277.0 — 🔖 ⇪3 PUTS YOU BACK IN THE NOTE YOU WERE IN
 --   (modules/vault.lua):
 --   LL: "Opening and closing Hamsidian puts me back on Scratch 1 and not
 --      the note I was working on. If I had 1000s of notes, I would have
 --      to find that note each time … that's asking a lot of me."
 --   🔎 THE MEMORY WAS CORRECT AND UNREACHABLE. openNote has stamped
---      `vault.lastNote` on every open for releases; v.open() consulted it
---      only `if not v.doc`, and v.doc SURVIVES hide(). So one press of ⇪N
---      pinned it to a scratch tab for the rest of the session and every
---      ⇪3 after that rendered the tab. 6.265.0's shape: the right answer,
---      one branch away, with nothing able to reach it.
+--      `vault.lastNote` on every open for releases; v.open() read it only
+--      `if not v.doc`, and v.doc SURVIVES hide() — so one ⇪N pinned it to
+--      a tab for the session and every ⇪3 after rendered that tab.
 --   🔑 EACH DOOR RESTORES ITS OWN SIDE — ⇪3 goes back to the last NOTE,
 --      ⇪N is the tabs and is unchanged. One shared "last place" would put
 --      ⇪3 back on Scratch 1 whenever the tabs were used last.
@@ -25,37 +49,12 @@
 --      missing file, so restoring through it naively answers "you deleted
 --      that" by writing it back. Three states (6.196.1), `back to:`.
 --
--- NEW IN 6.276.0 — 🆓 A CARD THAT SAYS A KEY IS FREE ASKS THE REGISTRY
---   (modules/numpad_layer.lua, modules/power_tools.lua):
---   LL, handed ⇪⇧pad. as an available key: "are you saying the . on the
---      numpad is free because that is the music player. I'm concerned
---      we're not doing good debugging." He was right, and it was worse
---      than one key: the same cards called ⇪⇧7 and ⇪⇧8 unbound while
---      Bluetooth (6.216.0) and the QR reader (6.194.0) held them, and
---      contradicted their own "taken" row four lines below.
---   🔑 THE ANSWER EXISTED TWICE. `_G.freeKeys()` has read the live
---      registry correctly since 6.142.0; the ⇪/ cards TYPED the same
---      answer out beside it. A hand-maintained copy of a computed fact
---      can only ever drift, so the copy is DELETED, not corrected —
---      correcting it buys exactly until the next key is claimed.
---      `pt.freeKeyData` is PURE and both readers ask it; numpad_layer
---      fills its rows in warm(), when every module has finished binding.
---   🔎 WHY NOTHING CAUGHT IT: 6.196.0's cheat-sheet auditor joins a
---      card's KEY COLUMN to the module that BOUND the key, so it can only
---      speak about a row that names an owner — a row claiming a key is
---      FREE names nobody. 6.269.0 said an auditor that joins two things
---      is blind to a missing A; this is the same sentence about a missing
---      B. A claim of ABSENCE now has its own instrument, and an
---      unverifiable 🆓 row FAILS the gate rather than being skipped.
---   🔎 THREE STATES (6.196.1): the rows ship saying they have not asked
---      yet — not "every key is claimed". `_G.padProbe()` says which.
---
--- (6.275.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.276.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.277.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.278.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -152,7 +151,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.277.0"
+_G.configVersion = "6.278.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the

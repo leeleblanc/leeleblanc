@@ -989,6 +989,43 @@ work Mac.
   one-hop symlink: a fixture where the right and wrong implementations
   AGREE proves nothing — pick the input where they must differ.
 
+- 🔔 A TOOL THAT COMPLETES AN ACTION OWES YOU ITS OUTCOME, NOT ONLY ITS
+  FAILURE (6.278.0, modules/scratch_pad.lua — LL: "for any tool that
+  completes an action, like the 4pm send of Asana tasks from Hamsidian,
+  how do I know if it didn't work? … I could lose important information
+  if not"). A rejected send called `warn()` — `_G.diag.warn`, the Console
+  and nothing else. 6.214.0's rule, from his own words, unpaid in the one
+  place where not knowing costs him what he captured.
+  🔑 ONE PLACE DECIDES WHAT IT SAYS (`sp.announce`) and the channels
+  follow the OUTCOME, never the exit — six exits each printing their own
+  sentence into their own channel is exactly how one came to be silent.
+  sent → a short alert (SUCCESS IS VISIBLE TOO, or silence means both "it
+  worked" and "it never ran" — 6.196.1 inside the instrument he relies
+  on); skipped → Console only, so a quiet day never cries wolf (6.269.0);
+  failed → the 🔔 door AND a notification AND a sticky flag.
+  🕰 THE NOTIFICATION IS THE PERSISTENT HALF and it is the right answer
+  rather than a new card: an hs.alert is gone in six seconds and a 16:00
+  failure lands while he is in a meeting. notices.tell HOLDS it through
+  Focus and delivers it when Focus ends. NOT forced past Focus.
+  📌 AND THE FLAG OUTLIVES BOTH CHANNELS — away from the desk, Mac
+  asleep, or macOS refusing the alert (6.274.0 counted three in eight
+  hours). It clears only on a real send, because a flag that never clears
+  is one he learns to ignore.
+  🚨 THE TEXT IS NEVER DISCARDED: the day is stamped in the SUCCESS
+  branch only, so a failure retries instead of reading as "unchanged".
+  The mutation that stamps early fails three checks.
+  🔎 AND THE QUIETEST CASE IS THE WORST: a schedule that never ARMS runs
+  nothing, so there is no rejection to report and every other instrument
+  stays silent while the day's captures sit looking sent. It takes the
+  door too. GENERAL: when a scheduled action can fail, ask what happens
+  when it never RAN — that state has no error to carry it.
+  🧪 AND THE SUITE'S core STUB HAD NO `degrade`, so every module under
+  test took its no-door fallback and the door was never exercised
+  (6.193.0). 🧪 A section that reads a published global must drive the
+  instance that PUBLISHED it: this suite loads scratch_pad five times and
+  a section driving an earlier copy while reading the latest copy's
+  report measures two objects and calls the disagreement a bug.
+
 - 🔖 A MEMORY THAT IS WRITTEN AND NEVER READ IS NOT A MEMORY (6.277.0,
   modules/vault.lua — LL: "Opening and closing Hamsidian puts me back on
   Scratch 1 and not the note I was working on. If I had 1000s of notes, I
@@ -3079,6 +3116,7 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
+| 6.278.0 | 🔔 a 4 PM Asana send that fails is seen — an alert, a notification that survives Focus, and a sticky line in the report; it had only ever been a Console line | pending |
 | 6.277.0 | 🔖 ⇪3 reopens the note you were writing in — the last note has been recorded on every open for releases and was read only when nothing was open | pending |
 | 6.276.0 | 🆓 a cheat-sheet row that says a key is free now ASKS the live registry — ⇪⇧pad. had been advertised as available since the music player took it in 6.231.0 | pending |
 | 6.275.0 | 📘 the install guide says what FAILURE looks like at every step, has a section to hand to IT, and HAMSIDIAN.md gains §7b on linking out (docs only) | pending |
@@ -3796,6 +3834,63 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.278.0 verify with LL — 🔔 YOU FIND OUT WHEN A SEND FAILS (KNOWN GROUND)
+  WHAT CHANGED: when Hamsidian's Asana send does not go through, you now
+  get an alert, a macOS notification, and a line in the report that stays
+  there until a send actually succeeds.
+  WHY IT MATTERS: you asked how you would know. The honest answer was that
+  you would not — a rejected send wrote one line to the Console and did
+  nothing else. That breaks a rule you yourself set in 6.214.0 ("anything
+  that breaks must throw an error so I see it"), in the one place where
+  not knowing costs you what you captured.
+  🚨 NOTE THE 4 PM SEND IS STILL OFF — you switched it off in 6.254.0 and
+  this release does not turn it back on. Test it with the manual door.
+
+  A. THE HEADLINE — make one fail on purpose.
+  A1. Type something into a ⇪N tab so there is a day's worth to send.
+  A2. Turn Asana off for a moment: rename your token line in secret.lua,
+      or just run A3 on a Mac where Asana was never configured.
+  A3. Console: `_G.scratchPadSend()`.
+      EXPECT THREE THINGS, and all three matter:
+      · an on-screen alert naming the tool and the cause;
+      · a macOS NOTIFICATION saying your text is safe;
+      · Console: `⚠️ Hamsidian 4 PM send: …`
+  A4. Console: `_G.scratchPadReport()`.
+      EXPECT a line starting `⚠️ NOT SENT:` with the time, the reason, and
+      "your text is still in the tabs". THAT is the line that is still
+      there at 4 PM when you go looking — the alert will be long gone.
+  A5. Check the tab. EXPECT: every word still there.
+
+  B. THEN MAKE IT WORK.
+  B1. Put Asana back and run `_G.scratchPadSend()` again.
+      EXPECT: a ✅ alert naming the task, and the task in Asana.
+  B2. `_G.scratchPadReport()` again.
+      EXPECT the ⚠️ NOT SENT line is GONE, replaced by "nothing is
+      waiting". A warning that never clears is one you stop reading.
+
+  C. IT MUST NOT CRY WOLF — this is the half that decides whether you
+     keep the feature.
+  C1. With NOTHING written today, run `_G.scratchPadSend()`.
+      EXPECT: no alert, no notification, nothing on screen. Just a
+      Console line saying there was nothing to send. If an empty day
+      warns you, tell me — I will take it out.
+
+  D. IF YOU WERE IN A MEETING (worth one try if you use Focus).
+  D1. Turn on a Focus mode, then make a send fail as in A3.
+      EXPECT: no notification during Focus, and the Console says
+      "🔕 Held until Focus ends". Turn Focus off — the notification
+      arrives then. The alert still appears immediately either way.
+
+  E. A JUDGEMENT ONLY YOU CAN MAKE.
+  E1. Is a successful send saying "✅ Hamsidian → Asana: <task>" on screen
+      welcome, or noise? I made success visible on purpose so that silence
+      has one meaning instead of two — but you are the one who sees it
+      every day. "keep it" · "failures only" decides it.
+  E2. Next release (6.279.0) is the log you asked for — every tool that
+      failed today, in one command, so 4 PM is a single check rather than
+      a memory test. Tell me if you would rather have it somewhere other
+      than the Console.
+
 - 6.277.0 verify with LL — 🔖 ⇪3 PUTS YOU BACK (KNOWN GROUND)
   WHAT CHANGED: ⇪3 reopens the note you were last writing in, instead of
   whatever was left on screen. ⇪N is unchanged — it still opens the tabs.

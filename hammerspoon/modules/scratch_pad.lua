@@ -673,25 +673,103 @@ function M.setup(core)
         return title, table.concat(parts, "\n\n"), n
     end
 
+    -- 🔔 6.278.0 — A SEND THAT FAILED IS SEEN, NOT ONLY LOGGED.
+    --
+    -- LL: "for any tool that completes an action, like the 4pm send of
+    -- Asana tasks from Hamsidian, how do I know if it didn't work? I
+    -- think I need a persistent screen message that tells me if it fails
+    -- otherwise I don't know if the tasks I quickly captured were sent.
+    -- I could lose important information if not."
+    --
+    -- 🚨 HE WAS RIGHT AND THIS MODULE HAD NEVER PAID THE RULE. A rejected
+    -- send called `warn()`, which is `_G.diag.warn` — the Console and
+    -- nothing else. No alert, no notification, nothing on screen. That is
+    -- 6.214.0's "A BREAK IS SEEN, NEVER ONLY LOGGED", written from his
+    -- own words, unpaid in the one place where not knowing costs him the
+    -- thing he captured.
+    --
+    -- 🔑 ONE PLACE DECIDES WHAT A SEND SAYS. Six exits used to each print
+    -- their own sentence in their own channel, which is how one of them
+    -- came to be silent without anybody noticing. Three OUTCOMES, and the
+    -- channels follow from the outcome rather than from the exit:
+    --   · sent    — a short alert and a Console line. SUCCESS IS VISIBLE
+    --               TOO, deliberately: if only failure spoke, silence
+    --               would mean both "it worked" and "it never ran", which
+    --               is 6.196.1 in the instrument he is relying on.
+    --   · skipped — Console only. Nothing to send is not a failure.
+    --   · failed  — the 🔔 door (a DIRECT hs.alert, the ⚠️ Console line
+    --               and the ledger) AND a notification, AND a sticky flag
+    --               that outlives all of them.
+    --
+    -- 🕰 THE NOTIFICATION IS THE PERSISTENT HALF HE ASKED FOR, and it is
+    -- the right one rather than a new card: an hs.alert is gone in six
+    -- seconds and a 16:00 failure lands while he is in a meeting.
+    -- notices.tell HOLDS it while Focus is on and delivers it when Focus
+    -- ends — which is exactly "tell me when I get back". It is NOT
+    -- forced past Focus: a held notice is still delivered, and forcing
+    -- would put a work alert through a meeting for no gain.
+    --
+    -- 📌 AND THE STICKY FLAG IS WHAT SURVIVES A MISSED ALERT. Both
+    -- channels above can be missed — he can be away, the Mac can be
+    -- asleep, macOS can refuse the alert outright (6.274.0 counted that
+    -- happening three times in eight hours on his Mac). `sp.unsent`
+    -- stays set until a send succeeds, so the answer is still there at
+    -- 4 PM when he goes looking.
+    --
+    -- 🚨 AND THE TEXT IS NEVER DISCARDED. `sp.sent[today]` is stamped in
+    -- the success branch ONLY, so a failed send is retried rather than
+    -- marked done — the tabs still hold every word. Its own check,
+    -- because the tempting way to write this is to stamp it early.
+    function sp.announce(outcome, detail, reason)
+        detail = tostring(detail or "")
+        if outcome == "sent" then
+            sp.unsent = nil
+            print("📝 Hamsidian: " .. sp.sendAt .. " task sent — " .. detail)
+            pcall(function() hs.alert.show("✅ Hamsidian → Asana: " .. detail, 3) end)
+            return
+        end
+        if outcome == "skipped" then
+            print("📝 Hamsidian: " .. sp.sendAt .. " send skipped — " .. detail)
+            return
+        end
+        -- failed
+        sp.unsent = { at = os.time(), why = detail, reason = tostring(reason or "?") }
+        sp.sendFails = (sp.sendFails or 0) + 1
+        if type(core.degrade) == "function" then
+            pcall(core.degrade, "Hamsidian 4 PM send", detail, { seconds = 10 })
+        else
+            pcall(print, "⚠️ Hamsidian 4 PM send: " .. detail)
+            pcall(function() hs.alert.show("⚠️ Hamsidian 4 PM send — " .. detail, 10) end)
+        end
+        if _G.notices and type(_G.notices.tell) == "function" then
+            pcall(_G.notices.tell, "⚠️ Hamsidian did not reach Asana", detail
+                  .. " — your text is safe; _G.scratchPadSend() retries.")
+        end
+    end
+
     function sp.send(reason)
         reason = reason or "manual"
         local today = os.date("%Y-%m-%d")
         local title, notes, n = sp.dayBody(today)
         if not title then
             sp.lastSend = { at = os.time(), reason = reason, outcome = "nothing to send" }
-            say(sp.sendAt .. " send skipped — nothing written today")
+            sp.announce("skipped", "nothing written today", reason)
             return false, "nothing to send"
         end
         local sum = checksum(notes)
         if sp.sendOnlyIfChanged and sp.sent[today] == sum then
             sp.lastSend = { at = os.time(), reason = reason, outcome = "unchanged since the last send" }
-            say(sp.sendAt .. " send skipped — unchanged since the last send")
+            sp.announce("skipped", "unchanged since the last send", reason)
             return false, "unchanged"
         end
         if not (core.asanaEnabled and _G.asanaSubmitTask) then
+            -- 🔎 THIS ONE IS A FAILURE, NOT A SKIP, and telling the two
+            -- apart is the point of the release. He wrote the tasks
+            -- expecting them to go; "Asana is off on this Mac" means they
+            -- did not, and the old code printed it to the Console alone.
             sp.lastSend = { at = os.time(), reason = reason, outcome = "Asana is off on this Mac" }
-            print("📝 Hamsidian: " .. sp.sendAt .. " task not sent — Asana is off on this Mac "
-                  .. "(secret.lua); the text is safe in " .. sp.file)
+            sp.announce("failed", "Asana is off on this Mac (secret.lua) — "
+                        .. "the text is safe in " .. sp.file, reason)
             return false, "asana off"
         end
         local ok, accepted = pcall(_G.asanaSubmitTask, title, notes, sp.assignee, "", {
@@ -700,16 +778,21 @@ function M.setup(core)
             comment   = sp.comment,
         })
         if ok and accepted then
+            -- 🚨 STAMPED HERE AND NOWHERE ELSE. Marking the day done
+            -- before the answer is in would make a failed send look like
+            -- a finished one and the retry would never happen.
             sp.sent[today] = sum
             sp.lastSend = { at = os.time(), reason = reason, outcome = "sent · " .. n .. " section"
                             .. (n == 1 and "" or "s"), title = title }
             sp.saveNow()
-            say("task sent — " .. title)
+            sp.announce("sent", title, reason)
             return true, title
         end
+        local whyR = tostring(ok and "Asana would not accept it" or accepted)
         sp.lastSend = { at = os.time(), reason = reason,
-                        outcome = "rejected — " .. tostring(ok and "validation" or accepted) }
-        warn("task not accepted (" .. tostring(ok and "validation failed" or accepted) .. ")")
+                        outcome = "rejected — " .. whyR }
+        sp.announce("failed", whyR .. " — nothing was sent and your text is "
+                    .. "still in the tabs", reason)
         return false, "rejected"
     end
     _G.scratchPadSend = function() return sp.send("manual") end
@@ -1414,6 +1497,24 @@ t.focus(); try { t.setSelectionRange(CARET, CARET); } catch(e){}
                     .. " · opens: " .. sp.opens .. " · non-activating: " .. tostring(sp.nonActivatingWhy)
         -- 🗑 6.254.0 — OFF is its own state, not a failure. "NOT armed"
         -- on a Mac that was asked not to arm it reads like a fault.
+        -- 📌 6.278.0 — THE STICKY ANSWER TO "DID MY TASKS GO?". Both the
+        -- alert and the notification can be missed (away from the desk,
+        -- asleep, or macOS refusing to draw the alert — 6.274.0 counted
+        -- that three times in eight hours on his Mac). This line is still
+        -- here at 4 PM when he comes looking, and it clears itself only
+        -- when a send actually succeeds.
+        if sp.unsent then
+            L[#L + 1] = "   ⚠️ NOT SENT: " .. tostring(sp.unsent.why)
+            L[#L + 1] = "      at " .. os.date("%b %d %H:%M", sp.unsent.at)
+                        .. " (" .. tostring(sp.unsent.reason) .. ") · your text is still "
+                        .. "in the tabs · _G.scratchPadSend() retries it"
+        else
+            L[#L + 1] = "   sends  : nothing is waiting — the last send either worked "
+                        .. "or there was nothing to send"
+        end
+        if sp.sendFails and sp.sendFails > 0 then
+            L[#L + 1] = "   failed : " .. sp.sendFails .. " send(s) did not reach Asana this session"
+        end
         if not sp.sendDaily then
             L[#L + 1] = "   4 PM: OFF — no daily Asana task is sent"
                         .. " (settings = { scratch_pad = { sendDaily = true } })"
@@ -1460,10 +1561,16 @@ function M.warm(core)
     local ok, t = pcall(hs.timer.doAt, sp.sendAt, "1d", function() pcall(sp.send, "scheduled") end)
     if ok and t then sp.sendTimer = t     -- HELD
     else
-        print("📝 Hamsidian: the " .. sp.sendAt .. " send is not armed — " .. tostring(t))
-        if _G.notices and _G.notices.record then
-            pcall(_G.notices.record, "scratch", "the 4 PM task is not armed", tostring(t))
-        end
+        -- 🔔 6.278.0 — THE WORST CASE OF ALL, and it used to be the
+        -- quietest: the schedule never armed, so 16:00 comes and NOTHING
+        -- RUNS. There is no rejection to report because nothing was
+        -- attempted, so every other instrument in this release stays
+        -- silent and the day's captures sit there looking sent. It takes
+        -- the door, with the sticky flag, like a rejection.
+        sp.armFailed = tostring(t)
+        sp.announce("failed", "the " .. sp.sendAt .. " schedule did not arm ("
+                    .. tostring(t) .. ") — nothing will be sent today "
+                    .. "unless you run _G.scratchPadSend()", "arm")
     end
 end
 

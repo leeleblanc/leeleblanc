@@ -240,6 +240,12 @@ end
 _G.movablePanels, _G.editors = {}, {}
 _G.rewrittenFiles = {}
 
+local DEGRADES, TOLD = {}, {}
+_G.notices = { tell = function(title, text)
+                   TOLD[#TOLD + 1] = tostring(title) .. " :: " .. tostring(text)
+                   return true
+               end,
+               record = function() return true end }
 local SUBMITS, SUBMIT_RESULT = {}, true
 _G.asanaSubmitTask = function(title, desc, assignee, attach, extra)
     SUBMITS[#SUBMITS + 1] = { title = title, desc = desc, assignee = assignee, attach = attach, extra = extra }
@@ -258,6 +264,17 @@ local CORE = {
         HYPER[table.concat(mods or {}, "+") .. "|" .. tostring(key)] = { fn = fn, src = src }
     end,
     warnWriteFailed = function(what) WRITE_WARNS[#WRITE_WARNS + 1] = what end,
+    -- 🔔 6.278.0 — THE STUB CARRIES THE DOOR. init.lua publishes
+    -- core.degrade (core/notices.lua) on every real boot, so a stub
+    -- without it makes every module here take its no-door fallback
+    -- branch and the door itself is never exercised (6.193.0). It
+    -- answers `false, why` exactly as the real one does.
+    degrade = function(tool, why, opts)
+        DEGRADES[#DEGRADES + 1] = { tool = tostring(tool), why = tostring(why),
+                                    seconds = opts and opts.seconds }
+        ALERTS[#ALERTS + 1] = "⚠️ " .. tostring(tool) .. " — " .. tostring(why)
+        return false, why
+    end,
 }
 
 local mod = dofile(HS .. "/modules/scratch_pad.lua")
@@ -451,9 +468,15 @@ sp.active = sp.tabs[1].id
 CORE.asanaEnabled = false
 sp.setText(sp.active, "asana off text")
 ok, why = sp.send("scheduled")
-check("Asana off: not sent, said in the Console, text kept",
-      ok == false and why == "asana off" and PRINTED[#PRINTED]:find("Asana is off", 1, true)
-      and sp.tabs[1].text == "asana off text")
+-- 🔔 6.278.0 — THIS CHECK USED TO ASSERT THE CONSOLE, which was the
+-- whole defect: "said in the Console" was ALL that happened, and LL
+-- asked how he is supposed to know. It asks the RULE now (6.248.0) —
+-- not sent · the text kept · and HE IS TOLD, wherever the telling goes.
+check("Asana off: not sent, SEEN on screen, text kept",
+      ok == false and why == "asana off"
+      and #ALERTS > 0 and tostring(ALERTS[#ALERTS]):find("Asana is off", 1, true) ~= nil
+      and sp.tabs[1].text == "asana off text",
+      tostring(ALERTS[#ALERTS]))
 CORE.asanaEnabled = true
 -- validation rejected
 SUBMIT_RESULT = false
@@ -1257,6 +1280,121 @@ do
           okSection == true, secErr)
     local ran = (pass + fail) - before
     check("§6.254.0 ran all of its checks (" .. ran .. " of 13+)", ran >= 13, ran)
+end
+
+-- =======================================================================
+out("\n6.278.0) 🔔 a send that failed is SEEN, not only logged\n")
+-- =======================================================================
+-- LL: "for any tool that completes an action, like the 4pm send of Asana
+-- tasks from Hamsidian, how do I know if it didn't work? … I could lose
+-- important information if not." A rejected send used to call warn() —
+-- _G.diag.warn, the Console and nothing else. No alert, no notification,
+-- nothing on screen. 6.214.0's rule, written from his own words, unpaid
+-- in the one place where not knowing costs him what he captured.
+do
+    local before = pass + fail
+    -- 🔌 ITS OWN INSTANCE, AND THE GLOBALS THAT GO WITH IT. This suite
+    -- loads the module several times, so `_G.scratchPadReport` belongs to
+    -- whichever copy ran setup() last — and a section that drives an
+    -- EARLIER copy while reading the LATEST copy's report is measuring
+    -- two different objects and calling the disagreement a bug. (It did,
+    -- for as long as it took to print one address.)
+    local m8 = dofile(HS .. "/modules/scratch_pad.lua")
+    m8.setup(CORE)
+    local sp = _G.scratchPad
+    check("this section drives the same copy its report reads",
+          sp ~= nil and type(_G.scratchPadReport) == "function")
+    sp.tabs = { { id = "s1", text = "a task I dumped", kind = nil, at = os.time() } }
+    sp.history, sp.active = {}, "s1"
+    sp.sent, sp.unsent, sp.sendFails = {}, nil, 0
+
+    -- ---- a REJECTED send ------------------------------------------------
+    DEGRADES, ALERTS, TOLD = {}, {}, {}
+    SUBMIT_RESULT = false
+    local ok = sp.send("scheduled")
+    check("a rejected send takes the 🔔 door — the tool and the cause, on "
+          .. "screen, at the moment it happens", ok == false and #DEGRADES == 1
+          and DEGRADES[1].tool:find("Hamsidian", 1, true) ~= nil,
+          #DEGRADES .. " degrade(s)")
+    check("...and the alert says what happened rather than that something "
+          .. "happened", #ALERTS > 0
+          and tostring(ALERTS[#ALERTS]):find("would not accept", 1, true) ~= nil,
+          tostring(ALERTS[#ALERTS]))
+    check("🕰 ...and a NOTIFICATION goes with it — the persistent half. An "
+          .. "hs.alert is gone in six seconds and 16:00 lands while he is "
+          .. "in a meeting; notices.tell is held through Focus and "
+          .. "delivered when it ends", #TOLD == 1,
+          tostring(TOLD[1]))
+    check("...and the notification says his text is safe, because the "
+          .. "first thing he will want to know is whether he lost it",
+          #TOLD == 1 and tostring(TOLD[1]):find("safe", 1, true) ~= nil,
+          tostring(TOLD[1]))
+
+    -- 📌 the sticky flag: what is still there at 4 PM
+    check("📌 the failure STICKS — both channels above can be missed (away "
+          .. "from the desk, asleep, or macOS refusing to draw the alert, "
+          .. "which 6.274.0 counted three times in eight hours on his Mac)",
+          type(sp.unsent) == "table" and type(sp.unsent.why) == "string")
+    check("...and the report carries it where he goes looking", (function()
+        local r = _G.scratchPadReport()
+        return r:find("NOT SENT", 1, true) ~= nil
+               and r:find("still", 1, true) ~= nil
+               and r:find("scratchPadSend", 1, true) ~= nil
+    end)())
+
+    -- 🚨 THE ONE THAT PROTECTS THE WRITING
+    check("🚨 a failed send is NOT marked done — the day is stamped in the "
+          .. "success branch only, so the next send retries it instead of "
+          .. "skipping it as unchanged",
+          sp.sent[TODAY] == nil, tostring(sp.sent[TODAY]))
+    check("...and every word is still in the tab",
+          sp.tabs[1].text == "a task I dumped")
+
+    -- ---- it SUCCEEDS next time -----------------------------------------
+    DEGRADES, ALERTS, TOLD = {}, {}, {}
+    SUBMIT_RESULT = true
+    local ok2 = sp.send("scheduled")
+    check("the retry goes through", ok2 == true)
+    check("📌 ...and success CLEARS the sticky failure — a flag that never "
+          .. "clears is a flag he learns to ignore", sp.unsent == nil)
+    check("🔎 ...and success is VISIBLE too. If only failure spoke, silence "
+          .. "would mean both 'it worked' and 'it never ran', which is "
+          .. "6.196.1 inside the instrument he is relying on",
+          #ALERTS > 0 and tostring(ALERTS[#ALERTS]):find("✅", 1, true) ~= nil,
+          tostring(ALERTS[#ALERTS]))
+    check("...and a success raises no degrade and no notification",
+          #DEGRADES == 0 and #TOLD == 0)
+
+    -- ---- Asana OFF is a FAILURE, not a skip -----------------------------
+    DEGRADES, ALERTS, TOLD = {}, {}, {}
+    sp.sent, sp.unsent = {}, nil
+    sp.setText("s1", "written expecting it to go")
+    CORE.asanaEnabled = false
+    sp.send("scheduled")
+    check("🔎 'Asana is off on this Mac' is a FAILURE, not a skip — he "
+          .. "wrote those tasks expecting them to go, and the old code "
+          .. "printed this one to the Console alone",
+          #DEGRADES == 1 and sp.unsent ~= nil, #DEGRADES .. " degrade(s)")
+    CORE.asanaEnabled = true
+
+    -- ---- but an empty day must NOT cry wolf -----------------------------
+    -- 6.269.0: a new instrument's first duty is to be SILENT when nothing
+    -- is wrong. One that warns on an ordinary quiet day is one he turns off.
+    DEGRADES, ALERTS, TOLD = {}, {}, {}
+    sp.unsent = nil
+    sp.tabs = {}
+    sp.send("scheduled")
+    check("🚨 nothing written today is a SKIP and says nothing on screen — "
+          .. "an instrument that warns on a quiet day is one he switches "
+          .. "off before it ever sees a real failure",
+          #DEGRADES == 0 and #ALERTS == 0 and #TOLD == 0 and sp.unsent == nil,
+          #DEGRADES .. "/" .. #ALERTS .. "/" .. #TOLD)
+    check("...and with nothing waiting the report says so plainly",
+          _G.scratchPadReport():find("nothing is waiting", 1, true) ~= nil)
+
+    sp.unsent, sp.sendFails = nil, 0
+    local ran = (pass + fail) - before
+    check("§6.278.0 ran all of its checks (" .. ran .. " of 15+)", ran >= 15, ran)
 end
 
 out(string.format("\n%d passed, %d failed\n", pass, fail))

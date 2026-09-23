@@ -5,6 +5,89 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.278.0 — 🔔 A SEND THAT FAILED IS SEEN, NOT ONLY LOGGED
+(modules/scratch_pad.lua, tests/test_scratch_pad.lua):
+
+  LL: "for any tool that completes an action, like the 4pm send of Asana
+  tasks from Hamsidian, how do I know if it didn't work? I think I need
+  a persistent screen message that tells me if it fails otherwise I
+  don't know if the tasks I quickly captured were sent. I could lose
+  important information if not."
+
+🚨 HE WAS RIGHT, AND THIS MODULE HAD NEVER PAID THE RULE. A rejected send
+  called `warn()`, which is `_G.diag.warn` — the Console and nothing
+  else. No alert, no notification, nothing on screen at all. That is
+  6.214.0's "A BREAK IS SEEN, NEVER ONLY LOGGED", written from his own
+  words after the 6.214.0 loss, unpaid in the one place where not knowing
+  costs him the thing he captured. He found it by asking the right
+  question rather than by being bitten, which is the cheapest way this
+  has ever been found.
+
+🔑 ONE PLACE DECIDES WHAT A SEND SAYS. Six exits each printed their own
+  sentence into their own channel, which is exactly how one of them came
+  to be silent without anybody noticing. `sp.announce(outcome, detail,
+  reason)` is the one door and the channels follow the OUTCOME rather
+  than the exit:
+    · sent    — a short alert and a Console line. SUCCESS IS VISIBLE TOO,
+                deliberately: if only failure spoke, silence would mean
+                both "it worked" and "it never ran", which is 6.196.1
+                inside the instrument he is relying on.
+    · skipped — Console only. Nothing written today is not a failure, and
+                an instrument that warns on a quiet day is one he
+                switches off before it ever sees a real one (6.269.0: a
+                new instrument's first duty is to be silent).
+    · failed  — the 🔔 door (a DIRECT hs.alert, the ⚠️ Console line and
+                the ledger), AND a notification, AND a sticky flag.
+
+🕰 THE NOTIFICATION IS THE PERSISTENT HALF HE ASKED FOR, and it is the
+  right answer rather than a new card: an hs.alert is gone in six seconds
+  and a 16:00 failure lands while he is in a meeting. `notices.tell`
+  HOLDS it while Focus is on and delivers it when Focus ends, which is
+  exactly "tell me when I get back". It is deliberately NOT forced past
+  Focus — a held notice is still delivered, and forcing would push a work
+  alert through a meeting for no gain.
+
+📌 AND THE STICKY FLAG OUTLIVES BOTH. Every channel above can be missed:
+  away from the desk, the Mac asleep, or macOS refusing to draw the alert
+  outright — 6.274.0 counted that happening three times in eight hours on
+  his Mac, which is the whole reason that release exists. `sp.unsent`
+  stays set until a send actually succeeds, so the answer is still in
+  `_G.scratchPadReport()` at 4 PM when he goes looking. A flag that never
+  clears is a flag he learns to ignore, so success clears it and that has
+  its own check.
+
+🚨 AND THE TEXT IS NEVER DISCARDED. `sp.sent[today]` is stamped in the
+  success branch ONLY, so a failed send is retried on the next run rather
+  than skipped as "unchanged since the last send". Its own check, because
+  the tempting way to write this stamps the day before the answer is in
+  — and the mutation that does exactly that fails three checks.
+
+🔎 "ASANA IS OFF ON THIS MAC" IS A FAILURE, NOT A SKIP, and telling those
+  two apart is most of the release. He wrote those tasks expecting them
+  to go; that they did not is the thing he needs to hear. The old code
+  printed it to the Console alone.
+
+🔔 THE QUIETEST CASE OF ALL IS NOW THE LOUDEST: if the 16:00 schedule
+  never ARMS, nothing runs, so there is no rejection to report and every
+  other instrument here stays silent while the day's captures sit looking
+  sent. That branch takes the door too, with the sticky flag.
+
+🧪 FIVE MUTATIONS, FIVE BITES. Restoring `warn()` fails four checks at
+  once. Stamping the day early fails three. Dropping the notification,
+  never clearing the flag, and treating an empty day as a failure each
+  fail their own. Restore verified by SHA (6.239.0).
+
+🔌 AND THE SUITE'S core STUB CARRIES THE DOOR NOW. It had no `degrade`,
+  so every module under test took its no-door fallback branch and the
+  door itself was never once exercised (6.193.0). 🧪 One new section also
+  had to load its OWN instance of the module: this suite loads
+  scratch_pad five times, so `_G.scratchPadReport` belongs to whichever
+  copy ran setup() last, and a section driving an earlier copy while
+  reading the latest copy's report is measuring two different objects and
+  calling the disagreement a bug. It did, until one printed address said
+  so. GENERAL: when a suite loads a module more than once, a section that
+  reads a published global must drive the instance that published it.
+
 NEW IN 6.277.0 — 🔖 ⇪3 PUTS YOU BACK IN THE NOTE YOU WERE IN
 (modules/vault.lua, tests/test_vault.lua):
 

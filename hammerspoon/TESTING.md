@@ -1,4 +1,4 @@
-# TESTING — how to score release 6.277.0
+# TESTING — how to score release 6.278.0
 
 You install ONE archive and it carries several releases. Below are the
 steps for each release this archive is new for, newest first. Run the
@@ -26,6 +26,67 @@ else is a LOSS and I fix it before building further. You are the only
 scorer; I never mark my own.
 
 ---
+
+## 6.278.0
+
+6.278.0 verify with LL — 🔔 YOU FIND OUT WHEN A SEND FAILS (KNOWN GROUND)
+WHAT CHANGED: when Hamsidian's Asana send does not go through, you now
+get an alert, a macOS notification, and a line in the report that stays
+there until a send actually succeeds.
+WHY IT MATTERS: you asked how you would know. The honest answer was that
+you would not — a rejected send wrote one line to the Console and did
+nothing else. That breaks a rule you yourself set in 6.214.0 ("anything
+that breaks must throw an error so I see it"), in the one place where
+not knowing costs you what you captured.
+🚨 NOTE THE 4 PM SEND IS STILL OFF — you switched it off in 6.254.0 and
+this release does not turn it back on. Test it with the manual door.
+
+A. THE HEADLINE — make one fail on purpose.
+A1. Type something into a ⇪N tab so there is a day's worth to send.
+A2. Turn Asana off for a moment: rename your token line in secret.lua,
+    or just run A3 on a Mac where Asana was never configured.
+A3. Console: `_G.scratchPadSend()`.
+    EXPECT THREE THINGS, and all three matter:
+    · an on-screen alert naming the tool and the cause;
+    · a macOS NOTIFICATION saying your text is safe;
+    · Console: `⚠️ Hamsidian 4 PM send: …`
+A4. Console: `_G.scratchPadReport()`.
+    EXPECT a line starting `⚠️ NOT SENT:` with the time, the reason, and
+    "your text is still in the tabs". THAT is the line that is still
+    there at 4 PM when you go looking — the alert will be long gone.
+A5. Check the tab. EXPECT: every word still there.
+
+B. THEN MAKE IT WORK.
+B1. Put Asana back and run `_G.scratchPadSend()` again.
+    EXPECT: a ✅ alert naming the task, and the task in Asana.
+B2. `_G.scratchPadReport()` again.
+    EXPECT the ⚠️ NOT SENT line is GONE, replaced by "nothing is
+    waiting". A warning that never clears is one you stop reading.
+
+C. IT MUST NOT CRY WOLF — this is the half that decides whether you
+   keep the feature.
+C1. With NOTHING written today, run `_G.scratchPadSend()`.
+    EXPECT: no alert, no notification, nothing on screen. Just a
+    Console line saying there was nothing to send. If an empty day
+    warns you, tell me — I will take it out.
+
+D. IF YOU WERE IN A MEETING (worth one try if you use Focus).
+D1. Turn on a Focus mode, then make a send fail as in A3.
+    EXPECT: no notification during Focus, and the Console says
+    "🔕 Held until Focus ends". Turn Focus off — the notification
+    arrives then. The alert still appears immediately either way.
+
+E. A JUDGEMENT ONLY YOU CAN MAKE.
+E1. Is a successful send saying "✅ Hamsidian → Asana: <task>" on screen
+    welcome, or noise? I made success visible on purpose so that silence
+    has one meaning instead of two — but you are the one who sees it
+    every day. "keep it" · "failures only" decides it.
+E2. Next release (6.279.0) is the log you asked for — every tool that
+    failed today, in one command, so 4 PM is a single check rather than
+    a memory test. Tell me if you would rather have it somewhere other
+    than the Console.
+
+
 
 ## 6.277.0
 
@@ -204,72 +265,6 @@ E2. Scratch tabs vs notes: do you want a ⇪N tab to become a real .md
 E3. Did the archive open? Both a .tar.gz and a .zip are in this one
     because you asked for the zip by name. Tell me which you used and
     whether it worked, and the next release carries only that one.
-
-
-
-## 6.274.0
-
-6.274.0 verify with LL — 🔔 ⇪4 LEAVES A NUMBER BEHIND (KNOWN GROUND)
-WHAT CHANGED: nothing about how ⇪4 captures. This release exists so that
-the NEXT time it does not, we can tell which of four things happened
-instead of guessing.
-🚨 I HAVE NOT FIXED YOUR ⇪4, and I am saying that first rather than
-letting you find it out. I read every path that could make that key do
-nothing and they all already say why — 6.265.0 closed that class. What
-I could not do is tell, from "intermittently working", WHICH of them you
-are hitting. So: instruments, then the fix.
-🔎 AND YOUR CONSOLE CARRIED THE CLUE I COULD ACT ON: three
-"⚠️ an alert could not draw" lines in eight hours. That is macOS
-refusing to draw one of OUR messages — and every message this config
-has ever given you goes through that one channel. So an alert
-explaining why ⇪4 did nothing could itself have been refused, and
-nothing recorded that it happened or what it said.
-
-A. THE HEADLINE — the new reports. Nothing to break, everything to read.
-A1. Console: `_G.alertReport()`.
-    EXPECT on a healthy Mac, and it should be BORING:
-      asked     : <N> this session
-      refused   : none — macOS drew every alert it was asked for
-    If "refused" is a number, paste the whole block. The "↳ last refused
-    said:" line names what you missed.
-A2. Console: `_G.screenshotsReport()` — look for the new "routes :" line.
-    EXPECT, before you have pressed ⇪4: "⇪4 has not been pressed this
-    session".
-A3. Press ⇪4 and drag a rectangle. Run it again.
-    EXPECT: "routes : 1 press(es) — 1 on our selector · 0 on macOS's
-    crosshair", and NO ⚠️ under it.
-
-B. THE ONE THAT MATTERS — use the Mac for a day, then read it.
-B1. After a normal day, Console: `_G.screenshotsReport()` and
-    `_G.alertReport()`. PASTE BOTH.
-    The three numbers that answer your report:
-    · "routes" — how many ⇪4 presses went to OUR selector vs macOS's.
-    · the ⚠️ line under it — how many of the macOS ones were a REFUSAL
-      rather than a setting. THAT number is your "intermittently".
-    · "↳ ⚠️ N press(es) found no folder to write to" — if this appears,
-      your screenshots folder was missing at that moment, which would
-      make ⇪4 do nothing at all. It is in OneDrive, so this is a real
-      candidate and it has never been counted before.
-B2. If ⇪4 does nothing at some point in that day, note roughly WHEN and
-    run both reports straight away. The clock in each line is what lets
-    me line it up with your Console.
-
-C. MUST STILL WORK.
-C1. ⇪4 captures, with the live 1280 × 720 readout and the shutter.
-C2. ⇪5 scrolling capture still works.
-C3. In the editor (⇪⇧1), ⌘A still drags on our selector.
-C4. Any alert you normally see — ⇪Z learning a word, a copy confirmation
-    — still appears. The wrapper counts; it does not gate.
-
-D. A JUDGEMENT ONLY YOU CAN MAKE.
-D1. When ⇪4 "does not work", what do you actually see? Three different
-    answers send me to three different places, and I cannot tell them
-    apart from here:
-    · nothing at all happens — no crosshair, no sound;
-    · macOS's PLAIN crosshair appears (no black size box) — that is the
-      fallback working, and the refusal count will prove it;
-    · our dashed blue selector appears but the drag does not capture.
-    One sentence is enough.
 
 
 
