@@ -5,6 +5,105 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.276.0 — 🆓 A CARD THAT SAYS A KEY IS FREE ASKS THE REGISTRY
+(modules/numpad_layer.lua, modules/power_tools.lua,
+ tests/test_power_tools.lua, tests/test_integration.lua):
+
+  LL, handed ⇪⇧pad. as an available key: "hyper+pad. key available for
+  use — are you saying the . on the numpad is free because that is the
+  music player. I'm concerned we're not doing good debugging, because
+  if we are not and I introduce problems on my work Mac, that is a
+  problem."
+
+  He was right, and it was worse than the one key. modules/
+  numpad_layer.lua carried FOUR hand-written rows reading "Key available
+  for use", one of which named pad. — which modules/music_player.lua has
+  bound as ⇪⇧pad. since 6.231.0. The same module's other 🆓 cards said
+  ⇪ pad0 5 6 7 8 9 . / enter clear were "free … yours to assign", and
+  said "⇪⇧5 7 8 · ⇪⇧, ⇪⇧. ⇪⇧⏎ — all unbound now" while Bluetooth has
+  held ⇪⇧7 since 6.216.0 and the QR reader ⇪⇧8 since 6.194.0 — a row
+  that contradicted its own "taken" row four lines further down the same
+  card.
+
+🔑 THE ANSWER EXISTED TWICE, AND ONE COPY WAS MAINTAINED BY A PERSON.
+
+  `_G.freeKeys()` (6.142.0) reads `_G.hyperBound`, the registry every
+  binding fills at boot, and has been right the whole time — its own
+  comment says the list "is not written, it is READ", because a careful
+  hand survey is exactly what missed ⇪⇧9 in 6.141.0. And then the ⇪/
+  cards typed the same answer out beside it.
+
+  So the copy is DELETED, not corrected. Correcting those four rows by
+  hand would have bought exactly until the next key was claimed, which
+  is the whole history of this defect. `pt.freeKeyData(bound, keymap)`
+  is PURE — the registry and the keycode map are ARGUMENTS, so the gate
+  proves every rule with no Mac and can move the registry out from under
+  the card (6.239.0) — `_G.freeKeys()` renders it, it is published as
+  the `keys.free` service, and numpad_layer's cards ask for it. One
+  computation, two readers: the rule this project keeps paying for late.
+
+⏱ IN warm(), NEVER IN setup(). The registry is filled BY the modules as
+  they bind, so a card built during setup would describe whichever half
+  of the config happened to have loaded first — and this module is order
+  13.5, so it would have been most of them. Same reason 6.267.0 moved
+  two store reads there.
+
+🔎 WHY NOTHING COULD HAVE CAUGHT IT, and this is the half to carry.
+  6.196.0's cheat-sheet auditor joins a card's KEY COLUMN to the module
+  that BOUND the key. A row claiming a key is FREE names nobody, so
+  there is no second side to join it to — and its key column ("⇪⇧ pad.
+  + -") is prose to that parser besides, which exempts it twice over.
+  6.269.0 wrote down that an auditor which joins A to B is structurally
+  blind to a MISSING A; this is the same sentence about a missing B, and
+  it cost five releases of a card lying to him about his own keyboard.
+  GENERAL: when a check works by joining two things, ask what it says
+  about a row that has only one of them — and put a DIFFERENT instrument
+  on that, because widening the join is what makes an auditor cry wolf
+  and get switched off.
+
+🚨 AND AN UNVERIFIABLE 🆓 ROW FAILS THE GATE RATHER THAN BEING SKIPPED.
+  The new sentry knows which modifier each 🆓 row is talking about; a row
+  whose label it has not been taught is a row it cannot verify, and
+  silently passing over it is precisely how this hole was opened. Fail
+  closed.
+
+🔎 THREE STATES, NEVER TWO (6.196.1). The rows ship reading "asking the
+  key registry…", which is what a Mac where warm() never ran still
+  shows. That is not "every key is claimed" (what an empty list prints)
+  and not the answer. `M.freeState` carries which of the three happened
+  and `_G.padProbe()` prints it, with a ⚠️ when the cards have NOT been
+  filled this session — a card that has not asked yet must not read like
+  one that has.
+
+🚨 A MISSING KEYMAP IS NOT AN EMPTY KEYBOARD. Written the obvious way
+  round (`if keymap[n] == nil then dead`), a Hammerspoon that does not
+  answer about keycodes would mark every pad key dead and the card would
+  tell him this Mac has no numpad at all. Unknown means "ask the
+  registry as usual"; only a keymap that ANSWERS is believed. Its own
+  check, because the old code got this right by luck rather than by
+  decision.
+
+🔌 AND THE TEST REGISTRY STOPPED BEING GENTLER THAN THE REAL ONE.
+  test_integration's `_G.service.provide` threw the provider function
+  away and answered every call with nothing, so no module that ASKS a
+  service could be exercised at all. It keeps the function now and
+  dispatches RAW — `return a, b, c` after its pcall, no status in front
+  — which is what the real registry does and what 6.273.0 cost eighty-
+  nine releases to learn. (6.193.0, and the gate already refuses any
+  suite that prepends a status.)
+
+🧪 FOUR MUTATIONS, FOUR BITES, and the first one reproduces his bug by
+  name: putting a hand-written row back fails with "⇪⇧ pad offers pad.
+  — held by Music player". Stopping warm() writing, hard-coding
+  freeAnswer's list, and dropping the ⇪⇧Z reserved rule each fail their
+  own check. The restore was verified by SHA (6.239.0).
+
+📏 NAMED, NOT FIXED: `_G.freeKeys()` still cannot answer for the ⌘⇧pad
+  layer from the registry — it binds through hs.hotkey, not the ⇪ modal
+  — so numpad.cmdShiftActions stays its own source of truth, and the
+  card's ⌘⇧ row is generated from that table rather than from
+  hyperBound. The sentry skips that one row by name and says why.
+
 NEW IN 6.275.0 — 📘 THE INSTALL GUIDE TELLS YOU WHAT FAILURE LOOKS LIKE
 (INSTALL.md, HAMSIDIAN.md — documentation only, no behaviour change):
 

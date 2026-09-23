@@ -1,4 +1,4 @@
-# TESTING — how to score release 6.275.0
+# TESTING — how to score release 6.276.0
 
 You install ONE archive and it carries several releases. Below are the
 steps for each release this archive is new for, newest first. Run the
@@ -26,6 +26,71 @@ else is a LOSS and I fix it before building further. You are the only
 scorer; I never mark my own.
 
 ---
+
+## 6.276.0
+
+6.276.0 verify with LL — 🆓 THE FREE-KEY CARDS TELL THE TRUTH (KNOWN GROUND)
+WHAT CHANGED: the ⇪/ cards that list which keys are still free no longer
+have that list typed into them. They ask the live key registry when
+Hammerspoon warms up, which is the same place `_G.freeKeys()` has been
+reading correctly since 6.142.0.
+WHY IT MATTERS: you were told ⇪⇧pad. was available. The music player has
+owned it since 6.231.0. You were right to ask whether the debugging was
+good, and the honest answer is that this one was not — the card and the
+command disagreed for five releases and nothing in the gate could see it.
+🚨 AND IT WAS WORSE THAN THE ONE KEY, which you should know before you
+trust any other row on those cards: the same cards said ⇪⇧7 and ⇪⇧8 were
+unbound while Bluetooth and the QR reader held them, and one card
+contradicted itself four lines apart.
+
+A. THE HEADLINE — the card that lied.
+A1. Press ⇪/ and search for `numpad`.
+    EXPECT: the 🆓 NUMPAD — ⇪⇧ pad card. Its free row now reads a real
+    list of key names after a 🆓, e.g. `🆓 pad0 pad1 pad2 …`.
+A2. Read that list. EXPECT: **pad. is NOT in it.** That is the whole
+    release. If `pad.` is still offered, this did not take — tell me.
+A3. Look at the 🆓 THE ⇪⇧ NUMBER ROW card, the "cleared" row.
+    EXPECT: a 🆓 list that does NOT contain 7 or 8.
+    It used to say "⇪⇧5 7 8 · ⇪⇧, ⇪⇧. ⇪⇧⏎ — all unbound now".
+A4. If any row still reads "asking the key registry…", that is the
+    THIRD state and it is honest, not broken — it means warm-up has not
+    run yet (give it a few seconds after a reload) or power_tools did
+    not load. Step C2 says which.
+
+B. THE COMMAND IS THE TRUTH, AND NOW THEY AGREE.
+B1. Console: `_G.freeKeys()`.
+    EXPECT: the same keys the card shows, on the `⇪⇧ pad` line.
+    That agreement is the point — before this release the two disagreed
+    and only one of them was right.
+B2. Pick any key the card offers and check nothing happens when you
+    press it. EXPECT: nothing. If something DOES happen, that key is
+    claimed by a route the registry cannot see, and that is a real
+    finding I want.
+
+C. PASTE BACK, PASS OR FAIL.
+C1. `_G.freeKeys()` — the whole block.
+C2. `_G.padProbe()` — there is a new "🆓 free rows:" line near the
+    bottom. Healthy reads `N free-key row(s) read from the live
+    registry`. If it reads "not read yet" or "did not answer" there is
+    a ⚠️ under it telling you to trust the command and not the card —
+    paste that, it is the evidence.
+
+D. MUST STILL WORK — nothing about any KEY changed in this release,
+   only what the cards SAY, so this is the regression sweep.
+D1. ⇪⇧pad. still opens the music player.
+D2. ⇪⇧7 still opens Bluetooth; ⇪⇧8 still reads a QR code.
+D3. ⇪; still opens power tools, and its 🆓 row still runs the report.
+D4. The numpad capture row (⇪pad1 … ) still works as it did.
+
+E. A JUDGEMENT ONLY YOU CAN MAKE.
+E1. The cards now show raw key NAMES as the registry stores them —
+    `pad0 pad1 pad.` and `a b c` — rather than the prettier hand-typed
+    ranges ("⇪⇧ pad0–9"). Truthful but blunter. Is that the right
+    trade, or do you want me to render them back into ranges? "keep it
+    plain" · "make it pretty again" decides it, and pretty is only safe
+    because it is now generated rather than typed.
+
+
 
 ## 6.275.0
 
@@ -240,68 +305,6 @@ F1. Four visible strings still tell you to use Obsidian — ⇪3's card row,
     "leave it" · "call it Markdown" · "call it Hamsidian" decides it.
 F2. You asked: can the music player go in ⌥Tab? Yes — it is a real
     window and ⌥Tab is ours. One release, when you want it. Say the word.
-
-
-
-## 6.272.0
-
-6.272.0 verify with LL — 🗑 FORGET A TRACK FROM THE HISTORY (KNOWN GROUND)
-WHAT CHANGED: you could not remove anything from the 🕘 history list —
-⌫ took a track out of the QUEUE, and clicking a history row PLAYED it.
-Every history row now has a ✕ on its right. It forgets the row; it never
-touches the file.
-WHY IT MATTERS: you asked whether this existed and did not want to have
-to ask again. It did not. It does now.
-
-A. THE HEADLINE.
-A1. Press ⇪⇧pad. to open the player. Play two or three tracks so the
-    🕘 history at the bottom has rows in it.
-    EXPECT: a history section with one row per file.
-A2. Look at the right-hand end of any history row.
-    EXPECT: a ✕, visible WITHOUT hovering (dim grey), brightening when
-    the pointer is over it.
-A3. Click the ✕ on a history row.
-    EXPECT: that row disappears from the list, AND NOTHING STARTS
-    PLAYING. If the track begins playing, that is a FAIL and the most
-    important one in this release — tell me immediately.
-A4. Check the track that WAS playing is still playing, and the queue
-    above is unchanged.
-    EXPECT: the ✕ touched the history list and nothing else.
-A5. Close the card (⇪⇧pad.) and reopen it.
-    EXPECT: the row you forgot is still gone — it was saved, not just
-    hidden.
-A6. In Finder, confirm the actual audio FILE is still on disk.
-    EXPECT: it is. This forgets a row, never a file.
-
-B. MUST STILL WORK.
-B1. Click a history row on its NAME (not the ✕).
-    EXPECT: it plays again, exactly as before.
-B2. Select a row in the QUEUE with ↑↓ and press ⌫.
-    EXPECT: it leaves the queue. This is the old behaviour and must be
-    unchanged.
-B3. Drop two or three files on the card.
-    EXPECT: they queue and the first plays.
-B4. Press space, then → and ←.
-    EXPECT: pause/resume, then seek forward and back 5 s.
-
-C. PASTE BACK, PASS OR FAIL.
-C1. Console: `_G.musicReport()` — the whole block. The new "forgot :"
-    line counts the rows you removed this session.
-C2. After step A3, the "history :" line should show one fewer track.
-
-D. THE BULK DOORS, worth one try each.
-D1. Console: `_G.musicForgetHistory("/full/path/to/a/track.mp3")`
-    EXPECT: it names how many rows it removed, or says there was no row
-    for that path.
-D2. Console: `_G.musicClearHistory()`
-    EXPECT: the list empties, and the message says the files themselves
-    are untouched. Only run this if you do not mind losing the list.
-
-E. A JUDGEMENT ONLY YOU CAN MAKE.
-E1. Is a ✕ per row the right control, or would you rather select a
-    history row and press ⌫ the way the queue works? The second is a
-    bigger change — the history rows are not keyboard-selectable today
-    — so I did the simpler one. "✕ is fine" or "I want ⌫" decides it.
 
 
 

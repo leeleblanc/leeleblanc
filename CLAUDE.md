@@ -989,6 +989,63 @@ work Mac.
   one-hop symlink: a fixture where the right and wrong implementations
   AGREE proves nothing — pick the input where they must differ.
 
+- 🆓 A CARD THAT SAYS A KEY IS FREE IS MAKING A PROMISE, AND NOTHING WAS
+  CHECKING IT (6.276.0, modules/numpad_layer.lua + power_tools.lua — LL,
+  handed ⇪⇧pad. as available: "are you saying the . on the numpad is free
+  because that is the music player. I'm concerned we're not doing good
+  debugging, because if we are not and I introduce problems on my work
+  Mac, that is a problem"). He was right. The music player has bound
+  ⇪⇧pad. since 6.231.0; the same cards called ⇪⇧7 and ⇪⇧8 unbound while
+  Bluetooth (6.216.0) and the QR reader (6.194.0) held them, and
+  contradicted their own "taken" row four lines below.
+  🔑 THE ANSWER EXISTED TWICE AND ONE COPY WAS MAINTAINED BY HAND.
+  `_G.freeKeys()` has read the live registry correctly since 6.142.0 —
+  its own comment says the list "is not written, it is READ" — and the
+  ⇪/ cards typed the same answer out beside it. THE COPY IS DELETED, NOT
+  CORRECTED: correcting four rows by hand buys exactly until the next key
+  is claimed, which is the entire history of this defect.
+  `pt.freeKeyData(bound, keymap)` is PURE (both are ARGUMENTS, so the
+  gate moves the registry under the card — 6.239.0), `_G.freeKeys()`
+  renders it, it is the `keys.free` service, and numpad_layer fills its
+  rows in **warm()** — never setup(), because the registry is filled BY
+  the modules as they bind and this one is order 13.5.
+  🔎 WHY NOTHING CAUGHT IT, AND IT IS THE HALF TO CARRY: 6.196.0's
+  cheat-sheet auditor joins a card's KEY COLUMN to the module that BOUND
+  the key, so it can only speak about a row that names an owner — a row
+  claiming a key is FREE names nobody, and there is no second side to
+  join it to. 6.269.0 wrote down that such an auditor is blind to a
+  MISSING A; this is the same sentence about a missing B. GENERAL: when a
+  check works by joining two things, ask what it says about a row that
+  has only ONE of them, and put a DIFFERENT instrument on that —
+  widening the join is what makes an auditor cry wolf and get switched
+  off. 🚨 AND AN UNVERIFIABLE 🆓 ROW FAILS THE GATE rather than being
+  skipped: the sentry knows which modifier each 🆓 label means and a
+  label it has not been taught is a promise it cannot check, which is
+  exactly how this hole opened. Fail closed.
+  🧪 AND TWO CHECKS WERE GREEN ON EVERY RELEASE THE CARD WAS WRONG, which
+  is the sharper lesson: test_features asserted the literal "⇪⇧5 7 8" and
+  the literal "Key available for use" — it compared the card to the same
+  stale sentence the card was made of, so it was READING THE PROMISE
+  RATHER THAN THE FACT. GENERAL, and it generalises past cheat sheets: a
+  check that asserts the words a thing says about itself can never notice
+  those words becoming false; assert the RULE against the SOURCE OF TRUTH
+  (6.248.0, third time).
+  🔎 THREE STATES (6.196.1): the rows ship reading "asking the key
+  registry…", which is not "every key is claimed" (what an empty list
+  prints) and not the answer. `M.freeState` + `_G.padProbe()`'s ⚠️.
+  🚨 A MISSING KEYMAP IS NOT AN EMPTY KEYBOARD — written the obvious way
+  round, a Hammerspoon that cannot answer about keycodes marks every pad
+  key dead and the card says this Mac has no numpad. Unknown means "ask
+  the registry as usual"; its own check, because the old code got this
+  right by luck.
+  🔌 AND THE TEST REGISTRY STOPPED BEING GENTLER THAN THE REAL ONE:
+  test_integration's `service.provide` threw the provider away and
+  answered every call with nothing, so nothing that ASKS a service could
+  be exercised. It keeps the function and dispatches RAW now (6.273.0).
+  📏 NAMED, NOT FIXED: ⌘⇧pad binds through hs.hotkey, not the ⇪ modal, so
+  the registry cannot answer for it — `numpad.cmdShiftActions` stays its
+  own truth and the sentry skips that one row BY NAME and says why.
+
 - 🔌 A WRAPPER WHOSE SUCCESS AND FAILURE RETURNS DIFFER IN ARITY WILL BE
   READ WRONGLY (6.273.0, modules/anchors.lua + vault.lua +
   tests/service_registry.lua — LL, scoring 6.269.0's newly visible
@@ -2994,6 +3051,7 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
+| 6.276.0 | 🆓 a cheat-sheet row that says a key is free now ASKS the live registry — ⇪⇧pad. had been advertised as available since the music player took it in 6.231.0 | pending |
 | 6.275.0 | 📘 the install guide says what FAILURE looks like at every step, has a section to hand to IT, and HAMSIDIAN.md gains §7b on linking out (docs only) | pending |
 | 6.274.0 | 🔔 ⇪4 can no longer fail without leaving a number behind — a refused alert is counted and its words kept, and ⇪4's routes are counted apart | pending |
 | 6.273.0 | 🔌 ⇪⇧U can finally do all four things its card promises — `_G.service.call` hands back the provider's own values and all four call sites read one a slot late, since 6.180.0 | pending |
@@ -3709,6 +3767,67 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.276.0 verify with LL — 🆓 THE FREE-KEY CARDS TELL THE TRUTH (KNOWN GROUND)
+  WHAT CHANGED: the ⇪/ cards that list which keys are still free no longer
+  have that list typed into them. They ask the live key registry when
+  Hammerspoon warms up, which is the same place `_G.freeKeys()` has been
+  reading correctly since 6.142.0.
+  WHY IT MATTERS: you were told ⇪⇧pad. was available. The music player has
+  owned it since 6.231.0. You were right to ask whether the debugging was
+  good, and the honest answer is that this one was not — the card and the
+  command disagreed for five releases and nothing in the gate could see it.
+  🚨 AND IT WAS WORSE THAN THE ONE KEY, which you should know before you
+  trust any other row on those cards: the same cards said ⇪⇧7 and ⇪⇧8 were
+  unbound while Bluetooth and the QR reader held them, and one card
+  contradicted itself four lines apart.
+
+  A. THE HEADLINE — the card that lied.
+  A1. Press ⇪/ and search for `numpad`.
+      EXPECT: the 🆓 NUMPAD — ⇪⇧ pad card. Its free row now reads a real
+      list of key names after a 🆓, e.g. `🆓 pad0 pad1 pad2 …`.
+  A2. Read that list. EXPECT: **pad. is NOT in it.** That is the whole
+      release. If `pad.` is still offered, this did not take — tell me.
+  A3. Look at the 🆓 THE ⇪⇧ NUMBER ROW card, the "cleared" row.
+      EXPECT: a 🆓 list that does NOT contain 7 or 8.
+      It used to say "⇪⇧5 7 8 · ⇪⇧, ⇪⇧. ⇪⇧⏎ — all unbound now".
+  A4. If any row still reads "asking the key registry…", that is the
+      THIRD state and it is honest, not broken — it means warm-up has not
+      run yet (give it a few seconds after a reload) or power_tools did
+      not load. Step C2 says which.
+
+  B. THE COMMAND IS THE TRUTH, AND NOW THEY AGREE.
+  B1. Console: `_G.freeKeys()`.
+      EXPECT: the same keys the card shows, on the `⇪⇧ pad` line.
+      That agreement is the point — before this release the two disagreed
+      and only one of them was right.
+  B2. Pick any key the card offers and check nothing happens when you
+      press it. EXPECT: nothing. If something DOES happen, that key is
+      claimed by a route the registry cannot see, and that is a real
+      finding I want.
+
+  C. PASTE BACK, PASS OR FAIL.
+  C1. `_G.freeKeys()` — the whole block.
+  C2. `_G.padProbe()` — there is a new "🆓 free rows:" line near the
+      bottom. Healthy reads `N free-key row(s) read from the live
+      registry`. If it reads "not read yet" or "did not answer" there is
+      a ⚠️ under it telling you to trust the command and not the card —
+      paste that, it is the evidence.
+
+  D. MUST STILL WORK — nothing about any KEY changed in this release,
+     only what the cards SAY, so this is the regression sweep.
+  D1. ⇪⇧pad. still opens the music player.
+  D2. ⇪⇧7 still opens Bluetooth; ⇪⇧8 still reads a QR code.
+  D3. ⇪; still opens power tools, and its 🆓 row still runs the report.
+  D4. The numpad capture row (⇪pad1 … ) still works as it did.
+
+  E. A JUDGEMENT ONLY YOU CAN MAKE.
+  E1. The cards now show raw key NAMES as the registry stores them —
+      `pad0 pad1 pad.` and `a b c` — rather than the prettier hand-typed
+      ranges ("⇪⇧ pad0–9"). Truthful but blunter. Is that the right
+      trade, or do you want me to render them back into ranges? "keep it
+      plain" · "make it pretty again" decides it, and pretty is only safe
+      because it is now generated rather than typed.
+
 - 6.275.0 verify with LL — 📘 THE INSTALL GUIDE (KNOWN GROUND, docs only)
   WHAT CHANGED: INSTALL.md is rewritten and HAMSIDIAN.md has a new §7b on
   linking. NO code changed — same modules, same keys, same behaviour.

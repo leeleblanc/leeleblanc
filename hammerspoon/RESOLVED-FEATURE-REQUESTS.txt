@@ -1,5 +1,5 @@
 ========================================================================
-RESOLVED FEATURE REQUESTS — Hammerspoon config 6.275.0
+RESOLVED FEATURE REQUESTS — Hammerspoon config 6.276.0
 Every feature and how to use it. Generated from the modules' own
 cheat sheets (the rows ⇪/ draws), so it is never out of date.
 ⇪ = Caps Lock held (the hyper key). ⇪⇧X = Caps Lock + Shift + X.
@@ -93,10 +93,7 @@ In the Console, _G.<tool>Report() prints any tool's own report.
             Click-through: the veil never eats a click or takes focus
 
 🆓 NUMPAD — ⇪⇧ pad, CLEARED 6.152.0 (future shortcut options)   [modules/numpad_layer.lua]
-  ⇪⇧ pad0–9 Key available for use
-  ⇪⇧ pad. + - Key available for use
-  ⇪⇧ pad/ * Key available for use
-  ⇪⇧ padenter Key available for use (padclear too)
+  ⇪⇧ pad asking the key registry… (_G.freeKeys() lists them)
   was       The 3×3 window map — cleared on request, like the
             ⇪⇧ number row in 6.142.0
   zones?    Halves ⇪← ⇪→ · maximise ⇪↑ · put back ⇪↓ · monitors ⇪[ ⇪]
@@ -105,7 +102,7 @@ In the Console, _G.<tool>Report() prints any tool's own report.
   the list  _G.freeKeys() — every free key, from the LIVE registry
 
 🆓 THE ⇪⇧ NUMBER ROW — cleared 6.142.0, future shortcut options   [modules/numpad_layer.lua]
-  cleared   ⇪⇧5 7 8 · ⇪⇧, ⇪⇧. ⇪⇧⏎ — all unbound now
+  cleared   asking the key registry… (_G.freeKeys() lists them)
   why       LL: shortcuts "cleaned, cleared and the keys listed
             as future possible options for keyboard shortcuts"
   except    ⇪⇧9 = Invert colours — LL's 6.141.0 pick, unblocked
@@ -219,8 +216,8 @@ In the Console, _G.<tool>Report() prints any tool's own report.
   ⇪pad*   The pad, pre-typed with * — an Idea
   ⇪pad-   The pad, pre-typed with + — a Log
   no pad?   ⇪2 opens the pad · every row here runs from ⇪space
-  ⇪ pad rest 🆓 free — pad0 5 6 7 8 9 . / enter clear, yours to assign
-  ⌘⇧ pad ALL 🆓 all free — a REAL modifier, works outside ⇪ too
+  ⇪ pad rest asking the key registry… (_G.freeKeys() lists them)
+  ⌘⇧ pad asking the key registry… (_G.freeKeys() lists them)
   how       Add padN = "some.service" in numpad_layer.lua —
             numpad.actions (⇪) or numpad.cmdShiftActions (⌘⇧)
   first     _G.padProbe() — which pad keys this Mac can send
@@ -765,6 +762,7 @@ In the Console, _G.<tool>Report() prints any tool's own report.
 
 📜 RELEASE INDEX — newest first, one line per release (the full story of each is in CHANGELOG.md)
 ------------------------------------------------------------------------
+  6.276.0  🆓 A CARD THAT SAYS A KEY IS FREE ASKS THE REGISTRY
   6.275.0  📘 THE INSTALL GUIDE TELLS YOU WHAT FAILURE LOOKS LIKE
   6.274.0  🔔 ⇪4 CAN NO LONGER FAIL WITHOUT LEAVING A NUMBER BEHIND
   6.273.0  🔌 ⇪⇧U COULD ONLY EVER DO ONE OF THE FOUR THINGS ITS CARD

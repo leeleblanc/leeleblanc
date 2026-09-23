@@ -2422,40 +2422,56 @@ check("…and the zone MACHINERY the freed keys pointed at is still whole "
       .. "(6.152.0: a one-line claim revives any of them)",
       live.zones.topLeft ~= nil and live.zones.topRight ~= nil
       and live.zones.full ~= nil and type(live.run) == "function")
-check("the cheat sheet's third group now IS the ledger — it names the "
-      .. "freed keys and points at _G.freeKeys() instead of advertising "
-      .. "bindings that no longer exist", (function()
+-- 🆓 6.276.0 — THIS CHECK USED TO ASSERT THE LITERAL "⇪⇧5 7 8", which
+-- is the list this card printed by hand — and which was WRONG from
+-- 6.194.0 (⇪⇧8 went to the QR reader) and 6.216.0 (⇪⇧7 to Bluetooth).
+-- So the check was green while the card lied, because it compared the
+-- card to the same stale sentence the card was made of. It asks the
+-- RULE now (6.248.0): the ledger either carries a live 🆓 answer or
+-- says it has not asked yet, and it never types a key list out.
+check("the cheat sheet's third group IS the ledger — it carries a "
+      .. "free-key answer rather than a hand-typed list of keys, and "
+      .. "points at _G.freeKeys()", (function()
     local g = numGroups[3]
     if not g then return false, "no third group" end
     if not tostring(g.title):lower():find("cleared", 1, true) then
         return false, "title: " .. tostring(g.title)
     end
-    local sawKeys, sawTool = false, false
+    local sawAnswer, sawTool = false, false
     for _, e in ipairs(g.entries or {}) do
         local v = tostring(e[2])
-        -- 6.158.0 spent ⇪⇧2 on typing the clipboard and 6.160.0 spent
-        -- ⇪⇧3 on mouse-follows-focus, so the ledger reads 5 7 8 now —
-        -- and says where 1, 2 and 3 went.
-        if v:find("⇪⇧5 7 8", 1, true) then sawKeys = true end
+        if v:sub(1, #"🆓 ") == "🆓 "
+           or v:find("asking the key registry", 1, true) then sawAnswer = true end
         if v:find("_G.freeKeys()", 1, true) then sawTool = true end
     end
-    return sawKeys and sawTool, tostring(sawKeys) .. "/" .. tostring(sawTool)
+    return sawAnswer and sawTool, tostring(sawAnswer) .. "/" .. tostring(sawTool)
 end)())
 -- 🆓 6.152.0 — the SECOND group (the old window map) is a ledger now
 -- too, in LL's exact words: "Those should just say: 'Key available for
 -- use'." So they do — and no row advertises a window zone any more.
-check("the ⇪⇧pad group says “Key available for use”, in LL's words, and "
-      .. "advertises no zone rows", (function()
+-- 🆓 6.276.0 — same correction. "Key available for use" is still what
+-- the row MEANS and it is still LL's wording; what changed is that the
+-- card no longer asserts it about keys it has not checked. One of the
+-- four rows this check was guarding said ⇪⇧pad. was available while the
+-- music player had held it since 6.231.0, and this check passed on every
+-- one of those releases — it was reading the promise, not the fact.
+check("the ⇪⇧pad group carries a free-key ANSWER (the live 🆓 list, or "
+      .. "an honest 'not asked yet'), and advertises no zone rows",
+      (function()
     local g = numGroups[2]
     if not g then return false, "no second group" end
-    local sawAvail, sawZone = false, false
+    local sawAnswer, sawZone, sawTyped = false, false, nil
     for _, e in ipairs(g.entries or {}) do
         local v = tostring(e[2])
-        if v:find("Key available for use", 1, true) then sawAvail = true end
+        if v:sub(1, #"🆓 ") == "🆓 "
+           or v:find("asking the key registry", 1, true) then sawAnswer = true end
+        -- a row that PROMISES availability without having asked is the
+        -- defect itself, whatever words it uses
+        if v:find("available for use", 1, true) then sawTyped = v end
         if v:find("Top%-left quarter") or v:find("Maximise") then sawZone = true end
     end
-    return sawAvail and not sawZone,
-           tostring(sawAvail) .. "/" .. tostring(sawZone)
+    return sawAnswer and not sawZone and sawTyped == nil,
+           sawTyped or (tostring(sawAnswer) .. "/" .. tostring(sawZone))
 end)())
 -- 🔗 THE SHARED "PUT IT BACK" MEMORY. Before 6.114.0 this layer kept its
 -- own table, so ⇪⇧pad7 then ⇪↓ answered "No prior position remembered for

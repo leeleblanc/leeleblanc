@@ -174,6 +174,13 @@ function M.setup(core)
 
     -- ✏️ EDIT HERE ---------------------------------------------------------
     pt.enabled      = true
+    -- 🔒 6.276.0 — RESERVED, WHICH IS NOT THE SAME AS SPENT. LL:
+    -- "don't use ⇪⇧Z please. We will use that later." Nothing binds
+    -- it, so the registry would call it free; this is the one key
+    -- the free-key answer must withhold, and it says WHY rather than
+    -- silently omitting it (6.196.1 — reserved and taken are
+    -- different facts and must not print the same).
+    pt.reservedKey  = "z"         -- ⇪⇧Z, held for LL
     pt.key          = ";"          -- ⇪;  (⇪⇧; is app kill)
     pt.keyMods      = {}
     -- ⌨️ typing the clipboard
@@ -2105,8 +2112,36 @@ end tell]]
     --   · a pad key this Mac has no key code for is named, not listed —
     --     a key that cannot be pressed is not an option (the ⇪pad+ rule;
     --     _G.padProbe() has the full story).
-    function _G.freeKeys()
-        local bound = _G.hyperBound or {}
+    -- 🔑 6.276.0 — PURE, AND IT IS THE ONE COMPUTATION. This answer used
+    -- to exist TWICE: once here, read from the live registry and right,
+    -- and once TYPED OUT BY HAND in the ⇪/ numpad cards, where it was
+    -- wrong about ⇪⇧pad. from the day the music player claimed it
+    -- (6.231.0), wrong about ⇪⇧7 from the day Bluetooth did (6.216.0),
+    -- and wrong about ⇪⇧8 since 6.194.0. LL found the first one by
+    -- trying to use the key. NOTHING COULD HAVE TOLD HIM: the 6.196.0
+    -- cheat-sheet auditor flags MISATTRIBUTION — module M's sheet
+    -- printing module N's key — and a row claiming a key is FREE names
+    -- no module at all, so there is nothing to join it to. Its key
+    -- column ("⇪⇧ pad. + -") is prose to that parser besides.
+    --
+    -- `bound` is _G.hyperBound (combo → what claimed it) and `keymap` is
+    -- hs.keycodes.map. Both are ARGUMENTS, never read from globals in
+    -- here, so the gate proves every rule with no Mac and can move the
+    -- registry out from under the card (6.239.0).
+    --
+    -- WHAT "FREE" MEANS, exactly, and each clause has its own check:
+    --   · a plain ⇪ key whose registry source is "chord" is FREE —
+    --     hyperFinalize gives every leftover bare key a raw ⌘⇧⌃⌥
+    --     forward, so claiming one costs only that forward.
+    --   · a ⇪⇧ combination is FREE when nothing claims it at all —
+    --     shifted keys are never chord-forwarded.
+    --   · ⇪⇧Z is NEVER listed. LL: "don't use ⇪⇧Z please. We will use
+    --     that later." Reserved is not free, and it is named as reserved
+    --     rather than left out — 6.196.1: those are different facts.
+    --   · a pad key this Mac has no key code for is named DEAD, not
+    --     listed — a key that cannot be pressed is not an option.
+    function pt.freeKeyData(bound, keymap)
+        bound = (type(bound) == "table") and bound or {}
         local function ownerOf(mods, key)
             return bound[(mods == "") and key or (mods .. "+" .. key)]
         end
@@ -2120,33 +2155,46 @@ end tell]]
                              "left", "right", "up", "down" }) do
             names[#names + 1] = k
         end
-        local freePlain, freeShift = {}, {}
+        local plain, shift = {}, {}
         for _, k in ipairs(names) do
-            local plain = ownerOf("", k)
-            if plain == nil or plain == "chord" then
-                freePlain[#freePlain + 1] = k
-            end
-            if ownerOf("shift", k) == nil and k ~= "z" then
-                freeShift[#freeShift + 1] = k
+            local p = ownerOf("", k)
+            if p == nil or p == "chord" then plain[#plain + 1] = k end
+            if ownerOf("shift", k) == nil and k ~= pt.reservedKey then
+                shift[#shift + 1] = k
             end
         end
         local padNames = { "pad0","pad1","pad2","pad3","pad4","pad5","pad6",
                            "pad7","pad8","pad9","pad.","pad+","pad-","pad*",
                            "pad/","pad=","padenter","padclear" }
-        local map = hs.keycodes and hs.keycodes.map
-        local padFree, padShiftFree, padDead = {}, {}, {}
+        local pad, padShift, dead = {}, {}, {}
         for _, n in ipairs(padNames) do
-            if map and map[n] == nil then
-                padDead[#padDead + 1] = n
+            -- 🚨 A MISSING keymap IS NOT AN EMPTY KEYBOARD. Handed nil
+            -- (the gate, a Hammerspoon without hs.keycodes) every pad key
+            -- would be "dead" and the card would say this Mac has no
+            -- numpad at all — the 6.196.1 failure, in the answer the card
+            -- prints. Unknown means "ask the registry as usual".
+            if type(keymap) == "table" and keymap[n] == nil then
+                dead[#dead + 1] = n
             else
-                if ownerOf("", n) == nil then
-                    padFree[#padFree + 1] = n
-                end
-                if ownerOf("shift", n) == nil then
-                    padShiftFree[#padShiftFree + 1] = n
-                end
+                if ownerOf("", n) == nil then pad[#pad + 1] = n end
+                if ownerOf("shift", n) == nil then padShift[#padShift + 1] = n end
             end
         end
+        return { plain = plain, shift = shift, pad = pad,
+                 padShift = padShift, dead = dead, reserved = pt.reservedKey }
+    end
+
+    -- 🔌 6.276.0 — and the CARD asks for it rather than repeating it.
+    -- One computation, two readers (this print and numpad_layer's two
+    -- 🆓 cards), which is the rule this project keeps paying for late.
+    core.provide("keys.free", function()
+        return pt.freeKeyData(_G.hyperBound,
+                              hs.keycodes and hs.keycodes.map)
+    end)
+
+    function _G.freeKeys()
+        local d = pt.freeKeyData(_G.hyperBound,
+                                 hs.keycodes and hs.keycodes.map)
         -- ⌘⇧pad is the one layer the hyper registry cannot answer for: it
         -- binds through hs.hotkey, not the modal. Its table is the truth.
         local cmdShiftPad = "unknown — numpad_layer is not loaded"
@@ -2169,17 +2217,18 @@ end tell]]
             " Read from the LIVE hyper registry, not from any list a",
             " person maintains. If a key is here, nothing claims it.",
             "════════════════════════════════════════════════════════",
-            "   ⇪    " .. joined(freePlain),
-            "   ⇪⇧   " .. joined(freeShift),
-            "   🔒 NOT listed and NOT free: ⇪⇧Z is reserved —",
+            "   ⇪    " .. joined(d.plain),
+            "   ⇪⇧   " .. joined(d.shift),
+            "   🔒 NOT listed and NOT free: ⇪⇧" .. tostring(d.reserved):upper()
+               .. " is reserved —",
             "      LL: \"don't use ⇪⇧Z please. We will use that later.\"",
-            "   ⇪ pad   " .. joined(padFree),
-            "   ⇪⇧ pad  " .. joined(padShiftFree),
+            "   ⇪ pad   " .. joined(d.pad),
+            "   ⇪⇧ pad  " .. joined(d.padShift),
             "   ⌘⇧ pad  " .. cmdShiftPad,
         }
-        if #padDead > 0 then
+        if #d.dead > 0 then
             out[#out + 1] = "   ⚠️ no key code on this Mac (not options): "
-                            .. table.concat(padDead, " ")
+                            .. table.concat(d.dead, " ")
         end
         out[#out + 1] = ""
         out[#out + 1] = "   ℹ️ A free plain ⇪ key currently forwards the raw"

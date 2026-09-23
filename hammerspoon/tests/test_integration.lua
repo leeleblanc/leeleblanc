@@ -271,12 +271,30 @@ _G.safeJson = function() return nil end
 -- check below would have nothing to compare against, and a stub that
 -- quietly answers nil would make that check pass on air.
 SERVICE_OWNER = {}
-_G.service = { provide = function(n)
+-- 🔌 6.276.0 — THE STUB KEEPS THE FUNCTION NOW. It used to throw the
+-- provider away and answer every call with nothing, which is a stub
+-- gentler than the thing it stands in for (6.193.0, and 6.273.0 is what
+-- eighty-nine releases of that costs). Nothing that asks a service can
+-- be exercised against a registry that has forgotten every answer.
+SERVICE_FN = {}
+_G.service = { provide = function(n, f)
                    SERVICES[n] = (SERVICES[n] or 0) + 1
                    SERVICE_OWNER[n] = _G.moduleLoading or "init.lua"
+                   SERVICE_FN[n] = f
                end,
                owner = SERVICE_OWNER,
-               call = noop, providers = {} }
+               has  = function(n) return SERVICE_FN[n] ~= nil end,
+               -- 🚨 RAW, NEVER WITH A STATUS IN FRONT: the real registry
+               -- returns `return a, b, c` after its pcall, and a stub
+               -- that prepends `true` is what made all four of anchors'
+               -- call sites read a slot late for eighty-nine releases.
+               call = function(n, ...)
+                   if type(SERVICE_FN[n]) ~= "function" then return nil end
+                   local r = { pcall(SERVICE_FN[n], ...) }
+                   if not r[1] then return nil end
+                   return table.unpack(r, 2)
+               end,
+               providers = {} }
 _G.hyperPending = {}
 HYPER_OWNER = {}
 _G.hyperAddShortcut = function(mods, key, fn, src)
@@ -788,6 +806,189 @@ do
     -- the 6.187.0 rule (a budget that exists is not a budget that bites).
     check("...and the audit really walked the sheets rather than finding "
           .. "no combos to check", audited >= 30, audited .. " combos audited")
+end
+
+out("   -- free-key claims --\n")
+-- 🆓 6.276.0 — A ROW THAT SAYS A KEY IS FREE IS A PROMISE TOO.
+--
+-- LL, handed ⇪⇧pad. as an available key: "are you saying the . on the
+-- numpad is free because that is the music player. I'm concerned we're
+-- not doing good debugging." The music player has owned it since
+-- 6.231.0. The same card also called ⇪⇧7 and ⇪⇧8 unbound while
+-- Bluetooth (6.216.0) and the QR reader (6.194.0) held them.
+--
+-- 🔎 AND THE AUDIT ABOVE IS STRUCTURALLY BLIND TO ALL THREE. It joins a
+-- card's KEY COLUMN to the module that BOUND the key, so it can only
+-- ever speak about a row that names an owner — a row claiming a key is
+-- FREE names nobody, and there is no second side to join it to. That
+-- narrowness is right and stays (widening it is how an auditor comes to
+-- cry wolf and get switched off, 6.269.0). So the claim of ABSENCE gets
+-- its own instrument, which is this one.
+--
+-- 🔑 AND THE REAL FIX IS UPSTREAM: those rows are no longer typed. They
+-- are filled in numpad_layer's warm() from pt.freeKeyData, the one
+-- computation _G.freeKeys() has always used. This checks that the
+-- filling happens, that it writes through to the sheet the loader
+-- registered, and that nothing it writes is a key something holds.
+do
+    local savedBound = _G.hyperBound
+    -- The registry in ITS real shape ("shift+pad."), built from what this
+    -- load actually recorded ("shift|pad.") — not hand-listed, which is
+    -- the mistake this whole release is about.
+    _G.hyperBound = {}
+    local boundN = 0
+    for combo, owner in pairs(HYPER_OWNER) do
+        local mods, key = combo:match("^(.-)|(.*)$")
+        if key and key ~= "" then
+            _G.hyperBound[(mods == "") and key or (mods .. "+" .. key)] = owner
+            boundN = boundN + 1
+        end
+    end
+    check("the registry was rebuilt from the real load, not typed out — "
+          .. "a hand-written survey is what missed ⇪⇧9 in 6.141.0",
+          boundN >= 60, boundN .. " combos")
+
+    -- 🎯 THE ROW HE FOUND, as a fact about this tree rather than a story.
+    check("🎯 the music player really does hold ⇪⇧pad. — the key the "
+          .. "cheat sheet called 'available for use'",
+          _G.hyperBound["shift+pad."] ~= nil,
+          tostring(_G.hyperBound["shift+pad."]))
+
+    local FREE_MARK = "🆓 "
+    local function freeRows()
+        local rows = {}
+        for _, g in ipairs(_G.moduleCheatsheets or {}) do
+            for _, e in ipairs(g.entries or {}) do
+                if type(e) == "table"
+                   and tostring(e[2] or ""):sub(1, #FREE_MARK) == FREE_MARK then
+                    rows[#rows + 1] = { label = tostring(e[1] or ""),
+                                        value = tostring(e[2]),
+                                        card  = tostring(g.title or "?") }
+                end
+            end
+        end
+        return rows
+    end
+
+    -- 🔎 STATE ONE: shipped, never warmed. The rows must promise NOTHING.
+    -- "not asked yet" and "nothing claims this" are different facts and a
+    -- card that cannot tell them apart is the 6.196.1 failure (6.269.0
+    -- put the same rule inside an instrument and it is the same here).
+    check("🔎 BEFORE warm(), not one cheat-sheet row claims a key is free "
+          .. "— a card that has not asked the registry yet says so rather "
+          .. "than guessing", #freeRows() == 0,
+          (#freeRows() > 0) and freeRows()[1].value or nil)
+
+    local numpad
+    for _, st in ipairs(_G.moduleStatus or {}) do
+        if st.name == "numpad_layer" then numpad = st.module end
+    end
+    check("numpad_layer is loaded and has a warm() to run",
+          numpad ~= nil and type(numpad.warm) == "function")
+
+    if numpad and type(numpad.warm) == "function" then
+        local okW, errW = pcall(numpad.warm, nil)
+        check("its warm() runs without throwing — a throw here is a card "
+              .. "that silently never fills", okW, tostring(errW))
+        check("…and it says what happened, in words: " ..
+              tostring(numpad.freeState),
+              type(numpad.freeState) == "string"
+              and numpad.freeState:find("live registry", 1, true) ~= nil,
+              tostring(numpad.freeState))
+    end
+
+    local rows = freeRows()
+    -- 🪟 THE SHEET SEES IT. warm() writes into M.cheatsheet's own entries
+    -- tables; §1.12 registers `entries = g.entries`, the same object and
+    -- not a copy. That is load-bearing and invisible — if the loader ever
+    -- copies instead, every card silently stops updating and nothing
+    -- functional would notice. freeRows() reads _G.moduleCheatsheets, the
+    -- REGISTERED side, so this check is the proof.
+    check("🪟 AFTER warm(), the registered cheat sheet carries the live "
+          .. "answer — the loader hands the sheet the module's own entries "
+          .. "table, and this is what proves it still does",
+          #rows >= 3, #rows .. " free-key row(s)")
+
+    -- Which modifier each 🆓 row is talking about. UNKNOWN FAILS: a new
+    -- free-key row whose label nobody taught this check is a row this
+    -- check cannot verify, and silently skipping it is how the hole
+    -- being closed here was opened in the first place.
+    local FREE_MODS = {
+        ["⇪⇧ pad"]     = "shift",
+        ["⇪ pad rest"] = "",
+        ["cleared"]    = "shift",
+        ["⌘⇧ pad"]     = false,   -- a different layer: hs.hotkey, not ⇪
+    }
+    local liars, checkedKeys, unknown = {}, 0, {}
+    for _, r in ipairs(rows) do
+        local mods = FREE_MODS[r.label]
+        if mods == nil then
+            unknown[#unknown + 1] = r.label .. " on " .. r.card
+        elseif mods ~= false then
+            for tok in r.value:gsub(FREE_MARK, "", 1):gmatch("%S+") do
+                -- the ⇪⇧ prefix printed for the reader is not a key name
+                if tok ~= "⇪⇧" and tok ~= "⇪" and not tok:find("—")
+                   and tok ~= "none" then
+                    local combo = (mods == "") and tok or (mods .. "+" .. tok)
+                    local owner = _G.hyperBound[combo]
+                    checkedKeys = checkedKeys + 1
+                    -- a plain key forwarded as the raw chord IS free
+                    if owner ~= nil and owner ~= "chord" then
+                        liars[#liars + 1] = r.label .. " offers " .. tok
+                                            .. " — held by " .. tostring(owner)
+                    end
+                end
+            end
+        end
+    end
+    check("🚨 EVERY KEY A CHEAT-SHEET ROW OFFERS AS FREE IS REALLY "
+          .. "UNCLAIMED — the check that did not exist when this card "
+          .. "started telling him ⇪⇧pad. was available",
+          #liars == 0, #liars > 0 and table.concat(liars, " · ") or nil)
+    check("...and a 🆓 row whose label this check does not know FAILS "
+          .. "rather than being skipped — an unverifiable promise is the "
+          .. "shape of the bug, not an exception to it",
+          #unknown == 0, #unknown > 0 and table.concat(unknown, " · ") or nil)
+    check("...and it really walked some keys rather than finding none to "
+          .. "walk (6.187.0: a budget that exists is not a budget that "
+          .. "bites)", checkedKeys >= 10, checkedKeys .. " keys checked")
+
+    -- 🧪 AND IT BITES. Claim a key the card is currently offering, warm
+    -- again, and the row must drop it. Without this the whole block
+    -- passes on a tree where warm() writes a hard-coded string.
+    if numpad then
+        local victim
+        for _, r in ipairs(rows) do
+            if r.label == "⇪⇧ pad" then
+                victim = r.value:gsub(FREE_MARK, "", 1):match("%S+")
+            end
+        end
+        check("the card is offering at least one ⇪⇧ pad key to take away",
+              victim ~= nil, tostring(victim))
+        if victim then
+            _G.hyperBound["shift+" .. victim] = "a test claimed it"
+            -- put the placeholders back, exactly as a fresh boot has them
+            for _, g in ipairs(numpad.cheatsheet or {}) do
+                for _, e in ipairs((type(g) == "table" and g.entries) or {}) do
+                    if type(e) == "table" and tostring(e[2]):sub(1, #FREE_MARK) == FREE_MARK then
+                        e[2] = "asking the key registry… (_G.freeKeys() lists them)"
+                    end
+                end
+            end
+            pcall(numpad.warm, nil)
+            local after
+            for _, r in ipairs(freeRows()) do
+                if r.label == "⇪⇧ pad" then after = r.value end
+            end
+            check("🧪 …and claiming " .. tostring(victim) .. " takes it off "
+                  .. "the card — the row is READ from the registry, not "
+                  .. "written down beside it",
+                  after ~= nil
+                  and not (" " .. after .. " "):find("%s" .. victim:gsub("%.", "%%.") .. "%s"),
+                  tostring(after))
+        end
+    end
+    _G.hyperBound = savedBound
 end
 
 out("   -- namespace collisions --\n")

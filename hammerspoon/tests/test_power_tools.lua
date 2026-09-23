@@ -1660,6 +1660,87 @@ do
 end
 
 -- =====================================================================
+out("\n=== 11b. 🆓 6.276.0 — freeKeyData is PURE, and it is the ONE answer ===\n")
+-- =====================================================================
+-- LL, told ⇪⇧pad. was available when the music player has owned it since
+-- 6.231.0: "I'm concerned we're not doing good debugging." He was right.
+-- The answer existed twice — read correctly here, and TYPED OUT BY HAND
+-- on the ⇪/ numpad cards, where it was also wrong about ⇪⇧7 (Bluetooth,
+-- 6.216.0) and ⇪⇧8 (QR, 6.194.0). The copy is gone; this is the one
+-- computation, and the checks below are on the DATA rather than on the
+-- printed report, because the card reads the data and never the print.
+do
+    local savedBound = _G.hyperBound
+    check("the pure function is reachable — the card has to be able to "
+          .. "ask it, and a local nobody can call is a second copy waiting "
+          .. "to be written", type(pt.freeKeyData) == "function")
+
+    local function has(list, want)
+        for _, v in ipairs(list or {}) do if v == want then return true end end
+        return false
+    end
+
+    -- 🚨 THE REGISTRY IS AN ARGUMENT, so the check can move it (6.239.0).
+    local d = pt.freeKeyData({
+        ["1"]         = "chord",              -- forwarded raw → FREE
+        ["9"]         = "grayscale relay",    -- claimed → NOT free
+        ["shift+9"]   = "invert colours",     -- claimed → NOT free
+        ["shift+pad."] = "music player",      -- 🎯 LL's key
+        ["pad1"]      = "numpad capture row",
+    }, nil)
+
+    check("a chord-forwarded plain key is FREE — claiming ⇪1 costs only "
+          .. "the raw-chord forward", has(d.plain, "1"))
+    check("a claimed plain key is not free — ⇪9 is the grayscale relay",
+          not has(d.plain, "9"))
+    check("a claimed shifted key is not free — ⇪⇧9 is invert colours",
+          not has(d.shift, "9"))
+    check("an unclaimed shifted key IS free — ⇪⇧7 with nothing on it",
+          has(d.shift, "7"))
+
+    -- 🎯 THE ROW LL FOUND. This is the whole release in one check: the
+    -- registry has always known, and the card said otherwise.
+    check("🎯 ⇪⇧pad. IS NOT FREE when the music player holds it — the "
+          .. "exact row LL was handed, now answerable",
+          not has(d.padShift, "pad."), table.concat(d.padShift, " "))
+    check("…and it IS free the moment nothing holds it, so the check "
+          .. "measures the registry and not a hard-coded exception",
+          has(pt.freeKeyData({}, nil).padShift, "pad."))
+
+    check("a claimed plain pad key is not free — ⇪pad1 is the capture row",
+          not has(d.pad, "pad1"))
+    check("🔒 the reserved key is withheld from the shifted list — ⇪⇧Z is "
+          .. "LL's, and nothing binds it, so only this rule keeps it out",
+          not has(d.shift, pt.reservedKey))
+    check("…and it is NAMED as reserved rather than silently omitted — "
+          .. "reserved and taken are different facts (6.196.1)",
+          d.reserved == pt.reservedKey and d.reserved ~= nil)
+
+    -- 🚨 A MISSING KEYMAP IS NOT AN EMPTY KEYBOARD. Handed nil, the old
+    -- shape happened to fall through to "live"; that was luck, not a
+    -- decision, and writing the guard the obvious way round
+    -- (`if keymap[n] == nil`) would call every pad key dead on a Mac
+    -- that simply did not answer — the card would then tell him this
+    -- machine has no numpad at all. 6.196.1 inside the instrument.
+    check("🚨 a NIL keymap does not make every pad key dead — unknown is "
+          .. "not absent", #d.dead == 0 and #d.padShift > 0,
+          #d.dead .. " dead")
+    local dk = pt.freeKeyData({}, { ["pad0"] = 82 })
+    check("…but a keymap that ANSWERS is believed: a pad key this Mac "
+          .. "has no code for is dead, not offered as an option",
+          has(dk.dead, "pad.") and not has(dk.padShift, "pad.")
+          and has(dk.padShift, "pad0"))
+
+    check("a registry that is not a table is survived, not thrown on — "
+          .. "the card asks this during warm and a throw there is a card "
+          .. "that never fills", (function()
+              local ok, r = pcall(pt.freeKeyData, "not a table", nil)
+              return ok and type(r) == "table" and #r.plain > 0
+          end)())
+    _G.hyperBound = savedBound
+end
+
+-- =====================================================================
 out("\n=== 17. 🚨 the panic chord (6.174.0) ===\n")
 -- =====================================================================
 -- LL: "ensure our build has a way to unfreeze if it locks up my Mac."

@@ -4,9 +4,35 @@
 -- =====================================================================
 -- 09-22-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.275.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.276.0
 -- =====================================================================
 
+-- NEW IN 6.276.0 — 🆓 A CARD THAT SAYS A KEY IS FREE ASKS THE REGISTRY
+--   (modules/numpad_layer.lua, modules/power_tools.lua):
+--   LL, handed ⇪⇧pad. as an available key: "are you saying the . on the
+--      numpad is free because that is the music player. I'm concerned
+--      we're not doing good debugging." He was right, and it was worse
+--      than one key: the same cards called ⇪⇧7 and ⇪⇧8 unbound while
+--      Bluetooth (6.216.0) and the QR reader (6.194.0) held them, and
+--      contradicted their own "taken" row four lines below.
+--   🔑 THE ANSWER EXISTED TWICE. `_G.freeKeys()` has read the live
+--      registry correctly since 6.142.0; the ⇪/ cards TYPED the same
+--      answer out beside it. A hand-maintained copy of a computed fact
+--      can only ever drift, so the copy is DELETED, not corrected —
+--      correcting it buys exactly until the next key is claimed.
+--      `pt.freeKeyData` is PURE and both readers ask it; numpad_layer
+--      fills its rows in warm(), when every module has finished binding.
+--   🔎 WHY NOTHING CAUGHT IT: 6.196.0's cheat-sheet auditor joins a
+--      card's KEY COLUMN to the module that BOUND the key, so it can only
+--      speak about a row that names an owner — a row claiming a key is
+--      FREE names nobody. 6.269.0 said an auditor that joins two things
+--      is blind to a missing A; this is the same sentence about a missing
+--      B. A claim of ABSENCE now has its own instrument, and an
+--      unverifiable 🆓 row FAILS the gate rather than being skipped.
+--   🔎 THREE STATES (6.196.1): the rows ship saying they have not asked
+--      yet, which is not "every key is claimed" and not the answer.
+--      `_G.padProbe()` says which happened.
+--
 -- NEW IN 6.275.0 — 📘 THE INSTALL GUIDE TELLS YOU WHAT FAILURE LOOKS LIKE
 --   (INSTALL.md, HAMSIDIAN.md — documentation only, no behaviour change):
 --   LL, after missing the install on his IT-managed work Mac: "These
@@ -14,48 +40,19 @@
 --      along with a success at each step."
 --   🚨 THE MISSED STEP WAS THE ONLY ONE THAT MATTERS — the files have to
 --      land in ~/.hammerspoon, and unpacking into ~/Downloads and
---      reloading looks exactly like doing nothing. It is a box at the TOP
---      of the file now, with the one command that answers "is this Mac
---      installed at all", and Step 3 ends with a five-line proof.
---   ✅❌ EVERY STEP CARRIES BOTH OUTCOMES and the fix on the same line, so
---      a failure is a thing he can act on rather than a thing to report.
---   🔒 AND A SECTION HE CAN HAND TO IT: the four things they must allow,
---      what each costs if refused, and the list of things they do NOT
---      have to allow — no admin, no sudo, no launchd, no system-wide
---      install, removable with one rm. Plus the 90% ask (the app and
---      Accessibility) for when he wants to ask for as little as possible.
---   📎 SNIPPETS, EXPLICITLY: the 1,926 public ones SHIP in the archive and
---      the installer already places them — nothing to install. His own
---      textpanders are the OneDrive half, and the guide warns rather than
---      instructs, because that folder holds an address, a phone number
---      and an employee ID and the work Mac is not his disk.
---   🔗 HAMSIDIAN.md §7b — how to link OUT: ⇪⇧U for what is in front of
---      you, ⌘K for a file you have to go and find, ⇪space @images for a
---      screenshot you cannot name, and what each actually writes.
+--      reloading looks exactly like doing nothing. A box at the TOP of the
+--      file answers "is this Mac installed at all"; every step carries ✅
+--      AND ❌ with the fix on the same line; and a section he can hand to
+--      IT names the four things they must allow, what each costs if
+--      refused, and what they do NOT have to allow. 🔗 HAMSIDIAN.md §7b:
+--      ⇪⇧U · ⌘K · ⇪space @images, and what each actually writes.
 --
--- NEW IN 6.274.0 — 🔔 ⇪4 CAN NO LONGER FAIL WITHOUT LEAVING A NUMBER
---   BEHIND (init.lua's alert wrap, core/notices.lua, modules/screenshots.lua):
---   LL: "hyper+4 is intermittently working", with eight hours of Console
---      carrying THREE "⚠️ an alert could not draw" lines.
---   🚨 THE CAUSE IS NOT NAMED AND THIS RELEASE DOES NOT GUESS IT
---      (6.198.0/6.262.0). It is the instrument that decides the next one.
---   🔔 A REFUSED ALERT IS THE FAILURE OF THE THING THAT REPORTS FAILURES,
---      and it was the one break this config only ever LOGGED — every rule
---      here ends in an hs.alert, and the printed line did not even say
---      WHAT the alert had been about. `_G.alertReport()`: asked · refused
---      · recovered on the retry · LOST outright, with the last refusal's
---      own words. "Seen late" and "never seen" differ (6.196.1).
---   🔎 AND "INTERMITTENT" IS A COUNT, NOT A SAMPLE (6.229.0):
---      `shots.areaRuns` counts ⇪4's routes apart — our selector, macOS's
---      crosshair, and how many of those were a REFUSAL rather than his
---      own settings line. 🚪 `ensureDir` takes the 🔔 door too.
---
--- (6.273.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.274.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.275.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.276.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -152,7 +149,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.275.0"
+_G.configVersion = "6.276.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the

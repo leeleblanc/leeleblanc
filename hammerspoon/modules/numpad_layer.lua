@@ -121,6 +121,60 @@
 -- under either band would be a lie about half of them — so the module
 -- registers a group in each. The loader accepts a LIST here for exactly
 -- this case; everything else still ships one table.
+-- 🆓 6.276.0 — THE FREE-KEY ROWS ARE ASKED, NOT TYPED.
+--
+-- LL, on being told ⇪⇧pad. was available: "are you saying the . on the
+-- numpad is free because that is the music player. I'm concerned we're
+-- not doing good debugging." He was right, and it was worse than the one
+-- key: this card also said ⇪⇧7 and ⇪⇧8 were unbound while Bluetooth
+-- (6.216.0) and the QR reader (6.194.0) owned them, and it contradicted
+-- its own "taken" row four lines further down.
+--
+-- 🔎 WHY NOTHING CAUGHT IT, and this is the half worth carrying: the
+-- 6.196.0 cheat-sheet auditor joins a card's KEY COLUMN to the module
+-- that BOUND the key, so it can only ever speak about a row that names
+-- an owner. A row claiming a key is FREE names nobody — there is no
+-- second side to join it to — and its key column ("⇪⇧ pad. + -") is
+-- prose to that parser besides. 6.269.0 said an auditor that joins two
+-- things is blind to a MISSING A; this is the same sentence about a
+-- missing B, and it cost five releases of a card lying to him.
+--
+-- 🔑 SO THE COPY IS DELETED RATHER THAN CORRECTED. `_G.freeKeys()` has
+-- read the live registry correctly since 6.142.0; this card typed the
+-- same answer out by hand beside it. Two answers to one question, one of
+-- them maintained by a person — the copy can only ever drift, and
+-- correcting it by hand would buy exactly until the next key is claimed.
+-- pt.freeKeyData is the one computation and both readers ask it.
+local ASKING = "asking the key registry… (_G.freeKeys() lists them)"
+
+-- ✏️ PURE — the row's text for one label, given the registry's answer.
+-- Answers the SENTENCE, never nil: a row that goes blank is a row that
+-- reads as "nothing to say here", which is the opposite of the truth.
+local function freeAnswer(label, d, cmdClaimed)
+    local function joined(list, none)
+        if type(list) ~= "table" or #list == 0 then return none end
+        return table.concat(list, " ")
+    end
+    if label == "⇪⇧ pad" then
+        return "🆓 " .. joined(d.padShift, "none — every ⇪⇧ pad key is claimed")
+    elseif label == "⇪ pad rest" then
+        return "🆓 " .. joined(d.pad, "none — every ⇪ pad key is claimed")
+    elseif label == "cleared" then
+        return "🆓 ⇪⇧ " .. joined(d.shift, "none — every ⇪⇧ key is claimed")
+    elseif label == "⌘⇧ pad" then
+        -- ⌘⇧pad binds through hs.hotkey, not the ⇪ modal, so the registry
+        -- cannot answer for it and numpad.cmdShiftActions is the truth.
+        if type(cmdClaimed) ~= "table" then
+            return "unknown — this layer did not answer"
+        end
+        if #cmdClaimed == 0 then
+            return "🆓 all free — a REAL modifier, works outside ⇪ too"
+        end
+        return "🆓 all free EXCEPT " .. table.concat(cmdClaimed, " ")
+    end
+    return nil
+end
+
 local M = {
     name  = "Numpad Layer",
     order = 13.5,
@@ -141,8 +195,9 @@ local M = {
             { "⇪pad*",      "The pad, pre-typed with * — an Idea" },
             { "⇪pad-",      "The pad, pre-typed with + — a Log" },
             { "no pad?",     "⇪2 opens the pad · every row here runs from ⇪space" },
-            { "⇪ pad rest",  "🆓 free — pad0 5 6 7 8 9 . / enter clear, yours to assign" },
-            { "⌘⇧ pad ALL",  "🆓 all free — a REAL modifier, works outside ⇪ too" },
+            -- 6.276.0 — both replaced in M.warm() from the live registry.
+            { "⇪ pad rest",  "asking the key registry… (_G.freeKeys() lists them)" },
+            { "⌘⇧ pad",      "asking the key registry… (_G.freeKeys() lists them)" },
             { "how",         "Add padN = \"some.service\" in numpad_layer.lua —" },
             { "",            "numpad.actions (⇪) or numpad.cmdShiftActions (⌘⇧)" },
             { "first",       "_G.padProbe() — which pad keys this Mac can send" },
@@ -156,11 +211,14 @@ local M = {
         title = "🆓 NUMPAD — ⇪⇧ pad, CLEARED 6.152.0 (future shortcut options)",
         entries = {
             -- 6.152.0 — LL, of the old window-map rows: "Those should
-            -- just say: 'Key available for use'." So they do.
-            { "⇪⇧ pad0–9",    "Key available for use" },
-            { "⇪⇧ pad. + -",  "Key available for use" },
-            { "⇪⇧ pad/ *",    "Key available for use" },
-            { "⇪⇧ padenter",  "Key available for use (padclear too)" },
+            -- just say: 'Key available for use'." So they do — but they
+            -- are ASKED now, not typed. 6.276.0: the four rows that used
+            -- to sit here said ⇪⇧pad. was available for five releases
+            -- after the music player claimed it, and LL found that by
+            -- trying to use the key. FREE_ROW is replaced in M.warm()
+            -- from the live registry; if warm never runs it stays as it
+            -- is, which says "not read yet" and promises nothing.
+            { "⇪⇧ pad", "asking the key registry… (_G.freeKeys() lists them)" },
             { "was",          "The 3×3 window map — cleared on request, like the" },
             { "",             "⇪⇧ number row in 6.142.0" },
             { "zones?",       "Halves ⇪← ⇪→ · maximise ⇪↑ · put back ⇪↓ · monitors ⇪[ ⇪]" },
@@ -173,7 +231,11 @@ local M = {
         family = "windows",
         title = "🆓 THE ⇪⇧ NUMBER ROW — cleared 6.142.0, future shortcut options",
         entries = {
-            { "cleared",  "⇪⇧5 7 8 · ⇪⇧, ⇪⇧. ⇪⇧⏎ — all unbound now" },
+            -- 6.276.0 — this row read "⇪⇧5 7 8 · ⇪⇧, ⇪⇧. ⇪⇧⏎ — all
+            -- unbound now" while Bluetooth had owned ⇪⇧7 since 6.216.0
+            -- and the QR reader ⇪⇧8 since 6.194.0, and it contradicted
+            -- the "taken" row four lines below it. Asked now.
+            { "cleared",  "asking the key registry… (_G.freeKeys() lists them)" },
             { "why",      "LL: shortcuts \"cleaned, cleared and the keys listed" },
             { "",         "as future possible options for keyboard shortcuts\"" },
             { "except",   "⇪⇧9 = Invert colours — LL's 6.141.0 pick, unblocked" },
@@ -676,6 +738,16 @@ function M.setup(core)
         out[#out + 1] = "      Accessibility → Pointer Control → Mouse Keys. When"
         out[#out + 1] = "      that is on, macOS eats the whole number pad and no"
         out[#out + 1] = "      application ever sees those keys."
+        -- 🆓 6.276.0 — and whether the 🆓 cards are telling the truth
+        -- yet. "not read yet" is a THIRD state and must not read like an
+        -- answer (6.196.1): a card still saying "asking the key
+        -- registry…" is honest, but only this line says why.
+        out[#out + 1] = "   🆓 free rows: " .. tostring(M.freeState)
+        if tostring(M.freeState):find("not read yet", 1, true)
+           or tostring(M.freeState):find("did not answer", 1, true) then
+            out[#out + 1] = "      ⚠️ the ⇪/ 🆓 cards have NOT been filled from the"
+            out[#out + 1] = "         registry this session — trust _G.freeKeys(), not them."
+        end
         out[#out + 1] = "════════════════════════════════════════════════════════"
         local text = table.concat(out, "\n")
         print(text)
@@ -689,6 +761,63 @@ function M.setup(core)
     _G.numpadLayer = numpad
     M.numpad = numpad
     M.config = numpad
+end
+
+-- 🆓 6.276.0 — REFILL THE FREE-KEY ROWS FROM THE LIVE REGISTRY.
+--
+-- ⏱ IN warm(), NEVER IN setup(). The registry is filled BY the modules
+-- as they bind, so a card built during setup would describe whichever
+-- half of the config happened to have loaded first — and this module is
+-- order 13.5, so it would have been most of them. warm() runs after
+-- every module has bound and after a profile's `settings` have landed,
+-- which is the same reason 6.267.0 moved two stores there.
+--
+-- 🔎 THREE STATES, NEVER TWO (6.196.1). The rows ship reading "asking
+-- the key registry…" and that is what a Mac where this never ran still
+-- shows — a promise nobody can act on wrongly. It is NOT the same as
+-- "every key is claimed", which is what an empty list prints, and it is
+-- not the same as the answer. M.freeState carries which of the three
+-- happened so the report can say so rather than drawing a blank.
+M.freeState = "not read yet"
+
+function M.warm(core)
+    -- 🔌 _G.service.call HANDS BACK THE PROVIDER'S OWN VALUES, RAW —
+    -- no status in front (6.273.0, and reading one here is the exact bug
+    -- that killed three of ⇪⇧U's four legs for eighty-nine releases).
+    local d
+    if _G.service and _G.service.has and _G.service.has("keys.free") then
+        d = _G.service.call("keys.free")
+    end
+    if type(d) ~= "table" then
+        M.freeState = "power_tools did not answer — the rows still say so"
+        return
+    end
+
+    local claimed = {}
+    local np = M.numpad
+    if np and type(np.cmdShiftActions) == "table" then
+        for k in pairs(np.cmdShiftActions) do claimed[#claimed + 1] = k end
+        table.sort(claimed)
+    else
+        claimed = nil    -- nil and {} are different answers here
+    end
+
+    local filled = 0
+    for _, g in ipairs(M.cheatsheet or {}) do
+        -- 🪟 THE ENTRIES TABLE IS THE ONE THE SHEET HOLDS. init.lua's
+        -- §1.12 loader registers `entries = g.entries`, which is this
+        -- same table and not a copy, so writing a row here IS writing it
+        -- on the card. A check asserts that rather than trusting it.
+        for _, e in ipairs((type(g) == "table" and g.entries) or {}) do
+            if type(e) == "table" and e[2] == ASKING then
+                local answer = freeAnswer(tostring(e[1] or ""), d, claimed)
+                if answer then e[2] = answer; filled = filled + 1 end
+            end
+        end
+    end
+    M.freeState = (filled > 0)
+        and (filled .. " free-key row(s) read from the live registry")
+        or  "no free-key row found to fill — the card has changed shape"
 end
 
 return M
