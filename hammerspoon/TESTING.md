@@ -1,4 +1,4 @@
-# TESTING — how to score release 6.279.0
+# TESTING — how to score release 6.280.0
 
 You install ONE archive and it carries several releases. Below are the
 steps for each release this archive is new for, newest first. Run the
@@ -26,6 +26,68 @@ else is a LOSS and I fix it before building further. You are the only
 scorer; I never mark my own.
 
 ---
+
+## 6.280.0
+
+6.280.0 verify with LL — 🗑 DELETE A NOTE (KNOWN GROUND)
+WHAT CHANGED: every note row in Hamsidian has a ✕ at its right-hand end.
+It deletes the note — to <Vault>/.trash, never erased.
+WHY IT MATTERS: you asked twice. It was not a bug: vault.lua has said
+"No file delete — Finder and Obsidian do" since the vault was built,
+when that was how you opened it. That stopped being true and nobody
+re-asked the question.
+
+A. THE HEADLINE.
+A1. Press ⇪3. Look at the right-hand end of any note row.
+    EXPECT: a dim ✕, visible WITHOUT hovering, brighter under the
+    pointer and red when you are on it.
+A2. Make a throwaway note (⌘N, call it "Delete me") and type a word.
+A3. Click its ✕.
+    EXPECT: the row disappears, and an alert reads
+    "🗑 Delete me → .trash · _G.vaultUndelete() puts it back".
+    A FAIL — and the most important one here — is the note OPENING
+    instead of being deleted. Tell me immediately if that happens.
+A4. In Finder, open <OneDrive>/Vault and press ⌘⇧. to show hidden
+    files. EXPECT: a .trash folder with "Delete me  <date> <time>.md"
+    in it, holding your word. NOTHING IS EVER ERASED.
+A5. Console: `_G.vaultUndelete()`.
+    EXPECT: "🕸 Delete me is back", and the note is in the list again.
+
+B. THE ONE THAT PROTECTS YOUR WRITING.
+B1. Delete a note that OTHER notes link to with [[Name]].
+    EXPECT: the alert also says "⚠️ N notes link to it". That number is
+    the thing you cannot see from the row you are clicking.
+B2. Delete the note you currently have OPEN.
+    EXPECT: the editor moves off it rather than sitting on a file that
+    no longer exists. It goes back to your last note (6.277.0).
+B3. Delete two notes with the SAME name from different folders.
+    EXPECT: both are in .trash, as two separate files. If the second
+    overwrote the first, that is a real failure — say so.
+
+C. MUST STILL WORK.
+C1. Click a note row on its NAME (not the ✕). EXPECT: it opens, as ever.
+C2. ⌘F filter, ↑↓, ⏎ — unchanged.
+C3. A scratch tab's own ✕ still closes the tab, not a note.
+C4. Obsidian: open the Vault folder. EXPECT: the deleted note is gone
+    from its list too, and .trash is ignored there.
+
+D. PASTE BACK, PASS OR FAIL.
+D1. `_G.vaultReport()` — the new "deleted:" line names the count, the
+    trash folder and the last note deleted.
+
+E. A JUDGEMENT ONLY YOU CAN MAKE.
+E1. Should a delete ASK first? I made it immediate, like the music
+    history's ✕ you already use, because nothing is destroyed and
+    `_G.vaultUndelete()` is one command. If you would rather have a
+    confirm, say so — "ask me first" and it is a small release.
+E2. .trash keeps everything for ever. Do you want it emptied on a
+    schedule — 30 days, say — or left alone? I left it alone on
+    purpose: a trash that empties itself is a trash that can lose the
+    thing you go back for.
+E3. Rename is the obvious next thing and I have NOT built it. Say if
+    you want it.
+
+
 
 ## 6.279.0
 
@@ -197,71 +259,6 @@ E1. ⇪3 now always goes back to the last NOTE, even if the last thing
     "notes always" · "whatever I saw last" decides it. I picked the
     first because it is what you described, and because ⇪N already
     gives you the tabs in one press.
-
-
-
-## 6.276.0
-
-6.276.0 verify with LL — 🆓 THE FREE-KEY CARDS TELL THE TRUTH (KNOWN GROUND)
-WHAT CHANGED: the ⇪/ cards that list which keys are still free no longer
-have that list typed into them. They ask the live key registry when
-Hammerspoon warms up, which is the same place `_G.freeKeys()` has been
-reading correctly since 6.142.0.
-WHY IT MATTERS: you were told ⇪⇧pad. was available. The music player has
-owned it since 6.231.0. You were right to ask whether the debugging was
-good, and the honest answer is that this one was not — the card and the
-command disagreed for five releases and nothing in the gate could see it.
-🚨 AND IT WAS WORSE THAN THE ONE KEY, which you should know before you
-trust any other row on those cards: the same cards said ⇪⇧7 and ⇪⇧8 were
-unbound while Bluetooth and the QR reader held them, and one card
-contradicted itself four lines apart.
-
-A. THE HEADLINE — the card that lied.
-A1. Press ⇪/ and search for `numpad`.
-    EXPECT: the 🆓 NUMPAD — ⇪⇧ pad card. Its free row now reads a real
-    list of key names after a 🆓, e.g. `🆓 pad0 pad1 pad2 …`.
-A2. Read that list. EXPECT: **pad. is NOT in it.** That is the whole
-    release. If `pad.` is still offered, this did not take — tell me.
-A3. Look at the 🆓 THE ⇪⇧ NUMBER ROW card, the "cleared" row.
-    EXPECT: a 🆓 list that does NOT contain 7 or 8.
-    It used to say "⇪⇧5 7 8 · ⇪⇧, ⇪⇧. ⇪⇧⏎ — all unbound now".
-A4. If any row still reads "asking the key registry…", that is the
-    THIRD state and it is honest, not broken — it means warm-up has not
-    run yet (give it a few seconds after a reload) or power_tools did
-    not load. Step C2 says which.
-
-B. THE COMMAND IS THE TRUTH, AND NOW THEY AGREE.
-B1. Console: `_G.freeKeys()`.
-    EXPECT: the same keys the card shows, on the `⇪⇧ pad` line.
-    That agreement is the point — before this release the two disagreed
-    and only one of them was right.
-B2. Pick any key the card offers and check nothing happens when you
-    press it. EXPECT: nothing. If something DOES happen, that key is
-    claimed by a route the registry cannot see, and that is a real
-    finding I want.
-
-C. PASTE BACK, PASS OR FAIL.
-C1. `_G.freeKeys()` — the whole block.
-C2. `_G.padProbe()` — there is a new "🆓 free rows:" line near the
-    bottom. Healthy reads `N free-key row(s) read from the live
-    registry`. If it reads "not read yet" or "did not answer" there is
-    a ⚠️ under it telling you to trust the command and not the card —
-    paste that, it is the evidence.
-
-D. MUST STILL WORK — nothing about any KEY changed in this release,
-   only what the cards SAY, so this is the regression sweep.
-D1. ⇪⇧pad. still opens the music player.
-D2. ⇪⇧7 still opens Bluetooth; ⇪⇧8 still reads a QR code.
-D3. ⇪; still opens power tools, and its 🆓 row still runs the report.
-D4. The numpad capture row (⇪pad1 … ) still works as it did.
-
-E. A JUDGEMENT ONLY YOU CAN MAKE.
-E1. The cards now show raw key NAMES as the registry stores them —
-    `pad0 pad1 pad.` and `a b c` — rather than the prettier hand-typed
-    ranges ("⇪⇧ pad0–9"). Truthful but blunter. Is that the right
-    trade, or do you want me to render them back into ranges? "keep it
-    plain" · "make it pretty again" decides it, and pretty is only safe
-    because it is now generated rather than typed.
 
 
 

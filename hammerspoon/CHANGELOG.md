@@ -5,6 +5,79 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.280.0 — 🗑 A NOTE CAN BE DELETED, AND IT GOES SOMEWHERE
+(modules/vault.lua, tests/test_vault.lua):
+
+  LL, twice: "I don't understand why there is no delete. Can you fix
+  this?" and, with a screenshot of his notes list, "I have an ever
+  growing entries list in Hamsidian. I wanted to be able delete because
+  as you can see, I don't have an x at the end of the line. How do I
+  delete an entry?"
+
+🔎 IT WAS NOT A BUG, IT WAS A DECISION NOBODY REVISITED. vault.lua's own
+  header has said "No file delete or rename — Finder and Obsidian do"
+  since the vault was new in 6.172.0, when it was true that those were
+  the tools he opened it with. He is not using it that way, and a
+  decision that was right two hundred releases ago is not self-renewing.
+
+🚨 NEVER os.remove, AND THAT IS THE WHOLE DESIGN. An unrecoverable delete
+  of his writing is the one failure in this config with no way back —
+  every other rule here is about a tool degrading gracefully, and this is
+  the only one that can destroy the thing the tool exists to hold. The
+  note is MOVED into <Vault>/.trash/, which:
+    · needs no permission at all, so it behaves identically on the work
+      Mac. An osascript "tell Finder to delete" would put it in the real
+      Trash and is the obvious build — it also needs Automation
+      permission that IT may refuse, and a delete that works at home and
+      silently fails at work is worse than this one;
+    · is ALREADY in `skipDirs`, so the note leaves the index, the search,
+      the tags and the backlinks the moment it moves;
+    · is ignored by Obsidian too, so the folder he opens there matches
+      the list he sees here;
+    · is a Finder drag from being undone by hand.
+
+↩️ AND A KEYPRESS THAT DELETES OWES A WAY BACK (6.199.0).
+  `_G.vaultUndelete()` puts the last one back under its own name. ONE
+  slot, in memory: this is an "I clicked the wrong ✕" undo, not a second
+  trash can to maintain — and the file is still on disk either way, which
+  is what makes one slot enough rather than a compromise.
+
+🕰 TWO DELETES OF THE SAME NAME MUST NOT COLLIDE. `v.trashNameFor` is
+  PURE and stamps the time, and flattens folders with "-", so
+  <Vault>/a/b/Ideas.md and <Vault>/Ideas.md cannot overwrite each other
+  in the trash either — a collision would make the delete unrecoverable
+  again through the back door, which is the failure being designed out.
+
+🚨 THE ✕ IS ASKED BEFORE THE ROW IT SITS INSIDE. One shared click
+  handler serves the whole list, so testing the row first OPENS the note
+  on its way to deleting it — 6.272.0's exact bug in the music history,
+  where it PLAYED the track it was about to forget. By REL, never by
+  index: the list renumbers under his hand on every filter and redraw,
+  so an index deletes a different note than the one clicked.
+
+🔗 AND IT SAYS WHAT STILL LINKS TO IT. A deleted note leaves every
+  [[link]] to it dangling and he cannot see that from the row he is
+  clicking, so the alert names the count. Counted off `v.links` rather
+  than off the backlink index: that one is rebuilt from the scan and only
+  lists a target the find has already seen, so a note linked before the
+  next scan finishes would be reported as linked by nobody — the
+  reassuring answer, and wrong in the one direction that matters.
+
+🧪 FIVE MUTATIONS, FIVE BITES: erasing instead of moving, dropping the
+  vault bound, dropping the timestamp, leaving the editor pointing at a
+  file that is gone, and asking the ✕ after the row.
+
+🧪 AND TWO CHECKS HAD TO BE REWRITTEN BEFORE THEY COULD BITE. The
+  escaping-path check first passed "../../../etc/passwd", which no
+  fixture holds — so "no such note" refused it and deleting the bound
+  changed nothing. It uses a file that really IS readable at the escaping
+  path now (6.230.0: pick the input where the right and wrong
+  implementations must differ). And the "never os.remove" source sentry
+  went red on a healthy tree, because the comment explaining the rule
+  quotes the very call it forbids — it reads the code with comments
+  STRIPPED (6.262.0), and a second check asserts the comment is still
+  there, so the sentry cannot be satisfied by deleting the explanation.
+
 NEW IN 6.279.0 — 📓 WHAT FAILED TODAY, AFTER A RELOAD
 (core/notices.lua, init.lua, tests/test_notices.lua):
 

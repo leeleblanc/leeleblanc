@@ -220,6 +220,8 @@ local M = {
             { "⌘F · ⌘O · ↑↓ ⏎", "Filter the list · walk it (⌥↑/⌥↓ ⌥⏎ from inside the text)" },
             { "📌",          "Pin: the window stays up beside the app; Esc only hands the keys back" },
             { "Obsidian",   "Open the same folder as a vault in Obsidian — plug-ins and all" },
+            { "✕",          "On a note row — deletes it to <Vault>/.trash (never erased)" },
+            { "undo that",  "_G.vaultUndelete() puts the last deleted note back" },
             { "Console",    "_G.vaultReport() · _G.vaultRescan()" },
         },
     },
@@ -2147,6 +2149,12 @@ textarea{flex:1;width:100%;box-sizing:border-box;resize:none;border:0;outline:0;
 #rows li.tab{display:flex;align-items:center;gap:6px}
 #rows li.tab .tt{flex:1;overflow:hidden;text-overflow:ellipsis}
 #rows li.tab .x{opacity:.45;padding:0 3px}
+/* 🗑 6.280.0 — visible without hovering (dim), brighter under the
+   pointer: a control you have to discover is one he asks for twice,
+   which is exactly what happened here. */
+#rows li.note .x{float:right;opacity:.28;padding:0 2px 0 6px}
+#rows li.note:hover .x{opacity:.75}
+#rows li.note .x:hover{opacity:1;color:#ff8a80}
 #rows li.tab .x:hover{opacity:1}
 #rows li.tab.capture{box-shadow:inset 3px 0 0 #4fb3d9}
 #rows li.tab.append{box-shadow:inset 3px 0 0 #e0b04a}
@@ -2435,7 +2443,12 @@ function drawRows(){
     if (x.tpl) continue;                                   // 6.174.0 — templates sit in their own section below
     if (tag !== null) { if (!noteHasTag(x, tag, exact)) continue; }
     else if (f && x.n.toLowerCase().indexOf(f) < 0 && x.r.toLowerCase().indexOf(f) < 0) continue;
-    h.push('<li class="note' + (x.r === CUR ? ' cur' : '') + '" data-name="' + esc(x.n) + '" title="' + esc(x.r) + '">' + esc(x.n) + '</li>');
+    // 🗑 6.280.0 — the ✕ rides in the row, exactly as the scratch tabs'
+    // does, and carries the note's REL rather than its position: the list
+    // renumbers under your hand on every filter and redraw, so an index
+    // would delete a different note than the one clicked (6.272.0, the
+    // same rule that decided the music history's ✕).
+    h.push('<li class="note' + (x.r === CUR ? ' cur' : '') + '" data-name="' + esc(x.n) + '" data-del="' + esc(x.r) + '" title="' + esc(x.r) + '">' + esc(x.n) + '<span class="x" title="delete">\u2715</span></li>');
     if (++n >= 400) break;
   }
   if (!h.length) h.push('<li style="opacity:.4;cursor:default">' + (tag !== null ? 'no note carries #' + esc(tag) : (f ? 'no note matches — ⏎ creates &quot;' + esc(q.value.trim()) + '&quot;' : 'no notes yet — ⌘N')) + '</li>');
@@ -2507,6 +2520,12 @@ rowsEl.addEventListener('click', function(e){
   var li = e.target.closest ? e.target.closest('li[data-name],li[data-tab],li[data-tag],li[data-new]') : null; if (!li) return;
   if (li.getAttribute('data-new')) { say({a:'newnote'}); return; }
   var tid = li.getAttribute('data-tab');
+  // 🚨 6.280.0 — THE ✕ IS ASKED BEFORE THE ROW IT SITS INSIDE. This is
+  // one shared handler, so testing the row first OPENS the note on the
+  // way to deleting it — which is 6.272.0's bug in the music history
+  // (there it PLAYED the track it was about to forget).
+  var del = li.getAttribute('data-del');
+  if (del && e.target.closest && e.target.closest('.x')) { say({a:'notedel', del: del}); return; }
   if (tid && tid.charAt(0) !== '+' && e.target.closest && e.target.closest('.x')) say({a:'tabclose', tid: tid});
   else rowAct(li); });
 document.getElementById('links').addEventListener('click', function(e){
@@ -3766,6 +3785,28 @@ else {
             else
                 pcall(sp.openKind, kind)
             end
+        elseif a == "notedel" then
+            -- 🚨 `del`, NOT `rel` — the page's say() stamps `rel` onto
+            -- every message it sends (6.203.0), so a message carrying
+            -- its own value under that name is silently overwritten with
+            -- the OPEN note's rel: the ✕ would have deleted whatever was
+            -- on screen rather than the row clicked. The gate's sentry
+            -- caught it on the first run, which is what it is for.
+            local rel = tostring(body.del or "")
+            local ok, whereOrWhy, links = v.deleteNote(rel)
+            if ok then
+                local name = (rel:match("([^/]+)%.md$")) or rel
+                -- 🔗 the count is the fact that would have changed his
+                -- mind, and he cannot see it from the row he clicked
+                local also = (links and links > 0)
+                    and ("  ⚠️ " .. links .. " note" .. (links == 1 and "" or "s")
+                         .. " link to it") or ""
+                alert("🗑 " .. name .. " → .trash" .. also
+                      .. "\n_G.vaultUndelete() puts it back", 6)
+                v.render()
+            else
+                alert("🕸 Not deleted — " .. tostring(whereOrWhy), 5)
+            end
         elseif a == "tabclose" then
             local sp = v.sp()
             local tid = tostring(body.tid or "")
@@ -3922,6 +3963,146 @@ else {
         if not okP or button ~= "Save" then return end
         v.setText(typed)
         v.saveNow()
+    end
+
+    -- =================================================================
+    -- 🗑 6.280.0 — A NOTE CAN BE DELETED, AND IT GOES SOMEWHERE
+    -- =================================================================
+    -- LL, twice: "I don't understand why there is no delete. Can you fix
+    -- this?" and, with a screenshot of his notes list, "I have an ever
+    -- growing entries list in Hamsidian. I wanted to be able delete
+    -- because as you can see, I don't have an x at the end of the line.
+    -- How do I delete an entry?"
+    --
+    -- 🔎 IT WAS NOT A BUG, IT WAS A DECISION NOBODY REVISITED. This
+    -- file's own header has said "No file delete or rename — Finder and
+    -- Obsidian do" since the vault was new, when it was true that those
+    -- were the tools he opened it with. He is not using it that way.
+    --
+    -- 🚨 NEVER os.remove, AND THAT IS THE WHOLE DESIGN. An unrecoverable
+    -- delete of his writing is the one failure in this config with no way
+    -- back — every other rule here is about a tool degrading, and this is
+    -- the only one that can destroy the thing the tool exists to hold.
+    -- The note is MOVED into <Vault>/.trash/, which:
+    --   · needs no permission at all, so it behaves identically on the
+    --     work Mac (an osascript "tell Finder to delete" would put it in
+    --     the real Trash and is the obvious build — it also needs
+    --     Automation permission that IT may refuse, and a delete that
+    --     works at home and silently fails at work is worse than this);
+    --   · is ALREADY in `skipDirs`, so the note leaves the index, the
+    --     search, the tags and the backlinks the moment it moves;
+    --   · is ignored by Obsidian too, so the folder he opens there
+    --     matches the list he sees here;
+    --   · is a Finder drag away from being undone by hand, on top of
+    --     `_G.vaultUndelete()`.
+    --
+    -- ↩️ AND A KEYPRESS THAT DELETES OWES A WAY BACK (6.199.0). The last
+    -- delete is remembered and `_G.vaultUndelete()` puts it back under
+    -- its own name. One slot, in memory: this is an "I just clicked the
+    -- wrong ✕" undo, not a second trash can to maintain — and the file
+    -- itself is still on disk either way, which is what makes one slot
+    -- enough rather than a compromise.
+    --
+    -- 🔗 IT SAYS WHAT ELSE POINTS AT IT. A deleted note leaves every
+    -- [[link]] to it dangling, and he cannot see that from the row he is
+    -- clicking. The alert names the count, because "3 notes link to this"
+    -- is the fact that would have changed his mind.
+    v.trashed = nil        -- { rel, from, to, name, at } — the last one
+    v.deletes = 0
+
+    function v.trashDir() return v.dir .. "/.trash" end
+
+    -- ✏️ PURE — where a note goes, given a clock. The timestamp is what
+    -- stops a second `Ideas.md` overwriting the first one in the trash,
+    -- which would make the delete unrecoverable again through the back
+    -- door. Folders are flattened with "-" so <Vault>/a/b/Note.md and
+    -- <Vault>/Note.md cannot collide either.
+    function v.trashNameFor(rel, at)
+        rel = tostring(rel or ""):gsub("^/+", "")
+        local flat = rel:gsub("%.md$", ""):gsub("[/\\]", "-")
+        return flat .. "  " .. os.date("%Y-%m-%d %H%M%S", tonumber(at) or os.time()) .. ".md"
+    end
+
+    function v.deleteNote(rel)
+        rel = tostring(rel or "")
+        -- 🔒 THE SAME BOUNDS THE BOARD'S WRITE USES (6.186.0): never
+        -- outside the vault, never a file that is not a note, never an
+        -- empty name. A delete is the one place these have to hold.
+        if rel == "" then return false, "no note named" end
+        if rel:find("%.%.") or rel:find("^/") then
+            return false, "that path leaves the vault"
+        end
+        if not rel:match("%.md$") then return false, "that is not a note" end
+        local from = v.dir .. "/" .. rel
+        if readFile(from) == nil then return false, "no such note: " .. rel end
+
+        local at = os.time()
+        local dir = v.trashDir()
+        mkdirp(dir)
+        local to = dir .. "/" .. v.trashNameFor(rel, at)
+        local okM, errM = os.rename(from, to)
+        if not okM then
+            -- 🔔 A DELETE THAT DID NOT HAPPEN MUST NOT LOOK LIKE ONE
+            -- (the row would vanish from the list on the next render and
+            -- the note would still be on disk).
+            if type(core.degrade) == "function" then
+                pcall(core.degrade, "Hamsidian delete",
+                      "could not move " .. rel .. " to .trash — " .. tostring(errM))
+            end
+            return false, tostring(errM or "the move failed")
+        end
+
+        -- 🔗 COUNTED OFF v.links, NOT off v.backlinks. backlinks is
+        -- rebuilt from the index and only lists a target the SCAN has
+        -- already seen, so a note linked before the next find finishes
+        -- would be reported as linked by nobody — the reassuring answer,
+        -- and wrong in the one direction that matters. v.links is what
+        -- every note actually says, which is the ground truth here.
+        local key = keyOf((rel:match("([^/]+)%.md$")) or rel)
+        local links = 0
+        for r, targets in pairs(v.links) do
+            if r ~= rel then
+                for _, t in ipairs(targets) do
+                    if keyOf(t) == key then links = links + 1 break end
+                end
+            end
+        end
+        v.trashed = { rel = rel, from = from, to = to, at = at,
+                      name = (rel:match("([^/]+)%.md$")) or rel, links = links }
+        v.deletes = v.deletes + 1
+
+        -- it leaves every index this module keeps, at once
+        v.links[rel], v.tagsOf[rel], v.fmOf[rel] = nil, nil, nil
+        rebuildBacklinks()
+        if v.doc and v.doc.rel == rel then
+            v.doc, v.dirty = nil, false
+            v.goToLastNote()
+        end
+        v.scan("delete")
+        return true, to, links
+    end
+
+    _G.vaultUndelete = function()
+        local t = v.trashed
+        if not t then
+            alert("🕸 Nothing to undelete — no note has been deleted this session", 4)
+            return false, "nothing to undelete"
+        end
+        if readFile(t.from) ~= nil then
+            alert("🕸 " .. t.name .. " is back already — nothing to do", 4)
+            return false, "already there"
+        end
+        local ok, err = os.rename(t.to, t.from)
+        if not ok then
+            alert("🕸 Could not put " .. t.name .. " back — " .. tostring(err)
+                  .. " (it is still in " .. v.trashDir() .. ")", 8)
+            return false, tostring(err)
+        end
+        v.trashed = nil
+        v.scan("undelete")
+        alert("🕸 " .. t.name .. " is back", 4)
+        if v.webview then v.render() end
+        return true
     end
 
     -- 🔖 6.277.0 — WHERE YOU WERE, AND ONE PLACE THAT ANSWERS IT.
@@ -4199,6 +4380,11 @@ else {
         -- other Mac) send LL to two different places, and until this
         -- release both looked like Scratch 1.
         L[#L + 1] = "   back to: " .. tostring(v.lastPlaceState)
+        -- 🗑 6.280.0 — NOTHING IS EVER ERASED, so the report says where it
+        -- went. A count with no path is a delete he cannot undo by hand.
+        L[#L + 1] = "   deleted: " .. v.deletes .. " this session → " .. v.trashDir()
+                    .. (v.trashed and ("  ↳ last: " .. tostring(v.trashed.name)
+                        .. " · _G.vaultUndelete()") or "")
         if tostring(v.lastPlaceState):find("no longer holds", 1, true)
            or tostring(v.lastPlaceState):find("could not reopen", 1, true) then
             L[#L + 1] = "      ⚠️ ⇪3 could not put you back — it opened on the notes"

@@ -4,9 +4,28 @@
 -- =====================================================================
 -- 09-22-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.279.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.280.0
 -- =====================================================================
 
+-- NEW IN 6.280.0 — 🗑 A NOTE CAN BE DELETED, AND IT GOES SOMEWHERE
+--   (modules/vault.lua):
+--   LL, twice: "I don't understand why there is no delete" and "I have an
+--      ever growing entries list … no x at the end of the line."
+--   🔎 NOT A BUG, A DECISION NOBODY REVISITED: the file's header has said
+--      "No file delete — Finder and Obsidian do" since the vault was new.
+--   🚨 NEVER os.remove — an unrecoverable delete of his writing is the
+--      one failure here with no way back. The note MOVES into
+--      <Vault>/.trash, which needs no permission (so it behaves the same
+--      on the work Mac, where an osascript Finder delete could be
+--      refused), is already in `skipDirs` so it leaves every index at
+--      once, and is ignored by Obsidian too. `_G.vaultUndelete()`.
+--   🚨 THE ✕ IS ASKED BEFORE THE ROW IT SITS INSIDE, or the shared click
+--      handler OPENS the note on its way to deleting it (6.272.0's bug,
+--      where it PLAYED the track it was forgetting). By REL, never index.
+--   🔗 AND IT SAYS WHAT STILL LINKS TO IT, counted off v.links: the
+--      backlink index lists only targets the scan has seen, so it answers
+--      "nobody" too reassuringly.
+--
 -- NEW IN 6.279.0 — 📓 WHAT FAILED TODAY, AFTER A RELOAD
 --   (core/notices.lua, init.lua):
 --   LL: "Can you also create an error message log for any of my tools
@@ -23,31 +42,12 @@
 --   🔎 THREE STATES (6.196.1): "no log to read" must NEVER print as
 --      "nothing failed today" — a lie on the day the disk is full.
 --
--- NEW IN 6.278.0 — 🔔 A SEND THAT FAILED IS SEEN, NOT ONLY LOGGED
---   (modules/scratch_pad.lua):
---   LL: "for any tool that completes an action, like the 4pm send of
---      Asana tasks from Hamsidian, how do I know if it didn't work? I
---      think I need a persistent screen message … I could lose important
---      information if not."
---   🚨 HE WAS RIGHT AND THIS MODULE HAD NEVER PAID THE RULE: a rejected
---      send called `warn()` — the Console and nothing else. 6.214.0's
---      rule, from his own words, unpaid where it costs him a capture.
---   🔑 ONE PLACE DECIDES WHAT A SEND SAYS (`sp.announce`), channels
---      following the OUTCOME not the exit: sent → an alert (SUCCESS IS
---      VISIBLE TOO, or silence means both "worked" and "never ran");
---      skipped → Console only, so a quiet day never cries wolf; failed →
---      the 🔔 door AND a notification AND a sticky flag.
---   🕰 THE NOTIFICATION IS THE PERSISTENT HALF (an alert is gone in six
---      seconds; 16:00 lands mid-meeting) and `sp.unsent` outlives both.
---   🚨 THE TEXT IS NEVER DISCARDED: the day is stamped in the SUCCESS
---      branch only, so a failure retries instead of looking done.
---
--- (6.277.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.278.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.279.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.280.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -144,7 +144,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.279.0"
+_G.configVersion = "6.280.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the

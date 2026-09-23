@@ -1859,5 +1859,136 @@ do
     v.hide()
 end
 
+-- =====================================================================
+out("\n6.280.0 — 🗑 A NOTE CAN BE DELETED, AND IT GOES SOMEWHERE\n")
+-- =====================================================================
+-- LL, twice: "I don't understand why there is no delete. Can you fix
+-- this?" and "I have an ever growing entries list in Hamsidian … I don't
+-- have an x at the end of the line. How do I delete an entry?"
+--
+-- 🚨 NEVER os.remove. An unrecoverable delete of his writing is the one
+-- failure in this config with no way back, so the whole design is that
+-- the note MOVES and the report says where.
+do
+    local before = pass + fail
+    v.hide()
+    FILES[VAULT .. "/Doomed.md"] = "# Doomed\n\nsome writing\n"
+    FILES[VAULT .. "/Keeper.md"] = "# Keeper\n\nsee [[Doomed]]\n"
+    -- 🔎 THE INDEX IS BUILT BY THE MODULE, not assembled here. Hand-filling
+    -- v.links and v.backlinks would prove only that the check can read a
+    -- table the check just wrote (6.203.0) — openNote is the real door and
+    -- it is what fills byKey, links and the backlinks together.
+    v.openNote("Doomed")
+    v.openNote("Keeper")
+
+    -- the bounds first: a delete is the one place they have to hold
+    check("🔒 an empty name is refused", select(1, v.deleteNote("")) == false)
+    -- 🧪 AND THE FIXTURE HAS TO MAKE THE GUARD THE ONLY THING REFUSING.
+    -- The first version passed "../../../etc/passwd", which no fixture
+    -- holds — so "no such note" refused it and deleting the bound changed
+    -- nothing. A file that really IS readable at the escaping path is the
+    -- only input that tells the two refusals apart (6.230.0: pick the
+    -- input where the right and wrong implementations must differ).
+    FILES[VAULT .. "/../Outside.md"] = "# Outside\n\nnot yours to move\n"
+    local okEsc, whyEsc = v.deleteNote("../Outside.md")
+    check("🔒 a path that leaves the vault is refused EVEN WHEN the file "
+          .. "is really there — the bound is what refuses it, not the "
+          .. "absence of the file",
+          okEsc == false and tostring(whyEsc):find("leaves the vault", 1, true) ~= nil
+          and FILES[VAULT .. "/../Outside.md"] ~= nil, tostring(whyEsc))
+    check("🔒 a file that is not a note is refused",
+          select(1, v.deleteNote("Doomed.txt")) == false)
+    check("🔒 a note that is not there is refused, and says which",
+          select(1, v.deleteNote("Nope.md")) == false)
+    check("...and none of those touched anything on disk",
+          FILES[VAULT .. "/Doomed.md"] ~= nil)
+
+    local ok, where, links = v.deleteNote("Doomed.md")
+    check("🗑 the note is deleted", ok == true, tostring(where))
+    check("🚨 ...and it is MOVED, not erased — it is in .trash, and this "
+          .. "is the rule the whole release turns on",
+          type(where) == "string" and where:find("/.trash/", 1, true) ~= nil
+          and FILES[where] ~= nil, tostring(where))
+    check("...the original is gone from the vault", FILES[VAULT .. "/Doomed.md"] == nil)
+    check("...and the copy in .trash still holds every word",
+          tostring(FILES[where]):find("some writing", 1, true) ~= nil)
+    check("🔗 ...and it counts what still links to it — the fact that "
+          .. "would have changed his mind, which he cannot see from the "
+          .. "row he clicked", links == 1, tostring(links))
+
+    -- ↩️ THE WAY BACK (6.199.0)
+    check("↩️ _G.vaultUndelete() puts it back under its own name",
+          _G.vaultUndelete() == true
+          and FILES[VAULT .. "/Doomed.md"] ~= nil
+          and tostring(FILES[VAULT .. "/Doomed.md"]):find("some writing", 1, true) ~= nil)
+    check("...and a second undelete with nothing to undo says so rather "
+          .. "than throwing", select(1, _G.vaultUndelete()) == false)
+
+    -- 🕰 two notes of the same name must not overwrite each other in the
+    -- trash, or the delete becomes unrecoverable through the back door
+    local n1 = v.trashNameFor("Ideas.md", 1700000000)
+    local n2 = v.trashNameFor("Ideas.md", 1700000061)
+    check("🕰 two deletes of the same name land on different files",
+          n1 ~= n2, n1 .. " vs " .. n2)
+    check("...and a note in a subfolder cannot collide with one at the "
+          .. "root either", v.trashNameFor("a/b/Ideas.md", 1700000000) ~= n1)
+    check("...and what lands in .trash is still a .md",
+          n1:match("%.md$") ~= nil, n1)
+
+    -- the open note is not left pointing at a file that is gone
+    v.openNote("Doomed")
+    check("the note under test is open", v.doc ~= nil and v.doc.rel == "Doomed.md")
+    v.deleteNote("Doomed.md")
+    check("🚨 deleting the note you are IN does not leave the editor "
+          .. "pointing at a file that no longer exists",
+          v.doc == nil or v.doc.rel ~= "Doomed.md",
+          v.doc and tostring(v.doc.rel))
+    check("...and the report names where it went, not just a count",
+          (function()
+              local r = _G.vaultReport()
+              return r:find("deleted:", 1, true) ~= nil
+                     and r:find(".trash", 1, true) ~= nil
+                     and r:find("vaultUndelete", 1, true) ~= nil
+          end)())
+
+    -- 🚨 THE PAGE: the ✕ must be asked BEFORE the row it sits inside, or
+    -- the shared click handler OPENS the note on its way to deleting it
+    -- (6.272.0 — there it PLAYED the track it was forgetting). Read from
+    -- the module SOURCE, because this rule is about the ORDER of two
+    -- branches and a rendered page cannot be asked about order.
+    local src280 = (function()
+        local f = REAL_OPEN(HS .. "/modules/vault.lua", "r")
+        if not f then return "" end
+        local t = f:read("*a"); f:close(); return t
+    end)()
+    check("SOURCE: a note row carries data-del with its REL, never its "
+          .. "position — the list renumbers on every filter and an index "
+          .. "would delete a different note than the one clicked",
+          src280:find("data-del=", 1, true) ~= nil
+          and src280:find("data-del=\"' + esc(x.r)", 1, true) ~= nil)
+    local delAt = src280:find("var del = li.getAttribute('data-del');", 1, true)
+    local actAt = src280:find("else rowAct(li); });", 1, true)
+    check("🚨 SOURCE: the ✕ is read BEFORE rowAct is reached, and returns",
+          delAt ~= nil and actAt ~= nil and delAt < actAt
+          and src280:find("say({a:'notedel', del: del}); return;", 1, true) ~= nil,
+          tostring(delAt) .. " vs " .. tostring(actAt))
+    -- 🚨 WITH COMMENTS STRIPPED (6.262.0, and the first run of this check
+    -- went red for exactly that reason): the comment explaining the rule
+    -- quotes the very call it forbids, so a bare grep can never pass on a
+    -- healthy tree — and a sentry that is red when nothing is wrong is one
+    -- that gets deleted within a week (6.269.0).
+    local code280 = src280:gsub("%-%-%[%[.-%]%]", " "):gsub("%-%-[^\n]*", " ")
+    check("🚨 SOURCE: nothing in this module ever CALLS os.remove — an "
+          .. "unrecoverable delete of his writing is the one failure here "
+          .. "with no way back",
+          code280:find("os%.remove") == nil)
+    check("...and the check reads code, not comments: the rule's own "
+          .. "comment names os.remove and must not trip it",
+          src280:find("os.remove", 1, true) ~= nil)
+
+    local ran = (pass + fail) - before
+    check("§6.280.0 ran all of its checks (" .. ran .. " of 18+)", ran >= 18, ran)
+end
+
 out(string.format("\n%d passed, %d failed\n", pass, fail))
 os.exit(fail == 0 and 0 or 1)

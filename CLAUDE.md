@@ -989,6 +989,43 @@ work Mac.
   one-hop symlink: a fixture where the right and wrong implementations
   AGREE proves nothing — pick the input where they must differ.
 
+- 🗑 A DECISION THAT WAS RIGHT TWO HUNDRED RELEASES AGO IS NOT
+  SELF-RENEWING (6.280.0, modules/vault.lua — LL, twice: "I don't
+  understand why there is no delete. Can you fix this?" and "I have an
+  ever growing entries list in Hamsidian … I don't have an x at the end
+  of the line"). vault.lua's header has said "No file delete or rename —
+  Finder and Obsidian do" since 6.172.0, when that was true of how he
+  opened it. It is not a bug and it is not a gap — it is a decision, and
+  nobody re-asked it.
+  🚨 NEVER os.remove. An unrecoverable delete of his writing is the one
+  failure in this config with no way back: every other rule here is about
+  a tool degrading, this is the only one that can destroy what the tool
+  exists to hold. The note MOVES to <Vault>/.trash — no permission (so
+  the work Mac behaves the same; an osascript Finder delete is the
+  obvious build and needs Automation permission IT may refuse, and a
+  delete that works at home and fails silently at work is worse), already
+  in `skipDirs` so it leaves every index at once, and ignored by Obsidian
+  too. ↩️ `_G.vaultUndelete()`, ONE slot (6.199.0).
+  🕰 `v.trashNameFor` is PURE and stamps the time and flattens folders:
+  two deletes of one name colliding in the trash would make the delete
+  unrecoverable again through the back door.
+  🚨 THE ✕ IS ASKED BEFORE THE ROW IT SITS INSIDE — one shared handler,
+  so testing the row first OPENS the note on the way to deleting it
+  (6.272.0 exactly, where it PLAYED the track it was forgetting). By REL,
+  never index.
+  🔗 THE LINK COUNT COMES OFF v.links, NOT THE BACKLINK INDEX: that one
+  is rebuilt from the scan and lists only targets the find has seen, so a
+  freshly linked note reads as linked by nobody — the reassuring answer,
+  wrong in the one direction that matters. GENERAL: when a count is a
+  warning, take it from the ground truth, not from a cache that lags.
+  🧪 Two checks could not bite until the FIXTURE changed: the escaping
+  path was refused by "no such note" rather than by the bound (6.230.0 —
+  pick the input where the two implementations must differ), and the
+  "never os.remove" sentry went red on a healthy tree because the comment
+  explaining the rule quotes the call it forbids (6.262.0 — strip
+  comments, and assert the comment still exists so the sentry cannot be
+  satisfied by deleting the explanation).
+
 - 📓 A LEDGER THAT LIVES IN MEMORY CANNOT ANSWER "WHAT FAILED TODAY"
   (6.279.0, core/notices.lua + init.lua — LL: "Can you also create an
   error message log for any of my tools that fail? I can check this log
@@ -3150,6 +3187,7 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
+| 6.280.0 | 🗑 a ✕ on every Hamsidian note deletes it to <Vault>/.trash — never erased, undoable, and it says how many notes still link to it | pending |
 | 6.279.0 | 📓 `_G.todayReport()` — every tool that failed today, read back off disk so it survives a reload; the ledger had only ever been in memory | pending |
 | 6.278.0 | 🔔 a 4 PM Asana send that fails is seen — an alert, a notification that survives Focus, and a sticky line in the report; it had only ever been a Console line | pending |
 | 6.277.0 | 🔖 ⇪3 reopens the note you were writing in — the last note has been recorded on every open for releases and was read only when nothing was open | pending |
@@ -3869,6 +3907,64 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.280.0 verify with LL — 🗑 DELETE A NOTE (KNOWN GROUND)
+  WHAT CHANGED: every note row in Hamsidian has a ✕ at its right-hand end.
+  It deletes the note — to <Vault>/.trash, never erased.
+  WHY IT MATTERS: you asked twice. It was not a bug: vault.lua has said
+  "No file delete — Finder and Obsidian do" since the vault was built,
+  when that was how you opened it. That stopped being true and nobody
+  re-asked the question.
+
+  A. THE HEADLINE.
+  A1. Press ⇪3. Look at the right-hand end of any note row.
+      EXPECT: a dim ✕, visible WITHOUT hovering, brighter under the
+      pointer and red when you are on it.
+  A2. Make a throwaway note (⌘N, call it "Delete me") and type a word.
+  A3. Click its ✕.
+      EXPECT: the row disappears, and an alert reads
+      "🗑 Delete me → .trash · _G.vaultUndelete() puts it back".
+      A FAIL — and the most important one here — is the note OPENING
+      instead of being deleted. Tell me immediately if that happens.
+  A4. In Finder, open <OneDrive>/Vault and press ⌘⇧. to show hidden
+      files. EXPECT: a .trash folder with "Delete me  <date> <time>.md"
+      in it, holding your word. NOTHING IS EVER ERASED.
+  A5. Console: `_G.vaultUndelete()`.
+      EXPECT: "🕸 Delete me is back", and the note is in the list again.
+
+  B. THE ONE THAT PROTECTS YOUR WRITING.
+  B1. Delete a note that OTHER notes link to with [[Name]].
+      EXPECT: the alert also says "⚠️ N notes link to it". That number is
+      the thing you cannot see from the row you are clicking.
+  B2. Delete the note you currently have OPEN.
+      EXPECT: the editor moves off it rather than sitting on a file that
+      no longer exists. It goes back to your last note (6.277.0).
+  B3. Delete two notes with the SAME name from different folders.
+      EXPECT: both are in .trash, as two separate files. If the second
+      overwrote the first, that is a real failure — say so.
+
+  C. MUST STILL WORK.
+  C1. Click a note row on its NAME (not the ✕). EXPECT: it opens, as ever.
+  C2. ⌘F filter, ↑↓, ⏎ — unchanged.
+  C3. A scratch tab's own ✕ still closes the tab, not a note.
+  C4. Obsidian: open the Vault folder. EXPECT: the deleted note is gone
+      from its list too, and .trash is ignored there.
+
+  D. PASTE BACK, PASS OR FAIL.
+  D1. `_G.vaultReport()` — the new "deleted:" line names the count, the
+      trash folder and the last note deleted.
+
+  E. A JUDGEMENT ONLY YOU CAN MAKE.
+  E1. Should a delete ASK first? I made it immediate, like the music
+      history's ✕ you already use, because nothing is destroyed and
+      `_G.vaultUndelete()` is one command. If you would rather have a
+      confirm, say so — "ask me first" and it is a small release.
+  E2. .trash keeps everything for ever. Do you want it emptied on a
+      schedule — 30 days, say — or left alone? I left it alone on
+      purpose: a trash that empties itself is a trash that can lose the
+      thing you go back for.
+  E3. Rename is the obvious next thing and I have NOT built it. Say if
+      you want it.
+
 - 6.279.0 verify with LL — 📓 WHAT FAILED TODAY (KNOWN GROUND)
   WHAT CHANGED: one command, `_G.todayReport()`, names every tool that
   failed today with the time and the reason — read back off a file, so it
