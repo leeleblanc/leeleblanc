@@ -752,6 +752,32 @@ function M.setup(core)
         end
     end
 
+    -- 🕒 PURE — a stored timestamp as HH:MM:SS, and the whole point
+    -- is that it FLOORS. `hs.timer.secondsSinceEpoch()` answers
+    -- 1758769234.8231, and Lua's os.date REFUSES a float outright:
+    -- "bad argument #2 to 'date' (number has no integer representation)".
+    -- So a report line built from one does not print something wrong, it
+    -- THROWS — and takes the entire report down with it (6.282.0: LL's
+    -- `_G.screenshotsReport()` died at the `area` line, which is every
+    -- session in which he had pressed ⇪4 even once).
+    -- 🔑 ONE DOOR FOR EVERY STORED CLOCK IN THIS REPORT. Three lines read
+    -- an `at` field — size, area and scroll — and only ONE of them was fed
+    -- a float; the other two are integers by luck, because their writers
+    -- happen to call os.time(). Flooring the one writer would fix the
+    -- instance and leave the class, so the READER is where this lives.
+    -- It answers a sentence and never raises: a report that dies while
+    -- describing itself is worse than any line it could have printed.
+    function shots.clockText(at)
+        local n = tonumber(at)
+        -- 0 is what the writer leaves when the clock could not be read
+        -- (`local at = 0` before a pcall'd assignment), so it is "not
+        -- recorded" rather than 1970.
+        if not n or n <= 0 then return "time not recorded" end
+        local ok, s = pcall(os.date, "%H:%M:%S", math.floor(n))
+        if not ok or type(s) ~= "string" then return "time not recorded" end
+        return s
+    end
+
     -- ✏️ PURE — the string, exactly as LL wrote it: "1280 × 720", with a
     -- MULTIPLICATION SIGN (U+00D7) and not an x. Both numbers are
     -- floored: a drag is measured in points and a fractional pixel is a
@@ -1379,7 +1405,7 @@ function M.setup(core)
                 and ("%d × %d · %s · last drawn %s"):format(
                         shots.sizeLast.w, shots.sizeLast.h,
                         tostring(shots.sizeLast.why),
-                        os.date("%H:%M:%S", shots.sizeLast.at))
+                        shots.clockText(shots.sizeLast.at))
                 or ("white on black at alpha " .. tostring(shots.sizeAlpha)
                     .. " · nothing dragged yet this session")))
         -- 📐 6.264.0 — the line under it used to end "⇪4 is macOS's own
@@ -1395,7 +1421,7 @@ function M.setup(core)
                         and "⚠️ " or "")
                      .. tostring(shots.areaLast.why)
                      .. " · last pressed "
-                     .. os.date("%H:%M:%S", shots.areaLast.at))
+                     .. shots.clockText(shots.areaLast.at))
             or (shots.areaNative
                     and "macOS's own crosshair — settings = { screenshots = "
                         .. "{ areaNative = true } } · not pressed yet this session"
@@ -1424,7 +1450,7 @@ function M.setup(core)
             L[#L + 1] = "   scroll  : never run this session (⇪5)"
         else
             L[#L + 1] = ("   scroll  : %s · %d planned · %d shot · %d decoded · %s")
-                        :format(os.date("%H:%M:%S", r.at), r.planned or 0, r.shot or 0,
+                        :format(shots.clockText(r.at), r.planned or 0, r.shot or 0,
                                 r.decoded or 0, tostring(r.outcome))
             if r.why then L[#L + 1] = "             ↳ " .. tostring(r.why) end
             if r.out then L[#L + 1] = "             ↳ " .. tostring(r.out) end

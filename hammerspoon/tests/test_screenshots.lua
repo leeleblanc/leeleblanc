@@ -17,7 +17,28 @@
 local HS = (arg and arg[1]) or os.getenv("HAMMERSPOON_DIR")
            or ((os.getenv("HOME") or ".") .. "/.hammerspoon")
 
+-- 🕒 6.282.0 — THE CLOCK IS A FLOAT, BECAUSE macOS'S IS.
+-- `hs.timer.secondsSinceEpoch()` returns a FLOAT on a real Mac
+-- (1758769234.8231); this stub answered the integer 1000 for eighteen
+-- releases, and os.date accepts an integer and RAISES on a float. So
+-- every check that rendered the report with `areaLast` set was green
+-- here and threw on his Mac. 6.193.0 for the eighth time, and the new
+-- half of it: A STUB CAN BE GENTLER IN A VALUE'S TYPE, not only in its
+-- behaviour or its arity. Answer the shape the provider answers.
+local NOWF = 1000.4823
+
 local pass, fail, failures = 0, 0, {}
+-- 🧪 6.282.0 — A REPORT THAT RAISES FAILS A CHECK, IT DOES NOT END
+-- THE RUN. `RPT()` called bare inside a check's own
+-- expression takes the whole file down on a throw, and the gate reads
+-- that as "0 failed" (6.186.0, eighth time). RPT() turns a raise into a
+-- string no assertion can match, so the failure is reported as one.
+local function RPT()
+    local ok, out = pcall(_G.screenshotsReport)
+    if ok and type(out) == "string" then return out end
+    return "REPORT THREW: " .. tostring(out)
+end
+
 local function check(label, cond, extra)
     if cond then pass = pass + 1
     else fail = fail + 1
@@ -204,7 +225,7 @@ hs = {
     -- before 6.122.0 assumes. §12 sets DEFER_TIMERS to queue them instead,
     -- because a debounce that fires instantly is not a debounce and a test
     -- that cannot hold the timer cannot tell the difference.
-    timer = { secondsSinceEpoch = function() return 1000 end,
+    timer = { secondsSinceEpoch = function() return NOWF end,
               doAfter = function(secs, fn)
                   local t = { secs = secs, fn = fn, stopped = false }
                   function t:stop() self.stopped = true end
@@ -480,8 +501,8 @@ do
        S.areaLast and tostring(S.areaLast.why))
     ck("…and the report puts a ⚠️ on it, because a silent fallback reads "
        .. "exactly like the settings line he never wrote",
-       (_G.screenshotsReport():match("area    :[^\n]*") or ""):find("⚠️", 1, true) ~= nil,
-       _G.screenshotsReport():match("area    :[^\n]*"))
+       (RPT():match("area    :[^\n]*") or ""):find("⚠️", 1, true) ~= nil,
+       RPT():match("area    :[^\n]*"))
     if TASKS[#TASKS] then TASKS[#TASKS].cb() end
 
     -- ---- 🚨 THE CASE THAT ACTUALLY HAPPENED (6.265.0) -------------------
@@ -999,7 +1020,7 @@ do
        DIRS[SL] == true and S.sliceHome and S.sliceHome.dir == SL
        and S.sliceHome.how:find("local", 1, true) ~= nil, S.sliceHome and S.sliceHome.how)
     ck("…and the report's new 'slices :' line names it",
-       _G.screenshotsReport():find("slices  : " .. SL, 1, true) ~= nil)
+       RPT():find("slices  : " .. SL, 1, true) ~= nil)
     ck("the run is recorded as running, 3 slices planned",
        S.scrollLast and S.scrollLast.outcome == "running" and S.scrollLast.planned == 3,
        S.scrollLast and S.scrollLast.planned)
@@ -1032,11 +1053,11 @@ do
        _G.__lastCanvas.elements[2].frame.y)
     ck("the report names the run: planned, shot, decoded, ok, the file",
        (function()
-           local r = _G.screenshotsReport()
+           local r = RPT()
            return r:find("3 planned · 3 shot · 3 decoded · ok", 1, true) ~= nil
               and r:find("(scrolling).png", 1, true) ~= nil
               and r:find("slice 01: exit 0 · 50000 bytes", 1, true) ~= nil
-       end)(), _G.screenshotsReport())
+       end)(), RPT())
 
     -- ---- screencapture fails on slice 1: exit 1, stderr, no file ------
     local a1 = #ALERTS
@@ -1058,8 +1079,8 @@ do
        (run.why or ""):find("Screen Recording", 1, true) ~= nil, run.why)
     ck("…and no second slice was started", #TASKS == t0 + 4, #TASKS - t0)
     ck("the report repeats it slice by slice",
-       _G.screenshotsReport():find("slice 01: exit 1 · no file · screencapture: could not create image", 1, true) ~= nil,
-       _G.screenshotsReport())
+       RPT():find("slice 01: exit 1 · no file · screencapture: could not create image", 1, true) ~= nil,
+       RPT())
 
     -- ---- exit 0 but the file is empty ----------------------------------
     runSelector()
@@ -1085,7 +1106,7 @@ do
        run.why)
     ck("🚨 …and the slices are KEPT for a look, not discarded",
        FILES[SL .. "/scroll-slice-01.png"] ~= nil and FILES[SL .. "/scroll-slice-02.png"] ~= nil
-       and _G.screenshotsReport():find("KEPT for a look: " .. SL .. "/scroll-slice-NN.png", 1, true) ~= nil)
+       and RPT():find("KEPT for a look: " .. SL .. "/scroll-slice-NN.png", 1, true) ~= nil)
     ck("…and nothing reached the clipboard", #COPIES == c0 + 1, #COPIES - c0)
     NODECODE = nil
     for n = 1, 3 do FILES[SL .. ("/scroll-slice-%02d.png"):format(n)] = nil end
@@ -1126,7 +1147,7 @@ do
        TASKS[#TASKS].args[3])
     ck("…and the report says 'temporary' and names what could not be created",
        S.sliceHome and S.sliceHome.dir == "/tmp/hs-test"
-       and _G.screenshotsReport():find("temporary — " .. S.sliceDir .. " could not be created", 1, true) ~= nil,
+       and RPT():find("temporary — " .. S.sliceDir .. " could not be created", 1, true) ~= nil,
        S.sliceHome and S.sliceHome.how)
     S.scrollLast = nil
     DIRS["/tmp/hs-test"] = nil
@@ -1140,7 +1161,7 @@ do
        and #ALERTS > aN and ALERTS[#ALERTS]:find("no folder for the slices", 1, true) ~= nil,
        S.scrollLast and S.scrollLast.why)
     ck("…and the report's 'slices :' line reads NONE, not a folder",
-       _G.screenshotsReport():find("slices  : ⚠️ NONE — neither", 1, true) ~= nil)
+       RPT():find("slices  : ⚠️ NONE — neither", 1, true) ~= nil)
     FILES[HOME .. "/afile"] = { size = 3, mode = "file", modification = 1 }
     S.sliceDir = HOME .. "/afile"
     NOMKDIR = nil
@@ -1935,7 +1956,7 @@ check("triedVerdict is PURE and answers WHY, in three branches",
 out("   -- 🔎 the report can SEE a runaway now --\n")
 S.ocrStarted, S.namedOnArrival = 9, 1
 printed = {}
-_G.screenshotsReport()
+RPT()
 local rep281 = table.concat(printed, "\n")
 check("🔎 the report names the OCRs themselves — through a runaway the old "
       .. "line read 'named on arrival 0 · left for ⌘9 0' and nothing more",
@@ -1946,14 +1967,14 @@ check("🔎 the report names the OCRs themselves — through a runaway the old "
 check("…the yield line never divides by a run that did not happen (6.230.0)",
       (function()
           local sv = S.ocrStarted ; S.ocrStarted = 0
-          printed = {} ; _G.screenshotsReport()
+          printed = {} ; RPT()
           local r = table.concat(printed, "\n") ; S.ocrStarted = sv
           return r:find("no OCR has run this session", 1, true) ~= nil
       end)())
 check("…and 'nothing has OCR'd to nothing yet' is a THIRD state, not a zero",
       (function()
           local sv = S.tried ; S.tried = {}
-          printed = {} ; _G.screenshotsReport()
+          printed = {} ; RPT()
           local r = table.concat(printed, "\n") ; S.tried = sv
           return r:find("nothing has OCR'd to nothing yet", 1, true) ~= nil
       end)())
@@ -2150,7 +2171,7 @@ do
     cv4.cb(cv4, "mouseMove", "_canvas_", 110, 110)
     ck("…and dragging with it off draws nothing and throws nothing",
        cv4.elements[2].frame.w == 100 and #cv4.elements == 2)
-    local rOff = _G.screenshotsReport()
+    local rOff = RPT()
     ck("the report says OFF, and names the one line that puts it back",
        rOff:find("size    : OFF", 1, true) ~= nil
        and rOff:find("sizeReadout = false", 1, true) ~= nil)
@@ -2160,18 +2181,18 @@ do
     -- ---- the report: three states that must not read alike --------------
     local keptLast, keptFailed = S.sizeLast, S.sizeFailed
     S.sizeLast, S.sizeFailed = nil, nil
-    local r0 = _G.screenshotsReport()
+    local r0 = RPT()
     ck("🚨 on but never dragged is NOT the same line as off, and NOT the "
        .. "same as drawn (6.196.1)",
        r0:find("nothing dragged yet", 1, true) ~= nil
        and r0:find("OFF", 1, true) == nil, r0:match("size    :[^\\n]*"))
     S.sizeLast = { w = 240, h = 180, why = "below the selection", at = os.time() }
-    local r1 = _G.screenshotsReport()
+    local r1 = RPT()
     ck("…and once something has been dragged it names the size and the placement",
        r1:find("240 × 180 · below the selection", 1, true) ~= nil,
        r1:match("size    :[^\\n]*"))
     S.sizeFailed = "the readout threw mid-drag — the selection itself is unaffected"
-    local r2 = _G.screenshotsReport()
+    local r2 = RPT()
     ck("🚨 a readout that threw outranks a healthy-looking last size — "
        .. "otherwise the line reads as health on a broken Mac",
        r2:find("⚠️ the readout threw", 1, true) ~= nil
@@ -2185,37 +2206,37 @@ do
     -- pinning the old sentence is what makes anyone notice.
     ck("…and the line names WHERE the readout appears, ⇪4 among them",
        (function()
-           local r = _G.screenshotsReport()
+           local r = RPT()
            return r:find("⇪4", 1, true) ~= nil
                   and r:find("⇪4 is macOS's own crosshair", 1, true) == nil
-       end)(), _G.screenshotsReport():match("↳ ⇪4[^\n]*"))
+       end)(), RPT():match("↳ ⇪4[^\n]*"))
 
     -- ---- 📐 6.264.0 — the area line's three states ---------------------
     local keptLastArea, keptNative = S.areaLast, S.areaNative
     S.areaLast, S.areaNative = nil, false
     ck("never pressed reads as never pressed, not as a fault",
        (function()
-           local l = _G.screenshotsReport():match("area    :[^\n]*") or ""
+           local l = RPT():match("area    :[^\n]*") or ""
            return l:find("not pressed yet", 1, true) ~= nil
                   and l:find("⚠️", 1, true) == nil
-       end)(), _G.screenshotsReport():match("area    :[^\n]*"))
+       end)(), RPT():match("area    :[^\n]*"))
     S.areaLast = { how = "ours", why = "our selector, with the live size readout",
-                   at = 1000 }
+                   at = NOWF }
     ck("our selector reads as health",
-       (_G.screenshotsReport():match("area    :[^\n]*") or ""):find("⚠️", 1, true) == nil)
+       (RPT():match("area    :[^\n]*") or ""):find("⚠️", 1, true) == nil)
     S.areaNative = true
     S.areaLast = { how = "native", why = "macOS's own crosshair and HUD — your "
-                   .. "settings line asked for it", at = 1000 }
+                   .. "settings line asked for it", at = NOWF }
     ck("🚨 HIS OWN SETTINGS LINE IS NOT A FAULT — no ⚠️ when he asked for it",
-       (_G.screenshotsReport():match("area    :[^\n]*") or ""):find("⚠️", 1, true) == nil,
-       _G.screenshotsReport():match("area    :[^\n]*"))
+       (RPT():match("area    :[^\n]*") or ""):find("⚠️", 1, true) == nil,
+       RPT():match("area    :[^\n]*"))
     S.areaNative = false
     S.areaLast = { how = "native", why = "our selector could not start (hs.canvas "
-                   .. "would not make the selector)", at = 1000 }
+                   .. "would not make the selector)", at = NOWF }
     ck("🚨 …but a Mac that FELL BACK to it says so with a ⚠️, because those "
        .. "two look identical on screen and are opposite facts",
-       (_G.screenshotsReport():match("area    :[^\n]*") or ""):find("⚠️", 1, true) ~= nil,
-       _G.screenshotsReport():match("area    :[^\n]*"))
+       (RPT():match("area    :[^\n]*") or ""):find("⚠️", 1, true) ~= nil,
+       RPT():match("area    :[^\n]*"))
     S.areaLast, S.areaNative = keptLastArea, keptNative
 
     check("the 6.260.0 block ran every one of its checks", n14 == 44, n14)
@@ -2239,7 +2260,7 @@ do
 
     ck("a session with no ⇪4 in it says so, rather than reading as zero presses"
        .. " of a working key",
-       _G.screenshotsReport():find("has not been pressed this session", 1, true) ~= nil)
+       RPT():find("has not been pressed this session", 1, true) ~= nil)
 
     -- 1. the ordinary press, on our selector
     S.areaNative = false
@@ -2267,7 +2288,7 @@ do
        S.areaRuns.native .. " native / " .. S.areaRuns.refused .. " refused")
     if TASKS[#TASKS] then TASKS[#TASKS].cb() end
 
-    local rep = _G.screenshotsReport()
+    local rep = RPT()
     ck("the report names the routes apart",
        rep:find("3 press(es)", 1, true) ~= nil
        and rep:find("1 on our selector", 1, true) ~= nil
@@ -2293,8 +2314,8 @@ do
     ck("…and it is COUNTED, so a silent ⇪4 is never a session with no evidence",
        S.dirFails == 1, S.dirFails)
     ck("…and the report names it with the folder it looked for",
-       (_G.screenshotsReport():match("found no folder[^\n]*") or ""):find(DIR, 1, true) ~= nil,
-       _G.screenshotsReport():match("found no folder[^\n]*"))
+       (RPT():match("found no folder[^\n]*") or ""):find(DIR, 1, true) ~= nil,
+       RPT():match("found no folder[^\n]*"))
     ck("…and that press is NOT counted as a route it never took",
        S.areaRuns.ours == 0 and S.areaRuns.native == 0,
        S.areaRuns.ours .. "/" .. S.areaRuns.native)
@@ -2302,6 +2323,65 @@ do
     S.areaNative, S.areaRuns, S.dirFails = keptNative, keptRuns, keptFails
     DIRS[DIR] = true
     check("the 6.274.0 block ran every one of its checks", n15 == 10, n15)
+end
+
+-- =====================================================================
+-- 16. 🕒 6.282.0 — THE REPORT DIED ON A FLOAT
+-- =====================================================================
+-- LL ran `_G.screenshotsReport()` and got a traceback instead of a
+-- report: "bad argument #2 to 'date' (number has no integer
+-- representation)". `shots.areaLast.at` is written from
+-- hs.timer.secondsSinceEpoch(), which is a FLOAT, and os.date refuses
+-- one — so the instrument this project asks him to paste was dead in
+-- every session in which he had pressed ⇪4 even once, since 6.264.0.
+out("\n16. 🕒 6.282.0 — the report died on a float (os.date refuses one)\n")
+do
+    local n16 = pass + fail
+    ck = function(label, cond, extra) check(label, cond, extra) end
+
+    -- ✏️ the pure helper, branch by branch
+    ck("a float is floored, not refused", S.clockText(1000.4823) == os.date("%H:%M:%S", 1000))
+    ck("…and an integer answers exactly the same thing",
+       S.clockText(1000) == S.clockText(1000.4823))
+    ck("a whole second is unchanged", S.clockText(1000) == os.date("%H:%M:%S", 1000))
+    -- 0 is what the writer leaves when the clock could not be read, so
+    -- it must NOT read as 1970 — a plausible-looking wrong time in a
+    -- report is worse than a sentence saying there is none.
+    ck("0 reads as 'not recorded', never as 1970",
+       S.clockText(0) == "time not recorded", S.clockText(0))
+    ck("nil reads as 'not recorded'", S.clockText(nil) == "time not recorded")
+    ck("a string reads as 'not recorded'", S.clockText("lunchtime") == "time not recorded")
+    ck("a negative reads as 'not recorded'", S.clockText(-5) == "time not recorded")
+    -- 🚨 IT NEVER RAISES. Everything above is a value a report might
+    -- meet; the rule is that none of them can end the report.
+    ck("🚨 no input raises — a report must not die describing itself",
+       (function()
+           for _, v in ipairs({ 0, -1, 1000, 1000.4823, 1/0, -1/0, "x", true, {} }) do
+               if not pcall(S.clockText, v) then return false end
+           end
+           return pcall(S.clockText, nil)
+       end)())
+
+    -- 🚨 AND THE CHECK THAT EARNS ITS PLACE DRIVES THE WHOLE PATH: proving
+    -- a pure function is not proving that the report CALLS it (6.264.0's
+    -- own lesson, in the module 6.264.0 broke). Press ⇪4 for real, then
+    -- render — which is exactly what LL did.
+    local keptArea, keptRuns = S.areaLast, S.areaRuns
+    S.areaRuns = { ours = 0, native = 0, refused = 0 }
+    HYPER["|4"]()
+    ck("🚨 ⇪4 stores a FLOAT, as macOS hands it over",
+       type(S.areaLast) == "table" and math.floor(S.areaLast.at) ~= S.areaLast.at,
+       S.areaLast and tostring(S.areaLast.at))
+    local rendered = RPT()
+    ck("🚨 …and the report RENDERS after it instead of throwing",
+       rendered:find("REPORT THREW", 1, true) == nil, rendered:sub(1, 120))
+    ck("…with a real clock on the area line, not a refusal",
+       (rendered:match("area    :[^\n]*") or ""):find("last pressed %d%d:%d%d:%d%d") ~= nil,
+       rendered:match("area    :[^\n]*"))
+    S.areaLast, S.areaRuns = keptArea, keptRuns
+
+    check("the 6.282.0 block ran every one of its checks", (pass + fail) - n16 == 11,
+          (pass + fail) - n16)
 end
 
 -- =====================================================================
