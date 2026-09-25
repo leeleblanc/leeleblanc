@@ -74,9 +74,28 @@ work Mac.
      delivery fails three times and every fix so far changed something
      inside the SAME pipeline, the pipeline IS the variable — stop
      refining it and route around it.
-     🚨 IF THE TAR.GZ ALSO ARRIVES EMPTY, do not try a fourth
-     container: the GitHub link is then the delivery, and the next thing
-     to change is that he installs from a clone or a single curl line.
+  📎 6.281.0 — AND HE NAMED THE ROUTE THAT WORKS: **INLINE, NOT GITHUB**
+     (LL, on the 6.281.0 GitHub page: "Empty zip again. When you put it
+     inline, it was perfect. Put it inline again and not to github.").
+     So the delivery is the file attached in the conversation, and the
+     GitHub URL is NOT offered — not as a second route, not as a
+     footnote. The clause that used to sit here said the GitHub link
+     becomes the delivery if the tar.gz also arrived empty; he has
+     answered that question the other way and his answer wins.
+     🔎 AND THE FACT WORTH KEEPING, because it is the opposite of the
+     three that came before: that page was NOT an empty file. It read
+     `2.61 MB` and "Sorry about that, but we can't show files that are
+     this big right now" — GitHub REFUSING TO PREVIEW a 2.6 MB binary,
+     which is a viewer limit and says nothing about the bytes. Four
+     "empty archive" reports, and the fourth one is a rendering message.
+     GENERAL: when a delivery is reported broken for the Nth time, check
+     whether the evidence is about the ARTEFACT or about the VIEWER —
+     they look identical from the person's side and have opposite fixes.
+     📣 The numbers still go in the message (entries, MB, the version
+     grepped out of an unpacked init.lua), because they are what tells a
+     bad build from a bad delivery. The archive is still committed — the
+     repo is the archive and a rollback needs it — it is simply not the
+     route he is pointed at.
 - ✍️ LL DOES NOT EDIT init.lua AND A SETTINGS LINE IS NOT AN ANSWER
   (6.267.0, LL: "I do not edit the init.lua so I don't cause simple
   errors. You are to generate and test a new init.lua."). Every
