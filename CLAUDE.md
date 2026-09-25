@@ -3572,6 +3572,40 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   desktop-jumping suspect) · `_G.mouseFollowsReport()` and
   `_G.mouseGridReport()`. He is on a BETA OS that has already aborted
   his process twice from inside AppKit.
+- ⚠️ THE ASANA TEAM NAME DOES NOT MATCH, AND IT IS BOTH MACS
+  (2026-09-24, the home Mac's own boot log; it was in the work Mac's
+  before that, and was filed here as a work-Mac thing). The NONBREAKING
+  block carries `⚠️ Asana team not found by name: "| 2. SAC Library Team
+  Member Projects & Tasks |"`. Lees-MacBook-Air prints it too, so it is
+  NOT per-machine drift — the string in the config does not match the
+  string Asana holds, anywhere.
+  🔎 READ, NOT GUESSED, and it narrows the suspects sharply:
+  asana_comments.lua:69 configures TWO names and only the SECOND warned,
+  so team 1 matched and `#asanaTeamGids > 0` — which means the
+  whole-workspace FALLBACK at :122 never fires. The comparison at :97 is
+  already `:lower()` AND trimmed at both ends on BOTH sides, so the
+  warning's own advice ("check spelling/spacing") is partly stale: outer
+  whitespace and case CANNOT be the cause. What is left is the inside of
+  the string — the `&` (Asana may hold "and"), a doubled or
+  non-breaking space, the pipes, the number — or a team his token
+  cannot see.
+  📏 WHAT IT COSTS, exactly, so it is not over- or under-sold: that
+  team's members are absent from `_G.asanaTeamMembers`, whose one
+  consumer is ⇪T's assignee suggestions (task_form.lua:148). A name
+  that is not on the list STILL SUBMITS — the module says so in its own
+  comment and `_G.asanaSubmitTask` validates properly. So it is a
+  shortened picker, not a broken door, which is why it has survived in a
+  boot log for this long.
+  🔎 ASK FOR THE ARTEFACT BEFORE CHANGING A STRING (6.201.0): the fix
+  is a one-line rename and a WRONG rename is silent — it would warn
+  identically. So it waits on Asana's OWN name for that team (his Asana
+  sidebar, copied exactly). 🔒 NOT by a curl with his token: the token
+  lives only in secret.lua and never in a process argument list. 📋 THE
+  RELEASE-SHAPED ANSWER, when its turn comes, is `_G.asanaTeams()` — the
+  module already fetches `/teams?opt_fields=name` and throws the list
+  away; printing what Asana ANSWERED beside what we asked for is the
+  instrument, and it makes the rename unguessable.
+
 - 🔄 ASANA AUTO-REFRESH EVERY 15 MINUTES (LL, 2026-09-20, with a draft:
   a `hs.timer.doEvery(900)` that activates Asana, posts ⌘R and activates
   the previous app back). WANTED — but not as written, and the design
@@ -4817,6 +4851,25 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   It should now be a fraction of that, with NEITHER of those two modules
   at the top. Paste the new line — that is the whole measurement, and it
   is the number to compare.
+  ✅ ANSWERED ON THE HOME MAC (2026-09-24 20:38, on 6.281.0, which
+  carries it): THERE IS NO ⏱ LINE, AND THAT IS THE MEASUREMENT.
+  `cost.line()` returns nil unless a module crossed `slowModuleMs` (150)
+  or the load crossed `slowTotalMs` (1500) — a fast boot is silent by
+  design. What printed instead: `🧭 Lees-MacBook-Air · 71 modules ·
+  106 ⇪ shortcuts · 0.22s`, All green. AND THE COMPARISON IS
+  CONSERVATIVE: 0.22 s is the 🧭 line's WHOLE-BOOT wall clock
+  (init.lua:148's `_G.diagBootStart` to the summary print), while 453 ms
+  was the ⏱ line's module-load SUM alone — the superset now costs less
+  than half what the subset did, so file_tracker's 200 ms and
+  activity_tracker's 150 ms are provably off the boot path. NOT SCORED:
+  he pasted a boot log, not a verdict, and only he scores.
+  🚨 GENERAL, and it is the half to carry: AN INSTRUMENT BUILT TO BE
+  SILENT ON A HEALTHY MAC CANNOT BE ASKED FOR BY NAME. This block told
+  him to paste a line that a WORKING release guarantees will not exist,
+  so a pass reads as "he skipped the step" — 6.196.1's two-states
+  problem, inside a test plan instead of a report. When a step asks for a
+  threshold-gated instrument, say what its ABSENCE means in the same
+  breath.
   🔎 WHAT MOVED: both of those modules opened a CSV in OneDrive during
   boot, read it whole, parsed months of rows and sometimes rewrote the
   file — on the main thread, before any ⇪ key was bound. They read it a
