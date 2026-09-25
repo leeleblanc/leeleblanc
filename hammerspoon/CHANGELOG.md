@@ -5,6 +5,127 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.281.0 — 🔁 A SCREENSHOT THAT OCR'd TO NOTHING IS NOT OCR'd FOR
+EVER (modules/screenshots.lua, tests/test_screenshots.lua):
+
+  LL, with a photograph of two green pills in his menu bar: "Those green
+  icons are OCR screenshot shortcuts and we use them as part of our OCR
+  tool." Then, which is the release: "ok the problem is those green
+  icons just do something like loop and loop and loop like it's running
+  OCR nonstop."
+
+🔎 EACH GREEN PILL IS A PROCESS, and that is the whole diagnosis. They
+  are not hs.menubar items this config creates — macOS draws one per
+  running `/usr/bin/shortcuts run "HS OCR" -i <image>`. So "two pills"
+  means "two OCRs in flight", and a pill that never goes away means a
+  new process is starting as fast as the last one finishes.
+  GENERAL, and it cost a wrong answer first: "not created by this
+  config" is not "not caused by this config". A grep for hs.menubar
+  gave a true answer to the wrong question.
+
+🚨 THE QUALIFIER NEVER STOPPED QUALIFYING. `shots.wantsName` refuses a
+  file only once its NAME contains " — ", and `shots.nameByText` writes
+  a name only when OCR comes back with `code == 0 and text ~= ""`. There
+  was no else. So an image with no readable words in it — a photograph,
+  a dark-mode panel, a diagram — was never renamed, never remembered,
+  and re-qualified on every single folder event, for ever, one
+  `shortcuts` process each time.
+  AND ONEDRIVE MADE IT SELF-SUSTAINING: reading a dehydrated placeholder
+  to OCR it HYDRATES the file, a hydration is a write, and a write is
+  another FSEvents event on the same file. The OCR re-triggers the
+  watcher for the file it just OCR'd, with no outside input at all.
+
+🚨 THE ONE GUARD THAT COULD HAVE STOPPED IT ANSWERS A DIFFERENT
+  QUESTION. `shots.own` is "did I write this", not "have I handled
+  this", and it is set in four places, all of them files this module
+  wrote itself. A OneDrive arrival can never be in it — so the guard
+  could never fire for the exact population the watcher exists to serve.
+
+🚨 AND `shots.watchCap` (20) BOUNDS THE QUEUE, NOT THE WORK. Once the
+  queue drains below twenty, twenty more are queued. That is 6.229.0's
+  rule exactly, in a second module: a budget on the size of one event is
+  not a budget on the cost of a feature.
+
+🔑 THE FIX IS THAT A FAILURE IS REMEMBERED. `shots.tried` holds the
+  paths that OCR'd to nothing and how many times; past `shots.triedMax`
+  (3) the watcher stops offering the file. `shots.triedVerdict` is PURE
+  and answers the refusal AND why, so the whole rule is proven with no
+  Mac; `shots.noteTried` is bounded by `shots.triedKeep` (400), oldest
+  forgotten first, and the check drives it past the bound rather than
+  asserting the bound exists (6.187.0).
+
+🔑 FAILURES ONLY, AND THAT IS AN ECONOMY, NOT AN OVERSIGHT. A SUCCESS
+  renames the file, the new name carries " — ", and wantsName refuses it
+  for ever — the rename IS the memory. Recording successes would spend a
+  bounded table on keys that can never be looked up again (the file they
+  name no longer exists) and evict the word-less entries it exists to
+  hold. GENERAL: before adding a thing to a bounded store, ask whether
+  the system already remembers it somewhere that cannot be evicted.
+
+🚨 NOTHING RAN IS NOT EVIDENCE, and this is the branch that would have
+  turned a fix into a data-loss-of-function bug. `nameByText` answers
+  `onDone(nil)` at TWO exits without ever spawning a process: no OCR
+  Shortcut on this Mac, and `hs.task.new` refusing. Recording an attempt
+  on either would mean that one OCR outage permanently blacklists every
+  file it touched — silently, with no message, for ever. The callback
+  hands back a REASON now ("named" · "no text" · "no name" · "failed" ·
+  "not run") and only a process that really ran is evidence. Its own
+  check, and the check had to drive the failed SPAWN specifically:
+  drainQueue turns an absent Shortcut away before nameByText is reached,
+  so the first version of that check passed with the guard deleted
+  (6.273.0 — when a fix lands on a line no mutation can kill, the line
+  is not the finding, the missing check is).
+
+🔎 FOUR OUTCOMES, NOT TWO. "OCR read nothing" and "OCR read words that
+  slug to nothing" and "the Shortcut never ran" all arrived at the
+  caller as the same nil. They are three different facts with three
+  different right answers (6.196.1).
+
+🎵 ⌘9 RECORDS WHAT IT LEARNS AND IS NEVER REFUSED. The sweep does not
+  ask the gate — a mode says what a tool does on its own, it never
+  refuses an instruction (6.231.0) — but a silent OCR it runs still
+  counts, because an OCR is an OCR whoever asked for it. That also makes
+  ⌘9 the escape hatch for a file the watcher has given up on.
+
+🔎 AND THE REPORT COULD NOT SEE THE RUNAWAY — which is why "I don't
+  know" was the only honest answer to "is it looping?", and why no
+  number from his Mac could have proved it. `namedOnArrival` counts only
+  SUCCESSES and `leftForSweep` only cap OVERFLOW, so a word-less image
+  incremented NEITHER: the line read "named on arrival 0 · left for ⌘9
+  0" for as long as the loop ran. 6.196.1's rule broken inside the
+  report built to keep it. The report counts the OCRs themselves now —
+  run, named, read no text, no usable name, failed, never ran — with a
+  yield line beside them (6.229.0) that never divides by a run that did
+  not happen (6.230.0), and a tried line with three states.
+
+📏 COST, NAMED: the set is in MEMORY, not on disk. hs.settings writes
+  the whole Hammerspoon domain on the main thread (6.228.0) and this
+  folder is the one the watcher watches (6.229.0), so persisting it
+  would put the burst-problem's fix inside the burst. So a reload gives
+  every word-less file triedMax fresh attempts, once. That is finite;
+  what it replaces was not.
+
+📏 NAMED, NOT FIXED, three of them, each its own release:
+  · The screenshot editor's ⌘⏎ save writes "<name> (edited).png" into
+    this folder and never claims it in `shots.own` — so every save of an
+    un-named shot is one more OCR. The tried-set BOUNDS it (that is the
+    test of whether a fix closes a class rather than an instance), but
+    the unclaimed write is still a bug: one line, its own release.
+  · `nameByText`'s task has no killer timer. A hung `shortcuts` leaves
+    `nameBusy` true and the queue never drains again.
+  · `shots.watchFolder = false` stops arrivals being queued, so it does
+    stop THIS loop — but the pathwatcher is created inside setup() and
+    profile settings land after setup, so the FSEvents wake-up still
+    arrives. 6.228.0's `wm.enabled` shape, in a second module.
+
+🧪 THIRTEEN MUTATIONS, THIRTEEN BITES, and two of them found missing
+  checks rather than confirming written ones: the "nothing ran" guard
+  (above), and `ocrStarted`, which was asserted only against a number
+  the test had set by hand — so deleting the increment entirely passed.
+  It is counted where a process really exists now, after `t:start()`,
+  never at the gate: nameByText can answer synchronously without
+  spawning, and drainQueue re-enters itself on that path.
+
 NEW IN 6.280.0 — 🗑 A NOTE CAN BE DELETED, AND IT GOES SOMEWHERE
 (modules/vault.lua, tests/test_vault.lua):
 

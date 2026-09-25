@@ -1,4 +1,4 @@
-# TESTING — how to score release 6.280.0
+# TESTING — how to score release 6.281.0
 
 You install ONE archive and it carries several releases. Below are the
 steps for each release this archive is new for, newest first. Run the
@@ -26,6 +26,90 @@ else is a LOSS and I fix it before building further. You are the only
 scorer; I never mark my own.
 
 ---
+
+## 6.281.0
+
+6.281.0 verify with LL — 🔁 THE GREEN PILLS STOP (KNOWN GROUND)
+WHAT CHANGED: a screenshot that OCRs to nothing is now remembered as
+tried, and the folder watcher stops offering it after three goes. ⌘9 is
+unchanged and still OCRs anything you point it at.
+WHY IT MATTERS: you said the green icons "loop and loop and loop like
+it's running OCR nonstop." Each green pill in your menu bar is one
+`shortcuts run "HS OCR"` process. A word-less image was never renamed,
+so it never stopped qualifying, so it was re-OCR'd on every folder
+event — for ever. And because reading a OneDrive placeholder HYDRATES
+it, and a hydration is a write, the OCR was re-triggering the watcher
+for the file it had just OCR'd. No outside input needed.
+🚨 THIS IS ALSO IN 6.275.0, the build you rolled back to — the watcher
+is 6.155.0 code. The rollback did not remove this; only this does.
+
+A. THE HEADLINE. Do this FIRST.
+A1. Install, then Console: `_G.screenshotsReport()`.
+    EXPECT a new block, and on a fresh boot it should read:
+      OCR     : 0 run · 0 named · 0 read no text · …
+      yield   : no OCR has run this session
+      tried   : nothing has OCR'd to nothing yet
+A2. Use the Mac for an hour, normally. Watch the menu bar.
+    EXPECT: pills appear when a screenshot arrives and GO AWAY. What
+    must not happen is a pill that is always there, or pills that
+    reappear the moment they vanish.
+A3. `_G.screenshotsReport()` again. This is the artefact I want.
+    EXPECT "OCR : N run" to be a small number — roughly the number of
+    screenshots that actually arrived — and "tried : N file(s)
+    remembered · M at the 3-try cap".
+    A FAIL is "run" in the hundreds or thousands. Paste it either way.
+
+B. PROVE IT ON PURPOSE, if you want to see the rule work.
+B1. Put an image with NO words in it — a photo, a plain colour — into
+    the screenshots folder, named like `Screenshot 2026-09-26 at
+    10.00.00.png`.
+    EXPECT: three OCRs (three brief pills), then silence. Before this
+    release it would have gone on for as long as Hammerspoon ran.
+B2. `_G.screenshotsReport()` — the "tried" line names it, and says the
+    watcher no longer offers it while ⌘9 still does.
+
+C. MUST STILL WORK. This release touched the naming path, so this is
+   the regression sweep and it is the important half.
+C1. ⇪4, drag, let go. The shot lands and is named from its words as
+    ever.
+C2. Drop a screenshot WITH text into the folder from the other Mac (or
+    just take one). EXPECT: it is renamed to "… — <its words>.png"
+    within a few seconds, exactly as before.
+C3. ⇪⇧5 then ⌘9 (the naming sweep). EXPECT: it still names everything
+    it can, and still reports "N had no readable text". ⌘9 must never
+    refuse a file — if it ever says it is skipping something, that is a
+    real failure and I want to know at once.
+C4. ⇪5 scrolling capture, and ⇪⇧1 the editor. Unchanged.
+
+D. PASTE BACK, PASS OR FAIL.
+D1. `_G.screenshotsReport()` after a full day. The "OCR" and "tried"
+    lines are the whole answer, and they are the numbers that could not
+    be asked for before: through the entire runaway the old report read
+    "named on arrival 0 · left for ⌘9 0", because it counted only
+    successes and only cap overflow. A word-less image incremented
+    neither.
+D2. If a pill is ever stuck on screen with nothing else happening,
+    paste the report then too — that would be a hung `shortcuts`
+    process, which is a DIFFERENT bug I have named and not fixed (there
+    is no timeout on that task yet).
+
+E. A JUDGEMENT ONLY YOU CAN MAKE.
+E1. Three tries per file — right? A file gets three OCRs before the
+    watcher gives up on it. Fewer is quieter; more is more forgiving of
+    a OneDrive file that had not finished downloading the first time.
+    "three is fine" · "make it two" · "make it five" decides it.
+E2. The memory is in RAM, not on disk, on purpose — writing it would
+    mean a main-thread write into the very folder this watcher watches.
+    The cost is that a reload or a reboot gives every word-less image
+    three fresh tries, once. If you reload often and notice a small
+    burst of pills after each one, tell me and I will move it to disk
+    properly, with the write off the main thread.
+E3. How many word-less screenshots do you actually have? One line:
+    `ls "$HOME/Library/CloudStorage/OneDrive-Personal/2026 Screenshots" | grep -E '^(Screenshot |SCR-[0-9]{8}-)' | grep -vc ' — '`
+    That number is how big the burst in E2 is, and it also decides
+    whether ⌘9's 40-file cap needs raising — a separate release.
+
+
 
 ## 6.280.0
 
@@ -205,60 +289,6 @@ E2. Next release (6.279.0) is the log you asked for — every tool that
     failed today, in one command, so 4 PM is a single check rather than
     a memory test. Tell me if you would rather have it somewhere other
     than the Console.
-
-
-
-## 6.277.0
-
-6.277.0 verify with LL — 🔖 ⇪3 PUTS YOU BACK (KNOWN GROUND)
-WHAT CHANGED: ⇪3 reopens the note you were last writing in, instead of
-whatever was left on screen. ⇪N is unchanged — it still opens the tabs.
-WHY IT MATTERS: your words. With thousands of notes, having to find the
-one you were in every time is the tool asking you to do its job.
-🔎 AND THE HONEST PART: the note was ALREADY being remembered, on every
-open, for releases. It was only ever read when nothing was open — and
-one press of ⇪N left a scratch tab "open" for the rest of the session,
-so it was almost never read. Nothing was lost; it just could not be
-reached.
-
-A. THE HEADLINE.
-A1. Press ⇪3, open a real note, type a word in it. Press ⇪3 to close.
-A2. Press ⇪N (the tabs), look at Scratch 1, press ⇪N to close.
-A3. Press ⇪3.
-    EXPECT: the NOTE from A1, open, with your word in it.
-    A FAIL is landing on Scratch 1 — that is the old behaviour exactly.
-A4. Do A1–A3 again but reload Hammerspoon between closing and reopening.
-    EXPECT: the same note. This is the path that used to work, so if A3
-    passes and A4 fails, tell me — that is a different bug.
-
-B. MUST STILL WORK.
-B1. ⇪N still opens on the tabs, never on the note. Press it twice.
-B2. ⌘F filter, ↑↓, ⏎ to open a note — all as before.
-B3. Open a note, close with ⇪3, reopen: your unsaved keystrokes are
-    still there (the save-on-close path is untouched).
-
-C. THE ONE THAT PROTECTS YOUR WRITING — worth doing once.
-C1. Open a note, close Hamsidian, then RENAME or delete that note's .md
-    file in Finder (pick something you do not mind losing).
-C2. Press ⇪3.
-    EXPECT: it opens on the notes list, and it does NOT re-create the
-    note you just removed. Check Finder: the file must still be gone.
-    A FAIL here — the file reappearing — is the worst outcome in this
-    release and I want to know immediately.
-C3. Console: `_G.vaultReport()`, the new "back to:" line.
-    EXPECT: "remembered <name> — this vault no longer holds it", with a
-    ⚠️ under it. In normal use it reads "reopened <name>".
-
-D. PASTE BACK, PASS OR FAIL.
-D1. `_G.vaultReport()` — the whole block, after doing A1–A3.
-
-E. A JUDGEMENT ONLY YOU CAN MAKE.
-E1. ⇪3 now always goes back to the last NOTE, even if the last thing
-    you touched was a scratch tab. Is that right, or would you rather
-    it returned to whichever of the two you saw last, whatever it was?
-    "notes always" · "whatever I saw last" decides it. I picked the
-    first because it is what you described, and because ⇪N already
-    gives you the tabs in one press.
 
 
 

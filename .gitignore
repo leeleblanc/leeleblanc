@@ -68,11 +68,11 @@ hammerspoon*.zip
 #   tar -xzf hammerspoonX.Y.Z.tar.gz -C /tmp/verify && sed -n 7p /tmp/verify/init.lua
 #
 hammerspoon*.tar.gz
-!hammerspoon6.275.0.tar.gz
-# 6.275.0 ONLY: a .zip beside the .tar.gz because LL asked for the zip by
-# name. The 6.266.0 rule (tar.gz, because three zips in a row arrived
-# unopenable) is NOT reversed — this is one release carrying both so he
-# can say which one actually opens on the work Mac, and the next release
-# carries only that one. COST: ~2.7 MB of git history that never comes
-# back, on top of the tar.gz's 2.6 MB.
-!hammerspoon6.275.0.zip
+# 🚨 THE UN-IGNORE IS PINNED TO A VERSION, SO IT GOES STALE SILENTLY —
+# and it had. It still named 6.275.0 five releases later, which means
+# every archive since was committed only because it was force-added by
+# hand, and the first release that forgot would have shipped a commit
+# with no archive in it and nothing saying so. MOVE THIS LINE IN THE
+# SAME COMMIT THAT BUILDS THE ARCHIVE, exactly as the previous one is
+# deleted there (ONE AT A TIME, above).
+!hammerspoon6.281.0.tar.gz

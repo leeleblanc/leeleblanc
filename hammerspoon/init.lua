@@ -2,11 +2,27 @@
 -- * Working VERSION *
 -- =====================================================================
 -- =====================================================================
--- 09-22-26 using Claude          ← EDITED date. Bumped with every release.
+-- 09-25-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.280.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.281.0
 -- =====================================================================
 
+-- NEW IN 6.281.0 — 🔁 A SCREENSHOT THAT OCR'd TO NOTHING IS NOT OCR'd
+--   FOR EVER (modules/screenshots.lua):
+--   LL, of the green menu-bar pills: "those green icons just do
+--      something like loop and loop and loop like it's running OCR
+--      nonstop." Each pill is one `shortcuts run "HS OCR"` process.
+--   🚨 THE QUALIFIER NEVER STOPPED QUALIFYING: wantsName() refuses a
+--      name only once it holds " — ", and a name is written only when
+--      OCR returns WORDS — so a word-less arrival re-qualified on EVERY
+--      folder event; OneDrive made it self-sustaining, since reading a
+--      placeholder hydrates it and that is another event on that file.
+--   🔑 FAILURES ONLY, IN MEMORY: a success RENAMES the file and the new
+--      name refuses itself. COST: a reload gives each word-less file
+--      triedMax fresh tries, once. 🎵 ⌘9 records but is never refused.
+--   🚨 NOTHING RAN IS NOT EVIDENCE: nameByText answers WHY, so an OCR
+--      outage cannot blacklist. 🔎 The old report read "0 · 0" (6.196.1).
+--
 -- NEW IN 6.280.0 — 🗑 A NOTE CAN BE DELETED, AND IT GOES SOMEWHERE
 --   (modules/vault.lua):
 --   LL, twice: "I don't understand why there is no delete" and "I have an
@@ -26,28 +42,12 @@
 --      backlink index lists only targets the scan has seen, so it answers
 --      "nobody" too reassuringly.
 --
--- NEW IN 6.279.0 — 📓 WHAT FAILED TODAY, AFTER A RELOAD
---   (core/notices.lua, init.lua):
---   LL: "Can you also create an error message log for any of my tools
---      that fail? I can check this log at 4pm for a double verification
---      that anything I was using today … worked."
---   🚨 THE LEDGER WAS MEMORY ONLY — a Lua table every reload empties,
---      and a reload is likeliest exactly when something broke and was
---      edited. Each degrade appends a row to <Logs>/degrades-<Mac>.csv.
---      APPEND-ONLY: no rewrite can lose yesterday while saving today.
---   🔁 THE LOGGER NEVER TAKES THE DOOR ITSELF (it would call itself for
---      ever on the first unwritable disk); it counts, and the report
---      names it. ⏳ It buffers until told where to write, or boot-time
---      degrades would be the missing ones.
---   🔎 THREE STATES (6.196.1): "no log to read" must NEVER print as
---      "nothing failed today" — a lie on the day the disk is full.
---
--- (6.278.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.279.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.280.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.281.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -144,7 +144,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.280.0"
+_G.configVersion = "6.281.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the

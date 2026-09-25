@@ -1778,6 +1778,9 @@ check("…and the seventh event does not even ARM a settle timer — the gate "
       #PENDING == 0, #PENDING)
 check("…the file is remembered exactly as many times as OCR really ran",
       S.tried[loopf] == S.triedMax and S.ocrNoText == S.triedMax, S.tried[loopf])
+check("…and ocrStarted counts PROCESSES — the green pills — matching the "
+      .. "three the fixture actually spawned", S.ocrStarted == S.triedMax,
+      S.ocrStarted)
 
 -- the race the SECOND gate exists for: a settle timer armed while the file
 -- was still a candidate, firing after the last OCR took it to the cap.
@@ -1821,6 +1824,37 @@ check("…and the moment the Shortcut is back, that file is offered again",
       #PENDING == 1, #PENDING)
 for _, pend in ipairs(PENDING) do pend.fn() end
 if TASKS[#TASKS] and TASKS[#TASKS].args[4] == outage then TASKS[#TASKS].cb(0, "", "") end
+
+out("   -- 🚨 and a spawn that FAILS is not evidence either --\n")
+-- drainQueue turns an absent Shortcut away before nameByText is ever
+-- called, so the guard in its callback is really about THIS: a Mac that
+-- cannot spawn the process at all. 6.273.0 — when a fix lands on a line
+-- no mutation can kill, the line is not the finding, the missing check is.
+S.tried, S.triedSeq = {}, {}
+S.nameBusy, S.queue = false, {}
+local startedBefore = S.ocrStarted
+local nospawn = NDIR .. "/SCR-20260925-nospawn.png"
+FILES[nospawn] = { mode = "file", size = 100, modification = mtScr }
+local realTaskNew = hs.task.new
+hs.task.new = function() return nil end
+PENDING = {}
+W.fn({ nospawn })
+for _, pend in ipairs(PENDING) do pend.fn() end
+hs.task.new = realTaskNew
+check("🚨 a Mac that cannot SPAWN the process records nothing — otherwise "
+      .. "an outage permanently blacklists every file it touched",
+      S.tried[nospawn] == nil, S.tried[nospawn])
+check("…and a spawn that never happened is not counted as an OCR that ran",
+      S.ocrStarted == startedBefore, S.ocrStarted - startedBefore)
+S.nameBusy, S.queue, S.leftForSweep = false, {}, 0
+PENDING = {}
+W.fn({ nospawn })
+check("…so that file is still a candidate the moment the Mac can spawn again",
+      #PENDING == 1, #PENDING)
+for _, pend in ipairs(PENDING) do pend.fn() end
+if TASKS[#TASKS] and TASKS[#TASKS].args[4] == nospawn then
+    TASKS[#TASKS].cb(0, "", "")
+end
 
 out("   -- four outcomes, not two --\n")
 local function driveOnce(p, code, text)
@@ -1924,7 +1958,7 @@ check("…and 'nothing has OCR'd to nothing yet' is a THIRD state, not a zero",
           return r:find("nothing has OCR'd to nothing yet", 1, true) ~= nil
       end)())
 check("the 6.281.0 block ran every one of its checks",
-      (pass + fail) - p281 == 21, (pass + fail) - p281)
+      (pass + fail) - p281 == 25, (pass + fail) - p281)
 
 DEFER_TIMERS = false
 S.leftForSweep = 0

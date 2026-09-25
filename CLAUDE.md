@@ -989,6 +989,80 @@ work Mac.
   one-hop symlink: a fixture where the right and wrong implementations
   AGREE proves nothing — pick the input where they must differ.
 
+- 🔁 A QUALIFIER THAT ONLY STOPS ON SUCCESS IS A LOOP (6.281.0,
+  modules/screenshots.lua — LL, of two green pills in his menu bar:
+  "those green icons just do something like loop and loop and loop like
+  it's running OCR nonstop"). `shots.wantsName` refuses a file only once
+  its NAME holds " — ", and `nameByText` writes a name only when OCR
+  answers `code == 0 and text ~= ""`. There was no else. So an image
+  with no readable words — a photo, a dark panel, a diagram — was never
+  renamed, never remembered, and re-qualified on EVERY folder event, for
+  ever, one `/usr/bin/shortcuts run "HS OCR"` process each time.
+  🍏 EACH GREEN PILL IS A PROCESS, and the first answer was wrong because
+  of it: a grep for `hs.menubar` found three text-only items of ours and
+  said "neither pill is ours" — TRUE, and the wrong question. macOS draws
+  one indicator per running `shortcuts` process. GENERAL, and it is the
+  half to carry: **"not created by this config" is not "not caused by
+  this config."** Ask what the SURFACE means before asking who drew it.
+  ☁️ AND ONEDRIVE CLOSED THE CIRCUIT: reading a dehydrated placeholder to
+  OCR it HYDRATES the file, a hydration is a write, and a write is
+  another FSEvents event on the same file — the OCR re-triggering the
+  watcher for the file it just OCR'd, with no outside input at all.
+  🚨 THE ONE GUARD THAT COULD HAVE STOPPED IT ANSWERS A DIFFERENT
+  QUESTION: `shots.own` is "did I WRITE this", not "have I HANDLED this",
+  and it is set in four places, all files this module wrote. A OneDrive
+  arrival can never be in it — so the guard could never fire for the
+  exact population the watcher exists to serve. And `shots.watchCap` (20)
+  bounds the QUEUE, not the work: 6.229.0's rule in a second module.
+  🔑 THE FIX REMEMBERS FAILURES ONLY, and that is an economy rather than
+  an oversight: a SUCCESS renames the file, the new name carries " — ",
+  and wantsName refuses it for ever — THE RENAME IS THE MEMORY. Recording
+  successes would spend a bounded table on keys that can never be looked
+  up again and evict the word-less ones it exists to hold. GENERAL:
+  before putting something in a bounded store, ask whether the system
+  already remembers it somewhere that cannot be evicted.
+  🚨 NOTHING RAN IS NOT EVIDENCE. `nameByText` answers `onDone(nil)` at
+  TWO exits without spawning anything (no Shortcut on this Mac;
+  `hs.task.new` refusing), and recording an attempt on either would mean
+  one OCR outage permanently blacklists every file it touched, silently,
+  for ever. The callback hands back a REASON now — named · no text · no
+  name · failed · NOT RUN — and only a process that really ran counts.
+  🧪 AND THAT CHECK PASSED WITH THE GUARD DELETED at first, because
+  drainQueue turns an absent Shortcut away BEFORE nameByText is reached;
+  the branch the guard really covers is a failed SPAWN, and only a check
+  that makes `hs.task.new` answer nil bites (6.273.0 — when a fix lands
+  on a line no mutation can kill, the line is not the finding, the
+  missing check is). Same sweep: `ocrStarted` was asserted only against a
+  number the test had set by hand, so deleting the increment passed. It
+  is counted after `t:start()`, where a process really exists.
+  🔎 AND THE REPORT COULD NOT SEE THE RUNAWAY, which is why "I don't
+  know" was the only honest answer to "is it looping?" and why no number
+  on his Mac could have proved it: `namedOnArrival` counts only SUCCESSES
+  and `leftForSweep` only cap OVERFLOW, so a word-less image incremented
+  NEITHER and the line read "named on arrival 0 · left for ⌘9 0" for as
+  long as the loop ran. 6.196.1 broken inside the report built to keep
+  it. It counts the OCRs themselves now, with a yield line (6.229.0) that
+  never divides by a run that did not happen (6.230.0).
+  🎵 ⌘9 records what it learns and is NEVER refused (6.231.0) — which
+  also makes it the escape hatch for a file the watcher has given up on.
+  📏 COST, NAMED: the set is in MEMORY. hs.settings writes the whole
+  Hammerspoon domain on the main thread (6.228.0) and this folder is the
+  one the watcher watches (6.229.0), so persisting it would put the
+  burst-problem's fix inside the burst. A reload gives every word-less
+  file `triedMax` fresh tries, once — finite, where what it replaces was
+  not.
+  📏 NAMED, NOT FIXED, each its own release: the screenshot editor's ⌘⏎
+  writes "<name> (edited).png" into this folder and never claims it in
+  `shots.own`, so every save of an un-named shot is one more OCR (the
+  tried-set BOUNDS it, which is the test of whether a fix closes a class
+  rather than an instance — but the unclaimed write is still a bug, and
+  it is one line); `nameByText`'s task has no killer timer, so a hung
+  `shortcuts` leaves `nameBusy` true and the queue never drains again;
+  and `shots.watchFolder = false` does stop this loop (onFolderEvent
+  returns) but not the FSEvents wake-up, because the pathwatcher is
+  created inside setup() and profile settings land after — 6.228.0's
+  `wm.enabled` shape, in a second module, and this module has no M.warm.
+
 - 🗑 A DECISION THAT WAS RIGHT TWO HUNDRED RELEASES AGO IS NOT
   SELF-RENEWING (6.280.0, modules/vault.lua — LL, twice: "I don't
   understand why there is no delete. Can you fix this?" and "I have an
@@ -3187,6 +3261,7 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
+| 6.281.0 | 🔁 the green OCR pills stop: a screenshot that OCRs to nothing is remembered and not re-OCR'd for ever — the watcher had no way to stop offering a word-less image, and the report counted only successes so it read 0 through the whole runaway | pending |
 | 6.280.0 | 🗑 a ✕ on every Hamsidian note deletes it to <Vault>/.trash — never erased, undoable, and it says how many notes still link to it | pending |
 | 6.279.0 | 📓 `_G.todayReport()` — every tool that failed today, read back off disk so it survives a reload; the ledger had only ever been in memory | pending |
 | 6.278.0 | 🔔 a 4 PM Asana send that fails is seen — an alert, a notification that survives Focus, and a sticky line in the report; it had only ever been a Console line | pending |
@@ -3907,6 +3982,86 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.281.0 verify with LL — 🔁 THE GREEN PILLS STOP (KNOWN GROUND)
+  WHAT CHANGED: a screenshot that OCRs to nothing is now remembered as
+  tried, and the folder watcher stops offering it after three goes. ⌘9 is
+  unchanged and still OCRs anything you point it at.
+  WHY IT MATTERS: you said the green icons "loop and loop and loop like
+  it's running OCR nonstop." Each green pill in your menu bar is one
+  `shortcuts run "HS OCR"` process. A word-less image was never renamed,
+  so it never stopped qualifying, so it was re-OCR'd on every folder
+  event — for ever. And because reading a OneDrive placeholder HYDRATES
+  it, and a hydration is a write, the OCR was re-triggering the watcher
+  for the file it had just OCR'd. No outside input needed.
+  🚨 THIS IS ALSO IN 6.275.0, the build you rolled back to — the watcher
+  is 6.155.0 code. The rollback did not remove this; only this does.
+
+  A. THE HEADLINE. Do this FIRST.
+  A1. Install, then Console: `_G.screenshotsReport()`.
+      EXPECT a new block, and on a fresh boot it should read:
+        OCR     : 0 run · 0 named · 0 read no text · …
+        yield   : no OCR has run this session
+        tried   : nothing has OCR'd to nothing yet
+  A2. Use the Mac for an hour, normally. Watch the menu bar.
+      EXPECT: pills appear when a screenshot arrives and GO AWAY. What
+      must not happen is a pill that is always there, or pills that
+      reappear the moment they vanish.
+  A3. `_G.screenshotsReport()` again. This is the artefact I want.
+      EXPECT "OCR : N run" to be a small number — roughly the number of
+      screenshots that actually arrived — and "tried : N file(s)
+      remembered · M at the 3-try cap".
+      A FAIL is "run" in the hundreds or thousands. Paste it either way.
+
+  B. PROVE IT ON PURPOSE, if you want to see the rule work.
+  B1. Put an image with NO words in it — a photo, a plain colour — into
+      the screenshots folder, named like `Screenshot 2026-09-26 at
+      10.00.00.png`.
+      EXPECT: three OCRs (three brief pills), then silence. Before this
+      release it would have gone on for as long as Hammerspoon ran.
+  B2. `_G.screenshotsReport()` — the "tried" line names it, and says the
+      watcher no longer offers it while ⌘9 still does.
+
+  C. MUST STILL WORK. This release touched the naming path, so this is
+     the regression sweep and it is the important half.
+  C1. ⇪4, drag, let go. The shot lands and is named from its words as
+      ever.
+  C2. Drop a screenshot WITH text into the folder from the other Mac (or
+      just take one). EXPECT: it is renamed to "… — <its words>.png"
+      within a few seconds, exactly as before.
+  C3. ⇪⇧5 then ⌘9 (the naming sweep). EXPECT: it still names everything
+      it can, and still reports "N had no readable text". ⌘9 must never
+      refuse a file — if it ever says it is skipping something, that is a
+      real failure and I want to know at once.
+  C4. ⇪5 scrolling capture, and ⇪⇧1 the editor. Unchanged.
+
+  D. PASTE BACK, PASS OR FAIL.
+  D1. `_G.screenshotsReport()` after a full day. The "OCR" and "tried"
+      lines are the whole answer, and they are the numbers that could not
+      be asked for before: through the entire runaway the old report read
+      "named on arrival 0 · left for ⌘9 0", because it counted only
+      successes and only cap overflow. A word-less image incremented
+      neither.
+  D2. If a pill is ever stuck on screen with nothing else happening,
+      paste the report then too — that would be a hung `shortcuts`
+      process, which is a DIFFERENT bug I have named and not fixed (there
+      is no timeout on that task yet).
+
+  E. A JUDGEMENT ONLY YOU CAN MAKE.
+  E1. Three tries per file — right? A file gets three OCRs before the
+      watcher gives up on it. Fewer is quieter; more is more forgiving of
+      a OneDrive file that had not finished downloading the first time.
+      "three is fine" · "make it two" · "make it five" decides it.
+  E2. The memory is in RAM, not on disk, on purpose — writing it would
+      mean a main-thread write into the very folder this watcher watches.
+      The cost is that a reload or a reboot gives every word-less image
+      three fresh tries, once. If you reload often and notice a small
+      burst of pills after each one, tell me and I will move it to disk
+      properly, with the write off the main thread.
+  E3. How many word-less screenshots do you actually have? One line:
+      `ls "$HOME/Library/CloudStorage/OneDrive-Personal/2026 Screenshots" | grep -E '^(Screenshot |SCR-[0-9]{8}-)' | grep -vc ' — '`
+      That number is how big the burst in E2 is, and it also decides
+      whether ⌘9's 40-file cap needs raising — a separate release.
+
 - 6.280.0 verify with LL — 🗑 DELETE A NOTE (KNOWN GROUND)
   WHAT CHANGED: every note row in Hamsidian has a ✕ at its right-hand end.
   It deletes the note — to <Vault>/.trash, never erased.
