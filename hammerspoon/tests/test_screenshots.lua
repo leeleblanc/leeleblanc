@@ -1739,6 +1739,193 @@ W.fn({ d }) ; PENDING[#PENDING].fn()
 check("no OCR Shortcut on this Mac: nothing spawned, nothing left queued",
       #TASKS == before and #S.queue == 0 and S.leftForSweep == 1)
 _G.ocrShortcutAvailable = true
+
+-- =====================================================================
+out("\n   -- 🔁 6.281.0 — a file that OCR'd to nothing is not offered again --\n")
+-- =====================================================================
+-- LL: "those green icons just do something like loop and loop and loop
+-- like it's running OCR nonstop." Each green pill is one
+-- `/usr/bin/shortcuts run "HS OCR"` process. wantsName() only stops
+-- matching once a name holds " — ", and a name is only written when OCR
+-- returns words — so a word-less image re-qualified on EVERY folder
+-- event, for ever. Nothing in the report could see it.
+local p281 = pass + fail
+S.tried, S.triedSeq, S.triedLast = {}, {}, nil
+S.ocrStarted, S.ocrNoText, S.ocrNoName, S.ocrFailed, S.ocrNotRun = 0, 0, 0, 0, 0
+S.refusedTried, S.namedOnArrival = 0, 0
+S.queue, S.pending, S.nameBusy = {}, {}, false
+S.triedMax = 3
+
+local loopf = NDIR .. "/SCR-20260925-loop.png"
+FILES[loopf] = { mode = "file", size = 4242, modification = mtScr }
+local ocrs = 0
+for _ = 1, 6 do
+    PENDING = {}
+    W.fn({ loopf })
+    local n = #TASKS
+    for _, pend in ipairs(PENDING) do pend.fn() end
+    if #TASKS > n then
+        ocrs = ocrs + 1
+        TASKS[#TASKS].cb(0, "", "")        -- OCR ran and read nothing
+    end
+end
+check("🔁 THE LOOP IS CLOSED: six folder events on a word-less image cost "
+      .. "THREE OCRs, not six", ocrs == S.triedMax, ocrs)
+PENDING = {}
+W.fn({ loopf })
+check("…and the seventh event does not even ARM a settle timer — the gate "
+      .. "on the FSEvents path is a table lookup, never a stat (6.228.0)",
+      #PENDING == 0, #PENDING)
+check("…the file is remembered exactly as many times as OCR really ran",
+      S.tried[loopf] == S.triedMax and S.ocrNoText == S.triedMax, S.tried[loopf])
+
+-- the race the SECOND gate exists for: a settle timer armed while the file
+-- was still a candidate, firing after the last OCR took it to the cap.
+S.tried[loopf] = S.triedMax - 1
+PENDING = {}
+W.fn({ loopf })
+S.tried[loopf] = S.triedMax
+local nRace = #TASKS
+PENDING[#PENDING].fn()
+check("the settled gate catches a timer armed BEFORE the cap was reached — "
+      .. "and that is the one that counts the refusal, naming the file",
+      #TASKS == nRace and S.refusedTried == 1
+      and tostring(S.triedLast):find("loop.png", 1, true) ~= nil, S.triedLast)
+
+out("   -- 🚨 nothing ran, so nothing is evidence --\n")
+S.tried, S.triedSeq, S.refusedTried = {}, {}, 0
+local outage = NDIR .. "/SCR-20260925-outage.png"
+FILES[outage] = { mode = "file", size = 100, modification = mtScr }
+local sawWhy
+_G.ocrShortcutAvailable = false
+S.nameByText(outage, function(_, why) sawWhy = why end)
+_G.ocrShortcutAvailable = true
+check("🚨 nameByText answers 'not run' when it never spawned a process — "
+      .. "the one outcome that must never become evidence",
+      sawWhy == "not run" and S.ocrNotRun == 1, sawWhy)
+S.nameBusy = false
+_G.ocrShortcutAvailable = false
+for _ = 1, 5 do
+    PENDING = {}
+    W.fn({ outage })
+    for _, pend in ipairs(PENDING) do pend.fn() end
+end
+_G.ocrShortcutAvailable = true
+S.queue, S.nameBusy, S.leftForSweep = {}, false, 0
+check("…so an OCR OUTAGE never blacklists a file: five arrivals with the "
+      .. "Shortcut unavailable record NOTHING", S.tried[outage] == nil,
+      S.tried[outage])
+PENDING = {}
+W.fn({ outage })
+check("…and the moment the Shortcut is back, that file is offered again",
+      #PENDING == 1, #PENDING)
+for _, pend in ipairs(PENDING) do pend.fn() end
+if TASKS[#TASKS] and TASKS[#TASKS].args[4] == outage then TASKS[#TASKS].cb(0, "", "") end
+
+out("   -- four outcomes, not two --\n")
+local function driveOnce(p, code, text)
+    local why
+    S.nameBusy = false
+    local n = #TASKS
+    S.nameByText(p, function(_, w) why = w end)
+    if #TASKS > n then TASKS[#TASKS].cb(code, text, "") end
+    return why
+end
+local function fixture(tag)
+    local p = NDIR .. "/SCR-20260925-" .. tag .. ".png"
+    FILES[p] = { mode = "file", size = 100, modification = mtScr }
+    return p
+end
+S.ocrNoName, S.ocrFailed = 0, 0
+check("exit 0 with no words is 'no text'", driveOnce(fixture("w1"), 0, "") == "no text")
+check("a non-zero exit is 'failed', counted apart from a blank reading",
+      driveOnce(fixture("w2"), 1, "") == "failed" and S.ocrFailed == 1, S.ocrFailed)
+check("words that slug to nothing are 'no name', NOT 'no text' — the OCR "
+      .. "worked and the two must not read alike (6.196.1)",
+      driveOnce(fixture("w3"), 0, "of at in") == "no name" and S.ocrNoName == 1,
+      S.ocrNoName)
+check("a reading that renames is 'named'",
+      driveOnce(fixture("w4"), 0, "Budget review notes") == "named")
+
+out("   -- 🎵 ⌘9 is an instruction and is never refused --\n")
+S.tried, S.triedSeq = {}, {}
+local cap9 = NDIR .. "/SCR-20260925-cap9.png"
+FILES[cap9] = { mode = "file", size = 100, modification = mtScr }
+S.tried[cap9] = S.triedMax
+PENDING = {}
+W.fn({ cap9 })
+check("a file at the cap: the watcher will not touch it", #PENDING == 0, #PENDING)
+S.nameBusy = false
+local sawIt, guard = false, 0
+S.renameSweep()
+while guard < 80 do
+    guard = guard + 1
+    local t = TASKS[#TASKS]
+    if not (t and t.cmd == "/usr/bin/shortcuts" and t.args and t.args[4]) then break end
+    if t.args[4] == cap9 then sawIt = true end
+    local n = #TASKS
+    t.cb(0, "", "")
+    if #TASKS == n then break end
+end
+check("🎵 …but ⌘9 still OCRs it — a mode says what a tool does on its own, "
+      .. "it never refuses an instruction (6.231.0)", sawIt, guard)
+check("…and what ⌘9 learns still counts: an OCR is an OCR, whoever asked",
+      S.tried[cap9] == S.triedMax + 1, S.tried[cap9])
+S.nameBusy = false
+
+out("   -- the bound BITES, it does not merely exist --\n")
+local T, Q = {}, {}
+for i = 1, 7 do S.noteTried(T, Q, "/p/" .. i .. ".png", 5) end
+local size = 0 ; for _ in pairs(T) do size = size + 1 end
+check("past triedKeep the OLDEST is forgotten and the newest kept — a table "
+      .. "in this config is bounded, and the bound is driven past (6.187.0)",
+      size == 5 and T["/p/1.png"] == nil and T["/p/2.png"] == nil
+      and T["/p/7.png"] == 1 and #Q == 5, size)
+check("…a repeat of a remembered path increments rather than re-inserting",
+      (function()
+          local t2, q2 = {}, {}
+          S.noteTried(t2, q2, "/a.png", 4) ; S.noteTried(t2, q2, "/a.png", 4)
+          return t2["/a.png"] == 2 and #q2 == 1
+      end)())
+check("…and a nonsense cap never forgets the path being recorded right now",
+      (function()
+          local t3, q3 = {}, {}
+          S.noteTried(t3, q3, "/b.png", 0)
+          return t3["/b.png"] == 1
+      end)())
+check("triedVerdict is PURE and answers WHY, in three branches",
+      (S.triedVerdict(nil, 3)) == true and (S.triedVerdict(1, 3)) == true
+      and (S.triedVerdict(3, 3)) == false
+      and tostring(select(2, S.triedVerdict(3, 3))):find("no readable text", 1, true) ~= nil)
+
+out("   -- 🔎 the report can SEE a runaway now --\n")
+S.ocrStarted, S.namedOnArrival = 9, 1
+printed = {}
+_G.screenshotsReport()
+local rep281 = table.concat(printed, "\n")
+check("🔎 the report names the OCRs themselves — through a runaway the old "
+      .. "line read 'named on arrival 0 · left for ⌘9 0' and nothing more",
+      rep281:find("OCR     :", 1, true) ~= nil
+      and rep281:find("read no text", 1, true) ~= nil
+      and rep281:find("9 run", 1, true) ~= nil,
+      rep281:match("[^\n]*OCR     :[^\n]*"))
+check("…the yield line never divides by a run that did not happen (6.230.0)",
+      (function()
+          local sv = S.ocrStarted ; S.ocrStarted = 0
+          printed = {} ; _G.screenshotsReport()
+          local r = table.concat(printed, "\n") ; S.ocrStarted = sv
+          return r:find("no OCR has run this session", 1, true) ~= nil
+      end)())
+check("…and 'nothing has OCR'd to nothing yet' is a THIRD state, not a zero",
+      (function()
+          local sv = S.tried ; S.tried = {}
+          printed = {} ; _G.screenshotsReport()
+          local r = table.concat(printed, "\n") ; S.tried = sv
+          return r:find("nothing has OCR'd to nothing yet", 1, true) ~= nil
+      end)())
+check("the 6.281.0 block ran every one of its checks",
+      (pass + fail) - p281 == 21, (pass + fail) - p281)
+
 DEFER_TIMERS = false
 S.leftForSweep = 0
 

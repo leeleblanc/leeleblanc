@@ -306,6 +306,14 @@ function M.setup(core)
     shots.watchFolder = true
     shots.watchSettle = 2.5      -- seconds a new file must be still before OCR
     shots.watchCap    = 20       -- arrivals queued at once; the rest wait for ⌘9
+    -- 🔁 6.281.0 — AND A FILE THAT OCR'd TO NOTHING IS NOT OFFERED AGAIN.
+    -- wantsName() only stops matching once a name holds " — ", and a name is
+    -- only written when OCR returns words — so a word-less image re-qualified
+    -- on EVERY folder event, for ever, one `shortcuts` process each time.
+    -- (LL: "those green icons just do something like loop and loop and loop
+    -- like it's running OCR nonstop." The green pills ARE those processes.)
+    shots.triedMax  = 3      -- OCRs of one file before the watcher stops offering it
+    shots.triedKeep = 400    -- files remembered; the oldest is forgotten first
     -- ----------------------------------------------------------------------
 
     local function say(m)  if _G.diag then _G.diag.say("screenshots", m)  end end
@@ -1308,6 +1316,46 @@ function M.setup(core)
                         or "off (shots.watchFolder = false)"))
                     .. " · named on arrival " .. tostring(shots.namedOnArrival)
                     .. " · left for ⌘9 " .. tostring(shots.leftForSweep)
+        -- 🔎 6.281.0 — THE LINE ABOVE COULD NOT SEE A RUNAWAY, and that is
+        -- why "I don't know" was the honest answer to "is it looping?".
+        -- namedOnArrival counts only SUCCESSES and leftForSweep only cap
+        -- OVERFLOW, so a word-less image incremented neither: an infinite
+        -- loop read "0 · 0" for as long as it ran. 6.196.1's rule, broken
+        -- inside the report built to keep it. These count the OCRs.
+        do
+            local started = shots.ocrStarted or 0
+            local named   = shots.namedOnArrival or 0
+            L[#L + 1] = ("   OCR     : %d run · %d named · %d read no text · "
+                         .. "%d had no usable name · %d failed · %d never ran")
+                        :format(started, named, shots.ocrNoText or 0,
+                                shots.ocrNoName or 0, shots.ocrFailed or 0,
+                                shots.ocrNotRun or 0)
+            -- what they BOUGHT beside what they cost (6.229.0) — and never
+            -- a division that did not happen dressed as a measurement
+            -- (6.230.0's max(rows,1)).
+            if started > 0 then
+                L[#L + 1] = ("   yield   : %d of %d OCR(s) bought a name")
+                            :format(named, started)
+            else
+                L[#L + 1] = "   yield   : no OCR has run this session"
+            end
+            local nTried, nCapped = 0, 0
+            for _, n in pairs(shots.tried or {}) do
+                nTried = nTried + 1
+                if n >= (shots.triedMax or 3) then nCapped = nCapped + 1 end
+            end
+            if nTried == 0 then
+                L[#L + 1] = "   tried   : nothing has OCR'd to nothing yet"
+            else
+                L[#L + 1] = ("   tried   : %d file(s) remembered · %d at the %d-try "
+                             .. "cap — the watcher no longer offers those, ⌘9 still does")
+                            :format(nTried, nCapped, shots.triedMax or 3)
+            end
+            if (shots.refusedTried or 0) > 0 then
+                L[#L + 1] = ("   ↳ %d re-queue(s) refused this session · last: %s")
+                            :format(shots.refusedTried, tostring(shots.triedLast or "?"))
+            end
+        end
         if shots.lastExit then
             L[#L + 1] = "   last screencapture exit : " .. tostring(shots.lastExit.code)
                         .. (shots.lastExit.err ~= "" and (" — " .. firstLine(shots.lastExit.err)) or "")
@@ -1583,9 +1631,74 @@ function M.setup(core)
     -- applies there, not here). Failure costs the new name only — the
     -- file itself is never at risk, rename is the ONLY write.
     shots.nameTasks = {}
+
+    -- 🔁 6.281.0 — WHAT THIS MODULE HAS ALREADY TRIED.
+    -- FAILURES ONLY, and that is the whole economy of it: a SUCCESS renames
+    -- the file, the new name carries " — ", and wantsName() refuses it for
+    -- ever — the rename IS the memory. Recording successes here would spend
+    -- a bounded table on entries that can never be looked up again, and
+    -- evict the word-less ones this exists to hold.
+    -- In MEMORY, not on disk, deliberately: hs.settings writes the whole
+    -- Hammerspoon domain on the main thread (6.228.0) and this folder is
+    -- the one the watcher watches (6.229.0). COST, NAMED: a reload gives
+    -- every word-less file triedMax fresh attempts, once. That is finite;
+    -- what it replaces was not.
+    shots.tried      = {}    -- path -> attempts that produced no name
+    shots.triedSeq   = {}    -- insertion order, so the bound has something to drop
+    shots.triedLast  = nil
+    shots.ocrStarted = 0     -- `shortcuts` processes this session — the green pills
+    shots.ocrNoText  = 0     -- ran, exit 0, read nothing
+    shots.ocrNoName  = 0     -- read words, but no usable name came out
+    shots.ocrFailed  = 0     -- ran and exited non-zero
+    shots.ocrNotRun  = 0     -- never spawned — MUST NOT count as evidence
+    shots.refusedTried = 0   -- re-queues this rule turned away
+
+    -- PURE. The whole refusal rule, so the gate proves it with no Mac.
+    -- Answers whether the watcher may OCR this path again, AND why.
+    function shots.triedVerdict(n, max)
+        if type(n) ~= "number" or n <= 0 then return true, "not tried yet" end
+        if type(max) ~= "number" or max <= 0 then return true, "no cap" end
+        if n >= max then
+            return false, ("OCR'd %d time(s) with no readable text"):format(n)
+        end
+        return true, ("tried %d of %d"):format(n, max)
+    end
+
+    -- PURE given its two tables. Bounded: every table in this config is
+    -- (shots.own and shots.pending are not, and are named in the report).
+    function shots.noteTried(tried, seq, path, keep)
+        if type(tried) ~= "table" or type(seq) ~= "table" then return false end
+        if type(path) ~= "string" or path == "" then return false end
+        local cap = (type(keep) == "number" and keep >= 1) and keep or 400
+        if tried[path] == nil then
+            seq[#seq + 1] = path
+            tried[path] = 0
+            while #seq > cap do
+                local gone = table.remove(seq, 1)
+                -- never forget the path we are recording right now
+                if gone ~= path then tried[gone] = nil end
+            end
+        end
+        tried[path] = (tried[path] or 0) + 1
+        return true, tried[path]
+    end
+
+    -- The gate both doors ask. A table lookup, NO stat: this runs inside
+    -- the FSEvents callback, on the main thread, once per path per wake-up
+    -- (6.228.0 — a main thread this config is busy on is a mouse this Mac
+    -- has lost).
+    function shots.mayTry(path)
+        return (shots.triedVerdict(shots.tried[path], shots.triedMax))
+    end
+
     function shots.nameByText(path, onDone)
         if _G.ocrShortcutAvailable == false then
-            if onDone then onDone(nil) end
+            -- 🚨 6.281.0 — NOTHING RAN, SO NOTHING IS EVIDENCE. This exit and
+            -- the one below hand back nil without ever spawning a process;
+            -- a caller that recorded an attempt here would permanently
+            -- blacklist every file it touched during an OCR outage.
+            shots.ocrNotRun = shots.ocrNotRun + 1
+            if onDone then onDone(nil, "not run") end
             return false
         end
         local t
@@ -1595,6 +1708,19 @@ function M.setup(core)
                 shots.nameTasks[t] = nil
                 local newPath
                 local text = tostring(sout or ""):match("^%s*(.-)%s*$") or ""
+                -- 🔎 6.281.0 — FOUR OUTCOMES, NOT TWO. This handed back
+                -- newPath alone, so "OCR read nothing" and "the Shortcut
+                -- never ran" reached the caller as the same nil — and one
+                -- of those must be remembered while the other must never
+                -- be. 6.196.1, in the callback the whole loop turns on.
+                local why
+                if code ~= 0 then
+                    why = "failed"
+                    shots.ocrFailed = shots.ocrFailed + 1
+                elseif text == "" then
+                    why = "no text"
+                    shots.ocrNoText = shots.ocrNoText + 1
+                end
                 if code == 0 and text ~= "" then
                     local base = path:match("[^/]+$") or path
                     local mtime
@@ -1616,13 +1742,22 @@ function M.setup(core)
                     -- match its contents, so recording the old name would
                     -- file every arrival against a file that is already gone.
                     shots.recordText(text, newPath or path)
+                    -- words were read, but a slug may be empty and a rename
+                    -- may fail — neither is "no text", and only one is a name
+                    if newPath then
+                        why = "named"
+                    else
+                        why = "no name"
+                        shots.ocrNoName = shots.ocrNoName + 1
+                    end
                 end
-                if onDone then onDone(newPath) end
+                if onDone then onDone(newPath, why) end
             end, { "run", shots.ocrShortcut, "-i", path })
             t:start()
         end)
         if not (okNew and t) then
-            if onDone then onDone(nil) end
+            shots.ocrNotRun = shots.ocrNotRun + 1
+            if onDone then onDone(nil, "not run") end
             return false
         end
         -- HELD — as a SET (6.155.0). One slot held only the newest task;
@@ -1631,6 +1766,11 @@ function M.setup(core)
         -- and a queue waiting on that callback would have waited forever.
         shots.nameTask = t
         shots.nameTasks[t] = true
+        -- counted HERE, where a process really exists — not at the gate.
+        -- nameByText can answer nil synchronously without spawning, and
+        -- drainQueue re-enters itself on that path (6.229.0: count the
+        -- thing that costs, not the thing that was asked for).
+        shots.ocrStarted = shots.ocrStarted + 1
         return true
     end
 
@@ -1677,8 +1817,20 @@ function M.setup(core)
                 shots.drainQueue()      -- arrivals that waited for the sweep
                 return
             end
-            local started = shots.nameByText(path, function(newPath)
-                if newPath then renamed = renamed + 1 else silent = silent + 1 end
+            local started = shots.nameByText(path, function(newPath, why)
+                if newPath then
+                    renamed = renamed + 1
+                else
+                    silent = silent + 1
+                    -- 🔁 6.281.0 — ⌘9 is an INSTRUCTION and is never refused
+                    -- (it does not ask mayTry), but what it learns still
+                    -- counts: three silent OCRs is three silent OCRs,
+                    -- whoever asked for them.
+                    if why ~= "not run" then
+                        shots.noteTried(shots.tried, shots.triedSeq, path,
+                                        shots.triedKeep)
+                    end
+                end
                 step()
             end)
             if not started then
@@ -1723,6 +1875,17 @@ function M.setup(core)
         local name = path:match("[^/]+$") or path
         if not shots.wantsName(name) then return false end   -- renamed meanwhile
         if shots.own[path] or editorHolds(path) then return false end
+        -- 🔁 6.281.0 — the settled gate. onFolderEvent asks the same
+        -- question earlier and more cheaply; this one is what COUNTS a
+        -- refusal, because by here the file is real, still, and ours to
+        -- have queued.
+        local mayTry, whyTry = shots.triedVerdict(shots.tried[path], shots.triedMax)
+        if not mayTry then
+            shots.refusedTried = shots.refusedTried + 1
+            shots.triedLast = (path:match("[^/]+$") or path)
+                              .. " — " .. tostring(whyTry)
+            return false
+        end
         for _, q in ipairs(shots.queue) do if q == path then return false end end
         if #shots.queue >= shots.watchCap then
             shots.leftForSweep = shots.leftForSweep + 1
@@ -1754,11 +1917,15 @@ function M.setup(core)
         end
         local path = table.remove(shots.queue, 1)
         shots.nameBusy = true
-        local started = shots.nameByText(path, function(newPath)
+        local started = shots.nameByText(path, function(newPath, why)
             shots.nameBusy = false
             if newPath then
                 shots.namedOnArrival = shots.namedOnArrival + 1
                 say("named on arrival: " .. (newPath:match("[^/]+$") or newPath))
+            elseif why ~= "not run" then
+                -- 🔁 6.281.0 — an OCR that ran and bought no name is the
+                -- evidence. "not run" is not: see nameByText's two exits.
+                shots.noteTried(shots.tried, shots.triedSeq, path, shots.triedKeep)
             end
             shots.drainQueue()
         end)
@@ -1774,7 +1941,8 @@ function M.setup(core)
         for _, p in ipairs(type(paths) == "table" and paths or {}) do
             if type(p) == "string" and p:match("^(.*)/[^/]+$") == shots.dir then
                 local name = p:match("[^/]+$") or ""
-                if shots.wantsName(name) and not shots.own[p] then
+                if shots.wantsName(name) and not shots.own[p]
+                   and shots.mayTry(p) then
                     -- "still" means no event for watchSettle: every write
                     -- restarts the clock
                     local old = shots.pending[p]
