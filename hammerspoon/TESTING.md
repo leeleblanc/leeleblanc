@@ -1,4 +1,4 @@
-# TESTING — how to score release 6.281.0
+# TESTING — how to score release 6.282.0
 
 You install ONE archive and it carries several releases. Below are the
 steps for each release this archive is new for, newest first. Run the
@@ -26,6 +26,54 @@ else is a LOSS and I fix it before building further. You are the only
 scorer; I never mark my own.
 
 ---
+
+## 6.282.0
+
+6.282.0 verify with LL — 🕒 THE REPORT ANSWERS AGAIN (KNOWN GROUND)
+WHAT CHANGED: `_G.screenshotsReport()` no longer throws. Nothing about
+capturing, naming or OCR moved.
+WHY IT MATTERS: you ran the command I asked for and got a traceback.
+`hs.timer.secondsSinceEpoch()` hands back 1758769234.8231 and Lua's
+os.date refuses a fraction outright, so the `area` line did not print
+something wrong — it took the whole report down. Since 6.264.0, in
+every session where you had pressed ⇪4 even once. A fresh boot printed
+fine, which is why neither of us saw it until you used the key first.
+🚨 AND IT IS MY METHOD THAT BROKE, not just a line: almost every ask
+I make of you ends in "paste the report". 6.274.0's steps literally say
+press ⇪4, then run this command — so that test has been impossible to
+run since the day it shipped, and I did not notice.
+
+A. THE HEADLINE. Two commands.
+A1. Console: `_G.screenshotsReport()`.
+    EXPECT: a report. Not a traceback.
+A2. Press ⇪4 and drag a rectangle. Then run it AGAIN.
+    EXPECT: still a report, and the `area` line ends with a real
+    clock — `· last pressed 21:14:07`.
+    THIS is the step that failed before. If you get
+    "bad argument #2 to 'date'" again, stop and paste it.
+
+B. THE ARTEFACTS I HAVE BEEN ASKING FOR AND COULD NOT GET.
+B1. Use the Mac for a day, then `_G.screenshotsReport()` and PASTE IT.
+    Three lines answer three open questions at once:
+    · `OCR` and `tried` — whether 6.281.0 stopped the green pills.
+    · `routes` and the ⚠️ under it — your intermittent ⇪4.
+    · `area` — which selector the last press used.
+B2. `_G.alertReport()` as well. Together those are the whole ⇪4
+    question, and this is the first build on which you can collect them.
+
+C. MUST STILL WORK — this release touched only how a time is printed,
+   so this is a short sweep.
+C1. ⇪4 captures, with the live size readout and the shutter.
+C2. ⇪5 scrolling capture. Its report line carries a clock too.
+C3. A screenshot with words in it still gets renamed — your Console
+    already shows this working ("🏷 OCR → Finder comment: …").
+
+D. A JUDGEMENT ONLY YOU CAN MAKE.
+D1. When a clock cannot be read, the line now says "time not recorded"
+    rather than printing 1970. Is that the right wording, or would you
+    rather it said nothing at all there? Either is one line.
+
+
 
 ## 6.281.0
 
@@ -228,67 +276,6 @@ E2. The file grows for ever, one short line per failure. On a healthy
     only the last N days — I left it uncapped deliberately, because a
     log that prunes itself is a log that can lose the thing you are
     looking for.
-
-
-
-## 6.278.0
-
-6.278.0 verify with LL — 🔔 YOU FIND OUT WHEN A SEND FAILS (KNOWN GROUND)
-WHAT CHANGED: when Hamsidian's Asana send does not go through, you now
-get an alert, a macOS notification, and a line in the report that stays
-there until a send actually succeeds.
-WHY IT MATTERS: you asked how you would know. The honest answer was that
-you would not — a rejected send wrote one line to the Console and did
-nothing else. That breaks a rule you yourself set in 6.214.0 ("anything
-that breaks must throw an error so I see it"), in the one place where
-not knowing costs you what you captured.
-🚨 NOTE THE 4 PM SEND IS STILL OFF — you switched it off in 6.254.0 and
-this release does not turn it back on. Test it with the manual door.
-
-A. THE HEADLINE — make one fail on purpose.
-A1. Type something into a ⇪N tab so there is a day's worth to send.
-A2. Turn Asana off for a moment: rename your token line in secret.lua,
-    or just run A3 on a Mac where Asana was never configured.
-A3. Console: `_G.scratchPadSend()`.
-    EXPECT THREE THINGS, and all three matter:
-    · an on-screen alert naming the tool and the cause;
-    · a macOS NOTIFICATION saying your text is safe;
-    · Console: `⚠️ Hamsidian 4 PM send: …`
-A4. Console: `_G.scratchPadReport()`.
-    EXPECT a line starting `⚠️ NOT SENT:` with the time, the reason, and
-    "your text is still in the tabs". THAT is the line that is still
-    there at 4 PM when you go looking — the alert will be long gone.
-A5. Check the tab. EXPECT: every word still there.
-
-B. THEN MAKE IT WORK.
-B1. Put Asana back and run `_G.scratchPadSend()` again.
-    EXPECT: a ✅ alert naming the task, and the task in Asana.
-B2. `_G.scratchPadReport()` again.
-    EXPECT the ⚠️ NOT SENT line is GONE, replaced by "nothing is
-    waiting". A warning that never clears is one you stop reading.
-
-C. IT MUST NOT CRY WOLF — this is the half that decides whether you
-   keep the feature.
-C1. With NOTHING written today, run `_G.scratchPadSend()`.
-    EXPECT: no alert, no notification, nothing on screen. Just a
-    Console line saying there was nothing to send. If an empty day
-    warns you, tell me — I will take it out.
-
-D. IF YOU WERE IN A MEETING (worth one try if you use Focus).
-D1. Turn on a Focus mode, then make a send fail as in A3.
-    EXPECT: no notification during Focus, and the Console says
-    "🔕 Held until Focus ends". Turn Focus off — the notification
-    arrives then. The alert still appears immediately either way.
-
-E. A JUDGEMENT ONLY YOU CAN MAKE.
-E1. Is a successful send saying "✅ Hamsidian → Asana: <task>" on screen
-    welcome, or noise? I made success visible on purpose so that silence
-    has one meaning instead of two — but you are the one who sees it
-    every day. "keep it" · "failures only" decides it.
-E2. Next release (6.279.0) is the log you asked for — every tool that
-    failed today, in one command, so 4 PM is a single check rather than
-    a memory test. Tell me if you would rather have it somewhere other
-    than the Console.
 
 
 

@@ -5,6 +5,74 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.282.0 — 🕒 THE REPORT DIED ON A FLOAT, SO NO ARTEFACT COULD BE
+ASKED FOR (modules/screenshots.lua, tests/test_screenshots.lua):
+
+  LL ran the command this project had just asked him for and got a
+  traceback where a report belongs:
+
+      /Users/leeleblanc/.hammerspoon/modules/screenshots.lua:1398:
+      bad argument #2 to 'date' (number has no integer representation)
+
+  🔎 `hs.timer.secondsSinceEpoch()` RETURNS A FLOAT — 1758769234.8231 —
+  and Lua's os.date refuses one outright. `shots.areaLast.at` is written
+  from it (screenshots.lua:564), and the report's `area` line formatted
+  it by hand. So that line did not print something wrong: it THREW, and
+  took the entire report down with it, in every session in which ⇪4 had
+  been pressed even once. Live since 6.264.0, which is the release that
+  introduced the field — eighteen releases, and it was invisible because
+  a FRESH boot takes the `or` branch and prints happily.
+
+  🔑 THE FIX IS AT THE READER, NOT THE WRITER, and that is the whole
+  judgement in this release. Three report lines read a stored clock —
+  size, area and scroll. Only ONE is fed a float; the other two are
+  integers by luck, because their writers happen to call os.time().
+  Flooring the single float writer fixes the instance and leaves the
+  class exactly as fragile, so `shots.clockText` is PURE and is the one
+  door all three ask. It answers a SENTENCE and never raises: 0 (what
+  the writer leaves when the clock could not be read) reads as "time not
+  recorded" rather than 1970, and so do nil, a string and an infinity.
+
+  🚨 A REPORT THAT DIES WHILE DESCRIBING ITSELF IS THE WORST FAILURE
+  THIS PROJECT CAN HAVE, and that is why this jumped the queue. Every
+  rule in CLAUDE.md ends in "ask him for the report"; a report that
+  raises turns every one of those asks into nothing, and it did — the
+  6.274.0 verify block asks him to press ⇪4 and then run this exact
+  command, so that block had been un-runnable since the day it shipped.
+
+  🧪 AND THE STUB WAS GENTLER IN A VALUE'S TYPE. This is 6.193.0 for the
+  EIGHTH time and a new shape of it: test_screenshots.lua's
+  `secondsSinceEpoch` answered the INTEGER 1000. os.date accepts an
+  integer. So the check at line 483 — which renders this very report
+  line with `areaLast` set — was green on every run for eighteen
+  releases while the same code raised on his Mac. Every earlier instance
+  of that rule was a missing method or a wrong return VALUE; this one is
+  a number of the right value in the wrong REPRESENTATION. The stub
+  answers a float now, and that change alone turns 23 checks red.
+
+  🧪 A REPORT CALL IN A CHECK'S OWN EXPRESSION NOW GOES THROUGH RPT(),
+  which pcalls it, because a raise there ends the run with "0 failed"
+  never printed and the gate reads that as a pass (6.186.0, and this
+  suite is where it mattered most). The new section made the same
+  mistake twice while being written — a bare clockText in a check killed
+  the run under the nil-guard mutation, and only running the mutation
+  found it.
+
+  🔒 A SOURCE SENTRY CLOSES THE CLASS: nothing in this module formats a
+  clock by hand any more, asserted against the source with comments
+  stripped (6.262.0's rule — the comment explaining this quotes the very
+  call it forbids). Its first version could never have matched, because
+  the needle carried doubled percent signs into a plain find; the
+  mutation is what said so. Eight mutations, eight bites, no deaths.
+
+  📏 NAMED, NOT SWEPT: 142 places in this config store a
+  secondsSinceEpoch value and 110 call os.date with something other than
+  os.time(). A cross-reference of the two found exactly one live crash —
+  this one — and one false positive in init.lua. The sweep is not done
+  across the other modules, deliberately: one change per release, and
+  this one closes the class in the file that bit him.
+
+
 NEW IN 6.281.0 — 🔁 A SCREENSHOT THAT OCR'd TO NOTHING IS NOT OCR'd FOR
 EVER (modules/screenshots.lua, tests/test_screenshots.lua):
 

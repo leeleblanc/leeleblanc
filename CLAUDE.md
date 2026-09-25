@@ -1008,6 +1008,54 @@ work Mac.
   one-hop symlink: a fixture where the right and wrong implementations
   AGREE proves nothing — pick the input where they must differ.
 
+- 🕒 A REPORT THAT RAISES IS EVERY ASK IN THIS FILE, ANSWERED WITH
+  NOTHING (6.282.0, modules/screenshots.lua — LL pasted a traceback
+  where a report belongs: `screenshots.lua:1398: bad argument #2 to
+  'date' (number has no integer representation)`).
+  🔎 `hs.timer.secondsSinceEpoch()` RETURNS A FLOAT and os.date REFUSES
+  one. `shots.areaLast.at` is written from it, so the report's `area`
+  line did not print something wrong — it THREW, and took the whole
+  report with it, in every session in which ⇪4 had been pressed even
+  once. Live since 6.264.0 and invisible because a FRESH boot takes the
+  `or` branch and prints happily, so the only Mac that could see it was
+  one that had used the key.
+  🚨 AND IT DISARMED THE METHOD, WHICH IS WHY IT JUMPED THE QUEUE:
+  nearly every rule here ends in "ask him for the report" (6.201.0), and
+  6.274.0's own verify block asks him to press ⇪4 and then run this
+  exact command — so that block had been un-runnable since it shipped.
+  GENERAL: an instrument that can RAISE is worse than one that lies,
+  because a lie still leaves a line to read; every report in this config
+  formats its values through something that answers rather than throws.
+  🔑 THE FIX IS AT THE READER, NOT THE WRITER, and that is the whole
+  judgement. THREE report lines read a stored clock — size, area,
+  scroll — and only ONE is fed a float; the other two are integers by
+  luck, because their writers happen to call os.time(). Flooring the one
+  float writer fixes the instance and leaves the class exactly as
+  fragile, so `shots.clockText` is PURE and is the one door all three
+  ask. 0 (what the writer leaves when the clock could not be read) reads
+  as "time not recorded", never as 1970 — a plausible wrong time in a
+  report is worse than a sentence saying there is none.
+  🧪 AND THE STUB WAS GENTLER IN A VALUE'S TYPE — 6.193.0 for the
+  EIGHTH time and a genuinely new shape of it. The suite's
+  `secondsSinceEpoch` answered the INTEGER 1000, which os.date accepts,
+  so the check that renders THIS VERY LINE was green for eighteen
+  releases. Every earlier instance was a missing method, a swallowed
+  side effect or a wrong return VALUE; this is a number of the right
+  value in the wrong REPRESENTATION. GENERAL: a stub must answer the
+  provider's TYPE, not merely its value — int where macOS gives float is
+  a hole with a tick beside it. Making the stub a float turned 23 checks
+  red at once, which is the evidence this release rests on.
+  🔒 A SOURCE SENTRY CLOSES THE CLASS (nothing in the module formats a
+  clock by hand, comments stripped per 6.262.0) — and its FIRST version
+  could never have matched, because the needle carried doubled percent
+  signs into a plain find. The mutation is what said so: a sentry is not
+  a check until a mutation has failed it.
+  📏 NAMED, NOT SWEPT: 142 sites in this config store a
+  secondsSinceEpoch value and 110 pass something other than os.time() to
+  os.date; cross-referencing the two found exactly ONE live crash (this)
+  and one false positive. The other modules are not swept — one change
+  per release — but the cross-reference is the tool if a second appears.
+
 - 🔁 A QUALIFIER THAT ONLY STOPS ON SUCCESS IS A LOOP (6.281.0,
   modules/screenshots.lua — LL, of two green pills in his menu bar:
   "those green icons just do something like loop and loop and loop like
@@ -3280,6 +3328,7 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
+| 6.282.0 | 🕒 `_G.screenshotsReport()` stopped throwing — os.date refuses a float and `hs.timer.secondsSinceEpoch()` is one, so the report died at the `area` line in any session where ⇪4 had been pressed (since 6.264.0) | pending |
 | 6.281.0 | 🔁 the green OCR pills stop: a screenshot that OCRs to nothing is remembered and not re-OCR'd for ever — the watcher had no way to stop offering a word-less image, and the report counted only successes so it read 0 through the whole runaway | pending |
 | 6.280.0 | 🗑 a ✕ on every Hamsidian note deletes it to <Vault>/.trash — never erased, undoable, and it says how many notes still link to it | pending |
 | 6.279.0 | 📓 `_G.todayReport()` — every tool that failed today, read back off disk so it survives a reload; the ledger had only ever been in memory | pending |
@@ -3572,6 +3621,101 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   desktop-jumping suspect) · `_G.mouseFollowsReport()` and
   `_G.mouseGridReport()`. He is on a BETA OS that has already aborted
   his process twice from inside AppKit.
+- 📈 THE BOOT TIMELINE CAME BACK, AND 6.276.0–6.280.0 ARE NOT IN IT
+  (2026-09-25, LL's own `boot_cost-*.csv`, the artefact asked for since
+  the rollback). One row per version change, his Mac:
+      6.266.0 453ms · 6.272.0 105ms · 6.275.0 590ms · 6.281.0 190ms
+  🚨 THE GAP IS THE FINDING: between 6.275.0 (09-23 04:04) and 6.281.0
+  (09-24 20:38) there is NO ROW AT ALL. 6.276.0, 6.277.0, 6.278.0,
+  6.279.0 and 6.280.0 never recorded a boot on this Mac. A rollback
+  shows up in this file when it happens — 09-19 has 6.264.0 → 6.246.0 →
+  6.264.0, three rows — so "he installed them and went back" would be
+  visible and is not.
+  🔎 WHICH REFRAMES "I purposely rolled back so I could use Hammerspoon".
+  It cannot mean he rolled back FROM 6.276.0–6.280.0 on this Mac,
+  because none of them ever ran here. The likeliest reading, and it fits
+  the dates exactly, is the DELIVERY: those are the releases delivered
+  during the empty-archive run, so there may have been nothing
+  installable to install. ONE ALTERNATIVE, and it must not be waved
+  away: boot_cost writes its row on a HELD TIMER AFTER the warm phase,
+  so a build that died or hung BEFORE warm would leave no row and would
+  also be "unusable". Those two are opposite facts and the timeline
+  alone cannot separate them.
+  🗳 SO ASK, DO NOT GUESS (6.201.0): did 6.276–6.280 ever get as far as
+  ~/.hammerspoon on this Mac? `sed -n 7p ~/.hammerspoon/init.lua` after
+  an install is the check, and it is in INSTALL.md already. Until that
+  is answered, "what made 6.276–6.280 unusable" is not an open BUG — it
+  may be an open DELIVERY.
+  📏 AND THE NUMBERS ARE NOISY, so no release is scored off them: one
+  boot each, 105 ms and 590 ms on either side of the same lazy-store
+  code. What the series does support is the 6.267.0 step — every boot
+  from 6.228.0 to 6.266.0 sits in a 359–478 ms band, and both post-6.267
+  builds that recorded a row are far under it.
+
+- 📥 LL'S REPORT, 2026-09-25 — SIX THINGS, NONE BUILT, and the order
+  below is MINE (the crashing report jumped them all as 6.282.0):
+  1. ✏️ THE  ⇪⇧1 EDITOR'S TEXT TOOL IS NOT A TEXT BOX — FOUR ASKS THAT
+     ARE ONE RELEASE. His words: it must WRAP; the font size must change
+     independently of the box and the box independently of the font;
+     RETURN must drop a line instead of resizing; and dragging the box
+     SMALLER must re-wrap the text rather than grow it ("so I may need
+     to hold shift down or some other solution"). Today a text note is a
+     single line whose SIZE handle scales the glyphs — 6.188.0 built the
+     handle as a scale, which is why every one of those four is the same
+     defect seen from four sides. THE DESIGN QUESTION TO SETTLE FIRST,
+     because it decides the data: a wrapped box needs a WIDTH stored per
+     note and a font size stored apart from it, so `snapNote`, the undo
+     rows and the saved-file draw all change together. His "hold shift"
+     suggestion is the right shape for the corner handle — plain drag
+     re-wraps, ⇧drag scales — and it is worth asking him to confirm.
+  2. 🚨 "CLOSING THE EDITOR DUMPS THE MOST RECENT EDITS SO I LOSE ANY
+     CHANGES" (his annotated screenshot). 6.189.0 promises the opposite:
+     `ed.kept` holds { path, img, notes } on cancel and restores them on
+     the next open of the SAME path. So either that slot is not being
+     filled, or it is not being READ, or he means Cancel should SAVE.
+     NOT DIAGNOSED — ask which key he pressed (Esc, ⌘W, the Cancel
+     button, or ⇪⇧1 on another shot, which 6.256.0 showed tears the
+     editor down) and whether reopening the same screenshot brings the
+     marks back. Those are three different bugs and one is not a bug.
+  3. 📐 "Screenshot editor kinda worked once then stopped. I don't see
+     the pixel size but it does seem to be taking the screenshots."
+     TWO CLAIMS IN ONE LINE and they may be one fault: the size readout
+     is drawn by `shots.drawSize` on OUR selector, and a Mac that fell
+     back to `screencapture -i` gets a crosshair with no box — which is
+     exactly "taking the screenshot, no pixel size". 6.274.0 built the
+     count that separates a refusal from his own settings line, and
+     6.282.0 is what makes that count readable. HIS `routes` LINE
+     DECIDES IT; do not guess before it arrives.
+  4. ⌨️ ⌥TAB DOES NOT SHOW THE HAMMERSPOON WINDOW unless he is already on
+     that desktop. This was scored RESOLVED WITHOUT CODE on 6.215.0
+     ("Alt+tab Success. Shows Hammerspoon now") and has regressed or
+     never generalised. The 6.152.0 rule names the mechanism: macOS AX
+     never returns another Space's windows from `app:allWindows()`, so
+     the switcher serves them from `altTab.known`, a memory fed by every
+     listing — a window on another desktop is only there if a listing
+     ever saw it. First suspect is therefore the memory, not the read.
+     `hs.console.hswindow` stays BANNED there (6.160.3).
+  5. 🖥 THE CHEAT SHEET OPENS ON THE WRONG SCREEN "sometimes", AND IS
+     NOT FRONTMOST UNTIL HE MOVES IT. The first half is 6.236.0's
+     territory and that release added the instrument for it:
+     `_G.screenReport()` names the rule that placed the last panel and
+     what each candidate answers. ASK FOR IT AT THE MOMENT IT HAPPENS —
+     "sometimes" is a count, not a sample (6.274.0). The SECOND half is
+     new and is not the same bug: a panel that is up but not frontmost
+     until dragged is 6.225.0/6.251.0's up-vs-front-vs-key distinction,
+     on a surface that has never been audited for it.
+  6. ⚠️ AND HIS CONSOLE CARRIES ONE LINE NEITHER OF US ASKED FOR:
+     `⌨️ ⇪ released by the watchdog — held 8s with no key event and no
+     F18 keyUp (release #1) — musicPlayer had taken the keyboard.` That
+     is 6.251.0's price (taking the keyboard activates Hammerspoon)
+     colliding with the 6.162.1 timed hold: the card took the keys, so
+     no key event reached the ⇪ tap, so the watchdog judged the hold
+     abandoned. It RECOVERED, which is the guard working — but a panel
+     that takes the keyboard should be telling the hold it is alive
+     (`_G.hyperTouch()`), the way every text panel does the 6.165.1
+     handshake. Its own release; the music card is the only panel that
+     takes the keys today, so the class is one module wide.
+
 - ⚠️ THE ASANA TEAM NAME DOES NOT MATCH, AND IT IS BOTH MACS
   (2026-09-24, the home Mac's own boot log; it was in the work Mac's
   before that, and was filed here as a work-Mac thing). The NONBREAKING
@@ -3596,6 +3740,21 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   comment and `_G.asanaSubmitTask` validates properly. So it is a
   shortened picker, not a broken door, which is why it has survived in a
   boot log for this long.
+  🗳 AND HE ASKED THE RIGHT QUESTION — "I think I changed the Team
+  name. But why wouldn't it pull that change?" — so here is the answer,
+  because it decides the fix. IT DOES PULL. `fetchAsanaTeamGids` asks
+  Asana's live API for `/teams?opt_fields=name` on every boot; the list
+  it compares against is always current. What is STALE is the other
+  side: the name it is LOOKING FOR is a literal in asana_comments.lua:69.
+  Asana's answer is fresh and our question is not, so renaming the team
+  in Asana is exactly what breaks it — the config goes on hunting for
+  the old name and says, correctly, that no team has it.
+  🔑 WHICH MAKES THE REAL FIX NOT A RENAME. A hardcoded name that only
+  he can change, in a file he has said he will not edit (6.267.0), is a
+  default that is wrong the next time he reorganises Asana. The
+  release-shaped answer is to stop asking by name where it can: match on
+  the TEAM GID once resolved, or fall back to the whole workspace with a
+  line that SAYS so, rather than silently shipping a shortened picker.
   🔎 ASK FOR THE ARTEFACT BEFORE CHANGING A STRING (6.201.0): the fix
   is a one-line rename and a WRONG rename is silent — it would warn
   identically. So it waits on Asana's OWN name for that team (his Asana
@@ -4035,6 +4194,50 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.282.0 verify with LL — 🕒 THE REPORT ANSWERS AGAIN (KNOWN GROUND)
+  WHAT CHANGED: `_G.screenshotsReport()` no longer throws. Nothing about
+  capturing, naming or OCR moved.
+  WHY IT MATTERS: you ran the command I asked for and got a traceback.
+  `hs.timer.secondsSinceEpoch()` hands back 1758769234.8231 and Lua's
+  os.date refuses a fraction outright, so the `area` line did not print
+  something wrong — it took the whole report down. Since 6.264.0, in
+  every session where you had pressed ⇪4 even once. A fresh boot printed
+  fine, which is why neither of us saw it until you used the key first.
+  🚨 AND IT IS MY METHOD THAT BROKE, not just a line: almost every ask
+  I make of you ends in "paste the report". 6.274.0's steps literally say
+  press ⇪4, then run this command — so that test has been impossible to
+  run since the day it shipped, and I did not notice.
+
+  A. THE HEADLINE. Two commands.
+  A1. Console: `_G.screenshotsReport()`.
+      EXPECT: a report. Not a traceback.
+  A2. Press ⇪4 and drag a rectangle. Then run it AGAIN.
+      EXPECT: still a report, and the `area` line ends with a real
+      clock — `· last pressed 21:14:07`.
+      THIS is the step that failed before. If you get
+      "bad argument #2 to 'date'" again, stop and paste it.
+
+  B. THE ARTEFACTS I HAVE BEEN ASKING FOR AND COULD NOT GET.
+  B1. Use the Mac for a day, then `_G.screenshotsReport()` and PASTE IT.
+      Three lines answer three open questions at once:
+      · `OCR` and `tried` — whether 6.281.0 stopped the green pills.
+      · `routes` and the ⚠️ under it — your intermittent ⇪4.
+      · `area` — which selector the last press used.
+  B2. `_G.alertReport()` as well. Together those are the whole ⇪4
+      question, and this is the first build on which you can collect them.
+
+  C. MUST STILL WORK — this release touched only how a time is printed,
+     so this is a short sweep.
+  C1. ⇪4 captures, with the live size readout and the shutter.
+  C2. ⇪5 scrolling capture. Its report line carries a clock too.
+  C3. A screenshot with words in it still gets renamed — your Console
+      already shows this working ("🏷 OCR → Finder comment: …").
+
+  D. A JUDGEMENT ONLY YOU CAN MAKE.
+  D1. When a clock cannot be read, the line now says "time not recorded"
+      rather than printing 1970. Is that the right wording, or would you
+      rather it said nothing at all there? Either is one line.
+
 - 6.281.0 verify with LL — 🔁 THE GREEN PILLS STOP (KNOWN GROUND)
   WHAT CHANGED: a screenshot that OCRs to nothing is now remembered as
   tried, and the folder watcher stops offering it after three goes. ⌘9 is

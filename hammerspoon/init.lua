@@ -4,9 +4,28 @@
 -- =====================================================================
 -- 09-25-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.281.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.282.0
 -- =====================================================================
 
+-- NEW IN 6.282.0 — 🕒 THE REPORT DIED ON A FLOAT, SO NO ARTEFACT
+--   COULD BE ASKED FOR (modules/screenshots.lua):
+--   LL pasted a traceback where a report belongs: "bad argument #2 to
+--      'date' (number has no integer representation)".
+--   🔎 `hs.timer.secondsSinceEpoch()` is a FLOAT and os.date REFUSES
+--      one, so `shots.areaLast.at` did not print something wrong — it
+--      THREW, and took the whole report with it, in every session in
+--      which ⇪4 had been pressed even once. Live since 6.264.0.
+--   🔑 `shots.clockText` is PURE and is the ONE door all three report
+--      clocks ask. Flooring the single float writer would fix the
+--      instance; the other two are integers only because their writers
+--      happen to call os.time(), so the class lives at the READER.
+--   🚨 AND THE STUB WAS GENTLER IN A VALUE'S TYPE: the suite's
+--      secondsSinceEpoch answered the INTEGER 1000, which os.date
+--      accepts — so the check that renders this very line was green on
+--      every run. 6.193.0 for the eighth time, in a number.
+--   🔒 A source sentry holds the class: nothing in the module formats
+--      a clock by hand. Eight mutations, eight bites.
+--
 -- NEW IN 6.281.0 — 🔁 A SCREENSHOT THAT OCR'd TO NOTHING IS NOT OCR'd
 --   FOR EVER (modules/screenshots.lua):
 --   LL, of the green menu-bar pills: "those green icons just do
@@ -23,31 +42,12 @@
 --   🚨 NOTHING RAN IS NOT EVIDENCE: nameByText answers WHY, so an OCR
 --      outage cannot blacklist. 🔎 The old report read "0 · 0" (6.196.1).
 --
--- NEW IN 6.280.0 — 🗑 A NOTE CAN BE DELETED, AND IT GOES SOMEWHERE
---   (modules/vault.lua):
---   LL, twice: "I don't understand why there is no delete" and "I have an
---      ever growing entries list … no x at the end of the line."
---   🔎 NOT A BUG, A DECISION NOBODY REVISITED: the file's header has said
---      "No file delete — Finder and Obsidian do" since the vault was new.
---   🚨 NEVER os.remove — an unrecoverable delete of his writing is the
---      one failure here with no way back. The note MOVES into
---      <Vault>/.trash, which needs no permission (so it behaves the same
---      on the work Mac, where an osascript Finder delete could be
---      refused), is already in `skipDirs` so it leaves every index at
---      once, and is ignored by Obsidian too. `_G.vaultUndelete()`.
---   🚨 THE ✕ IS ASKED BEFORE THE ROW IT SITS INSIDE, or the shared click
---      handler OPENS the note on its way to deleting it (6.272.0's bug,
---      where it PLAYED the track it was forgetting). By REL, never index.
---   🔗 AND IT SAYS WHAT STILL LINKS TO IT, counted off v.links: the
---      backlink index lists only targets the scan has seen, so it answers
---      "nobody" too reassuringly.
---
--- (6.279.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.280.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.281.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.282.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -144,7 +144,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.281.0"
+_G.configVersion = "6.282.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the

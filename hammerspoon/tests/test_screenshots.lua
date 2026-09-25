@@ -2339,21 +2339,32 @@ do
     local n16 = pass + fail
     ck = function(label, cond, extra) check(label, cond, extra) end
 
+    -- 🧪 A HELPER ANSWERS FALSELY RATHER THAN RAISING (6.186.0): a bare
+    -- S.clockText(nil) inside a check's own expression ends the run when
+    -- the nil guard is mutated away, and the gate reads that as a pass.
+    local function ct(v)
+        local ok, r = pcall(S.clockText, v)
+        if ok then return r end
+        return "RAISED: " .. tostring(r)
+    end
+
     -- ✏️ the pure helper, branch by branch
-    ck("a float is floored, not refused", S.clockText(1000.4823) == os.date("%H:%M:%S", 1000))
+    ck("a float is floored, not refused", ct(1000.4823) == os.date("%H:%M:%S", 1000))
     ck("…and an integer answers exactly the same thing",
-       S.clockText(1000) == S.clockText(1000.4823))
-    ck("a whole second is unchanged", S.clockText(1000) == os.date("%H:%M:%S", 1000))
+       ct(1000) == ct(1000.4823))
+    ck("a whole second is unchanged", ct(1000) == os.date("%H:%M:%S", 1000))
     -- 0 is what the writer leaves when the clock could not be read, so
     -- it must NOT read as 1970 — a plausible-looking wrong time in a
     -- report is worse than a sentence saying there is none.
     ck("0 reads as 'not recorded', never as 1970",
-       S.clockText(0) == "time not recorded", S.clockText(0))
-    ck("nil reads as 'not recorded'", S.clockText(nil) == "time not recorded")
-    ck("a string reads as 'not recorded'", S.clockText("lunchtime") == "time not recorded")
-    ck("a negative reads as 'not recorded'", S.clockText(-5) == "time not recorded")
+       ct(0) == "time not recorded", ct(0))
+    ck("nil reads as 'not recorded'", ct(nil) == "time not recorded")
+    ck("a string reads as 'not recorded'", ct("lunchtime") == "time not recorded")
+    ck("a negative reads as 'not recorded'", ct(-5) == "time not recorded")
     -- 🚨 IT NEVER RAISES. Everything above is a value a report might
     -- meet; the rule is that none of them can end the report.
+    ck("an infinity is refused by os.date and answered, not returned raw",
+       ct(1/0) == "time not recorded", ct(1/0))
     ck("🚨 no input raises — a report must not die describing itself",
        (function()
            for _, v in ipairs({ 0, -1, 1000, 1000.4823, 1/0, -1/0, "x", true, {} }) do
@@ -2380,7 +2391,24 @@ do
        rendered:match("area    :[^\n]*"))
     S.areaLast, S.areaRuns = keptArea, keptRuns
 
-    check("the 6.282.0 block ran every one of its checks", (pass + fail) - n16 == 11,
+    -- 🔒 AND A SOURCE SENTRY CLOSES THE CLASS, not the instance. Three
+    -- report lines read a stored clock and only the AREA one is fed a
+    -- float today — the other two are integers by luck, because their
+    -- writers happen to call os.time(). So no mutation could ever fail
+    -- for those two, and a fix no test can hold is one the next author
+    -- undoes (6.199.0 inverted). The rule is therefore asserted against
+    -- the SOURCE: nothing in this module formats a clock by hand.
+    do
+        local src = io.open(HS .. "/modules/screenshots.lua"):read("a")
+        local bare = src:gsub("%-%-[^\n]*", "")   -- comments quote the banned call
+        ck("🔒 no report line formats a stored clock by hand — they all ask clockText",
+           bare:find('os.date("%H:%M:%S"', 1, true) == nil,
+           tostring(bare:match('os%.date%("%%H:%%M:%%S"[^)]*%)')))
+        ck("…and the helper the sentry protects is really there",
+           bare:find("function shots.clockText", 1, true) ~= nil)
+    end
+
+    check("the 6.282.0 block ran every one of its checks", (pass + fail) - n16 == 14,
           (pass + fail) - n16)
 end
 
