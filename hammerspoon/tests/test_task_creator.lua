@@ -40,7 +40,7 @@ local TMP = "/tmp/hs-test-task-creator-" .. tostring(os.time())
 os.execute('rm -rf "' .. TMP .. '" && mkdir -p "' .. TMP .. '"')
 
 local ALERTS, HTTP_POSTS, HTTP_GETS, TASKS, WARNS = {}, {}, {}, {}, {}
-local TIMERS = {}
+local TIMERS, DEGRADES = {}, {}
 local BOUND, HYPER, SERVICE_CALLS = {}, {}, {}
 local POPUPS, PASTE, PASTE_SET = 0, nil, nil
 local NEXT_JSON = nil
@@ -162,6 +162,14 @@ local core = {
     requireAsana = function()
         if ASANA_OK then return true end
         table.insert(ALERTS, "🔒 Asana is off on this Mac"); return false
+    end,
+    -- 🔔 6.301.0 — the real core HAS a degrade door (6.215.0), and a
+    -- stub without one makes every module under test take its no-door
+    -- fallback, so the door is never exercised. 6.278.0 paid for that
+    -- once already; 6.290.0's rule is the same sentence about macOS.
+    degrade = function(tool, why)
+        DEGRADES[#DEGRADES + 1] = { tool = tostring(tool), why = tostring(why) }
+        return false, why
     end,
     asanaToken = "SECRET-TOKEN-abc123",
     asanaProjectId = "PROJ1",
@@ -716,6 +724,95 @@ do
     check("...and says plainly that the return has only ever meant "
           .. "\"accepted for posting\"",
           rep:find("accepted for posting", 1, true) ~= nil)
+end
+
+out("\n=== C4e. 🗂 6.301.0 — subtasks, through the parent's own gid ===\n")
+-- An Asana subtask is an ordinary task carrying `parent = <gid>`, and
+-- that gid does not exist until the parent's create has come back. LL
+-- asked whether the id in his project URL was the parent id: it is not
+-- — that is the PROJECT gid, which every task here already goes to.
+do
+    local SEEN
+    local function catcher() SEEN = {} ; return function(ok, why, gid, info)
+        SEEN[#SEEN + 1] = { ok = ok, why = why, gid = gid, info = info } end end
+
+    ALERTS, HTTP_POSTS, TIMERS, DEGRADES = {}, {}, {}, {}
+    NEXT_JSON = { data = { gid = "5150" } }
+    local cb = catcher()
+    _G.asanaSubmitTask("Parent one", "", "", "", {
+        subtasks = { "first step", "second step", "   " }, onDone = cb })
+    check("the parent goes out alone first — a subtask has no parent yet",
+          #HTTP_POSTS == 1, #HTTP_POSTS)
+    HTTP_POSTS[1].cb(201, "{}")
+    check("🗂 ...and the subtasks follow once the gid comes back",
+          #HTTP_POSTS == 3, #HTTP_POSTS .. " post(s)")
+    check("...an empty S: line is not a subtask", #HTTP_POSTS == 3)
+    -- (this suite's hs.json.encode is a stub that renders a Lua table,
+    -- so the two tokens are asserted rather than the JSON spelling)
+    local function carriesParent(b)
+        return b:find("parent", 1, true) ~= nil and b:find("5150", 1, true) ~= nil
+    end
+    check("🪪 each carries the PARENT's gid",
+          carriesParent(HTTP_POSTS[2].body)
+          and carriesParent(HTTP_POSTS[3].body), HTTP_POSTS[2].body)
+    check("🚨 ...and NOT the project — Asana files a subtask under its "
+          .. "parent, and a project as well puts the same line twice on "
+          .. "his board", HTTP_POSTS[2].body:find("PROJ1", 1, true) == nil,
+          HTTP_POSTS[2].body)
+    check("⏳ the caller has not been answered yet — the task is not done "
+          .. "until its subtasks are", #SEEN == 0, #SEEN)
+    check("🛟 ...and the belt was re-armed for the second leg, or a slow "
+          .. "subtask would leave the caller waiting exactly as long as "
+          .. "6.299.0's belt exists to prevent", #TIMERS == 2, #TIMERS)
+    HTTP_POSTS[2].cb(201, "{}")
+    check("...still nothing after only one of the two", #SEEN == 0)
+    HTTP_POSTS[3].cb(201, "{}")
+    check("🗂 the caller is answered when the LAST subtask lands, and told "
+          .. "how many went", #SEEN == 1 and SEEN[1].ok == true
+          and SEEN[1].gid == "5150" and SEEN[1].info.subs == 2
+          and SEEN[1].info.subFail == 0,
+          SEEN[1] and tostring(SEEN[1].info and SEEN[1].info.subs))
+
+    -- 🚨 A REFUSED SUBTASK DOES NOT FAIL ITS PARENT. The parent EXISTS;
+    -- a caller that marked this failed would retry and put a SECOND
+    -- copy on his board. Duplicating it is worse than a missing line
+    -- he is told about at the moment it goes missing.
+    ALERTS, HTTP_POSTS, TIMERS, DEGRADES = {}, {}, {}, {}
+    cb = catcher()
+    _G.asanaSubmitTask("Parent two", "", "", "", {
+        subtasks = { "will fail" }, onDone = cb })
+    HTTP_POSTS[1].cb(201, "{}")
+    HTTP_POSTS[2].cb(400, '{"errors":[{"message":"nope"}]}')
+    check("🚨 a refused SUBTASK still answers ok — the parent is in Asana "
+          .. "and a retry would duplicate it",
+          #SEEN == 1 and SEEN[1].ok == true and SEEN[1].info.subFail == 1,
+          SEEN[1] and tostring(SEEN[1].ok))
+    check("🔔 ...and it takes the degrade door at the moment it happens, "
+          .. "because nothing downstream will ever retry it",
+          #DEGRADES == 1 and DEGRADES[1].tool:find("subtask", 1, true) ~= nil
+          and DEGRADES[1].why:find("Parent two", 1, true) ~= nil,
+          #DEGRADES .. " degrade(s)")
+
+    -- no subtasks at all: unchanged, and no second belt
+    ALERTS, HTTP_POSTS, TIMERS, DEGRADES = {}, {}, {}, {}
+    cb = catcher()
+    _G.asanaSubmitTask("Lonely", "", "", "", { onDone = cb })
+    HTTP_POSTS[1].cb(201, "{}")
+    check("a task with no subtasks answers at once and arms no second belt",
+          #SEEN == 1 and SEEN[1].ok == true and SEEN[1].info == nil
+          and #TIMERS == 1, #TIMERS)
+
+    -- the report names them, and names the caveat
+    do
+        local pr, sv = {}, print
+        print = function(x) pr[#pr + 1] = tostring(x) end
+        _G.asanaSubmitReport()
+        print = sv
+        local rep = table.concat(pr, "\n")
+        check("🔎 the report counts subtasks apart, and says why a refused "
+              .. "one is not retried", rep:find("subtasks:", 1, true) ~= nil
+              and rep:find("second copy", 1, true) ~= nil, rep)
+    end
 end
 
 os.execute('rm -rf "' .. TMP .. '"')

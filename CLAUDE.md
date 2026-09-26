@@ -1008,6 +1008,34 @@ work Mac.
   one-hop symlink: a fixture where the right and wrong implementations
   AGREE proves nothing — pick the input where they must differ.
 
+- 🪪 A PARENT IS A TASK, AND ITS ID DOES NOT EXIST UNTIL YOU HAVE MADE
+  ONE (6.301.0, modules/task_creator.lua + scratch_pad.lua — LL, with
+  his project URL: "Parent ID: this is my project ID?"). It is not:
+  745948257030523 is the PROJECT gid and every task here already goes
+  to it. An Asana subtask is an ordinary task carrying `parent =
+  <gid>`, and that gid is minted at the moment of sending — which is
+  why three releases said subtasks "need the parent id" and 6.299.0's
+  answer channel is what made it reachable.
+  🚨 A REFUSED SUBTASK DOES NOT FAIL ITS TASK, and the obvious build
+  gets this backwards. The parent is in Asana by then; a caller told
+  "failed" marks the tab ❌, and a ❌ tab is RETRIED (6.300.0) — which
+  puts a SECOND copy of the parent on his board, silently, every time.
+  Duplicating his board is worse than a missing line he is TOLD about,
+  so `ok` is the PARENT's outcome and the subtask takes the 🔔 door
+  itself, at that moment, naming its parent. Nothing downstream will
+  ever retry it, so if it is not said there it is not said at all.
+  GENERAL: before deciding what a partial failure should report, ask
+  what a RETRY would do — an error that causes a duplicate is worse
+  than a warning that causes a correction.
+  🔑 `onDone(ok, why, gid, info)` — the fourth value is additive, so a
+  caller reading three is unaffected. 🛟 The belt is re-armed for the
+  second leg (the first is spent when the parent lands). A subtask is
+  never given `projects` — Asana files it under its parent, and a
+  project as well draws the same line twice on his board.
+  🔬 test_task_creator's core stub had no `degrade`, so every module
+  under test took its no-door fallback — 6.278.0's exact hole, second
+  time, and 6.290.0's rule applied to our own core rather than macOS.
+
 - 🏷 THE RENAME IS THE MEMORY, AND HIS ANSWER BEAT ALL THREE OF MINE
   (6.300.0, modules/scratch_pad.lua — LL, with a photograph of three
   tabs he had typed the labels into: "Can we rewrite the task titles to
@@ -3629,6 +3657,7 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
+| 6.301.0 | 🗂 an S: line is a real Asana subtask — it needed the parent task's gid, which only exists once the parent has been created | pending |
 | 6.300.0 | 🗂 Hamsidian sends his grammar — one Asana task per task — and each tab is retitled ✅ Success / ❌ Error and kept until he deletes it | pending |
 | 6.299.0 | 🔔 Asana's own answer reaches the caller — the submit returned true the moment it fired the POST, so a task Asana REFUSED was announced as sent | pending |
 | 6.298.0 | 🔎 typing @ on its own lists all fourteen searches — the tags were only ever named in a section header you had to search your way into | pending |
@@ -4528,6 +4557,65 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.301.0 verify with LL — 🗂 SUBTASKS (NEW GROUND — expect a round)
+  WHAT CHANGED: an `S:` line is a real Asana subtask now, hanging under
+  its own task.
+  🪪 AND IT ANSWERS YOUR QUESTION WITH CODE. You asked whether the id in
+  your project URL was the parent id. It is not — 745948257030523 is
+  your PROJECT gid, and this config has posted every task to it since it
+  was set up (it is already in init.lua, beside workspace
+  182448385076670; neither had to change). A PARENT is a TASK, and its
+  id is created at the moment the task is. So there is nothing for you
+  to look up and nothing to paste.
+
+  A. THE HEADLINE.
+  A1. ⇪N, a new tab:
+        P: Generate a new init.lua feature
+        D: We need to structure a new Hammerspoon feature.
+        S: Structure tool request
+        S: Submit tool request
+        S: Begin coding today
+  A2. `_G.scratchPadTasks()`. EXPECT the three ↳ lines, and under them
+      "3 subtask(s) sent under this task".
+  A3. Send it. EXPECT in Asana: ONE task "Generate a new init.lua
+      feature" with THREE SUBTASKS under it — not four tasks side by
+      side, and not three tasks with no parent.
+  A4. The alert should read something like "✅ Hamsidian → Asana: 1 task
+      from 1 tab · 3 subtasks".
+  A5. The tab is retitled ✅ Success: tasks sent.
+
+  B. THE ONE THAT PROTECTS YOUR BOARD — read this even if you skip it.
+  B1. If a subtask is refused, the tab still goes ✅ and you get a
+      separate ⚠️ naming which subtask and which task it belonged to.
+  B2. That is DELIBERATE and it is the one thing here I want you to
+      disagree with if you disagree: by then the parent task EXISTS in
+      Asana. Marking the tab ❌ would make the next send retry it — and
+      a retry creates a SECOND copy of the task on your board, silently,
+      every time. A missing line you are told about is recoverable; a
+      duplicating retry is not.
+  B3. `_G.asanaSubmitReport()` — a new `subtasks: N sent · N refused`
+      line, with that reason spelled out under it.
+
+  C. MUST STILL WORK.
+  C1. A task with NO `S:` lines behaves exactly as it did in 6.300.0.
+  C2. ⇪T still creates a single task (it does not send subtasks — the
+      form has no field for them).
+  C3. ⇪A, the pipe chooser, unchanged.
+
+  D. PASTE BACK, PASS OR FAIL.
+  D1. `_G.asanaSubmitReport()` and `_G.scratchPadReport()` after a real
+      day of use.
+
+  E. A JUDGEMENT ONLY YOU CAN MAKE.
+  E1. A subtask is given only its name — no assignee, no dates, no
+      description. Do you want `A:` and `T:` to flow down to the
+      subtasks as well, or should they stay the parent's alone? I made
+      them the parent's, because a subtask inheriting a due date you
+      only meant for the task is noise on your board.
+  E2. Subtasks are filed under the parent only, NOT added to your
+      project separately. That is why they do not appear as their own
+      rows in the project list. Say if you want them listed there too.
+
 - 6.300.0 verify with LL — 🗂 THE GRAMMAR SENDS (NEW GROUND — expect a round)
   WHAT CHANGED: Hamsidian sends your grammar now. Every task it reads
   becomes its own Asana task, and the tab is retitled with your labels.

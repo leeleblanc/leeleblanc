@@ -101,7 +101,7 @@ local M = {
             { "+ 🗒 · + ➕", "OFF since 6.254.0 — the Capture / Append rows are hidden. Nothing was deleted: both stores are intact and still searched by ⇪space. settings = { scratch_pad = { showKindRows = true } } brings the rows back" },
             { "⇪2",        "SEQUENTIAL COPY: select text, press it, select more, press again — the grabs join into ONE block on the clipboard, so ⌘V pastes the lot. Copying anything else starts a new sequence. Nothing is filed into the pad" },
             { "16:00",     "ON again (6.300.0, his own reversal): every unsent tab's tasks go to Asana at 16:00, open window or not. _G.scratchPadSend() sends by hand; settings = { scratch_pad = { sendDaily = false } } switches the schedule off" },
-            { "grammar",   "A bare line is a task · = divides · P: title · A: assignee · D: description · S: subtask (read, not yet sent) · T: dates and times. One Asana task per task, into your default project" },
+            { "grammar",   "A bare line is a task · = divides · P: title · A: assignee · D: description · S: subtask (a real Asana subtask) · T: dates and times. One Asana task per task, into your default project" },
             { "✅ / ❌",    "After a send each tab is RETITLED \"✅ Success: tasks sent\" or \"❌ Error: tasks not sent\" and kept until you delete it. A ✅ tab is never sent twice; a ❌ tab is retried; typing in a tab clears its mark" },
             { "preview",   "_G.scratchPadTasks() shows every task a send WOULD create, and what it did to each T: line — nothing is sent" },
             { "search",    "⇪space finds everything here — tabs and history" },
@@ -1206,15 +1206,21 @@ function M.setup(core)
         -- every tab has. Marking on the first answer would put a ✅ on
         -- a tab whose second task was still in flight.
         local openJobs, sentN, failN, lastWhy = #jobs, 0, 0, nil
+        local subN, subBad = 0, 0
         local function runDone()
             sp.lastTaskSend.sent, sp.lastTaskSend.failed = sentN, failN
+            sp.lastTaskSend.subs, sp.lastTaskSend.subFailed = subN, subBad
             pcall(sp.saveNow)
             if failN == 0 then
                 sp.lastSend = { at = os.time(), reason = reason,
                                 outcome = "sent · " .. sentN .. " task"
                                           .. (sentN == 1 and "" or "s") }
                 sp.announce("sent", sentN .. " task" .. (sentN == 1 and "" or "s")
-                            .. " from " .. #jobs .. " tab" .. (#jobs == 1 and "" or "s"),
+                            .. " from " .. #jobs .. " tab" .. (#jobs == 1 and "" or "s")
+                            .. (subN > 0 and (" · " .. subN .. " subtask"
+                                              .. (subN == 1 and "" or "s")) or "")
+                            .. (subBad > 0 and (" · ⚠️ " .. subBad
+                                                .. " subtask(s) refused") or ""),
                             reason)
             else
                 sp.lastSend = { at = os.time(), reason = reason,
@@ -1236,12 +1242,22 @@ function M.setup(core)
             job.left, job.bad = #job.tasks, 0
             for _, task in ipairs(job.tasks) do
                 local heard = false
-                local function answer(ok, why)
+                local function answer(ok, why, _, info)
                     if heard then return end
                     heard = true
                     if ok then sentN = sentN + 1
                     else failN = failN + 1 ; job.bad = job.bad + 1
                          lastWhy = why end
+                    -- 🗂 6.301.0 — the S: lines. A refused subtask does
+                    -- NOT fail its task: the parent is already in Asana
+                    -- and a retry would put a second copy of it on his
+                    -- board. It is counted, said in the announce and
+                    -- alerted by the submit itself at the moment it
+                    -- happens.
+                    if type(info) == "table" then
+                        subN  = subN + (tonumber(info.subs) or 0)
+                        subBad = subBad + (tonumber(info.subFail) or 0)
+                    end
                     job.left = job.left - 1
                     if job.left == 0 then jobDone(job) end
                 end
@@ -1251,7 +1267,10 @@ function M.setup(core)
                     startDate = w.startDate, startTime = w.startTime,
                     dueDate   = w.dueDate,   dueTime   = w.dueTime,
                     comment   = sp.comment,
-                    onDone    = function(ok, why) answer(ok, why) end,
+                    subtasks  = task.subs,
+                    onDone    = function(ok, why, gid, info)
+                        answer(ok, why, gid, info)
+                    end,
                 })
                 -- 🚨 A SUBMIT THAT RAISES ANSWERS NOBODY, and one tab
                 -- left un-marked would hold the whole run open — no
@@ -1333,13 +1352,14 @@ function M.setup(core)
                     for _, note in ipairs(notes) do
                         L[#L + 1] = "         ↳ " .. note
                     end
-                    -- 🚨 SUBTASKS ARE NOT BUILT YET AND IT SAYS SO HERE,
-                    -- beside the row it affects rather than in a footnote:
-                    -- a preview that lists a subtask he will not get is
-                    -- the same lie as a cheat sheet naming a dead key.
+                    -- 🗂 6.301.0 — they GO now, as real Asana subtasks
+                    -- under this task. Said beside the row rather than
+                    -- in a footnote, and the one caveat is said with
+                    -- it, because it is the one that can lose a line.
                     if #k.subs > 0 then
-                        L[#L + 1] = "         ⚠️ subtasks are read but NOT yet sent — "
-                                    .. "that needs Asana's parent id (its own release)"
+                        L[#L + 1] = "         ↳ " .. #k.subs .. " subtask(s) sent "
+                                    .. "under this task · a refused one does NOT "
+                                    .. "fail the task (retrying would duplicate it)"
                     end
                 end
                 for _, why in ipairs(problems) do
@@ -2134,6 +2154,14 @@ t.focus(); try { t.setSelectionRange(CARET, CARET); } catch(e){}
                                 .. "closed today were NOT read — this send "
                                 .. "reads OPEN tabs only, so each one can "
                                 .. "be told what happened to it"
+                end
+                if (ls.subs or 0) > 0 or (ls.subFailed or 0) > 0 then
+                    L[#L + 1] = "           ↳ " .. tostring(ls.subs)
+                                .. " subtask(s) sent"
+                                .. ((ls.subFailed or 0) > 0
+                                    and (" · ⚠️ " .. ls.subFailed .. " refused — "
+                                         .. "re-add those lines by hand; a retry "
+                                         .. "would duplicate their task") or "")
                 end
                 if (ls.alreadySent or 0) > 0 then
                     L[#L + 1] = "           ↳ " .. ls.alreadySent

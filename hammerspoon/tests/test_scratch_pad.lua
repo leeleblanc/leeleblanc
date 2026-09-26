@@ -266,15 +266,32 @@ _G.notices = { tell = function(title, text)
 local SUBMITS, SUBMIT_RESULT = {}, true
 local SUBMIT_ASANA, SUBMIT_DEFER, SUBMIT_PENDING = nil, false, {}
 local SUBMIT_WHY = "Asana refused it (HTTP 400) — invalid assignee"
+local SUBMIT_SUBFAIL = false
 _G.asanaSubmitTask = function(title, desc, assignee, attach, extra)
     SUBMITS[#SUBMITS + 1] = { title = title, desc = desc, assignee = assignee, attach = attach, extra = extra }
     local asana = SUBMIT_ASANA
     if asana == nil then asana = SUBMIT_RESULT end
     local cb = (type(extra) == "table") and extra.onDone or nil
+    -- 🔬 6.301.0 — and a FOURTH value when subtasks were asked for.
+    -- The real submit answers `info = { subs, subFail, subWhy }` once
+    -- the second leg has landed; a stub that drops it is gentler than
+    -- the provider in exactly the place the announce reads (6.290.0).
+    local subs = (type(extra) == "table" and type(extra.subtasks) == "table")
+                 and extra.subtasks or nil
+    local info = nil
+    if subs then
+        local n = 0
+        for _, x in ipairs(subs) do
+            if tostring(x or ""):gsub("%s", "") ~= "" then n = n + 1 end
+        end
+        info = { subs = SUBMIT_SUBFAIL and 0 or n,
+                 subFail = SUBMIT_SUBFAIL and n or 0,
+                 subWhy = SUBMIT_SUBFAIL and "a subtask was refused" or nil }
+    end
     local fire = function()
         if type(cb) == "function" then
             cb(asana and true or false, asana and nil or SUBMIT_WHY,
-               asana and "9001" or nil)
+               asana and "9001" or nil, asana and info or nil)
         end
     end
     -- 🔬 A QUEUE, not a slot: several requests are in flight at once on
@@ -1724,9 +1741,11 @@ do
           prev:find("one date given", 1, true) ~= nil
           and prev:find("due " .. os.date("%Y-%m-%d", NOW), 1, true) ~= nil,
           prev)
-    check("⚠️ ...and warns that a subtask is read but not yet sent, "
-          .. "beside the row it affects rather than in a footnote",
-          prev:find("subtasks are read but NOT yet sent", 1, true) ~= nil, prev)
+    check("🗂 6.301.0 — ...and says the subtasks GO, with the one caveat "
+          .. "that can lose a line: a refused subtask does not fail its "
+          .. "task, because retrying would duplicate the parent",
+          prev:find("subtask(s) sent under this task", 1, true) ~= nil
+          and prev:find("would duplicate", 1, true) ~= nil, prev)
     check("🔎 ...and teaches the grammar at the point of use",
           prev:find("P: title", 1, true) ~= nil
           and prev:find("= divides", 1, true) ~= nil)
@@ -1777,7 +1796,7 @@ do
         sp.history, sp.active, sp.sent, sp.unsent = {}, "t1", {}, nil
         SUBMITS, DEGRADES, ALERTS, TOLD = {}, {}, {}, {}
         SUBMIT_RESULT, SUBMIT_ASANA, SUBMIT_DEFER = true, nil, false
-        SUBMIT_PENDING = {}
+        SUBMIT_PENDING, SUBMIT_SUBFAIL = {}, false
         -- §7 leaves the fake disk refusing writes; this section is not
         -- about that, and a "NOT SAVED" alert would be counted as the
         -- send's own.
@@ -1963,6 +1982,33 @@ do
           .. "to the send that can answer for each one",
           sp.tabs[1].mark == nil, tostring(sp.tabs[1].mark))
     sp.sendGrammar = true
+
+    -- ---- 🗂 6.301.0 — the S: lines reach Asana ------------------------
+    reset("P: Ship the release\nS: run the gate\nS: write the notes")
+    sp.send("scheduled")
+    check("🗂 the S: lines ride into the submit as subtasks",
+          #SUBMITS == 1 and type(SUBMITS[1].extra.subtasks) == "table"
+          and #SUBMITS[1].extra.subtasks == 2,
+          tostring(SUBMITS[1] and SUBMITS[1].extra.subtasks))
+    check("...and the announce says how many went",
+          tostring(ALERTS[#ALERTS]):find("2 subtasks", 1, true) ~= nil,
+          tostring(ALERTS[#ALERTS]))
+    check("...and the tab is ✅", sp.tabs[1].mark == sp.sentMark)
+
+    -- 🚨 A REFUSED SUBTASK DOES NOT FAIL THE TASK. The parent is in
+    -- Asana; marking the tab ❌ would retry and duplicate it.
+    reset("P: Ship it\nS: one that fails")
+    SUBMIT_SUBFAIL = true
+    sp.send("scheduled")
+    check("🚨 a refused SUBTASK leaves the tab ✅ — the task went, and a "
+          .. "retry would put a second copy of it on his board",
+          sp.tabs[1].mark == sp.sentMark, tostring(sp.tabs[1].mark))
+    check("...but the announce SAYS one was refused, or a lost line is "
+          .. "invisible", tostring(ALERTS[#ALERTS]):find("refused", 1, true) ~= nil,
+          tostring(ALERTS[#ALERTS]))
+    check("...and the report carries it with the reason it is not retried",
+          _G.scratchPadReport():find("would duplicate their task", 1, true) ~= nil)
+    SUBMIT_SUBFAIL = false
 
     -- ---- 📅 whenForAsana, PURE -----------------------------------------
     local w, notes = sp.whenForAsana({ startDate = "2026-09-26" })

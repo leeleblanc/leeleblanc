@@ -4,8 +4,24 @@
 -- =====================================================================
 -- 09-26-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.300.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.301.0
 -- =====================================================================
+
+-- NEW IN 6.301.0 — 🗂 SUBTASKS, THROUGH THE PARENT'S OWN GID
+--   (modules/task_creator.lua + scratch_pad.lua): an `S:` line is a
+--   real Asana subtask now. It could not be before: a subtask is a
+--   task carrying `parent = <gid>`, and that gid does not exist
+--   until the parent's create has come back — which is the thing
+--   6.299.0's answer channel made reachable.
+--   🪪 LL ASKED IF HIS PROJECT URL HELD THE PARENT ID. It does not:
+--   745948257030523 is the PROJECT gid, and every task here already
+--   goes to it. A parent is a TASK, and its gid is minted on send.
+--   🚨 A REFUSED SUBTASK DOES NOT FAIL ITS TASK. The parent exists,
+--   so a ❌ would retry and put a SECOND copy on his board —
+--   duplicating it is worse than a missing line he is TOLD about,
+--   so the subtask takes the 🔔 door itself, at that moment.
+--   🛟 The belt is re-armed for the second leg; a subtask is never
+--   given `projects` (that draws the same line twice on the board).
 
 -- NEW IN 6.300.0 — 🗂 THE GRAMMAR SENDS, AND THE TAB WEARS THE ANSWER
 --   (modules/scratch_pad.lua): 6.297.0 read his task grammar and
@@ -22,29 +38,11 @@
 --   which Asana refuses. 📏 OPEN TABS ONLY, the rest NAMED
 --   (6.201.1). 🗓 16:00 is ON again, reversing 6.254.0 on his word.
 
--- NEW IN 6.299.0 — 🔔 ASANA'S OWN ANSWER REACHES THE CALLER
---   (modules/task_creator.lua + scratch_pad.lua): `asanaSubmitTask`
---   returns TRUE the instant it fires the POST — Asana's 200, its
---   400 and its 401 all land later, in a callback that told the
---   caller nothing. Every caller read "accepted" as "sent".
---   🚨 AND IT COST 6.278.0'S WHOLE GUARANTEE: a send Asana REFUSED
---   printed "✅ Hamsidian → Asana" beside task_creator's own
---   "❌ Error: 400". The instrument built to report a failure could
---   only see failures that happen before the request leaves.
---   🔑 `extra.onDone(ok, why, taskGid)` — optional, existing callers
---   unchanged, fires EXACTLY ONCE through one door, and hands back
---   the gid a subtask needs. 🛟 A BELT armed BEFORE the post
---   (6.246.0) answers a silent Asana instead of leaving the caller
---   waiting for ever. `_G.asanaSubmitReport()`.
---   🔬 The suites' stubs only RETURNED, so every check passed with
---   the second channel missing — test_stub_fidelity §6 now fails
---   the gate for it (6.290.0).
-
--- (6.298.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.299.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 cut the inline count to
 --  TWO; a gate check proves every entry here is also in CHANGELOG.md.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.300.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.301.0
 -- =====================================================================
 -- The catalogue that used to sit here moved to GUIDE.md ("What each
 -- tool does") in 6.180.0 — 259 lines of prose inside the orchestrator.
@@ -137,7 +135,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.300.0"
+_G.configVersion = "6.301.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the

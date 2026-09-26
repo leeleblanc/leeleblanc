@@ -1,4 +1,4 @@
-# TESTING — how to score release 6.300.0
+# TESTING — how to score release 6.301.0
 
 You install ONE archive and it carries several releases. Below are the
 steps for each release this archive is new for, newest first. Run the
@@ -26,6 +26,69 @@ else is a LOSS and I fix it before building further. You are the only
 scorer; I never mark my own.
 
 ---
+
+## 6.301.0
+
+6.301.0 verify with LL — 🗂 SUBTASKS (NEW GROUND — expect a round)
+WHAT CHANGED: an `S:` line is a real Asana subtask now, hanging under
+its own task.
+🪪 AND IT ANSWERS YOUR QUESTION WITH CODE. You asked whether the id in
+your project URL was the parent id. It is not — 745948257030523 is
+your PROJECT gid, and this config has posted every task to it since it
+was set up (it is already in init.lua, beside workspace
+182448385076670; neither had to change). A PARENT is a TASK, and its
+id is created at the moment the task is. So there is nothing for you
+to look up and nothing to paste.
+
+A. THE HEADLINE.
+A1. ⇪N, a new tab:
+      P: Generate a new init.lua feature
+      D: We need to structure a new Hammerspoon feature.
+      S: Structure tool request
+      S: Submit tool request
+      S: Begin coding today
+A2. `_G.scratchPadTasks()`. EXPECT the three ↳ lines, and under them
+    "3 subtask(s) sent under this task".
+A3. Send it. EXPECT in Asana: ONE task "Generate a new init.lua
+    feature" with THREE SUBTASKS under it — not four tasks side by
+    side, and not three tasks with no parent.
+A4. The alert should read something like "✅ Hamsidian → Asana: 1 task
+    from 1 tab · 3 subtasks".
+A5. The tab is retitled ✅ Success: tasks sent.
+
+B. THE ONE THAT PROTECTS YOUR BOARD — read this even if you skip it.
+B1. If a subtask is refused, the tab still goes ✅ and you get a
+    separate ⚠️ naming which subtask and which task it belonged to.
+B2. That is DELIBERATE and it is the one thing here I want you to
+    disagree with if you disagree: by then the parent task EXISTS in
+    Asana. Marking the tab ❌ would make the next send retry it — and
+    a retry creates a SECOND copy of the task on your board, silently,
+    every time. A missing line you are told about is recoverable; a
+    duplicating retry is not.
+B3. `_G.asanaSubmitReport()` — a new `subtasks: N sent · N refused`
+    line, with that reason spelled out under it.
+
+C. MUST STILL WORK.
+C1. A task with NO `S:` lines behaves exactly as it did in 6.300.0.
+C2. ⇪T still creates a single task (it does not send subtasks — the
+    form has no field for them).
+C3. ⇪A, the pipe chooser, unchanged.
+
+D. PASTE BACK, PASS OR FAIL.
+D1. `_G.asanaSubmitReport()` and `_G.scratchPadReport()` after a real
+    day of use.
+
+E. A JUDGEMENT ONLY YOU CAN MAKE.
+E1. A subtask is given only its name — no assignee, no dates, no
+    description. Do you want `A:` and `T:` to flow down to the
+    subtasks as well, or should they stay the parent's alone? I made
+    them the parent's, because a subtask inheriting a due date you
+    only meant for the task is noise on your board.
+E2. Subtasks are filed under the parent only, NOT added to your
+    project separately. That is why they do not appear as their own
+    rows in the project list. Say if you want them listed there too.
+
+
 
 ## 6.300.0
 
@@ -247,99 +310,6 @@ E2. 📏 NAMED, NOT FIXED, so it is not a surprise: with `@ocr` typed, the
     line under the box still reads "200 matches across every store" —
     which is not true, it is pinned to one store. Your screenshot. It is
     its own small release; say if you want it sooner.
-
-
-
-## 6.297.0
-
-6.297.0 verify with LL — 🗂 A LINE IS A TASK (NEW GROUND — expect a round)
-WHAT CHANGED: Hamsidian can now READ your task grammar. It does not
-send it yet, on purpose.
-🔎 AND FIRST, YOUR QUESTION, ANSWERED: **no.** "→ Asana now" builds
-ONE task for the whole day — titled `Hamsidian · Fri Sep 26`, with
-every open tab's text as its description. Never one task per line.
-(And the 4 PM schedule is OFF anyway — you switched it off in
-6.254.0 — so only that button and `_G.scratchPadSend()` send at all.)
-WHY THE PREVIEW COMES FIRST: this is your grammar and only you know
-what you will really type. If I build the sending first, the first
-thing either of us learns about a misreading is a wrong task sitting
-in Asana. So this release prints what it understood, and you tell me
-where it is wrong before anything reaches your board.
-
-A. THE HEADLINE — this is the whole test.
-A1. Press ⇪N and type into a tab, in your own words. Include at
-    least one bare line, one `=`, and one P:/A:/D:/S:/T: block. Your
-    own example from the message is perfect:
-      Create the Asana task maker in Hamsidian
-      =
-      P: Generate a new init.lua feature
-      A: me
-      D: We need to structure a new Hammerspoon feature.
-      S: Structure tool request
-      S: Submit tool request
-      T: today +1w 7:00 AM 4:00 PM
-      S: Begin coding today
-A2. Console: `_G.scratchPadTasks()`. **PASTE THE WHOLE THING.**
-    EXPECT: two tasks — "Create the Asana task maker in Hamsidian",
-    and "Generate a new init.lua feature" with 👤 me, its 📄
-    description, three ↳ subtasks, and a 📅 line reading start today
-    07:00 · due <a week out> 16:00.
-A3. Read every line of that output against what you MEANT. That is
-    the test. Anything it got wrong is a one-line fix here and a
-    wrong task in Asana later.
-
-B. THE THING I MOST WANT TO KNOW — the `T:` line.
-B1. You described the INTENT ("Today as start date, one week from
-    today as the end date, start time 7:00 AM, end time 4:00 PM") and
-    not a syntax, so I guessed one. It reads:
-      today · tomorrow · yesterday · +3d · +2w · +1m
-      2026-09-13 · 09/13/26 · 9-13-2026
-      7:00 AM · 4pm · 07:00 · 16:00
-    First date is the start, second is the due; first time the start,
-    second the end.
-B2. Write a `T:` line the way you WOULD write it, without looking at
-    that list, and run the preview. Anything it cannot read is named
-    as `⚠️ could not read "x"`. Send me those words — they are the
-    spec, and my guess is not.
-
-C. THE ONES THAT PROTECT A TASK FROM VANISHING.
-C1. Put a bare line straight after a `D:` line. EXPECT: it becomes
-    its OWN task, not part of the description. That is the decision I
-    made, and it is the one worth disagreeing with if you disagree.
-C2. Write `D: something` with no `P:` above it. EXPECT: a ⚠️ saying
-    it is before any task. It is dropped rather than silently glued
-    onto the next thing.
-C3. Write `D: a = b`. EXPECT: it stays one task with "a = b" as the
-    description — an `=` inside a line is text, only a line that is
-    nothing but `=` divides.
-
-D. MUST STILL WORK — this release added a reader and changed no
-   behaviour, so this is the sweep.
-D1. ⇪N and ⇪3 open as before, your tabs and notes are untouched.
-D2. "→ Asana now" still does exactly what it did — one task for the
-    day. Nothing about sending changed.
-D3. ⌘⇧S still exports tabs as notes.
-
-E. WHAT IS NOT BUILT YET, said plainly so it is not a surprise.
-E1. **Nothing is sent from the grammar.** That is next.
-E2. **Subtasks are read but cannot be sent** — Asana needs the parent
-    task's id back before a subtask can be attached, which is a
-    second call and its own release. The preview says so on every row
-    that has one.
-E3. **The clearing you asked for** — tasks gone from the pad and "All
-    tasks sent." left behind — comes with the send. One question I
-    need answered before I build it, and it is the only one that can
-    lose your writing: when a tab is cleared, where should the text
-    GO? Options: (a) nowhere, it is gone; (b) into the tab's history,
-    recoverable from the report; (c) exported as a note in
-    <Vault>/Scratch first, so it is a file. **I will build (c) unless
-    you say otherwise** — 6.280.0's rule is that deleting your
-    writing is the one failure with no way back.
-E4. **4 PM back on, open or not.** The schedule already runs whether
-    the window is open or not — it lives in the module, not the
-    window — it is simply switched off. It comes back on with the
-    send, not before, because a schedule that fires a grammar I have
-    not proven is the wrong order.
 
 
 

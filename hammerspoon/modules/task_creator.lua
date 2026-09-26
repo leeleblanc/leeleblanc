@@ -534,6 +534,58 @@ function M.setup(core)
     --   { startDate/startTime/dueDate/dueTime = "YYYY-MM-DD"/"HH:MM",
     --     custom = { [field gid] = value } }
     -- The pipe chooser passes nothing and keeps its old four-string call.
+    -- 🗂 6.301.0 — THE SECOND CALL. An Asana subtask is an ordinary
+    -- task with `parent` set; it is NOT given `projects`, because Asana
+    -- files a subtask under its parent and a project as well would put
+    -- the same line twice on the board LL reads.
+    --
+    -- 🔔 EVERY REFUSAL IS SEEN AT THE MOMENT IT HAPPENS. The parent has
+    -- already landed, so nothing downstream will retry this — if it is
+    -- not said here it is not said at all. Counted apart in the report,
+    -- because a subtask that never went is a line of his that is not on
+    -- his board.
+    local function postSubtasks(parentGid, names, parentTitle, onAll)
+        local left, okN, badN, lastWhy = #names, 0, 0, nil
+        local function one(nOk, why)
+            if nOk then okN = okN + 1
+            else
+                badN = badN + 1 ; lastWhy = why
+                M.answers = (M.answers or { ok = 0, failed = 0, timedOut = 0 })
+                M.answers.subFailed = (M.answers.subFailed or 0) + 1
+                local msg = "a subtask of \"" .. tostring(parentTitle)
+                            .. "\" did not go — " .. tostring(why)
+                if type(core.degrade) == "function" then
+                    pcall(core.degrade, "Asana subtask", msg)
+                else
+                    pcall(print, "⚠️ Asana subtask: " .. msg)
+                    pcall(function() hs.alert.show("⚠️ " .. msg, 6) end)
+                end
+            end
+            left = left - 1
+            if left == 0 then
+                M.answers = (M.answers or { ok = 0, failed = 0, timedOut = 0 })
+                M.answers.subOk = (M.answers.subOk or 0) + okN
+                onAll(okN, badN, lastWhy)
+            end
+        end
+        for _, name in ipairs(names) do
+            local body = hs.json.encode({ data = { name = name, parent = parentGid } })
+            local okPost = pcall(hs.http.asyncPost,
+                "https://app.asana.com/api/1.0/tasks", body, {
+                    ["Authorization"] = "Bearer " .. core.asanaToken,
+                    ["Content-Type"]  = "application/json"
+                }, function(st, rb)
+                    if st == 200 or st == 201 then one(true)
+                    else one(false, "HTTP " .. tostring(st) .. " — "
+                             .. tostring(rb or ""):sub(1, 120)) end
+                end)
+            -- 🚨 A POST THAT RAISES ANSWERS NOBODY, and one unanswered
+            -- subtask holds the whole run open — no callback, no mark,
+            -- no announce, for ever.
+            if not okPost then one(false, "the subtask request threw") end
+        end
+    end
+
     function _G.asanaSubmitTask(title, desc, assignee, attach, extra)
         title, desc     = title or "", desc or ""
         assignee, attach = assignee or "", attach or ""
@@ -580,7 +632,10 @@ function M.setup(core)
             if submitTimer then pcall(function() submitTimer:stop() end) end
             submitTimer = nil
         end
-        local function finish(ok, why, gid)
+        -- `info` (6.301.0) is the FOURTH value: what happened to the
+        -- subtasks, if any were asked for. It is additive on purpose —
+        -- a caller reading three values is unaffected.
+        local function finish(ok, why, gid, info)
             if answered then return end
             answered = true
             stopAnswerBelt()
@@ -594,7 +649,7 @@ function M.setup(core)
             -- down: half of these fire from inside hs.http's callback,
             -- where a raise is a silence (6.235.0).
             local fine, err = pcall(extra.onDone, ok and true or false,
-                                    ok and nil or tostring(why or "?"), gid)
+                                    ok and nil or tostring(why or "?"), gid, info)
             if not fine then
                 pcall(print, "⚠️ Asana submit: a caller's onDone threw — "
                              .. tostring(err))
@@ -810,10 +865,52 @@ function M.setup(core)
                 elseif attach ~= "" then
                     hs.alert.show("⚠️ Could not parse task GID for attachment")
                 end
-                -- 🔔 6.299.0 — ASANA SAID YES. Said AFTER the gid is
-                -- parsed, so a caller that wants to hang a subtask off
-                -- this task is handed the parent it needs.
-                finish(true, nil, taskGid)
+                -- 🗂 6.301.0 — AND THE SUBTASKS GO NOW, because THIS is
+                -- the first moment they can: an Asana subtask is a task
+                -- carrying `parent = <the parent's gid>`, and that gid
+                -- does not exist until the create above has come back.
+                -- (LL asked whether the id in his project URL was the
+                -- parent id. It is not — that is the PROJECT gid, which
+                -- this config already posts every task to. A parent is a
+                -- TASK, and its gid is minted here.)
+                local subs = {}
+                if type(extra.subtasks) == "table" then
+                    for _, name in ipairs(extra.subtasks) do
+                        name = tostring(name or "")
+                        if name:gsub("%s", "") ~= "" then subs[#subs + 1] = name end
+                    end
+                end
+                if taskGid and #subs > 0 then
+                    -- 🛟 THE BELT IS RE-ARMED FOR THE SECOND LEG. The
+                    -- first one is spent the moment the parent lands,
+                    -- and without this a slow subtask would leave the
+                    -- caller waiting exactly as long as 6.299.0's belt
+                    -- exists to prevent.
+                    stopAnswerBelt()
+                    if hs.timer and hs.timer.doAfter then
+                        local okT2, t2 = pcall(hs.timer.doAfter,
+                                               tonumber(M.config.answerSecs) or 30,
+                                               function()
+                            finish(true, nil, taskGid,
+                                   { subs = 0, subFail = #subs,
+                                     subWhy = "Asana did not answer about the subtasks" })
+                        end)
+                        if okT2 and t2 then submitTimer = t2 end
+                    end
+                    postSubtasks(taskGid, subs, title, function(nOk, nBad, lastWhy)
+                        -- 🚨 `ok` IS THE PARENT'S OUTCOME, NEVER THE
+                        -- SUBTASKS'. The parent EXISTS in Asana now, so
+                        -- a caller that marked this failed would retry
+                        -- and create a SECOND copy of it. Duplicating
+                        -- his board is worse than a subtask he is told
+                        -- about at the moment it goes missing — which
+                        -- is why postSubtasks takes the 🔔 door itself.
+                        finish(true, nil, taskGid,
+                               { subs = nOk, subFail = nBad, subWhy = lastWhy })
+                    end)
+                else
+                    finish(true, nil, taskGid)
+                end
             else
                 hs.alert.show("❌ Error: " .. tostring(status))
                 print("Asana API Error: ", responseBody)
@@ -1034,6 +1131,16 @@ function _G.asanaSubmitReport()
                         .. tostring(l.title or "?")
                         .. " at " .. os.date("%H:%M:%S", l.at or 0)
                         .. (l.ok and "" or " — " .. tostring(l.why or "?"))
+        end
+    end
+    if (a.subOk or 0) > 0 or (a.subFailed or 0) > 0 then
+        L[#L + 1] = string.format("   subtasks: %d sent · %d refused",
+                                  a.subOk or 0, a.subFailed or 0)
+        if (a.subFailed or 0) > 0 then
+            L[#L + 1] = "   ⚠️ a refused SUBTASK never fails its parent — the "
+                        .. "parent already exists, so retrying would put a "
+                        .. "second copy of it on the board. Re-add the "
+                        .. "missing line by hand."
         end
     end
     if (a.noBelt or 0) > 0 then

@@ -6,6 +6,53 @@ older lives only here.
 
 ```text
 
+NEW IN 6.301.0 — 🗂 SUBTASKS, THROUGH THE PARENT'S OWN GID
+(modules/task_creator.lua + modules/scratch_pad.lua):
+
+  An `S:` line is a real Asana subtask now. Three releases have said it
+  could not be yet, and the reason was always the same one: an Asana
+  subtask is an ordinary task carrying `parent = <the parent's gid>`,
+  and that gid does not exist until the parent's create has come back.
+  6.299.0 is what made it reachable — the submit hands the gid to the
+  caller — and this is what uses it.
+
+  🪪 AND IT ANSWERS LL'S QUESTION WITH CODE. He pasted his project URL
+  and asked "Parent ID: this is my project ID?" — the id in it,
+  745948257030523, is the PROJECT gid, which this config has posted
+  every task to since it was configured (it is in init.lua beside
+  workspace 182448385076670, and neither had to change). A PARENT is a
+  TASK, not a project, and its gid is minted at the moment of sending.
+  Nothing for him to look up and nothing for him to paste.
+
+  🚨 A REFUSED SUBTASK DOES NOT FAIL ITS TASK, and that is the decision
+  worth stating because the obvious build gets it backwards. The parent
+  is already in Asana by then. A caller told "failed" would mark the tab
+  ❌, and a ❌ tab is RETRIED (6.300.0) — which would put a SECOND copy
+  of the parent on his board, silently, every time. Duplicating his
+  board is worse than a missing line he is told about, so `ok` is the
+  PARENT's outcome and the subtask takes the 🔔 door itself, at the
+  moment it happens, naming its parent. Nothing downstream will ever
+  retry it, so if it is not said there it is not said at all.
+
+  🔑 THE FOURTH VALUE. `extra.onDone(ok, why, gid, info)` gains `info =
+  { subs, subFail, subWhy }`, additive on purpose — a caller reading
+  three values is unaffected. The answer waits for the second leg, so
+  "sent" means the task AND its subtasks have landed, and Hamsidian's
+  alert says "3 tasks · 5 subtasks" or names the ones refused.
+
+  🛟 THE BELT IS RE-ARMED FOR THE SECOND LEG. 6.299.0's belt is spent
+  the moment the parent lands; without a second one a slow subtask would
+  leave the caller waiting exactly as long as that belt exists to
+  prevent. And a subtask is never given `projects`: Asana files it under
+  its parent, and a project as well puts the same line twice on the
+  board LL reads.
+
+  🔬 AND THE CORE STUB IN test_task_creator HAD NO `degrade`, so every
+  module under test took its no-door fallback and the door was never
+  exercised — 6.278.0 paid for that exact hole once already, and this
+  is 6.290.0's rule about macOS applied to our own core. It has one now.
+  The scratch pad's submit stub answers the fourth value too.
+
 NEW IN 6.300.0 — 🗂 THE GRAMMAR SENDS, AND THE TAB WEARS THE ANSWER
 (modules/scratch_pad.lua):
 
