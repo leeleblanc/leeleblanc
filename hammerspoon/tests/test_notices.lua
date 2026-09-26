@@ -411,7 +411,9 @@ boot()
 N.degrade("Music player", "this Mac has no hs.sound")
 check("🔕 a quiet tool draws NO alert", #ALERTS == 0, #ALERTS .. " alerts")
 check("📓 ...but the ⚠️ Console line is still printed, which is the whole "
-      .. "of what he asked for", printedHas("⚠️ Music player: this Mac has no hs.sound"))
+      .. "of what he asked for — 'those items only need to post messages "
+      .. "in the console'", printedHas("⚠️ Music player: this Mac has no hs.sound")
+      and #printed > 0, tostring(#printed))
 check("📓 ...and the LEDGER still has it — ⇪⇧D and _G.noticesReport() are "
       .. "not allowed a hole named 'music'",
       #N.ledger == 1 and N.ledger[1].kind == "degrade")
@@ -693,6 +695,23 @@ do
     check("...and repeats are collapsed with a count rather than listed "
           .. "twice", rep:find("×2", 1, true) ~= nil, rep)
     check("...and the total is stated", rep:find("4 failure", 1, true) ~= nil, rep)
+
+    -- 🔕 6.295.0 — AND A QUIET TOOL IS IN THE LOG TOO. This is the whole
+    -- of "quiet is about the alert and nothing else", and it is the half
+    -- with real consequences: his 4 PM double-check (6.279.0) must not
+    -- acquire a blind spot named "music". Found by the mutation sweep —
+    -- the guarantee was written down, asserted in the ledger, and NOT
+    -- asserted here, so moving the log write behind the quiet verdict
+    -- passed every check in the release (6.273.0: when a fix lands on a
+    -- line no mutation can kill, the line is not the finding).
+    N.degrade("Music player", "this Mac has no hs.sound")
+    check("🔕 a QUIET tool is written to the log — quiet is the alert and "
+          .. "nothing else, and this is where he looks at 4 PM",
+          N.logWrote == 5, N.logWrote)
+    local repQ = _G.todayReport()
+    check("📓 ...and _G.todayReport() names it, beside the loud ones",
+          repQ:find("Music player", 1, true) ~= nil
+          and repQ:find("this Mac has no hs.sound", 1, true) ~= nil, repQ)
 
     -- 🔁 IT SURVIVES THE RELOAD. This is the entire claim of the release:
     -- a FRESH notices (an empty ledger, exactly as after a reload) reads
