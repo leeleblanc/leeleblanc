@@ -4,38 +4,45 @@
 -- =====================================================================
 -- 09-26-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.285.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.286.0
 -- =====================================================================
+
+-- NEW IN 6.286.0 — 🚪 THE EDITOR'S WORK SURVIVES EVERY DOOR OUT, NOT
+--   JUST CANCEL (modules/screenshot_editor.lua):
+--   LL, on an annotated screenshot: "Closing the screenshot editor dumps
+--   the most recent edits so I lose any changes."
+--   🔎 6.189.0 PROMISES THE OPPOSITE and was telling the truth about
+--   exactly ONE way out. The marks live in the PAGE, and only its
+--   `stashAndCancel()` hands them back — which the Cancel button called
+--   and nothing else did: the Esc router called ed.close() straight out,
+--   ed.open()'s first line is ed.close() (so ⇪⇧1 on another shot threw
+--   the first one's work away in silence), and `closeOnEscape(true)` let
+--   WebKit close the window behind Lua's back, racing the page's own
+--   handler — so even the built path was a coin toss.
+--   🔑 THE CLOSE IS ASYNCHRONOUS NOW: `ed.requestClose` asks, and closes
+--   when the page replies; a HELD belt in its own slot closes anyway
+--   after `closeGraceSecs`. A doAfter that ANSWERS nil is not a belt
+--   (6.265.0), so that closes at once rather than never. `ed.closePlan`
+--   is PURE. 🔎 The report names which door and whether the work survived.
 
 -- NEW IN 6.285.0 — 🔔 A HANDOVER IS NOT A LATCH, AND THEY WERE
 --   PRINTED IDENTICALLY (init.lua §3.12, core/hyper_key.lua):
 --   LL's Console on an ordinary ⇪⇧pad.: "⇪ released by the watchdog —
 --   held 8s … musicPlayer had taken the keyboard". Nothing was wrong —
---   the card takes the keys on purpose (6.251.0) and 6.165.1's
---   handshake ends the hold — but that is the sentence printed when ⇪
---   is genuinely STUCK, and a line that cries wolf is one he reads past.
+--   the card takes the keys on purpose (6.251.0) and 6.165.1's handshake
+--   ends the hold — but that is the sentence printed when ⇪ is genuinely
+--   STUCK, and a line that cries wolf is one he reads past.
 --   🔑 THREE ENDINGS (6.196.1), only the third a fault: relay · handover
 --   · latch. Only a latch counts in `hyperLatchReleases`, the number the
 --   storm report prints. `_G.hyperEndVerdict` is PURE (core/hyper_key);
 --   `_G.hyperKeyReport()`. 🚨 `_G.hyperTouch()` was the WRONG answer and
 --   is recorded as such: it pushes the deadline OUT.
 
--- NEW IN 6.284.0 — 🏷 A TEAM IS PINNED BY ITS GID, SO A RENAME NO
---   LONGER BREAKS IT (modules/asana_comments.lua):
---   LL: "Why do I have to hard code team names" — and he had renamed it.
---   🔎 THE FETCH WAS NEVER STALE: Asana's team list is asked LIVE every
---   boot. The stale half is the name we search FOR, a literal here.
---   🔑 `M.teamKey` / `M.matchTeam` are PURE, and a gid that resolved once
---   is PINNED in hs.settings, so the NEXT rename costs nothing: by name ·
---   by pinned gid (saying what it is called now) · not found, which NAMES
---   what Asana answered. A miss costs a shortened ⇪T picker, never a
---   broken submit. `_G.asanaTeams()`.
-
--- (6.283.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.284.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 cut the inline count to
 --  TWO; a gate check proves every entry here is also in CHANGELOG.md.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.285.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.286.0
 -- =====================================================================
 -- The catalogue that used to sit here moved to GUIDE.md ("What each
 -- tool does") in 6.180.0 — 259 lines of prose inside the orchestrator.
@@ -128,7 +135,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.285.0"
+_G.configVersion = "6.286.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the
@@ -936,19 +943,14 @@ _G.popupScreenOverride = nil
 -- remembered position is an offset into its screen — and left the half
 -- that picks the screen alone.
 --
--- `frontApp:focusedWindow() or frontApp:mainWindow()` is the half that was
--- left. mainWindow() is NOT "the window he is using": it is the window the
--- app considers primary, which for a multi-window app across two monitors
--- is routinely the other one, and for an app whose windows are on another
--- Space is a window he cannot even see. That is exactly a STALE monitor,
--- which is exactly the word he used.
+-- `mainWindow()` is NOT "the window he is using": it is the window the app
+-- considers primary — routinely the other monitor, or one on a Space he
+-- cannot see. A STALE monitor, which is his own word.
 --
--- 🖱 SO THE POINTER OUTRANKS IT. A focused window is still the best signal
--- and still wins; but when there is no focused window the MOUSE decides,
--- because the pointer is where the person is looking and it is never
--- ambiguous about which display that is. His own sentence treats the two
--- as the same place. mainWindow() survives only below both, above a bare
--- mainScreen().
+-- 🖱 SO THE POINTER OUTRANKS IT. A focused window still wins; with none,
+-- the MOUSE decides, because the pointer is where the person is looking
+-- and is never ambiguous about the display. mainWindow() survives only
+-- below both, above a bare mainScreen().
 --
 -- `_G.baseScreenPick` is PURE — it takes the four candidates and answers
 -- WHICH RULE decided — so the whole order is provable with no Mac, and

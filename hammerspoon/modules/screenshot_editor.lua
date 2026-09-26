@@ -1185,8 +1185,11 @@ function M.setup(core)
                             -- over the next open of the same shot
             ed.close()
         elseif body.a == "cancel" then
-            -- 6.286.0 — the page answered, so the belt has nothing to do.
-            ed.stopCloseBelt()
+            -- 🗑 6.286.0 — a `ed.stopCloseBelt()` was written here and taken
+            -- out again: ed.close() two lines down does it, on every path
+            -- that reaches this branch, so no mutation could fail it. A
+            -- guard no test can fail is dead code with a comment on it
+            -- (6.199.0, and this project has made that call three times).
             local okKeep, whyKeep = ed.rememberWork(ed.currentPath, body.img,
                                                     body.notes)
             if okKeep then ed.closes.stashed = ed.closes.stashed + 1 end

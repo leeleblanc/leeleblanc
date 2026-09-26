@@ -1008,6 +1008,33 @@ work Mac.
   one-hop symlink: a fixture where the right and wrong implementations
   AGREE proves nothing — pick the input where they must differ.
 
+- 🚪 A PROMISE KEPT BY ONE DOOR IS NOT KEPT (6.286.0,
+  modules/screenshot_editor.lua — LL, on an annotated screenshot:
+  "Closing the screenshot editor dumps the most recent edits so I lose
+  any changes"). 6.189.0 promises the OPPOSITE, its checks are green,
+  and it was telling the truth about exactly ONE way out.
+  🔎 THE WORK LIVES IN THE PAGE, and only its `stashAndCancel()` hands
+  it back. The Cancel button called it; nothing else did. The Esc
+  ROUTER called ed.close() straight out, ed.open()'s first line is
+  ed.close() (so ⇪⇧1 on another shot threw the first shot's marks away
+  in silence), and `closeOnEscape(true)` let WebKit close the window
+  behind Lua's back, racing the page's own handler — so even the built
+  path was a coin toss. GENERAL: when a feature's promise depends on
+  asking a page, GREP EVERY DOOR that ends the page; the one the person
+  actually presses is rarely the one the feature was written against.
+  🔑 THE CLOSE IS ASYNCHRONOUS NOW. `ed.requestClose` asks and closes on
+  the reply; a HELD belt in its own slot closes anyway after
+  `closeGraceSecs`. Armed BEFORE the ask (6.246.0), and the check
+  asserts the ORDER, not that both happened (6.220.0).
+  🚨 A doAfter THAT ANSWERS nil IS NOT A BELT — the first version tested
+  that the function EXISTED, armed nothing and left the window open for
+  ever (6.265.0's "created, wired, REFUSED", found by the sweep). No
+  belt → close at once: a window that will not close is worse than
+  marks that were not kept.
+  🗑 And a duplicate stopCloseBelt in the cancel branch was written and
+  taken out again — close() does it on every path that reaches there
+  (6.199.0, fourth time).
+
 - 🔔 A HANDOVER IS NOT A LATCH, AND THEY WERE PRINTED IDENTICALLY
   (6.285.0, init.lua §3.12 + core/hyper_key.lua — LL's Console, on an
   ordinary ⇪⇧pad.: "⇪ released by the watchdog — held 8s … musicPlayer
@@ -3416,6 +3443,7 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
+| 6.286.0 | 🚪 the screenshot editor's marks survive EVERY way out — Esc, Cancel and ⇪⇧1 on another shot; only the Cancel button ever asked the page for them | pending |
 | 6.285.0 | 🔔 the ⇪ watchdog stops crying wolf — a panel that says it is taking the keyboard is a handover, not a stuck ⇪, and only a real latch counts as one | pending |
 | 6.284.0 | 🏷 an Asana team is pinned by its GID, so renaming it no longer costs the ⇪T picker — the fetch was always live, the stale half was the name we searched FOR | pending |
 | 6.283.0 | 🧠 ⌥Tab offers the Hammerspoon Console from any desktop — the console block was the one listing that never fed the memory, and the memory is the only route to another Space | pending |
@@ -4285,6 +4313,68 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.286.0 verify with LL — 🚪 CLOSING THE EDITOR KEEPS YOUR MARKS (KNOWN GROUND)
+  WHAT CHANGED: every way out of the screenshot editor now asks the page
+  for your work before the window goes. Until this release only the
+  Cancel button did.
+  WHY IT MATTERS: your screenshot said "closing the editor dumps the most
+  recent edits so I lose any changes", and you were right — even though
+  6.189.0 was built for exactly that complaint and its tests are green.
+  Your marks live inside the editor's page; the only thing that hands
+  them back is the page itself, and only the Cancel button was asking.
+  Esc deleted the window, and opening a second screenshot deleted the
+  first one's work without a word.
+
+  A. THE HEADLINE — the door you press.
+  A1. ⇪⇧1 on a screenshot. Draw an arrow, add a text box, blur something.
+  A2. Press Esc.
+  A3. ⇪⇧1 on the SAME screenshot again.
+      EXPECT: an alert "🖌 Your last edits on this shot are back", and
+      every mark where you left it.
+      A FAIL here is the bug you reported, unchanged — say so at once.
+  A4. Same again, but close with the Cancel button instead of Esc.
+      EXPECT: identical. (This is the one that always worked.)
+
+  B. THE OTHER DOOR, and the one I think you were actually using.
+  B1. ⇪⇧1 on shot A. Draw something.
+  B2. Without closing it, press ⇪⇧1 on a DIFFERENT shot B.
+      EXPECT: B opens clean.
+  B3. Now ⇪⇧1 on shot A again.
+      EXPECT: A's marks are back. Before this release they were gone,
+      silently, and nothing said so.
+
+  C. MUST STILL WORK — this release changed how the window closes, so
+     this is the regression sweep.
+  C1. ⌘⏎ saves "… (edited).png" beside the original and copies it.
+  C2. After a SAVE, reopen the same shot: it opens CLEAN, not with the
+      saved marks drawn again. (A saved session is not a lost one.)
+  C3. Esc while a text box is open closes the BOX, not the editor. Press
+      Esc twice to leave.
+  C4. ⌘Z undo, ⌘V paste an image, ⌘A add capture, ⌘D delayed, ⌘F full
+      screen, ⌘O load a shot — all unchanged.
+  C5. The editor must always close when you ask it to. If it ever hangs
+      open for half a second and then goes, that is the belt working and
+      it is worth telling me about.
+
+  D. PASTE BACK, PASS OR FAIL.
+  D1. `_G.screenshotEditorReport()` — a new "closing :" line counts the
+      doors apart: asked · handed work back · closed on the belt ⚠️ ·
+      closed at once. A belt close means the page did not answer in time
+      and those marks were NOT kept — if that number is anything but 0,
+      that is the next bug and I want the block.
+
+  E. A JUDGEMENT ONLY YOU CAN MAKE.
+  E1. 0.4 seconds is how long the editor waits for its page before
+      closing anyway. If closing ever feels sticky, say so and I will
+      shorten it; if you ever lose marks with the report showing a belt
+      close, I will lengthen it.
+  E2. Your four text-box asks — wrap, font size separate from the box,
+      Return for a new line, and shrink-to-rewrap — are ONE release and
+      they are next. Confirm the shape before I build it: plain drag on
+      the corner handle RE-WRAPS the text to the new width, and ⇧drag
+      scales the letters. That is your own "hold shift" suggestion; say
+      if you would rather have it the other way round.
+
 - 6.285.0 verify with LL — 🔔 THE ⇪ WATCHDOG STOPS CRYING WOLF (KNOWN GROUND)
   WHAT CHANGED: nothing about how ⇪ works. What changed is what the
   Console says when a panel takes the keyboard.

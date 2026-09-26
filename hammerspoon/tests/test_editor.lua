@@ -97,7 +97,12 @@ hs = {
             function v:level() return self end
             function v:behaviorAsLabels() return self end
             function v:bringToFront() return self end
-            function v:evaluateJavaScript(js) JS[#JS + 1] = js; return self end
+            -- 6.286.0 — recorded in EVENTS too, so a check can assert that
+            -- the close belt is armed BEFORE the page is asked. Ordering is
+            -- the rule; a check that only counts cannot see it.
+            function v:evaluateJavaScript(js)
+                JS[#JS + 1] = js; EVENTS[#EVENTS + 1] = "js"; return self
+            end
             -- 6.221.0 — the REAL webview answers :frame() and takes one;
             -- a stub without it hid a ⌘-drag strip that could not be read
             function v:frame(f) if f then self.rect = f end return self.rect end
@@ -1223,6 +1228,7 @@ do
     JS = {}
     E.open(SRC)
     c14("the editor is open", E.webview ~= nil)
+    EVENTS = {}          -- the ordering below is about THIS close alone
     E.requestClose("Esc")
     c14("🚨 Esc ASKS THE PAGE for its work instead of deleting the window — "
         .. "this is the whole release", JS[#JS] == "stashAndCancel()", JS[#JS])
@@ -1230,6 +1236,17 @@ do
     c14("…with a belt armed BEFORE the ask (6.246.0's ordering), so a page "
         .. "that throws cannot leave a window nobody can close",
         E.closeTimer ~= nil and E.closeTimer.secs == E.closeGraceSecs)
+    -- 🚨 AND THE ORDER IS THE RULE, not the presence. A check that only
+    -- asserts both happened passes with the belt armed second, which is
+    -- the arrangement the ordering exists to forbid (6.220.0).
+    c14("🚨 …and the ORDER is asserted, not just that both happened", (function()
+        local lastTimer, firstJs
+        for i, e in ipairs(EVENTS) do
+            if e == "timer" then lastTimer = i end
+            if e == "js" and not firstJs then firstJs = i end
+        end
+        return lastTimer ~= nil and firstJs ~= nil and lastTimer < firstJs
+    end)(), table.concat(EVENTS, ","))
     -- the page answers
     BRIDGE({ body = { a = "cancel", img = KEEPIMG, notes = NOTES } })
     c14("…the page answers, the work is kept", E.kept ~= nil and E.kept.path == SRC)
@@ -1253,6 +1270,20 @@ do
     c14("…nothing was kept, because nothing was handed back", E.kept == nil)
     c14("🔎 …and it is COUNTED APART: a belt close is the bug to report, and "
         .. "it must not read like a clean one", E.closes.belt == 1)
+
+    -- 🚨 AND close() ITSELF TEARS THE BELT DOWN. The cancel branch cannot
+    -- prove this — it calls close() on every path — so the check has to
+    -- drive the door that reaches close() with a belt still running: ⌘⏎,
+    -- or any direct close. A belt left armed fires over the NEXT editor,
+    -- which is 6.266.0's orphan class in a timer.
+    E.kept = nil
+    TIMERS = {}
+    E.open(SRC)
+    E.requestClose("Esc")
+    c14("a belt is running", E.closeTimer ~= nil)
+    E.close()
+    c14("🚨 …and a direct close tears it down, so it cannot fire over the "
+        .. "NEXT editor", E.closeTimer == nil)
 
     -- ---- ⇪⇧1 on another shot --------------------------------------------
     -- 🚨 THE DOOR HE IS MOST LIKELY PRESSING. ed.open()'s first line has
@@ -1331,7 +1362,7 @@ do
         end)())
     end
 
-    c14("§14 ran every one of its checks", (pass + fail) - n14 == 28,
+    c14("§14 ran every one of its checks", (pass + fail) - n14 == 31,
         (pass + fail) - n14)
 end
 

@@ -1,4 +1,4 @@
-# TESTING — how to score release 6.285.0
+# TESTING — how to score release 6.286.0
 
 You install ONE archive and it carries several releases. Below are the
 steps for each release this archive is new for, newest first. Run the
@@ -26,6 +26,72 @@ else is a LOSS and I fix it before building further. You are the only
 scorer; I never mark my own.
 
 ---
+
+## 6.286.0
+
+6.286.0 verify with LL — 🚪 CLOSING THE EDITOR KEEPS YOUR MARKS (KNOWN GROUND)
+WHAT CHANGED: every way out of the screenshot editor now asks the page
+for your work before the window goes. Until this release only the
+Cancel button did.
+WHY IT MATTERS: your screenshot said "closing the editor dumps the most
+recent edits so I lose any changes", and you were right — even though
+6.189.0 was built for exactly that complaint and its tests are green.
+Your marks live inside the editor's page; the only thing that hands
+them back is the page itself, and only the Cancel button was asking.
+Esc deleted the window, and opening a second screenshot deleted the
+first one's work without a word.
+
+A. THE HEADLINE — the door you press.
+A1. ⇪⇧1 on a screenshot. Draw an arrow, add a text box, blur something.
+A2. Press Esc.
+A3. ⇪⇧1 on the SAME screenshot again.
+    EXPECT: an alert "🖌 Your last edits on this shot are back", and
+    every mark where you left it.
+    A FAIL here is the bug you reported, unchanged — say so at once.
+A4. Same again, but close with the Cancel button instead of Esc.
+    EXPECT: identical. (This is the one that always worked.)
+
+B. THE OTHER DOOR, and the one I think you were actually using.
+B1. ⇪⇧1 on shot A. Draw something.
+B2. Without closing it, press ⇪⇧1 on a DIFFERENT shot B.
+    EXPECT: B opens clean.
+B3. Now ⇪⇧1 on shot A again.
+    EXPECT: A's marks are back. Before this release they were gone,
+    silently, and nothing said so.
+
+C. MUST STILL WORK — this release changed how the window closes, so
+   this is the regression sweep.
+C1. ⌘⏎ saves "… (edited).png" beside the original and copies it.
+C2. After a SAVE, reopen the same shot: it opens CLEAN, not with the
+    saved marks drawn again. (A saved session is not a lost one.)
+C3. Esc while a text box is open closes the BOX, not the editor. Press
+    Esc twice to leave.
+C4. ⌘Z undo, ⌘V paste an image, ⌘A add capture, ⌘D delayed, ⌘F full
+    screen, ⌘O load a shot — all unchanged.
+C5. The editor must always close when you ask it to. If it ever hangs
+    open for half a second and then goes, that is the belt working and
+    it is worth telling me about.
+
+D. PASTE BACK, PASS OR FAIL.
+D1. `_G.screenshotEditorReport()` — a new "closing :" line counts the
+    doors apart: asked · handed work back · closed on the belt ⚠️ ·
+    closed at once. A belt close means the page did not answer in time
+    and those marks were NOT kept — if that number is anything but 0,
+    that is the next bug and I want the block.
+
+E. A JUDGEMENT ONLY YOU CAN MAKE.
+E1. 0.4 seconds is how long the editor waits for its page before
+    closing anyway. If closing ever feels sticky, say so and I will
+    shorten it; if you ever lose marks with the report showing a belt
+    close, I will lengthen it.
+E2. Your four text-box asks — wrap, font size separate from the box,
+    Return for a new line, and shrink-to-rewrap — are ONE release and
+    they are next. Confirm the shape before I build it: plain drag on
+    the corner handle RE-WRAPS the text to the new width, and ⇧drag
+    scales the letters. That is your own "hold shift" suggestion; say
+    if you would rather have it the other way round.
+
+
 
 ## 6.285.0
 
@@ -191,54 +257,6 @@ D2. Should the MUSIC CARD be on ⌥Tab too? You asked in September and
     I have not built it. It is the one panel that keeps playing when
     it is not in front, which is the argument for doing it alone
     rather than adding every panel this config draws.
-
-
-
-## 6.282.0
-
-6.282.0 verify with LL — 🕒 THE REPORT ANSWERS AGAIN (KNOWN GROUND)
-WHAT CHANGED: `_G.screenshotsReport()` no longer throws. Nothing about
-capturing, naming or OCR moved.
-WHY IT MATTERS: you ran the command I asked for and got a traceback.
-`hs.timer.secondsSinceEpoch()` hands back 1758769234.8231 and Lua's
-os.date refuses a fraction outright, so the `area` line did not print
-something wrong — it took the whole report down. Since 6.264.0, in
-every session where you had pressed ⇪4 even once. A fresh boot printed
-fine, which is why neither of us saw it until you used the key first.
-🚨 AND IT IS MY METHOD THAT BROKE, not just a line: almost every ask
-I make of you ends in "paste the report". 6.274.0's steps literally say
-press ⇪4, then run this command — so that test has been impossible to
-run since the day it shipped, and I did not notice.
-
-A. THE HEADLINE. Two commands.
-A1. Console: `_G.screenshotsReport()`.
-    EXPECT: a report. Not a traceback.
-A2. Press ⇪4 and drag a rectangle. Then run it AGAIN.
-    EXPECT: still a report, and the `area` line ends with a real
-    clock — `· last pressed 21:14:07`.
-    THIS is the step that failed before. If you get
-    "bad argument #2 to 'date'" again, stop and paste it.
-
-B. THE ARTEFACTS I HAVE BEEN ASKING FOR AND COULD NOT GET.
-B1. Use the Mac for a day, then `_G.screenshotsReport()` and PASTE IT.
-    Three lines answer three open questions at once:
-    · `OCR` and `tried` — whether 6.281.0 stopped the green pills.
-    · `routes` and the ⚠️ under it — your intermittent ⇪4.
-    · `area` — which selector the last press used.
-B2. `_G.alertReport()` as well. Together those are the whole ⇪4
-    question, and this is the first build on which you can collect them.
-
-C. MUST STILL WORK — this release touched only how a time is printed,
-   so this is a short sweep.
-C1. ⇪4 captures, with the live size readout and the shutter.
-C2. ⇪5 scrolling capture. Its report line carries a clock too.
-C3. A screenshot with words in it still gets renamed — your Console
-    already shows this working ("🏷 OCR → Finder comment: …").
-
-D. A JUDGEMENT ONLY YOU CAN MAKE.
-D1. When a clock cannot be read, the line now says "time not recorded"
-    rather than printing 1970. Is that the right wording, or would you
-    rather it said nothing at all there? Either is one line.
 
 
 

@@ -6,6 +6,80 @@ older lives only here.
 
 ```text
 
+NEW IN 6.286.0 — 🚪 THE EDITOR'S WORK SURVIVES EVERY DOOR OUT, NOT JUST
+CANCEL (modules/screenshot_editor.lua, tests/test_editor.lua):
+
+  LL, with an arrow drawn on a screenshot of the editor itself:
+
+      "Closing the creenshot editor dumps the most recent edits so I
+       loose any changes"
+
+  🔎 AND 6.189.0 PROMISES THE OPPOSITE — which is what made this worth
+  reading rather than building. That release exists because of his
+  earlier "I hit escape 2 times and all my screenshot work wasn't
+  saved", it holds the work in `ed.kept` keyed by image path, and its
+  checks are green. It was telling the truth about exactly ONE way out.
+
+  🚨 THE WORK LIVES IN THE PAGE. Canvas pixels and a notes array; the
+  only thing that hands them back is the page's own `stashAndCancel()`,
+  which posts { a = 'cancel', img, notes }. The Cancel button calls it.
+  Nothing else did:
+    · THE ESC ROUTER called `ed.close()` straight out (6.93.0), and
+      close() deletes the webview — with it, the only copy of his marks.
+      Esc is the door he named in 6.189.0 and the door he presses.
+    · ⇪⇧1 ON ANOTHER SHOT calls ed.open(), whose first line is
+      ed.close(). The slot is keyed by path, so the first shot's marks
+      would have come back on its next open — if anything had ever put
+      them in it. Opening a second screenshot threw them away, silently.
+    · `view:closeOnEscape(true)` let WebKit close the WINDOW itself on
+      Escape, racing the page's own Escape handler. So even the path
+      6.189.0 built was a coin toss between two mechanisms, and the
+      losing side left Lua holding a dead view with currentPath set.
+
+  🔑 SO THE CLOSE IS ASYNCHRONOUS, because the answer has to come from
+  the page. `ed.requestClose(why)` asks — `evaluateJavaScript
+  ("stashAndCancel()")` — and the page's reply stashes the work and
+  closes the window on its way through the existing cancel branch. A
+  HELD belt in its OWN slot (`ed.closeTimer`, 6.196.1) closes anyway
+  after `ed.closeGraceSecs` (0.4), so a page that cannot answer costs
+  the marks and never the window. That is 6.255.0's shape in the other
+  direction: there a hidden window had to come back, here a live one
+  has to go.
+
+  🚨 ARMED BEFORE THE ASK (6.246.0's ordering), and the check asserts
+  the ORDER rather than that both happened — a check that only counts
+  passes with the belt armed second, which is the arrangement the
+  ordering exists to forbid (6.220.0).
+
+  🚨 AND A doAfter THAT ANSWERS nil IS NOT A BELT. `hs.timer.doAfter`
+  existing is not the same as it working; 6.265.0's lesson is that on a
+  beta OS the shape this config keeps meeting is "created, wired,
+  REFUSED". The first version checked whether the function existed, armed
+  nothing, and left the window open for ever — found by the mutation
+  sweep, not by reading. If no belt comes back, the ask still goes out
+  and the window closes at once: a window that will not close is worse
+  than marks that were not kept.
+
+  📏 `ed.closePlan(hasPage, canAsk, canTimer)` is PURE and answers the
+  plan AND the reason — now · askThenNow · ask — so the whole decision is
+  provable with no Mac, and the checks drive the real path with each
+  dependency taken away in turn (6.264.0: proving a pure decision
+  function is not proving that anything CALLS it).
+
+  🔎 THE REPORT NAMES THE DOOR. "closed" used to be one fact and it was
+  four: asked · handed work back · closed on the belt (⚠️, and it says
+  that is the bug to report) · closed at once with no page to ask.
+
+  🗑 A `ed.stopCloseBelt()` was written in the cancel branch and taken
+  out again: close(), two lines below it, does the same thing on every
+  path that reaches there, so no mutation could fail it. A guard no test
+  can fail is dead code with a comment on it — 6.199.0, fourth time this
+  project has made that call on purpose. The guard in close() stays, and
+  has its own check, because a belt left armed fires over the NEXT
+  editor (6.266.0's orphan class, in a timer).
+
+  Eleven mutations, eleven bites.
+
 NEW IN 6.285.0 — 🔔 A HANDOVER IS NOT A LATCH, AND THEY WERE PRINTED
 IDENTICALLY (init.lua §3.12, core/hyper_key.lua, modules/hyper_storm.lua):
 
