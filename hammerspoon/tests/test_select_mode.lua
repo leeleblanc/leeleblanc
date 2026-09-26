@@ -77,7 +77,7 @@ hs = {
     alert = { show = function(m) ALERTS[#ALERTS + 1] = tostring(m) end },
     timer = { doEvery = function() return { stop = function() end } end,
               doAt    = function() return { stop = function() end } end,
-              secondsSinceEpoch = function() return 1000 end },
+              secondsSinceEpoch = function() return 1000.4231 end },
     json = { decode = function() return nil end },
     caffeinate = { watcher = {
         screensDidLock = "lock", systemWillSleep = "sleep",

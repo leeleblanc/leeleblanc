@@ -50,7 +50,7 @@ hs = {
     alert = { show = function(m) ALERTS[#ALERTS + 1] = tostring(m) end },
     pasteboard = {
         getContents = function() return CLIP end,
-        setContents = function(s) CLIP = s end,
+        setContents = function(s) CLIP = s ; return true end,
     },
     timer = {
         secondsSinceEpoch = function() return NOW end,

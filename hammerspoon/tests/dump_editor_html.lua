@@ -12,7 +12,7 @@ print = function(...)
   io.stderr:write(table.concat(p, " "), "\n")
 end
 hs = {
-  timer = { secondsSinceEpoch = function() return 1 end },
+  timer = { secondsSinceEpoch = function() return 1.4231 end },
   alert = { show = function() end },
   fs = { attributes = function() end },
   drawing = { windowLevels = { floating = 1 } },

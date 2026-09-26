@@ -13,7 +13,7 @@ print = function(...)
 end
 
 hs = {
-  timer = { secondsSinceEpoch = function() return 1 end },
+  timer = { secondsSinceEpoch = function() return 1.4231 end },
   alert = { show = function() end },
   fs = { attributes = function() end },
   drawing = { windowLevels = { floating = 1 } },
@@ -29,7 +29,7 @@ hs = {
       end }
     end,
   },
-  pasteboard = { setContents = function() end, writeObjects = function() return true end },
+  pasteboard = { setContents = function() return true end, writeObjects = function() return true end },
   webview = { usercontent = { new = function() end } },
 }
 _G.diag = { say = function() end, warn = function() end, err = function() end }

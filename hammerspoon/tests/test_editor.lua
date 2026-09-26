@@ -152,7 +152,7 @@ hs = {
         return c
     end },
     timer = {
-        secondsSinceEpoch = function() return 1000 end,
+        secondsSinceEpoch = function() return 1000.4231 end,
         -- 6.255.0 — timers are HELD, not fired: the suite fires them by
         -- hand so the belt can be proven without waiting eight seconds.
         doAfter = function(secs, fn)

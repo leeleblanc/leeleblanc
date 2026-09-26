@@ -1557,7 +1557,7 @@ do
         local PRINTED = {}
         local sandbox = {
             hs = { canvas = { windowLevels = { overlay = 102, mainMenu = 24 } },
-                   timer = { secondsSinceEpoch = function() return 1000 end,
+                   timer = { secondsSinceEpoch = function() return 1000.4231 end,
                              doEvery = function() return { stop = function() end } end } },
             print = function(x) PRINTED[#PRINTED + 1] = tostring(x) end,
             table = table, type = type, ipairs = ipairs, pairs = pairs,
@@ -1988,7 +1988,7 @@ do
     check("the injection guard was found in core/coexist.lua", gblock ~= nil)
     if gblock then
         local sb = {
-            hs = { timer = { secondsSinceEpoch = function() return 1000 end } },
+            hs = { timer = { secondsSinceEpoch = function() return 1000.4231 end } },
             pcall = pcall, math = math, type = type, print = function() end,
         }
         sb._G = sb

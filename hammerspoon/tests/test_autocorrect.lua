@@ -53,7 +53,7 @@ hs = {
     keyStrokes = function(s) table.insert(KEYSTROKES, s) end,
   },
   timer = {
-    secondsSinceEpoch = function() return 1000 end,
+    secondsSinceEpoch = function() return 1000.4231 end,
     doAfter = function(d, fn)
       local t = { delay = d, fn = fn, running = true }
       function t:stop() self.running = false end

@@ -104,7 +104,7 @@ hs = {
         function t:start() self.started = true; return true end
         table.insert(TASKS, t); return t end },
     pasteboard = { readString = function() return PASTE end,
-                   setContents = function(s) PASTE_SET = s end },
+                   setContents = function(s) PASTE_SET = s ; return true end },
     canvas = { windowLevels = { overlay = 1 }, new = function() return nil end },
     timer  = { secondsSinceEpoch = function() return os.time() end },
     fs = {

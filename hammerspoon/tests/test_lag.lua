@@ -144,7 +144,7 @@ hs = {
         end,
     },
     alert = { show = function(s) ALERTS[#ALERTS + 1] = tostring(s) end },
-    pasteboard = { setContents = function(s) CLIP = s end },
+    pasteboard = { setContents = function(s) CLIP = s ; return true end },
 }
 
 -- 6.136.0 — the probe is DISARMED unless ~/.hammerspoon/LAGPROBE exists.

@@ -3524,6 +3524,7 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
+| 6.290.0 | 🔬 the gate now fails a stub that is gentler than macOS — eight of ten scored losses sit at the macOS boundary and zero are pure-Lua logic, because the code, the test and the stub come from one model of macOS and agree with each other when it is wrong | pending |
 | 6.289.0 | ⏯ the keyboard's own play/pause, ⏮ and ⏭ keys drive the music card while it has a queue, and pass through to macOS when it does not | pending |
 | 6.288.0 | 🖥 the cheat sheet opens on the screen it resolved — a spot saved on the 4K was being clamped back onto the 4K by a helper that picks its own screen | pending |
 | 6.287.0 | ✏️ the editor's text tool is a real text box — it wraps, ⏎ drops a line, the corner re-wraps and ⇧corner scales; it had only ever been a single line with a font size | pending |
@@ -4412,6 +4413,57 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.290.0 verify with LL — 🔬 THE GATE TESTS ITS OWN BELIEFS (KNOWN GROUND)
+  WHAT CHANGED: nothing you can press. This release changes what the test
+  gate is allowed to believe about macOS, and it is the answer to your
+  question — how have so many mistakes been introduced.
+  WHY IT MATTERS: I classified all ten losses on the scoreboard by where
+  the defect actually lived. Eight of ten sit at the macOS boundary — the
+  one surface the gate cannot see. One is a bad test recipe of mine. At
+  most two are a solved thing coming unsolved. ZERO are logic errors in
+  pure Lua; not one. So the mechanism is not carelessness: this config
+  writes the code, the test AND the stub from one model of macOS, and
+  when that model is wrong all three are wrong the same way and they
+  agree with each other. Green meant "the code matches our beliefs". It
+  never once meant "the code matches macOS". Your loop is closed — you
+  press the key and reality answers. Mine was open.
+  🔎 AND THE CLASS WAS LEARNED FIFTEEN TIMES AND ENFORCED ZERO TIMES.
+  Every instance was fixed at the one stub that had just cost a release,
+  while seventy-five other suites went on telling the same lie about the
+  same provider. 28 of them were corrected in this release.
+
+  A. THE HEADLINE — there is nothing to press, so this is the whole test.
+  A1. Install and reload. Everything must behave exactly as it did on
+      6.289.0: ⇪T, ⇪D, ⇪N, ⇪3, ⇪4, ⇪X, ⇪space, the music card.
+      EXPECT: no visible difference of any kind. This release does not
+      touch a single shipped module — only tests/ and the documents.
+  A2. Console: `_G.configVersion` → `6.290.0`.
+  A3. That is it. If anything at all behaves differently, that is a real
+      finding and I want it, because this release claims to change
+      nothing you can see.
+
+  B. IF YOU WANT TO SEE THE INSTRUMENT (optional, needs the repo, not
+     your Mac's install).
+  B1. `lua5.4 tests/test_stub_fidelity.lua` from the unpacked archive.
+      EXPECT: `27 passed, 0 failed`, and a printed list of eight further
+      contracts it knows about and deliberately does NOT check.
+  B2. That printed list is the point as much as the checks are. A gap
+      written down is not a gap implied by silence.
+
+  C. A JUDGEMENT ONLY YOU CAN MAKE.
+  C1. This release spends a whole version number on testing rather than
+      on anything you can use. Was that the right call? You asked for it,
+      and I think it is the highest-value thing in this batch — but you
+      are the one waiting on features, so say if you would rather I spend
+      the next one on the queue and fold work like this in alongside.
+  C2. The three self-inflicted bugs this audit found IN ITSELF are in
+      CHANGELOG 6.290.0, named. One of them — a sentry searching for a
+      phrase that existed only on the sentry's own line, so it matched
+      itself and could never fail — is the kind of thing that would have
+      sat there for a year. If you want, the next audit release is the
+      one that sweeps the OTHER sentries in this config for the same
+      shape. Say the word.
+
 - 6.289.0 verify with LL — ⏯ THE PLAY/PAUSE KEY (KNOWN GROUND)
   WHAT CHANGED: the keyboard's own ⏯, ⏮ and ⏭ keys now drive the music
   card — but only while it has a queue.

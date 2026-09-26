@@ -6,6 +6,124 @@ older lives only here.
 
 ```text
 
+NEW IN 6.290.0 — 🔬 A STUB THAT IS GENTLER THAN macOS IS A GATE FAILURE
+(tests/test_stub_fidelity.lua, 28 stubs across 25 files):
+
+  🔎 THE ANSWER TO "HOW HAVE SO MANY MISTAKES BEEN INTRODUCED", measured
+  rather than asserted. Classify the ten scored losses by where the
+  defect actually lived:
+
+    · EIGHT of ten sit at the macOS boundary — screencapture refusing a
+      dot-file in a OneDrive folder (6.206.0) · a retype coming back
+      through our own event tap (6.216.0) · hs.webview having no
+      drag-and-drop at all (6.231.0) · a throw inside a dragging
+      callback being silent (6.233.0) · Finder handing over an inode
+      instead of a path (6.235.0) · a canvas macOS refused to show while
+      the code reported success (6.264.0) · an alert macOS refused to
+      draw (6.265.0) · a word list measured against base words when the
+      Mac's list holds inflections (6.205.0, the corpus twin).
+    · ONE is a bad test recipe of mine (6.214.1).
+    · At most TWO are a solved thing coming unsolved; one is certain
+      (6.264.0 broke a ⇪4 that worked).
+    · ZERO are logic errors in pure Lua. Not one. Every pure function
+      this project has shipped has held.
+
+  🔑 SO THE MECHANISM IS NOT CARELESSNESS AND IT IS NOT CLEVERNESS. This
+  config writes the code, the test AND the stub from ONE model of macOS.
+  When the model is wrong, all three are wrong in the same direction and
+  they agree with each other, so the gate goes green. Green has always
+  meant "the code matches our beliefs". It has never once meant "the
+  code matches macOS". LL's loop is closed — he presses the key and
+  reality answers. This side's loop is open — it presses the key against
+  a stub it wrote, and the stub answers what it was told to.
+
+  🧪 THE CLASS HAS BEEN LEARNED FIFTEEN TIMES AND ENFORCED ZERO TIMES.
+  CLAUDE.md cites 6.193.0 — "a stub gentler than the real provider is a
+  hole with a tick beside it" — at fifteen different macOS surfaces, and
+  every instance was fixed at the ONE stub that had just cost a release
+  while the other seventy-five suites went on lying about the same
+  provider. This suite is the ratchet: it does not test a module, it
+  tests the BELIEFS, and every contract in it is a receipt.
+
+    §1  the clock is a FLOAT (6.282.0) — hs.timer.secondsSinceEpoch
+        returns 1758769234.8231 and os.date refuses a fraction. The
+        stub answering the integer 1000 is why _G.screenshotsReport()
+        threw on his Mac for eighteen releases with the check that
+        renders that very line green. 21 stubs corrected — and the
+        fixture must carry a FRACTION, because 1000.0 has an exact
+        integer representation and a correct reader and a broken one
+        AGREE on it (6.230.0's rule where it costs most).
+    §2  setContents answers a BOOLEAN (6.198.0) — it refuses by
+        returning false, never by throwing, so a stub returning nil
+        makes a refusal indistinguishable from a success at every call
+        site. 8 stubs corrected.
+    §3  selectedRow · currentTime · topLeft are SETTERS (6.227.0 ·
+        6.239.0 · 6.247.0) — three releases lost to one shape in three
+        providers: a getter-only stub lets a whole feature pass its
+        tests while moving nothing on the Mac.
+    §4  symlinkAttributes is never stubbed without attributes beside it
+        (6.230.0) — attributes FOLLOWS a link and answered "directory";
+        only symlinkAttributes says "link", and the stub answered nil
+        for a symlink, so the bug was untestable.
+    §5  the service registry is LIFTED, not retyped (6.273.0).
+
+  🚨 AND IT SHIPS SILENT (6.269.0). A new instrument's first duty is to
+  say nothing when nothing is wrong, or it is switched off long before
+  it meets the fault it was built for — so the 28 offending stubs were
+  corrected in this same release and the gate is green with the audit
+  in. Every red from here on is a NEW lie. Notably, making all 21 clocks
+  fractional turned up NO hidden bug: 6.282.0 really was the only live
+  instance, which is a fact worth having rather than a hope.
+
+  🚨 THE AUDIT CAUGHT ITSELF THREE TIMES, and each is a rule:
+
+    · A SENTRY WHOSE NEEDLE EXISTS ONLY IN THE SENTRY ASSERTS ITS OWN
+      EXISTENCE. The check on "the file still explains WHY" searched for
+      a lowercase phrase while the header carries it in CAPITALS — so
+      the only occurrence in the file was the check's own source line.
+      It matched itself, could not fail, and the mutation deleting the
+      explanation sailed through. When a sentry reads the file it lives
+      in, it must not be able to read itself; the needle lines are
+      stripped by VARIABLE NAME before the search now.
+    · A NAME SENTRY MATCHES ITS BOUNDARY — third time in this project.
+      `attributes%s*=%s*function` MATCHES INSIDE `symlinkAttributes =
+      function`, so a suite stubbing only the symlink reader looked as
+      though it had stubbed both, and §4's mutation survived. 6.236.0
+      said this after screenReport matched screenReportRenamed; 6.270.0
+      said it after tool-blur matched tool-blur-moved. A rule paid for
+      three times belongs in the shared reader, not in each caller.
+    · AN EXEMPTION KEYED ON THE PRESENCE OF A REFUSAL PATH DISARMS THE
+      CONTRACT ON THE BEST STUBS. §3 exempted any stub mentioning
+      error(), so test_music_player's currentTime — a good setter that
+      raises only when NO_SEEK is set — was waved through and its
+      mutation survived. The exemption is "does nothing BUT throw" now.
+
+  🚫 AND ONE CONTRACT WAS WRITTEN AND TAKEN OUT AGAIN, for the second
+  time in this project's history: "no call stub prepends a leading
+  true". 6.273.0 had already tried it, found it goes red on CORRECT
+  code, and wrote down why — a grep cannot tell a status the provider
+  RETURNED from one the caller IMAGINED, because vault.link's own first
+  value is a boolean and so is capturePad.add's. It lit up
+  test_scratch_pad's entirely correct `return true, { text = text }`.
+  An audit built to stop a class reopening can itself reopen a class.
+  What is asserted instead is that the FUNCTIONAL guard exists and
+  matches the 6.273.0 shape — a wrong-convention suite fails a real
+  check, which needs no maintenance and cannot cry wolf.
+
+  📏 NAMED, NOT CLAIMED: the audit is STATIC. It reads source; it cannot
+  run macOS and it cannot know a contract nobody has been burnt by yet.
+  Eight further contracts are listed as DATA and printed on every run —
+  keyStrokes POSTS (6.218.0) · webview has no drop target (6.233.0) · a
+  throw in a dragging callback is silence (6.235.0) · Finder hands over
+  an inode (6.237.0) · focus() must MOVE the focus (6.251.0) · a canvas
+  can be created, wired and REFUSE to show (6.265.0) · a tap can be
+  created and refuse to START (6.289.0) · setContents may need
+  changeCount beside it (6.201.0, a join too narrow to automate without
+  crying wolf on 31 files). A gap written down is not a gap implied by
+  silence.
+
+  🧪 10 mutations, 10 bites. 27 checks. 72 Lua suites now.
+
 NEW IN 6.289.0 — ⏯ THE KEYBOARD'S OWN PLAY/PAUSE KEY DRIVES THIS PLAYER
 (modules/music_player.lua, tests/test_music_player.lua):
 

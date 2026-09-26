@@ -75,7 +75,7 @@ hs = {
                  end
                  return { items = items } end },
     pasteboard = { setContents = function() return true end },
-    timer = { secondsSinceEpoch = function() return 1000 end },
+    timer = { secondsSinceEpoch = function() return 1000.4231 end },
 }
 _G.diag = { say = function() end, warn = function() end,
             err = function() end, mark = function() end }

@@ -46,7 +46,7 @@ local function enc(v)
 end
 
 hs = {
-  timer   = { secondsSinceEpoch = function() return 1 end,
+  timer   = { secondsSinceEpoch = function() return 1.4231 end,
               doAfter = function() return { stop = function() end } end,
               doEvery = function() return { stop = function() end,
                                             start = function(s) return s end } end },

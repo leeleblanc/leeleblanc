@@ -30,7 +30,7 @@ local realPrint = print
 hs = {
     alert = { show = function(msg) ALERTS[#ALERTS + 1] = tostring(msg) end },
     timer = {
-        secondsSinceEpoch = function() return 1000 end,
+        secondsSinceEpoch = function() return 1000.4231 end,
         doAfter = function(secs, fn)
             local t = { secs = secs, fn = fn, stopped = false }
             function t:stop() self.stopped = true end

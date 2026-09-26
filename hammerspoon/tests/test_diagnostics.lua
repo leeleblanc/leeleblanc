@@ -25,7 +25,7 @@ hs = {
       if p == "/tmp/hs-test" then return { mode = "directory", size = 0 } end
       return { mode = "file", size = 42 }
   end },
-  pasteboard = { setContents = function(t) clip = t end },
+  pasteboard = { setContents = function(t) clip = t ; return true end },
   alert = { show = function() end },
   hotkey = { bind = function() end },
   screen = { allScreens = function()

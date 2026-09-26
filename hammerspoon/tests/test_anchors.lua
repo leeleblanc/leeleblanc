@@ -48,7 +48,7 @@ end
 
 hs = {
     timer = {
-        secondsSinceEpoch = function() return 1000 end,
+        secondsSinceEpoch = function() return 1000.4231 end,
         doAfter = function(s, fn)
             local t = { secs = s, fn = fn, live = true }
             function t:stop() self.live = false; return self end

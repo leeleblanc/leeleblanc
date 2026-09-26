@@ -134,7 +134,7 @@ hs = {
     },
     alert = { show = function(m) ALERTS[#ALERTS + 1] = tostring(m) end },
     timer = {
-        secondsSinceEpoch = function() return 1000 end,
+        secondsSinceEpoch = function() return 1000.4231 end,
         -- runTool defers by one run-loop turn so the panel is gone before
         -- the tool opens; the suite fires the queue by hand.
         doAfter = function(secs, fn)

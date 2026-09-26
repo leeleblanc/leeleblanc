@@ -100,7 +100,7 @@ hs = {
                       return { start = function(s) return s end,
                                stop  = function(s) return s end } end,
                               activated = 1, deactivated = 2, launched = 3, terminated = 4 } },
-  pasteboard = { getContents = function() return "" end, setContents = function() end,
+  pasteboard = { getContents = function() return "" end, setContents = function() return true end,
                  readImage = function() return nil end },
   chooser = { new = function()
       local c = {}

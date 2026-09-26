@@ -80,7 +80,7 @@ local function bootModule(opts)
                         t.stop = function() t.stopped = true end
                         everyFns[#everyFns + 1] = t
                         return t end,
-            secondsSinceEpoch = function() return 100 end,
+            secondsSinceEpoch = function() return 100.4231 end,
         },
         chooser = { new = function(fn) local c = {}
             chooserFn = fn

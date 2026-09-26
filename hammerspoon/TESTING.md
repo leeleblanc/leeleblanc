@@ -1,4 +1,4 @@
-# TESTING — how to score release 6.289.0
+# TESTING — how to score release 6.290.0
 
 You install ONE archive and it carries several releases. Below are the
 steps for each release this archive is new for, newest first. Run the
@@ -26,6 +26,61 @@ else is a LOSS and I fix it before building further. You are the only
 scorer; I never mark my own.
 
 ---
+
+## 6.290.0
+
+6.290.0 verify with LL — 🔬 THE GATE TESTS ITS OWN BELIEFS (KNOWN GROUND)
+WHAT CHANGED: nothing you can press. This release changes what the test
+gate is allowed to believe about macOS, and it is the answer to your
+question — how have so many mistakes been introduced.
+WHY IT MATTERS: I classified all ten losses on the scoreboard by where
+the defect actually lived. Eight of ten sit at the macOS boundary — the
+one surface the gate cannot see. One is a bad test recipe of mine. At
+most two are a solved thing coming unsolved. ZERO are logic errors in
+pure Lua; not one. So the mechanism is not carelessness: this config
+writes the code, the test AND the stub from one model of macOS, and
+when that model is wrong all three are wrong the same way and they
+agree with each other. Green meant "the code matches our beliefs". It
+never once meant "the code matches macOS". Your loop is closed — you
+press the key and reality answers. Mine was open.
+🔎 AND THE CLASS WAS LEARNED FIFTEEN TIMES AND ENFORCED ZERO TIMES.
+Every instance was fixed at the one stub that had just cost a release,
+while seventy-five other suites went on telling the same lie about the
+same provider. 28 of them were corrected in this release.
+
+A. THE HEADLINE — there is nothing to press, so this is the whole test.
+A1. Install and reload. Everything must behave exactly as it did on
+    6.289.0: ⇪T, ⇪D, ⇪N, ⇪3, ⇪4, ⇪X, ⇪space, the music card.
+    EXPECT: no visible difference of any kind. This release does not
+    touch a single shipped module — only tests/ and the documents.
+A2. Console: `_G.configVersion` → `6.290.0`.
+A3. That is it. If anything at all behaves differently, that is a real
+    finding and I want it, because this release claims to change
+    nothing you can see.
+
+B. IF YOU WANT TO SEE THE INSTRUMENT (optional, needs the repo, not
+   your Mac's install).
+B1. `lua5.4 tests/test_stub_fidelity.lua` from the unpacked archive.
+    EXPECT: `27 passed, 0 failed`, and a printed list of eight further
+    contracts it knows about and deliberately does NOT check.
+B2. That printed list is the point as much as the checks are. A gap
+    written down is not a gap implied by silence.
+
+C. A JUDGEMENT ONLY YOU CAN MAKE.
+C1. This release spends a whole version number on testing rather than
+    on anything you can use. Was that the right call? You asked for it,
+    and I think it is the highest-value thing in this batch — but you
+    are the one waiting on features, so say if you would rather I spend
+    the next one on the queue and fold work like this in alongside.
+C2. The three self-inflicted bugs this audit found IN ITSELF are in
+    CHANGELOG 6.290.0, named. One of them — a sentry searching for a
+    phrase that existed only on the sentry's own line, so it matched
+    itself and could never fail — is the kind of thing that would have
+    sat there for a year. If you want, the next audit release is the
+    one that sweeps the OTHER sentries in this config for the same
+    shape. Say the word.
+
+
 
 ## 6.289.0
 
@@ -184,72 +239,6 @@ D2. Plain drag re-wraps, ⇧drag scales — your suggestion. If it feels
 D3. A new box is born as wide as the words you typed. Would you rather
     it started at a fixed width — say a quarter of the shot — so it
     wraps from the first sentence? That is a default, not a release.
-
-
-
-## 6.286.0
-
-6.286.0 verify with LL — 🚪 CLOSING THE EDITOR KEEPS YOUR MARKS (KNOWN GROUND)
-WHAT CHANGED: every way out of the screenshot editor now asks the page
-for your work before the window goes. Until this release only the
-Cancel button did.
-WHY IT MATTERS: your screenshot said "closing the editor dumps the most
-recent edits so I lose any changes", and you were right — even though
-6.189.0 was built for exactly that complaint and its tests are green.
-Your marks live inside the editor's page; the only thing that hands
-them back is the page itself, and only the Cancel button was asking.
-Esc deleted the window, and opening a second screenshot deleted the
-first one's work without a word.
-
-A. THE HEADLINE — the door you press.
-A1. ⇪⇧1 on a screenshot. Draw an arrow, add a text box, blur something.
-A2. Press Esc.
-A3. ⇪⇧1 on the SAME screenshot again.
-    EXPECT: an alert "🖌 Your last edits on this shot are back", and
-    every mark where you left it.
-    A FAIL here is the bug you reported, unchanged — say so at once.
-A4. Same again, but close with the Cancel button instead of Esc.
-    EXPECT: identical. (This is the one that always worked.)
-
-B. THE OTHER DOOR, and the one I think you were actually using.
-B1. ⇪⇧1 on shot A. Draw something.
-B2. Without closing it, press ⇪⇧1 on a DIFFERENT shot B.
-    EXPECT: B opens clean.
-B3. Now ⇪⇧1 on shot A again.
-    EXPECT: A's marks are back. Before this release they were gone,
-    silently, and nothing said so.
-
-C. MUST STILL WORK — this release changed how the window closes, so
-   this is the regression sweep.
-C1. ⌘⏎ saves "… (edited).png" beside the original and copies it.
-C2. After a SAVE, reopen the same shot: it opens CLEAN, not with the
-    saved marks drawn again. (A saved session is not a lost one.)
-C3. Esc while a text box is open closes the BOX, not the editor. Press
-    Esc twice to leave.
-C4. ⌘Z undo, ⌘V paste an image, ⌘A add capture, ⌘D delayed, ⌘F full
-    screen, ⌘O load a shot — all unchanged.
-C5. The editor must always close when you ask it to. If it ever hangs
-    open for half a second and then goes, that is the belt working and
-    it is worth telling me about.
-
-D. PASTE BACK, PASS OR FAIL.
-D1. `_G.screenshotEditorReport()` — a new "closing :" line counts the
-    doors apart: asked · handed work back · closed on the belt ⚠️ ·
-    closed at once. A belt close means the page did not answer in time
-    and those marks were NOT kept — if that number is anything but 0,
-    that is the next bug and I want the block.
-
-E. A JUDGEMENT ONLY YOU CAN MAKE.
-E1. 0.4 seconds is how long the editor waits for its page before
-    closing anyway. If closing ever feels sticky, say so and I will
-    shorten it; if you ever lose marks with the report showing a belt
-    close, I will lengthen it.
-E2. Your four text-box asks — wrap, font size separate from the box,
-    Return for a new line, and shrink-to-rewrap — are ONE release and
-    they are next. Confirm the shape before I build it: plain drag on
-    the corner handle RE-WRAPS the text to the new width, and ⇧drag
-    scales the letters. That is your own "hold shift" suggestion; say
-    if you would rather have it the other way round.
 
 
 

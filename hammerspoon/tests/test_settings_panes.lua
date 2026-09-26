@@ -100,7 +100,7 @@ hs = {
         end,
     },
     timer = {
-        secondsSinceEpoch = function() return 1000 end,
+        secondsSinceEpoch = function() return 1000.4231 end,
         doAfter = function(secs, fn)
             local t = { secs = secs, fn = fn }
             function t:stop() end

@@ -76,7 +76,7 @@ hs = {
         return { frame = function() return { x = 0, y = 0, w = 1440, h = 900 } end }
     end },
     alert = { show = function(m) ALERTS[#ALERTS + 1] = tostring(m) end },
-    timer = { secondsSinceEpoch = function() return 1000 end },
+    timer = { secondsSinceEpoch = function() return 1000.4231 end },
 }
 _G.diag = { say = function() end, warn = function() end, err = function() end }
 

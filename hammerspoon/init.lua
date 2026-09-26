@@ -4,8 +4,24 @@
 -- =====================================================================
 -- 09-26-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.289.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.290.0
 -- =====================================================================
+
+-- NEW IN 6.290.0 — 🔬 A STUB GENTLER THAN macOS FAILS THE GATE NOW
+--   (tests/test_stub_fidelity.lua):
+--   Classify this project's ten scored losses by where the defect lived
+--   and EIGHT of ten sit at the macOS boundary — the surface the gate
+--   cannot see; zero are logic errors in pure Lua. This config writes
+--   the code, the test AND the stub from ONE model of macOS, so a wrong
+--   model makes all three wrong the same way and they agree. Green means
+--   "the code matches our beliefs", never "it matches macOS".
+--   🔑 The suite tests the BELIEFS: every stubbed provider is held to a
+--   contract paid for by a named loss — the clock is a FLOAT (6.282.0),
+--   setContents a BOOLEAN (6.198.0), selectedRow · currentTime · topLeft
+--   are SETTERS (6.227.0 · 6.239.0 · 6.247.0), symlinkAttributes is
+--   never stubbed alone (6.230.0), the registry is LIFTED not retyped
+--   (6.273.0). 28 stubs in 25 files fixed, so it ships SILENT (6.269.0).
+--   📏 NAMED: it is STATIC — eight more contracts print as data.
 
 -- NEW IN 6.289.0 — ⏯ THE KEYBOARD'S OWN PLAY/PAUSE KEY DRIVES THIS
 --   PLAYER (modules/music_player.lua):
@@ -24,26 +40,11 @@
 --   down while paused (6.152.0), ignores a key UP and an autorepeat, and
 --   the report counts taken apart from passed in three states.
 
--- NEW IN 6.288.0 — 🖥 THE CHEAT SHEET OPENS ON THE SCREEN IT RESOLVED,
---   NOT THE ONE THE SPOT CAME FROM (core/cheatsheet.lua):
---   LL: "Appears on a different screen sometimes — and when it does it
---   seems to not be the frontmost window until I move it." BOTH HALVES
---   ARE ONE MECHANISM. 6.196.0 stores the spot as an OFFSET into its
---   screen and 6.236.0 resolves the right screen; then the last line gave
---   it to `_G.clampToScreen`, which clamps to the FIRST screen the point
---   overlaps — so an offset saved on the 4K lands on the 4K and is KEPT
---   there. A sheet on the other monitor is one that is not in front of
---   him; he drags it back and it appears.
---   🔑 `cheatSheet.placeIn` is PURE and clamps into the RESOLVED screen
---   and nothing else, with four states. A source sentry keeps
---   clampToScreen out of the file: it is right for a caller with no
---   resolved screen and wrong for one that has worked it out.
-
--- (6.287.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.288.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 cut the inline count to
 --  TWO; a gate check proves every entry here is also in CHANGELOG.md.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.289.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.290.0
 -- =====================================================================
 -- The catalogue that used to sit here moved to GUIDE.md ("What each
 -- tool does") in 6.180.0 — 259 lines of prose inside the orchestrator.
@@ -136,7 +137,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.289.0"
+_G.configVersion = "6.290.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the

@@ -800,7 +800,7 @@ do
   local function bootLines(pending)
     local lines = {}
     local SB = {
-      hs = { timer = { secondsSinceEpoch = function() return 1000 end },
+      hs = { timer = { secondsSinceEpoch = function() return 1000.4231 end },
              settings = { get = function() return false end,
                           set = function() end } },
       pcall = pcall, ipairs = ipairs, type = type, tostring = tostring,

@@ -35,7 +35,7 @@ hs = {
     pasteboard = { getContents = function() return CLIP end,
                    setContents = function(s) CLIP = s; return true end },
     alert = { show = function(m) ALERTS[#ALERTS + 1] = tostring(m) end },
-    timer = { secondsSinceEpoch = function() return 1000 end },
+    timer = { secondsSinceEpoch = function() return 1000.4231 end },
 }
 _G.diag = { say = function() end, warn = function() end, err = function() end }
 local CORE = {
