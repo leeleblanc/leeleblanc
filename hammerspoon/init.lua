@@ -4,46 +4,46 @@
 -- =====================================================================
 -- 09-26-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.288.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.289.0
 -- =====================================================================
+
+-- NEW IN 6.289.0 — ⏯ THE KEYBOARD'S OWN PLAY/PAUSE KEY DRIVES THIS
+--   PLAYER (modules/music_player.lua):
+--   LL: "Pressing play/pause doesn't work. But volume keys do." Both
+--   sentences are about the same row of keys — the volume keys are
+--   macOS's and work everywhere, and F8 was going wherever macOS thought
+--   the music was, which is not this card.
+--   🚨 AND IT MUST NOT STEAL THE KEY: swallowing ⏯ whenever this config
+--   is loaded would cost him Music.app and every browser tab playing
+--   audio, silently, which is a worse bug than the one being fixed. So
+--   `mp.mediaVerdict` is PURE and narrow — the key is TAKEN only when
+--   this player has a queue; with nothing queued it passes straight
+--   through and macOS routes it as it does today.
+--   ⏭ `mp.step` is ONE function with two callers, the card's buttons and
+--   the keys. The tap starts in warm(), never setup (6.228.0), stands
+--   down while paused (6.152.0), ignores a key UP and an autorepeat, and
+--   the report counts taken apart from passed in three states.
 
 -- NEW IN 6.288.0 — 🖥 THE CHEAT SHEET OPENS ON THE SCREEN IT RESOLVED,
 --   NOT THE ONE THE SPOT CAME FROM (core/cheatsheet.lua):
 --   LL: "Appears on a different screen sometimes — and when it does it
---   seems to not be the frontmost window until I move it."
---   🔎 BOTH HALVES ARE ONE MECHANISM, and it is readable. 6.196.0 stores
---   the spot as an OFFSET into the screen it was dragged on; 6.236.0
---   resolves the right screen. Both correct — and then the last line
---   handed the answer to `_G.clampToScreen`, which walks allScreens() and
---   clamps to the FIRST screen the point overlaps. An offset saved on the
---   4K (dx ≈ 2000) applied to the Air's origin lands on the 4K, and the
---   clamp keeps it there. A sheet on the other monitor is also a sheet
---   that is not in front of him; he drags it back and it appears.
+--   seems to not be the frontmost window until I move it." BOTH HALVES
+--   ARE ONE MECHANISM. 6.196.0 stores the spot as an OFFSET into its
+--   screen and 6.236.0 resolves the right screen; then the last line gave
+--   it to `_G.clampToScreen`, which clamps to the FIRST screen the point
+--   overlaps — so an offset saved on the 4K lands on the 4K and is KEPT
+--   there. A sheet on the other monitor is one that is not in front of
+--   him; he drags it back and it appears.
 --   🔑 `cheatSheet.placeIn` is PURE and clamps into the RESOLVED screen
---   and nothing else, with FOUR states: centred · where you put it ·
---   nudged back from a bigger screen · the legacy spot is on a screen you
---   are not on. A source sentry keeps clampToScreen out of this file —
---   it is right for a caller with no resolved screen and wrong for one
---   that has worked it out. `_G.cheatSheetReport()` names where it landed.
+--   and nothing else, with four states. A source sentry keeps
+--   clampToScreen out of the file: it is right for a caller with no
+--   resolved screen and wrong for one that has worked it out.
 
--- NEW IN 6.287.0 — ✏️ A TEXT NOTE IS A BOX, NOT A LINE
---   (modules/screenshot_editor.lua):
---   LL, four asks in one breath: WRAP · font size independent of the box
---   · RETURN drops a line · dragging the box smaller re-wraps instead of
---   growing the letters. ONE defect from four sides: 6.188.0 built the
---   corner handle as a glyph SCALE, so a text note only ever had a size.
---   🔑 ONE NEW FIELD, `w` — the width it wraps at — and all four fall out
---   of it. A note WITHOUT it (an older kept session) lays out exactly as
---   before. snapNote already carries every numeric field, so ⌘Z undoes a
---   re-wrap. ✏️ HIS SUGGESTION IS THE SHAPE: plain corner drag re-wraps,
---   ⇧drag scales. ⏎ is a new line and ⇧⏎ is done — a <textarea>, since an
---   <input> cannot hold one at all; the placeholder says both.
-
--- (6.286.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.287.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 cut the inline count to
 --  TWO; a gate check proves every entry here is also in CHANGELOG.md.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.288.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.289.0
 -- =====================================================================
 -- The catalogue that used to sit here moved to GUIDE.md ("What each
 -- tool does") in 6.180.0 — 259 lines of prose inside the orchestrator.
@@ -136,7 +136,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.288.0"
+_G.configVersion = "6.289.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the

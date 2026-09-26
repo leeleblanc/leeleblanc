@@ -79,13 +79,20 @@ end
 TAPS = {}
 NO_EVENTTAP = false
 TAP_REFUSES = false
+TAP_START_REFUSES = false
 hs = {
     eventtap = {
         event = { types = { systemDefined = 14 } },
         new = function(types, fn)
             if TAP_REFUSES then error("macOS refused the tap", 0) end
             local t = { types = types, fn = fn, running = false }
-            function t:start() self.running = true; return self end
+            -- 6.265.0 — "created, wired, REFUSED TO START" is a different
+            -- shape from "new threw", and on a beta OS it is the one this
+            -- config keeps meeting. Modelled apart.
+            function t:start()
+                if TAP_START_REFUSES then error("macOS refused to start it", 0) end
+                self.running = true; return self
+            end
             function t:stop()  self.running = false; return self end
             TAPS[#TAPS + 1] = t
             return t
@@ -2109,6 +2116,19 @@ do
           ok2 == false and tostring(why2):find("refused", 1, true) ~= nil, why2)
     check("…and leaves no half-made tap behind", mp.mediaTap == nil)
     TAP_REFUSES = false
+    -- 🚨 AND THE OTHER SHAPE: created and wired, and then :start() refuses.
+    -- Here mp.mediaTap HAS been assigned, so the nil-out is what stops a
+    -- dead tap being held as if it were live — a later start would see it
+    -- and answer "not wanted" for the rest of the session (6.265.0).
+    mp.stopMediaTap()
+    TAP_START_REFUSES = true
+    local ok2b, why2b = mp.startMediaTap()
+    check("🛟 a tap that is created and then REFUSES TO START also says so",
+          ok2b == false and tostring(why2b):find("refused", 1, true) ~= nil, why2b)
+    check("🚨 …and is not held as if it were live, or every later start "
+          .. "would answer 'not wanted' for the rest of the session",
+          mp.mediaTap == nil)
+    TAP_START_REFUSES = false
     local realTap = hs.eventtap
     hs.eventtap = nil
     local ok3, why3 = mp.startMediaTap()
@@ -2146,7 +2166,7 @@ do
     mp.startMediaTap()
 
     check("the 6.289.0 block ran every one of its checks",
-          (pass + fail) - n == 40, (pass + fail) - n)
+          (pass + fail) - n == 42, (pass + fail) - n)
 end
 
 if fail > 0 then

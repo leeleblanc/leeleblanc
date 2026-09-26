@@ -1,4 +1,4 @@
-# TESTING — how to score release 6.288.0
+# TESTING — how to score release 6.289.0
 
 You install ONE archive and it carries several releases. Below are the
 steps for each release this archive is new for, newest first. Run the
@@ -26,6 +26,57 @@ else is a LOSS and I fix it before building further. You are the only
 scorer; I never mark my own.
 
 ---
+
+## 6.289.0
+
+6.289.0 verify with LL — ⏯ THE PLAY/PAUSE KEY (KNOWN GROUND)
+WHAT CHANGED: the keyboard's own ⏯, ⏮ and ⏭ keys now drive the music
+card — but only while it has a queue.
+WHY IT MATTERS: you said "pressing play/pause doesn't work, but volume
+keys do", and those two sentences are about the same row of keys. The
+volume keys are macOS's own, which is why they work everywhere. ⏯ was
+going wherever macOS thinks your music is, and that was never this
+card. Nothing was broken — the key had simply never been claimed.
+🚨 AND I DELIBERATELY DID NOT TAKE IT ALWAYS. If this config ate ⏯
+whenever it was loaded, Music.app and every browser tab playing audio
+would lose the key the moment Hammerspoon booted, silently. So it is
+taken only when the card has a queue.
+
+A. THE HEADLINE.
+A1. ⇪⇧pad., drop two or three tracks on the card. Something plays.
+A2. Press the keyboard's ⏯ key (F8).
+    EXPECT: the card pauses. Press it again: it resumes.
+A3. Press ⏭ and ⏮. EXPECT: the card steps forward and back.
+A4. Volume keys: unchanged, still macOS's. That was your own call in
+    6.231.0 and I have not touched it.
+
+B. THE ONE THAT PROTECTS EVERY OTHER APP — please do this one.
+B1. Empty the card's queue (or just do not queue anything), then play
+    something in Music.app, Spotify or a YouTube tab.
+B2. Press ⏯.
+    EXPECT: THAT app pauses, exactly as it does today. Hammerspoon must
+    not swallow the key.
+    A FAIL here is the serious one: tell me at once and
+    `settings = { music_player = { mediaKeys = false } }` turns it off.
+B3. Now queue something on the card and press ⏯ again: the card wins.
+    That is the trade, and it is the narrowest one I could draw.
+
+C. PASTE BACK, PASS OR FAIL.
+C1. `_G.musicReport()` — a new "⏯ keys" line reads
+    `watching ⏯ ⏮ ⏭ · N taken · N passed through to macOS`.
+    If it reads `⚠️ WANTED but not running`, this Mac would not give
+    Hammerspoon an event tap and the keys are doing nothing new —
+    paste it, that is the evidence.
+
+D. A SENTENCE I NEED FROM YOU.
+D1. When you wrote "pressing play/pause doesn't work", did you mean
+    the KEYBOARD's ⏯ key — which is what I have built — or the ▶︎
+    BUTTON on the card / the space bar? If it was the button or the
+    space bar, that is a different fault and the report's "keyboard :"
+    line names it: paste `_G.musicReport()` right after pressing space
+    on the card and I will fix that instead. One sentence is enough.
+
+
 
 ## 6.288.0
 
@@ -199,61 +250,6 @@ E2. Your four text-box asks — wrap, font size separate from the box,
     the corner handle RE-WRAPS the text to the new width, and ⇧drag
     scales the letters. That is your own "hold shift" suggestion; say
     if you would rather have it the other way round.
-
-
-
-## 6.285.0
-
-6.285.0 verify with LL — 🔔 THE ⇪ WATCHDOG STOPS CRYING WOLF (KNOWN GROUND)
-WHAT CHANGED: nothing about how ⇪ works. What changed is what the
-Console says when a panel takes the keyboard.
-WHY IT MATTERS: your last paste carried this line —
-    ⌨️ ⇪ released by the watchdog — held 8s with no key event and no
-    F18 keyUp (release #1) — musicPlayer had taken the keyboard.
-Nothing was wrong. The music card takes the keyboard on purpose, so
-the Caps Lock release goes to ITS window, and a guard ends the hold
-1.5 seconds later exactly as designed. But that is the sentence this
-config prints when ⇪ is genuinely STUCK — the thing that killed your
-keyboard in 6.214.0 — and it was also adding to the count the storm
-report calls a fault. A warning you see every time you play music is
-a warning you stop reading.
-🚨 AND I HAD THE FIX WRONG IN MY OWN NOTES: I had written that the
-card should call `_G.hyperTouch()`. It should not — that call means
-"this hold is real, keep it", which would have held ⇪ latched LONGER.
-
-A. THE HEADLINE.
-A1. Press ⇪⇧pad. to open the music card. Watch the Console.
-    EXPECT, the FIRST time this session: `⌨️ ⇪ hold ended on schedule
-    — musicPlayer took the keyboard, so the F18 keyUp went to it.
-    Normal, not a stuck ⇪`.
-    EXPECT NOT: "released by the watchdog".
-A2. Close it and open it again, twice more.
-    EXPECT: NOTHING in the Console. It is explained once per panel and
-    counted after that.
-A3. Console: `_G.hyperKeyReport()`.
-    EXPECT three lines — relay · handover · latch — with handover at
-    3 and `latch : 0 — ⇪ has not stuck this session`.
-    THAT ZERO is the release. Paste the block.
-
-B. MUST STILL WORK — this is the ⇪ key, so it is the important half.
-B1. Use ⇪ normally for a day: ⇪T, ⇪D, ⇪N, ⇪3, ⇪X, ⇪4, ⇪space.
-    EXPECT: no change of any kind.
-B2. Hold ⇪ down for ten seconds without pressing anything, then let go.
-    EXPECT: `released by the watchdog — held 8s … (release #1)`, with
-    no panel named. THAT one must still appear — it is the real
-    warning and it has to keep its teeth.
-B3. `_G.hyperKeyReport()` again: `latch : ⚠️ 1`. The ⚠️ is the point.
-B4. `_G.stormReport()` — its "before :" line now reads LATCH releases,
-    panel handovers and keyUp relays separately instead of summing
-    them.
-B5. Open Hamsidian (⇪N) and type. The pad does the same handshake, so
-    you should see its one-off line too, and typing must be typing —
-    no letter should run a shortcut.
-
-C. A JUDGEMENT ONLY YOU CAN MAKE.
-C1. Is once per panel per session the right amount of talking, or
-    would you rather it never said anything and only counted? "once is
-    fine" · "say nothing" decides it.
 
 
 

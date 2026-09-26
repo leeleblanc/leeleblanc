@@ -6,6 +6,72 @@ older lives only here.
 
 ```text
 
+NEW IN 6.289.0 — ⏯ THE KEYBOARD'S OWN PLAY/PAUSE KEY DRIVES THIS PLAYER
+(modules/music_player.lua, tests/test_music_player.lua):
+
+  LL, two sentences:
+
+      "Musicplayer:
+       · Pressing play/pause doesn't work. But volume keys do."
+
+  🔎 THEY ARE ABOUT THE SAME ROW OF KEYS, and reading them together is
+  what named this. The volume keys are macOS's own and work everywhere,
+  which is why they "do"; ⏯ sits beside them and was going wherever
+  macOS thinks the music is — Music.app, a browser tab, nothing at all
+  — and never to this card. Nothing was broken. The key had simply
+  never been claimed.
+
+  🚨 AND IT MUST NOT STEAL THE KEY, which is the half that decided the
+  design. A tap that swallowed ⏯ whenever this config was loaded would
+  cost him Music.app and every browser tab playing audio, silently,
+  from the moment Hammerspoon booted — a worse bug than the one being
+  fixed and a much harder one to attribute. So the rule is narrow and
+  PURE: `mp.mediaVerdict(key, hasQueue, on)` takes the key ONLY when
+  this player has a queue to act on. With nothing queued the event
+  passes straight through and macOS routes it exactly as it does today.
+  Its own mutation, and the check that bites is the empty queue.
+
+  ⏯ ⏮ ⏭ AND NOTHING ELSE. The volume keys stay macOS's on purpose —
+  6.231.0 shipped this player with no volume control on LL's own answer
+  ("Native volume keys work"), and taking those keys now would undo a
+  decision he made. Brightness, eject and the rest are never ours.
+
+  ⏭ `mp.step(dir)` is ONE function with two callers — the card's ⏮/⏭
+  buttons and the keyboard's own — because two copies of "step a track"
+  is how the two come to disagree about repeat-one (6.231.0, whose
+  nextIndex rule this sits on top of).
+
+  🔌 THE TAP STARTS IN warm(), NEVER IN setup(). init.lua applies a
+  profile's `settings` AFTER setup returns, so a tap created there could
+  be switched off and never stopped — 6.228.0's `wm.enabled` shape,
+  which this project has now met in four modules.
+
+  🚨 THREE THINGS EVERY TAP HERE OWES, each with its own check: it
+  stands down when `_G.hsPaused` (6.152.0); a key UP is not a press
+  (acting on the release would toggle twice per press, which reads as
+  "the key does nothing"); and an autorepeat is not a press either.
+
+  🛟 TWO REFUSAL SHAPES, NOT ONE. `hs.eventtap.new` throwing and a tap
+  that is created and then refuses to START are different, and on a
+  beta OS the second is the one this config keeps meeting (6.265.0).
+  The second is the one that matters: there `mp.mediaTap` HAS been
+  assigned, so nilling it is what stops a dead tap being held as if it
+  were live — a later start would see it and answer "not wanted" for
+  the rest of the session. The stub models both, and the mutation on
+  the nil-out survived until it did.
+
+  🔎 THREE STATES IN THE REPORT (6.196.1): watching, with taken counted
+  apart from passed · OFF by settings · ⚠️ WANTED but not running. "The
+  play key does nothing" reads the same in all three and they need
+  different answers.
+
+  📏 NAMED, NOT GUESSED: this reads his sentence as being about the
+  hardware key. If he meant the ▶︎ BUTTON on the card or the space bar,
+  that is a different fault and the report's `keyboard :` line (6.251.0)
+  is what names it — the verify block asks him which, in one sentence.
+
+  Fourteen mutations, fourteen bites.
+
 NEW IN 6.288.0 — 🖥 THE CHEAT SHEET OPENS ON THE SCREEN IT RESOLVED, NOT
 THE ONE THE SPOT CAME FROM (core/cheatsheet.lua, tests/test_cheatsheet.lua):
 

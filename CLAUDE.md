@@ -1008,6 +1008,33 @@ work Mac.
   one-hop symlink: a fixture where the right and wrong implementations
   AGREE proves nothing — pick the input where they must differ.
 
+- ⏯ A KEY NOBODY CLAIMED IS NOT A BROKEN KEY (6.289.0,
+  modules/music_player.lua — LL: "Pressing play/pause doesn't work. But
+  volume keys do"). Both sentences are about the same row of keys: the
+  volume keys are macOS's own and work everywhere, and ⏯ was going
+  wherever macOS thinks the music is. Nothing was broken; the key had
+  never been claimed. GENERAL: when a report contrasts two things that
+  "work" and "don't", check whether the working one is even ours.
+  🚨 AND A TAP MUST NOT STEAL A SYSTEM KEY. Swallowing ⏯ whenever this
+  config is loaded would cost him Music.app and every browser tab
+  playing audio, silently, from boot — worse than the bug, and far
+  harder to attribute. `mp.mediaVerdict` is PURE and narrow: TAKEN only
+  when this player has a queue; otherwise passed straight through. The
+  check that bites is the empty queue.
+  ⏭ `mp.step` is ONE function, two callers (6.231.0). The tap starts in
+  warm(), never setup (6.228.0); stands down on `_G.hsPaused` (6.152.0);
+  and a key UP or an autorepeat is not a press — acting on the release
+  toggles twice per press, which reads as "the key does nothing".
+  🛟 TWO REFUSAL SHAPES: `hs.eventtap.new` throwing, and a tap CREATED
+  AND THEN REFUSING TO START (6.265.0 — the beta-OS shape). Only the
+  second leaves `mediaTap` assigned, so only there does nilling it
+  matter, and its mutation survived until the stub modelled it.
+  📏 NAMED: this reads his sentence as the HARDWARE key. If he meant the
+  ▶︎ button or the space bar, 6.251.0's `keyboard :` line names that
+  instead — the verify block asks him which, in one sentence.
+  🔕 The volume keys stay macOS's on purpose: 6.231.0 shipped without
+  volume on his own answer, and taking them now would undo his decision.
+
 - 🖥 A HELPER THAT PICKS A SCREEN FOR YOU MUST NOT BE HANDED A POINT BY
   CODE THAT HAS ALREADY PICKED ONE (6.288.0, core/cheatsheet.lua — LL:
   "Appears on a different screen sometimes — and when it does it seems
@@ -3497,6 +3524,7 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
+| 6.289.0 | ⏯ the keyboard's own play/pause, ⏮ and ⏭ keys drive the music card while it has a queue, and pass through to macOS when it does not | pending |
 | 6.288.0 | 🖥 the cheat sheet opens on the screen it resolved — a spot saved on the 4K was being clamped back onto the 4K by a helper that picks its own screen | pending |
 | 6.287.0 | ✏️ the editor's text tool is a real text box — it wraps, ⏎ drops a line, the corner re-wraps and ⇧corner scales; it had only ever been a single line with a font size | pending |
 | 6.286.0 | 🚪 the screenshot editor's marks survive EVERY way out — Esc, Cancel and ⇪⇧1 on another shot; only the Cancel button ever asked the page for them | pending |
@@ -4369,6 +4397,53 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.289.0 verify with LL — ⏯ THE PLAY/PAUSE KEY (KNOWN GROUND)
+  WHAT CHANGED: the keyboard's own ⏯, ⏮ and ⏭ keys now drive the music
+  card — but only while it has a queue.
+  WHY IT MATTERS: you said "pressing play/pause doesn't work, but volume
+  keys do", and those two sentences are about the same row of keys. The
+  volume keys are macOS's own, which is why they work everywhere. ⏯ was
+  going wherever macOS thinks your music is, and that was never this
+  card. Nothing was broken — the key had simply never been claimed.
+  🚨 AND I DELIBERATELY DID NOT TAKE IT ALWAYS. If this config ate ⏯
+  whenever it was loaded, Music.app and every browser tab playing audio
+  would lose the key the moment Hammerspoon booted, silently. So it is
+  taken only when the card has a queue.
+
+  A. THE HEADLINE.
+  A1. ⇪⇧pad., drop two or three tracks on the card. Something plays.
+  A2. Press the keyboard's ⏯ key (F8).
+      EXPECT: the card pauses. Press it again: it resumes.
+  A3. Press ⏭ and ⏮. EXPECT: the card steps forward and back.
+  A4. Volume keys: unchanged, still macOS's. That was your own call in
+      6.231.0 and I have not touched it.
+
+  B. THE ONE THAT PROTECTS EVERY OTHER APP — please do this one.
+  B1. Empty the card's queue (or just do not queue anything), then play
+      something in Music.app, Spotify or a YouTube tab.
+  B2. Press ⏯.
+      EXPECT: THAT app pauses, exactly as it does today. Hammerspoon must
+      not swallow the key.
+      A FAIL here is the serious one: tell me at once and
+      `settings = { music_player = { mediaKeys = false } }` turns it off.
+  B3. Now queue something on the card and press ⏯ again: the card wins.
+      That is the trade, and it is the narrowest one I could draw.
+
+  C. PASTE BACK, PASS OR FAIL.
+  C1. `_G.musicReport()` — a new "⏯ keys" line reads
+      `watching ⏯ ⏮ ⏭ · N taken · N passed through to macOS`.
+      If it reads `⚠️ WANTED but not running`, this Mac would not give
+      Hammerspoon an event tap and the keys are doing nothing new —
+      paste it, that is the evidence.
+
+  D. A SENTENCE I NEED FROM YOU.
+  D1. When you wrote "pressing play/pause doesn't work", did you mean
+      the KEYBOARD's ⏯ key — which is what I have built — or the ▶︎
+      BUTTON on the card / the space bar? If it was the button or the
+      space bar, that is a different fault and the report's "keyboard :"
+      line names it: paste `_G.musicReport()` right after pressing space
+      on the card and I will fix that instead. One sentence is enough.
+
 - 6.288.0 verify with LL — 🖥 THE SHEET OPENS WHERE YOU ARE (KNOWN GROUND)
   WHAT CHANGED: ⇪/ is placed on the screen this config resolved, and can
   no longer be pulled onto another monitor by a spot you saved there.
