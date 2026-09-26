@@ -3855,10 +3855,12 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   from 6.228.0 to 6.266.0 sits in a 359–478 ms band, and both post-6.267
   builds that recorded a row are far under it.
 
-- 📥 LL'S REPORT, 2026-09-25 — SIX THINGS, NONE BUILT, and the order
-  below is MINE (the crashing report jumped them all as 6.282.0):
-  1. ✏️ THE  ⇪⇧1 EDITOR'S TEXT TOOL IS NOT A TEXT BOX — FOUR ASKS THAT
-     ARE ONE RELEASE. His words: it must WRAP; the font size must change
+- 📥 LL'S REPORT, 2026-09-25 — "BUILD THE SIX", AND SIX OF THE SEVEN ARE
+  BUILT (6.283.0–6.289.0, one change per release, delivered as one
+  archive). What each became, and the ONE still blocked:
+  1. ✅ SHIPPED AS 6.287.0 — four asks, one release, because they were
+     one defect. The durable rule is above. WAS: ✏️ THE ⇪⇧1 EDITOR'S TEXT
+     TOOL IS NOT A TEXT BOX — FOUR ASKS THAT ARE ONE RELEASE. His words: it must WRAP; the font size must change
      independently of the box and the box independently of the font;
      RETURN must drop a line instead of resizing; and dragging the box
      SMALLER must re-wrap the text rather than grow it ("so I may need
@@ -3871,8 +3873,10 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
      rows and the saved-file draw all change together. His "hold shift"
      suggestion is the right shape for the corner handle — plain drag
      re-wraps, ⇧drag scales — and it is worth asking him to confirm.
-  2. 🚨 "CLOSING THE EDITOR DUMPS THE MOST RECENT EDITS SO I LOSE ANY
-     CHANGES" (his annotated screenshot). 6.189.0 promises the opposite:
+  2. ✅ SHIPPED AS 6.286.0, and he was right: 6.189.0 was telling the
+     truth about exactly ONE way out, and reading every door found it
+     without needing to know which key he pressed. WAS: 🚨 "CLOSING THE
+     EDITOR DUMPS THE MOST RECENT EDITS SO I LOSE ANY CHANGES". 6.189.0 promises the opposite:
      `ed.kept` holds { path, img, notes } on cancel and restores them on
      the next open of the SAME path. So either that slot is not being
      filled, or it is not being READ, or he means Cancel should SAVE.
@@ -3889,8 +3893,15 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
      count that separates a refusal from his own settings line, and
      6.282.0 is what makes that count readable. HIS `routes` LINE
      DECIDES IT; do not guess before it arrives.
-  4. ⌨️ ⌥TAB DOES NOT SHOW THE HAMMERSPOON WINDOW unless he is already on
-     that desktop. This was scored RESOLVED WITHOUT CODE on 6.215.0
+     🚧 THE ONE UNBUILT ITEM OF THE SIX, deliberately, and SAID TO HIM
+     rather than quietly skipped: "macOS's crosshair, so no box" and
+     "our selector drew and the readout did not" are opposite fixes, and
+     the artefact that separates them could not be collected before
+     6.282.0 stopped the report throwing.
+  4. ✅ SHIPPED AS 6.283.0 — the console block was the one listing that
+     never fed altTab.known, and that memory is the only route to another
+     Space. WAS: ⌨️ ⌥TAB DOES NOT SHOW THE HAMMERSPOON WINDOW unless he is
+     already on that desktop. This was scored RESOLVED WITHOUT CODE on 6.215.0
      ("Alt+tab Success. Shows Hammerspoon now") and has regressed or
      never generalised. The 6.152.0 rule names the mechanism: macOS AX
      never returns another Space's windows from `app:allWindows()`, so
@@ -3898,8 +3909,9 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
      listing — a window on another desktop is only there if a listing
      ever saw it. First suspect is therefore the memory, not the read.
      `hs.console.hswindow` stays BANNED there (6.160.3).
-  5. 🖥 THE CHEAT SHEET OPENS ON THE WRONG SCREEN "sometimes", AND IS
-     NOT FRONTMOST UNTIL HE MOVES IT. The first half is 6.236.0's
+  5. ✅ SHIPPED AS 6.288.0, and both halves of his sentence were ONE
+     mechanism. WAS: 🖥 THE CHEAT SHEET OPENS ON THE WRONG SCREEN
+     "sometimes", AND IS NOT FRONTMOST UNTIL HE MOVES IT. The first half is 6.236.0's
      territory and that release added the instrument for it:
      `_G.screenReport()` names the rule that placed the last panel and
      what each candidate answers. ASK FOR IT AT THE MOMENT IT HAPPENS —
@@ -3907,7 +3919,10 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
      new and is not the same bug: a panel that is up but not frontmost
      until dragged is 6.225.0/6.251.0's up-vs-front-vs-key distinction,
      on a surface that has never been audited for it.
-  6. ⚠️ AND HIS CONSOLE CARRIES ONE LINE NEITHER OF US ASKED FOR:
+  6. ✅ SHIPPED AS 6.285.0 — and the answer was NOT `_G.hyperTouch()`,
+     which this file had wrong: it would have held ⇪ latched LONGER. A
+     handover is not a latch. WAS: ⚠️ HIS CONSOLE CARRIES ONE LINE
+     NEITHER OF US ASKED FOR:
      `⌨️ ⇪ released by the watchdog — held 8s with no key event and no
      F18 keyUp (release #1) — musicPlayer had taken the keyboard.` That
      is 6.251.0's price (taking the keyboard activates Hammerspoon)
