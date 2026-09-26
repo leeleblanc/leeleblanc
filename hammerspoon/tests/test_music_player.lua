@@ -972,6 +972,24 @@ do
           .. "the same string — renaming one half is how a panel stops "
           .. "being draggable with nothing to see",
           reg ~= nil and reg == drag, tostring(reg) .. " vs " .. tostring(drag))
+
+    -- 🔕 AND THE QUIET LIST NAMES THIS TOOL BY THE NAME IT ACTUALLY
+    -- USES. 6.295.0 made this player Console-only by listing its tool
+    -- name in core/notices.lua, and 6.296.0 changed that name — two
+    -- files, one string, and if they drift the player starts alerting
+    -- again with nothing to see. 6.268.0's rule: when a rename crosses
+    -- a file boundary, a sentry joins the two sides.
+    local nf = realOpen(HS .. "/core/notices.lua")
+    local nsrc = nf and nf:read("a") or ""
+    if nf then nf:close() end
+    local list = nsrc:match("notices%.quietTools%s*=%s*{(.-)}")
+    check("🔕 core/notices.lua's quiet list names this player by the "
+          .. "name this module passes to the door — the two files must "
+          .. "not drift, or the card starts alerting again silently",
+          list ~= nil and list:find('"' .. mp.brand .. '"', 1, true) ~= nil,
+          tostring(list) .. "  vs  " .. tostring(mp.brand))
+    check("...and the sentry really read notices.lua (6.187.0)",
+          #nsrc > 1000, #nsrc)
 end
 
 -- ---- §12 the report ----------------------------------------------------
