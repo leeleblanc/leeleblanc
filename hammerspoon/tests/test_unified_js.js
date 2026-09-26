@@ -482,14 +482,38 @@ console.log("── Unified Search: page JavaScript, executed ──");
   check("a click on a source completes the box, and copies nothing",
         env.q.value === "@ocr " && afterClick === 0, env.q.value);
 
+  // the pointer moves the highlight here too — the directory is a list
+  // like any other, and a hand that works on one list and not the other
+  // is the bug the shared walk exists to stop (6.202.0).
+  env.type("@");
+  env.hover({ getAttribute: (k) => (k === "data-tag" ? "shots" : null) });
+  check("🖱 the pointer moves the highlight in the directory as well",
+        env.call("visible[sel]") === "shots", env.call("visible[sel]"));
+
   // the pane explains the highlighted source
   env.type("@");
   check("the pane says what the highlighted source holds, and its count",
         env.pane.innerHTML.indexOf("everything you have copied") !== -1
         && env.pane.innerHTML.indexOf("indexed right now") !== -1,
         env.pane.innerHTML.slice(0, 160));
-  check("🔑 …and asks Lua for no detail — a source has no row to fetch",
-        env.call("detailFor") === null);
+  // 🔑 THE DIRECTORY CLEARS THE ROW THE PANE LAST ASKED ABOUT — and the
+  // check that bites is the one that COMES BACK to that row. Asserting
+  // `detailFor === null` right after typing @ passed with the line
+  // deleted, because whatever ran before had already left it null
+  // (6.273.0: when a fix lands on a line no mutation can kill, the line
+  // is not the finding, the missing check is). Leaving the id set means
+  // the pane never re-asks for that row and shows its preview for ever.
+  env.type("receipt");
+  const backTo = env.call("visible[0]");
+  env.type("@");
+  const beforeBack = env.sent.length;
+  env.type("receipt");
+  check("🔑 the directory forgets the row the pane had asked about, so "
+        + "coming back to it asks Lua again",
+        env.sent.slice(beforeBack).filter(function(m){
+          return m.a === "detail" && m.id === backTo; }).length === 1,
+        JSON.stringify(env.sent.slice(beforeBack)));
+  env.type("@");
 
   // 🔎 THE SECOND DOOR: a tag that does not exist names the ones that do.
   env.type("@tasks");
