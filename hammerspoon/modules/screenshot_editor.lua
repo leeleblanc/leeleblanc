@@ -69,6 +69,7 @@ local M = {
             { "⌘Z",    "undo anything: blur, add, move, edit, delete" },
             { "⌘⏎",   "save “… (edited).png” + clipboard · ⌘⇧⏎ small JPEG" },
             { "esc",   "close without saving — the original is never touched, and the blurs, text and arrows are kept: reopen the SAME shot and they are back" },
+            { "",      "6.286.0: EVERY way out keeps them now — esc, Cancel, and ⇪⇧1 on another shot" },
         },
     },
 }
@@ -1184,8 +1185,11 @@ function M.setup(core)
                             -- over the next open of the same shot
             ed.close()
         elseif body.a == "cancel" then
+            -- 6.286.0 — the page answered, so the belt has nothing to do.
+            ed.stopCloseBelt()
             local okKeep, whyKeep = ed.rememberWork(ed.currentPath, body.img,
                                                     body.notes)
+            if okKeep then ed.closes.stashed = ed.closes.stashed + 1 end
             say(okKeep and "work kept for the next open of this shot"
                        or ("nothing kept — " .. tostring(whyKeep)))
             ed.close()
@@ -1723,6 +1727,22 @@ function M.setup(core)
         L[#L + 1] = "   kept    : " .. (ed.kept
                         and ("work held for " .. tostring(ed.kept.path))
                         or "nothing kept from a cancel")
+        -- 🚪 6.286.0 — WHICH DOOR, AND WHETHER THE WORK SURVIVED IT.
+        -- "closed" used to be one fact; it was four, and three of them
+        -- lost his marks without saying anything (6.196.1).
+        local c = ed.closes or {}
+        L[#L + 1] = string.format(
+            "   closing : %d ask(ed) the page · %d handed work back · "
+         .. "%d closed on the belt%s · %d closed at once (no page to ask)",
+            c.asked or 0, c.stashed or 0, c.belt or 0,
+            (c.belt or 0) > 0 and " ⚠️" or "", c.atOnce or 0)
+        L[#L + 1] = "   ↳ last  : " .. tostring(c.last or "nothing has closed "
+                        .. "the editor this session")
+        if (c.belt or 0) > 0 then
+            L[#L + 1] = "   ⚠️ a belt close means the page did not answer within "
+                        .. tostring(ed.closeGraceSecs) .. "s — those marks were"
+                        .. " not kept, and that is the bug to report"
+        end
         -- 🖼 6.270.0 — the layout, and what it RESERVES. Printed because
         -- "the buttons are on top of the picture" and "the picture is
         -- squeezed" look the same in a screenshot and are opposite faults.
@@ -1778,6 +1798,97 @@ function M.setup(core)
     end
 
     -- ---- window ----------------------------------------------------------
+    -- 🚪 6.286.0 — THE ONE DOOR OUT, AND UNTIL NOW MOST DOORS SKIPPED THE
+    -- RESCUE. LL, with an annotated screenshot: "Closing the screenshot
+    -- editor dumps the most recent edits so I lose any changes."
+    --
+    -- 6.189.0 promises the opposite, and it was telling the truth about
+    -- exactly ONE way out. The work lives in the PAGE — canvas pixels and
+    -- a notes array — and the only thing that hands it back is the page's
+    -- own `stashAndCancel()`, which posts { a = 'cancel', img, notes }.
+    -- The Cancel button calls it. Nothing else did:
+    --   · the Esc ROUTER called ed.close() straight out (6.93.0), which
+    --     deletes the webview and with it the only copy of his marks;
+    --   · ⇪⇧1 on another shot calls ed.open(), whose first line is
+    --     ed.close() — so opening a second screenshot threw the first
+    --     one's work away, silently;
+    --   · `view:closeOnEscape(true)` let WebKit close the WINDOW behind
+    --     Lua's back, racing the page's own Escape handler, so even the
+    --     path that was meant to work was a coin toss.
+    --
+    -- 🔑 SO THE CLOSE IS ASYNCHRONOUS NOW, because the answer has to come
+    -- from the page: ask, and close when it replies. A HELD belt
+    -- (`ed.closeTimer`, its own slot — 6.196.1) closes anyway after
+    -- `ed.closeGraceSecs`, so a page that cannot answer costs the marks
+    -- and never the window. 6.255.0's shape, in the other direction.
+    -- 📏 COST, NAMED: a Mac that cannot arm a timer closes at once, as
+    -- before, and the report counts those apart.
+    ed.closeGraceSecs = 0.4
+    ed.closeTimer     = nil     -- HELD: an unreferenced timer never fires
+    ed.closes = { asked = 0, stashed = 0, belt = 0, atOnce = 0, last = nil }
+
+    function ed.stopCloseBelt()
+        if ed.closeTimer then pcall(function() ed.closeTimer:stop() end) end
+        ed.closeTimer = nil
+    end
+
+    -- PURE: given what this Mac can do, how should the editor be closed?
+    -- Three answers and the reason for each, so the whole decision is
+    -- provable with no Mac (6.264.0 — and the checks below drive the real
+    -- path with each dependency taken away in turn).
+    function ed.closePlan(hasPage, canAsk, canTimer)
+        if not hasPage then return "now", "there is no editor open" end
+        if not canAsk then
+            return "now", "this Mac cannot ask the page for its work"
+        end
+        if not canTimer then
+            return "askThenNow", "no timer to fall back on — the work is "
+                .. "asked for, and the window closes either way"
+        end
+        return "ask", "asking the page to hand its work back first"
+    end
+
+    function ed.requestClose(why)
+        local hasPage  = ed.webview ~= nil
+        local canAsk   = hasPage and ed.webview.evaluateJavaScript ~= nil
+        local canTimer = (hs.timer and hs.timer.doAfter) ~= nil
+        local plan, reason = ed.closePlan(hasPage, canAsk, canTimer)
+        ed.closes.last = tostring(why or "?") .. " — " .. reason
+        if plan == "now" then
+            if hasPage then ed.closes.atOnce = ed.closes.atOnce + 1 end
+            ed.close()
+            return true, reason
+        end
+        ed.closes.asked = ed.closes.asked + 1
+        ed.stopCloseBelt()
+        if plan == "ask" then
+            -- 🚨 ARMED BEFORE THE ASK (6.246.0's ordering): a page that
+            -- throws inside stashAndCancel must not leave a window nobody
+            -- can close.
+            pcall(function()
+                ed.closeTimer = hs.timer.doAfter(ed.closeGraceSecs, function()
+                    ed.closeTimer = nil
+                    if not ed.webview then return end
+                    ed.closes.belt = ed.closes.belt + 1
+                    say("the page did not hand its work back in time — closing")
+                    ed.close()
+                end)
+            end)
+            -- 🚨 AND A doAfter THAT ANSWERS nil IS NOT A BELT (6.265.0: a
+            -- dependency that REFUSES is not the same as one that is
+            -- missing, and on a beta OS the second is the shape this
+            -- config keeps meeting). No belt → close now, not never.
+            if not ed.closeTimer then
+                plan, reason = "askThenNow", "the belt timer was refused — "
+                    .. "the work is asked for, and the window closes either way"
+                ed.closes.last = tostring(why or "?") .. " — " .. reason
+            end
+        end
+        pcall(function() ed.webview:evaluateJavaScript("stashAndCancel()") end)
+        if plan == "askThenNow" then ed.close() end
+        return true, reason
+    end
+
     function ed.close()
         -- 🚨 6.256.0 — FOUND WHILE BUILDING ⌘F, and it was 6.255.0's wart:
         -- closing the editor mid-capture (⇪⇧1 on another shot is enough,
@@ -1787,6 +1898,7 @@ function M.setup(core)
         -- HE had closed. A teardown is not optional for a feature that
         -- holds two timers and a flag.
         ed.stopSettle()
+        ed.stopCloseBelt()
         if ed.delayTimer then pcall(function() ed.delayTimer:stop() end) end
         ed.delayTimer, ed.delayBusy, ed.hidden = nil, false, false
         if ed.webview then
@@ -1805,6 +1917,15 @@ function M.setup(core)
 
     function ed.open(path)
         if type(path) ~= "string" or path == "" then return false end
+        -- 🚨 6.286.0 — ⇪⇧1 ON ANOTHER SHOT USED TO THROW THE FIRST ONE'S
+        -- WORK AWAY. This line has always been ed.close(); the slot is
+        -- keyed by path, so the marks would have come back on the next
+        -- open of that shot — if anything had ever put them in it.
+        -- requestClose cannot be awaited here (the new window has to open
+        -- now), so the ask goes out and the close follows it; the page's
+        -- reply lands a moment later and fills the slot for the shot it
+        -- belongs to, which is what the path key is for.
+        ed.requestClose("opening another shot")
         ed.close()
         if not (hs.webview and hs.webview.usercontent) then
             pcall(function() hs.alert.show("🖌 Editor needs WKWebView — not available", 3) end)
@@ -1852,7 +1973,12 @@ function M.setup(core)
         ed.webview, ed.currentPath = view, path
         pcall(function() view:windowTitle("Blur — " .. (path:match("[^/]+$") or path)) end)
         pcall(function() view:allowTextEntry(true) end)   -- ⌘Z/⌘⏎ need key status
-        pcall(function() view:closeOnEscape(true) end)
+        -- 🚨 6.286.0 — `closeOnEscape(true)` IS GONE. It let WebKit close
+        -- the window itself on Escape, racing the page's own handler and
+        -- leaving Lua holding a dead view with ed.currentPath still set —
+        -- so even the path 6.189.0 built could lose the work, depending on
+        -- which side won. Escape comes through the router now (below),
+        -- which asks the page first.
         pcall(function() view:level(hs.drawing.windowLevels.floating) end)
         pcall(function()
             view:behaviorAsLabels({ "canJoinAllSpaces", "fullScreenAuxiliary" })
@@ -1944,7 +2070,11 @@ function M.setup(core)
     if _G.claimEscape then
         _G.claimEscape("shoteditor", nil,
             function() return ed.webview ~= nil end,
-            function() ed.close() end)
+            -- 6.286.0 — was ed.close(), which deleted the webview and with
+            -- it the only copy of his marks. This is the door he actually
+            -- presses (LL, 6.189.0: "I hit escape 2 times and all my
+            -- screenshot work wasn't saved").
+            function() ed.requestClose("Esc") end)
     end
 
     _G.screenshotEditor = ed

@@ -1185,6 +1185,156 @@ do
     check("§13 ran every one of its checks", n13 == 66, n13)
 end
 
+-- =====================================================================
+out("\n14. 🚪 6.286.0 — the work survives EVERY door out, not just Cancel\n")
+-- =====================================================================
+-- LL, with an annotated screenshot: "Closing the screenshot editor dumps
+-- the most recent edits so I lose any changes." 6.189.0 promises the
+-- opposite and was telling the truth about exactly ONE way out — the
+-- Cancel button, which is the only thing that called the page's
+-- stashAndCancel(). The Esc router called ed.close() straight out, and
+-- ed.open() calls ed.close() as its first line, so opening a second shot
+-- threw the first one's marks away in silence.
+do
+    local n14 = pass + fail
+    local function c14(l, cond, extra) check(l, cond, extra) end
+
+    -- ---- the plan is PURE ------------------------------------------------
+    c14("ed.closePlan is pure and reachable", type(E.closePlan) == "function")
+    local p1 = E.closePlan(false, true, true)
+    c14("no editor open → close now", p1 == "now", p1)
+    local p2 = E.closePlan(true, false, true)
+    c14("a page that cannot be asked → close now, rather than waiting on an "
+        .. "answer nothing would send", p2 == "now", p2)
+    local p3 = E.closePlan(true, true, false)
+    c14("🚨 no timer → ASK and close anyway. A window that will not close is "
+        .. "worse than marks that were not kept", p3 == "askThenNow", p3)
+    local p4 = E.closePlan(true, true, true)
+    c14("otherwise: ask the page first", p4 == "ask", p4)
+    c14("…and every answer carries its reason",
+        select(2, E.closePlan(true, true, true)) ~= nil
+        and select(2, E.closePlan(false, true, true)) ~= nil)
+
+    -- ---- Esc through the router -----------------------------------------
+    E.close()
+    E.closes = { asked = 0, stashed = 0, belt = 0, atOnce = 0, last = nil }
+    E.kept = nil
+    TIMERS = {}
+    JS = {}
+    E.open(SRC)
+    c14("the editor is open", E.webview ~= nil)
+    E.requestClose("Esc")
+    c14("🚨 Esc ASKS THE PAGE for its work instead of deleting the window — "
+        .. "this is the whole release", JS[#JS] == "stashAndCancel()", JS[#JS])
+    c14("…and the window is still open while it waits", E.webview ~= nil)
+    c14("…with a belt armed BEFORE the ask (6.246.0's ordering), so a page "
+        .. "that throws cannot leave a window nobody can close",
+        E.closeTimer ~= nil and E.closeTimer.secs == E.closeGraceSecs)
+    -- the page answers
+    BRIDGE({ body = { a = "cancel", img = KEEPIMG, notes = NOTES } })
+    c14("…the page answers, the work is kept", E.kept ~= nil and E.kept.path == SRC)
+    c14("…the window closes", E.webview == nil)
+    c14("…and the belt is torn down, not left to fire over the next editor",
+        E.closeTimer == nil)
+    c14("…counted: one ask, one stash, no belt close",
+        E.closes.asked == 1 and E.closes.stashed == 1 and E.closes.belt == 0,
+        E.closes.asked .. "/" .. E.closes.stashed .. "/" .. E.closes.belt)
+
+    -- ---- the belt --------------------------------------------------------
+    E.kept = nil
+    TIMERS = {}
+    E.open(SRC)
+    E.requestClose("Esc")
+    local belt = TIMERS[#TIMERS]
+    c14("a page that never answers still gets closed — by the belt",
+        belt ~= nil and E.webview ~= nil)
+    belt.fn()
+    c14("…the window really goes", E.webview == nil)
+    c14("…nothing was kept, because nothing was handed back", E.kept == nil)
+    c14("🔎 …and it is COUNTED APART: a belt close is the bug to report, and "
+        .. "it must not read like a clean one", E.closes.belt == 1)
+
+    -- ---- ⇪⇧1 on another shot --------------------------------------------
+    -- 🚨 THE DOOR HE IS MOST LIKELY PRESSING. ed.open()'s first line has
+    -- always been ed.close(); the slot is keyed by path, so his marks would
+    -- have come back — if anything had ever put them in it.
+    E.kept = nil
+    JS = {}
+    E.open(SRC)
+    E.open(OTHER)
+    c14("🚨 opening ANOTHER shot asks the first one's page for its work "
+        .. "before the window goes", JS[#JS] == "stashAndCancel()", JS[#JS])
+    c14("…and the new editor really opened", E.webview ~= nil
+        and E.currentPath == OTHER, tostring(E.currentPath))
+
+    -- ---- the degrades ----------------------------------------------------
+    E.close()
+    E.closes = { asked = 0, stashed = 0, belt = 0, atOnce = 0, last = nil }
+    NO_TIMER = true
+    TIMERS = {}
+    JS = {}
+    E.open(SRC)
+    E.requestClose("Esc")
+    c14("🛟 a Mac that cannot arm a timer STILL asks the page…",
+        JS[#JS] == "stashAndCancel()")
+    c14("🛟 …and still closes, rather than waiting on an answer nothing "
+        .. "would end", E.webview == nil)
+    NO_TIMER = false
+    -- nothing open at all
+    local before = E.closes.asked
+    E.requestClose("Esc")
+    c14("closing when nothing is open asks nobody and throws nothing",
+        E.closes.asked == before and E.webview == nil)
+
+    -- ---- the report ------------------------------------------------------
+    local rep = E.report and E.report() or nil
+    if not rep then
+        local printed = {}
+        local rp = print
+        print = function(...) local t = {}
+            for i = 1, select("#", ...) do t[#t+1] = tostring((select(i, ...))) end
+            printed[#printed+1] = table.concat(t, " ") end
+        _G.screenshotEditorReport()
+        print = rp
+        rep = table.concat(printed, "\n")
+    end
+    c14("🔎 the report names WHICH door and whether the work survived it — "
+        .. "'closed' used to be one fact and it was four",
+        rep:find("closing :", 1, true) ~= nil, rep)
+    c14("…and the last close is named", rep:find("↳ last  :", 1, true) ~= nil)
+
+    -- ---- 🚨 SOURCE: no door may call ed.close() behind the page's back ---
+    do
+        local fh = assert(io.open(HS .. "/modules/screenshot_editor.lua"))
+        local src = fh:read("a"); fh:close()
+        local code = {}
+        for line in (src .. "\n"):gmatch("([^\n]*)\n") do
+            code[#code + 1] = (line:gsub("%-%-.*$", ""))
+        end
+        code = table.concat(code, "\n")
+        -- 🚨 `closeOnEscape` let WebKit close the window itself, racing the
+        -- page's own Escape handler — so even the path 6.189.0 built was a
+        -- coin toss. Comments stripped (6.262.0), because the comment
+        -- explaining the rule quotes the call it forbids.
+        c14("🚨 SOURCE: the window no longer closes itself on Escape behind "
+            .. "Lua's back", code:find("closeOnEscape") == nil)
+        c14("🚨 SOURCE: the Esc router asks before it closes", (function()
+            local at = code:find('claimEscape%("shoteditor"')
+            if not at then return false end
+            local blk = code:sub(at, at + 400)
+            return blk:find("requestClose", 1, true) ~= nil
+                   and blk:find("function() ed.close() end", 1, true) == nil
+        end)())
+        c14("🚨 SOURCE: opening another shot asks first too", (function()
+            local blk = code:match("function ed%.open%(path%).-ed%.close%(%)")
+            return blk ~= nil and blk:find("requestClose", 1, true) ~= nil
+        end)())
+    end
+
+    c14("§14 ran every one of its checks", (pass + fail) - n14 == 28,
+        (pass + fail) - n14)
+end
+
 out(("\n%d passed, %d failed\n"):format(pass, fail))
 for _, f in ipairs(failures) do out("    ❌ " .. f .. "\n") end
 out("\n")
