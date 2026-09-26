@@ -75,4 +75,4 @@ hammerspoon*.tar.gz
 # with no archive in it and nothing saying so. MOVE THIS LINE IN THE
 # SAME COMMIT THAT BUILDS THE ARCHIVE, exactly as the previous one is
 # deleted there (ONE AT A TIME, above).
-!hammerspoon6.293.0.tar.gz
+!hammerspoon6.297.0.tar.gz
