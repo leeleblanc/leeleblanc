@@ -1,4 +1,4 @@
-# UNBUILT — what is asked for, known, or owed, as of 6.297.0
+# UNBUILT — what is asked for, known, or owed, as of 6.301.0
 
 Swept from CLAUDE.md and **checked against the code**, not just read off
 the queue — six of the deferred defects below were re-verified in the
@@ -17,7 +17,7 @@ reality have already diverged once.
 | # | What | Asked | Size |
 |---|---|---|---|
 | ~~A1~~ | ✅ **SHIPPED AS 6.294.0** — a pointer row on the Asana card, plus an auditor for a bound key printed on no card at all. The finding worth keeping: ⇪T was removed from that card *on purpose* in 6.114.0, and the new auditor would NOT have caught his complaint. | | done |
-| A2 | **Nothing names the @ searches.** There are fourteen (`clip cmd shots note asana ocr images doc file pad scratch vault web tool`) and they appear only as section headers in results. Fix at the point of use: typing `@` alone in ⇪D lists every source. | 2026-09-20 | Small |
+| ~~A2~~ | ✅ **SHIPPED AS 6.298.0** — typing `@` alone lists all fourteen, ⏎ completes the box, and a `@word` that is no tag names the real ones. Decision worth keeping: it is `@` ALONE, never any `@word`, because `@o` already searches `@ocr` through the haystack. | | done |
 | A3 | **⇪7's macOS line wants more detail.** Reads `macOS 27.0 (26A5388g)`. Marketing name, "BETA", Darwin version and install date are all readable with no binary. Decide what "more" means first. | 2026-09-20 | Small |
 | A4 | **⌥Tab should list the music card.** Needs his call first: just the music card, or every panel this config draws? The card is the only one that keeps *playing* when it is not in front, which is the argument for doing it alone. | 2026-09-20 | Small, after his answer |
 | A5 | **⌘Space as the ⇪space launcher.** Gated on `_G.groundReport()` saying ⌘Space is FREE on both Macs — he turns Spotlight's own shortcut off. | 6.198.0 | Small |
@@ -32,9 +32,14 @@ reality have already diverged once.
 
 ---
 
-| A14 | 🗂 **THE HAMSIDIAN SEND** — one Asana task per parsed line instead of one a day, the 4 PM schedule back on, the tabs cleared afterwards with "All tasks sent." left behind. 6.297.0 built and proved the PARSER; this is the half that writes to Asana and deletes his text. **Blocked on B7** (where the cleared text goes). | 2026-09-26 | Medium |
-| A15 | 🗂 **SUBTASKS.** `_G.asanaSubmitTask` has no `parent`, so an `S:` row needs the parent task's gid back from Asana and a second call. The preview reads them and says on every row that they are not sent yet. | 2026-09-26 | Medium |
+| ~~A14~~ | ✅ **SHIPPED AS 6.300.0** — one Asana task per parsed task, and his own answer to B7: the tab is NOT cleared, it is retitled ✅/❌ and kept until he deletes it. The rename is the memory, so a ✅ tab is never sent twice. 16:00 back on, on his reversal. | | done |
+| ~~A15~~ | ✅ **SHIPPED AS 6.301.0** — `extra.subtasks`, posted with `parent = <gid>` once the create returns it. A refused subtask does NOT fail its task, because a retry would duplicate the parent. | | done |
 | A16 | 🔕 **MORE TOOLS ON THE QUIET LIST.** 6.295.0 ships with one name on it (the Jug Player) because that is the only one he named. Candidates he has not ruled on: the QR reader, Bluetooth, the key caster, the mini calendar, the pomodoro tone. | 2026-09-26 | Trivial, after his answer |
+
+| A17 | 🔎 **⇪D's count line lies when a @tag is pinned** — "200 matches across every store" over a search pinned to ONE store (his own screenshot). Named, not swept, in 6.298.0: it is a separate sentence with its own failure. | 2026-09-26 | Trivial |
+| A18 | 📅 **`A:` and `T:` do not flow down to subtasks** (6.301.0). A subtask gets only its name, on purpose — a due date you meant for the task is noise on his board. His call. | 2026-09-26 | Small, after his answer |
+
+---
 
 ## B. BLOCKED ON AN ANSWER FROM HIM
 
@@ -64,12 +69,20 @@ Building either way risks building the wrong thing.
   only. Needs his word.
 - **B5 — The screenshots folder override.** Waiting on him to name a path;
   then one settings line, zero code.
-- **B7 — WHERE THE CLEARED TEXT GOES.** He wants the pad emptied after
-  the 4 PM send, with "All tasks sent." left behind. Deleting his
-  writing is the one failure with no way back (6.280.0), so it has to
-  land somewhere first. (a) nowhere; (b) the tab's history, recoverable
-  from the report; (c) exported as a note in `<Vault>/Scratch`, so it is
-  a file he can open. *I will build (c) unless he says otherwise.*
+- ~~**B7 — WHERE THE CLEARED TEXT GOES.**~~ ✅ **ANSWERED BY HIM, AND
+  HIS ANSWER BEAT ALL THREE OPTIONS.** He does not want it cleared:
+  "rewrite the task titles … so they stay until I delete them." Nothing
+  is destroyed, so 6.280.0 is satisfied by construction. Shipped as
+  6.300.0.
+- **B9 — THE ✅ LABELS ALL READ THE SAME.** Every sent tab is titled
+  exactly "✅ Success: tasks sent", so five of them are indistinguishable
+  in the list. That is literally what he asked for and it is right for a
+  done-pile — but "✅ Sent · <first line>" is one line away if he wants
+  to tell them apart.
+- **B10 — A TAB CLOSED TODAY IS NO LONGER SENT** (6.300.0). The day task
+  swept them; a closed row has no title to carry a ✅ or ❌ back on. The
+  report counts them and says so. If he wants them in, the question is
+  how he would be told what happened to one.
 - **B8 — THE `T:` SYNTAX.** He described the intent, not a syntax.
   6.297.0 guessed one and its preview NAMES every word it cannot read,
   so the artefact that settles this is him writing a `T:` line his own
