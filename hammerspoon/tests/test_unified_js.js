@@ -420,6 +420,95 @@ console.log("── Unified Search: page JavaScript, executed ──");
         && env.sent[env.sent.length - 1].id === env.call("visible[1]"));
 }
 
+// =====================================================================
+// 7. 🔎 6.298.0 — THE @ DIRECTORY
+// =====================================================================
+// LL: "All @ searches should be listed so I know what I can use to
+// search." Fourteen sources, and the only place any of them was named
+// was a section header you could only reach by already searching that
+// store. Typing @ on its own lists every one.
+{
+  const env = load({ pane: true });
+  const N = env.call("SRCS.length");
+
+  env.type("@");
+  check("@ on its own lists EVERY source, empty ones included",
+        env.call("mode") === "tags" && env.call("visible.length") === N,
+        env.call("mode") + " / " + env.call("visible.length"));
+  check("…each row names its tag, its label and what it holds",
+        env.list.innerHTML.indexOf("@clip") !== -1
+        && env.list.innerHTML.indexOf("Clipboard") !== -1
+        && env.list.innerHTML.indexOf("everything you have copied") !== -1);
+  check("…and the count line says what this view IS",
+        env.count.textContent.indexOf("sources") !== -1
+        && env.count.textContent.indexOf("match") === -1,
+        env.count.textContent);
+  // 🚨 THE ONE THAT MUST NOT REGRESS: the directory is ONE case, not
+  // every @-prefix. "@o" already searches @ocr's rows through the
+  // haystack, and a menu there would take a working search away.
+  env.type("@o");
+  check("🚨 @o still SEARCHES — the directory is @ alone, never any @word",
+        env.call("mode") === "rows", env.call("mode"));
+
+  // ⏎ completes the box; it must NOT post to Lua.
+  env.type("@");
+  const before = env.sent.length;
+  env.key("Enter");
+  check("⏎ on a source puts its @tag in the box",
+        env.q.value === "@clip ", env.q.value);
+  // 🔑 THE GUARANTEE IS THE MESSAGE KIND, NOT THE COUNT. The new view
+  // is a search, so its pane legitimately asks Lua for the top row's
+  // detail; what must never happen is a pick/path/open — that would
+  // copy a source's NAME instead of putting its tag in the box.
+  check("🚨 …and never posts a pick — a source is not a row to copy",
+        env.sent.slice(before).filter(function(m){
+          return m.a === "pick" || m.a === "path" || m.a === "open"; }).length === 0,
+        JSON.stringify(env.sent.slice(before)));
+  check("…and the box is a search again straight away",
+        env.call("mode") === "rows" && env.call("visible.length") > 0);
+
+  // ↓ then ⏎ picks the SECOND source, so the arrows really walk this view
+  env.type("@");
+  env.key("ArrowDown");
+  env.key("Enter");
+  check("↑↓ walk the directory — ↓ then ⏎ takes the second source",
+        env.q.value === "@" + env.call("SRCS[1].tag") + " ", env.q.value);
+
+  // a click completes it too, through the shared walk
+  env.type("@");
+  env.listeners.list.click({
+    target: { getAttribute: (k) => (k === "data-tag" ? "ocr" : null) } });
+  const afterClick = env.sent.filter(function(m){ return m.a === "pick"; }).length;
+  check("a click on a source completes the box, and copies nothing",
+        env.q.value === "@ocr " && afterClick === 0, env.q.value);
+
+  // the pane explains the highlighted source
+  env.type("@");
+  check("the pane says what the highlighted source holds, and its count",
+        env.pane.innerHTML.indexOf("everything you have copied") !== -1
+        && env.pane.innerHTML.indexOf("indexed right now") !== -1,
+        env.pane.innerHTML.slice(0, 160));
+  check("🔑 …and asks Lua for no detail — a source has no row to fetch",
+        env.call("detailFor") === null);
+
+  // 🔎 THE SECOND DOOR: a tag that does not exist names the ones that do.
+  env.type("@tasks");
+  check("a @word that is no source says so and points at the list",
+        env.list.innerHTML.indexOf("no @tasks source") !== -1
+        && env.list.innerHTML.indexOf("Type @ on its own") !== -1,
+        env.list.innerHTML.slice(-200));
+  env.type("zzz-nothing-matches");
+  check("…and an ordinary miss is unchanged — it does not cry @",
+        env.list.innerHTML.indexOf("⌫ widens it again") !== -1
+        && env.list.innerHTML.indexOf("Type @ on its own") === -1);
+
+  // every source must be explainable: a blank `what` is a row the
+  // directory draws with nothing in it.
+  check("🔒 EVERY source carries a `what` — the directory can explain all " + N,
+        env.call("SRCS.filter(function(s){return s.w && s.w.length > 8}).length") === N,
+        env.call("SRCS.filter(function(s){return !s.w}).map(function(s){return s.tag}).join()"));
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) {
   console.log("FAILURES:");

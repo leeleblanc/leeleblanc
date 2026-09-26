@@ -1008,6 +1008,36 @@ work Mac.
   one-hop symlink: a fixture where the right and wrong implementations
   AGREE proves nothing — pick the input where they must differ.
 
+- 🔎 A TAG YOU MUST KNOW BEFORE YOU CAN FIND IT IS NOT A TAG YOU CAN
+  USE (6.298.0, modules/unified_search.lua — LL, with a ⇪D screenshot:
+  "All @ searches should be listed so I know what I can use to
+  search"). Fourteen sources, and the only place any of them was ever
+  named is a SECTION HEADER IN THE RESULTS — which you reach by having
+  already searched for something that happens to be in that store. The
+  feature was complete and undiscoverable, which is the same thing as
+  absent. GENERAL: when a feature is addressed by a name, ask where
+  that name is READABLE before the person knows it.
+  🔑 TYPE @ ON ITS OWN and every source is listed with what it HOLDS;
+  ⏎ completes the box. EMPTY SOURCES ARE LISTED TOO — "@pad holds
+  nothing today" and "there is no @pad" are opposite facts (6.196.1)
+  and hiding the empties makes them read the same.
+  🚨 IT IS "@" ALONE, NEVER ANY @WORD. The tag rides in every row's
+  haystack, so "@o" ALREADY searches @ocr — a directory on every
+  @-prefix would take a working search away to show a menu. One
+  character, one list; a second character is a search again.
+  🔎 AND THE SAME LIST GOES WHERE HE HITS THE WALL THE OTHER WAY: a
+  @word that is no tag said "Nothing matches … in any store" — true,
+  useless, and naming none of the tags that do exist. One function,
+  two callers (6.231.0); the ordinary miss is unchanged.
+  📐 THE COUNT IN THE PLACEHOLDER COMES OFF `#uni.sources` and the
+  check ADDS a source and requires the drawing to follow (6.239.0).
+  Every source carries a `what`, asserted BOTH on the table and on the
+  `w` that must reach the page — a field nothing publishes is a
+  comment (6.269.0). 🐛 `uni.sourcesJson()` indexed `uni.counts`
+  unguarded, so building the page before a gather THREW (6.282.0, in a
+  JSON builder). 📏 NAMED, NOT SWEPT: the count line still says "N
+  matches across every store" when a @tag has pinned it to one.
+
 - ⏯ A KEY NOBODY CLAIMED IS NOT A BROKEN KEY (6.289.0,
   modules/music_player.lua — LL: "Pressing play/pause doesn't work. But
   volume keys do"). Both sentences are about the same row of keys: the
@@ -3524,6 +3554,7 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
+| 6.298.0 | 🔎 typing @ on its own lists all fourteen searches — the tags were only ever named in a section header you had to search your way into | pending |
 | 6.297.0 | 🗂 Hamsidian reads his task grammar — a bare line is a task, `=` divides, P:/A:/D:/S:/T: — and PREVIEWS what it would send without sending anything | pending |
 | 6.296.0 | 🏷 the music player is the Jug Player, with its name to the left of the now-playing line — one field every surface reads, so a rename cannot drift | pending |
 | 6.295.0 | 🔕 a tool he does not care about reports a failure to the Console alone — everything that writes or gathers still shouts on screen, and the log keeps both | pending |
@@ -4420,6 +4451,61 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.298.0 verify with LL — 🔎 THE @ SEARCHES NAME THEMSELVES (KNOWN GROUND)
+  WHAT CHANGED: type @ on its own in ⇪D and every source you can search is
+  listed — its tag, what it holds, and how many.
+  WHY IT MATTERS: you were right that nothing named them. There are
+  fourteen, and the only place any of them appeared was a section header
+  in the results — which you can only read after searching for something
+  that happens to be in that store. A tag you have to know before you can
+  find it is not a tag you can use, which is why fourteen of them have
+  been sitting there unused.
+
+  A. THE HEADLINE.
+  A1. Press ⇪D. Type a single `@` and nothing else.
+      EXPECT: the list becomes a directory — 🔎 THE @ SEARCHES — 14, and
+      one row per source reading e.g. `📋 @clip` with "Clipboard ·
+      everything you have copied" under it and a number on the right.
+  A2. Read the fourteen. EXPECT: @clip @cmd @shots @note @asana @ocr
+      @images @doc @file @pad @scratch @vault @web @tool.
+  A3. Press ↓ a few times, then ⏎.
+      EXPECT: that source's tag lands in the box as `@ocr ` (or whichever)
+      and the results below become that store. It must NOT copy anything.
+  A4. Press ⇪D again, type `@`, and CLICK a row.
+      EXPECT: the same — the tag goes in the box.
+  A5. With the directory up, look at the right-hand pane.
+      EXPECT: it says what the highlighted source holds and how many items
+      are indexed right now.
+
+  B. THE ONE THAT MUST NOT HAVE REGRESSED — please do this one.
+  B1. Type `@ocr` (with the r). EXPECT: OCR rows, exactly as before. The
+      directory must NOT appear. It is `@` alone, never any @word — `@o`
+      already searched @ocr and that had to keep working.
+  B2. Type `@shots`, `@vault`, `@clip`. EXPECT: each pins its store as
+      always.
+  B3. Type an ordinary word — `receipt`. EXPECT: unchanged.
+  B4. ⇪⇧space and ⇪⇧/ still open pinned to @shots and @tool.
+
+  C. THE SECOND DOOR.
+  C1. Type `@tasks` — a tag that does not exist.
+      EXPECT: "Nothing matches … and there is no @tasks source. Type @ on
+      its own to see all 14."
+  C2. Type `zzznothing`. EXPECT: the plain "⌫ widens it again" message —
+      it must not start talking about @ for an ordinary miss.
+
+  D. PASTE BACK, PASS OR FAIL.
+  D1. `_G.unifiedSearchReport()` — the store list and its counts.
+
+  E. A JUDGEMENT ONLY YOU CAN MAKE.
+  E1. Read the fourteen one-line descriptions. Any of them wrong, or
+      describing something other than what you thought that tag searched?
+      That is the answer I most want — they are my words for your stores,
+      and a wrong one is worse than none.
+  E2. 📏 NAMED, NOT FIXED, so it is not a surprise: with `@ocr` typed, the
+      line under the box still reads "200 matches across every store" —
+      which is not true, it is pinned to one store. Your screenshot. It is
+      its own small release; say if you want it sooner.
+
 - 6.297.0 verify with LL — 🗂 A LINE IS A TASK (NEW GROUND — expect a round)
   WHAT CHANGED: Hamsidian can now READ your task grammar. It does not
   send it yet, on purpose.

@@ -1,4 +1,4 @@
-# TESTING — how to score release 6.297.0
+# TESTING — how to score release 6.298.0
 
 You install ONE archive and it carries several releases. Below are the
 steps for each release this archive is new for, newest first. Run the
@@ -26,6 +26,65 @@ else is a LOSS and I fix it before building further. You are the only
 scorer; I never mark my own.
 
 ---
+
+## 6.298.0
+
+6.298.0 verify with LL — 🔎 THE @ SEARCHES NAME THEMSELVES (KNOWN GROUND)
+WHAT CHANGED: type @ on its own in ⇪D and every source you can search is
+listed — its tag, what it holds, and how many.
+WHY IT MATTERS: you were right that nothing named them. There are
+fourteen, and the only place any of them appeared was a section header
+in the results — which you can only read after searching for something
+that happens to be in that store. A tag you have to know before you can
+find it is not a tag you can use, which is why fourteen of them have
+been sitting there unused.
+
+A. THE HEADLINE.
+A1. Press ⇪D. Type a single `@` and nothing else.
+    EXPECT: the list becomes a directory — 🔎 THE @ SEARCHES — 14, and
+    one row per source reading e.g. `📋 @clip` with "Clipboard ·
+    everything you have copied" under it and a number on the right.
+A2. Read the fourteen. EXPECT: @clip @cmd @shots @note @asana @ocr
+    @images @doc @file @pad @scratch @vault @web @tool.
+A3. Press ↓ a few times, then ⏎.
+    EXPECT: that source's tag lands in the box as `@ocr ` (or whichever)
+    and the results below become that store. It must NOT copy anything.
+A4. Press ⇪D again, type `@`, and CLICK a row.
+    EXPECT: the same — the tag goes in the box.
+A5. With the directory up, look at the right-hand pane.
+    EXPECT: it says what the highlighted source holds and how many items
+    are indexed right now.
+
+B. THE ONE THAT MUST NOT HAVE REGRESSED — please do this one.
+B1. Type `@ocr` (with the r). EXPECT: OCR rows, exactly as before. The
+    directory must NOT appear. It is `@` alone, never any @word — `@o`
+    already searched @ocr and that had to keep working.
+B2. Type `@shots`, `@vault`, `@clip`. EXPECT: each pins its store as
+    always.
+B3. Type an ordinary word — `receipt`. EXPECT: unchanged.
+B4. ⇪⇧space and ⇪⇧/ still open pinned to @shots and @tool.
+
+C. THE SECOND DOOR.
+C1. Type `@tasks` — a tag that does not exist.
+    EXPECT: "Nothing matches … and there is no @tasks source. Type @ on
+    its own to see all 14."
+C2. Type `zzznothing`. EXPECT: the plain "⌫ widens it again" message —
+    it must not start talking about @ for an ordinary miss.
+
+D. PASTE BACK, PASS OR FAIL.
+D1. `_G.unifiedSearchReport()` — the store list and its counts.
+
+E. A JUDGEMENT ONLY YOU CAN MAKE.
+E1. Read the fourteen one-line descriptions. Any of them wrong, or
+    describing something other than what you thought that tag searched?
+    That is the answer I most want — they are my words for your stores,
+    and a wrong one is worse than none.
+E2. 📏 NAMED, NOT FIXED, so it is not a surprise: with `@ocr` typed, the
+    line under the box still reads "200 matches across every store" —
+    which is not true, it is pinned to one store. Your screenshot. It is
+    its own small release; say if you want it sooner.
+
+
 
 ## 6.297.0
 
@@ -241,54 +300,6 @@ E2. The opposite question, and it is the one I would ask myself:
     is anything still alerting that should be LOUDER — a
     notification that survives Focus, the way a failed Asana send
     gets one (6.278.0)? Right now only that send has one.
-
-
-
-## 6.294.0
-
-6.294.0 verify with LL — 🎯 ⇪T IS ON THE ASANA CARD (KNOWN GROUND)
-WHAT CHANGED: the ✅ ASANA card on ⇪/ now points at ⇪T, the key that
-creates a task.
-WHY IT MATTERS: you were right, and you have been since 2026-09-20.
-The card listed ⇪A ⇪B ⇪C ⇪L and never the tool's front door.
-🔎 THE HONEST PART, because it changes what to expect: ⇪T was not
-forgotten. It was REMOVED from that card on purpose in 6.114.0, because
-it has its own card and one key printed twice reads as a conflict —
-which is your own complaint from a screenshot in 6.90.1, about ⇪V. So
-this is a POINTER row, not a second claim: the left column reads "task
-form" and the key sits in the sentence.
-
-A. THE HEADLINE.
-A1. Press ⇪/ and search `asana`.
-    EXPECT: the ✅ ASANA card, and in it a row reading
-    `task form — CREATE a task — ⇪T opens the labeled form (its own
-    card on this sheet)`.
-A2. Search `⇪T` instead.
-    EXPECT: BOTH that row and the ✅ TASK FORM card below it. The
-    search matches the whole row, so the key finds it either way.
-A3. Press Esc, then ⇪T. EXPECT: the task form opens, unchanged.
-
-B. MUST STILL WORK — nothing about any key moved in this release.
-B1. ⇪A, ⇪B, ⇪C, ⇪L all behave exactly as before.
-B2. ⇪⇧Esc still pauses the config, and ⇪⇧Esc again resumes.
-B3. ⇪/ filtering, scrolling and Esc are unchanged.
-
-C. PASTE BACK, PASS OR FAIL.
-C1. `_G.cheatSheetReport()` — "empty" and "faults" should both read
-    **none**, as they did on 6.269.0. If either is a number, paste it.
-
-D. A JUDGEMENT ONLY YOU CAN MAKE — and it is the useful one.
-D1. Is "task form" the right words in that left column, or would you
-    rather it read "make one", "new task", or just "⇪T"? The last of
-    those is the one I will not do silently: it re-creates the
-    double-listing you objected to in 6.90.1. If you want it anyway,
-    say so and it is your call, not a slip.
-D2. 🚩 THE THING I COULD NOT FIX WITH A CHECK: the gate now fails if a
-    bound key is printed on NO card anywhere — and it would NOT have
-    caught this. ⇪T always had a row; it was on the wrong card for the
-    way you think about the tool. If any OTHER key is filed somewhere
-    you would not look, tell me which and where you expected it — that
-    is a judgement no test can make, and you are the only one who can.
 
 
 

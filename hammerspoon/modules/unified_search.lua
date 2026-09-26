@@ -79,6 +79,7 @@ local M = {
             { "⇪⇧space", "Same panel opened as the BIG-thumbnail screenshot browser (@shots)" },
             { "⇪⇧/",     "Same panel opened on the TOOLS (@tool) — every shortcut, searchable" },
             { "type",    "Every word must match · a @tag word pins one source — each section header shows its tag" },
+            { "@",       "Type @ ON ITS OWN and every source is listed — its tag, what it holds and how many. ⏎ on one puts that @tag in the box (6.298.0)" },
             { "@images", "🖼 Find a PICTURE by the words inside it — every image the OCR log has read, thumbnail and all. ⏎ copies the image, ⌥⏎ opens it, ⌘⏎ copies its path" },
             { "⏎",       "COPY the row — text its full text, a screenshot the image, a Chrome page its URL (⇪Y reopens)" },
             { "⏎ on 🔧", "RUNS the tool instead — the one row kind that acts (else copies its key)" },
@@ -844,24 +845,44 @@ function M.setup(core)
     end
 
     -- ---- gather -------------------------------------------------------------
+    -- 🔎 6.298.0 — EVERY SOURCE SAYS WHAT IT HOLDS (`what`). LL: "All @
+    -- searches should be listed so I know what I can use to search."
+    -- There are fourteen and the only place any of them was ever named
+    -- is a section header in the results — which you can only read
+    -- AFTER you have searched for something that happens to be in that
+    -- store. A tag you have to already know is not a tag you can use.
     uni.sources = {
-        { tag = "clip",  icon = "📋", label = "Clipboard",    fn = srcClipboard },
-        { tag = "cmd",   icon = "⌨️", label = "Commands",     fn = srcCommands  },
-        { tag = "shots", icon = "📸", label = "Screenshots",  fn = srcShots     },
-        { tag = "note",  icon = "🗒", label = "Notes",        fn = srcNotes     },
-        { tag = "asana", icon = "✅", label = "Asana tasks",  fn = srcAsana     },
-        { tag = "ocr",   icon = "🔤", label = "OCR",          fn = srcOCR       },
-        { tag = "images", icon = "🖼", label = "Images",       fn = srcImages    },
-        { tag = "doc",   icon = "📄", label = "Documents",    fn = srcDocs      },
-        { tag = "file",  icon = "📁", label = "File moves",   fn = srcFiles     },
-        { tag = "pad",   icon = "🗒", label = "Capture Pad",  fn = srcPad       },
-        { tag = "scratch", icon = "📝", label = "Hamsidian tabs", fn = srcScratch  },
-        { tag = "vault", icon = "🕸", label = "Hamsidian",    fn = srcVault    },
-        { tag = "web",   icon = "🕘", label = "Chrome",       fn = srcWeb       },
+        { tag = "clip",  icon = "📋", label = "Clipboard",    fn = srcClipboard,
+          what = "everything you have copied — ⇪V opens the panel here" },
+        { tag = "cmd",   icon = "⌨️", label = "Commands",     fn = srcCommands,
+          what = "the shell and Console commands ⇪H remembers" },
+        { tag = "shots", icon = "📸", label = "Screenshots",  fn = srcShots,
+          what = "every file in the screenshots folder — ⇪⇧space opens here" },
+        { tag = "note",  icon = "🗒", label = "Notes",        fn = srcNotes,
+          what = "the notes ➕ Append has filed" },
+        { tag = "asana", icon = "✅", label = "Asana tasks",  fn = srcAsana,
+          what = "the tasks ⇪T has created" },
+        { tag = "ocr",   icon = "🔤", label = "OCR",          fn = srcOCR,
+          what = "words read out of your screenshots — ⇪O opens here" },
+        { tag = "images", icon = "🖼", label = "Images",       fn = srcImages,
+          what = "one card per image, found by the words inside it" },
+        { tag = "doc",   icon = "📄", label = "Documents",    fn = srcDocs,
+          what = "the documents and files you have worked in" },
+        { tag = "file",  icon = "📁", label = "File moves",   fn = srcFiles,
+          what = "every file this Mac has moved or renamed — ⇪F's 90 days" },
+        { tag = "pad",   icon = "🗒", label = "Capture Pad",  fn = srcPad,
+          what = "the captures still waiting in the Capture Pad" },
+        { tag = "scratch", icon = "📝", label = "Hamsidian tabs", fn = srcScratch,
+          what = "your Hamsidian tabs, open and closed" },
+        { tag = "vault", icon = "🕸", label = "Hamsidian",    fn = srcVault,
+          what = "your Hamsidian notes, by name" },
+        { tag = "web",   icon = "🕘", label = "Chrome",       fn = srcWeb,
+          what = "your Chrome history — ⇪Y's 90 days" },
         -- 🔧 LAST ON PURPOSE. Rows are gathered in this order and the page
         -- lists them in it, so the things you SAVED stay above the tools
         -- that are always there. @tool (or ⇪⇧/) puts them on top instead.
-        { tag = "tool",  icon = "🔧", label = "Tools",        fn = srcTools     },
+        { tag = "tool",  icon = "🔧", label = "Tools",        fn = srcTools,
+          what = "every tool and shortcut this config has — ⇪⇧/ opens here" },
     }
 
     function uni.gather()
@@ -942,7 +963,16 @@ function M.setup(core)
             parts[#parts + 1] = "{\"tag\":" .. jstr(s.tag)
                 .. ",\"icon\":" .. jstr(s.icon)
                 .. ",\"label\":" .. jstr(s.label)
-                .. ",\"n\":" .. tostring(uni.counts[s.tag] or 0) .. "}"
+                -- 6.298.0 — `w` is what the source HOLDS, drawn in the
+                -- @ directory. A source with no `what` is a row the
+                -- directory cannot explain, so the gate asserts every
+                -- one carries it rather than letting it print blank.
+                .. ",\"w\":" .. jstr(s.what)
+                -- `or {}` — this is asked while building the page and
+                -- the page may be built before a gather (a test, a
+                -- rebuild after a failure). A JSON builder that RAISES
+                -- takes the whole panel with it (6.282.0).
+                .. ",\"n\":" .. tostring((uni.counts or {})[s.tag] or 0) .. "}"
         end
         return "[" .. table.concat(parts, ",") .. "]"
     end
@@ -1000,7 +1030,7 @@ function M.setup(core)
 </style></head><body>
 <div id="bar"><span class="ttl">🔎 Unified Search</span>
 <span class="hint">drag here · hover or ↑↓ · ⏎ copy · ⌘⏎ path · Esc</span></div>
-<input id="q" spellcheck="false" autocorrect="off" placeholder="Search everything — every word must match · a @tag pins one source">
+<input id="q" spellcheck="false" autocorrect="off" placeholder="Search everything — every word must match · type @ to see all ]] .. tostring(#uni.sources) .. [[ sources">
 <div id="count"></div>
 <div id="list"></div>]] .. (uni.pane and '\n<div id="pane"></div>' or "") .. [[
 
@@ -1038,6 +1068,10 @@ function matches(row, toks){
 // visible = the pickable rows in display order (both views), so the
 // arrow keys and Enter never care which view built the list.
 var visible = [], sel = 0, total = 0;
+// 🔎 6.298.0 — WHAT `visible` HOLDS: 'rows' (row ids, as it always has)
+// or 'tags' (source tags, in the @ directory). One variable rather than
+// a second list, so ↑↓ and ⏎ stay one code path for both views.
+var mode = 'rows';
 // 👁 6.204.0 — which hand moved the highlight last. It decides ONE thing,
 // the "🖱 under the pointer" tag in the pane's header — a label, never a
 // row (6.202.0's rule: the highlight is the answer for both hands).
@@ -1073,6 +1107,20 @@ function paneHtml(row, full, path, total, cut){
 // so the pane is never blank; the full entry follows when Lua answers.
 function showPane(){
   if (!pane) return;
+  if (mode === 'tags') {
+    var src = SRCS[sel];
+    pane.innerHTML = src
+      ? '<div class="ph">' + src.icon + ' ' + esc(src.label) + '</div>' +
+        '<div class="pw">' + src.n + ' item' + (src.n === 1 ? '' : 's') +
+        ' indexed right now</div>' +
+        '<div class="pt">' + esc(src.w) + '</div>' +
+        '<div class="pf">⏎ puts @' + esc(src.tag) + ' in the box</div>'
+      : '<div class="empty">No sources</div>';
+    // Nothing to ask Lua about: a source is not a row, and leaving the
+    // last row's id here would drop the NEXT answer for that row.
+    detailFor = null;
+    return;
+  }
   var id = visible[sel], row = byId[id];
   if (!row) {
     pane.innerHTML = '<div class="empty">Nothing highlighted — type, or ' +
@@ -1096,6 +1144,58 @@ function uniDetail(id, full, path, total, cut){
   pane.innerHTML = paneHtml(row, full, path, total, cut);
 }
 
+// 🔎 6.298.0 — IS THE BOX ASKING WHAT THE @ SEARCHES ARE? PURE, and
+// deliberately ONE case: the whole box is "@" and nothing else.
+// 🚨 IT IS NOT "any query starting with @", and that is the decision
+// worth keeping: "@o" ALREADY searches — it matches @ocr's rows through
+// the haystack — so a directory on every @-prefix would take a working
+// search away to show a menu. One character, one list; a second
+// character is a search again.
+function asksForTags(s){
+  return String(s == null ? '' : s).trim() === '@';
+}
+// The @word in a query that is no source's tag. Asked ONLY when a
+// search found nothing — where the panel has always said "nothing
+// matches" about a tag that does not exist while naming none of the
+// ones that do, which is the same wall as not knowing the tags at all.
+function unknownTag(toks){
+  for (var i = 0; i < toks.length; i++) {
+    var t = toks[i];
+    if (t.charAt(0) !== '@' || t.length < 2) continue;
+    var name = t.slice(1), hit = false;
+    for (var s = 0; s < SRCS.length; s++)
+      if (String(SRCS[s].tag).indexOf(name) === 0) { hit = true; break; }
+    if (!hit) return t;
+  }
+  return null;
+}
+// The directory itself. EVERY source, including the empty ones: "@pad
+// holds nothing today" and "there is no @pad" are opposite facts
+// (6.196.1), and hiding the empty ones would make them read the same.
+function tagsHtml(){
+  var h = '<div class="sec">🔎 THE @ SEARCHES — ' + SRCS.length +
+          ' <span class="tag">⏎ on one to search it</span></div>';
+  for (var s = 0; s < SRCS.length; s++) {
+    var src = SRCS[s];
+    h += '<div class="row' + (s === sel ? ' sel' : '') +
+         '" data-tag="' + esc(src.tag) + '">' +
+         '<div class="mid"><div class="t">' + src.icon + ' @' + esc(src.tag) +
+         '</div><div class="s"><span class="src">' + esc(src.label) +
+         '</span> · ' + esc(src.w) + '</div></div>' +
+         '<span class="pp">' + src.n + '</span></div>';
+    visible.push(src.tag);
+  }
+  return h;
+}
+// ⏎ or a click on a directory row COMPLETES THE BOX — it never posts to
+// Lua. The panel is a reader; this row is a word you were about to type.
+function pickTag(tag){
+  if (tag == null) return;
+  q.value = '@' + tag + ' ';
+  sel = 0; hand = 'keys';
+  rebuild();
+}
+
 function rowHtml(row, visIndex){
   var cls = 'row' + (visIndex === sel ? ' sel' : '');
   var h = '<div class="' + cls + '" data-id="' + row.id + '">';
@@ -1111,7 +1211,11 @@ function rebuild(){
   var toks = tokens(q.value);
   visible = []; total = 0;
   var html = '';
-  if (!toks.length) {
+  mode = asksForTags(q.value) ? 'tags' : 'rows';
+  if (mode === 'tags') {
+    html = tagsHtml();
+    total = SRCS.length;
+  } else if (!toks.length) {
     // Nothing typed: the newest few of every source, under its name.
     for (var s = 0; s < SRCS.length; s++) {
       if (!SRCS[s].n) continue;
@@ -1139,14 +1243,21 @@ function rebuild(){
     if (total > visible.length)
       html += '<div class="more">…and ' + (total - visible.length) +
               ' more — keep typing to narrow</div>';
-    if (!total)
+    if (!total) {
+      var bad = unknownTag(toks);
       html += '<div class="more">Nothing matches "' + esc(q.value) +
-              '" in any store — ⌫ widens it again</div>';
+              '" in any store' + (bad
+                ? ' — and there is no ' + esc(bad) + ' source. Type @ on its ' +
+                  'own to see all ' + SRCS.length + '.'
+                : ' — ⌫ widens it again') + '</div>';
+    }
   }
   list.innerHTML = html;
-  count.textContent = toks.length
-    ? (total + ' match' + (total === 1 ? '' : 'es') + ' across every store')
-    : (ROWS.length + ' items indexed — newest of each store below');
+  count.textContent = (mode === 'tags')
+    ? (SRCS.length + ' sources — ⏎ on one to search it, or keep typing')
+    : (toks.length
+       ? (total + ' match' + (total === 1 ? '' : 'es') + ' across every store')
+       : (ROWS.length + ' items indexed — newest of each store below'));
   showPane();
 }
 
@@ -1160,12 +1271,15 @@ function move(d){
 }
 // The row id under an event target — the same walk the click has always
 // done, shared now so the click and the hover cannot name different rows.
-function rowIdAt(n){
-  while (n && n !== list && !(n.getAttribute && n.getAttribute('data-id')))
+function attrAt(n, name){
+  while (n && n !== list && !(n.getAttribute && n.getAttribute(name)))
     n = n.parentNode;
-  if (n && n !== list && n.getAttribute)
-    return parseInt(n.getAttribute('data-id'), 10);
+  if (n && n !== list && n.getAttribute) return n.getAttribute(name);
   return null;
+}
+function rowIdAt(n){
+  var v = attrAt(n, 'data-id');
+  return v == null ? null : parseInt(v, 10);
 }
 function pick(id, wantPath, wantOpen){
   if (id == null) return;
@@ -1181,7 +1295,8 @@ q.addEventListener('input', function(){ sel = 0; hand = 'keys'; rebuild(); });
 // with no scrollIntoView — the pointer is already on the row, and
 // scrolling the list under it would put a different row there.
 list.addEventListener('mousemove', function(ev){
-  var id = rowIdAt(ev.target);
+  var id = (mode === 'tags') ? attrAt(ev.target, 'data-tag')
+                             : rowIdAt(ev.target);
   if (id == null) return;
   var i = visible.indexOf(id);
   if (i < 0 || i === sel) return;
@@ -1199,11 +1314,13 @@ window.addEventListener('keydown', function(ev){
   else if (ev.key === 'ArrowUp') { if (ev.preventDefault) ev.preventDefault(); move(-1); }
   else if (ev.key === 'Enter') {
     if (ev.preventDefault) ev.preventDefault();
-    pick(visible[sel], ev.metaKey === true, ev.altKey === true);
+    if (mode === 'tags') pickTag(visible[sel]);
+    else pick(visible[sel], ev.metaKey === true, ev.altKey === true);
   }
   else if (ev.key === 'Escape') { say({ a: 'close' }); }
 });
 list.addEventListener('click', function(ev){
+  if (mode === 'tags') { pickTag(attrAt(ev.target, 'data-tag')); return; }
   var id = rowIdAt(ev.target);
   if (id != null) pick(id, ev.metaKey === true, ev.altKey === true);
 });

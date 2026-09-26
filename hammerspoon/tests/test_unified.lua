@@ -571,8 +571,12 @@ check("the rows are the 50%-larger kind — 19px titles, 84px thumbs",
 -- 6.92.0 — the tag list OUTGREW the input box ("I can't read all the
 -- tool tips"): the placeholder now teaches the RULE and each section
 -- header carries its own tag, where it can never be clipped.
-check("the placeholder teaches the @tag rule, short enough to read whole",
-      html:find("a @tag pins one source", 1, true) ~= nil
+-- 6.298.0 — and it teaches the DOOR as well as the rule. The literal it
+-- used to assert ("a @tag pins one source") was the sentence, not the
+-- rule (6.248.0): the rule is that the box says how to find the tags
+-- without listing them, which is what outgrew it in 6.92.0.
+check("the placeholder teaches the @ door, short enough to read whole",
+      html:find("type @ to see all", 1, true) ~= nil
       and html:find('placeholder="[^"]*@clip') == nil)
 check("...and every section header shows its own tag instead",
       html:find("<span class=\"tag\">@' + esc(SRCS[s].tag)", 1, true) ~= nil)
@@ -1322,6 +1326,78 @@ do
     local ok = pcall(_G.unifiedSearchReport)
     check("...and the report degrades where nothing has been gathered yet",
           ok)
+end
+
+-- =====================================================================
+-- 🔎 6.298.0 — THE @ SEARCHES NAME THEMSELVES
+-- =====================================================================
+-- LL: "All @ searches should be listed so I know what I can use to
+-- search." The page draws the directory (test_unified_js.js drives it);
+-- what Lua owes is the DATA — every source able to say what it holds,
+-- and the count in the placeholder coming off the table rather than
+-- being typed in beside it.
+do
+    -- §6 above deliberately leaves the module with nothing gathered, so
+    -- gather again: this section is about real sources and real counts.
+    pcall(U.gather)
+    -- 🔒 EVERY source, not most of them: a source with no `what` draws a
+    -- row in the directory with nothing after its label, which is the
+    -- one thing this release exists to stop.
+    local missing = {}
+    for _, src in ipairs(U.sources) do
+        if type(src.what) ~= "string" or #src.what < 8 then
+            missing[#missing + 1] = tostring(src.tag)
+        end
+    end
+    check("every source says what it HOLDS — the directory can explain all "
+          .. #U.sources, #missing == 0, table.concat(missing, ", "))
+
+    -- ...and it reaches the page. A `what` nothing publishes is a
+    -- comment (6.269.0: rows under the wrong key drew an empty card for
+    -- eighty-nine releases).
+    local js = U.sourcesJson()
+    local withW = 0
+    for _ in js:gmatch('"w":"') do withW = withW + 1 end
+    check("...and every one of them rides into the page as `w`",
+          withW == #U.sources, withW .. " of " .. #U.sources)
+
+    -- 6.239.0 — MOVE THE CONFIG AND REQUIRE THE DRAWING TO FOLLOW.
+    -- Asserting "14" passes just as happily when the number is typed
+    -- into the placeholder by hand, which is exactly how a count printed
+    -- to a human goes stale.
+    local before = U.buildHtml("")
+    check("the placeholder counts the sources it really has",
+          before:find("type @ to see all " .. #U.sources .. " sources", 1, true) ~= nil,
+          (before:match("type @ to see all %d+ sources")))
+    U.sources[#U.sources + 1] = { tag = "zztest", icon = "🧪",
+                                  label = "Test", what = "a fixture source",
+                                  fn = function() end }
+    local after = U.buildHtml("")
+    check("...and a source added to the table moves it",
+          after:find("type @ to see all " .. #U.sources .. " sources", 1, true) ~= nil
+          and after:find('"tag":"zztest"', 1, true) ~= nil,
+          (after:match("type @ to see all %d+ sources")))
+    U.sources[#U.sources] = nil
+
+    -- ...and it must not RAISE before the first gather, because the
+    -- page can be built then (6.282.0: an instrument that throws is
+    -- worse than one that lies — there is no line left to read).
+    local saveC, saveR = U.counts, U.rows
+    U.counts, U.rows = nil, {}
+    local okJson = pcall(U.sourcesJson)
+    U.counts, U.rows = saveC, saveR
+    check("...and it answers rather than throwing before the first gather",
+          okJson)
+
+    -- 6.181.0 — the sheet is where he goes to find out what a tool can
+    -- do, so a door that is not on it is a door he cannot find.
+    local said = false
+    for _, row in ipairs((M.cheatsheet and M.cheatsheet.entries) or {}) do
+        if tostring(row[1]) == "@" and tostring(row[2]):find("every source is listed", 1, true) then
+            said = true
+        end
+    end
+    check("📋 the ⇪/ card names the @ door", said)
 end
 
 io.write(("\n%d passed, %d failed\n"):format(pass, fail))

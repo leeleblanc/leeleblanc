@@ -6,6 +6,65 @@ older lives only here.
 
 ```text
 
+NEW IN 6.298.0 — 🔎 THE @ SEARCHES NAME THEMSELVES
+(modules/unified_search.lua):
+
+  LL, with a screenshot of ⇪D reading `@ocr`: "All @ searches should
+  be listed so I know what I can use to search."
+
+  🔎 THERE ARE FOURTEEN, and until this release the only place any of
+  them appeared was a section header in the results — @clip, @cmd,
+  @shots, @note, @asana, @ocr, @images, @doc, @file, @pad, @scratch,
+  @vault, @web, @tool. To read that header you have to have already
+  searched for something that happens to be in that store. A tag you
+  must know before you can find it is not a tag you can use, which is
+  why fourteen of them had been sitting there unused.
+
+  🔑 TYPE @ ON ITS OWN. The panel draws a directory instead of rows:
+  every source, its tag, the label, one line saying what it HOLDS, and
+  how many items are indexed right now. ↑↓ walk it, the pointer moves
+  the highlight as it does everywhere else, and ⏎ or a click puts that
+  `@tag ` in the box — the directory is a word you were about to type,
+  never a row to copy, so it posts no `pick` to Lua at all.
+
+  🚨 IT IS "@" ALONE, NEVER ANY @WORD, and that is the decision worth
+  keeping. "@o" ALREADY searches: the tag rides in every row's
+  haystack, so @o matches @ocr's rows today. A directory on every
+  @-prefix would have taken a working search away to show a menu.
+  One character, one list; a second character is a search again.
+
+  🔎 AND THE SECOND DOOR IS THE SAME LIST IN THE OTHER PLACE HE HITS
+  THE WALL: a query naming a tag that does not exist — @tasks, @notes
+  — returned "Nothing matches … in any store", which is true, useless,
+  and names none of the tags that do exist. It now says there is no
+  @tasks source and points at the directory. One function feeds both
+  (6.231.0); the ordinary miss is unchanged and does not cry @.
+
+  📋 EVERY SOURCE CARRIES ITS OWN `what`, and the gate asserts all
+  fourteen do — a source with no description draws a row in the
+  directory with nothing after its label, which is the one thing this
+  release exists to stop. It is asserted in BOTH places (6.269.0: a
+  field nothing publishes is a comment): on `uni.sources`, and on the
+  `w` that must reach the page for every one of them.
+
+  📐 AND THE PLACEHOLDER COUNTS THE SOURCES IT REALLY HAS. "type @ to
+  see all 14 sources" is written from `#uni.sources`, and the check
+  ADDS a source to the table and requires the drawing to follow
+  (6.239.0) — asserting the shipped "14" passes just as happily when
+  the number is typed in by hand, which is exactly how a count printed
+  to a human goes stale.
+
+  🐛 ONE RAISE CLOSED IN PASSING, in the function this release
+  touched: `uni.sourcesJson()` indexed `uni.counts` unguarded, so
+  building the page before the first gather threw rather than
+  answering — 6.282.0's rule, in a JSON builder instead of a report.
+  Its own check.
+
+  📏 NAMED, NOT SWEPT: the count line still reads "N matches across
+  every store" when a @tag has pinned the search to ONE store, which
+  is his own screenshot. It is a separate sentence with its own
+  failure and it gets its own release rather than riding in here.
+
 NEW IN 6.297.0 — 🗂 A LINE IS A TASK: THE HAMSIDIAN TASK GRAMMAR
 (modules/scratch_pad.lua):
 
