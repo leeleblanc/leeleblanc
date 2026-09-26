@@ -287,6 +287,90 @@ return function(core)
     -- a degrade inside a repeating timer is seen once and counted forty
     -- times, never painted forty times. P4 too: nil-tolerant, every
     -- macOS call pcall'd, the tool table bounded.
+    -- =================================================================
+    -- 🔕 6.295.0 — LOUD BY DEFAULT, QUIET ONLY WHERE HE SAID SO
+    -- =================================================================
+    -- LL: "Ensure we have visible warnings on-screen for anything that
+    -- writes or gathers information like Hamsidian or Asana tools or
+    -- backups. Essentially anything that affects my productivity.
+    -- Another example for items I do not care which only report in the
+    -- console that a failure occurred, would be Music Player. Those
+    -- items only need to post messages in the console."
+    --
+    -- 🔑 THE TIER BELONGS TO THE TOOL, NOT THE CALL SITE. `opts.alert =
+    -- false` has existed here since the door was built and nothing has
+    -- ever used it, which is the right outcome: music_player takes this
+    -- door from fourteen places, and fourteen call sites each deciding
+    -- how loud to be is exactly how one of them comes to be silent when
+    -- it should not (6.278.0, where six exits each printed their own
+    -- sentence and one printed nothing). One list decides.
+    --
+    -- 🚨 AND IT FAILS LOUD. A tool nobody has classified ALERTS. The
+    -- damage from getting this wrong is asymmetric — a needless alert
+    -- is an annoyance, a swallowed one is the failure he asked for
+    -- 6.278.0 to stop — so the quiet list is an allowlist that has to
+    -- be earned, never a guess at what matters (6.276.0: fail closed).
+    -- Everything he named as productivity is already loud and stays so
+    -- without appearing anywhere below.
+    --
+    -- 📓 QUIET IS ABOUT THE ALERT AND NOTHING ELSE. The ⚠️ Console line,
+    -- the ledger row, the CSV and therefore `_G.todayReport()` all get
+    -- every degrade regardless — the 4 PM double-check he asked for in
+    -- 6.279.0 must not have a hole in it named "music".
+    --
+    -- 🔤 MATCHED AT A BOUNDARY, which is 6.236.0's rule for the fourth
+    -- time: one entry, "Music player", covers both "Music player" and
+    -- "Music player media keys" without also covering a future "Music
+    -- playerX". Exact, or the entry followed by a space.
+    --
+    -- 📏 COST, NAMED: a NEW tool that degrades noisily is loud until it
+    -- is named here. That is the direction to be wrong in, and the
+    -- door is a Console line rather than a release —
+    -- `_G.degradeQuiet("Some tool")` / `_G.degradeLoud("Some tool")`.
+    notices.quietTools = { "Music player" }
+    notices.quietCount = 0       -- degrades that went to the Console alone
+
+    -- PURE. Answers whether this tool's degrades alert, and WHY, so the
+    -- report can say which rule decided rather than printing a verdict
+    -- with no reasoning behind it.
+    function notices.degradeVoice(tool, quiet)
+        tool = tostring(tool or "")
+        local folded = tool:lower()
+        for _, q in ipairs(quiet or {}) do
+            local e = tostring(q or ""):lower()
+            if e ~= "" and (folded == e or folded:sub(1, #e + 1) == e .. " ") then
+                return "console", "\"" .. q .. "\" is on the quiet list"
+            end
+        end
+        return "alert", "not on the quiet list — loud is the default"
+    end
+
+    function _G.degradeQuiet(tool)
+        tool = tostring(tool or "")
+        if tool == "" then return false, "name a tool" end
+        if notices.degradeVoice(tool, notices.quietTools) == "console" then
+            return false, tool .. " is already quiet"
+        end
+        notices.quietTools[#notices.quietTools + 1] = tool
+        print("🔕 " .. tool .. " degrades go to the Console only now "
+              .. "(the log and _G.todayReport() still get them) — "
+              .. "_G.degradeLoud(\"" .. tool .. "\") undoes it")
+        return true
+    end
+
+    function _G.degradeLoud(tool)
+        tool = tostring(tool or "")
+        local hit
+        for i = #notices.quietTools, 1, -1 do
+            if notices.quietTools[i]:lower() == tool:lower() then
+                table.remove(notices.quietTools, i) ; hit = true
+            end
+        end
+        print(hit and ("🔔 " .. tool .. " alerts on screen again")
+                   or ("🔔 " .. tool .. " was not on the quiet list — it already alerts"))
+        return hit == true
+    end
+
     notices.degradeEvery = 600   -- the same tool + cause alerts again after this many seconds
     notices.degradeMax   = 60    -- tools remembered; the oldest is dropped past it
     notices.degradeCauses = 8    -- causes remembered per tool for the alert gate
@@ -485,9 +569,16 @@ return function(core)
         notices.record("degrade", tool, why)
         -- 2. the Console line, every time
         pcall(print, "⚠️ " .. tool .. ": " .. why)
-        -- 3. the alert, at the moment — once per tool + cause per degradeEvery
+        -- 3. the alert, at the moment — once per tool + cause per degradeEvery,
+        --    and only for a tool the quiet list has not spoken for (6.295.0).
+        local voice = notices.degradeVoice(tool, notices.quietTools)
+        if voice == "console" then
+            d.quiet = (d.quiet or 0) + 1
+            notices.quietCount = notices.quietCount + 1
+        end
         local last = d.seen[why]
-        if opts.alert ~= false and (not last or (t - last) >= notices.degradeEvery) then
+        if voice == "alert" and opts.alert ~= false
+           and (not last or (t - last) >= notices.degradeEvery) then
             if not last then
                 local S = d.seenOrder
                 S[#S + 1] = why
@@ -515,12 +606,38 @@ return function(core)
             for _, tool in ipairs(notices.degradeOrder) do
                 local d = notices.degrades[tool]
                 if d then
-                    L[#L + 1] = string.format("   %s  %-22s ×%-4d %s%s", d.clock or "--:--:--", tool, d.n, d.why,
-                                              d.alerts == 0 and "  (⚠️ never alerted — hs.alert refused)" or "")
+                    -- 🔕 6.295.0 — A QUIET TOOL IS NOT A REFUSED ALERT.
+                    -- This line has read "⚠️ never alerted — hs.alert
+                    -- refused" whenever d.alerts was 0, which would now
+                    -- be a false warning on every tool the quiet list
+                    -- speaks for — a new rule breaking the instrument
+                    -- built to watch it (6.269.0). Three states.
+                    local tail = ""
+                    if (d.quiet or 0) > 0 then
+                        tail = "  (🔕 Console only — on the quiet list)"
+                    elseif d.alerts == 0 then
+                        tail = "  (⚠️ never alerted — hs.alert refused)"
+                    end
+                    L[#L + 1] = string.format("   %s  %-22s ×%-4d %s%s", d.clock or "--:--:--", tool, d.n, d.why, tail)
                 end
             end
         end
         L[#L + 1] = "   the door : core.degrade(tool, why) → alert · ⚠️ Console line · this list · ⇪⇧D"
+        -- 🔕 6.295.0 — and WHICH tools are quiet, always, because a policy
+        -- you cannot read is a policy you cannot correct. Three states:
+        -- nothing quiet · quiet and nothing has used it · quiet and used.
+        if #notices.quietTools == 0 then
+            L[#L + 1] = "   quiet   : none — every tool alerts on screen"
+        else
+            L[#L + 1] = string.format(
+                "   quiet   : %d tool(s) go to the Console alone — %s%s",
+                #notices.quietTools, table.concat(notices.quietTools, " · "),
+                notices.quietCount == 0
+                    and " (none has degraded this session)"
+                    or (" · " .. notices.quietCount .. " degrade(s) took that route"))
+            L[#L + 1] = "   ↳ the LOG still gets them: _G.todayReport() and ⇪⇧D are unchanged"
+            L[#L + 1] = "   ↳ _G.degradeLoud(\"Music player\") puts one back on screen"
+        end
         local s = table.concat(L, "\n")
         print(s)
         return s

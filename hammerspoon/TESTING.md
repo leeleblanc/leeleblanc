@@ -1,4 +1,4 @@
-# TESTING — how to score release 6.294.0
+# TESTING — how to score release 6.295.0
 
 You install ONE archive and it carries several releases. Below are the
 steps for each release this archive is new for, newest first. Run the
@@ -26,6 +26,73 @@ else is a LOSS and I fix it before building further. You are the only
 scorer; I never mark my own.
 
 ---
+
+## 6.295.0
+
+6.295.0 verify with LL — 🔕 QUIET FOR THE THINGS THAT DO NOT MATTER (KNOWN GROUND)
+WHAT CHANGED: a tool can now report a failure to the Console alone.
+Exactly one is set that way — the music player, because you named it.
+WHY IT MATTERS: you asked for two things and only one of them was
+missing. Everything that writes or gathers — Hamsidian, the Asana
+submit, the backups, the file tracker, the vault — has alerted on
+screen since 6.215.0, because the 🔔 door alerts for every tool. So
+this release is the OTHER half: a way to be quiet, and nothing else.
+🚨 AND IT FAILS LOUD. A tool nobody has classified still alerts. A
+needless alert is an annoyance; a swallowed one is the failure you
+asked me to fix in 6.278.0, so the quiet list has to be earned.
+
+A. THE HEADLINE.
+A1. Console: `_G.degradeReport()`.
+    EXPECT a new line:
+      quiet   : 1 tool(s) go to the Console alone — Music player
+                (none has degraded this session)
+    and two lines under it saying the LOG still gets them and how to
+    put one back on screen.
+A2. Make a quiet one fail on purpose:
+    `_G.degrade("Music player", "on purpose")`
+    EXPECT: **nothing on screen**, and a Console line
+    `⚠️ Music player: on purpose`.
+A3. Make a loud one fail: `_G.degrade("Hamsidian", "on purpose")`
+    EXPECT: an alert on screen AND the Console line. That contrast in
+    one minute is the whole release.
+
+B. THE HALF THAT MUST NOT HAVE A HOLE IN IT.
+B1. `_G.todayReport()` after A2 and A3.
+    EXPECT: **both** rows, the quiet one included. Quiet is about the
+    alert and nothing else — your 4 PM check must not acquire a blind
+    spot named "music".
+B2. ⇪⇧D — both are in the notices list too.
+B3. `_G.degradeReport()` again: the Music player row must read
+    `(🔕 Console only — on the quiet list)` and NOT
+    `(⚠️ never alerted — hs.alert refused)`. That second sentence
+    would be a lie, and it is the one this release nearly shipped.
+
+C. THE DOOR, because you do not edit files.
+C1. `_G.degradeQuiet("Bluetooth")` → Bluetooth goes Console-only.
+C2. `_G.degrade("Bluetooth", "test")` → no alert.
+C3. `_G.degradeLoud("Bluetooth")` → it alerts again. Nothing is
+    permanent and nothing needs a release.
+
+D. MUST STILL WORK.
+D1. Use the Mac normally. Any alert you would have seen before — a
+    backup problem, an Asana send failing, ⇪4 finding no folder —
+    still appears.
+D2. If a MUSIC player problem ever matters to you after all, C1's
+    opposite is `_G.degradeLoud("Music player")`.
+
+E. A JUDGEMENT ONLY YOU CAN MAKE — and this is the real question.
+E1. The list ships with one name on it. Which others do you want
+    quiet? Candidates I would guess but will not assume: the QR
+    reader, Bluetooth, the key caster, the mini calendar, the
+    pomodoro's sound. Name them and they go in the next release as
+    defaults; or use `_G.degradeQuiet(...)` for a week first and tell
+    me which ones you never wanted to hear from.
+E2. The opposite question, and it is the one I would ask myself:
+    is anything still alerting that should be LOUDER — a
+    notification that survives Focus, the way a failed Asana send
+    gets one (6.278.0)? Right now only that send has one.
+
+
 
 ## 6.294.0
 
@@ -191,78 +258,6 @@ E1. ⌃⌃ (the editor picker) is NOT on the new shared engine yet, on
     then is two watchers instead of one, which is why B5 matters. Say
     if you would rather I did that migration sooner.
 E2. ⌥⌥ → the menu bar is the next release and uses this same engine.
-
-
-
-## 6.291.0
-
-6.291.0 verify with LL — ⌨️ F8, BOTH WAYS (KNOWN GROUND)
-WHAT CHANGED: "It's the F8 Key" answered it, and then raised a second
-question I had not asked. That one physical key sends two completely
-different events depending on a System Setting, and 6.289.0 watched
-only one of them. Both are watched now.
-WHY IT MATTERS: with "Use F1, F2, etc. as standard function keys" OFF
-— the macOS default — F8 is a media key and 6.289.0 already works.
-With it ON, F8 is a plain function key carrying keycode 100, and
-6.289.0 could never have seen it. I cannot tell which you have from
-here, and rather than ask you to go and read a System Setting, the
-release handles both and the report SAYS which one your Mac uses.
-🚨 AND THE OLD REPORT COULD NOT HAVE TOLD US. On the second setting
-neither counter moved, so it read "0 taken · 0 passed" on a Mac where
-you had been pressing the key all morning — identical to never having
-pressed it. That is the thing I most want to stop doing.
-
-A. THE HEADLINE.
-A1. ⇪⇧pad., drop two or three tracks on the card. Something plays.
-A2. Press F8. EXPECT: it pauses. Press again: it resumes.
-A3. Press F7 and F9. EXPECT: back a track, forward a track.
-A4. Console: `_G.musicReport()`. Find the new "↳ by route" line.
-    EXPECT one of these, and BOTH are a pass — I want to know which:
-    · `3 as a media key · 0 as a plain F7/F8/F9` — your setting is OFF
-      and 6.289.0 was already right.
-    · `0 as a media key · 3 as a plain F7/F8/F9`, with a line under it
-      naming the setting — your setting is ON, and this release is
-      what made F8 work at all.
-    PASTE THAT LINE either way. It is the fact neither of us has.
-
-B. THE ONE THAT PROTECTS EVERY OTHER APP — please do this one.
-B1. Empty the card's queue, then play something in Music.app, Spotify
-    or a YouTube tab. Press F8.
-    EXPECT: THAT app pauses. Hammerspoon must not swallow the key.
-B2. With a queue on the card, hold ⌘ and press F8 (⌘F8).
-    EXPECT: the card does NOT react — ⌘F8 belongs to whatever app you
-    are in. Same for ⌥F8, ⌃F8 and ⇧F8.
-    A FAIL on either of these is the serious one:
-    `settings = { music_player = { mediaKeys = false } }` turns the
-    whole thing off and tell me at once.
-B3. Hold F8 down. EXPECT: it toggles ONCE, not forty times.
-
-C. MUST STILL WORK — this release added a tap that sees every
-   keystroke on the Mac, so this is the regression sweep and it is
-   the important half.
-C1. Type normally in Chrome, Word and Hamsidian for a while.
-    EXPECT: no missed characters, no lag, nothing odd. If typing ever
-    feels heavier on this build than on 6.290.0, stop and tell me —
-    that is exactly what I would want to know.
-C2. Your autocorrect still works: type `teh ` in Chrome → `the `.
-C3. ⇪⇧Esc pauses the config; press F8 with a queue.
-    EXPECT: nothing (every tap here stands down when paused). ⇪⇧Esc
-    again and F8 works.
-C4. The card's own space bar, ↑↓, ⏎, ⌘1–9 and ← → are unchanged.
-C5. The volume keys stay macOS's, as you decided in 6.231.0.
-
-D. PASTE BACK, PASS OR FAIL.
-D1. `_G.musicReport()` — the whole block. Two lines matter: "by route"
-    (above), and a `⚠️ N press(es) THREW inside the handler` line. That
-    second one should NOT be there; if it is, paste it — it means the
-    handler is failing and the key is silently doing nothing.
-
-E. A JUDGEMENT ONLY YOU CAN MAKE.
-E1. With "standard function keys" ON, F8 has a second job — some apps
-    use it as a plain function key. This config takes it only while
-    the card has a queue and only with no modifier held. Is that
-    narrow enough, or does F8 matter to an app you use? Name the app
-    and I will exempt it.
 
 
 

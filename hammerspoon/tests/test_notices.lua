@@ -364,6 +364,119 @@ check("P4: hs.alert throwing costs the alert only — the row and the line still
 local okTbl = pcall(N.degrade, { a = 1 }, { b = 2 })
 check("P4: tables for tool and why are tostring'd, never a throw", okTbl)
 
+-- =====================================================================
+-- 🔕 6.295.0 — LOUD BY DEFAULT, QUIET ONLY WHERE HE SAID SO
+-- =====================================================================
+-- LL: visible warnings for anything that writes or gathers information
+-- (Hamsidian, Asana, backups) — "anything that affects my productivity"
+-- — and Console only for the ones he does not care about, "would be
+-- Music Player".
+out("\n-- the quiet list --\n")
+boot()
+check("🔕 the verdict is PURE and answers WHY, so the report can name the "
+      .. "rule rather than printing a bare verdict",
+      (function()
+  local v, why = N.degradeVoice("Music player", { "Music player" })
+  if v ~= "console" then return false, v end
+  if not tostring(why):find("quiet list", 1, true) then return false, why end
+  local v2, why2 = N.degradeVoice("Hamsidian", { "Music player" })
+  return v2 == "alert" and tostring(why2):find("default", 1, true) ~= nil,
+         v2 .. " / " .. tostring(why2)
+end)())
+
+-- 🚨 FAIL LOUD. The asymmetry is the whole design: a needless alert is
+-- an annoyance, a swallowed one is the failure 6.278.0 exists to stop.
+check("🚨 AN UNKNOWN TOOL ALERTS — the list is an allowlist that must be "
+      .. "earned, never a guess at what matters (6.276.0, fail closed)",
+      N.degradeVoice("Some brand new tool", {}) == "alert"
+      and N.degradeVoice("Some brand new tool", { "Music player" }) == "alert")
+
+-- 🔤 6.236.0's boundary rule, fourth time. music_player takes this door
+-- as BOTH "Music player" and "Music player media keys".
+check("🔤 one entry covers a tool and its sub-names, at a WORD BOUNDARY — "
+      .. "'Music player' takes 'Music player media keys' and not "
+      .. "'Music playerX'",
+      N.degradeVoice("Music player media keys", { "Music player" }) == "console"
+      and N.degradeVoice("Music playerX", { "Music player" }) == "alert")
+check("...and it folds case, because a tool name is prose",
+      N.degradeVoice("MUSIC PLAYER", { "music player" }) == "console")
+
+-- The shipped default is exactly what he named, and nothing else.
+check("📏 the SHIPPED list is Music player alone — everything he called "
+      .. "productivity is loud without appearing on it",
+      #N.quietTools == 1 and N.quietTools[1] == "Music player", table.concat(N.quietTools, ","))
+
+-- And now the functional half, through the real door.
+boot()
+N.degrade("Music player", "this Mac has no hs.sound")
+check("🔕 a quiet tool draws NO alert", #ALERTS == 0, #ALERTS .. " alerts")
+check("📓 ...but the ⚠️ Console line is still printed, which is the whole "
+      .. "of what he asked for", printedHas("⚠️ Music player: this Mac has no hs.sound"))
+check("📓 ...and the LEDGER still has it — ⇪⇧D and _G.noticesReport() are "
+      .. "not allowed a hole named 'music'",
+      #N.ledger == 1 and N.ledger[1].kind == "degrade")
+check("📓 ...and it is still COUNTED, so the report can say how often",
+      N.degrades["Music player"].n == 1 and N.degradeTotal == 1)
+check("...and the quiet route is counted apart", N.quietCount == 1
+      and N.degrades["Music player"].quiet == 1)
+N.degrade("Hamsidian", "Asana is off on this Mac")
+check("🔔 ...while a tool NOT on the list alerts on screen in the same run",
+      #ALERTS == 1 and ALERTS[1]:find("Hamsidian", 1, true) ~= nil, ALERTS[1])
+
+-- 🚨 6.269.0 — THE NEW RULE MUST NOT BREAK THE INSTRUMENT WATCHING IT.
+-- _G.degradeReport() has printed "never alerted — hs.alert refused"
+-- whenever alerts was 0, which is now TRUE of every quiet tool: the
+-- report would cry wolf on a healthy Mac on its first run.
+boot()
+N.degrade("Music player", "this Mac has no hs.sound")
+printed = {}
+local rq = _G.degradeReport()
+check("🚨 A QUIET TOOL IS NOT A REFUSED ALERT — the report says Console "
+      .. "only, never 'hs.alert refused' (6.269.0: a new rule must not "
+      .. "break the instrument built to watch it)",
+      rq:find("Console only", 1, true) ~= nil
+      and rq:find("hs.alert refused", 1, true) == nil, rq)
+check("🔎 ...and the report NAMES the quiet tools, because a policy you "
+      .. "cannot read is a policy you cannot correct",
+      rq:find("quiet", 1, true) ~= nil
+      and rq:find("Music player", 1, true) ~= nil
+      and rq:find("_G.degradeLoud", 1, true) ~= nil, rq)
+check("🔎 ...and says the LOG still gets them, where he goes at 4 PM",
+      rq:find("todayReport", 1, true) ~= nil, rq)
+
+-- Three states on that line (6.196.1): the middle one is the trap —
+-- "quiet and nothing has used it" must not read as "quiet and busy".
+boot()
+printed = {}
+local rq0 = _G.degradeReport()
+check("🔎 three states: quiet but unused says so, rather than reading as "
+      .. "used", rq0:find("none has degraded this session", 1, true) ~= nil, rq0)
+boot()
+local savedQuiet = N.quietTools
+N.quietTools = {}
+printed = {}
+local rqn = _G.degradeReport()
+check("🔎 ...and with nothing quiet it says every tool alerts",
+      rqn:find("every tool alerts on screen", 1, true) ~= nil, rqn)
+N.quietTools = savedQuiet
+
+-- The doors. He does not edit files (6.267.0), so adding a tool is a
+-- Console line and it is reversible.
+boot()
+check("🚪 _G.degradeQuiet adds one and _G.degradeLoud takes it away",
+      (function()
+  local n0 = #N.quietTools
+  if not _G.degradeQuiet("Weather thing") then return false, "add refused" end
+  if #N.quietTools ~= n0 + 1 then return false, "not added" end
+  if N.degradeVoice("Weather thing", N.quietTools) ~= "console" then return false, "still loud" end
+  if _G.degradeQuiet("weather thing") then return false, "added twice" end
+  if not _G.degradeLoud("Weather thing") then return false, "remove refused" end
+  if N.degradeVoice("Weather thing", N.quietTools) ~= "alert" then return false, "still quiet" end
+  return #N.quietTools == n0, #N.quietTools .. " vs " .. n0
+end)())
+check("🚪 ...and an empty name is refused rather than silencing everything",
+      _G.degradeQuiet("") == false and _G.degradeQuiet(nil) == false)
+
 -- bounded: tools remembered, causes per tool.
 boot()
 for i = 1, N.degradeMax + 15 do N.degrade("tool" .. i, "x") end

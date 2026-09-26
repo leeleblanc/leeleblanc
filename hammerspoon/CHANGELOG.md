@@ -6,6 +6,85 @@ older lives only here.
 
 ```text
 
+NEW IN 6.295.0 — 🔕 LOUD BY DEFAULT, QUIET ONLY WHERE HE SAID SO
+(core/notices.lua):
+
+  LL: "Ensure we have visible warnings on-screen for anything that
+  writes or gathers information like Hamsidian or Asana tools or
+  backups. Essentially anything that affects my productivity. Another
+  example for items I do not care which only report in the console that
+  a failure occurred, would be Music Player. Those items only need to
+  post messages in the console."
+
+  🔎 THE FIRST HALF WAS ALREADY TRUE, and saying so is what keeps the
+  release honest about its own size. Everything that writes or gathers
+  — Hamsidian, the Asana submit, the backups, the file tracker, the
+  vault — already alerts on screen, because since 6.215.0 the 🔔 door
+  alerts for EVERY tool. So what he is really asking for is the second
+  half: a way to be quiet about the ones he does not care about. This
+  release adds that and nothing else.
+
+  🔑 THE TIER BELONGS TO THE TOOL, NOT THE CALL SITE. `opts.alert =
+  false` has existed on this door since it was built and nothing has
+  ever passed it, which turns out to be the right outcome:
+  music_player takes the door from fourteen places, and fourteen call
+  sites each deciding how loud to be is exactly how one of them comes
+  to be silent when it should not — which is 6.278.0, where six exits
+  each printed their own sentence and one of them printed nothing at
+  all. One list decides, in one place.
+
+  🚨 AND IT FAILS LOUD. A tool nobody has classified ALERTS. The damage
+  is asymmetric: a needless alert is an annoyance, a swallowed one is
+  precisely the failure 6.278.0 exists to stop and that he asked about
+  in the same breath. So the quiet list is an allowlist that has to be
+  earned, never a guess at what matters (6.276.0's fail-closed rule).
+  Everything he named as productivity is loud without appearing in the
+  file at all.
+
+  📓 QUIET IS ABOUT THE ALERT AND NOTHING ELSE. The ⚠️ Console line,
+  the ledger row (so ⇪⇧D and `_G.noticesReport()`), the CSV and
+  therefore `_G.todayReport()` all get every degrade regardless. The
+  4 PM double-check he asked for in 6.279.0 must not acquire a hole
+  named "music", and each of those four is its own check.
+
+  🔤 MATCHED AT A BOUNDARY — 6.236.0's rule for the fourth time in this
+  config, and it is load-bearing here: music_player takes this door as
+  both "Music player" and "Music player media keys", so one entry has
+  to cover a tool and its sub-names without also covering a future
+  "Music playerX". Exact, or the entry followed by a space, case
+  folded because a tool name is prose.
+
+  🚨 AND THE NEW RULE ALMOST BROKE THE INSTRUMENT BUILT TO WATCH IT.
+  `_G.degradeReport()` has printed "(⚠️ never alerted — hs.alert
+  refused)" against any tool whose alert count is zero — which is now
+  TRUE of every quiet tool, so on the first healthy run the report
+  would have warned that macOS was refusing alerts it was never asked
+  to draw. 6.269.0's rule, in a report that predates it: a new
+  instrument is measured against the healthy case FIRST, and one that
+  cries wolf on day one is switched off long before it sees the fault
+  it exists for. Three states now — Console only by policy · never
+  alerted because macOS refused · alerted.
+
+  🔎 AND THE POLICY IS READABLE. A "quiet :" line names the tools, says
+  how many degrades took that route, says the log still has them, and
+  gives the one-liner that puts a tool back on screen. Three states
+  there too, and the middle one is the trap: "quiet and nothing has
+  used it" must not read as "quiet and busy" (6.196.1).
+
+  🚪 HE DOES NOT EDIT FILES (6.267.0), so the list is not a settings
+  line he has to type into a profile: `_G.degradeQuiet("Some tool")`
+  and `_G.degradeLoud("Some tool")` are Console one-liners, and the
+  second is named in the report beside the first.
+
+  📏 COST, NAMED: a NEW tool that degrades noisily is loud until it is
+  named. That is the direction to be wrong in, and the fix is a
+  sentence in the Console rather than a release.
+
+  GENERAL: when a rule makes a previously-impossible state normal, grep
+  the reports for code that treats that state as a fault. The rule and
+  the instrument were written years apart and only one of them knows.
+
+
 NEW IN 6.294.0 — 🎯 THE ASANA CARD NAMES THE KEY THAT MAKES A TASK
 (core/cheatsheet.lua + tests/test_integration.lua):
 

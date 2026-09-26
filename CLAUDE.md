@@ -3524,6 +3524,7 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
+| 6.295.0 | 🔕 a tool he does not care about reports a failure to the Console alone — everything that writes or gathers still shouts on screen, and the log keeps both | pending |
 | 6.294.0 | 🎯 the ✅ ASANA card finally names ⇪T — the key that creates a task, absent from it since 6.114.0 removed it for a good reason; plus an auditor for a bound key printed on no card at all | pending |
 | 6.293.0 | ⌨️ ⌥⌥ opens the front app's menus — his 6.198.0 ask, never built, and nine lines now that 6.292.0 made a gesture a registration rather than an engine | pending |
 | 6.292.0 | ⌨️ ⌘⌘ opens the clipboard history — asked for three times since 6.198.0 and never built, while the engine for it had been driving ⌃⌃ on his Mac since 6.116.0; it is lifted into core/ so a gesture is a registration | pending |
@@ -4417,6 +4418,69 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.295.0 verify with LL — 🔕 QUIET FOR THE THINGS THAT DO NOT MATTER (KNOWN GROUND)
+  WHAT CHANGED: a tool can now report a failure to the Console alone.
+  Exactly one is set that way — the music player, because you named it.
+  WHY IT MATTERS: you asked for two things and only one of them was
+  missing. Everything that writes or gathers — Hamsidian, the Asana
+  submit, the backups, the file tracker, the vault — has alerted on
+  screen since 6.215.0, because the 🔔 door alerts for every tool. So
+  this release is the OTHER half: a way to be quiet, and nothing else.
+  🚨 AND IT FAILS LOUD. A tool nobody has classified still alerts. A
+  needless alert is an annoyance; a swallowed one is the failure you
+  asked me to fix in 6.278.0, so the quiet list has to be earned.
+
+  A. THE HEADLINE.
+  A1. Console: `_G.degradeReport()`.
+      EXPECT a new line:
+        quiet   : 1 tool(s) go to the Console alone — Music player
+                  (none has degraded this session)
+      and two lines under it saying the LOG still gets them and how to
+      put one back on screen.
+  A2. Make a quiet one fail on purpose:
+      `_G.degrade("Music player", "on purpose")`
+      EXPECT: **nothing on screen**, and a Console line
+      `⚠️ Music player: on purpose`.
+  A3. Make a loud one fail: `_G.degrade("Hamsidian", "on purpose")`
+      EXPECT: an alert on screen AND the Console line. That contrast in
+      one minute is the whole release.
+
+  B. THE HALF THAT MUST NOT HAVE A HOLE IN IT.
+  B1. `_G.todayReport()` after A2 and A3.
+      EXPECT: **both** rows, the quiet one included. Quiet is about the
+      alert and nothing else — your 4 PM check must not acquire a blind
+      spot named "music".
+  B2. ⇪⇧D — both are in the notices list too.
+  B3. `_G.degradeReport()` again: the Music player row must read
+      `(🔕 Console only — on the quiet list)` and NOT
+      `(⚠️ never alerted — hs.alert refused)`. That second sentence
+      would be a lie, and it is the one this release nearly shipped.
+
+  C. THE DOOR, because you do not edit files.
+  C1. `_G.degradeQuiet("Bluetooth")` → Bluetooth goes Console-only.
+  C2. `_G.degrade("Bluetooth", "test")` → no alert.
+  C3. `_G.degradeLoud("Bluetooth")` → it alerts again. Nothing is
+      permanent and nothing needs a release.
+
+  D. MUST STILL WORK.
+  D1. Use the Mac normally. Any alert you would have seen before — a
+      backup problem, an Asana send failing, ⇪4 finding no folder —
+      still appears.
+  D2. If a MUSIC player problem ever matters to you after all, C1's
+      opposite is `_G.degradeLoud("Music player")`.
+
+  E. A JUDGEMENT ONLY YOU CAN MAKE — and this is the real question.
+  E1. The list ships with one name on it. Which others do you want
+      quiet? Candidates I would guess but will not assume: the QR
+      reader, Bluetooth, the key caster, the mini calendar, the
+      pomodoro's sound. Name them and they go in the next release as
+      defaults; or use `_G.degradeQuiet(...)` for a week first and tell
+      me which ones you never wanted to hear from.
+  E2. The opposite question, and it is the one I would ask myself:
+      is anything still alerting that should be LOUDER — a
+      notification that survives Focus, the way a failed Asana send
+      gets one (6.278.0)? Right now only that send has one.
+
 - 6.294.0 verify with LL — 🎯 ⇪T IS ON THE ASANA CARD (KNOWN GROUND)
   WHAT CHANGED: the ✅ ASANA card on ⇪/ now points at ⇪T, the key that
   creates a task.
