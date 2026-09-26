@@ -383,27 +383,37 @@ out("\n=== 6. 🔔 A SUBMIT ANSWERS TWICE (6.299.0) ===\n")
 -- 🔎 SO THE CONTRACT IS THE SECOND CHANNEL. A stub that never mentions
 -- onDone cannot tell an accepted send from a delivered one — which is
 -- the whole defect, reproduced inside the instrument.
-local muteSubmit = {}
-for _, f in ipairs(files) do
-    for _, st in ipairs(stubsOf(f.code, "asanaSubmitTask")) do
-        if not throws(st.body) and not st.body:find("onDone", 1, true) then
-            muteSubmit[#muteSubmit + 1] = f.name
+-- 🔑 ONE FUNCTION, TWO CALLERS (6.231.0) — the real scan AND the checks
+-- that keep it honest. The first version of this section ran the loop
+-- inline and self-checked `stubsOf` alone, so a mutation DISABLING the
+-- condition survived: the matcher was proven and the rule using it was
+-- not. 6.273.0 — when a fix lands on a line no mutation can kill, the
+-- line is not the finding, the missing check is.
+local function submitStubsMissingOnDone(list)
+    local out = {}
+    for _, f in ipairs(list) do
+        for _, st in ipairs(stubsOf(f.code, "asanaSubmitTask")) do
+            if not throws(st.body) and not st.body:find("onDone", 1, true) then
+                out[#out + 1] = f.name
+            end
         end
     end
+    return out
 end
+local muteSubmit = submitStubsMissingOnDone(files)
 check("every asanaSubmitTask stub answers onDone as the real one does",
       #muteSubmit == 0, table.concat(muteSubmit, " · "))
 
 do
-    local sick = stripComments(
-        "_G.asanaSubmitTask = function(t, d, a, x, e) SUB = t ; return true end")
+    local sick = { { name = "sick.lua", code = stripComments(
+        "_G.asanaSubmitTask = function(t, d, a, x, e) SUB = t ; return true end") } }
     check("§6 BITES: a submit stub with no second channel is found",
-          #stubsOf(sick, "asanaSubmitTask") == 1
-          and not stubsOf(sick, "asanaSubmitTask")[1].body:find("onDone", 1, true))
-    local ok = stripComments(
-        "_G.asanaSubmitTask = function(t, d, a, x, e) if e.onDone then e.onDone(true) end return true end")
+          #submitStubsMissingOnDone(sick) == 1,
+          #submitStubsMissingOnDone(sick))
+    local fine = { { name = "ok.lua", code = stripComments(
+        "_G.asanaSubmitTask = function(t, d, a, x, e) if e.onDone then e.onDone(true) end return true end") } }
     check("§6 IS SILENT on a stub that carries it",
-          stubsOf(ok, "asanaSubmitTask")[1].body:find("onDone", 1, true) ~= nil)
+          #submitStubsMissingOnDone(fine) == 0)
 end
 
 -- =====================================================================

@@ -748,17 +748,26 @@ function M.setup(core)
         -- this whole channel exists to answer. A Mac that cannot arm a
         -- timer still posts: no belt is worse than no send, but only
         -- just, and the report counts the two apart.
-        if type(extra.onDone) == "function" and hs.timer and hs.timer.doAfter then
-            local okT, t = pcall(hs.timer.doAfter,
-                                 tonumber(M.config.answerSecs) or 30,
-                                 function()
-                M.answers = (M.answers or { ok = 0, failed = 0, timedOut = 0 })
-                M.answers.timedOut = (M.answers.timedOut or 0) + 1
-                finish(false, "Asana did not answer in "
-                       .. tostring(M.config.answerSecs or 30) .. " s")
-            end)
-            if okT and t then submitTimer = t
-            else
+        if type(extra.onDone) == "function" then
+            if hs.timer and hs.timer.doAfter then
+                local okT, t = pcall(hs.timer.doAfter,
+                                     tonumber(M.config.answerSecs) or 30,
+                                     function()
+                    M.answers = (M.answers or { ok = 0, failed = 0, timedOut = 0 })
+                    M.answers.timedOut = (M.answers.timedOut or 0) + 1
+                    finish(false, "Asana did not answer in "
+                           .. tostring(M.config.answerSecs or 30) .. " s")
+                end)
+                if okT and t then submitTimer = t end
+            end
+            -- 🔎 COUNTED ON THE OUTCOME, NOT ON THE REASON. Written the
+            -- obvious way — inside the `hs.timer and doAfter` guard —
+            -- the commonest no-belt Mac of all, the one with no doAfter
+            -- at all, never reached the counter and reported as
+            -- healthy. Found by the mutation sweep, which is what a
+            -- sweep is for: the check that says the REPORT names it is
+            -- the only thing that could have.
+            if not submitTimer then
                 M.answers = (M.answers or { ok = 0, failed = 0, timedOut = 0 })
                 M.answers.noBelt = (M.answers.noBelt or 0) + 1
             end

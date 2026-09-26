@@ -689,6 +689,18 @@ do
           .. "than no send, but only just", noBelt == true and #HTTP_POSTS == 1)
     HTTP_POSTS[1].cb(201, "{}")
     check("...and the answer still reaches the caller", #SEEN == 1 and SEEN[1].ok)
+    -- 🔎 AND IT IS COUNTED APART, because a submit with no belt is one
+    -- whose silence is unrecoverable — that is a different Mac, not a
+    -- different task, and the report must not hide it (6.196.1).
+    do
+        local pr, sv = {}, print
+        print = function(x) pr[#pr + 1] = tostring(x) end
+        _G.asanaSubmitReport()
+        print = sv
+        check("...and the report SAYS this Mac sent one with no belt",
+              table.concat(pr, "\n"):find("NO timeout belt", 1, true) ~= nil,
+              table.concat(pr, "\n"))
+    end
 
     -- 10. the report tells the three outcomes apart (6.196.1)
     local printedR = {}
