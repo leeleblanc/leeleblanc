@@ -697,14 +697,19 @@ check("🚨 a dragged position SURVIVES the redraw that happens on every "
       canvasRect.x .. "," .. canvasRect.y)
 CS.query = ""
 
-check("the remembered position is CLAMPED to a real screen — a position "
-      .. "outlives the display it was set on, and restoring a panel to "
-      .. "coordinates that no longer exist puts it somewhere invisible "
-      .. "with no way back", #CLAMPED > 0)
+-- 🚨 6.248.0 — THIS ASSERTED THAT `_G.clampToScreen` WAS CALLED, and
+-- 6.288.0 deliberately stops calling it. That helper walks
+-- hs.screen.allScreens() and clamps to the FIRST screen the point
+-- overlaps, which threw away the resolved screen on the last line — it is
+-- right for a caller with no resolved screen and wrong for one that has
+-- worked it out. The RULE this check exists for is unchanged and is what
+-- it asserts now: the sheet is never restored somewhere you cannot see.
 CS.pos = { x = 99999, y = 99999 }
 CS.show()
-check("...so an off-screen position is pulled back onto the screen",
-      canvasRect.x < SCR.w and canvasRect.y < SCR.h,
+check("a remembered position that no display can hold is not obeyed — the "
+      .. "sheet is never restored somewhere invisible with no way back",
+      canvasRect.x >= SCR.x and canvasRect.x < SCR.x + SCR.w
+      and canvasRect.y >= SCR.y and canvasRect.y < SCR.y + SCR.h,
       canvasRect.x .. "," .. canvasRect.y)
 CS.pos = nil
 CS.hide()
@@ -2026,6 +2031,122 @@ do
         okSection == true, secErr)
   local ran = (pass + fail) - before
   check("§6.269.0 ran all of its checks (" .. ran .. " of 14+)", ran >= 14, ran)
+end
+
+-- =====================================================================
+print("\n=== 🖥 6.288.0 — IT OPENS ON THE SCREEN IT RESOLVED, NOT THE ONE THE SPOT CAME FROM ===")
+-- =====================================================================
+-- LL: "Appears on a different screen sometimes — and when it does it
+-- seems to not be the frontmost window until I move it." Both halves are
+-- one mechanism. 6.196.0 stores the spot as an OFFSET into the screen it
+-- was dragged on and 6.236.0 resolves the right screen — both correct —
+-- and then the last line handed the answer to _G.clampToScreen, which
+-- clamps to the FIRST screen the point overlaps. An offset saved on the
+-- 4K applied to the Air's origin lands on the 4K, and the clamp keeps it
+-- there. A sheet on the other monitor is also a sheet that is not in
+-- front of him; he drags it back, and it appears.
+do
+  local before = pass + fail
+  local P = CS.placeIn
+  check("cheatSheet.placeIn is PURE and reachable", type(P) == "function")
+
+  local AIR = { x = 0, y = 0, w = 1440, h = 900 }
+  local LG  = { x = 1440, y = 0, w = 3840, h = 2160 }
+
+  local x, y, why = P(AIR, 400, 300, nil)
+  check("nothing remembered → centred on the resolved screen",
+        x == (1440 - 400) / 2 and y == (900 - 300) / 2, x .. "," .. y)
+  check("…and it says so", why:find("centred", 1, true) ~= nil, why)
+
+  x, y, why = P(AIR, 400, 300, { dx = 100, dy = 50 })
+  check("a spot that FITS is honoured exactly", x == 100 and y == 50)
+  check("…and it says so", why:find("where you put it", 1, true) ~= nil, why)
+
+  -- 🚨 THE RELEASE. dx = 2000 is a spot he dragged to on the 4K. On the
+  -- Air, sf.x + 2000 is physically ON the 4K, and the old code's clamp
+  -- kept it there.
+  x, y, why = P(AIR, 400, 300, { dx = 2000, dy = 50 })
+  check("🚨 an offset saved on a BIGGER screen cannot push the sheet onto "
+        .. "another monitor — this is his whole report",
+        x >= AIR.x and x + 400 <= AIR.x + AIR.w, x .. " (+400) vs " .. AIR.w)
+  check("…and it is NUDGED, not centred — he still gets the right-hand "
+        .. "side of the screen he asked for", x == 1440 - 400, x)
+  check("…and the report can tell him why", why:find("nudged", 1, true) ~= nil, why)
+
+  x, y, why = P(AIR, 400, 300, { dx = -500, dy = -500 })
+  check("a negative offset is nudged back too, never off the left edge",
+        x == AIR.x and y == AIR.y, x .. "," .. y)
+
+  -- the same spot on the big screen is simply honoured
+  x, y, why = P(LG, 400, 300, { dx = 2000, dy = 50 })
+  check("…while on the 4K that very offset fits and is obeyed",
+        x == LG.x + 2000 and why:find("where you put it", 1, true) ~= nil,
+        x .. " / " .. why)
+
+  -- legacy absolute positions
+  x, y, why = P(AIR, 400, 300, { x = 120, y = 90 })
+  check("a LEGACY absolute spot on this screen is honoured", x == 120 and y == 90)
+  x, y, why = P(AIR, 400, 300, { x = 3000, y = 90 })
+  check("…and one on a screen you are not on is DROPPED for the centre, "
+        .. "never dragged onto a screen it was never on",
+        x == (1440 - 400) / 2, x)
+  check("…and says which", why:find("screen you", 1, true) ~= nil, why)
+
+  -- a panel bigger than the screen pins to the origin rather than sliding off
+  x, y = P(AIR, 2000, 1200, { dx = 300, dy = 300 })
+  check("a panel bigger than the screen pins to its origin",
+        x == AIR.x and y == AIR.y, x .. "," .. y)
+
+  -- ---- and it is what show() really uses --------------------------------
+  -- 6.264.0: proving a pure decision is not proving anything CALLS it.
+  -- 🧪 6.278.0 — A SECTION THAT READS A PUBLISHED GLOBAL MUST DRIVE THE
+  -- INSTANCE THAT PUBLISHED IT. This suite loads the sheet several times
+  -- and _G.cheatSheetReport belongs to the LAST one; driving CS while
+  -- reading that report measures two objects and calls the disagreement
+  -- a bug.
+  SCR.x, SCR.y, SCR.w, SCR.h = 0, 0, 1440, 900
+  local live = loadSheet()
+  live.pos = { dx = 3000, dy = 20 }
+  live.show()
+  check("🚨 …and show() really asks it: a 4K offset does not put the panel "
+        .. "on the 4K", canvasRect.x + canvasRect.w <= SCR.x + SCR.w,
+        canvasRect.x .. "+" .. canvasRect.w)
+  check("…and the placement is recorded for the report",
+        live.lastPlace ~= nil and tostring(live.lastPlace.why):find("nudged", 1, true),
+        live.lastPlace and live.lastPlace.why)
+  local printed = {}
+  local rp = print
+  print = function(...) local t = {}
+      for i = 1, select("#", ...) do t[#t+1] = tostring((select(i, ...))) end
+      printed[#printed+1] = table.concat(t, " ") end
+  _G.cheatSheetReport()
+  print = rp
+  local rep = table.concat(printed, "\n")
+  check("🔎 the report names where it landed and why — 'it opens on the "
+        .. "wrong monitor sometimes' is a count, not a sample",
+        rep:find("place  :", 1, true) ~= nil, rep)
+  check("…and warns when the saved spot does not fit this screen",
+        rep:find("does not fit", 1, true) ~= nil, rep)
+  live.pos = nil
+  live.hide()
+
+  -- 🚨 SOURCE: clampToScreen must stay out of this file. It is right for
+  -- a caller with no resolved screen and wrong for one that has worked it
+  -- out, and using it here is exactly the defect (comments stripped,
+  -- 6.262.0, because the comment explaining the rule names the call).
+  do
+    local fh = assert(io.open(HS .. "/core/cheatsheet.lua"))
+    local src = fh:read("a"); fh:close()
+    local code = {}
+    for line in (src .. "\n"):gmatch("([^\n]*)\n") do
+      code[#code + 1] = (line:gsub("%-%-.*$", ""))
+    end
+    check("🚨 SOURCE: the sheet never places itself through _G.clampToScreen",
+          table.concat(code, "\n"):find("clampToScreen") == nil)
+  end
+
+  local ran = (pass + fail) - before
+  check("§6.288.0 ran all of its checks (" .. ran .. " of 17+)", ran >= 17, ran)
 end
 
 print(("\n%d passed, %d failed\n"):format(pass, fail))

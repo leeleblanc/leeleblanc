@@ -227,6 +227,64 @@ return function(core)
         return validPos(saved)
     end
 
+    -- 🖥 6.288.0 — A REMEMBERED SPOT IS HONOURED **ON THE SCREEN WE ARE
+    -- OPENING ON**, AND NOWHERE ELSE. LL: "Appears on a different
+    -- screen sometimes — and when it does it seems to not be the
+    -- frontmost window until I move it."
+    --
+    -- 🔎 BOTH HALVES OF THAT SENTENCE ARE ONE MECHANISM, and it is
+    -- readable rather than guessed. 6.196.0 stores the spot as an OFFSET
+    -- into the screen it was dragged on, and 6.236.0 resolves the right
+    -- screen — both correct. Then the old block handed the result to
+    -- `_G.clampToScreen`, which walks hs.screen.allScreens() and clamps
+    -- to the FIRST screen the point overlaps. So an offset saved on the
+    -- LG 4K (dx ≈ 2000) applied to the Air's origin lands physically on
+    -- the LG, and clampToScreen keeps it there — discarding, on the last
+    -- line, the screen every line above it had worked out. A sheet on
+    -- the other monitor is also a sheet that is not in front of him, so
+    -- he drags it back and it appears: his second sentence, from his
+    -- first.
+    --
+    -- 🚨 clampToScreen IS NOT WRONG — it is right for a caller that has
+    -- no resolved screen, which is most of them. It is wrong for one
+    -- that does. A source sentry keeps it out of this file.
+    --
+    -- PURE, and it answers the spot AND WHY, with FOUR states (6.196.1)
+    -- because "where you put it" and "nudged back from a bigger screen"
+    -- are different facts and used to print the same: nothing
+    -- remembered · your spot · nudged onto this screen · the legacy
+    -- absolute spot is on a screen you are not on, so centred.
+    function cheatSheet.placeIn(sf, w, h, pos)
+        local cx = sf.x + (sf.w - w) / 2
+        local cy = sf.y + (sf.h - h) / 2
+        if type(pos) ~= "table" then return cx, cy, "centred — no spot remembered" end
+        local want
+        if pos.dx and pos.dy then
+            want = { x = sf.x + pos.dx, y = sf.y + pos.dy }
+        elseif pos.x and pos.y
+               and pos.x >= sf.x and pos.x < sf.x + sf.w
+               and pos.y >= sf.y and pos.y < sf.y + sf.h then
+            -- LEGACY: an absolute spot from before 6.196.0. Honoured when
+            -- it falls on THIS screen; otherwise dropped for the centre,
+            -- never dragged onto a screen it was never on.
+            want = { x = pos.x, y = pos.y }
+        else
+            return cx, cy, "centred — the spot you saved is on a screen you "
+                           .. "are not on"
+        end
+        -- Clamped into SF and nothing else. A panel wider or taller than
+        -- this screen pins to its origin rather than sliding off it.
+        local maxX = math.max(sf.x, sf.x + sf.w - w)
+        local maxY = math.max(sf.y, sf.y + sf.h - h)
+        local x = math.max(sf.x, math.min(want.x, maxX))
+        local y = math.max(sf.y, math.min(want.y, maxY))
+        if x ~= want.x or y ~= want.y then
+            return x, y, "nudged back onto this screen — the spot you saved "
+                         .. "was on a bigger one"
+        end
+        return x, y, "where you put it"
+    end
+
     -- The way out. A remembered position can be wrong in ways clamping
     -- cannot fix — a monitor arrangement you no longer use, a sheet nudged
     -- half off the top — and "drag it back" is not much help if you cannot
@@ -1558,29 +1616,16 @@ return function(core)
         -- dragged, which on a two-monitor Mac is another display entirely.
         -- Storing the OFFSET WITHIN the screen keeps both promises: the
         -- sheet stays where LL put it, on the monitor he is working on.
-        if cheatSheet.pos then
-            local want
-            if cheatSheet.pos.dx and cheatSheet.pos.dy then
-                want = { x = sf.x + cheatSheet.pos.dx, y = sf.y + cheatSheet.pos.dy }
-            else
-                -- LEGACY: a position stored before this release is absolute
-                -- and knows no screen. If it lands on the screen we are
-                -- opening on it is honoured exactly as before; if it points
-                -- at a different display it is DROPPED in favour of the
-                -- centre here, which is the bug being fixed. It is rewritten
-                -- as an offset the first time the sheet is dragged.
-                local p = cheatSheet.pos
-                if p.x >= sf.x and p.x < sf.x + sf.w
-                   and p.y >= sf.y and p.y < sf.y + sf.h then
-                    want = { x = p.x, y = p.y }
-                end
-            end
-            if want then
-                local p2 = _G.clampToScreen and _G.clampToScreen(want, panelW, panelH)
-                           or want
-                rect.x, rect.y = p2.x, p2.y
-            end
-        end
+        -- 🖥 6.287.1 → 6.288.0 — AND THE LAST LINE OF THAT BLOCK THREW THE
+        -- RESOLVED SCREEN AWAY. See cheatSheet.placeIn below: everything
+        -- here resolved sf correctly and then handed the answer to
+        -- _G.clampToScreen, which picks whichever screen the point happens
+        -- to land on. `placeIn` is PURE and clamps into sf and nothing
+        -- else.
+        local px, py, pwhy = cheatSheet.placeIn(sf, panelW, panelH, cheatSheet.pos)
+        rect.x, rect.y = px, py
+        cheatSheet.lastPlace = { why = pwhy, x = px, y = py,
+                                 screen = { x = sf.x, y = sf.y, w = sf.w, h = sf.h } }
 
         local canvas = hs.canvas.new(rect)
         if not canvas then
@@ -1829,6 +1874,24 @@ return function(core)
         local cards   = _G.moduleCheatsheets or {}
         local faults  = _G.cheatsheetFaults  or {}
         L[#L + 1] = "📋 CHEAT SHEET — ⇪/"
+        -- 🖥 6.288.0 — WHERE IT LANDED, AND WHY. "It opens on the wrong
+        -- monitor sometimes" is a count, not a sample (6.274.0), and until
+        -- now nothing on this Mac could say which rule had placed it.
+        local lp = cheatSheet.lastPlace
+        if not lp then
+            L[#L + 1] = "   place  : the sheet has not been drawn this session"
+        else
+            L[#L + 1] = string.format(
+                "   place  : %.0f,%.0f — %s", lp.x, lp.y, tostring(lp.why))
+            L[#L + 1] = string.format(
+                "   ↳ on a screen at %.0f,%.0f sized %.0f×%.0f"
+                .. "   ·   _G.screenReport() names the rule that chose it",
+                lp.screen.x, lp.screen.y, lp.screen.w, lp.screen.h)
+            if tostring(lp.why):find("nudged") then
+                L[#L + 1] = "   ⚠️ the spot you last dragged it to does not fit"
+                         .. " this screen — `_G.cheatSheetCenter()` forgets it"
+            end
+        end
 
         if #cards == 0 then
             L[#L + 1] = "   cards  : NO module has registered a card yet —"
