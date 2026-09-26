@@ -68,6 +68,7 @@ local M = {
             { "⌫",     "delete the selected note · double-click text re-edits" },
             { "⌘Z",    "undo anything: blur, add, move, edit, delete" },
             { "⌘⏎",   "save “… (edited).png” + clipboard · ⌘⇧⏎ small JPEG" },
+            { "text",  "T then click: type · ⏎ drops a line · ⇧⏎ done · drag the corner to RE-WRAP, ⇧drag to change the letter size (6.287.0)" },
             { "esc",   "close without saving — the original is never touched, and the blurs, text and arrows are kept: reopen the SAME shot and they are back" },
             { "",      "6.286.0: EVERY way out keeps them now — esc, Cancel, and ⇪⇧1 on another shot" },
         },
@@ -285,7 +286,8 @@ function M.setup(core)
         cursor:crosshair; }
   #tin { position:absolute; display:none; z-index:5; min-width:120px;
          background:rgba(20,20,26,.92); color:#fff; border:2px solid #fff;
-         border-radius:4px; font-size:15px; padding:4px 8px; outline:none; }
+         border-radius:4px; font-size:15px; padding:4px 8px; outline:none;
+         resize:none; font-family:inherit; line-height:1.25; min-width:160px; }
   /* fixed, not absolute: the drag math works in viewport coordinates
      (getBoundingClientRect), and position:fixed is the box that lives
      in exactly that coordinate space */
@@ -317,7 +319,8 @@ function M.setup(core)
     <div id="wrap">
       <canvas id="cv"></canvas>
       <canvas id="ov"></canvas>
-      <input id="tin" spellcheck="false" autocorrect="off" placeholder="type, then ⏎">
+      <textarea id="tin" rows="1" spellcheck="false" autocorrect="off"
+                autocapitalize="off" placeholder="type · ⏎ new line · ⇧⏎ done"></textarea>
     </div>
     <div id="band"></div>
   </div>
@@ -521,6 +524,80 @@ function M.setup(core)
       if (notes[i].kind === 'count' && notes[i].n > m) m = notes[i].n;
     return m + 1;   // one past the HIGHEST, so a deleted ② never comes back as a second ③
   }
+  // ✏️ 6.287.0 — A TEXT NOTE IS A BOX, NOT A LINE. LL, four asks in one
+  // breath: it must WRAP; the font size must change independently of the
+  // box and the box independently of the font; RETURN must drop a line
+  // instead of resizing; and dragging the box SMALLER must re-wrap the
+  // text rather than grow it ("so I may need to hold shift down or some
+  // other solution"). They are one defect seen from four sides — 6.188.0
+  // built the corner handle as a glyph SCALE, so the only thing a text
+  // note had was a font size.
+  //
+  // 🔑 THE NOTE GAINS ONE FIELD, `w`: the width it wraps at, in canvas
+  // pixels. A note WITHOUT it (every note in an older kept session, and
+  // every note in an older build's saved state) lays out exactly as
+  // before — one line, its own measured width — so nothing that exists
+  // changes shape. snapNote already carries every numeric field, so ⌘Z
+  // undoes a re-wrap through the same generic 'set' op as a move.
+  //
+  // PURE given a measurer: hard \n breaks are ALWAYS honoured (his
+  // Return), words wrap at the width, and a single word longer than the
+  // width is broken by character rather than allowed to run out of the
+  // box — a URL in a narrow box is the case that makes the difference
+  // visible.
+  function measureW(g, str, n){
+    if (g && g.measureText){
+      setFont(g, n);
+      var m = g.measureText(str);
+      if (m && typeof m.width === 'number') return m.width;
+    }
+    return (str || '').length * n.size * 0.6;   // no measurer: estimate
+  }
+  function wrapLines(g, n){
+    var text = (n.text === null || n.text === undefined) ? '' : String(n.text);
+    var hard = text.split('\n'), out = [], maxW = n.w;
+    if (!(typeof maxW === 'number' && maxW > 0)){
+      // No width stored: this is a pre-6.287.0 note. One line per hard
+      // break, no wrapping — identical to what it drew before.
+      for (var h = 0; h < hard.length; h++) out.push(hard[h]);
+      return out;
+    }
+    for (var i = 0; i < hard.length; i++){
+      var words = hard[i].split(' '), line = '';
+      for (var j = 0; j < words.length; j++){
+        var word = words[j];
+        var tryLine = line === '' ? word : (line + ' ' + word);
+        if (line !== '' && measureW(g, tryLine, n) > maxW){
+          out.push(line); line = word;
+        } else {
+          line = tryLine;
+        }
+        // A single word wider than the box is broken by character; left
+        // whole it would run past the box it is supposed to be inside.
+        while (measureW(g, line, n) > maxW && line.length > 1){
+          var cut = line.length - 1;
+          while (cut > 1 && measureW(g, line.slice(0, cut), n) > maxW) cut--;
+          out.push(line.slice(0, cut));
+          line = line.slice(cut);
+        }
+      }
+      out.push(line);
+    }
+    return out;
+  }
+  function lineH(n){ return Math.round(n.size * 1.25); }
+  // The width a note is LAID OUT at: its own if it has one, else what its
+  // longest line measures. One function, so the box, the draw and the
+  // corner handle cannot disagree about where the right edge is.
+  function textW(g, n){
+    if (typeof n.w === 'number' && n.w > 0) return n.w;
+    var lines = wrapLines(g, n), w = 0;
+    for (var i = 0; i < lines.length; i++){
+      var lw = measureW(g, lines[i] || ' ', n);
+      if (lw > w) w = lw;
+    }
+    return Math.max(1, w);
+  }
   function noteBox(n){
     if (n.kind === 'arrow' || n.kind === 'line'){
       return { x: Math.min(n.x1, n.x2), y: Math.min(n.y1, n.y2),
@@ -533,14 +610,12 @@ function M.setup(core)
       var cr = countR();
       return { x: n.x - cr, y: n.y - cr, w: cr * 2, h: cr * 2 };
     }
-    var g = octx || ctx, w = (n.text || ' ').length * n.size * 0.6;
-    if (g && g.measureText){
-      setFont(g, n);
-      var m = g.measureText(n.text || ' ');
-      if (m && m.width) w = m.width;
-    }
+    var g = octx || ctx;
+    var w = textW(g, n);
+    var rows = Math.max(1, wrapLines(g, n).length);
     var pad = Math.round(n.size * 0.5);
-    return { x: n.x - pad, y: n.y - n.size - pad, w: w + pad * 2, h: n.size + pad * 2 };
+    var h = n.size + (rows - 1) * lineH(n);
+    return { x: n.x - pad, y: n.y - n.size - pad, w: w + pad * 2, h: h + pad * 2 };
   }
   // LL's spec, verbatim: "white text and white outline". A soft dark
   // shadow under both keeps white readable on a white screenshot.
@@ -701,10 +776,16 @@ function M.setup(core)
     } else {
       setFont(g, n);
       g.textBaseline = 'alphabetic';
+      g.textAlign = 'left';
       var b = noteBox(n);
       g.lineWidth = Math.max(2, Math.round(n.size / 8));
       g.strokeRect(b.x, b.y, b.w, b.h);
-      g.fillText(n.text || '', n.x, n.y);
+      // 6.287.0 — every line, at the note's own line height. n.x/n.y stay
+      // the FIRST line's baseline, so a note that gains a second line
+      // grows downward and never moves off the thing it points at.
+      var tl = wrapLines(g, n);
+      for (var li = 0; li < tl.length; li++)
+        g.fillText(tl[li] || '', n.x, n.y + li * lineH(n));
     }
     if (isSel){
       var bb = noteBox(n);
@@ -810,12 +891,25 @@ function M.setup(core)
     tin.style.top  = Math.round(at.y * (r.height / cv.height)) + 'px';
     tin.value = note ? (note.text || '') : '';
     tin.style.display = 'block';
+    // 6.287.0 — the box he types in is the size of the box he will get:
+    // as many rows as the text has lines, and as wide as the note wraps.
+    var rows = (tin.value.split('\n').length) || 1;
+    tin.rows = Math.max(1, Math.min(12, rows));
+    if (note && typeof note.w === 'number' && note.w > 0 && cv && cv.width){
+      tin.style.width = Math.round(note.w * (r.width / cv.width)) + 'px';
+    } else {
+      tin.style.width = '';
+    }
     if (tin.focus) tin.focus();
   }
   function commitText(){
     if (!textOpen()) return;
     tin.style.display = 'none';
-    var v = (tin.value || '').replace(/^\s+|\s+$/g, '');
+    // 6.287.0 — trim the ENDS only. A \n in the middle is his Return and
+    // must survive; /^\s+|\s+$/ ate leading and trailing whitespace and
+    // left the interior alone already, which is what we want, but \s
+    // includes \n so a trailing blank line goes and an interior one stays.
+    var v = (tin.value || '').replace(/^[ \t\n]+|[ \t\n]+$/g, '');
     if (editingNote){
       if (v === ''){
         var i = notes.indexOf(editingNote);
@@ -826,7 +920,13 @@ function M.setup(core)
         editingNote.text = v;
       }
     } else if (v !== '' && pendingPt){
-      var n = { kind: 'text', x: pendingPt.x, y: pendingPt.y, text: v, size: tsize() };
+      // 6.287.0 — a NEW note is born with a width, so the corner handle
+      // has something to shrink and the wrap rule is live from the first
+      // character. An OLD note has none and keeps its one-line behaviour.
+      var ns = tsize();
+      var nn = { kind: 'text', x: pendingPt.x, y: pendingPt.y, text: v, size: ns };
+      nn.w = Math.max(ns, Math.round(textW(octx || ctx, nn)));
+      var n = nn;
       notes.push(n); sel = n;
       pushUndo({ op: 'add', note: n });
     }
@@ -996,12 +1096,28 @@ function M.setup(core)
           // top-left stays put
           n.w = Math.max(4, Math.round(drag.before.w + (p.x - drag.sx)));
           n.h = Math.max(4, Math.round(drag.before.h + (p.y - drag.sy)));
+        } else if (n.kind === 'text'){
+          // ✏️ 6.287.0 — HIS OWN SUGGESTION, AND IT IS THE RIGHT SHAPE:
+          // "I want the text to wrap as I make the text box smaller
+          // instead of growing in size so I may need to hold shift down".
+          // PLAIN drag moves the right edge and the words re-wrap to it;
+          // ⇧drag is 6.188.0's glyph scale, unchanged. Two jobs on one
+          // handle, and the modifier is what says which (6.248.0: two jobs
+          // asked of one number cannot both be right).
+          if (e.shiftKey){
+            var d2 = ((p.x - drag.sx) + (p.y - drag.sy)) / 2;
+            n.size = Math.max(10, Math.min(600, Math.round(drag.before.size + d2)));
+          } else {
+            var base = (typeof drag.before.w === 'number' && drag.before.w > 0)
+                       ? drag.before.w : textW(octx || ctx, n);
+            n.w = Math.max(n.size, Math.round(base + (p.x - drag.sx)));
+          }
         } else {
           // 6.188.0 — drag the corner away from the note to grow it. The
           // anchor (n.x, n.y) does not move, so the text grows where it is
           // rather than wandering off under the pointer.
-          var d2 = ((p.x - drag.sx) + (p.y - drag.sy)) / 2;
-          n.size = Math.max(10, Math.min(600, Math.round(drag.before.size + d2)));
+          var d2b = ((p.x - drag.sx) + (p.y - drag.sy)) / 2;
+          n.size = Math.max(10, Math.min(600, Math.round(drag.before.size + d2b)));
         }
       } else {   // 'end' — one endpoint follows the mouse: stretch + rotate
         if (drag.part === 'p1'){ n.x1 = p.x; n.y1 = p.y; }
@@ -1055,7 +1171,12 @@ function M.setup(core)
 
     if (tin && tin.addEventListener) tin.addEventListener('keydown', function(e){
       if (e.stopPropagation) e.stopPropagation();
-      if (e.key === 'Enter'){ e.preventDefault(); commitText(); }
+      // ⏎ 6.287.0 — LL: "I need to be able to use the return key in the
+      // text box if I want to drop down a line." So ⏎ is a NEWLINE and
+      // ⇧⏎ is done; clicking away still commits, as it always has. The
+      // placeholder says both, because a key that used to finish and now
+      // does not is the kind of change that reads as a bug.
+      if (e.key === 'Enter' && e.shiftKey){ e.preventDefault(); commitText(); }
       else if (e.key === 'Escape'){ e.preventDefault(); cancelText(); }
     });
 

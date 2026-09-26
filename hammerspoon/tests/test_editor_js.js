@@ -254,7 +254,10 @@ console.log("── Screenshot Editor: page JavaScript, executed ──");
   check("clicking an empty spot opens the floating input",
         env.tin.style.display === "block");
   env.tin.value = "Hello";
-  env.listeners.tin.keydown(key({ key: "Enter" }));
+  // 🚨 6.248.0 — these committed with a PLAIN ⏎ until 6.287.0, when ⏎
+  // became a new line inside the box (his ask) and ⇧⏎ became "done".
+  // The rule each of them exists for is unchanged; the key is not.
+  env.listeners.tin.keydown(key({ key: "Enter", shiftKey: true }));
   check("⏎ commits a text note with the typed words",
         env.call("notes.length") === 1 && env.call("notes[0].kind") === "text"
         && env.call("notes[0].text") === "Hello");
@@ -280,7 +283,7 @@ console.log("── Screenshot Editor: page JavaScript, executed ──");
   check("double-click re-opens the words, pre-filled",
         env.tin.style.display === "block" && env.tin.value === "Hello");
   env.tin.value = "Renamed";
-  env.listeners.tin.keydown(key({ key: "Enter" }));
+  env.listeners.tin.keydown(key({ key: "Enter", shiftKey: true }));
   check("…and ⏎ applies the edit", env.call("notes[0].text") === "Renamed");
   env.listeners.window.keydown(key({ metaKey: true, key: "z" }));
   check("…undoably", env.call("notes[0].text") === "Hello");
@@ -306,7 +309,7 @@ console.log("── Screenshot Editor: page JavaScript, executed ──");
   env.call("setTool('text')");
   env.listeners.ov.mousedown(mouse(10, 20));
   env.tin.value = "Hello";
-  env.listeners.tin.keydown(key({ key: "Enter" }));
+  env.listeners.tin.keydown(key({ key: "Enter", shiftKey: true }));
   check("(fixture) one text note, input closed",
         env.call("notes.length") === 1 && env.tin.style.display === "none");
 
@@ -319,7 +322,7 @@ console.log("── Screenshot Editor: page JavaScript, executed ──");
         && env.call("notes.length") === 1,
         env.tin.style.display + " / " + env.tin.value + " / " + env.call("notes.length"));
   env.tin.value = "Edited";
-  env.listeners.tin.keydown(key({ key: "Enter" }));
+  env.listeners.tin.keydown(key({ key: "Enter", shiftKey: true }));
   check("…and ⏎ applies the edit to THAT note", env.call("notes[0].text") === "Edited"
         && env.call("notes.length") === 1, env.call("JSON.stringify(notes)"));
 
@@ -438,7 +441,7 @@ console.log("── Screenshot Editor: page JavaScript, executed ──");
   env.call("setTool('text')");
   env.listeners.ov.mousedown(mouse(10, 20));
   env.tin.value = "Note";
-  env.listeners.tin.keydown(key({ key: "Enter" }));
+  env.listeners.tin.keydown(key({ key: "Enter", shiftKey: true }));
 
   const beforeSave = env.store.slice();
   env.cvCalls.length = 0;
@@ -641,7 +644,7 @@ console.log("── Screenshot Editor: page JavaScript, executed ──");
   env.listeners.ov.mousedown(mouse(30, 250));
   env.tin.value = "Over";
   env.ovCalls.length = 0;
-  env.listeners.tin.keydown(key({ key: "Enter" }));
+  env.listeners.tin.keydown(key({ key: "Enter", shiftKey: true }));
   check("🚨 the veil goes UNDER the marks: its fill comes before the text's fillText",
         idx(env.ovCalls, (c) => c[0] === "fill" && c[2] === "evenodd") >= 0
         && idx(env.ovCalls, (c) => c[0] === "fill" && c[2] === "evenodd") < idx(env.ovCalls, (c) => c[0] === "fillText" && c[1] === "Over"),
@@ -799,23 +802,71 @@ console.log("── Screenshot Editor: page JavaScript, executed ──");
           inside && inside.part === "move", JSON.stringify(inside));
   }
   {
-    // drag the corner: the text grows, the anchor does not move, ⌘Z undoes it
+    // 🚨 6.248.0 — THIS ASSERTED "the corner makes the text BIGGER", which
+    // is 6.188.0's decision and the one 6.287.0 deliberately reverses:
+    // plain drag now moves the box's right edge and the words re-wrap to
+    // it, and ⇧drag is the glyph scale. Both halves are asserted here,
+    // because a check on only one of them passes with the modifier
+    // ignored — which is the arrangement that would give him back the
+    // bug he reported (6.248.0: two jobs on one control, and the
+    // modifier is what says which).
     const env = load(SHOWN);
     const b = mk(env);
     // a synthesised event carries SCREEN coordinates; toCanvas scales them
     // back up, so an image point must be divided by the scale on the way in
     const S = (v) => v / 4;
-    env.listeners.ov.mousedown(mouse(S(b.x + b.w), S(b.y + b.h)));
-    env.listeners.window.mousemove(mouse(S(b.x + b.w) + 10, S(b.y + b.h) + 10));
-    env.listeners.window.mouseup(mouse(S(b.x + b.w) + 10, S(b.y + b.h) + 10));
-    check("dragging the corner makes the text BIGGER",
+    const shiftMouse = (x, y) => Object.assign(mouse(x, y), { shiftKey: true });
+    const w0 = env.call("notes[0].w");
+    env.listeners.ov.mousedown(shiftMouse(S(b.x + b.w), S(b.y + b.h)));
+    env.listeners.window.mousemove(shiftMouse(S(b.x + b.w) + 10, S(b.y + b.h) + 10));
+    env.listeners.window.mouseup(shiftMouse(S(b.x + b.w) + 10, S(b.y + b.h) + 10));
+    check("⇧drag on the corner makes the text BIGGER (6.188.0's rule, now "
+          + "behind the modifier)",
           env.call("notes[0].size") > 12, env.call("notes[0].size"));
+    check("…and it leaves the box WIDTH alone", env.call("notes[0].w") === w0,
+          env.call("notes[0].w") + " was " + w0);
     check("…and the note stays where it was put",
           env.call("notes[0].x") === 20 && env.call("notes[0].y") === 20,
           env.call("notes[0].x") + "," + env.call("notes[0].y"));
     env.call("undoLast()");
     check("…and ⌘Z puts the size back — a resize is undoable like a move",
           env.call("notes[0].size") === 12, env.call("notes[0].size"));
+
+    // ✏️ AND THE PLAIN DRAG, which is what he asked for: the words re-wrap
+    // to the new width and the letters do not change size. The fixture
+    // note is a PRE-6.287.0 one with no width at all, so give it one
+    // first — the legacy case gets its own check below.
+    env.call("notes[0].w = 60; notes[0].text = 'one two three four';");
+    const b2 = env.call("noteBox(notes[0])");
+    const size0 = env.call("notes[0].size");
+    env.listeners.ov.mousedown(mouse(S(b2.x + b2.w), S(b2.y + b2.h)));
+    env.listeners.window.mousemove(mouse(S(b2.x + b2.w) - 5, S(b2.y + b2.h)));
+    env.listeners.window.mouseup(mouse(S(b2.x + b2.w) - 5, S(b2.y + b2.h)));
+    check("✏️ a PLAIN corner drag narrows the BOX…",
+          env.call("notes[0].w") < 60, env.call("notes[0].w") + " was 60");
+    check("…and does NOT touch the letter size — which is his whole ask",
+          env.call("notes[0].size") === size0,
+          env.call("notes[0].size") + " was " + size0);
+    check("…and the words RE-WRAP to it rather than running out of the box",
+          env.call("wrapLines(octx || ctx, notes[0]).length") > 1,
+          env.call("JSON.stringify(wrapLines(octx || ctx, notes[0]))"));
+    env.call("undoLast()");
+    check("…and ⌘Z puts the WIDTH back too, through the same generic op",
+          env.call("notes[0].w") === 60, env.call("notes[0].w"));
+
+    // 🕰 A NOTE FROM AN OLDER BUILD HAS NO WIDTH, and must not be broken
+    // by the new rule: it lays out exactly as it always did, and the
+    // first plain drag is what turns it into a box.
+    env.call("notes.length = 0; notes.push({kind:'text', text:'Hi there you', x:20, y:20, size:12}); sel=null;");
+    check("🕰 a pre-6.287.0 note (no width) is still ONE line",
+          env.call("wrapLines(octx || ctx, notes[0]).length") === 1);
+    const b3 = env.call("noteBox(notes[0])");
+    env.listeners.ov.mousedown(mouse(S(b3.x + b3.w), S(b3.y + b3.h)));
+    env.listeners.window.mousemove(mouse(S(b3.x + b3.w) - 3, S(b3.y + b3.h)));
+    env.listeners.window.mouseup(mouse(S(b3.x + b3.w) - 3, S(b3.y + b3.h)));
+    check("🕰 …and one plain drag gives it a width, so it becomes a box",
+          typeof env.call("notes[0].w") === "number" && env.call("notes[0].w") > 0,
+          env.call("notes[0].w"));
   }
   {
     // shrinking, and the floor: a note can never be dragged out of existence
@@ -917,7 +968,7 @@ const cmdMouse = (x, y) => Object.assign(mouse(x, y), { metaKey: true });
   env.call("setTool('text')");
   env.listeners.ov.mousedown(mouse(60, 60));
   env.tin.value = "Hello";
-  env.listeners.tin.keydown(key({ key: "Enter" }));
+  env.listeners.tin.keydown(key({ key: "Enter", shiftKey: true }));
   env.call("setTool('arrow')");
   check("(fixture) one text note, and the ARROW tool is armed",
         env.call("notes.length") === 1 && env.call("tool") === "arrow");
@@ -931,7 +982,7 @@ const cmdMouse = (x, y) => Object.assign(mouse(x, y), { metaKey: true });
         && env.call("notes.length") === 1,
         env.tin.style.display + " / " + env.tin.value + " / " + env.call("notes.length"));
   env.tin.value = "Edited";
-  env.listeners.tin.keydown(key({ key: "Enter" }));
+  env.listeners.tin.keydown(key({ key: "Enter", shiftKey: true }));
   check("…and the edit lands on THAT note, no new one",
         env.call("notes[0].text") === "Edited" && env.call("notes.length") === 1);
 
@@ -1118,6 +1169,132 @@ const free = (x, y) => Object.assign(mouse(x, y), { buttons: 0 });
   check("a growTo with no source does nothing",
         env.call("growTo('', 80, 80, 0, 0, '#202127')") === false);
 }
+
+// =====================================================================
+// ✏️ 6.287.0 — A TEXT NOTE IS A BOX, NOT A LINE
+// =====================================================================
+// LL, four asks in one breath: it must WRAP; the font size must change
+// independently of the box and the box independently of the font; RETURN
+// must drop a line instead of resizing; and dragging the box SMALLER must
+// re-wrap rather than grow the letters. One defect from four sides —
+// 6.188.0 built the corner handle as a glyph SCALE, so the only thing a
+// text note had was a font size.
+//
+// The harness measures 8 px per character at any size, which makes every
+// wrap below arithmetic rather than a guess.
+{
+  const env = load();
+  const W8 = (n) => n * 8;   // what the harness says n characters measure
+
+  // ---- the wrap rule --------------------------------------------------
+  const lines = (text, w, size) =>
+    env.call(`JSON.stringify(wrapLines(octx || ctx, {kind:'text', text:${JSON.stringify(text)}, x:0, y:0, size:${size || 12}, w:${w === null ? "null" : w}}))`);
+
+  check("no width stored → ONE line, exactly as before 6.287.0",
+        lines("one two three four", null) === '["one two three four"]',
+        lines("one two three four", null));
+  check("a width wraps at it", JSON.parse(lines("aaa bbb ccc", W8(7))).length === 2,
+        lines("aaa bbb ccc", W8(7)));
+  check("…and the break is between WORDS, never mid-word when it fits",
+        JSON.parse(lines("aaa bbb ccc", W8(7)))[0] === "aaa bbb",
+        lines("aaa bbb ccc", W8(7)));
+  check("a width that fits everything leaves one line",
+        JSON.parse(lines("aaa bbb", W8(40))).length === 1);
+
+  // 🚨 HIS RETURN KEY. A hard \n is ALWAYS honoured, whatever the width —
+  // that is the difference between "the box decides" and "he decides".
+  check("🚨 a \\n is a hard break and is honoured even with no width",
+        JSON.parse(lines("one\ntwo", null)).length === 2, lines("one\ntwo", null));
+  check("…and with a width wide enough to hold both",
+        JSON.parse(lines("one\ntwo", W8(40))).length === 2);
+  check("…and a \\n inside a wrapping paragraph keeps BOTH kinds of break",
+        JSON.parse(lines("aaa bbb\nccc ddd", W8(4))).length === 4,
+        lines("aaa bbb\nccc ddd", W8(4)));
+  check("an empty line between two paragraphs survives",
+        JSON.parse(lines("a\n\nb", null)).length === 3, lines("a\n\nb", null));
+
+  // 🚨 A WORD WIDER THAN THE BOX. Left whole it runs straight out of the
+  // rectangle it is supposed to be inside — a URL in a narrow box is the
+  // case that makes the difference visible.
+  const broken = JSON.parse(lines("abcdefghij", W8(4)));
+  check("🚨 a single word wider than the box is broken by character",
+        broken.length > 1, JSON.stringify(broken));
+  check("…and nothing is lost in the breaking", broken.join("") === "abcdefghij",
+        broken.join(""));
+  check("…and no fragment is wider than the box",
+        broken.every((l) => l.length <= 4), JSON.stringify(broken));
+  check("a one-character box does not hang or lose the text",
+        JSON.parse(lines("abc", 1)).join("") === "abc", lines("abc", 1));
+  check("empty text is one empty line, never zero", lines("", W8(10)) === '[""]');
+
+  // ---- the box follows the lines --------------------------------------
+  env.call("notes.length = 0; notes.push({kind:'text', text:'aaa bbb ccc', x:20, y:20, size:12, w:" + W8(7) + "}); sel=null;");
+  const box2 = env.call("noteBox(notes[0])");
+  env.call("notes[0].w = " + W8(40));
+  const box1 = env.call("noteBox(notes[0])");
+  check("a two-line note is TALLER than the same note on one line",
+        box2.h > box1.h, box2.h + " vs " + box1.h);
+  check("…and narrower", box2.w < box1.w, box2.w + " vs " + box1.w);
+  check("🚨 the note's ANCHOR does not move when it gains a line — it grows "
+        + "downward, so it never walks off the thing it points at",
+        box2.y === box1.y, box2.y + " vs " + box1.y);
+
+  // ---- and it DRAWS every line ----------------------------------------
+  env.call("notes[0].w = " + W8(7) + "; redraw();");
+  const texts = env.ovCalls.filter((c) => c[0] === "fillText").map((c) => c[1]);
+  check("both lines are actually drawn, not just measured",
+        texts.indexOf("aaa bbb") >= 0 && texts.indexOf("ccc") >= 0,
+        JSON.stringify(texts));
+  const ys = env.ovCalls.filter((c) => c[0] === "fillText").map((c) => c[3]);
+  check("…on different baselines, one line height apart",
+        ys.length >= 2 && ys[1] > ys[0], JSON.stringify(ys));
+}
+
+// ---- the input is a real text box now ---------------------------------
+{
+  const env = load();
+  env.call("setTool('text')");
+  env.listeners.ov.mousedown(mouse(10, 20));
+  check("the input opens", env.tin.style.display === "block");
+  env.tin.value = "first";
+  // 🚨 HIS ASK: ⏎ must NOT finish the box.
+  env.listeners.tin.keydown(key({ key: "Enter" }));
+  check("🚨 a plain ⏎ does NOT commit — it is a new line now",
+        env.tin.style.display === "block" && env.call("notes.length") === 0,
+        env.tin.style.display + " / " + env.call("notes.length"));
+  env.tin.value = "first\nsecond";
+  env.listeners.tin.keydown(key({ key: "Enter", shiftKey: true }));
+  check("⇧⏎ finishes it", env.tin.style.display === "none"
+        && env.call("notes.length") === 1);
+  check("…and the newline SURVIVES into the note",
+        env.call("notes[0].text") === "first\nsecond", env.call("notes[0].text"));
+  check("…so it draws as two lines",
+        env.call("wrapLines(octx || ctx, notes[0]).length") === 2);
+  check("🔑 a NEW note is born with a width, so the corner handle has "
+        + "something to shrink from the first character",
+        typeof env.call("notes[0].w") === "number" && env.call("notes[0].w") > 0,
+        env.call("notes[0].w"));
+  // trailing blank lines go; interior ones stay
+  env.listeners.ov.dblclick(mouse(11, 18));
+  env.tin.value = "a\n\nb\n\n";
+  env.listeners.tin.keydown(key({ key: "Enter", shiftKey: true }));
+  check("trailing blank lines are trimmed, interior ones are his and stay",
+        env.call("notes[0].text") === "a\n\nb", JSON.stringify(env.call("notes[0].text")));
+  // and Escape still abandons the box without touching the note
+  env.listeners.ov.dblclick(mouse(11, 18));
+  env.tin.value = "throw this away";
+  env.listeners.tin.keydown(key({ key: "Escape" }));
+  check("Esc still abandons the box and leaves the note alone",
+        env.call("notes[0].text") === "a\n\nb" && env.tin.style.display === "none");
+}
+
+// ---- the page SAYS how to finish --------------------------------------
+check("✏️ the placeholder teaches both keys, because a key that used to "
+      + "finish and now does not reads as a bug",
+      /placeholder="[^"]*⏎[^"]*⇧⏎[^"]*"/.test(html), 
+      (html.match(/placeholder="[^"]*"/) || [])[0]);
+check("✏️ …and the box he types in is a TEXTAREA, or ⏎ could never make a "
+      + "line at all", /<textarea id="tin"/.test(html));
 
 console.log(`\n${pass} passed, ${fail} failed`);
 for (const f of failures) console.log("    ❌ " + f);
