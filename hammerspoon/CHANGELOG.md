@@ -6,6 +6,82 @@ older lives only here.
 
 ```text
 
+NEW IN 6.288.0 — 🖥 THE CHEAT SHEET OPENS ON THE SCREEN IT RESOLVED, NOT
+THE ONE THE SPOT CAME FROM (core/cheatsheet.lua, tests/test_cheatsheet.lua):
+
+  LL, two sentences that turn out to be one mechanism:
+
+      "Cheat sheet
+       1. Appears on a different screenshot sometimes
+       2. and when it does it seems to not be the frontmost window
+          until I move it."
+
+  🔎 READABLE IN THE SOURCE, not guessed — which matters, because this
+  is the third time this config has answered a wrong-monitor report and
+  6.198.0's rule is that a correct fix for a plausible mechanism is not
+  evidence. Two earlier releases got their halves right: 6.196.0 stores
+  the remembered spot as an OFFSET into the screen it was dragged on,
+  and 6.236.0 resolves the screen the person is actually looking at.
+  Everything in show() up to the last line of the placement block does
+  exactly that.
+
+  🚨 AND THEN THE LAST LINE GAVE IT AWAY. The block ended with
+  `_G.clampToScreen(want, panelW, panelH)`, and that helper walks
+  hs.screen.allScreens() and clamps to the FIRST screen the point
+  happens to overlap. So a spot dragged to the right-hand side of the
+  LG 4K (dx ≈ 2000), applied to the Air's origin, lands physically on
+  the LG — and the clamp, asked to keep it on a screen, keeps it on
+  THAT one. The resolved screen every line above had worked out was
+  discarded in the last four lines of the block.
+
+  🖥 WHICH IS ALSO HIS SECOND SENTENCE. A sheet on the other monitor is
+  a sheet that is not in front of him; he ⌘-drags it back, the drag
+  stores a small offset, and it appears. "Not the frontmost window
+  until I move it" is the same event described from the other side, and
+  reading them as two bugs would have sent this release looking for a
+  window-level problem that is not there.
+
+  🔑 `cheatSheet.placeIn(sf, w, h, pos)` is PURE and clamps into the
+  RESOLVED screen and nothing else. FOUR answers, each with its reason
+  (6.196.1), because "where you put it" and "nudged back from a bigger
+  screen" used to print identically and are opposite facts:
+    · centred — nothing remembered
+    · where you put it — the offset fits this screen
+    · nudged back onto this screen — it does not, so he still gets the
+      edge he asked for, on the monitor he is on
+    · centred — a LEGACY absolute spot that belongs to a screen he is
+      not on is DROPPED, never dragged onto a screen it was never on
+      (6.196.0's rule, kept)
+
+  🚨 `_G.clampToScreen` IS NOT WRONG. It is right for a caller that has
+  no resolved screen, which is most of them; it is wrong for one that
+  does. A source sentry keeps it out of this file, comments stripped
+  (6.262.0), because the comment explaining the rule names the call.
+  GENERAL: a helper that picks a screen for you must not be handed a
+  point by code that has already picked one.
+
+  🔎 `_G.cheatSheetReport()` names where the sheet landed, on what
+  screen, and which of the four rules put it there — with a ⚠️ and the
+  way out (`_G.cheatSheetCenter()`) when the saved spot does not fit.
+  "Sometimes" is a count, not a sample (6.274.0), and until now nothing
+  on his Mac could say which rule had placed it.
+
+  🧪 A CHECK ASSERTED THAT clampToScreen WAS CALLED (6.248.0) — the
+  rule it exists for is "never restored somewhere you cannot see", and
+  that is what it asserts now. 🧪 And the new section had to drive the
+  instance that PUBLISHED the report: this suite loads the sheet several
+  times and _G.cheatSheetReport belongs to the last one, so driving a
+  different copy measures two objects and calls the disagreement a bug
+  (6.278.0).
+
+  🗑 A second `math.max(sf.x, …)` on the upper bound was written and
+  taken out again: with a panel wider than the screen the upper bound
+  goes negative and the lower clamp already pins it to the origin, so no
+  mutation could fail it (6.199.0, fifth time). The behaviour is still
+  asserted, on the path that really runs.
+
+  Eight mutations, eight bites.
+
 NEW IN 6.287.0 — ✏️ A TEXT NOTE IS A BOX, NOT A LINE
 (modules/screenshot_editor.lua, tests/test_editor_js.js):
 

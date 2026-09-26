@@ -4,46 +4,46 @@
 -- =====================================================================
 -- 09-26-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.287.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.288.0
 -- =====================================================================
+
+-- NEW IN 6.288.0 — 🖥 THE CHEAT SHEET OPENS ON THE SCREEN IT RESOLVED,
+--   NOT THE ONE THE SPOT CAME FROM (core/cheatsheet.lua):
+--   LL: "Appears on a different screen sometimes — and when it does it
+--   seems to not be the frontmost window until I move it."
+--   🔎 BOTH HALVES ARE ONE MECHANISM, and it is readable. 6.196.0 stores
+--   the spot as an OFFSET into the screen it was dragged on; 6.236.0
+--   resolves the right screen. Both correct — and then the last line
+--   handed the answer to `_G.clampToScreen`, which walks allScreens() and
+--   clamps to the FIRST screen the point overlaps. An offset saved on the
+--   4K (dx ≈ 2000) applied to the Air's origin lands on the 4K, and the
+--   clamp keeps it there. A sheet on the other monitor is also a sheet
+--   that is not in front of him; he drags it back and it appears.
+--   🔑 `cheatSheet.placeIn` is PURE and clamps into the RESOLVED screen
+--   and nothing else, with FOUR states: centred · where you put it ·
+--   nudged back from a bigger screen · the legacy spot is on a screen you
+--   are not on. A source sentry keeps clampToScreen out of this file —
+--   it is right for a caller with no resolved screen and wrong for one
+--   that has worked it out. `_G.cheatSheetReport()` names where it landed.
 
 -- NEW IN 6.287.0 — ✏️ A TEXT NOTE IS A BOX, NOT A LINE
 --   (modules/screenshot_editor.lua):
---   LL, four asks in one breath: it must WRAP; the font size must change
---   independently of the box and the box independently of the font;
---   RETURN must drop a line instead of resizing; and dragging the box
---   SMALLER must re-wrap rather than grow the letters.
---   🔎 ONE DEFECT FROM FOUR SIDES: 6.188.0 built the corner handle as a
---   glyph SCALE, so the only thing a text note had was a font size.
---   🔑 THE NOTE GAINS ONE FIELD, `w` — the width it wraps at. A note
---   WITHOUT it (every note in an older kept session) lays out exactly as
---   before, one line. snapNote already carries every numeric field, so
---   ⌘Z undoes a re-wrap through the same generic op as a move.
---   ✏️ HIS OWN SUGGESTION IS THE RIGHT SHAPE: PLAIN corner drag moves
---   the right edge and the words re-wrap; ⇧drag is 6.188.0's scale.
---   ⏎ is a NEW LINE and ⇧⏎ is done — a <textarea>, and the placeholder
---   says both, because a key that used to finish and now does not reads
---   as a bug. A word wider than the box is broken by character.
+--   LL, four asks in one breath: WRAP · font size independent of the box
+--   · RETURN drops a line · dragging the box smaller re-wraps instead of
+--   growing the letters. ONE defect from four sides: 6.188.0 built the
+--   corner handle as a glyph SCALE, so a text note only ever had a size.
+--   🔑 ONE NEW FIELD, `w` — the width it wraps at — and all four fall out
+--   of it. A note WITHOUT it (an older kept session) lays out exactly as
+--   before. snapNote already carries every numeric field, so ⌘Z undoes a
+--   re-wrap. ✏️ HIS SUGGESTION IS THE SHAPE: plain corner drag re-wraps,
+--   ⇧drag scales. ⏎ is a new line and ⇧⏎ is done — a <textarea>, since an
+--   <input> cannot hold one at all; the placeholder says both.
 
--- NEW IN 6.286.0 — 🚪 THE EDITOR'S WORK SURVIVES EVERY DOOR OUT, NOT
---   JUST CANCEL (modules/screenshot_editor.lua):
---   LL: "Closing the screenshot editor dumps the most recent edits so I
---   lose any changes." 6.189.0 promises the opposite and was telling the
---   truth about exactly ONE way out — the marks live in the PAGE, and
---   only its `stashAndCancel()` hands them back. The Esc router called
---   ed.close() straight out; ed.open()'s first line is ed.close(), so
---   ⇪⇧1 on another shot threw the first one's work away in silence; and
---   `closeOnEscape(true)` let WebKit close the window behind Lua's back.
---   🔑 `ed.requestClose` ASKS and closes on the reply, with a HELD belt
---   armed BEFORE the ask. A doAfter that answers nil is not a belt
---   (6.265.0), so that closes at once rather than never. `ed.closePlan`
---   is PURE; the report names which door and whether the work survived.
-
--- (6.285.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.286.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 cut the inline count to
 --  TWO; a gate check proves every entry here is also in CHANGELOG.md.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.287.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.288.0
 -- =====================================================================
 -- The catalogue that used to sit here moved to GUIDE.md ("What each
 -- tool does") in 6.180.0 — 259 lines of prose inside the orchestrator.
@@ -136,7 +136,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.287.0"
+_G.configVersion = "6.288.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the

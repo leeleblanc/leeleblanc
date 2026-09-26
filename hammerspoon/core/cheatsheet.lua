@@ -272,12 +272,14 @@ return function(core)
             return cx, cy, "centred — the spot you saved is on a screen you "
                            .. "are not on"
         end
-        -- Clamped into SF and nothing else. A panel wider or taller than
-        -- this screen pins to its origin rather than sliding off it.
-        local maxX = math.max(sf.x, sf.x + sf.w - w)
-        local maxY = math.max(sf.y, sf.y + sf.h - h)
-        local x = math.max(sf.x, math.min(want.x, maxX))
-        local y = math.max(sf.y, math.min(want.y, maxY))
+        -- Clamped into SF and nothing else. 🗑 A `math.max(sf.x, …)` on the
+        -- upper bound was written here and taken out again: with a panel
+        -- wider than the screen the upper bound goes negative and the
+        -- LOWER clamp below already pins it to the origin, so no mutation
+        -- could fail it (6.199.0, fifth time). The behaviour it guarded is
+        -- asserted anyway, on the path that really runs.
+        local x = math.max(sf.x, math.min(want.x, sf.x + sf.w - w))
+        local y = math.max(sf.y, math.min(want.y, sf.y + sf.h - h))
         if x ~= want.x or y ~= want.y then
             return x, y, "nudged back onto this screen — the spot you saved "
                          .. "was on a bigger one"

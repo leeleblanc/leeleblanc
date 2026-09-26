@@ -1008,6 +1008,30 @@ work Mac.
   one-hop symlink: a fixture where the right and wrong implementations
   AGREE proves nothing — pick the input where they must differ.
 
+- 🖥 A HELPER THAT PICKS A SCREEN FOR YOU MUST NOT BE HANDED A POINT BY
+  CODE THAT HAS ALREADY PICKED ONE (6.288.0, core/cheatsheet.lua — LL:
+  "Appears on a different screen sometimes — and when it does it seems
+  to not be the frontmost window until I move it").
+  🔎 BOTH SENTENCES ARE ONE MECHANISM, and it is readable rather than
+  guessed — which matters, because this is the third wrong-monitor
+  report and 6.198.0 says a correct fix for a plausible mechanism is not
+  evidence. 6.196.0 stores the spot as an OFFSET into its screen and
+  6.236.0 resolves the right screen; both correct. Then the last line
+  handed the answer to `_G.clampToScreen`, which walks allScreens() and
+  clamps to the FIRST screen the point overlaps — so an offset saved on
+  the 4K, applied to the Air's origin, lands on the 4K and is KEPT
+  there. And a sheet on the other monitor is a sheet that is not in
+  front of him: he drags it back and it appears. Reading those as two
+  bugs would have sent the release hunting a window-level fault that is
+  not there.
+  🔑 `cheatSheet.placeIn` is PURE and clamps into the RESOLVED screen
+  and nothing else, with four answers (6.196.1): centred · where you put
+  it · nudged back from a bigger screen · a legacy absolute spot on a
+  screen you are not on is DROPPED, never dragged onto one it was never
+  on. A source sentry keeps clampToScreen out of the file; the helper is
+  right for a caller with no resolved screen and wrong for one that has
+  worked it out. `_G.cheatSheetReport()` names which rule placed it.
+
 - ✏️ A TEXT NOTE IS A BOX, NOT A LINE (6.287.0,
   modules/screenshot_editor.lua — LL's four asks in one breath: wrap ·
   font size independent of the box · RETURN drops a line · dragging the
@@ -3473,6 +3497,7 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
+| 6.288.0 | 🖥 the cheat sheet opens on the screen it resolved — a spot saved on the 4K was being clamped back onto the 4K by a helper that picks its own screen | pending |
 | 6.287.0 | ✏️ the editor's text tool is a real text box — it wraps, ⏎ drops a line, the corner re-wraps and ⇧corner scales; it had only ever been a single line with a font size | pending |
 | 6.286.0 | 🚪 the screenshot editor's marks survive EVERY way out — Esc, Cancel and ⇪⇧1 on another shot; only the Cancel button ever asked the page for them | pending |
 | 6.285.0 | 🔔 the ⇪ watchdog stops crying wolf — a panel that says it is taking the keyboard is a handover, not a stuck ⇪, and only a real latch counts as one | pending |
@@ -4344,6 +4369,52 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.288.0 verify with LL — 🖥 THE SHEET OPENS WHERE YOU ARE (KNOWN GROUND)
+  WHAT CHANGED: ⇪/ is placed on the screen this config resolved, and can
+  no longer be pulled onto another monitor by a spot you saved there.
+  WHY IT MATTERS: your two sentences are ONE bug, which is why I want to
+  say the mechanism plainly. Your saved spot is stored as an offset into
+  the screen you dragged it on. Dragged to the right-hand side of the 4K
+  that offset is about 2000 points. Applied to the Air's top-left, 2000
+  points to the right is physically ON the 4K — and the helper that was
+  supposed to keep the panel on a screen kept it on THAT one, throwing
+  away the screen every line above it had just worked out. And a sheet on
+  the other monitor is a sheet that is not in front of you: you drag it
+  back, and it appears. Second sentence, same event.
+
+  A. THE HEADLINE — this needs both monitors.
+  A1. On the LG, press ⇪/ and drag the sheet to its right-hand side.
+      Close it.
+  A2. Click into an app on the AIR. Press ⇪/.
+      EXPECT: the sheet is on the AIR, fully on screen, over toward its
+      right-hand edge. It must NOT be on the LG.
+  A3. Console: `_G.cheatSheetReport()`. The new "place :" line should
+      read `nudged back onto this screen — the spot you saved was on a
+      bigger one`, with the screen it used underneath.
+  A4. Now back on the LG: press ⇪/.
+      EXPECT: your spot, exactly — it fits there, so it is obeyed, and
+      the report reads `where you put it`.
+
+  B. IS IT IN FRONT?
+  B1. Each time it opens, is it readable without you touching it?
+      EXPECT: yes. If it EVER opens and is not in front on the monitor
+      you are looking at, that is a second bug and I have not found it —
+      run `_G.cheatSheetReport()` and `_G.screenReport()` at that moment
+      and paste both. Those two together name the screen, the rule that
+      chose it, and where the panel went.
+
+  C. MUST STILL WORK.
+  C1. Drag the sheet anywhere and reopen: it is where you left it.
+  C2. Type to filter, scroll with the wheel, Esc to close — unchanged.
+  C3. `_G.cheatSheetCenter()` still forgets the spot and re-centres.
+  C4. Unplug the LG, then ⇪/. EXPECT: it opens on the Air, on screen.
+
+  D. A JUDGEMENT ONLY YOU CAN MAKE.
+  D1. When your saved spot does not fit the smaller screen, I nudge it to
+      the nearest edge rather than re-centring — so a sheet you like on
+      the right stays on the right. Is that what you want, or would you
+      rather it centred on a screen it does not fit? "nudge" · "centre".
+
 - 6.287.0 verify with LL — ✏️ THE TEXT TOOL IS A TEXT BOX (KNOWN GROUND)
   WHAT CHANGED: all four of your text-box asks, in one release, because
   they were one defect seen from four sides.

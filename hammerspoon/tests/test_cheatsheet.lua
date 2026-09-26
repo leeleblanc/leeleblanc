@@ -2114,6 +2114,18 @@ do
   check("…and the placement is recorded for the report",
         live.lastPlace ~= nil and tostring(live.lastPlace.why):find("nudged", 1, true),
         live.lastPlace and live.lastPlace.why)
+  -- 🚨 AND IT IS THE LATEST ONE. He opens this sheet many times a session;
+  -- a record written once and kept would answer about the first draw for
+  -- ever, which is worse than no record — it would look current.
+  live.hide()
+  live.pos = { dx = 60, dy = 40 }
+  live.show()
+  check("🚨 …and it is refreshed on EVERY draw, not written once",
+        tostring(live.lastPlace.why):find("where you put it", 1, true) ~= nil,
+        live.lastPlace.why)
+  live.hide()
+  live.pos = { dx = 3000, dy = 20 }
+  live.show()
   local printed = {}
   local rp = print
   print = function(...) local t = {}
@@ -2146,7 +2158,7 @@ do
   end
 
   local ran = (pass + fail) - before
-  check("§6.288.0 ran all of its checks (" .. ran .. " of 17+)", ran >= 17, ran)
+  check("§6.288.0 ran all of its checks (" .. ran .. " of 20+)", ran >= 20, ran)
 end
 
 print(("\n%d passed, %d failed\n"):format(pass, fail))

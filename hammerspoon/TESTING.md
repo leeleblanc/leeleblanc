@@ -1,4 +1,4 @@
-# TESTING — how to score release 6.287.0
+# TESTING — how to score release 6.288.0
 
 You install ONE archive and it carries several releases. Below are the
 steps for each release this archive is new for, newest first. Run the
@@ -26,6 +26,56 @@ else is a LOSS and I fix it before building further. You are the only
 scorer; I never mark my own.
 
 ---
+
+## 6.288.0
+
+6.288.0 verify with LL — 🖥 THE SHEET OPENS WHERE YOU ARE (KNOWN GROUND)
+WHAT CHANGED: ⇪/ is placed on the screen this config resolved, and can
+no longer be pulled onto another monitor by a spot you saved there.
+WHY IT MATTERS: your two sentences are ONE bug, which is why I want to
+say the mechanism plainly. Your saved spot is stored as an offset into
+the screen you dragged it on. Dragged to the right-hand side of the 4K
+that offset is about 2000 points. Applied to the Air's top-left, 2000
+points to the right is physically ON the 4K — and the helper that was
+supposed to keep the panel on a screen kept it on THAT one, throwing
+away the screen every line above it had just worked out. And a sheet on
+the other monitor is a sheet that is not in front of you: you drag it
+back, and it appears. Second sentence, same event.
+
+A. THE HEADLINE — this needs both monitors.
+A1. On the LG, press ⇪/ and drag the sheet to its right-hand side.
+    Close it.
+A2. Click into an app on the AIR. Press ⇪/.
+    EXPECT: the sheet is on the AIR, fully on screen, over toward its
+    right-hand edge. It must NOT be on the LG.
+A3. Console: `_G.cheatSheetReport()`. The new "place :" line should
+    read `nudged back onto this screen — the spot you saved was on a
+    bigger one`, with the screen it used underneath.
+A4. Now back on the LG: press ⇪/.
+    EXPECT: your spot, exactly — it fits there, so it is obeyed, and
+    the report reads `where you put it`.
+
+B. IS IT IN FRONT?
+B1. Each time it opens, is it readable without you touching it?
+    EXPECT: yes. If it EVER opens and is not in front on the monitor
+    you are looking at, that is a second bug and I have not found it —
+    run `_G.cheatSheetReport()` and `_G.screenReport()` at that moment
+    and paste both. Those two together name the screen, the rule that
+    chose it, and where the panel went.
+
+C. MUST STILL WORK.
+C1. Drag the sheet anywhere and reopen: it is where you left it.
+C2. Type to filter, scroll with the wheel, Esc to close — unchanged.
+C3. `_G.cheatSheetCenter()` still forgets the spot and re-centres.
+C4. Unplug the LG, then ⇪/. EXPECT: it opens on the Air, on screen.
+
+D. A JUDGEMENT ONLY YOU CAN MAKE.
+D1. When your saved spot does not fit the smaller screen, I nudge it to
+    the nearest edge rather than re-centring — so a sheet you like on
+    the right stays on the right. Is that what you want, or would you
+    rather it centred on a screen it does not fit? "nudge" · "centre".
+
+
 
 ## 6.287.0
 
@@ -204,64 +254,6 @@ C. A JUDGEMENT ONLY YOU CAN MAKE.
 C1. Is once per panel per session the right amount of talking, or
     would you rather it never said anything and only counted? "once is
     fine" · "say nothing" decides it.
-
-
-
-## 6.284.0
-
-6.284.0 verify with LL — 🏷 THE ASANA TEAM NAME (KNOWN GROUND)
-WHAT CHANGED: the team name in the config is corrected to the one you
-sent me, and — the actual release — a team's GID is remembered the
-first time it resolves, so renaming it in Asana no longer breaks
-anything.
-WHY IT MATTERS: you asked why you have to hard code team names. You
-don't, and you were right to ask. The honest finding is that the half
-everyone would suspect was never stale: this config asks Asana for the
-team list on EVERY boot, so its answer is always current. What was
-stale is the question — the name it searches for, typed into a file.
-A fresh answer to a stale question, which is why the warning was
-correct and useless at the same time.
-
-A. THE HEADLINE.
-A1. Install and reload. Watch the Console during boot.
-    EXPECT: the `⚠️ Asana team not found by name: "| 2. SAC Library
-    Team Member Projects & Tasks |"` line is GONE.
-A2. Console: `_G.asanaTeams()`.
-    EXPECT: an "asked" block with your two team names, an "answer"
-    block listing every team Asana holds WITH ITS GID, and two ✅
-    lines. Paste it — this is the artefact I have been asking for and
-    it is the first build that can produce it.
-A3. Press ⇪T and start typing a colleague's name from that team.
-    EXPECT: they are suggested. That is the thing the warning was
-    costing you, and nothing else.
-
-B. THE REAL TEST — RENAME IT ON PURPOSE. Worth five minutes, because
-   it is the whole release and you are the only one who can run it.
-B1. In Asana, rename that team — add a word, take one away, anything.
-B2. Reload Hammerspoon.
-    EXPECT in the Console: `🏷 Asana team renamed — "| 2. SAC Library
-    Team Member Projects |" is called "<the new name>" now; matched by
-    its GID, nothing to edit`. NO ⚠️.
-B3. ⇪T again: the same colleagues are still suggested.
-B4. Reload once more. EXPECT the same 🏷 line, not a ⚠️ — the pin has
-    to be re-written every boot or it would survive exactly one.
-B5. Rename it back if you like. Either way it keeps working.
-
-C. MUST STILL WORK.
-C1. ⇪T creates a task, with a priority and SAC Values, as ever.
-C2. A name that is NOT in the list still submits — that was true
-    before and must stay true.
-C3. Hamsidian's `_G.scratchPadSend()` still posts to Asana.
-
-D. A JUDGEMENT ONLY YOU CAN MAKE.
-D1. Team 1 is "| 1. SAC Library Core Projects |" and I have not
-    touched it. If that one has also been renamed, `_G.asanaTeams()`
-    will now show you Asana's real name for it — send me the output
-    rather than editing the file.
-D2. Should the config stop naming teams altogether and just use the
-    whole workspace? I have NOT done that: 6.16.9 found the workspace
-    is a college with thousands of student accounts, which made the
-    picker useless. Say if that has changed.
 
 
 
