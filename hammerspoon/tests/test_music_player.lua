@@ -72,7 +72,25 @@ io.open = function(path, mode)
     }
 end
 
+-- ⏯ 6.289.0 — the media-key tap. hs.eventtap.event.types.systemDefined is
+-- the only event class this player ever watches, and the stub records
+-- what was created and started so a check can prove the tap is REAL
+-- rather than intended.
+TAPS = {}
+NO_EVENTTAP = false
+TAP_REFUSES = false
 hs = {
+    eventtap = {
+        event = { types = { systemDefined = 14 } },
+        new = function(types, fn)
+            if TAP_REFUSES then error("macOS refused the tap", 0) end
+            local t = { types = types, fn = fn, running = false }
+            function t:start() self.running = true; return self end
+            function t:stop()  self.running = false; return self end
+            TAPS[#TAPS + 1] = t
+            return t
+        end,
+    },
     window = {
         focusedWindow = function()
             if FOCUSED_WIN == nil then return nil end
@@ -1963,6 +1981,172 @@ do
     local out8, gone8 = mp.forgetHistory(messy, "/m/a.mp3")
     check("🗑 a malformed row is carried through rather than throwing",
           gone8 == 1 and #out8 == 2)
+end
+
+-- =====================================================================
+out("\n⏯ 6.289.0 — THE KEYBOARD'S OWN PLAY/PAUSE KEY DRIVES THIS PLAYER\n")
+-- =====================================================================
+-- LL: "Pressing play/pause doesn't work. But volume keys do." Those two
+-- sentences are about the same row of keys — the volume keys are macOS's
+-- and work everywhere, and F8 was going wherever macOS thought the music
+-- was, which is not this card.
+do
+    local n = pass + fail
+    reset()
+
+    -- ---- the verdict is PURE -------------------------------------------
+    local V = mp.mediaVerdict
+    check("mp.mediaVerdict is pure and reachable", type(V) == "function")
+    check("⏯ with a queue is TAKEN", V("PLAY", true, true) == "take")
+    check("⏭ with a queue is TAKEN", V("FAST", true, true) == "take")
+    check("⏮ with a queue is TAKEN", V("REWIND", true, true) == "take")
+    -- 🚨 THE RULE THAT PROTECTS EVERY OTHER APP. If this config ate ⏯
+    -- whenever it was loaded, his Music.app and every browser tab playing
+    -- audio would lose the key the moment Hammerspoon booted — a worse
+    -- bug than the one being fixed, and a silent one.
+    check("🚨 ⏯ with NOTHING QUEUED is passed through — macOS keeps the key",
+          V("PLAY", false, true) == "pass", V("PLAY", false, true))
+    check("…and says why", select(2, V("PLAY", false, true)):find("macOS", 1, true) ~= nil)
+    check("the volume keys are never ours", V("SOUND_UP", true, true) == "pass")
+    check("brightness, eject, anything else — never ours",
+          V("BRIGHTNESS_UP", true, true) == "pass" and V("EJECT", true, true) == "pass")
+    check("switched off, nothing is taken even with a queue",
+          V("PLAY", true, false) == "pass")
+    check("a nil key is not a media key", V(nil, true, true) == "pass")
+    check("every answer carries a reason",
+          select(2, V("PLAY", true, true)) ~= nil
+          and select(2, V("SOUND_UP", true, true)) ~= nil)
+
+    -- ---- the tap really runs -------------------------------------------
+    TAPS = {}
+    mp.stopMediaTap()
+    mp.mediaKeys = true
+    local ok = mp.startMediaTap()
+    check("the tap is created AND started, not merely created",
+          ok == true and #TAPS == 1 and TAPS[1].running == true)
+    check("…and it watches systemDefined and nothing else",
+          TAPS[1].types[1] == 14 and #TAPS[1].types == 1)
+    check("…and it is HELD, or nothing would ever fire it", mp.mediaTap ~= nil)
+    local again = mp.startMediaTap()
+    check("starting twice does not stack a second tap",
+          again == false and #TAPS == 1)
+
+    -- ---- driving it -----------------------------------------------------
+    local function press(keyName, opts)
+        opts = opts or {}
+        local ev = { systemKey = function() return {
+            key = keyName, down = (opts.down ~= false),
+            ["repeat"] = opts.rep or false } end }
+        return mp.onMediaKey(ev)
+    end
+
+    mp.queue = {}
+    mp.media = { taken = 0, passed = 0, last = nil }
+    check("🚨 with an EMPTY queue ⏯ is not eaten", press("PLAY") == false)
+    check("…and it is counted as passed, so the report can say so",
+          mp.media.passed == 1 and mp.media.taken == 0)
+
+    FILES["/m/a.mp3"], DURATION["/m/a.mp3"] = true, 100
+    FILES["/m/b.mp3"], DURATION["/m/b.mp3"] = true, 100
+    mp.takeDrop({ "/m/a.mp3", "/m/b.mp3" })
+    mp.media = { taken = 0, passed = 0, last = nil }
+    local wasPlaying = mp.playing
+    check("(fixture) something is playing", wasPlaying == true and #mp.queue == 2)
+    check("⏯ is EATEN when there is a queue — macOS must not act on it too",
+          press("PLAY") == true)
+    check("…and it really paused the player", mp.playing == false)
+    check("⏯ again resumes", press("PLAY") == true and mp.playing == true)
+    check("…and both were counted as taken", mp.media.taken == 2, mp.media.taken)
+
+    local at = mp.index
+    check("⏭ steps forward", press("FAST") == true and mp.index ~= at)
+    check("⏮ steps back", press("REWIND") == true and mp.index == at)
+
+    -- 🚨 A KEY-UP AND AN AUTOREPEAT ARE NOT A PRESS. Acting on the release
+    -- would toggle twice per press, which reads as "the key does nothing".
+    local before = mp.media.taken
+    check("🚨 a key UP is ignored", press("PLAY", { down = false }) == false
+          and mp.media.taken == before)
+    check("🚨 an autorepeat is ignored", press("PLAY", { rep = true }) == false
+          and mp.media.taken == before)
+    check("an event that is not a system key at all is ignored, never thrown",
+          mp.onMediaKey({ systemKey = function() return nil end }) == false)
+    check("an event whose systemKey THROWS is ignored, never thrown",
+          mp.onMediaKey({ systemKey = function() error("no") end }) == false)
+
+    -- 🚨 EVERY TAP IN THIS CONFIG STANDS DOWN WHEN PAUSED (6.152.0).
+    _G.hsPaused = true
+    local b2 = mp.media.taken
+    check("🚨 ⇪⇧Esc pause stands the tap down", press("PLAY") == false
+          and mp.media.taken == b2)
+    _G.hsPaused = false
+
+    -- ---- one door for a step (6.231.0) ----------------------------------
+    check("mp.step is the ONE way a track is stepped, and the page's ⏭ takes it",
+          type(mp.step) == "function")
+    do
+        local fh = assert(realOpen(HS .. "/modules/music_player.lua"))
+        local src = fh:read("a"); fh:close()
+        local code = {}
+        for line in (src .. "\n"):gmatch("([^\n]*)\n") do
+            code[#code + 1] = (line:gsub("%-%-.*$", ""))
+        end
+        code = table.concat(code, "\n")
+        check("🚨 SOURCE: the page's next/prev go through mp.step, so the "
+              .. "buttons and the keys cannot drift apart",
+              code:find('if a == "next"   then mp.step%(1%)') ~= nil
+              and code:find('if a == "prev"   then mp.step%(%-1%)') ~= nil)
+        check("🚨 SOURCE: the tap stands down while paused, like every tap here",
+              code:find("function mp%.onMediaKey.-_G%.hsPaused") ~= nil)
+    end
+
+    -- ---- the degrades ---------------------------------------------------
+    mp.stopMediaTap()
+    check("stopping really stops it", mp.mediaTap == nil)
+    TAP_REFUSES = true
+    local ok2, why2 = mp.startMediaTap()
+    check("🛟 a Mac that REFUSES the tap says so and does not throw",
+          ok2 == false and tostring(why2):find("refused", 1, true) ~= nil, why2)
+    check("…and leaves no half-made tap behind", mp.mediaTap == nil)
+    TAP_REFUSES = false
+    local realTap = hs.eventtap
+    hs.eventtap = nil
+    local ok3, why3 = mp.startMediaTap()
+    check("🛟 a Hammerspoon with no event taps says so", ok3 == false
+          and tostring(why3):find("event taps", 1, true) ~= nil, why3)
+    hs.eventtap = realTap
+    mp.mediaKeys = false
+    local ok4, why4 = mp.startMediaTap()
+    check("switched off, nothing is created at all",
+          ok4 == false and why4 == "not wanted" and mp.mediaTap == nil)
+    mp.mediaKeys = true
+    mp.startMediaTap()
+
+    -- ---- the report ------------------------------------------------------
+    PRINTED = {}
+    _G.musicReport()
+    local rep = table.concat(PRINTED, "\n")
+    check("🔎 the report says the keys are being watched, and counts taken "
+          .. "apart from passed — 'the play key does nothing' reads the same "
+          .. "in three states and they need different answers",
+          rep:find("⏯ keys", 1, true) and rep:find("taken", 1, true)
+          and rep:find("passed through to macOS", 1, true), rep)
+    mp.stopMediaTap()
+    PRINTED = {}
+    _G.musicReport()
+    check("…and a WANTED tap that is not running reads as a ⚠️, not as off",
+          table.concat(PRINTED, "\n"):find("WANTED but not running", 1, true) ~= nil,
+          table.concat(PRINTED, "\n"))
+    mp.mediaKeys = false
+    PRINTED = {}
+    _G.musicReport()
+    check("…and OFF-by-settings reads differently again, with the line back",
+          table.concat(PRINTED, "\n"):find("mediaKeys = false", 1, true) ~= nil)
+    mp.mediaKeys = true
+    mp.startMediaTap()
+
+    check("the 6.289.0 block ran every one of its checks",
+          (pass + fail) - n == 40, (pass + fail) - n)
 end
 
 if fail > 0 then

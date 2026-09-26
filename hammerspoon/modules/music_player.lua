@@ -71,6 +71,8 @@ local M = {
             { "✕",       "On a 🕘 history row: forget that track (the file is not touched)" },
             { "drag",    "Move the card: grab its title strip — or ⌘-drag anywhere on it. It reopens where you left it" },
             { "volume",  "Use the Mac's own volume keys — this player has none, by design" },
+            { "⏯ ⏮ ⏭",   "The keyboard's own media keys drive THIS player while it has a" },
+            { "",         "queue; with nothing queued they pass through to macOS (6.289.0)" },
             { "focus",   "The card takes the keyboard when it opens — no click first" },
             { "Console", "_G.musicReport()" },
         },
@@ -631,6 +633,18 @@ function M.setup(core)
         return true
     end
 
+    -- ⏭ 6.289.0 — ONE FUNCTION, TWO CALLERS (6.231.0): the card's ⏮/⏭
+    -- buttons and the keyboard's own ⏮/⏭ keys. Two copies of "step a
+    -- track" is how the two come to disagree about repeat-one.
+    function mp.step(dir)
+        if (tonumber(dir) or 1) < 0 then
+            local p = mp.prevIndex(mp.index, #mp.queue)
+            if p then return mp.playAt(p, "previous") end
+            return false, "already at the first track"
+        end
+        return advance(true)
+    end
+
     -- ⏪ The thin half: hs.sound:currentTime(n) IS a setter — checked in
     -- extensions/sound/libsound.m, which calls [NSSound setCurrentTime:],
     -- not remembered. The belt clock is RE-ANCHORED with it or the next
@@ -1056,12 +1070,9 @@ say({a:'ready'});
         end
         if a == "seek"   then mp.seekBy(tonumber(b.d) or 0) return end
         if a == "play"   then mp.togglePlay() return end
-        if a == "next"   then advance(true) return end
-        if a == "prev"   then
-            local p = mp.prevIndex(mp.index, #mp.queue)
-            if p then mp.playAt(p, "previous") end
-            return
-        end
+        -- 6.289.0 — through mp.step, the same door the media keys take.
+        if a == "next"   then mp.step(1)  return end
+        if a == "prev"   then mp.step(-1) return end
         if a == "repeat" then
             mp.mode = (mp.mode == "off") and "all"
                       or ((mp.mode == "all") and "one" or "off")
@@ -1620,6 +1631,84 @@ say({a:'ready'});
         return true
     end
 
+    -- ⏯ 6.289.0 — THE KEYBOARD'S OWN PLAY/PAUSE KEY DRIVES THIS PLAYER.
+    -- LL: "Pressing play/pause doesn't work. But volume keys do." Those
+    -- two sentences are about the same row of keys: the volume keys are
+    -- macOS's and work everywhere, and F8 was going to whatever macOS
+    -- thinks is the music app — which is not this card.
+    --
+    -- 🚨 AND IT MUST NOT STEAL THE KEY. If this config swallowed ⏯
+    -- whenever it was loaded, his Music.app and every browser tab playing
+    -- audio would lose the key the moment Hammerspoon booted — a far worse
+    -- bug than the one being fixed, and a silent one. So the rule is
+    -- narrow and it is PURE: the key is TAKEN only when this player has a
+    -- queue to act on. With nothing queued the event passes straight
+    -- through and macOS routes it exactly as it does today.
+    mp.mediaKeys = true          -- settings = { music_player = { mediaKeys = false } }
+    mp.media = { taken = 0, passed = 0, last = nil }
+    mp.mediaTap = nil            -- HELD: an unreferenced tap is collected
+
+    -- PURE: which key, and is there anything for it to act on?
+    -- Answers "take"/"pass" AND the reason, so the report can say why a
+    -- press did nothing rather than leaving him to guess (6.196.1).
+    function mp.mediaVerdict(key, hasQueue, on)
+        if not on then return "pass", "media keys are switched off here" end
+        local k = tostring(key or "")
+        if k ~= "PLAY" and k ~= "FAST" and k ~= "REWIND" then
+            return "pass", "not a key this player answers"
+        end
+        if not hasQueue then
+            return "pass", "nothing is queued — macOS keeps the key"
+        end
+        return "take", "the player has a queue"
+    end
+
+    function mp.onMediaKey(ev)
+        -- Every tap in this config starts here (6.152.0).
+        if _G.hsPaused then return false end
+        local sk
+        pcall(function() sk = ev:systemKey() end)
+        if type(sk) ~= "table" or not sk.down or sk["repeat"] then return false end
+        local verdict, why = mp.mediaVerdict(sk.key, #mp.queue > 0, mp.mediaKeys)
+        mp.media.last = tostring(sk.key) .. " — " .. why
+        if verdict ~= "take" then
+            mp.media.passed = mp.media.passed + 1
+            return false
+        end
+        mp.media.taken = mp.media.taken + 1
+        if sk.key == "PLAY" then pcall(mp.togglePlay)
+        elseif sk.key == "FAST" then pcall(mp.step, 1)
+        else pcall(mp.step, -1) end
+        return true          -- eaten, so macOS does not also act on it
+    end
+
+    -- 🔌 STARTED IN warm(), NEVER IN setup(): init.lua applies a profile's
+    -- `settings` AFTER setup returns, so a tap created in setup could be
+    -- written off and never stopped (6.228.0's wm.enabled shape, which
+    -- this project has now met in four modules).
+    function mp.startMediaTap()
+        if mp.mediaTap or not mp.mediaKeys then return false, "not wanted" end
+        if not (hs.eventtap and hs.eventtap.new and hs.eventtap.event
+                and hs.eventtap.event.types) then
+            return false, "this Hammerspoon has no event taps"
+        end
+        local ok = pcall(function()
+            mp.mediaTap = hs.eventtap.new(
+                { hs.eventtap.event.types.systemDefined }, mp.onMediaKey)
+            mp.mediaTap:start()
+        end)
+        if not ok or not mp.mediaTap then
+            mp.mediaTap = nil
+            return false, "macOS refused the media-key tap"
+        end
+        return true
+    end
+
+    function mp.stopMediaTap()
+        if mp.mediaTap then pcall(function() mp.mediaTap:stop() end) end
+        mp.mediaTap = nil
+    end
+
     function mp.toggle()
         if mp.webview then mp.hide() return true end
         return mp.show()
@@ -1635,6 +1724,23 @@ say({a:'ready'});
              .. (mp.enabled and "" or " · OFF by settings"))
         line("   engine   : " .. (hs.sound and "hs.sound (macOS's own)"
                                           or "⚠️ NO hs.sound — nothing can play"))
+        -- ⏯ 6.289.0 — THREE STATES (6.196.1): the tap is up · it is off by
+        -- settings · macOS refused it. "The play key does nothing" reads
+        -- the same in all three and they need different answers.
+        local md = mp.media or {}
+        if not mp.mediaKeys then
+            line("   ⏯ keys   : OFF — settings = { music_player = "
+                 .. "{ mediaKeys = false } }")
+        elseif not mp.mediaTap then
+            line("   ⏯ keys   : ⚠️ WANTED but not running — no event tap on this"
+                 .. " Mac, so the keyboard's ⏯ goes wherever macOS sends it")
+        else
+            line("   ⏯ keys   : watching ⏯ ⏮ ⏭ · " .. (md.taken or 0)
+                 .. " taken · " .. (md.passed or 0) .. " passed through to macOS")
+            line("   ↳ a press is only TAKEN when this player has a queue, so"
+                 .. " your other apps keep the key the rest of the time"
+                 .. (md.last and ("  ·  last: " .. tostring(md.last)) or ""))
+        end
         -- ⌨️ 6.251.0 — WHICH OF THE THREE STATES THIS MAC REACHED. "not
         -- asked" is not "asked and failed" is not "it has the keys"
         -- (6.196.1), and the last one has to be readable AFTER the fact:
@@ -1831,6 +1937,17 @@ function M.warm(core)
     if not mp then return end
     if not mp.enabled then return end
     if not mp.loaded then pcall(mp.loadStore) end
+    -- ⏯ 6.289.0 — the media-key tap starts HERE, never in setup: a
+    -- profile's `settings` land after setup returns, so a tap created
+    -- there could be switched off and never stopped (6.228.0).
+    local ok, why = mp.startMediaTap()
+    if not ok and mp.mediaKeys and why ~= "not wanted" then
+        if core and core.degrade then
+            pcall(core.degrade, "Music player media keys", tostring(why))
+        else
+            print("⚠️ Music player: " .. tostring(why))
+        end
+    end
 end
 
 return M
