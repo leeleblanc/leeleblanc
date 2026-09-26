@@ -3524,6 +3524,7 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
+| 6.296.0 | 🏷 the music player is the Jug Player, with its name to the left of the now-playing line — one field every surface reads, so a rename cannot drift | pending |
 | 6.295.0 | 🔕 a tool he does not care about reports a failure to the Console alone — everything that writes or gathers still shouts on screen, and the log keeps both | pending |
 | 6.294.0 | 🎯 the ✅ ASANA card finally names ⇪T — the key that creates a task, absent from it since 6.114.0 removed it for a good reason; plus an auditor for a bound key printed on no card at all | pending |
 | 6.293.0 | ⌨️ ⌥⌥ opens the front app's menus — his 6.198.0 ask, never built, and nine lines now that 6.292.0 made a gesture a registration rather than an engine | pending |
@@ -4418,6 +4419,59 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.296.0 verify with LL — 🏷 JUG PLAYER (KNOWN GROUND)
+  WHAT CHANGED: the music player is called the Jug Player everywhere you
+  can see it, and its name sits to the left of the now-playing line.
+  WHY IT MATTERS: your words, and the rename is the easy half. The half
+  worth a release is that ONE field carries the name — the card, the
+  alert, the error door, both reports and the ⇪/ card all read it — so
+  it cannot end up saying one thing in one place and another elsewhere.
+
+  A. THE HEADLINE.
+  A1. ⇪⇧pad. EXPECT: the card's top line reads
+      `Jug Player   nothing playing`, with the name on the LEFT in
+      blue, on the same line, not above it.
+  A2. Drop a track on it. EXPECT: `Jug Player   <track name>` — the
+      name stays put and the track fills the rest of the line.
+  A3. Drop a track with a very long name. EXPECT: the track name is cut
+      with an ellipsis; "Jug Player" is never squeezed or wrapped.
+  A4. ⇪/ and search `jug`. EXPECT: the 🎵 JUG PLAYER card.
+  A5. Console: `_G.musicReport()`. EXPECT the first line reads
+      `🎵 JUG PLAYER — ⇪⇧pad.`
+
+  B. THE ONE THING MOST LIKELY TO HAVE BROKEN — please do this.
+  B1. Press on the card's TITLE STRIP (where the name is) and drag.
+      EXPECT: the card moves. The name is a new element inside that
+      strip, so this is the thing the rename could have cost.
+  B2. ⌘-drag anywhere on the card. EXPECT: it moves.
+  B3. Close and reopen. EXPECT: it comes back where you left it.
+  B4. A bare click on a TRACK ROW still plays that track — it must not
+      pick the window up.
+
+  C. MUST STILL WORK.
+  C1. space, ↑↓, ⏎, ⌘1–9, ← →, ⌫, the ✕ on a history row, the repeat
+      button — all unchanged.
+  C2. F7/F8/F9 still drive it (6.291.0).
+
+  D. AND IT IS QUIET NOW, which is 6.295.0 landing on this tool.
+  D1. `_G.degradeReport()` → the quiet list should read **Jug Player**,
+      not "Music player". If it still says the old name, the two
+      releases have drifted and I want to know at once.
+  D2. If the player fails at something, you get a Console line and no
+      alert — which is what you asked for. `_G.todayReport()` still has
+      it.
+
+  E. A JUDGEMENT ONLY YOU CAN MAKE.
+  E1. The name is drawn in blue at the same size as the track. Too
+      loud, too quiet, or right? It is a colour and a number, not a
+      release.
+  E2. NAMED, NOT SWEPT, so it is not a surprise: the FILE is still
+      `music_player.lua`, the settings key is still `music_player`, and
+      the store folder is still `music`. Those are ids you never see,
+      and renaming a store folder is how a queue goes missing. If you
+      want them moved anyway, say so and it is a careful release of its
+      own.
+
 - 6.295.0 verify with LL — 🔕 QUIET FOR THE THINGS THAT DO NOT MATTER (KNOWN GROUND)
   WHAT CHANGED: a tool can now report a failure to the Console alone.
   Exactly one is set that way — the music player, because you named it.

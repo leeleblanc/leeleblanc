@@ -376,10 +376,10 @@ boot()
 check("🔕 the verdict is PURE and answers WHY, so the report can name the "
       .. "rule rather than printing a bare verdict",
       (function()
-  local v, why = N.degradeVoice("Music player", { "Music player" })
+  local v, why = N.degradeVoice("Jug Player", { "Jug Player" })
   if v ~= "console" then return false, v end
   if not tostring(why):find("quiet list", 1, true) then return false, why end
-  local v2, why2 = N.degradeVoice("Hamsidian", { "Music player" })
+  local v2, why2 = N.degradeVoice("Hamsidian", { "Jug Player" })
   return v2 == "alert" and tostring(why2):find("default", 1, true) ~= nil,
          v2 .. " / " .. tostring(why2)
 end)())
@@ -389,38 +389,38 @@ end)())
 check("🚨 AN UNKNOWN TOOL ALERTS — the list is an allowlist that must be "
       .. "earned, never a guess at what matters (6.276.0, fail closed)",
       N.degradeVoice("Some brand new tool", {}) == "alert"
-      and N.degradeVoice("Some brand new tool", { "Music player" }) == "alert")
+      and N.degradeVoice("Some brand new tool", { "Jug Player" }) == "alert")
 
 -- 🔤 6.236.0's boundary rule, fourth time. music_player takes this door
 -- as BOTH "Music player" and "Music player media keys".
 check("🔤 one entry covers a tool and its sub-names, at a WORD BOUNDARY — "
-      .. "'Music player' takes 'Music player media keys' and not "
-      .. "'Music playerX'",
-      N.degradeVoice("Music player media keys", { "Music player" }) == "console"
-      and N.degradeVoice("Music playerX", { "Music player" }) == "alert")
+      .. "'Jug Player' takes 'Jug Player media keys' and not "
+      .. "'Jug PlayerX'",
+      N.degradeVoice("Jug Player media keys", { "Jug Player" }) == "console"
+      and N.degradeVoice("Jug PlayerX", { "Jug Player" }) == "alert")
 check("...and it folds case, because a tool name is prose",
-      N.degradeVoice("MUSIC PLAYER", { "music player" }) == "console")
+      N.degradeVoice("JUG PLAYER", { "jug player" }) == "console")
 
 -- The shipped default is exactly what he named, and nothing else.
-check("📏 the SHIPPED list is Music player alone — everything he called "
+check("📏 the SHIPPED list is the Jug Player alone — everything he called "
       .. "productivity is loud without appearing on it",
-      #N.quietTools == 1 and N.quietTools[1] == "Music player", table.concat(N.quietTools, ","))
+      #N.quietTools == 1 and N.quietTools[1] == "Jug Player", table.concat(N.quietTools, ","))
 
 -- And now the functional half, through the real door.
 boot()
-N.degrade("Music player", "this Mac has no hs.sound")
+N.degrade("Jug Player", "this Mac has no hs.sound")
 check("🔕 a quiet tool draws NO alert", #ALERTS == 0, #ALERTS .. " alerts")
 check("📓 ...but the ⚠️ Console line is still printed, which is the whole "
       .. "of what he asked for — 'those items only need to post messages "
-      .. "in the console'", printedHas("⚠️ Music player: this Mac has no hs.sound")
+      .. "in the console'", printedHas("⚠️ Jug Player: this Mac has no hs.sound")
       and #printed > 0, tostring(#printed))
 check("📓 ...and the LEDGER still has it — ⇪⇧D and _G.noticesReport() are "
       .. "not allowed a hole named 'music'",
       #N.ledger == 1 and N.ledger[1].kind == "degrade")
 check("📓 ...and it is still COUNTED, so the report can say how often",
-      N.degrades["Music player"].n == 1 and N.degradeTotal == 1)
+      N.degrades["Jug Player"].n == 1 and N.degradeTotal == 1)
 check("...and the quiet route is counted apart", N.quietCount == 1
-      and N.degrades["Music player"].quiet == 1)
+      and N.degrades["Jug Player"].quiet == 1)
 N.degrade("Hamsidian", "Asana is off on this Mac")
 check("🔔 ...while a tool NOT on the list alerts on screen in the same run",
       #ALERTS == 1 and ALERTS[1]:find("Hamsidian", 1, true) ~= nil, ALERTS[1])
@@ -430,7 +430,7 @@ check("🔔 ...while a tool NOT on the list alerts on screen in the same run",
 -- whenever alerts was 0, which is now TRUE of every quiet tool: the
 -- report would cry wolf on a healthy Mac on its first run.
 boot()
-N.degrade("Music player", "this Mac has no hs.sound")
+N.degrade("Jug Player", "this Mac has no hs.sound")
 printed = {}
 local rq = _G.degradeReport()
 check("🚨 A QUIET TOOL IS NOT A REFUSED ALERT — the report says Console "
@@ -441,7 +441,7 @@ check("🚨 A QUIET TOOL IS NOT A REFUSED ALERT — the report says Console "
 check("🔎 ...and the report NAMES the quiet tools, because a policy you "
       .. "cannot read is a policy you cannot correct",
       rq:find("quiet", 1, true) ~= nil
-      and rq:find("Music player", 1, true) ~= nil
+      and rq:find("Jug Player", 1, true) ~= nil
       and rq:find("_G.degradeLoud", 1, true) ~= nil, rq)
 check("🔎 ...and says the LOG still gets them, where he goes at 4 PM",
       rq:find("todayReport", 1, true) ~= nil, rq)
@@ -704,13 +704,13 @@ do
     -- asserted here, so moving the log write behind the quiet verdict
     -- passed every check in the release (6.273.0: when a fix lands on a
     -- line no mutation can kill, the line is not the finding).
-    N.degrade("Music player", "this Mac has no hs.sound")
+    N.degrade("Jug Player", "this Mac has no hs.sound")
     check("🔕 a QUIET tool is written to the log — quiet is the alert and "
           .. "nothing else, and this is where he looks at 4 PM",
           N.logWrote == 5, N.logWrote)
     local repQ = _G.todayReport()
     check("📓 ...and _G.todayReport() names it, beside the loud ones",
-          repQ:find("Music player", 1, true) ~= nil
+          repQ:find("Jug Player", 1, true) ~= nil
           and repQ:find("this Mac has no hs.sound", 1, true) ~= nil, repQ)
 
     -- 🔁 IT SURVIVES THE RELOAD. This is the entire claim of the release:

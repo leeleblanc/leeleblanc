@@ -4,47 +4,47 @@
 -- =====================================================================
 -- 09-26-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.295.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.296.0
 -- =====================================================================
 
+-- NEW IN 6.296.0 — 🏷 JUG PLAYER
+--   (modules/music_player.lua):
+--   LL: "From here forward, call the music player, Jug Player and
+--   put the name to the left of now playing."
+--   🔑 ONE FIELD, MANY READERS (`mp.brand`): the card, the alert, the
+--   🔔 door's tool name, both reports and the ⇪/ card read it, so a
+--   check MOVES it and requires every surface to follow — asserting
+--   the shipped word passes when it is typed twice (6.239.0).
+--   📐 HIS WORDS WERE POSITIONAL, so the check reads the ORDER inside
+--   the header, not that the name is somewhere in the page. The drag
+--   grip is untouched: the mousedown is still on #hd (6.232.0).
+--   🔒 A SENTRY ABOUT THE CLASS: no visible "Music player" survives
+--   in the module, comments stripped (6.262.0). The movablePanels id
+--   moved too — window_move's report PRINTS it — and it is a PAIR
+--   with beginPanelDrag(), so a check joins them. Ids that are never
+--   printed keep their names (6.214.0, 6.253.0).
+
 -- NEW IN 6.295.0 — 🔕 LOUD BY DEFAULT, QUIET ONLY WHERE HE SAID SO
---   (core/notices.lua):
---   LL: "visible warnings on-screen for anything that writes or
---   gathers information … anything that affects my productivity",
---   and Console only for the ones he does not care about — "would
---   be Music Player".
---   🔑 THE TIER BELONGS TO THE TOOL, NOT THE CALL SITE: music_player
+--   (core/notices.lua): LL wants visible warnings for anything that
+--   writes or gathers, and the Console alone for the ones he does
+--   not care about — "would be Music Player". Everything he named
+--   as productivity was already loud, so this is only the quiet half.
+--   🔑 THE TIER BELONGS TO THE TOOL, NOT THE CALL SITE: this module
 --   takes the door from fourteen places, and fourteen sites each
 --   choosing is how one comes to be silent (6.278.0).
---   🚨 IT FAILS LOUD. An unclassified tool ALERTS: a needless alert
---   is an annoyance, a swallowed one is the failure 6.278.0 exists
---   to stop. The quiet list is an allowlist, never a guess (6.276.0).
---   📓 QUIET IS THE ALERT AND NOTHING ELSE — the ⚠️ line, the ledger,
---   the CSV and `_G.todayReport()` still get every degrade.
---   🚨 AND A QUIET TOOL IS NOT A REFUSED ALERT: degradeReport printed
---   "hs.alert refused" on any tool with zero alerts, so the new rule
---   would have made the instrument watching it cry wolf (6.269.0).
+--   🚨 IT FAILS LOUD — an unclassified tool ALERTS, because a
+--   needless alert is an annoyance and a swallowed one is 6.278.0's
+--   failure (6.276.0). QUIET IS THE ALERT AND NOTHING ELSE: the ⚠️
+--   line, the ledger, the CSV and `_G.todayReport()` still get all.
+--   🚨 AND A QUIET TOOL IS NOT A REFUSED ALERT: degradeReport said
+--   "hs.alert refused" for any tool with zero alerts, so the rule
+--   nearly made the instrument watching it cry wolf (6.269.0).
 
--- NEW IN 6.294.0 — 🎯 THE ASANA CARD NAMES THE KEY THAT MAKES A TASK
---   (core/cheatsheet.lua + tests/test_integration.lua):
---   LL: "Build the hyper+T Asana card row next." The ✅ ASANA card
---   listed ⇪A ⇪B ⇪C ⇪L and never the tool's front door.
---   🔑 A POINTER, NOT A CLAIM: 6.114.0 took ⇪T out on purpose — one
---   key on two cards reads as a conflict (his own 6.90.1) — so the
---   key column is a WORD and the combo sits in the prose (6.211.0).
---   🔎 AND THE OTHER BLIND SIDE IS CLOSED: the 6.196.0 auditor flags
---   MISATTRIBUTION, never ABSENCE. It runs the other way now where
---   the owner is known — 76 bound, one orphan, and it was an ALIAS
---   (the card prints ⇪⇧Esc, the binding says "escape").
---   🚨 IT WOULD NOT HAVE CAUGHT HIS COMPLAINT: ⇪T has had a row since
---   6.86.0, on its own card. "Filed under the wrong heading for how
---   he thinks about the tool" is a taxonomy no join can see.
-
--- (6.293.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.294.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 cut the inline count to
 --  TWO; a gate check proves every entry here is also in CHANGELOG.md.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.295.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.296.0
 -- =====================================================================
 -- The catalogue that used to sit here moved to GUIDE.md ("What each
 -- tool does") in 6.180.0 — 259 lines of prose inside the orchestrator.
@@ -137,7 +137,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.295.0"
+_G.configVersion = "6.296.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the

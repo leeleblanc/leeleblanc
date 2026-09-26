@@ -1,5 +1,5 @@
 ========================================================================
-RESOLVED FEATURE REQUESTS — Hammerspoon config 6.295.0
+RESOLVED FEATURE REQUESTS — Hammerspoon config 6.296.0
 Every feature and how to use it. Generated from the modules' own
 cheat sheets (the rows ⇪/ draws), so it is never out of date.
 ⇪ = Caps Lock held (the hyper key). ⇪⇧X = Caps Lock + Shift + X.
@@ -591,7 +591,7 @@ In the Console, _G.<tool>Report() prints any tool's own report.
   note      Enter/esc are NOT captured during the countdown
   check     _G.pomodoroReport() — today, this week, and the file
 
-🎵 MUSIC PLAYER (⇪⇧pad. — a card in the corner, mp3 · m4a · wav · aiff)   [modules/music_player.lua]
+🎵 JUG PLAYER (⇪⇧pad. — a card in the corner, mp3 · m4a · wav · aiff)   [modules/music_player.lua]
   ⇪⇧pad. Open / close the player
   drop      Drag files onto the card: the first plays, the rest queue under it
   ↑ ↓ · ⏎ Walk the queue · play the highlighted track
@@ -773,6 +773,7 @@ In the Console, _G.<tool>Report() prints any tool's own report.
 
 📜 RELEASE INDEX — newest first, one line per release (the full story of each is in CHANGELOG.md)
 ------------------------------------------------------------------------
+  6.296.0  🏷 JUG PLAYER
   6.295.0  🔕 LOUD BY DEFAULT, QUIET ONLY WHERE HE SAID SO
   6.294.0  🎯 THE ASANA CARD NAMES THE KEY THAT MAKES A TASK
   6.293.0  ⌨️ ⌥⌥ OPENS THE FRONT APP'S MENUS

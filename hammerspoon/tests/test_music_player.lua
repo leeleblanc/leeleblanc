@@ -391,6 +391,17 @@ local M = chunk()
 M.setup(CORE)
 local mp = _G.musicPlayer
 
+-- 🏷 6.296.0 — the panel id is READ from the registry rather than typed
+-- here: 6.248.0's rule, and the reason the rename did not quietly
+-- retire eleven checks about the drag grip.
+local PANEL_ID = (function()
+    for _, e in ipairs(_G.movablePanels or {}) do
+        if type(e.frame) == "function" and e.frame() ~= nil then return e.name end
+    end
+    for _, e in ipairs(_G.movablePanels or {}) do return e.name end
+    return "?"
+end)()
+
 local function reset()
     FILES, OPENABLE, DURATION = {}, {}, {}
     SOUNDS, TIMERS, ALERTS, PRINTED, DEGRADED, JS, WEBVIEWS = {}, {}, {}, {}, {}, {}, {}
@@ -857,7 +868,7 @@ check("...and drops the ones that are not, without throwing", #mp.history == 1)
 check("...and a remembered repeat mode comes back", mp.mode == "all")
 check("...and the report still works over the cleaned store — the "
       .. "diagnostic must survive the thing it diagnoses",
-      report():find("MUSIC PLAYER", 1, true) ~= nil)
+      report():find(mp.brand:upper(), 1, true) ~= nil)
 
 reset()
 READABLE[mp.storeFile] = "{{{ not json"
@@ -869,11 +880,106 @@ check("🚨 a store that cannot be decoded starts EMPTY and says so — it "
       #mp.queue == 0 and tostring(mp.lastWhy):find("could not be read", 1, true) ~= nil,
       mp.lastWhy)
 
+-- =====================================================================
+-- 🏷 6.296.0 — JUG PLAYER
+-- =====================================================================
+-- LL: "From here forward, call the music player, Jug Player and put the
+-- name to the left of now playing." Visible strings only, which is
+-- 6.214.0's and 6.253.0's precedent.
+reset()
+check("🏷 ONE FIELD carries the name, so the card, the alert, the door "
+      .. "and the reports cannot drift apart",
+      type(mp.brand) == "string" and mp.brand ~= "", tostring(mp.brand))
+
+-- 🔑 6.239.0 — MOVE THE CONFIG AND REQUIRE EVERYTHING TO FOLLOW.
+-- Asserting the shipped word passes when the word is typed in twice,
+-- which is the whole failure mode a rename creates.
+do
+    local saved = mp.brand
+    mp.brand = "Zzyzx Box"
+    local html = mp.buildHtml()
+    check("🏷 the CARD is written from the field, not from a literal — "
+          .. "the name is drawn and the old one is nowhere in the page",
+          html:find("Zzyzx Box", 1, true) ~= nil
+          and html:find("Music player", 1, true) == nil
+          and html:find("Jug Player", 1, true) == nil, "moved brand")
+    local r = report()
+    check("🏷 ...and so is the report's heading",
+          r:find("ZZYZX BOX", 1, true) ~= nil, r:sub(1, 50))
+    mp.brand = saved
+end
+
+-- 📐 HIS WORDS WERE POSITIONAL: "put the name to the left of now
+-- playing". Asserting only that the name is SOMEWHERE in the page
+-- passes with it dropped into the footer, so the check reads the
+-- ORDER inside the header and that they share one line.
+do
+    local html = mp.buildHtml()
+    local hd   = html:match('<header id="hd">(.-)</header>') or ""
+    local ib   = hd:find('id="brand"', 1, true)
+    local inow = hd:find('id="now"', 1, true)
+    check("📐 the name is in the HEADER and to the LEFT of the "
+          .. "now-playing text — his words, as an ordering",
+          ib ~= nil and inow ~= nil and ib < inow,
+          tostring(ib) .. " / " .. tostring(inow))
+    check("📐 ...and they sit on ONE line: the row is a flex box, so the "
+          .. "name is beside the track rather than above it",
+          html:find("#top { display:flex", 1, true) ~= nil
+          and hd:find('<div id="top">', 1, true) ~= nil)
+    check("🪟 ...and the drag grip is untouched — the mousedown is still "
+          .. "on #hd, which both children bubble to (6.232.0)",
+          html:find("hd.addEventListener('mousedown'", 1, true) ~= nil)
+end
+
+-- 🔤 6.231.1 IN A NEW PLACE: the name goes into markup, so a name with
+-- an & or a < in it would break the header exactly as a track name did.
+check("🔤 the name is escaped before it reaches the page",
+      mp.brandText('Jug & <b>Box</b>')
+        == "Jug &amp; &lt;b&gt;Box&lt;/b&gt;", mp.brandText('Jug & <b>Box</b>'))
+check("🔤 ...and an empty or missing name falls back rather than drawing "
+      .. "a nameless card",
+      mp.brandText("") == "Jug Player" and mp.brandText(nil) == "Jug Player"
+      and mp.brandText("   ") == "Jug Player")
+
+-- 🔒 THE SENTRY IS ABOUT THE CLASS, not the eight strings I found: a
+-- ninth written next month brings the old name back and nothing
+-- functional would notice. COMMENTS ARE STRIPPED (6.262.0) — the
+-- history lives in them and they quote the very words this forbids.
+do
+    local f = realOpen(HS .. "/modules/music_player.lua")
+    local src = f and f:read("a") or ""
+    if f then f:close() end
+    local bare = src:gsub("%-%-%[%[.-%]%]", " "):gsub("%-%-[^\n]*", " ")
+    local hits = {}
+    for line in bare:gmatch("[^\n]+") do
+        if line:lower():find("music player", 1, true) then
+            hits[#hits + 1] = line:gsub("^%s+", ""):sub(1, 70)
+        end
+    end
+    check("🔒 no VISIBLE 'Music player' is left in the module — the ids "
+          .. "(the module key, movablePanels, the escape router) keep "
+          .. "their names on purpose and are not this string",
+          #hits == 0, table.concat(hits, " | "))
+    check("...and the sentry had a file to read (6.187.0)", #src > 1000, #src)
+
+    -- 🏷 THE ID PAIR. window_move's report prints the panel name, so it
+    -- is visible after all and it moved — but the registry entry and
+    -- the beginPanelDrag() argument must be the SAME string or the
+    -- title-strip grip silently stops working (6.232.0).
+    local reg  = bare:match('name%s*=%s*"([^"]*)",%s*\n%s*frame')
+    local drag = bare:match('beginPanelDrag%("([^"]*)"%)')
+    check("🏷 the movablePanels id and the beginPanelDrag argument are "
+          .. "the same string — renaming one half is how a panel stops "
+          .. "being draggable with nothing to see",
+          reg ~= nil and reg == drag, tostring(reg) .. " vs " .. tostring(drag))
+end
+
 -- ---- §12 the report ----------------------------------------------------
 reset()
 local r0 = report()
 check("📋 the report opens with the tool and its key",
-      r0:find("🎵 MUSIC PLAYER — ⇪⇧pad.", 1, true) ~= nil)
+      r0:find("🎵 " .. mp.brand:upper() .. " — ⇪⇧pad.", 1, true) ~= nil,
+      r0:sub(1, 60))
 check("...and an empty queue reads as EMPTY, not as a silent zero",
       r0:find("empty", 1, true) ~= nil)
 check("...and it names the local store and why it is local",
@@ -991,7 +1097,7 @@ check("a store holding nonsense for a position opens in the corner",
 reset()
 local entry
 for _, e in ipairs(_G.movablePanels or {}) do
-    if e.name == "music player" then entry = e end
+    if e.name == PANEL_ID then entry = e end
 end
 check("🪟 the card is listed in _G.movablePanels, which is the ONLY way "
       .. "window_move can reach it", entry ~= nil)
@@ -1060,7 +1166,7 @@ _G.PICKED_UP = nil
 _G.beginPanelDrag = function(n) _G.PICKED_UP = n ; return true end
 post({ a = "dragStart" })
 check("🪟 a press on the title strip asks window_move to pick the card up",
-      _G.PICKED_UP == "music player", tostring(_G.PICKED_UP))
+      _G.PICKED_UP == PANEL_ID, tostring(_G.PICKED_UP))
 
 -- 🔔 and with window_move absent it says so instead of doing nothing
 reset()
@@ -1177,7 +1283,7 @@ check("...and the queue is untouched", #mp.queue == 0)
 reset() ; mp.show()
 local entry2
 for _, e in ipairs(_G.movablePanels or {}) do
-    if e.name == "music player" then entry2 = e end
+    if e.name == PANEL_ID then entry2 = e end
 end
 ;(entry2 or { move = function() end }).move(400, 500)
 check("🪟 moving the card moves the catcher with it — a catcher left "

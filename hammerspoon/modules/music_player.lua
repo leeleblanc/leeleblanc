@@ -50,14 +50,24 @@
 -- costs a main-thread wake-up for nothing.
 
 local M = {
-    name    = "Music player",
+    -- 🏷 6.296.0 — LL: "From here forward, call the music player, Jug
+    -- Player and put the name to the left of now playing." Visible
+    -- strings only, which is 6.214.0's and 6.253.0's precedent: the
+    -- module id, the settings key, `mp.*`, `_G.music*`, the store, the
+    -- services, the escape-router id and the movablePanels id pair are
+    -- untouched — an id he never sees is not worth a migration, and
+    -- renaming half of an id PAIR is how a panel stops being movable.
+    -- ONE field carries the name (`mp.brand`), so the card, the alert,
+    -- the degrade door, the reports and the cheat sheet cannot drift
+    -- apart; a check moves it and requires all of them to follow.
+    name    = "Jug Player",
     order   = 13.66,                -- beside the pomodoro (13.65)
     family  = "time",
     summary = "⇪⇧pad. a small player in the top-right corner: drop files on "
               .. "it, ↑↓ or ⌘1–9 to pick, repeat one / repeat all, elapsed "
               .. "time, and a history you can click back into",
     cheatsheet = {
-        title = "🎵 MUSIC PLAYER (⇪⇧pad. — a card in the corner, mp3 · m4a · wav · aiff)",
+        title = "🎵 JUG PLAYER (⇪⇧pad. — a card in the corner, mp3 · m4a · wav · aiff)",
         entries = {
             { "⇪⇧pad.",  "Open / close the player" },
             { "drop",    "Drag files onto the card: the first plays, the rest queue under it" },
@@ -87,6 +97,12 @@ function M.setup(core)
         key       = "pad.",
         mods      = { "shift" },
         width     = 340,
+        -- 🏷 6.296.0 — ONE NAME, MANY READERS: the card's header, the
+        -- degrade door's tool name, the alert, both reports and the ⇪/
+        -- card all read this. A literal typed into each is how the card
+        -- comes to say one thing and the alert another (6.239.0), so a
+        -- check MOVES it and requires the page and the reports to move.
+        brand     = "Jug Player",
         height    = 430,
         anchor    = "topRight",       -- "topRight" (like the calendar) or "center"
         gap       = 12,               -- points in from the screen edge
@@ -429,11 +445,12 @@ function M.setup(core)
     local function degrade(why)
         say(why)
         if type(core.degrade) == "function" then
-            local ok = pcall(core.degrade, "Music player", why)
+            local ok = pcall(core.degrade, mp.brandText(mp.brand), why)
             if ok then return false, why end
         end
-        pcall(function() hs.alert.show("⚠️ Music player — " .. why, 3) end)
-        print("⚠️ Music player: " .. why)
+        local nm = mp.brandText(mp.brand)
+        pcall(function() hs.alert.show("⚠️ " .. nm .. " — " .. why, 3) end)
+        print("⚠️ " .. nm .. ": " .. why)
         return false, why
     end
 
@@ -774,6 +791,17 @@ function M.setup(core)
         mp.drawClock()
     end
 
+    -- 🏷 6.296.0 — PURE. The brand goes into the page's markup, so a
+    -- name carrying & or < would break the header exactly as a track
+    -- name did in 6.231.1. It is a config value, so it is escaped here
+    -- rather than trusted; an empty or non-string name falls back to
+    -- the shipped one rather than drawing a nameless card.
+    function mp.brandText(name)
+        local t = tostring(name or "")
+        if t:match("^%s*$") then t = "Jug Player" end
+        return (t:gsub("&", "&amp;"):gsub("<", "&lt;"):gsub(">", "&gt;"))
+    end
+
     local function buildHtml()
         local fs  = math.max(10, math.floor(tonumber(mp.fontSize) or 13))
         local fs1 = math.max(10, fs - 1)
@@ -787,8 +815,11 @@ html, body { margin:0; padding:0; height:100%%; overflow:hidden;
 header { padding:8px 10px 6px; -webkit-user-select:none; cursor:grab;
   border-bottom:1px solid #2a2c33; }
 header.dragging { cursor:grabbing; background:#1b1d23; }
+#top { display:flex; align-items:baseline; gap:8px; min-width:0; }
+#brand { font-size:%dpx; font-weight:700; color:#6aa9ff; flex:none;
+  letter-spacing:.02em; }
 #now { font-size:%dpx; font-weight:600; white-space:nowrap;
-  overflow:hidden; text-overflow:ellipsis; }
+  overflow:hidden; text-overflow:ellipsis; flex:1; min-width:0; }
 #sub { font-size:%dpx; color:#9a9aa4; margin-top:2px; }
 #bar { height:3px; background:#2a2c33; border-radius:2px; margin-top:6px; }
 #fill { height:3px; width:0%%; background:#6aa9ff; border-radius:2px; }
@@ -824,7 +855,11 @@ footer { padding:5px 10px; font-size:%dpx; color:#7d7f89;
 </style></head><body>
 <div id="card">
   <header id="hd">
-    <div id="now">nothing playing</div>
+    <!-- 🏷 6.296.0 — the name sits to the LEFT of the now-playing line,
+         his words. #now keeps its id and its job, so every draw that
+         writes into it is unchanged; the brand is a sibling, and the
+         drag handler stays on #hd, which both of them bubble to. -->
+    <div id="top"><span id="brand">%s</span><span id="now">nothing playing</span></div>
     <div id="sub">drop music here</div>
     <div id="bar"><div id="fill"></div></div>
   </header>
@@ -997,7 +1032,8 @@ draw(S);
    this, so the answer to it cannot be dropped the way the push that
    arrives before this line is. */
 say({a:'ready'});
-</script></body></html>]]):format(fs, fs, fs2, fs2, fs1, fs2, fs2, fs1, fs2,
+</script></body></html>]]):format(fs, fs, fs, fs2, fs2, fs1, fs2, fs2, fs1, fs2,
+        mp.brandText(mp.brand),
         math.max(1, math.floor(tonumber(mp.seekStep) or 5)),
         math.max(1, math.floor(tonumber(mp.seekBigStep) or 30)))
     end
@@ -1061,7 +1097,7 @@ say({a:'ready'});
         -- nothing on it a click could have meant instead.
         if a == "dragStart" then
             if _G.beginPanelDrag then
-                if not _G.beginPanelDrag("music player") then
+                if not _G.beginPanelDrag("jug player") then
                     say("the card could not be picked up")
                 end
             else
@@ -1590,7 +1626,8 @@ say({a:'ready'});
         pcall(function()
             uc:setCallback(function(msg)
                 local ok, err = pcall(handleMessage, msg and msg.body)
-                if not ok then print("🎵 Music player: message handler — " .. tostring(err)) end
+                if not ok then print("🎵 " .. mp.brandText(mp.brand)
+                                     .. ": message handler — " .. tostring(err)) end
             end)
         end)
         local okV, view = pcall(hs.webview.new, rect, {}, uc)
@@ -1897,7 +1934,7 @@ say({a:'ready'});
     -- ---- the report -------------------------------------------------------
 
     function _G.musicReport()
-        local L = { "🎵 MUSIC PLAYER — ⇪⇧pad." }
+        local L = { "🎵 " .. mp.brandText(mp.brand):upper() .. " — ⇪⇧pad." }
         local function line(t) L[#L + 1] = t end
         line("   card     : " .. (mp.webview and "open" or "closed")
              .. " · " .. tostring(mp.anchor)
@@ -2067,7 +2104,7 @@ say({a:'ready'});
     -- ---- the doors in -----------------------------------------------------
 
     core.hyperAddShortcut(mp.mods, mp.key, function() mp.toggle() end,
-                          "music player")
+                          "jug player")
 
     core.provide("music.show",   function() return mp.show() end)
     core.provide("music.hide",   function() mp.hide() return true end)
@@ -2084,9 +2121,15 @@ say({a:'ready'});
     -- anywhere on the card (window_move's tap), and a bare drag on the
     -- title strip through the dragStart message above. move() is where
     -- the spot is written down, so BOTH grips remember (6.93.0).
+    -- 🏷 6.296.0 — the id moved too, and only because window_move's
+    -- report PRINTS it, which makes it a visible string after all. It
+    -- is a PAIR — this name and the beginPanelDrag() argument above —
+    -- and renaming one half is how a panel silently stops being
+    -- draggable, so both move in this commit and a check joins them.
+    -- Nothing persists it: no store, no hs.settings, runtime only.
     _G.movablePanels = _G.movablePanels or {}
     table.insert(_G.movablePanels, {
-        name  = "music player",
+        name  = "jug player",
         frame = function() return mp.webview and mp.webview:frame() end,
         move  = function(x, y)
             local f = mp.webview and mp.webview:frame()
@@ -2149,9 +2192,9 @@ function M.warm(core)
     local ok, why = mp.startMediaTap()
     if not ok and mp.mediaKeys and why ~= "not wanted" then
         if core and core.degrade then
-            pcall(core.degrade, "Music player media keys", tostring(why))
+            pcall(core.degrade, mp.brandText(mp.brand) .. " media keys", tostring(why))
         else
-            print("⚠️ Music player: " .. tostring(why))
+            print("⚠️ " .. mp.brandText(mp.brand) .. ": " .. tostring(why))
         end
     end
 end

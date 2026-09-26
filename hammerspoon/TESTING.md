@@ -1,4 +1,4 @@
-# TESTING — how to score release 6.295.0
+# TESTING — how to score release 6.296.0
 
 You install ONE archive and it carries several releases. Below are the
 steps for each release this archive is new for, newest first. Run the
@@ -26,6 +26,63 @@ else is a LOSS and I fix it before building further. You are the only
 scorer; I never mark my own.
 
 ---
+
+## 6.296.0
+
+6.296.0 verify with LL — 🏷 JUG PLAYER (KNOWN GROUND)
+WHAT CHANGED: the music player is called the Jug Player everywhere you
+can see it, and its name sits to the left of the now-playing line.
+WHY IT MATTERS: your words, and the rename is the easy half. The half
+worth a release is that ONE field carries the name — the card, the
+alert, the error door, both reports and the ⇪/ card all read it — so
+it cannot end up saying one thing in one place and another elsewhere.
+
+A. THE HEADLINE.
+A1. ⇪⇧pad. EXPECT: the card's top line reads
+    `Jug Player   nothing playing`, with the name on the LEFT in
+    blue, on the same line, not above it.
+A2. Drop a track on it. EXPECT: `Jug Player   <track name>` — the
+    name stays put and the track fills the rest of the line.
+A3. Drop a track with a very long name. EXPECT: the track name is cut
+    with an ellipsis; "Jug Player" is never squeezed or wrapped.
+A4. ⇪/ and search `jug`. EXPECT: the 🎵 JUG PLAYER card.
+A5. Console: `_G.musicReport()`. EXPECT the first line reads
+    `🎵 JUG PLAYER — ⇪⇧pad.`
+
+B. THE ONE THING MOST LIKELY TO HAVE BROKEN — please do this.
+B1. Press on the card's TITLE STRIP (where the name is) and drag.
+    EXPECT: the card moves. The name is a new element inside that
+    strip, so this is the thing the rename could have cost.
+B2. ⌘-drag anywhere on the card. EXPECT: it moves.
+B3. Close and reopen. EXPECT: it comes back where you left it.
+B4. A bare click on a TRACK ROW still plays that track — it must not
+    pick the window up.
+
+C. MUST STILL WORK.
+C1. space, ↑↓, ⏎, ⌘1–9, ← →, ⌫, the ✕ on a history row, the repeat
+    button — all unchanged.
+C2. F7/F8/F9 still drive it (6.291.0).
+
+D. AND IT IS QUIET NOW, which is 6.295.0 landing on this tool.
+D1. `_G.degradeReport()` → the quiet list should read **Jug Player**,
+    not "Music player". If it still says the old name, the two
+    releases have drifted and I want to know at once.
+D2. If the player fails at something, you get a Console line and no
+    alert — which is what you asked for. `_G.todayReport()` still has
+    it.
+
+E. A JUDGEMENT ONLY YOU CAN MAKE.
+E1. The name is drawn in blue at the same size as the track. Too
+    loud, too quiet, or right? It is a colour and a number, not a
+    release.
+E2. NAMED, NOT SWEPT, so it is not a surprise: the FILE is still
+    `music_player.lua`, the settings key is still `music_player`, and
+    the store folder is still `music`. Those are ids you never see,
+    and renaming a store folder is how a queue goes missing. If you
+    want them moved anyway, say so and it is a careful release of its
+    own.
+
+
 
 ## 6.295.0
 
@@ -189,75 +246,6 @@ E1. ⌥ is a modifier you probably use more than ⌘⌘'s ⌘ for one-handed
     tell me how it felt rather than a number and I will move the
     timing; if it is simply the wrong key for this, say so and it
     moves to another modifier in one line.
-
-
-
-## 6.292.0
-
-6.292.0 verify with LL — ⌨️ ⌘⌘ OPENS THE CLIPBOARD (KNOWN GROUND)
-WHAT CHANGED: tap ⌘ twice, quickly, and the clipboard history opens —
-the same window ⇪V gives you.
-WHY IT MATTERS: you asked for this in 6.198.0, again on 2026-09-13,
-and again this week. It had never been built. The uncomfortable part
-is that the machinery has been on your Mac the whole time driving ⌃⌃
-(the editor picker); what was missing was four lines registering ⌘⌘
-against it. That engine is now a shared one in core/, so ⌥⌥ is the
-next release rather than a second copy of the same state machine.
-🖥 AND YOUR FULL-SCREEN QUESTION NEEDED NO WORK: these panels are
-drawn by an app with no Dock icon, which is exactly why they already
-come over a full-screen app. Worth testing anyway — step A4.
-
-A. THE HEADLINE.
-A1. Tap the ⌘ key twice, quickly, with nothing else held.
-    EXPECT: the clipboard history opens — the ⇪space-style panel, the
-    same one ⇪V gives you.
-A2. Press Esc, then ⇪V. EXPECT: the identical window. They are one
-    function now, so they cannot drift apart.
-A3. Try it with the LEFT ⌘ and the RIGHT ⌘. EXPECT: both work.
-A4. Put an app in full screen (⌃⌘F) and tap ⌘⌘ there.
-    EXPECT: the history comes forward over it. If it does NOT, that
-    is a real finding and I want to know — say which app.
-
-B. THE ONES THAT PROTECT YOUR TYPING. These matter more than A, because
-   this watches every keystroke on the Mac.
-B1. Use ⌘C, ⌘V, ⌘S, ⌘Tab and ⌘W normally for a while.
-    EXPECT: nothing opens. A chord is not a gesture.
-B2. HOLD ⌘ down for a second and let go, twice. EXPECT: nothing — a
-    modifier you are holding to use is not a tap.
-B3. Tap ⌘ once, type a letter, tap ⌘ again. EXPECT: nothing. A key
-    between the halves proves it was a chord.
-B4. ⌘-click something twice quickly. EXPECT: nothing.
-B5. Type normally in Chrome, Word and Hamsidian for a while.
-    EXPECT: no missed characters, no lag. If typing feels heavier on
-    this build than on 6.291.0, STOP and tell me — that is the one
-    cost this release could have that I cannot measure from here.
-B6. ⌃⌃ must still open the editor picker, exactly as before. It is
-    deliberately still on its own engine — see the note below.
-
-C. PASTE BACK, PASS OR FAIL.
-C1. `_G.doubleTapReport()` — new. Healthy reads
-    `⌘⌘ : clipboard history (⇪V) · side either · N fired` and
-    `watcher : running`. If it reads `⚠️ NOT RUNNING`, this Mac would
-    not give Hammerspoon an event tap — paste it.
-C2. `_G.clipboardReport()` — its new `⌘⌘` line has three states and
-    I want whichever you get.
-
-D. IF IT GETS IN THE WAY.
-D1. `settings = { clipboard_history = { cmdCmd = false } }` switches
-    the gesture off; ⇪V is untouched either way.
-D2. If ⌘⌘ fires when you did not mean it to, the two windows are
-    tunable — tell me how it felt (too eager / too slow) rather than
-    a number, and I will move the default.
-
-E. A JUDGEMENT ONLY YOU CAN MAKE.
-E1. ⌃⌃ (the editor picker) is NOT on the new shared engine yet, on
-    purpose: its tap is the one that watches every key press, and a
-    mistake there does not break a feature — it takes the keyboard,
-    which is what 6.214.0 cost you. So it migrates in its own release
-    once this one has run on your Mac for a while. The cost until
-    then is two watchers instead of one, which is why B5 matters. Say
-    if you would rather I did that migration sooner.
-E2. ⌥⌥ → the menu bar is the next release and uses this same engine.
 
 
 

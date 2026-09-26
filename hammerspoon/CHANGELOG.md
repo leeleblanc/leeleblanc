@@ -6,6 +6,71 @@ older lives only here.
 
 ```text
 
+NEW IN 6.296.0 — 🏷 JUG PLAYER
+(modules/music_player.lua):
+
+  LL: "From here forward, call the music player, Jug Player and put the
+  name to the left of now playing."
+
+  🔑 ONE FIELD CARRIES THE NAME. `mp.brand` is read by the card's
+  header, the alert, the 🔔 door's tool name, the report's heading, the
+  message-handler's Console line and the ⇪/ card. A rename done as
+  eight literals is a rename that drifts the first time one of those
+  surfaces is edited — which is 6.239.0's rule, and here the CHECK is
+  what makes it real: it MOVES `mp.brand` to a word this config has
+  never shipped and requires the page and the report to follow.
+  Asserting the shipped word would pass with the name typed in twice.
+
+  📐 HIS WORDS WERE POSITIONAL — "to the LEFT of now playing" — so the
+  check reads the ORDER inside the header rather than merely that the
+  name appears in the page, which would pass with it dropped into the
+  footer. The header is now a flex row: the brand, then #now, on one
+  baseline. #now keeps its id and its job, so every draw that writes
+  into it is untouched, and the drag grip is untouched too — the
+  mousedown is still on #hd and both children bubble to it (6.232.0),
+  which has its own check because a card you cannot move is exactly
+  the complaint 6.232.0 existed to fix.
+
+  🔤 6.231.1 IN A NEW PLACE. The name goes into the page's markup, so a
+  name carrying & or < would break the header exactly as a track name
+  did. `mp.brandText` is PURE, escapes the three characters that
+  matter, and falls back to the shipped name rather than drawing a
+  nameless card — it is a config value, so it is escaped rather than
+  trusted.
+
+  🔒 A SENTRY ABOUT THE CLASS, not the eight strings found today: a
+  ninth written next month brings the old name back and nothing
+  functional would notice. It reads the module with COMMENTS STRIPPED
+  (6.262.0), because the history lives in them and they quote the very
+  words the sentry forbids.
+
+  🏷 AND ONE "ID" TURNED OUT TO BE VISIBLE. The precedent from 6.214.0
+  and 6.253.0 is visible strings only: the module key, the settings
+  key, `mp.*`, `_G.music*`, the store, the services and the escape
+  router id all keep their names, because an id he never sees is not
+  worth a migration. But window_move's report PRINTS the movablePanels
+  entry's name, which makes that one visible after all — so it moved.
+  It is a PAIR (the registry entry and the `beginPanelDrag()`
+  argument), renaming one half silently stops the title strip
+  dragging, and a check now joins them to each other.
+
+  🧪 AND THE RENAME NEARLY RETIRED ELEVEN CHECKS. test_music_player
+  matched the panel by the literal "music player" in three places, so
+  the rename turned every drag-grip check red with nothing to say
+  about the change they existed to prove — 6.248.0, which is the same
+  shape as the two report checks that asserted "🎵 MUSIC PLAYER"
+  outright. The suite reads the id out of `_G.movablePanels` and the
+  heading out of `mp.brand` now.
+
+  📏 NAMED, NOT SWEPT: the store, the settings key and the module file
+  are still `music_player`, and `settings = { music_player = { brand =
+  "Something Else" } }` renames it again with no release.
+
+  GENERAL: before calling a string an "id", grep the reports. A name
+  that is printed to a human is a visible string however internal it
+  looks from the inside of the module that owns it.
+
+
 NEW IN 6.295.0 — 🔕 LOUD BY DEFAULT, QUIET ONLY WHERE HE SAID SO
 (core/notices.lua):
 

@@ -327,7 +327,7 @@ return function(core)
     -- is named here. That is the direction to be wrong in, and the
     -- door is a Console line rather than a release —
     -- `_G.degradeQuiet("Some tool")` / `_G.degradeLoud("Some tool")`.
-    notices.quietTools = { "Music player" }
+    notices.quietTools = { "Jug Player" }
     notices.quietCount = 0       -- degrades that went to the Console alone
 
     -- PURE. Answers whether this tool's degrades alert, and WHY, so the
@@ -636,7 +636,7 @@ return function(core)
                     and " (none has degraded this session)"
                     or (" · " .. notices.quietCount .. " degrade(s) took that route"))
             L[#L + 1] = "   ↳ the LOG still gets them: _G.todayReport() and ⇪⇧D are unchanged"
-            L[#L + 1] = "   ↳ _G.degradeLoud(\"Music player\") puts one back on screen"
+            L[#L + 1] = "   ↳ _G.degradeLoud(\"Jug Player\") puts one back on screen"
         end
         local s = table.concat(L, "\n")
         print(s)
