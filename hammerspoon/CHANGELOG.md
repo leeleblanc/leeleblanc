@@ -6,6 +6,99 @@ older lives only here.
 
 ```text
 
+NEW IN 6.292.0 — ⌨️ ⌘⌘ OPENS THE CLIPBOARD HISTORY, ON A SHARED ENGINE
+(core/double_tap.lua — new — + modules/clipboard_history.lua):
+
+  LL, for the THIRD time (6.198.0 · 2026-09-13 · 2026-09-26): "My
+  double tap for my clipboard history uses command+command, is that
+  built? Same as opt+option to move to the menu bar even if the app is
+  full-screen?"
+
+  🚨 THE HONEST ANSWER WAS NO TO BOTH, AND HAD BEEN FOR NINETY-FOUR
+  RELEASES. Not "partly", not "nearly" — never built. And the whole
+  time, the MACHINERY for it has been running on his Mac driving ⌃⌃:
+  modules/editor_picker.lua has had a complete double-tap-modifier
+  engine since 6.116.0, with per-side keycodes, intruder types and a
+  flagsChanged tap. The thing he asked for was one registration away
+  from working, and nobody made the registration.
+
+  🔑 SO THE ENGINE IS LIFTED, NOT COPIED (6.231.0). core/double_tap.lua
+  holds one watcher and a REGISTER of gestures, each with its own state
+  — so N gestures run side by side and a new one is four lines rather
+  than a second state machine to keep in step.
+
+  🔑 AND ⌃⌃ IS NOT ON IT YET, WHICH IS A DECISION AND IS STATED RATHER
+  THAN LEFT TO BE FOUND. editor_picker's tap is the ONE place in this
+  config that watches keyDown globally, and a mistake there does not
+  break a feature — it takes the keyboard, which is exactly what
+  6.214.0 cost him. So the new engine proves itself on NEW gestures
+  first and editor_picker migrates in its own later release, once his
+  Mac has run this code. That is this project's own new-ground habit
+  applied to a refactor: ship the release that can be JUDGED.
+  📏 THE COST IS REAL AND IS PRINTED, not buried in a commit message:
+  until that migration there are two copies of the double-tap rule and
+  two taps on flagsChanged. `_G.doubleTapReport()` says so on its last
+  line, so nobody has to remember.
+
+  🖥 "EVEN IF THE APP IS FULL-SCREEN" needed no work at all, and that is
+  worth saying rather than quietly delivering: this config's windows
+  are drawn by an ACCESSORY app (no Dock icon), which is why hs.chooser
+  and every webview panel already come forward over a full-screen app.
+  The gesture itself is an event tap, which macOS delivers whatever is
+  on screen.
+
+  🔑 ONE OPENER, TWO CALLERS: `clip.openHistory` (6.231.0). ⇪V and ⌘⌘
+  go through the same function, because a gesture that opened the
+  history a different way from the key is two features to keep in step.
+  Registered in warm(), never setup — a profile's settings land AFTER
+  setup returns, so a gesture registered there could be switched off
+  and never unregistered (6.228.0, this project's fifth module).
+
+  🚨 TWO GESTURES ON ONE MODIFIER ARE REFUSED, with the holder NAMED:
+  the first to complete would fire and the second would be driving a
+  state machine nobody read. Two SIDES of one modifier is a legitimate
+  pair and is allowed.
+
+  🔎 THE STAND-DOWNS, all inherited and all load-bearing: the injection
+  guard (6.218.0 — keyStrokes POSTS, so our own retypes must not
+  assemble a gesture), `_G.hsPaused` (6.152.0), and `_G.hyperActive`,
+  because ⇪ is F18 plus a synthetic ⌘⇧⌃⌥ chord. EVERY PATH RETURNS
+  false: this tap sees keyDown, so a path returning true would take the
+  keyboard away entirely rather than break one feature.
+
+  🧪 22 MUTATIONS, 22 BITES — but only after four of them SURVIVED and
+  named a real defect in the checks:
+
+    · THREE ASSERTED ON THE FIRST TAP OF A PAIR, where the answer is
+      false whatever the rule does. The mutations deleting maxHold, the
+      other-modifier guard and the shift-joins-a-hold guard all sailed
+      through. 6.230.0's rule inside a state machine: pick the input
+      where the right and wrong implementations MUST differ, which here
+      is always the tap that would COMPLETE the gesture.
+    · AND THE TEST HELPER SWALLOWED AN ARGUMENT. `tap(g, t, held, code)`
+      had no `extra`, so `tap(g, 1, 0.05, { shift = true })` handed a
+      TABLE where a keycode goes — sideOf refuses a non-number, the
+      shift flag was never set, and the press it was meant to dirty was
+      a clean one. Every chord check in §2 was a lie, and they passed
+      because of the first defect. 6.193.0 inside the test itself.
+    · The "one opener" sentry counted the DEFINITION, so the mutation
+      that puts ⇪V's body back inline left it true. It asserts that
+      ⇪V's handler is the CALL now.
+
+  🚨 AND THE GATE CAUGHT THE CORE CONTRACT. The first draft returned
+  the table directly; every file in core/ returns an INITIALISER —
+  `return function(core)` — which is the exact shape hs-install.sh
+  verifies before trusting an install, and three sentries in
+  test_diagnostics enforce it along with the counts in hs-doctor.sh,
+  hs-install.sh, INSTALL.md and GUIDE.md. All four moved in this
+  commit, and INSTALL.md's sample output — stale at "9 files" from long
+  before this release — was corrected with them.
+
+  🔎 THREE STATES ON EVERY REPORT LINE (6.196.1): ⌘⌘ OFF by settings ·
+  wanted but the watcher is not running · watching, with a count. "⌘⌘
+  does nothing" reads the same in all three and they need different
+  answers. 64 checks; 12 core files → 13.
+
 NEW IN 6.291.0 — ⌨️ F8 ARRIVES BY TWO ROUTES AND ONLY ONE WAS WATCHED
 (modules/music_player.lua, tests/test_music_player.lua):
 

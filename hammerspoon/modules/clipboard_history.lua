@@ -1154,6 +1154,18 @@ function M.setup(core)
         -- ⇪V / ⇪⇧V. The old ⌃⌥⌘V and ⌃⌥⌘⇧V chords are what §0.4's
         -- migration map POINTS AT these; binding the hyper keys directly
         -- is the same destination without the indirection.
+        -- ⌨️ 6.292.0 — ⌘⌘ OPENS THIS, and it is the same door ⇪V takes.
+        -- LL asked for it in 6.198.0, again on 2026-09-13, and again on
+        -- 2026-09-26; it had never been built, while the engine for it
+        -- had been driving ⌃⌃ on his Mac since 6.116.0. ONE function,
+        -- two callers (6.231.0) — a gesture that opened the history a
+        -- different way from the key is two features to keep in step.
+        clip.openHistory = function()
+            if clip.panel and clip.openInPanel() then return end
+            clip.render("")
+            openMain()
+        end
+
         core.hyperAddShortcut({}, clip.key, function()
             -- 6.190.0 — LL: "make the histories match unified search."
             -- ⇪space ALREADY renders this exact store as its @clip source,
@@ -1162,9 +1174,7 @@ function M.setup(core)
             -- first — one page, one look, one place to fix.
             -- The EDIT side (⇪⇧V) stays a chooser: it deletes rows, and
             -- ⇪space is a reader.
-            if clip.panel and clip.openInPanel() then return end
-            clip.render("")
-            openMain()
+            clip.openHistory()
         end, "clipboard history")
 
         core.hyperAddShortcut({ "shift" }, clip.key, function()
@@ -1284,6 +1294,21 @@ function M.setup(core)
                                          or "not loaded")
         -- ⤒⤓ 6.227.0 — Home/End, and where the picker last put itself back
         L[#L + 1] = "   home/end : " .. tostring(clip.jumpState)
+        -- ⌨️ 6.292.0 — THREE STATES (6.196.1), because "⌘⌘ does nothing"
+        -- reads the same in all of them and they need different answers.
+        if not clip.cmdCmd then
+            L[#L + 1] = "   ⌘⌘       : OFF — settings = { clipboard_history "
+                        .. "= { cmdCmd = true } }"
+        elseif clip.cmdCmdWhy then
+            L[#L + 1] = "   ⌘⌘       : ⚠️ WANTED but not running — "
+                        .. tostring(clip.cmdCmdWhy)
+                        .. " · ⇪V still opens the history"
+        else
+            local g = _G.doubleTap and _G.doubleTap.byName
+                      and _G.doubleTap.byName.clipboardHistory
+            L[#L + 1] = "   ⌘⌘       : watching · " .. ((g and g.fires) or 0)
+                        .. " open(s) this session  ·  _G.doubleTapReport()"
+        end
         L[#L + 1] = "   place    : " .. (clip.lastRestoredRow
             and ("the picker last landed on row " .. clip.lastRestoredRow
                  .. " after a rebuild")
@@ -1324,9 +1349,48 @@ function M.setup(core)
         say(#_G.clipboardCache .. " items loaded")
     end
 
+    -- ⌨️ 6.292.0 — the ⌘⌘ gesture. `cmdCmdSide` is "either" because no
+    -- Apple keyboard has only one ⌘ and a side setting that cannot be
+    -- honoured is a gesture that quietly stops working (6.124.0).
+    clip.cmdCmd     = true      -- settings = { clipboard_history = { cmdCmd = false } }
+    clip.cmdCmdSide = "either"  -- or "left" / "right"
+
     _G.clipboardHistory = clip
     M.clip   = clip
     M.config = clip
+end
+
+-- ⌨️ 6.292.0 — ⌘⌘ IS REGISTERED IN warm(), NEVER IN setup(). init.lua
+-- applies a profile's `settings` AFTER setup returns, so a gesture
+-- registered in setup could be switched off and never unregistered —
+-- 6.228.0's shape, which this project has now met in five modules.
+function M.warm(core)
+    local clip = M.clip
+    if not clip or not clip.cmdCmd then return end
+    local dt = _G.doubleTap
+    if not dt then
+        -- IT DEGRADES, IT NEVER BREAKS: ⇪V is untouched and still opens
+        -- the history. Said once, in the report, not as an alert on a
+        -- Mac where nothing the user asked for has failed.
+        clip.cmdCmdWhy = "core/double_tap.lua did not load"
+        return
+    end
+    local g, why = dt.register("clipboardHistory", {
+        mod = "cmd", side = clip.cmdCmdSide, action = clip.openHistory,
+        label = "clipboard history (⇪V)",
+    })
+    if not g then
+        clip.cmdCmdWhy = tostring(why)
+        if core and core.degrade then
+            pcall(core.degrade, "Clipboard ⌘⌘", tostring(why))
+        end
+        return
+    end
+    local ok, startWhy = dt.start()
+    clip.cmdCmdWhy = ok and nil or tostring(startWhy)
+    if not ok and core and core.degrade then
+        pcall(core.degrade, "Clipboard ⌘⌘", tostring(startWhy))
+    end
 end
 
 return M

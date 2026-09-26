@@ -4,8 +4,24 @@
 -- =====================================================================
 -- 09-26-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.291.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.292.0
 -- =====================================================================
+
+-- NEW IN 6.292.0 — ⌨️ ⌘⌘ OPENS THE CLIPBOARD HISTORY
+--   (core/double_tap.lua + modules/clipboard_history.lua):
+--   LL, for the third time (6.198.0 · 2026-09-13 · 2026-09-26): "My
+--   double tap for my clipboard history uses command+command, is that
+--   built?" It was not — while the MACHINERY has been driving ⌃⌃ on
+--   his Mac since 6.116.0, inside editor_picker. That engine is lifted
+--   into core/ so a gesture is a REGISTRATION rather than a second
+--   copy of a state machine (6.231.0), and ⌘⌘ is the first on it.
+--   🔑 ⌃⌃ IS NOT MIGRATED YET, ON PURPOSE: editor_picker's tap is the
+--   one here that watches keyDown globally, and a mistake there does
+--   not break a feature, it takes the keyboard (6.214.0). The new
+--   engine proves itself on NEW gestures first. The cost — two copies
+--   of the rule, two taps — is printed by `_G.doubleTapReport()`.
+--   🖥 "even if the app is full-screen" needed no work: these panels
+--   are drawn by an accessory app. Registered in warm() (6.228.0).
 
 -- NEW IN 6.291.0 — ⌨️ F8 ARRIVES BY TWO ROUTES, ONE UNWATCHED
 --   (modules/music_player.lua):
@@ -24,27 +40,11 @@
 --   🚨 hs-lint caught two rules this project already owned, both about
 --   a tap that sees keyDown: a throw in the callback is a silence ONCE
 --   PER KEYSTROKE (6.235.0); a synthetic key is not a press (6.218.0).
--- NEW IN 6.290.0 — 🔬 A STUB GENTLER THAN macOS FAILS THE GATE NOW
---   (tests/test_stub_fidelity.lua):
---   Classify this project's ten scored losses by where the defect lived
---   and EIGHT of ten sit at the macOS boundary — the surface the gate
---   cannot see; zero are logic errors in pure Lua. This config writes
---   the code, the test AND the stub from ONE model of macOS, so a wrong
---   model makes all three wrong the same way and they agree. Green means
---   "the code matches our beliefs", never "it matches macOS".
---   🔑 The suite tests the BELIEFS: every stubbed provider is held to a
---   contract paid for by a named loss — the clock is a FLOAT (6.282.0),
---   setContents a BOOLEAN (6.198.0), selectedRow · currentTime · topLeft
---   are SETTERS (6.227.0 · 6.239.0 · 6.247.0), symlinkAttributes is
---   never stubbed alone (6.230.0), the registry is LIFTED not retyped
---   (6.273.0). 28 stubs in 25 files fixed, so it ships SILENT (6.269.0).
---   📏 NAMED: it is STATIC — eight more contracts print as data.
-
--- (6.289.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.290.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 cut the inline count to
 --  TWO; a gate check proves every entry here is also in CHANGELOG.md.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.291.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.292.0
 -- =====================================================================
 -- The catalogue that used to sit here moved to GUIDE.md ("What each
 -- tool does") in 6.180.0 — 259 lines of prose inside the orchestrator.
@@ -137,7 +137,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.291.0"
+_G.configVersion = "6.292.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the
@@ -246,6 +246,20 @@ do
               .. '_G.lagReport() is unavailable and slow keystroke handlers '
               .. 'will go unmeasured: ' .. tostring(e))
     end
+end
+
+-- ⌨️ THE DOUBLE-TAP ENGINE (core/double_tap.lua) — ⌘⌘ · ⌥⌥ · 6.292.0
+-- After the lag probe so its tap is timed like every other. It starts
+-- no watcher: a module REGISTERS a gesture in warm() and starts it
+-- there, because settings land after setup (6.228.0).
+do
+    local ok, e = pcall(function()
+        local chunk, le = loadfile(hs.configdir .. '/core/double_tap.lua')
+        if not chunk then error(le or 'cannot read core/double_tap.lua', 0) end
+        _G.doubleTap = chunk()({})
+    end)
+    if not ok then print('⚠️ core/double_tap.lua failed to load — ⌘⌘ does '
+          .. 'nothing; ⇪V and every ⇪ key are unaffected: ' .. tostring(e)) end
 end
 
 -- 6.42.0 — THE SERVICE REGISTRY, stubbed here so it is never nil.
@@ -3026,26 +3040,12 @@ end
 -- in the boot path that is a main-thread stall at every login.
 --
 -- ---------------------------------------------------------------------
--- THE MODULE CONTRACT, in full:
---
---   return {
---     name   = "App Peek",           -- shown in the boot report
---     order  = 7,                    -- LOAD order (and the A–Z tie-break)
---     family = "windows",            -- 6.101.0: which band of the cheat
---                                    -- sheet it sits under; the ids are in
---                                    -- core/cheatsheet.lua → families.
---                                    -- Declared HERE, never in a list over
---                                    -- there. No family = the visible
---                                    -- "NOT YET FILED" band, and a test
---                                    -- fails until you pick one.
---     cheatsheet = {                 -- travels WITH the module
---       title = "👀 APP PEEK",
---       entries = { { "⇪P", "Hide the frontmost app" } },
---     },
---     config = someTable,            -- OPTIONAL: settings a machine
---                                    -- profile may override
---     setup = function(core) ... end,-- REQUIRED: binds keys, cheap work
---   }
+-- THE MODULE CONTRACT: `return { name, order, family, cheatsheet,
+-- config?, setup, warm? }`. GUIDE.md carries it in full with the field
+-- notes (6.217.0: prose that is not orchestration lives there, and the
+-- stories live in CHANGELOG.md, so a trim never loses one). A module
+-- with no `family` lands in the visible "NOT YET FILED" band and a
+-- test fails until one is picked.
 --
 -- 🗂 TWO SPECIAL FAMILY CASES (6.101.0): family = "auto" (no keys) is one
 --   line in the "⚙️ RUNS ITSELF" box from `summary`, listed even with no

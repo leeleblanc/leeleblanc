@@ -1,4 +1,4 @@
-# TESTING — how to score release 6.291.0
+# TESTING — how to score release 6.292.0
 
 You install ONE archive and it carries several releases. Below are the
 steps for each release this archive is new for, newest first. Run the
@@ -26,6 +26,75 @@ else is a LOSS and I fix it before building further. You are the only
 scorer; I never mark my own.
 
 ---
+
+## 6.292.0
+
+6.292.0 verify with LL — ⌨️ ⌘⌘ OPENS THE CLIPBOARD (KNOWN GROUND)
+WHAT CHANGED: tap ⌘ twice, quickly, and the clipboard history opens —
+the same window ⇪V gives you.
+WHY IT MATTERS: you asked for this in 6.198.0, again on 2026-09-13,
+and again this week. It had never been built. The uncomfortable part
+is that the machinery has been on your Mac the whole time driving ⌃⌃
+(the editor picker); what was missing was four lines registering ⌘⌘
+against it. That engine is now a shared one in core/, so ⌥⌥ is the
+next release rather than a second copy of the same state machine.
+🖥 AND YOUR FULL-SCREEN QUESTION NEEDED NO WORK: these panels are
+drawn by an app with no Dock icon, which is exactly why they already
+come over a full-screen app. Worth testing anyway — step A4.
+
+A. THE HEADLINE.
+A1. Tap the ⌘ key twice, quickly, with nothing else held.
+    EXPECT: the clipboard history opens — the ⇪space-style panel, the
+    same one ⇪V gives you.
+A2. Press Esc, then ⇪V. EXPECT: the identical window. They are one
+    function now, so they cannot drift apart.
+A3. Try it with the LEFT ⌘ and the RIGHT ⌘. EXPECT: both work.
+A4. Put an app in full screen (⌃⌘F) and tap ⌘⌘ there.
+    EXPECT: the history comes forward over it. If it does NOT, that
+    is a real finding and I want to know — say which app.
+
+B. THE ONES THAT PROTECT YOUR TYPING. These matter more than A, because
+   this watches every keystroke on the Mac.
+B1. Use ⌘C, ⌘V, ⌘S, ⌘Tab and ⌘W normally for a while.
+    EXPECT: nothing opens. A chord is not a gesture.
+B2. HOLD ⌘ down for a second and let go, twice. EXPECT: nothing — a
+    modifier you are holding to use is not a tap.
+B3. Tap ⌘ once, type a letter, tap ⌘ again. EXPECT: nothing. A key
+    between the halves proves it was a chord.
+B4. ⌘-click something twice quickly. EXPECT: nothing.
+B5. Type normally in Chrome, Word and Hamsidian for a while.
+    EXPECT: no missed characters, no lag. If typing feels heavier on
+    this build than on 6.291.0, STOP and tell me — that is the one
+    cost this release could have that I cannot measure from here.
+B6. ⌃⌃ must still open the editor picker, exactly as before. It is
+    deliberately still on its own engine — see the note below.
+
+C. PASTE BACK, PASS OR FAIL.
+C1. `_G.doubleTapReport()` — new. Healthy reads
+    `⌘⌘ : clipboard history (⇪V) · side either · N fired` and
+    `watcher : running`. If it reads `⚠️ NOT RUNNING`, this Mac would
+    not give Hammerspoon an event tap — paste it.
+C2. `_G.clipboardReport()` — its new `⌘⌘` line has three states and
+    I want whichever you get.
+
+D. IF IT GETS IN THE WAY.
+D1. `settings = { clipboard_history = { cmdCmd = false } }` switches
+    the gesture off; ⇪V is untouched either way.
+D2. If ⌘⌘ fires when you did not mean it to, the two windows are
+    tunable — tell me how it felt (too eager / too slow) rather than
+    a number, and I will move the default.
+
+E. A JUDGEMENT ONLY YOU CAN MAKE.
+E1. ⌃⌃ (the editor picker) is NOT on the new shared engine yet, on
+    purpose: its tap is the one that watches every key press, and a
+    mistake there does not break a feature — it takes the keyboard,
+    which is what 6.214.0 cost you. So it migrates in its own release
+    once this one has run on your Mac for a while. The cost until
+    then is two watchers instead of one, which is why B5 matters. Say
+    if you would rather I did that migration sooner.
+E2. ⌥⌥ → the menu bar is the next release and uses this same engine.
+
+
 
 ## 6.291.0
 
@@ -202,56 +271,6 @@ D1. When you wrote "pressing play/pause doesn't work", did you mean
     space bar, that is a different fault and the report's "keyboard :"
     line names it: paste `_G.musicReport()` right after pressing space
     on the card and I will fix that instead. One sentence is enough.
-
-
-
-## 6.288.0
-
-6.288.0 verify with LL — 🖥 THE SHEET OPENS WHERE YOU ARE (KNOWN GROUND)
-WHAT CHANGED: ⇪/ is placed on the screen this config resolved, and can
-no longer be pulled onto another monitor by a spot you saved there.
-WHY IT MATTERS: your two sentences are ONE bug, which is why I want to
-say the mechanism plainly. Your saved spot is stored as an offset into
-the screen you dragged it on. Dragged to the right-hand side of the 4K
-that offset is about 2000 points. Applied to the Air's top-left, 2000
-points to the right is physically ON the 4K — and the helper that was
-supposed to keep the panel on a screen kept it on THAT one, throwing
-away the screen every line above it had just worked out. And a sheet on
-the other monitor is a sheet that is not in front of you: you drag it
-back, and it appears. Second sentence, same event.
-
-A. THE HEADLINE — this needs both monitors.
-A1. On the LG, press ⇪/ and drag the sheet to its right-hand side.
-    Close it.
-A2. Click into an app on the AIR. Press ⇪/.
-    EXPECT: the sheet is on the AIR, fully on screen, over toward its
-    right-hand edge. It must NOT be on the LG.
-A3. Console: `_G.cheatSheetReport()`. The new "place :" line should
-    read `nudged back onto this screen — the spot you saved was on a
-    bigger one`, with the screen it used underneath.
-A4. Now back on the LG: press ⇪/.
-    EXPECT: your spot, exactly — it fits there, so it is obeyed, and
-    the report reads `where you put it`.
-
-B. IS IT IN FRONT?
-B1. Each time it opens, is it readable without you touching it?
-    EXPECT: yes. If it EVER opens and is not in front on the monitor
-    you are looking at, that is a second bug and I have not found it —
-    run `_G.cheatSheetReport()` and `_G.screenReport()` at that moment
-    and paste both. Those two together name the screen, the rule that
-    chose it, and where the panel went.
-
-C. MUST STILL WORK.
-C1. Drag the sheet anywhere and reopen: it is where you left it.
-C2. Type to filter, scroll with the wheel, Esc to close — unchanged.
-C3. `_G.cheatSheetCenter()` still forgets the spot and re-centres.
-C4. Unplug the LG, then ⇪/. EXPECT: it opens on the Air, on screen.
-
-D. A JUDGEMENT ONLY YOU CAN MAKE.
-D1. When your saved spot does not fit the smaller screen, I nudge it to
-    the nearest edge rather than re-centring — so a sheet you like on
-    the right stays on the right. Is that what you want, or would you
-    rather it centred on a screen it does not fit? "nudge" · "centre".
 
 
 

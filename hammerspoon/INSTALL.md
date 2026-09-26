@@ -44,7 +44,7 @@ Nothing else is affected.
 ~/.hammerspoon/
 ├── init.lua              the orchestrator — profiles, hyper key, pickers
 ├── secret.lua            YOUR Asana token. Per-machine. Never synced.
-├── core/                 12 files, loaded directly by init.lua
+├── core/                 13 files, loaded directly by init.lua
 │   ├── diagnostics.lua       ⇪⇧D
 │   ├── cheatsheet.lua        ⇪/
 │   ├── boot_report.lua       the Console's first two lines
@@ -56,6 +56,7 @@ Nothing else is affected.
 │   ├── changelog_csv.lua     one Excel-ready row per version
 │   ├── console.lua           the ⛔ ERRORS + ⚠️ NONBREAKING sections + repeat limiter
 │   ├── lag.lua               which tap is eating the keystroke — OFF unless ~/.hammerspoon/LAGPROBE exists
+│   ├── double_tap.lua        ⌘⌘ and ⌥⌥ — one watcher, many gestures
 │   └── notices.lua           the failure ledger — nothing fails silently
 ├── modules/              71 files, loaded by the §1.12 loader
 ├── snippets/
@@ -175,7 +176,7 @@ sh ~/Downloads/hs-new/tools/hs-install.sh ~/Downloads/hs-new --dry-run
 This changes **nothing**. Read the output. It names every folder it would
 write and where.
 
-✅ **Success:** it lists `core/ : 9 files ✅ present`, a modules count, and
+✅ **Success:** it lists `core/ : 13 files ✅ present`, a modules count, and
 a `snippets/: bundled.lua (…bytes)` line.
 ❌ **Failure — "this init.lua needs a core/ folder and your download has
 none":** you are pointing it at the wrong folder, or the archive is
