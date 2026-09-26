@@ -6,6 +6,102 @@ older lives only here.
 
 ```text
 
+NEW IN 6.297.0 — 🗂 A LINE IS A TASK: THE HAMSIDIAN TASK GRAMMAR
+(modules/scratch_pad.lua):
+
+  LL asked a question and then described what he wants instead:
+  "On Hamsidian, does 'Asana now' send each line of the scratch pad as
+  a separate task?"
+
+  🔎 THE ANSWER FIRST, because it is the opposite of the assumption in
+  the question. NO. `sp.dayBody` builds ONE task for the whole day —
+  title "Hamsidian · Fri Sep 26", and every open tab's text underneath
+  it as the description, each under a `## <tab title>` heading, then
+  today's closed tabs. One Asana task. Never one per line. And the
+  4 PM schedule is OFF anyway: he switched it off himself in 6.254.0,
+  so only the "→ Asana now" button and `_G.scratchPadSend()` send at
+  all.
+
+  🗂 HIS GRAMMAR, as he wrote it:
+        a bare line            → one basic task, verb + rest
+        =                      → a divider between groups
+        P: <verb + sentence>   → a task with more to say
+        A: <assignee>          → who (default "me")
+        D: <description>       → the body, several lines join
+        S: <subtask>           → one per line, many per task
+        T: <dates and times>   → start/end date, start/end time
+
+  🚨 THIS RELEASE PARSES AND PREVIEWS. IT SENDS NOTHING, and that is
+  deliberate rather than half-finished. 6.237.0's habit says that on
+  ground this config has not touched, the FIRST release is the one
+  that prints what was actually understood — and his own grammar is
+  exactly that ground, because only he knows what he will really type.
+  `_G.scratchPadTasks()` shows every task this would create before one
+  of them exists in Asana. Building the send first would have meant
+  finding out what the parser gets wrong from his Asana board.
+
+  🔑 PURE, AND THE CLOCK IS AN ARGUMENT (6.234.0). "today" and "one
+  week from today" cannot be proven by a test that waits a week, so
+  `now` is passed in and every edge is a fixture against a fixed
+  second.
+
+  🚨 A BARE LINE AFTER A P: BLOCK IS ITS OWN TASK. The other reading —
+  fold it into the open description — is defensible, and it is the one
+  that loses work: a line he meant as a task would vanish into
+  somebody else's body text with nothing to see. His sentence ("a
+  basic task with no other information is verb+title") decides it, and
+  the check drives exactly that shape.
+
+  🚨 WHAT IT CANNOT READ IS NAMED, never dropped. A `T:` line written
+  in words this does not know would otherwise set no date at all, and
+  he would find that out from Asana a week later. Every unread word
+  appears in the preview, and so does a `D:`/`S:`/`A:`/`T:` with no
+  task above it, a `P:` with no title, and a second `A:` for one task.
+
+  🧪 TWO BUGS CAME OUT OF WRITING THE CHECKS FROM HIS OWN EXAMPLE
+  RATHER THAN FROM A FIXTURE, which is 6.213.2's rule in a new place:
+  · `T: today +1w 7:00 AM 4:00 PM` — splitting on whitespace makes
+    "7:00" and "AM" two words, so the time was read and the meridiem
+    was reported as unreadable. "7:00 AM" is ONE moment and the am/pm
+    is glued back on before anything is split. His example is written
+    that way; a fixture of mine would have used "07:00".
+  · `• S: a` — "•" is THREE BYTES in UTF-8, so `[%-%*•]` is a byte
+    class that matches its bytes one at a time: it stripped nothing
+    and could corrupt anything else. 6.226.0's rule, in a Lua pattern
+    instead of a filter. The three bullets he actually used (-, *, •)
+    each have their own branch now.
+
+  🔤 AND THE FILLER WORDS ARE A SET, not a `find()` over one joined
+  string: "a" is inside "and", so a substring test would wave through
+  every stray letter and the preview would stop naming what it could
+  not read. 6.236.0, and its check is a line of two stray letters.
+
+  📏 NAMED, NOT BUILT, each its own release and in this order:
+  · THE SEND — one Asana task per parsed task instead of one a day,
+    the 4 PM schedule back on, and the tabs cleared afterwards with
+    "All tasks sent." left behind. The clearing is the part that needs
+    care: it deletes his writing, and 6.280.0's rule says that is the
+    one failure with no way back, so the sent text has to land
+    somewhere recoverable before the tab is emptied.
+  · SUBTASKS — `_G.asanaSubmitTask` has no `parent`, so an `S:` needs
+    the parent task's gid back from Asana and a second call. The
+    preview says so beside each subtask row rather than in a footnote,
+    because a preview listing something he will not get is the same
+    lie as a cheat sheet naming a dead key.
+  · THE `T:` SYNTAX IS A GUESS AND IS MARKED AS ONE. He described the
+    INTENT ("Today as start date, one week from today as the end
+    date") and not a syntax, so this reads ISO, US with / or -, the
+    words today/tomorrow/yesterday, +Nd/+Nw/+Nm, and times in 12- or
+    24-hour form. Whatever he actually types will show up in the
+    preview as read or unread, which is the point of shipping the
+    preview first.
+
+  GENERAL: when someone asks what a tool does and then describes
+  something else, answer the question before building the something
+  else — the gap between the two is usually where the design
+  disagreement is.
+
+
 NEW IN 6.296.0 — 🏷 JUG PLAYER
 (modules/music_player.lua):
 

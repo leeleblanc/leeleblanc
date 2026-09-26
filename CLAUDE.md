@@ -3524,6 +3524,7 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
+| 6.297.0 | 🗂 Hamsidian reads his task grammar — a bare line is a task, `=` divides, P:/A:/D:/S:/T: — and PREVIEWS what it would send without sending anything | pending |
 | 6.296.0 | 🏷 the music player is the Jug Player, with its name to the left of the now-playing line — one field every surface reads, so a rename cannot drift | pending |
 | 6.295.0 | 🔕 a tool he does not care about reports a failure to the Console alone — everything that writes or gathers still shouts on screen, and the log keeps both | pending |
 | 6.294.0 | 🎯 the ✅ ASANA card finally names ⇪T — the key that creates a task, absent from it since 6.114.0 removed it for a good reason; plus an auditor for a bound key printed on no card at all | pending |
@@ -4419,6 +4420,95 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.297.0 verify with LL — 🗂 A LINE IS A TASK (NEW GROUND — expect a round)
+  WHAT CHANGED: Hamsidian can now READ your task grammar. It does not
+  send it yet, on purpose.
+  🔎 AND FIRST, YOUR QUESTION, ANSWERED: **no.** "→ Asana now" builds
+  ONE task for the whole day — titled `Hamsidian · Fri Sep 26`, with
+  every open tab's text as its description. Never one task per line.
+  (And the 4 PM schedule is OFF anyway — you switched it off in
+  6.254.0 — so only that button and `_G.scratchPadSend()` send at all.)
+  WHY THE PREVIEW COMES FIRST: this is your grammar and only you know
+  what you will really type. If I build the sending first, the first
+  thing either of us learns about a misreading is a wrong task sitting
+  in Asana. So this release prints what it understood, and you tell me
+  where it is wrong before anything reaches your board.
+
+  A. THE HEADLINE — this is the whole test.
+  A1. Press ⇪N and type into a tab, in your own words. Include at
+      least one bare line, one `=`, and one P:/A:/D:/S:/T: block. Your
+      own example from the message is perfect:
+        Create the Asana task maker in Hamsidian
+        =
+        P: Generate a new init.lua feature
+        A: me
+        D: We need to structure a new Hammerspoon feature.
+        S: Structure tool request
+        S: Submit tool request
+        T: today +1w 7:00 AM 4:00 PM
+        S: Begin coding today
+  A2. Console: `_G.scratchPadTasks()`. **PASTE THE WHOLE THING.**
+      EXPECT: two tasks — "Create the Asana task maker in Hamsidian",
+      and "Generate a new init.lua feature" with 👤 me, its 📄
+      description, three ↳ subtasks, and a 📅 line reading start today
+      07:00 · due <a week out> 16:00.
+  A3. Read every line of that output against what you MEANT. That is
+      the test. Anything it got wrong is a one-line fix here and a
+      wrong task in Asana later.
+
+  B. THE THING I MOST WANT TO KNOW — the `T:` line.
+  B1. You described the INTENT ("Today as start date, one week from
+      today as the end date, start time 7:00 AM, end time 4:00 PM") and
+      not a syntax, so I guessed one. It reads:
+        today · tomorrow · yesterday · +3d · +2w · +1m
+        2026-09-13 · 09/13/26 · 9-13-2026
+        7:00 AM · 4pm · 07:00 · 16:00
+      First date is the start, second is the due; first time the start,
+      second the end.
+  B2. Write a `T:` line the way you WOULD write it, without looking at
+      that list, and run the preview. Anything it cannot read is named
+      as `⚠️ could not read "x"`. Send me those words — they are the
+      spec, and my guess is not.
+
+  C. THE ONES THAT PROTECT A TASK FROM VANISHING.
+  C1. Put a bare line straight after a `D:` line. EXPECT: it becomes
+      its OWN task, not part of the description. That is the decision I
+      made, and it is the one worth disagreeing with if you disagree.
+  C2. Write `D: something` with no `P:` above it. EXPECT: a ⚠️ saying
+      it is before any task. It is dropped rather than silently glued
+      onto the next thing.
+  C3. Write `D: a = b`. EXPECT: it stays one task with "a = b" as the
+      description — an `=` inside a line is text, only a line that is
+      nothing but `=` divides.
+
+  D. MUST STILL WORK — this release added a reader and changed no
+     behaviour, so this is the sweep.
+  D1. ⇪N and ⇪3 open as before, your tabs and notes are untouched.
+  D2. "→ Asana now" still does exactly what it did — one task for the
+      day. Nothing about sending changed.
+  D3. ⌘⇧S still exports tabs as notes.
+
+  E. WHAT IS NOT BUILT YET, said plainly so it is not a surprise.
+  E1. **Nothing is sent from the grammar.** That is next.
+  E2. **Subtasks are read but cannot be sent** — Asana needs the parent
+      task's id back before a subtask can be attached, which is a
+      second call and its own release. The preview says so on every row
+      that has one.
+  E3. **The clearing you asked for** — tasks gone from the pad and "All
+      tasks sent." left behind — comes with the send. One question I
+      need answered before I build it, and it is the only one that can
+      lose your writing: when a tab is cleared, where should the text
+      GO? Options: (a) nowhere, it is gone; (b) into the tab's history,
+      recoverable from the report; (c) exported as a note in
+      <Vault>/Scratch first, so it is a file. **I will build (c) unless
+      you say otherwise** — 6.280.0's rule is that deleting your
+      writing is the one failure with no way back.
+  E4. **4 PM back on, open or not.** The schedule already runs whether
+      the window is open or not — it lives in the module, not the
+      window — it is simply switched off. It comes back on with the
+      send, not before, because a schedule that fires a grammar I have
+      not proven is the wrong order.
+
 - 6.296.0 verify with LL — 🏷 JUG PLAYER (KNOWN GROUND)
   WHAT CHANGED: the music player is called the Jug Player everywhere you
   can see it, and its name sits to the left of the now-playing line.

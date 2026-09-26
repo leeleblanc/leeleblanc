@@ -1,4 +1,4 @@
-# TESTING — how to score release 6.296.0
+# TESTING — how to score release 6.297.0
 
 You install ONE archive and it carries several releases. Below are the
 steps for each release this archive is new for, newest first. Run the
@@ -26,6 +26,99 @@ else is a LOSS and I fix it before building further. You are the only
 scorer; I never mark my own.
 
 ---
+
+## 6.297.0
+
+6.297.0 verify with LL — 🗂 A LINE IS A TASK (NEW GROUND — expect a round)
+WHAT CHANGED: Hamsidian can now READ your task grammar. It does not
+send it yet, on purpose.
+🔎 AND FIRST, YOUR QUESTION, ANSWERED: **no.** "→ Asana now" builds
+ONE task for the whole day — titled `Hamsidian · Fri Sep 26`, with
+every open tab's text as its description. Never one task per line.
+(And the 4 PM schedule is OFF anyway — you switched it off in
+6.254.0 — so only that button and `_G.scratchPadSend()` send at all.)
+WHY THE PREVIEW COMES FIRST: this is your grammar and only you know
+what you will really type. If I build the sending first, the first
+thing either of us learns about a misreading is a wrong task sitting
+in Asana. So this release prints what it understood, and you tell me
+where it is wrong before anything reaches your board.
+
+A. THE HEADLINE — this is the whole test.
+A1. Press ⇪N and type into a tab, in your own words. Include at
+    least one bare line, one `=`, and one P:/A:/D:/S:/T: block. Your
+    own example from the message is perfect:
+      Create the Asana task maker in Hamsidian
+      =
+      P: Generate a new init.lua feature
+      A: me
+      D: We need to structure a new Hammerspoon feature.
+      S: Structure tool request
+      S: Submit tool request
+      T: today +1w 7:00 AM 4:00 PM
+      S: Begin coding today
+A2. Console: `_G.scratchPadTasks()`. **PASTE THE WHOLE THING.**
+    EXPECT: two tasks — "Create the Asana task maker in Hamsidian",
+    and "Generate a new init.lua feature" with 👤 me, its 📄
+    description, three ↳ subtasks, and a 📅 line reading start today
+    07:00 · due <a week out> 16:00.
+A3. Read every line of that output against what you MEANT. That is
+    the test. Anything it got wrong is a one-line fix here and a
+    wrong task in Asana later.
+
+B. THE THING I MOST WANT TO KNOW — the `T:` line.
+B1. You described the INTENT ("Today as start date, one week from
+    today as the end date, start time 7:00 AM, end time 4:00 PM") and
+    not a syntax, so I guessed one. It reads:
+      today · tomorrow · yesterday · +3d · +2w · +1m
+      2026-09-13 · 09/13/26 · 9-13-2026
+      7:00 AM · 4pm · 07:00 · 16:00
+    First date is the start, second is the due; first time the start,
+    second the end.
+B2. Write a `T:` line the way you WOULD write it, without looking at
+    that list, and run the preview. Anything it cannot read is named
+    as `⚠️ could not read "x"`. Send me those words — they are the
+    spec, and my guess is not.
+
+C. THE ONES THAT PROTECT A TASK FROM VANISHING.
+C1. Put a bare line straight after a `D:` line. EXPECT: it becomes
+    its OWN task, not part of the description. That is the decision I
+    made, and it is the one worth disagreeing with if you disagree.
+C2. Write `D: something` with no `P:` above it. EXPECT: a ⚠️ saying
+    it is before any task. It is dropped rather than silently glued
+    onto the next thing.
+C3. Write `D: a = b`. EXPECT: it stays one task with "a = b" as the
+    description — an `=` inside a line is text, only a line that is
+    nothing but `=` divides.
+
+D. MUST STILL WORK — this release added a reader and changed no
+   behaviour, so this is the sweep.
+D1. ⇪N and ⇪3 open as before, your tabs and notes are untouched.
+D2. "→ Asana now" still does exactly what it did — one task for the
+    day. Nothing about sending changed.
+D3. ⌘⇧S still exports tabs as notes.
+
+E. WHAT IS NOT BUILT YET, said plainly so it is not a surprise.
+E1. **Nothing is sent from the grammar.** That is next.
+E2. **Subtasks are read but cannot be sent** — Asana needs the parent
+    task's id back before a subtask can be attached, which is a
+    second call and its own release. The preview says so on every row
+    that has one.
+E3. **The clearing you asked for** — tasks gone from the pad and "All
+    tasks sent." left behind — comes with the send. One question I
+    need answered before I build it, and it is the only one that can
+    lose your writing: when a tab is cleared, where should the text
+    GO? Options: (a) nowhere, it is gone; (b) into the tab's history,
+    recoverable from the report; (c) exported as a note in
+    <Vault>/Scratch first, so it is a file. **I will build (c) unless
+    you say otherwise** — 6.280.0's rule is that deleting your
+    writing is the one failure with no way back.
+E4. **4 PM back on, open or not.** The schedule already runs whether
+    the window is open or not — it lives in the module, not the
+    window — it is simply switched off. It comes back on with the
+    send, not before, because a schedule that fires a grammar I have
+    not proven is the wrong order.
+
+
 
 ## 6.296.0
 
@@ -196,56 +289,6 @@ D2. 🚩 THE THING I COULD NOT FIX WITH A CHECK: the gate now fails if a
     way you think about the tool. If any OTHER key is filed somewhere
     you would not look, tell me which and where you expected it — that
     is a judgement no test can make, and you are the only one who can.
-
-
-
-## 6.293.0
-
-6.293.0 verify with LL — ⌨️ ⌥⌥ OPENS THE MENUS (KNOWN GROUND)
-WHAT CHANGED: tap ⌥ twice, quickly, and the front app's own menus
-open — the same picker ⇪. gives you.
-WHY IT MATTERS: the second half of what you asked for, and the proof
-that 6.292.0 was worth a release of its own. Adding ⌥⌥ was nine
-lines, because the engine already existed and a gesture is now a
-registration rather than a second copy of a state machine.
-
-A. THE HEADLINE.
-A1. Click into an app with real menus — Word, Chrome, Finder.
-A2. Tap the ⌥ key twice, quickly, with nothing else held.
-    EXPECT: a picker listing that app's menu items, searchable.
-A3. Type a few letters, press ⏎. EXPECT: that menu item runs.
-A4. Press ⇪. EXPECT: the identical picker — one function, two doors.
-A5. Full screen an app (⌃⌘F) and tap ⌥⌥ there. EXPECT: it opens.
-
-B. THE ONES THAT PROTECT YOUR TYPING.
-B1. Use ⌥ normally — ⌥click, ⌥drag, ⌥⌫, and typing accented
-    characters if you use them. EXPECT: nothing opens.
-B2. Hold ⌥ for a second and release, twice. EXPECT: nothing.
-B3. Tap ⌥, type a letter, tap ⌥. EXPECT: nothing.
-B4. 🚨 THE ONE I MOST WANT: hold ⌘ AND ⌥ together and tap twice.
-    EXPECT: NEITHER the clipboard nor the menus open. A real chord
-    must satisfy no gesture, and with two gestures live that is the
-    property that makes them safe together.
-B5. ⌘⌘ still opens the clipboard history (6.292.0), and ⌃⌃ still
-    opens the editor picker.
-
-C. PASTE BACK, PASS OR FAIL.
-C1. `_G.doubleTapReport()` — it should now list BOTH gestures under
-    one watcher: `⌘⌘ : clipboard history` and `⌥⌥ : the front app's
-    menus`, with `watcher : running` once, not twice.
-C2. `_G.menuSearchReport()` — its new `⌥⌥` line, whichever of the
-    three states you get.
-
-D. IF IT GETS IN THE WAY.
-D1. `settings = { menu_search = { optOpt = false } }` switches just
-    this one off; ⌘⌘ and ⇪. are unaffected.
-
-E. A JUDGEMENT ONLY YOU CAN MAKE.
-E1. ⌥ is a modifier you probably use more than ⌘⌘'s ⌘ for one-handed
-    things — ⌥click, ⌥drag. If ⌥⌥ fires when you did not mean it,
-    tell me how it felt rather than a number and I will move the
-    timing; if it is simply the wrong key for this, say so and it
-    moves to another modifier in one line.
 
 
 

@@ -1397,5 +1397,187 @@ do
     check("§6.278.0 ran all of its checks (" .. ran .. " of 15+)", ran >= 15, ran)
 end
 
+-- =====================================================================
+-- 🗂 6.297.0 — THE TASK GRAMMAR (PURE, so no Mac and no clock)
+-- =====================================================================
+-- LL's grammar: a bare line is a task · = divides · P: title · A: who ·
+-- D: body · S: subtask · T: dates and times.
+--
+-- 🔑 THE CLOCK IS AN ARGUMENT (6.234.0). "today" and "one week from
+-- today" cannot be proven by a test that waits a week, so every edge
+-- below is a fixture against a fixed second.
+do
+    local before = pass + fail
+    local S = _G.scratchPad
+    -- 2026-09-26 12:00:00 UTC-ish; only the DATE arithmetic matters and
+    -- os.date uses the same local zone on both sides of each check.
+    local NOW = os.time({ year = 2026, month = 9, day = 26, hour = 12 })
+    local TODAY = os.date("%Y-%m-%d", NOW)
+
+    out("\n-- 6.297.0 the task grammar --\n")
+
+    -- ---- a bare line is a task ------------------------------------------
+    local t, probs = S.parseTasks("Create the Asana task maker in Hamsidian", NOW)
+    check("🗂 a bare line is ONE task, titled exactly as typed — his "
+          .. "sentence, and the commonest case",
+          #t == 1 and t[1].title == "Create the Asana task maker in Hamsidian"
+          and #probs == 0, #t .. " tasks")
+    check("...and it gets the default assignee without him typing one",
+          t[1].assignee == "me", t[1].assignee)
+
+    t = S.parseTasks("First thing\nSecond thing\nThird thing", NOW)
+    check("🗂 three bare lines are THREE tasks, in order — folding them "
+          .. "into one is exactly what he is asking to change",
+          #t == 3 and t[1].title == "First thing" and t[3].title == "Third thing", #t)
+
+    t = S.parseTasks("Alpha\n\n\nBeta", NOW)
+    check("...and blank lines between them cost nothing", #t == 2, #t)
+
+    -- 🚨 A BARE LINE AFTER A P: BLOCK IS ITS OWN TASK, NOT A CONTINUATION.
+    -- The other reading is defensible and it is the one that loses work:
+    -- a line he meant as a task would vanish into a description.
+    t = S.parseTasks("P: Big one\nD: why\nAnother task", NOW)
+    check("🚨 a bare line after a P: block is its OWN task — the other "
+          .. "reading silently swallows a task into a description",
+          #t == 2 and t[1].title == "Big one" and t[2].title == "Another task"
+          and t[1].desc == "why", #t .. ": " .. tostring(t[2] and t[2].title))
+
+    -- ---- the divider -----------------------------------------------------
+    t = S.parseTasks("P: One\nD: a\n=\nP: Two\nD: b", NOW)
+    check("🗂 = divides two blocks, and each keeps its own description",
+          #t == 2 and t[1].desc == "a" and t[2].desc == "b",
+          #t .. " " .. tostring(t[1] and t[1].desc))
+    t = S.parseTasks("P: One\nD: a\n===\nP: Two", NOW)
+    check("...and more than one = is still a divider", #t == 2, #t)
+    t = S.parseTasks("P: One\nD: a = b\nP: Two", NOW)
+    check("🚨 ...but an = INSIDE a line is text, not a divider — a "
+          .. "description with an equals sign in it must survive",
+          #t == 2 and t[1].desc == "a = b", tostring(t[1] and t[1].desc))
+
+    -- ---- the complex shape, exactly as he wrote it ------------------------
+    t, probs = S.parseTasks(table.concat({
+        "P: Generate a new init.lua feature",
+        "A: me",
+        "D: We need to structure a new Hammerspoon feature.",
+        "S: Structure tool request",
+        "S: Submit tool request",
+        "T: today +1w 7:00 AM 4:00 PM",
+    }, "\n"), NOW)
+    check("🗂 HIS OWN EXAMPLE parses to one task with its parts in the "
+          .. "right places", #t == 1
+          and t[1].title == "Generate a new init.lua feature"
+          and t[1].assignee == "me"
+          and t[1].desc == "We need to structure a new Hammerspoon feature."
+          and #t[1].subs == 2 and t[1].subs[2] == "Submit tool request",
+          #t .. " / " .. tostring(t[1] and #t[1].subs))
+    check("📅 ...and the T: line reads start today, due a week out, "
+          .. "7 AM to 4 PM", t[1].when.startDate == TODAY
+          and t[1].when.dueDate == os.date("%Y-%m-%d", NOW + 7 * 86400)
+          and t[1].when.startTime == "07:00" and t[1].when.dueTime == "16:00",
+          hs.inspect and "" or tostring(t[1].when.startTime))
+    check("...with nothing it could not read", #probs == 0,
+          table.concat(probs, " | "))
+
+    -- ---- several D: lines join, several S: accumulate ---------------------
+    t = S.parseTasks("P: X\nD: one\nD: two", NOW)
+    check("🗂 two D: lines join into one description with a line break",
+          t[1].desc == "one\ntwo", (t[1].desc or ""):gsub("\n", "\\n"))
+
+    -- ---- his outline bullets ----------------------------------------------
+    t = S.parseTasks("P: X\n   - S: a\n   * S: b\n   • S: c", NOW)
+    check("🗂 the outline bullets he writes in are stripped — his own "
+          .. "message used -, * and •", #t[1].subs == 3, #t[1].subs)
+
+    -- ---- what it CANNOT read is NAMED --------------------------------------
+    t, probs = S.parseTasks("P: X\nT: sometime next quarter", NOW)
+    check("🚨 a T: line it cannot read NAMES the words rather than "
+          .. "silently setting no date — a date that never happens is "
+          .. "found out from Asana a week later",
+          #probs >= 1 and table.concat(probs, " "):find("quarter", 1, true) ~= nil
+          and t[1].when.startDate == nil, table.concat(probs, " | "))
+    t, probs = S.parseTasks("D: orphan description", NOW)
+    check("🚨 a D:/S:/A:/T: with no task above it is NAMED and dropped, "
+          .. "never silently attached to the next thing",
+          #t == 0 and #probs == 1
+          and probs[1]:find("before any task", 1, true) ~= nil, table.concat(probs, " | "))
+    t, probs = S.parseTasks("P: X\nA: lee\nA: sam", NOW)
+    check("...and a second A: for one task says the last one wins "
+          .. "rather than changing it in silence",
+          t[1].assignee == "sam" and #probs == 1, tostring(t[1].assignee))
+    t, probs = S.parseTasks("P:\nD: body", NOW)
+    check("...and a P: with no title is refused, not turned into an "
+          .. "untitled Asana task", #t == 0 and #probs >= 1, #t)
+
+    -- ---- dates, PURE, every branch -----------------------------------------
+    check("📅 today / tomorrow / yesterday",
+          S.taskDate("today", NOW) == TODAY
+          and S.taskDate("tomorrow", NOW) == os.date("%Y-%m-%d", NOW + 86400)
+          and S.taskDate("Yesterday", NOW) == os.date("%Y-%m-%d", NOW - 86400))
+    check("📅 +Nd / +Nw / +Nm",
+          S.taskDate("+3d", NOW) == os.date("%Y-%m-%d", NOW + 3 * 86400)
+          and S.taskDate("+2w", NOW) == os.date("%Y-%m-%d", NOW + 14 * 86400)
+          and S.taskDate("+1m", NOW) == os.date("%Y-%m-%d", NOW + 30 * 86400))
+    check("📅 ISO, and it is zero-padded so Asana takes it",
+          S.taskDate("2026-9-5", NOW) == "2026-09-05"
+          and S.taskDate("2026-09-05", NOW) == "2026-09-05")
+    check("📅 his own US shape, with / or -, two digits or four — a "
+          .. "two-digit year is 20xx",
+          S.taskDate("09/13/26", NOW) == "2026-09-13"
+          and S.taskDate("9-13-2026", NOW) == "2026-09-13")
+    check("🚨 ...and a word that is NOT a date answers nil rather than "
+          .. "guessing one", S.taskDate("soon", NOW) == nil
+          and S.taskDate("", NOW) == nil and S.taskDate(nil, NOW) == nil)
+
+    -- ---- times --------------------------------------------------------------
+    check("🕐 7:00 AM · 4:00 PM · 07:00 · 16:00 · 4pm all reach 24-hour",
+          S.taskTime("7:00 AM") == "07:00" and S.taskTime("4:00 PM") == "16:00"
+          and S.taskTime("07:00") == "07:00" and S.taskTime("16:00") == "16:00"
+          and S.taskTime("4pm") == "16:00", tostring(S.taskTime("4pm")))
+    check("🕐 midnight and noon are the two that get written wrong",
+          S.taskTime("12:00 AM") == "00:00" and S.taskTime("12:00 PM") == "12:00",
+          tostring(S.taskTime("12:00 AM")))
+    check("🚨 ...and an impossible time answers nil rather than a "
+          .. "plausible wrong one", S.taskTime("25:00") == nil
+          and S.taskTime("7:99") == nil and S.taskTime("lunch") == nil)
+
+    -- 🔤 6.236.0 IN THE FILLER SET. "a" is inside "and", so a substring
+    -- test over one joined string would wave through every stray letter
+    -- and the preview would stop naming what it could not read.
+    local _, bad = S.taskWhen("from today to +1w", NOW)
+    check("🔤 the joining words are a SET, so from/to cost nothing",
+          #bad == 0, table.concat(bad, " "))
+    local _, bad2 = S.taskWhen("a q today", NOW)
+    check("🔤 ...and a stray letter is still NAMED — a substring test "
+          .. "over 'at to and from' would have swallowed both",
+          #bad2 == 2, table.concat(bad2, " "))
+
+    -- ---- the preview itself ------------------------------------------------
+    S.tabs = { { id = 1, title = "Today", text =
+        "Fix the printer\n=\nP: Ship the release\nD: with words\nS: run the gate\nT: today" } }
+    local prev = S.taskPreview(NOW)
+    check("🔎 the preview names both tasks it found", 
+          prev:find("Fix the printer", 1, true) ~= nil
+          and prev:find("Ship the release", 1, true) ~= nil, prev)
+    check("🚨 ...and says plainly that nothing was sent, because the "
+          .. "release that PARSES must not read as the one that SENDS",
+          prev:find("NOTHING here has been sent", 1, true) ~= nil)
+    check("🚨 ...and says what 'Asana now' does TODAY, which is ONE task "
+          .. "for the whole day — his actual question",
+          prev:find("ONE task for the whole day", 1, true) ~= nil, prev)
+    check("⚠️ ...and warns that a subtask is read but not yet sent, "
+          .. "beside the row it affects rather than in a footnote",
+          prev:find("subtasks are read but NOT yet sent", 1, true) ~= nil, prev)
+    check("🔎 ...and teaches the grammar at the point of use",
+          prev:find("P: title", 1, true) ~= nil
+          and prev:find("= divides", 1, true) ~= nil)
+    S.tabs = { { id = 1, title = "Empty", text = "   " } }
+    check("🔎 an empty pad says 'nothing to send', which is not the same "
+          .. "sentence as a pad it failed to read (6.196.1)",
+          S.taskPreview(NOW):find("nothing to send", 1, true) ~= nil)
+
+    local ran = (pass + fail) - before
+    check("§6.297.0 ran all of its checks (" .. ran .. " of 28+)", ran >= 28, ran)
+end
+
 out(string.format("\n%d passed, %d failed\n", pass, fail))
 os.exit(fail == 0 and 0 or 1)

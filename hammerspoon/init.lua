@@ -4,47 +4,46 @@
 -- =====================================================================
 -- 09-26-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.296.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.297.0
 -- =====================================================================
 
+-- NEW IN 6.297.0 — 🗂 A LINE IS A TASK: THE HAMSIDIAN GRAMMAR
+--   (modules/scratch_pad.lua): LL asked what "→ Asana now" does, and
+--   the answer is the opposite of the assumption — it builds ONE
+--   task for the whole day, every tab's text as its description.
+--   🗂 HIS GRAMMAR: a bare line is a task · `=` divides · `P:` title
+--   · `A:` who · `D:` body · `S:` subtask · `T:` dates. PURE, and
+--   the CLOCK IS AN ARGUMENT (6.234.0).
+--   🚨 IT PARSES AND PREVIEWS, AND SENDS NOTHING — 6.237.0's habit:
+--   only he knows what he will type, so the first release PRINTS
+--   what it understood. A BARE LINE AFTER A P: BLOCK IS ITS OWN
+--   TASK (the other reading swallows one into a description), and
+--   WHAT IT CANNOT READ IS NAMED.
+--   🧪 TWO BUGS CAME OUT OF WRITING THE CHECKS FROM HIS OWN EXAMPLE
+--   rather than a fixture: "7:00 AM" is one moment and whitespace
+--   made it two; "•" is three BYTES, so `[%-%*•]` stripped nothing
+--   (6.226.0, in a Lua pattern).
+
 -- NEW IN 6.296.0 — 🏷 JUG PLAYER
---   (modules/music_player.lua):
---   LL: "From here forward, call the music player, Jug Player and
---   put the name to the left of now playing."
+--   (modules/music_player.lua): LL: "call the music player, Jug
+--   Player and put the name to the left of now playing."
 --   🔑 ONE FIELD, MANY READERS (`mp.brand`): the card, the alert, the
 --   🔔 door's tool name, both reports and the ⇪/ card read it, so a
 --   check MOVES it and requires every surface to follow — asserting
 --   the shipped word passes when it is typed twice (6.239.0).
 --   📐 HIS WORDS WERE POSITIONAL, so the check reads the ORDER inside
---   the header, not that the name is somewhere in the page. The drag
---   grip is untouched: the mousedown is still on #hd (6.232.0).
---   🔒 A SENTRY ABOUT THE CLASS: no visible "Music player" survives
---   in the module, comments stripped (6.262.0). The movablePanels id
---   moved too — window_move's report PRINTS it — and it is a PAIR
---   with beginPanelDrag(), so a check joins them. Ids that are never
---   printed keep their names (6.214.0, 6.253.0).
+--   the header. The drag grip is untouched (6.232.0).
+--   🔒 A SENTRY ABOUT THE CLASS: no visible "Music player" survives,
+--   comments stripped (6.262.0). The movablePanels id moved too —
+--   window_move's report PRINTS it — and it is a PAIR with
+--   beginPanelDrag(), joined by a check. Unprinted ids keep their
+--   names (6.214.0, 6.253.0).
 
--- NEW IN 6.295.0 — 🔕 LOUD BY DEFAULT, QUIET ONLY WHERE HE SAID SO
---   (core/notices.lua): LL wants visible warnings for anything that
---   writes or gathers, and the Console alone for the ones he does
---   not care about — "would be Music Player". Everything he named
---   as productivity was already loud, so this is only the quiet half.
---   🔑 THE TIER BELONGS TO THE TOOL, NOT THE CALL SITE: this module
---   takes the door from fourteen places, and fourteen sites each
---   choosing is how one comes to be silent (6.278.0).
---   🚨 IT FAILS LOUD — an unclassified tool ALERTS, because a
---   needless alert is an annoyance and a swallowed one is 6.278.0's
---   failure (6.276.0). QUIET IS THE ALERT AND NOTHING ELSE: the ⚠️
---   line, the ledger, the CSV and `_G.todayReport()` still get all.
---   🚨 AND A QUIET TOOL IS NOT A REFUSED ALERT: degradeReport said
---   "hs.alert refused" for any tool with zero alerts, so the rule
---   nearly made the instrument watching it cry wolf (6.269.0).
-
--- (6.294.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.295.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 cut the inline count to
 --  TWO; a gate check proves every entry here is also in CHANGELOG.md.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.296.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.297.0
 -- =====================================================================
 -- The catalogue that used to sit here moved to GUIDE.md ("What each
 -- tool does") in 6.180.0 — 259 lines of prose inside the orchestrator.
@@ -137,7 +136,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.296.0"
+_G.configVersion = "6.297.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the

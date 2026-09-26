@@ -643,6 +643,215 @@ function M.setup(core)
         return ok, summary
     end
 
+    -- =================================================================
+    -- 🗂 6.297.0 — A LINE IS A TASK: THE HAMSIDIAN TASK GRAMMAR
+    -- =================================================================
+    -- LL asked what "→ Asana now" does and then described what he wants
+    -- it to do instead. THE ANSWER TO THE QUESTION FIRST, because it is
+    -- the opposite of what he assumed: sp.dayBody builds ONE task for
+    -- the whole day — title "Hamsidian · Fri Sep 26", and every tab's
+    -- text underneath it as the description. Never one task per line.
+    --
+    -- His grammar, as he wrote it:
+    --   a bare line                  → one basic task, verb + rest
+    --   =                            → a divider between groups
+    --   P: <verb + sentence>         → a task with more to say
+    --   A: <assignee>                → who (default "me")
+    --   D: <description>             → the body
+    --   S: <subtask>                 → one per line, many per task
+    --   T: <dates and times>         → start/end date, start/end time
+    --
+    -- 🚨 THIS RELEASE PARSES AND PREVIEWS. IT SENDS NOTHING. That is
+    -- deliberate and it is the 6.237.0 habit: on ground this config has
+    -- not touched — and his own grammar is exactly that, because only
+    -- he knows what he will really type — the FIRST release is the one
+    -- that prints what was understood, never a fix built on a belief.
+    -- `_G.scratchPadTasks()` shows him every task this would create
+    -- before one of them exists in Asana. The send is 6.298.0.
+    --
+    -- 🔑 PURE, AND THE CLOCK IS AN ARGUMENT (6.234.0). "today" and "one
+    -- week from today" cannot be proven by a test that has to wait a
+    -- week, so `now` is passed in and every edge is a fixture.
+
+    -- A prefix is a single letter and a colon. Anything else is prose.
+    function sp.taskPrefix(line)
+        local k, rest = tostring(line or ""):match("^(%a)%s*:%s*(.*)$")
+        if not k then return nil end
+        k = k:upper()
+        if k == "P" or k == "A" or k == "D" or k == "S" or k == "T" then
+            return k, rest
+        end
+        return nil
+    end
+
+    -- 📅 PURE. Answers a YYYY-MM-DD, or nil and the word it could not
+    -- read. Deliberately narrow: ISO, US with / or -, and the words he
+    -- used in his own example. A two-digit year is 20xx (6.200.0's
+    -- measured rule about dates, same reasoning).
+    function sp.taskDate(word, now)
+        local w = tostring(word or ""):lower():gsub("^%s+", ""):gsub("%s+$", "")
+        now = tonumber(now) or os.time()
+        local DAY = 86400
+        if w == "" then return nil end
+        if w == "today"     then return os.date("%Y-%m-%d", now) end
+        if w == "tomorrow"  then return os.date("%Y-%m-%d", now + DAY) end
+        if w == "yesterday" then return os.date("%Y-%m-%d", now - DAY) end
+        local n, unit = w:match("^%+(%d+)%s*([dwm])$")
+        if n then
+            n = tonumber(n)
+            local mult = (unit == "d" and 1) or (unit == "w" and 7) or 30
+            return os.date("%Y-%m-%d", now + n * mult * DAY)
+        end
+        local y, m, d = w:match("^(%d%d%d%d)-(%d%d?)-(%d%d?)$")
+        if y then return ("%04d-%02d-%02d"):format(y, m, d) end
+        m, d, y = w:match("^(%d%d?)[/-](%d%d?)[/-](%d%d%d%d)$")
+        if not m then m, d, y = w:match("^(%d%d?)[/-](%d%d?)[/-](%d%d)$") end
+        if m then
+            y = tonumber(y)
+            if y < 100 then y = 2000 + y end
+            return ("%04d-%02d-%02d"):format(y, m, d)
+        end
+        return nil
+    end
+
+    -- 🕐 PURE. 24-hour HH:MM, or nil. Accepts 7:00 AM, 07:00, 4pm, 16:00.
+    function sp.taskTime(word)
+        local w = tostring(word or ""):lower():gsub("%s+", "")
+        if w == "" then return nil end
+        local h, m, ap = w:match("^(%d%d?):(%d%d)(a?p?m?)$")
+        if not h then h, ap = w:match("^(%d%d?)(am)$") end
+        if not h then h, ap = w:match("^(%d%d?)(pm)$") end
+        if not h then return nil end
+        h, m = tonumber(h), tonumber(m or 0)
+        if m > 59 then return nil end
+        if ap == "pm" and h < 12 then h = h + 12 end
+        if ap == "am" and h == 12 then h = 0 end
+        if h > 23 then return nil end
+        return ("%02d:%02d"):format(h, m)
+    end
+
+    -- 📅 PURE. Reads a whole T: line. FIRST date is the start and the
+    -- second is the due; first time the start, second the end — his own
+    -- order. 🚨 WHAT IT CANNOT READ IS NAMED, never dropped: a T: line
+    -- he writes in words this does not know must show up in the preview
+    -- as an unread word, or he sets a date that never happens and finds
+    -- out from Asana a week later.
+    -- Words that join a T: line rather than naming a moment. A SET,
+    -- not a find() over one string: "a" is inside "and", so a substring
+    -- test would wave through every stray letter (6.236.0, boundaries).
+    sp.taskFiller = { at = true, to = true, ["and"] = true, from = true,
+                      on = true, until_ = true, by = true, start = true,
+                      ["end"] = true, ["-"] = true, ["–"] = true }
+    sp.taskFiller["until"] = true
+
+    function sp.taskWhen(line, now)
+        local out, bad = {}, {}
+        -- 🕐 "7:00 AM" IS ONE WORD, and splitting on whitespace makes it
+        -- two. His own example is written that way, so the am/pm is
+        -- glued back on before anything is split — found by the check
+        -- built from his sentence rather than from my own fixture.
+        local src = tostring(line or "")
+            :gsub("(%d)%s+([AaPp][Mm])%f[%W]", "%1%2")
+        for word in src:gmatch("[^%s,]+") do
+            local clean = word:gsub("^[<(%[]+", ""):gsub("[>)%]]+$", "")
+            if clean ~= "" then
+                local d = sp.taskDate(clean, now)
+                local t = (not d) and sp.taskTime(clean) or nil
+                if d then
+                    if not out.startDate then out.startDate = d
+                    elseif not out.dueDate then out.dueDate = d
+                    else bad[#bad + 1] = clean end
+                elseif t then
+                    if not out.startTime then out.startTime = t
+                    elseif not out.dueTime then out.dueTime = t
+                    else bad[#bad + 1] = clean end
+                elseif not sp.taskFiller[clean:lower()] then
+                    -- 🚨 A WORD IT CANNOT READ IS NAMED, never dropped.
+                    -- A T: line written in words this does not know
+                    -- would otherwise set a date that never happens,
+                    -- and he would find out from Asana a week later.
+                    bad[#bad + 1] = clean
+                end
+            end
+        end
+        return out, bad
+    end
+
+    -- 🗂 PURE. The whole grammar. Answers the tasks IN ORDER and the
+    -- problems, because a line he meant as a task that silently became
+    -- part of a description is the failure this preview exists to stop.
+    function sp.parseTasks(text, now, defaultAssignee)
+        local tasks, problems = {}, {}
+        local cur
+        local function close()
+            if cur and cur.title ~= "" then tasks[#tasks + 1] = cur end
+            cur = nil
+        end
+        local function open(title)
+            close()
+            cur = { title = title, desc = {}, subs = {},
+                    assignee = defaultAssignee or "me", when = {}, badWhen = {} }
+        end
+        local n = 0
+        for raw in (tostring(text or "") .. "\n"):gmatch("([^\n]*)\n") do
+            n = n + 1
+            local line = raw:gsub("^%s+", ""):gsub("%s+$", "")
+            -- 🔤 HIS OUTLINE BULLETS. NOT a character class: "•" is
+            -- three BYTES in UTF-8, and `[%-%*•]` matches its bytes one
+            -- at a time, which strips nothing and corrupts anything
+            -- else. 6.226.0's rule, in a Lua pattern.
+            line = line:gsub("^\226\128\162%s*", "")   -- •
+                       :gsub("^[%-%*]%s*", "")           -- - *
+                       :gsub("^%s+", "")
+            if line == "" then
+                -- a blank line is nothing: it does not end a task, or a
+                -- description with a paragraph break would split in two
+            elseif line:match("^=+$") then
+                close()                                   -- the divider
+            else
+                local k, rest = sp.taskPrefix(line)
+                if k == "P" then
+                    if rest == "" then
+                        problems[#problems + 1] = "line " .. n .. ": P: with no title — skipped"
+                    else open(rest) end
+                elseif k == nil then
+                    -- 🔑 A BARE LINE IS ALWAYS ITS OWN TASK, which is
+                    -- his sentence ("a basic task with no other
+                    -- information is verb+title"). Folding it into the
+                    -- open description instead would be a guess, and a
+                    -- guess here silently loses a task.
+                    open(line) ; close()
+                elseif not cur then
+                    problems[#problems + 1] = "line " .. n .. ": " .. k
+                        .. ": before any task — needs a P: line above it"
+                elseif k == "D" then
+                    cur.desc[#cur.desc + 1] = rest
+                elseif k == "S" then
+                    if rest == "" then
+                        problems[#problems + 1] = "line " .. n .. ": empty S: — skipped"
+                    else cur.subs[#cur.subs + 1] = rest end
+                elseif k == "A" then
+                    if cur.assigneeSet then
+                        problems[#problems + 1] = "line " .. n
+                            .. ": a second A: for the same task — the last one wins"
+                    end
+                    cur.assignee, cur.assigneeSet = (rest ~= "" and rest or (defaultAssignee or "me")), true
+                elseif k == "T" then
+                    local when, bad = sp.taskWhen(rest, now)
+                    cur.when = when
+                    for _, b in ipairs(bad) do
+                        cur.badWhen[#cur.badWhen + 1] = b
+                        problems[#problems + 1] = "line " .. n
+                            .. ": could not read \"" .. b .. "\" as a date or a time"
+                    end
+                end
+            end
+        end
+        close()
+        for _, t in ipairs(tasks) do t.desc = table.concat(t.desc, "\n") end
+        return tasks, problems
+    end
+
     -- ---- the 4 PM task --------------------------------------------------------
     local function checksum(s)
         local h = #s
@@ -796,6 +1005,78 @@ function M.setup(core)
         return false, "rejected"
     end
     _G.scratchPadSend = function() return sp.send("manual") end
+
+    -- 🗂 6.297.0 — THE PREVIEW. Every tab this would read, every task
+    -- it found, and every line it could not. Nothing is sent.
+    --
+    -- 🔎 IT PRINTS WHAT IT UNDERSTOOD, not what it will do, and that is
+    -- the whole point of shipping it first: his grammar is ground this
+    -- config has not touched, only he knows what he will really type,
+    -- and 6.237.0's habit says the first release on new ground is the
+    -- one that shows what the Mac actually answered (6.201.0 — get the
+    -- artefact before building on a belief).
+    function sp.taskPreview(now)
+        local L = { "🗂 HAMSIDIAN → ASANA — what \"Asana now\" WOULD send" }
+        L[#L + 1] = "   today   : ONE task for the whole day (title + every tab "
+                    .. "as its description). That is what it does now."
+        L[#L + 1] = "   below   : what the 6.297.0 grammar reads out of the same "
+                    .. "tabs. NOTHING here has been sent."
+        local total, probs = 0, 0
+        for _, t in ipairs(sp.tabs or {}) do
+            local body = tostring(t.text or "")
+            if body:gsub("%s", "") ~= "" and not t.kind then
+                local tasks, problems = sp.parseTasks(body, now, sp.assignee)
+                L[#L + 1] = ""
+                L[#L + 1] = "   📝 " .. tostring(sp.titleOf(t)) .. " — "
+                            .. #tasks .. " task(s)"
+                for i, k in ipairs(tasks) do
+                    total = total + 1
+                    L[#L + 1] = ("      %d. %s"):format(i, k.title)
+                    if k.assignee ~= "" then
+                        L[#L + 1] = "         👤 " .. k.assignee
+                    end
+                    if k.desc ~= "" then
+                        L[#L + 1] = "         📄 " .. k.desc:gsub("\n", " ⏎ "):sub(1, 90)
+                    end
+                    for _, sub in ipairs(k.subs) do
+                        L[#L + 1] = "         ↳ " .. sub
+                    end
+                    local w = k.when or {}
+                    if w.startDate or w.dueDate or w.startTime or w.dueTime then
+                        L[#L + 1] = ("         📅 start %s %s · due %s %s"):format(
+                            w.startDate or "—", w.startTime or "", w.dueDate or "—", w.dueTime or "")
+                    end
+                    -- 🚨 SUBTASKS ARE NOT BUILT YET AND IT SAYS SO HERE,
+                    -- beside the row it affects rather than in a footnote:
+                    -- a preview that lists a subtask he will not get is
+                    -- the same lie as a cheat sheet naming a dead key.
+                    if #k.subs > 0 then
+                        L[#L + 1] = "         ⚠️ subtasks are read but NOT yet sent — "
+                                    .. "that needs Asana's parent id (its own release)"
+                    end
+                end
+                for _, why in ipairs(problems) do
+                    probs = probs + 1
+                    L[#L + 1] = "      ⚠️ " .. why
+                end
+            end
+        end
+        if total == 0 then
+            L[#L + 1] = ""
+            L[#L + 1] = "   nothing to send — no open tab holds text "
+                        .. "(a 🗒 Capture or ➕ Append tab is never swept in)"
+        else
+            L[#L + 1] = ""
+            L[#L + 1] = ("   TOTAL   : %d task(s)%s"):format(total,
+                probs > 0 and (" · ⚠️ " .. probs .. " line(s) it could not read") or "")
+        end
+        L[#L + 1] = "   grammar : a bare line is a task · = divides · P: title · "
+                    .. "A: assignee · D: description · S: subtask · T: dates"
+        local out = table.concat(L, "\n")
+        print(out)
+        return out
+    end
+    _G.scratchPadTasks = function(now) return sp.taskPreview(now) end
 
     -- ---- the page -------------------------------------------------------------
     local function escapeHtml(s)
