@@ -1,4 +1,4 @@
-# TESTING — how to score release 6.286.0
+# TESTING — how to score release 6.287.0
 
 You install ONE archive and it carries several releases. Below are the
 steps for each release this archive is new for, newest first. Run the
@@ -26,6 +26,65 @@ else is a LOSS and I fix it before building further. You are the only
 scorer; I never mark my own.
 
 ---
+
+## 6.287.0
+
+6.287.0 verify with LL — ✏️ THE TEXT TOOL IS A TEXT BOX (KNOWN GROUND)
+WHAT CHANGED: all four of your text-box asks, in one release, because
+they were one defect seen from four sides.
+WHY IT MATTERS: a text note had never had a WIDTH — only a font size.
+6.188.0 made the corner handle scale the letters, so there was nothing
+to wrap at, nothing for Return to make a second line of, and the one
+control on the box did the one thing you did not want it to.
+
+A. THE HEADLINE. ⇪⇧1 on a screenshot, press T, click.
+A1. Type a sentence long enough to be worth wrapping, then press ⏎.
+    EXPECT: a NEW LINE inside the box. It must NOT finish the box.
+A2. Type a second line. Press ⇧⏎.
+    EXPECT: done, and the note shows BOTH lines on the shot.
+A3. Drag the corner handle to the LEFT (no modifier).
+    EXPECT: the box gets narrower and the words RE-WRAP. The letters
+    stay exactly the same size. That is asks 2, 3 and 5 at once.
+A4. Hold ⇧ and drag the same corner.
+    EXPECT: the letters grow and shrink, the way they always did.
+A5. ⌘Z. EXPECT: the last of those goes back — a re-wrap undoes like
+    a move.
+
+B. THE ONES THAT PROTECT WHAT YOU ALREADY HAVE.
+B1. Make a box, close the editor with Esc, reopen the SAME shot.
+    EXPECT: the box comes back with its lines and its width intact.
+    (6.286.0 is what makes Esc keep it at all — do that block first.)
+B2. Open a shot you annotated on an OLDER build, if you have one.
+    EXPECT: the old text notes look exactly as they did. They have no
+    width stored, so they stay one line until you drag one.
+B3. Type a very long single word with no spaces — a URL will do — in a
+    narrow box. EXPECT: it breaks across lines rather than running out
+    of the box.
+B4. Make a two-line note ON something (an arrow tip, a button).
+    EXPECT: it grows DOWNWARD. The first line stays where you clicked,
+    so the note never walks off the thing it points at.
+
+C. MUST STILL WORK — every tool shares this canvas.
+C1. ⌘click a text box: its words open, pre-filled.
+C2. Drag a text box by its middle: it moves.
+C3. Esc with the box open cancels the BOX; Esc again closes the editor.
+C4. ⌘⏎ saves, and the saved PNG has the wrapped lines in it exactly as
+    they looked on screen.
+C5. Blur, arrow, line, oval, highlighter, counter, spotlight,
+    magnifier — unchanged.
+
+D. A JUDGEMENT ONLY YOU CAN MAKE — and this is the one I most want.
+D1. ⇧⏎ to finish. Is that the right key? The alternatives are ⌘⏎
+    (which is Save & copy everywhere else in the editor, so it would
+    be two meanings for one chord) or "click away", which already
+    works. "⇧⏎ is fine" · "make it something else" decides it.
+D2. Plain drag re-wraps, ⇧drag scales — your suggestion. If it feels
+    backwards in the hand, say so and I will swap them; it is one line.
+D3. A new box is born as wide as the words you typed. Would you rather
+    it started at a fixed width — say a quarter of the shot — so it
+    wraps from the first sentence? That is a default, not a release.
+
+
 
 ## 6.286.0
 
@@ -203,60 +262,6 @@ D2. Should the config stop naming teams altogether and just use the
     whole workspace? I have NOT done that: 6.16.9 found the workspace
     is a college with thousands of student accounts, which made the
     picker useless. Say if that has changed.
-
-
-
-## 6.283.0
-
-6.283.0 verify with LL — 🧠 ⌥Tab SEES THE CONSOLE (KNOWN GROUND)
-WHAT CHANGED: the Hammerspoon Console is remembered by ⌥Tab now, so it
-is on the wheel from every desktop instead of only the one it is on.
-WHY IT MATTERS: you have told me this twice. You were right twice, and
-so was your own explanation — "unless I switch to that desktop I can't
-see it". macOS will not tell us about another desktop's windows at
-all, so this switcher keeps a memory of every window it has ever
-listed. The console was the one thing that never went into it.
-
-A. THE HEADLINE.
-A1. Open the Hammerspoon Console. On THAT desktop, press ⌥Tab once.
-    EXPECT: a Hammerspoon Console card, as before.
-A2. Switch to another desktop. Press ⌥Tab.
-    EXPECT: the Console card is STILL THERE, captioned
-    "· remembered (another desktop?)".
-    THIS is the step that failed before. If it is missing, stop and
-    paste `_G.switcherReport()`.
-A3. Turn the wheel to it and release ⌥.
-    EXPECT: macOS carries you to that desktop with the Console front.
-A4. Close the Console, then ⌥Tab and choose the card again.
-    EXPECT: the Console OPENS. A card that does nothing is the failure
-    this release exists to avoid — tell me if you get one.
-
-B. PASTE BACK, PASS OR FAIL.
-B1. `_G.switcherReport()` — new; this module had no report at all.
-    The "console:" line has three states and I want whichever you get.
-    "not seen yet this session" is HEALTHY on a boot where you have
-    not opened the Console — it is not a fault, and it tells you the
-    one thing to do (open it, press ⌥Tab once on that desktop).
-
-C. MUST STILL WORK — the memory is shared with every window, so this
-   is the regression sweep and it is the important half.
-C1. Park a Chrome window on another desktop, ⌥Tab there once, come
-    back, ⌥Tab. EXPECT: that window is still offered, as before.
-C2. ⌥⇧Tab backwards, ← →, ↑ ↓, Home/End, Return, Esc — unchanged.
-C3. A minimised window is still listed; switching to it un-minimises.
-C4. ⌥Tab must not feel slower. If it does, B1's "last :" line names
-    the phase and the app — paste it.
-
-D. A JUDGEMENT ONLY YOU CAN MAKE.
-D1. The Console now stays on the wheel once you have opened it, for
-    the rest of the session. Is that right, or is it clutter on the
-    days you open the Console once and never want it again? "keep it"
-    · "only while it is open" decides it — the second is a smaller
-    wheel and brings back exactly the bug you reported.
-D2. Should the MUSIC CARD be on ⌥Tab too? You asked in September and
-    I have not built it. It is the one panel that keeps playing when
-    it is not in front, which is the argument for doing it alone
-    rather than adding every panel this config draws.
 
 
 

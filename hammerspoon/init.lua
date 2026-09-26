@@ -4,45 +4,46 @@
 -- =====================================================================
 -- 09-26-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.286.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.287.0
 -- =====================================================================
+
+-- NEW IN 6.287.0 — ✏️ A TEXT NOTE IS A BOX, NOT A LINE
+--   (modules/screenshot_editor.lua):
+--   LL, four asks in one breath: it must WRAP; the font size must change
+--   independently of the box and the box independently of the font;
+--   RETURN must drop a line instead of resizing; and dragging the box
+--   SMALLER must re-wrap rather than grow the letters.
+--   🔎 ONE DEFECT FROM FOUR SIDES: 6.188.0 built the corner handle as a
+--   glyph SCALE, so the only thing a text note had was a font size.
+--   🔑 THE NOTE GAINS ONE FIELD, `w` — the width it wraps at. A note
+--   WITHOUT it (every note in an older kept session) lays out exactly as
+--   before, one line. snapNote already carries every numeric field, so
+--   ⌘Z undoes a re-wrap through the same generic op as a move.
+--   ✏️ HIS OWN SUGGESTION IS THE RIGHT SHAPE: PLAIN corner drag moves
+--   the right edge and the words re-wrap; ⇧drag is 6.188.0's scale.
+--   ⏎ is a NEW LINE and ⇧⏎ is done — a <textarea>, and the placeholder
+--   says both, because a key that used to finish and now does not reads
+--   as a bug. A word wider than the box is broken by character.
 
 -- NEW IN 6.286.0 — 🚪 THE EDITOR'S WORK SURVIVES EVERY DOOR OUT, NOT
 --   JUST CANCEL (modules/screenshot_editor.lua):
---   LL, on an annotated screenshot: "Closing the screenshot editor dumps
---   the most recent edits so I lose any changes."
---   🔎 6.189.0 PROMISES THE OPPOSITE and was telling the truth about
---   exactly ONE way out. The marks live in the PAGE, and only its
---   `stashAndCancel()` hands them back — which the Cancel button called
---   and nothing else did: the Esc router called ed.close() straight out,
---   ed.open()'s first line is ed.close() (so ⇪⇧1 on another shot threw
---   the first one's work away in silence), and `closeOnEscape(true)` let
---   WebKit close the window behind Lua's back, racing the page's own
---   handler — so even the built path was a coin toss.
---   🔑 THE CLOSE IS ASYNCHRONOUS NOW: `ed.requestClose` asks, and closes
---   when the page replies; a HELD belt in its own slot closes anyway
---   after `closeGraceSecs`. A doAfter that ANSWERS nil is not a belt
+--   LL: "Closing the screenshot editor dumps the most recent edits so I
+--   lose any changes." 6.189.0 promises the opposite and was telling the
+--   truth about exactly ONE way out — the marks live in the PAGE, and
+--   only its `stashAndCancel()` hands them back. The Esc router called
+--   ed.close() straight out; ed.open()'s first line is ed.close(), so
+--   ⇪⇧1 on another shot threw the first one's work away in silence; and
+--   `closeOnEscape(true)` let WebKit close the window behind Lua's back.
+--   🔑 `ed.requestClose` ASKS and closes on the reply, with a HELD belt
+--   armed BEFORE the ask. A doAfter that answers nil is not a belt
 --   (6.265.0), so that closes at once rather than never. `ed.closePlan`
---   is PURE. 🔎 The report names which door and whether the work survived.
+--   is PURE; the report names which door and whether the work survived.
 
--- NEW IN 6.285.0 — 🔔 A HANDOVER IS NOT A LATCH, AND THEY WERE
---   PRINTED IDENTICALLY (init.lua §3.12, core/hyper_key.lua):
---   LL's Console on an ordinary ⇪⇧pad.: "⇪ released by the watchdog —
---   held 8s … musicPlayer had taken the keyboard". Nothing was wrong —
---   the card takes the keys on purpose (6.251.0) and 6.165.1's handshake
---   ends the hold — but that is the sentence printed when ⇪ is genuinely
---   STUCK, and a line that cries wolf is one he reads past.
---   🔑 THREE ENDINGS (6.196.1), only the third a fault: relay · handover
---   · latch. Only a latch counts in `hyperLatchReleases`, the number the
---   storm report prints. `_G.hyperEndVerdict` is PURE (core/hyper_key);
---   `_G.hyperKeyReport()`. 🚨 `_G.hyperTouch()` was the WRONG answer and
---   is recorded as such: it pushes the deadline OUT.
-
--- (6.284.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.285.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 cut the inline count to
 --  TWO; a gate check proves every entry here is also in CHANGELOG.md.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.286.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.287.0
 -- =====================================================================
 -- The catalogue that used to sit here moved to GUIDE.md ("What each
 -- tool does") in 6.180.0 — 259 lines of prose inside the orchestrator.
@@ -135,7 +136,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.286.0"
+_G.configVersion = "6.287.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the

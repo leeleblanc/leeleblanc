@@ -1238,6 +1238,14 @@ const free = (x, y) => Object.assign(mouse(x, y), { buttons: 0 });
   check("🚨 the note's ANCHOR does not move when it gains a line — it grows "
         + "downward, so it never walks off the thing it points at",
         box2.y === box1.y, box2.y + " vs " + box1.y);
+  // 🚨 THE BOX IS AS WIDE AS HE DRAGGED IT, not as wide as the words. A
+  // box that shrinks back to the text is a box he cannot widen, and the
+  // measured-width fallback is only for notes that have no width at all.
+  env.call("notes[0].text = 'ab'; notes[0].w = " + W8(30) + ";");
+  const wide = env.call("noteBox(notes[0])");
+  check("🚨 a box dragged WIDER than its words stays wide",
+        wide.w > W8(20), wide.w + " for a " + W8(30) + "-wide box");
+  env.call("notes[0].text = 'aaa bbb ccc';");   // put the fixture back
 
   // ---- and it DRAWS every line ----------------------------------------
   env.call("notes[0].w = " + W8(7) + "; redraw();");

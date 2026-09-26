@@ -6,6 +6,84 @@ older lives only here.
 
 ```text
 
+NEW IN 6.287.0 — ✏️ A TEXT NOTE IS A BOX, NOT A LINE
+(modules/screenshot_editor.lua, tests/test_editor_js.js):
+
+  LL, four asks in one breath:
+
+      "2. I need the text box to wrap if I want.
+       3. I need to be able to change the font size independent of the
+          box size and the box should change independent of the box size.
+       4. I need to be able to use the return key in the text box if I
+          want to drop down a line without resizing text.
+       5. I want the text to wrap as I make the text box smaller instead
+          of growing in size so I may need to hold shift down or some
+          other solution."
+
+  🔎 THEY ARE ONE DEFECT SEEN FROM FOUR SIDES. 6.188.0 built the corner
+  handle as a glyph SCALE — `n.size = before.size + d` — so the only
+  thing a text note ever had was a font size. There was no width to
+  wrap at, nothing for Return to make a second line of, and the one
+  control on the note did the one thing he did not want it to do.
+
+  🔑 THE NOTE GAINS ONE FIELD, `w`: the width it wraps at, in canvas
+  pixels. That is the whole data change, and it is deliberately the
+  smallest one that carries all four asks:
+    · WRAP falls out of having a width at all.
+    · FONT SIZE INDEPENDENT OF THE BOX falls out of having two fields
+      where there was one.
+    · RETURN falls out of the text being allowed to hold a \n.
+    · SHRINK-TO-REWRAP is the corner handle writing `w` instead of
+      `size`.
+
+  🕰 AND A NOTE WITHOUT IT IS UNCHANGED. Every note in an older kept
+  session, and every note in a state restored from an older build, has
+  no `w` — so `wrapLines` gives it one line per hard break and no
+  wrapping, which is exactly what it drew before. The first plain
+  corner drag is what turns it into a box. Its own check.
+
+  ✏️ HIS OWN SUGGESTION IS THE RIGHT SHAPE, and it is worth saying that
+  rather than quietly adopting it: "I may need to hold shift down".
+  PLAIN drag on the corner moves the right edge and the words re-wrap
+  to it; ⇧drag is 6.188.0's glyph scale, unchanged. Two jobs on one
+  control with a modifier deciding which — 6.248.0's rule, and the
+  check asserts BOTH halves, because a check on one of them passes
+  with the modifier ignored, which is the arrangement that would hand
+  him back the bug he reported.
+
+  ⏎ IS A NEW LINE AND ⇧⏎ IS DONE. The input is a <textarea> now — an
+  <input> cannot hold a newline at all, so no amount of key handling
+  would have given him this. Clicking away still commits, as it always
+  has. The PLACEHOLDER says both keys, because a key that used to
+  finish a box and now does not is the kind of change that reads as a
+  bug, and the page is where he is looking (6.203.0).
+
+  🚨 A WORD WIDER THAN THE BOX IS BROKEN BY CHARACTER. Left whole it
+  runs straight out of the rectangle it is supposed to be inside, which
+  is the case a URL in a narrow box makes visible immediately. Nothing
+  is lost in the breaking and no fragment is wider than the box — both
+  asserted.
+
+  🚨 THE ANCHOR DOES NOT MOVE when a note gains a line: n.x/n.y stay
+  the FIRST line's baseline and the box grows downward. 6.258.0's rule
+  in a smaller place — a mark that moves is a mark that is no longer
+  pointing at the thing it was put there for.
+
+  📏 ONE FUNCTION DECIDES THE RIGHT EDGE. `textW` answers the note's own
+  width when it has one and the longest line's measurement when it does
+  not, and the box, the draw and the corner handle all ask it — so they
+  cannot disagree about where the box ends. Its own mutation: returning
+  the measurement always makes a box he dragged WIDER than its words
+  snap back to them, which is a box he cannot widen.
+
+  🧪 NINE EXISTING CHECKS COMMITTED WITH A PLAIN ⏎ and went red
+  (6.248.0). The rule each of them exists for is unchanged; the key is
+  not, so they press ⇧⏎ now. And the 6.188.0 corner check asserted "the
+  corner makes the text BIGGER", which is the decision this release
+  reverses — it asserts both halves of the new rule instead.
+
+  Seventeen mutations, seventeen bites.
+
 NEW IN 6.286.0 — 🚪 THE EDITOR'S WORK SURVIVES EVERY DOOR OUT, NOT JUST
 CANCEL (modules/screenshot_editor.lua, tests/test_editor.lua):
 
