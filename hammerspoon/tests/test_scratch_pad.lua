@@ -1872,6 +1872,38 @@ do
           .. "a lost task is the reassuring answer and the wrong one",
           #SUBMITS == 2 and sp.tabs[1].mark == sp.failMark, sp.tabs[1].mark)
 
+    -- 🔢 TWO TABS, ONE ANNOUNCE. With a single tab the run-level
+    -- counter is indistinguishable from the tab-level one — the
+    -- mutation that announces per tab survived until this fixture
+    -- existed (6.230.0: pick the input where the two implementations
+    -- must differ).
+    reset("Tab one task")
+    sp.tabs[2] = { id = "t2", text = "Tab two task", kind = nil, at = os.time() }
+    sp.send("scheduled")
+    check("🔢 two tabs are announced ONCE for the run, not once each",
+          #SUBMITS == 2 and #ALERTS == 1
+          and tostring(ALERTS[1]):find("2 task", 1, true) ~= nil,
+          #ALERTS .. " alert(s): " .. tostring(ALERTS[1]))
+    check("...and both tabs are marked",
+          sp.tabs[1].mark == sp.sentMark and sp.tabs[2].mark == sp.sentMark)
+    -- ...and a failure in ONE tab marks only that tab, while the run
+    -- still speaks once.
+    reset("Good tab")
+    sp.tabs[2] = { id = "t2", text = "Bad tab", kind = nil, at = os.time() }
+    local savedSub2 = _G.asanaSubmitTask
+    _G.asanaSubmitTask = function(t, d, a, x, e)
+        SUBMITS[#SUBMITS + 1] = { title = t }
+        if e and e.onDone then
+            e.onDone(t ~= "Bad tab", t == "Bad tab" and "refused" or nil, "1")
+        end
+        return true
+    end
+    sp.send("scheduled")
+    _G.asanaSubmitTask = savedSub2
+    check("🔢 ...and one bad tab marks only itself",
+          sp.tabs[1].mark == sp.sentMark and sp.tabs[2].mark == sp.failMark
+          and #ALERTS == 1, tostring(sp.tabs[1].mark) .. "/" .. tostring(sp.tabs[2].mark))
+
     -- ⏳ THE MARK LANDS WHEN THE LAST ANSWER DOES, not the first.
     reset("Alpha\nBravo")
     SUBMIT_DEFER = true
