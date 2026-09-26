@@ -1412,12 +1412,23 @@ do
     -- 2026-09-26 12:00:00 UTC-ish; only the DATE arithmetic matters and
     -- os.date uses the same local zone on both sides of each check.
     local NOW = os.time({ year = 2026, month = 9, day = 26, hour = 12 })
-    local TODAY = os.date("%Y-%m-%d", NOW)
+    local TODAY = os.date("%Y-%m-%d")
+
+    -- 🧪 6.186.0, NINTH TIME: the parser walks a state machine, so a
+    -- deleted guard leaves `cur` nil and the next branch indexes it —
+    -- which ENDS the run with "0 failed" never printed, and a dead
+    -- suite reads as a passing one in a gate that greps the tail. The
+    -- helper ANSWERS FALSELY instead, so a mutation fails a check.
+    local function P(txt)
+        local ok, a, b = pcall(S.parseTasks, txt, NOW)
+        if ok then return a, b end
+        return {}, { "THREW: " .. tostring(a) }
+    end
 
     out("\n-- 6.297.0 the task grammar --\n")
 
     -- ---- a bare line is a task ------------------------------------------
-    local t, probs = S.parseTasks("Create the Asana task maker in Hamsidian", NOW)
+    local t, probs = P("Create the Asana task maker in Hamsidian")
     check("🗂 a bare line is ONE task, titled exactly as typed — his "
           .. "sentence, and the commonest case",
           #t == 1 and t[1].title == "Create the Asana task maker in Hamsidian"
@@ -1425,44 +1436,44 @@ do
     check("...and it gets the default assignee without him typing one",
           t[1].assignee == "me", t[1].assignee)
 
-    t = S.parseTasks("First thing\nSecond thing\nThird thing", NOW)
+    t = P("First thing\nSecond thing\nThird thing")
     check("🗂 three bare lines are THREE tasks, in order — folding them "
           .. "into one is exactly what he is asking to change",
           #t == 3 and t[1].title == "First thing" and t[3].title == "Third thing", #t)
 
-    t = S.parseTasks("Alpha\n\n\nBeta", NOW)
+    t = P("Alpha\n\n\nBeta")
     check("...and blank lines between them cost nothing", #t == 2, #t)
 
     -- 🚨 A BARE LINE AFTER A P: BLOCK IS ITS OWN TASK, NOT A CONTINUATION.
     -- The other reading is defensible and it is the one that loses work:
     -- a line he meant as a task would vanish into a description.
-    t = S.parseTasks("P: Big one\nD: why\nAnother task", NOW)
+    t = P("P: Big one\nD: why\nAnother task")
     check("🚨 a bare line after a P: block is its OWN task — the other "
           .. "reading silently swallows a task into a description",
           #t == 2 and t[1].title == "Big one" and t[2].title == "Another task"
           and t[1].desc == "why", #t .. ": " .. tostring(t[2] and t[2].title))
 
     -- ---- the divider -----------------------------------------------------
-    t = S.parseTasks("P: One\nD: a\n=\nP: Two\nD: b", NOW)
+    t = P("P: One\nD: a\n=\nP: Two\nD: b")
     check("🗂 = divides two blocks, and each keeps its own description",
           #t == 2 and t[1].desc == "a" and t[2].desc == "b",
           #t .. " " .. tostring(t[1] and t[1].desc))
-    t = S.parseTasks("P: One\nD: a\n===\nP: Two", NOW)
+    t = P("P: One\nD: a\n===\nP: Two")
     check("...and more than one = is still a divider", #t == 2, #t)
-    t = S.parseTasks("P: One\nD: a = b\nP: Two", NOW)
+    t = P("P: One\nD: a = b\nP: Two")
     check("🚨 ...but an = INSIDE a line is text, not a divider — a "
           .. "description with an equals sign in it must survive",
           #t == 2 and t[1].desc == "a = b", tostring(t[1] and t[1].desc))
 
     -- ---- the complex shape, exactly as he wrote it ------------------------
-    t, probs = S.parseTasks(table.concat({
+    t, probs = P(table.concat({
         "P: Generate a new init.lua feature",
         "A: me",
         "D: We need to structure a new Hammerspoon feature.",
         "S: Structure tool request",
         "S: Submit tool request",
         "T: today +1w 7:00 AM 4:00 PM",
-    }, "\n"), NOW)
+    }, "\n"))
     check("🗂 HIS OWN EXAMPLE parses to one task with its parts in the "
           .. "right places", #t == 1
           and t[1].title == "Generate a new init.lua feature"
@@ -1479,32 +1490,37 @@ do
           table.concat(probs, " | "))
 
     -- ---- several D: lines join, several S: accumulate ---------------------
-    t = S.parseTasks("P: X\nD: one\nD: two", NOW)
+    t = P("P: X\nD: one\nD: two")
     check("🗂 two D: lines join into one description with a line break",
           t[1].desc == "one\ntwo", (t[1].desc or ""):gsub("\n", "\\n"))
 
     -- ---- his outline bullets ----------------------------------------------
-    t = S.parseTasks("P: X\n   - S: a\n   * S: b\n   • S: c", NOW)
+    t = P("P: X\n   - S: a\n   * S: b\n   • S: c")
     check("🗂 the outline bullets he writes in are stripped — his own "
           .. "message used -, * and •", #t[1].subs == 3, #t[1].subs)
 
     -- ---- what it CANNOT read is NAMED --------------------------------------
-    t, probs = S.parseTasks("P: X\nT: sometime next quarter", NOW)
+    t, probs = P("P: X\nT: sometime next quarter")
     check("🚨 a T: line it cannot read NAMES the words rather than "
           .. "silently setting no date — a date that never happens is "
           .. "found out from Asana a week later",
           #probs >= 1 and table.concat(probs, " "):find("quarter", 1, true) ~= nil
           and t[1].when.startDate == nil, table.concat(probs, " | "))
-    t, probs = S.parseTasks("D: orphan description", NOW)
+    -- 🧪 pcall'd: with the guard deleted `cur` is nil and the next
+    -- branch indexes it, so the run would END here with "0 failed"
+    -- never printed and a dead suite reads as a passing one in a gate
+    -- that greps the tail. 6.186.0, ninth time — the test answers
+    -- falsely rather than dying.
+    t, probs = P("D: orphan description")
     check("🚨 a D:/S:/A:/T: with no task above it is NAMED and dropped, "
           .. "never silently attached to the next thing",
           #t == 0 and #probs == 1
           and probs[1]:find("before any task", 1, true) ~= nil, table.concat(probs, " | "))
-    t, probs = S.parseTasks("P: X\nA: lee\nA: sam", NOW)
+    t, probs = P("P: X\nA: lee\nA: sam")
     check("...and a second A: for one task says the last one wins "
           .. "rather than changing it in silence",
           t[1].assignee == "sam" and #probs == 1, tostring(t[1].assignee))
-    t, probs = S.parseTasks("P:\nD: body", NOW)
+    t, probs = P("P:\nD: body")
     check("...and a P: with no title is refused, not turned into an "
           .. "untitled Asana task", #t == 0 and #probs >= 1, #t)
 
