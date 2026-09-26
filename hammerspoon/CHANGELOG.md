@@ -5,6 +5,91 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+
+NEW IN 6.283.0 — 🧠 ⌥Tab NEVER REMEMBERED THE HAMMERSPOON CONSOLE
+(modules/window_switcher.lua, tests/test_switcher.lua):
+
+  LL, for the second time, and the second half of his sentence is the
+  whole diagnosis:
+
+      "Still can't see Hammerspoon window using Alt+tab · bummer"
+      "…It seems unless I switch to that desktop I can't see it."
+
+  🔎 THE MEMORY IS THE ONLY WAY ANY WINDOW ON ANOTHER DESKTOP IS EVER
+  LISTED. macOS AX does not report other Spaces from app:allWindows()
+  (6.152.0 measured it), and the private APIs that can enumerate them
+  need hs.window.filter to prune, which is banned here. So this switcher
+  keeps `altTab.known` — id → window — and every listing feeds it; a
+  window parked on another desktop is served from that memory, with its
+  card saying "remembered".
+
+  🚨 AND §1b'S CONSOLE BLOCK FED IT NOTHING. The per-app sweep recorded
+  every window it accepted; the console block — which exists because
+  Hammerspoon is a menu-bar app the kind == 1 sweep never asks, and
+  because the console can answer isStandard() = false — built its tile
+  and returned. Twelve lines, no memory write. So the Hammerspoon
+  Console was listable ONLY from the Space it was on, exactly as he
+  says, and no amount of pressing ⌥Tab could teach it otherwise. That
+  is why 6.215.0 scored "Alt+tab Success. Shows Hammerspoon now" and
+  why it has looked like a regression ever since: both reports were
+  true, and they were taken on different desktops.
+
+  🔑 ONE DOOR, `altTab.remember(id, win, app, name, at, isConsole)`.
+  This is 6.231.0's rule in its absent form: there were two copies of
+  "remember this window" and one of them was missing. The sweep and the
+  console block call the same function now, and a SOURCE SENTRY holds
+  every other writer out — exactly one `altTab.known[…] = {` in the
+  module, and it is inside that function. The prune loop's
+  `altTab.known[id] = nil` is deliberately still allowed: a sentry that
+  forbade it would forbid forgetting.
+
+  🔎 consoleWindow() answers the APPLICATION as a second value now. A
+  memory entry without its app cannot be pruned when the app dies, and
+  the prune is what stops the memory growing for ever.
+
+  🖥 AND CHOOSING A CONSOLE CARD OPENS THE CONSOLE. Once the console is
+  remembered it can be offered from another desktop — and it can also
+  be offered after it has been CLOSED, because nothing cheap tells
+  those two apart from here: allWindows() answers "not present" for
+  both, and the AX handle of an ordered-out window can go on answering
+  role(). hs.window:isVisible() cannot help (it is
+  `not app:isHidden() and not isMinimized()` — it never reads the
+  Space), and hs.console.hswindow() is banned as a full cross-app sweep
+  (6.160.3). So the answer is NOT a better probe: it is that the ACTION
+  is correct in both cases. hs.openConsole(true) opens a closed console
+  and brings an open one forward, with macOS carrying you to its Space.
+  6.147.0's "a closed console is not a tile, it is a tool you have not
+  opened" is RE-ASKED here rather than quietly dropped (6.280.0) — and
+  the thing that made that rule worth keeping was a dead card, which
+  there is no longer any way to get.
+
+  🔎 `_G.switcherReport()` — THE MODULE HAD NO REPORT AT ALL, which is
+  why "still can't see the Hammerspoon window" could only ever be
+  answered by reading the source. The console line has THREE STATES
+  (6.196.1) and that is the point: "open on this desktop", "remembered
+  from an earlier press" and "not seen yet this session" are three
+  different facts, and the first two used to look identical from his
+  side (a card) while the third looked identical to a bug. It also
+  names the last listing's cost, the memory size, and the last switch.
+
+  🧪 TWO CHECKS ASSERTED AN OUTCOME THIS RELEASE LEGITIMATELY CHANGES
+  (6.248.0). "A CLOSED console is not a tile" was 6.147.0's decision
+  written as an assertion, and it is replaced by the rule that actually
+  protects him: a window whose AX element is really gone is culled by
+  the same probe every remembered window gets. And "no applicationForPID
+  on this build: no console tile" had been sharing a memory with the
+  scenario above it, so it measured two rules at once; it starts from an
+  unlearned memory now, and the memory's own half — a console the memory
+  already holds survives the door it came through being taken away — is
+  asserted separately.
+
+  📏 COST, NAMED: the Hammerspoon Console joins the wheel from the first
+  press that sees it open, and stays until a reload or until its window
+  is really destroyed. That is the same contract every other window on
+  another desktop has had since 6.152.0.
+
+  Nine mutations, nine bites, restore SHA-verified.
+
 NEW IN 6.282.0 — 🕒 THE REPORT DIED ON A FLOAT, SO NO ARTEFACT COULD BE
 ASKED FOR (modules/screenshots.lua, tests/test_screenshots.lua):
 

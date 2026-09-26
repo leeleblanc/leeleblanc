@@ -1008,6 +1008,35 @@ work Mac.
   one-hop symlink: a fixture where the right and wrong implementations
   AGREE proves nothing — pick the input where they must differ.
 
+- 🧠 A WINDOW THAT IS NEVER REMEMBERED CAN ONLY BE SEEN FROM ITS OWN
+  DESKTOP (6.283.0, modules/window_switcher.lua — LL, twice: "Still
+  can't see Hammerspoon window using Alt+tab … unless I switch to that
+  desktop I can't see it." His second sentence IS the diagnosis).
+  🔎 `altTab.known` is the ONLY route to another Space (6.152.0 — AX
+  does not report other desktops and hs.window.filter is banned). The
+  per-app sweep fed it; §1b's console block built its tile and recorded
+  NOTHING. So the Console was listable only from the Space it was on,
+  and no press could teach it — which is why 6.215.0 scored "Alt+tab
+  Success. Shows Hammerspoon now" and it has looked like a regression
+  ever since. Both reports were true, taken on different desktops.
+  🔑 ONE DOOR, `altTab.remember` — 6.231.0 in its ABSENT form: two
+  copies of "remember this window", one of them simply missing. A source
+  sentry allows exactly one `altTab.known[…] = {` and it is inside that
+  function; the prune's `= nil` is still allowed, or it could not forget.
+  🖥 AND THE ANSWER WAS THE ACTION, NOT A BETTER PROBE. Nothing cheap
+  tells "on another desktop" from "closed": allWindows() answers absent
+  for both, an ordered-out window's AX handle can still answer role(),
+  isVisible() never reads the Space, and hswindow() is banned (6.160.3).
+  `hs.openConsole(true)` is correct in BOTH, so a console card always
+  works — which retires 6.147.0's "a closed console is not a tile" by
+  removing the dead card that rule existed to prevent (6.280.0: re-ask
+  the decision, do not drop it). GENERAL: when two states cannot be told
+  apart cheaply, ask whether the ACTION can be made right in both before
+  building an instrument to separate them.
+  🔎 `_G.switcherReport()` — the module had none, so this could only be
+  answered by reading the source. The console line has three states
+  (6.196.1): on this desktop · remembered · never seen this session.
+
 - 🕒 A REPORT THAT RAISES IS EVERY ASK IN THIS FILE, ANSWERED WITH
   NOTHING (6.282.0, modules/screenshots.lua — LL pasted a traceback
   where a report belongs: `screenshots.lua:1398: bad argument #2 to
@@ -3328,6 +3357,7 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
+| 6.283.0 | 🧠 ⌥Tab offers the Hammerspoon Console from any desktop — the console block was the one listing that never fed the memory, and the memory is the only route to another Space | pending |
 | 6.282.0 | 🕒 `_G.screenshotsReport()` stopped throwing — os.date refuses a float and `hs.timer.secondsSinceEpoch()` is one, so the report died at the `area` line in any session where ⇪4 had been pressed (since 6.264.0) | pending |
 | 6.281.0 | 🔁 the green OCR pills stop: a screenshot that OCRs to nothing is remembered and not re-OCR'd for ever — the watcher had no way to stop offering a word-less image, and the report counted only successes so it read 0 through the whole runaway | pending |
 | 6.280.0 | 🗑 a ✕ on every Hamsidian note deletes it to <Vault>/.trash — never erased, undoable, and it says how many notes still link to it | pending |
@@ -4194,6 +4224,56 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.283.0 verify with LL — 🧠 ⌥Tab SEES THE CONSOLE (KNOWN GROUND)
+  WHAT CHANGED: the Hammerspoon Console is remembered by ⌥Tab now, so it
+  is on the wheel from every desktop instead of only the one it is on.
+  WHY IT MATTERS: you have told me this twice. You were right twice, and
+  so was your own explanation — "unless I switch to that desktop I can't
+  see it". macOS will not tell us about another desktop's windows at
+  all, so this switcher keeps a memory of every window it has ever
+  listed. The console was the one thing that never went into it.
+
+  A. THE HEADLINE.
+  A1. Open the Hammerspoon Console. On THAT desktop, press ⌥Tab once.
+      EXPECT: a Hammerspoon Console card, as before.
+  A2. Switch to another desktop. Press ⌥Tab.
+      EXPECT: the Console card is STILL THERE, captioned
+      "· remembered (another desktop?)".
+      THIS is the step that failed before. If it is missing, stop and
+      paste `_G.switcherReport()`.
+  A3. Turn the wheel to it and release ⌥.
+      EXPECT: macOS carries you to that desktop with the Console front.
+  A4. Close the Console, then ⌥Tab and choose the card again.
+      EXPECT: the Console OPENS. A card that does nothing is the failure
+      this release exists to avoid — tell me if you get one.
+
+  B. PASTE BACK, PASS OR FAIL.
+  B1. `_G.switcherReport()` — new; this module had no report at all.
+      The "console:" line has three states and I want whichever you get.
+      "not seen yet this session" is HEALTHY on a boot where you have
+      not opened the Console — it is not a fault, and it tells you the
+      one thing to do (open it, press ⌥Tab once on that desktop).
+
+  C. MUST STILL WORK — the memory is shared with every window, so this
+     is the regression sweep and it is the important half.
+  C1. Park a Chrome window on another desktop, ⌥Tab there once, come
+      back, ⌥Tab. EXPECT: that window is still offered, as before.
+  C2. ⌥⇧Tab backwards, ← →, ↑ ↓, Home/End, Return, Esc — unchanged.
+  C3. A minimised window is still listed; switching to it un-minimises.
+  C4. ⌥Tab must not feel slower. If it does, B1's "last :" line names
+      the phase and the app — paste it.
+
+  D. A JUDGEMENT ONLY YOU CAN MAKE.
+  D1. The Console now stays on the wheel once you have opened it, for
+      the rest of the session. Is that right, or is it clutter on the
+      days you open the Console once and never want it again? "keep it"
+      · "only while it is open" decides it — the second is a smaller
+      wheel and brings back exactly the bug you reported.
+  D2. Should the MUSIC CARD be on ⌥Tab too? You asked in September and
+      I have not built it. It is the one panel that keeps playing when
+      it is not in front, which is the argument for doing it alone
+      rather than adding every panel this config draws.
+
 - 6.282.0 verify with LL — 🕒 THE REPORT ANSWERS AGAIN (KNOWN GROUND)
   WHAT CHANGED: `_G.screenshotsReport()` no longer throws. Nothing about
   capturing, naming or OCR moved.

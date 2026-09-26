@@ -1,5 +1,5 @@
 ========================================================================
-RESOLVED FEATURE REQUESTS — Hammerspoon config 6.282.0
+RESOLVED FEATURE REQUESTS — Hammerspoon config 6.283.0
 Every feature and how to use it. Generated from the modules' own
 cheat sheets (the rows ⇪/ draws), so it is never out of date.
 ⇪ = Caps Lock held (the hyper key). ⇪⇧X = Caps Lock + Shift + X.
@@ -60,7 +60,9 @@ In the Console, _G.<tool>Report() prints any tool's own report.
 🔄 WINDOW SWITCHER (⌥Tab — Windows-style)   [modules/window_switcher.lua]
   ⌥Tab    Hold ⌥, tap Tab to turn the ROLODEX of windows, release to switch
   ⌥⇧Tab Turn it backwards
-  console   The Hammerspoon Console is a card too, whenever it is open
+  console   The Hammerspoon Console is a card too — remembered from
+            the first press that saw it, so it is on the wheel from
+            any desktop; choosing it opens it if it was closed
   ← →   Keep ⌥ down: one card, wrapping like Tab
   ↑ ↓   Keep ⌥ down: turn the wheel FIVE cards at a time
   Home / End First card / last card
@@ -77,6 +79,7 @@ In the Console, _G.<tool>Report() prints any tool's own report.
   no perms  altTab.useSnapshots = false — icons not thumbnails, and macOS
             is never asked for Screen Recording (nothing else here needs it)
   ⌘Tab    Untouched — macOS reserves it, and it switches apps not windows
+  report    _G.switcherReport() — the memory, the console, the last switch
 
 🌗 SCREEN VEIL (⇪G — dim every display)   [modules/screen_veil.lua]
   ⇪G      Toggle the veil on/off over ALL connected monitors
@@ -764,6 +767,7 @@ In the Console, _G.<tool>Report() prints any tool's own report.
 
 📜 RELEASE INDEX — newest first, one line per release (the full story of each is in CHANGELOG.md)
 ------------------------------------------------------------------------
+  6.283.0  🧠 ⌥Tab NEVER REMEMBERED THE HAMMERSPOON CONSOLE
   6.282.0  🕒 THE REPORT DIED ON A FLOAT, SO NO ARTEFACT COULD BE
   6.281.0  🔁 A SCREENSHOT THAT OCR'd TO NOTHING IS NOT OCR'd FOR
   6.280.0  🗑 A NOTE CAN BE DELETED, AND IT GOES SOMEWHERE

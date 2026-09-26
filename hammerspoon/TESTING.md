@@ -1,4 +1,4 @@
-# TESTING — how to score release 6.282.0
+# TESTING — how to score release 6.283.0
 
 You install ONE archive and it carries several releases. Below are the
 steps for each release this archive is new for, newest first. Run the
@@ -26,6 +26,60 @@ else is a LOSS and I fix it before building further. You are the only
 scorer; I never mark my own.
 
 ---
+
+## 6.283.0
+
+6.283.0 verify with LL — 🧠 ⌥Tab SEES THE CONSOLE (KNOWN GROUND)
+WHAT CHANGED: the Hammerspoon Console is remembered by ⌥Tab now, so it
+is on the wheel from every desktop instead of only the one it is on.
+WHY IT MATTERS: you have told me this twice. You were right twice, and
+so was your own explanation — "unless I switch to that desktop I can't
+see it". macOS will not tell us about another desktop's windows at
+all, so this switcher keeps a memory of every window it has ever
+listed. The console was the one thing that never went into it.
+
+A. THE HEADLINE.
+A1. Open the Hammerspoon Console. On THAT desktop, press ⌥Tab once.
+    EXPECT: a Hammerspoon Console card, as before.
+A2. Switch to another desktop. Press ⌥Tab.
+    EXPECT: the Console card is STILL THERE, captioned
+    "· remembered (another desktop?)".
+    THIS is the step that failed before. If it is missing, stop and
+    paste `_G.switcherReport()`.
+A3. Turn the wheel to it and release ⌥.
+    EXPECT: macOS carries you to that desktop with the Console front.
+A4. Close the Console, then ⌥Tab and choose the card again.
+    EXPECT: the Console OPENS. A card that does nothing is the failure
+    this release exists to avoid — tell me if you get one.
+
+B. PASTE BACK, PASS OR FAIL.
+B1. `_G.switcherReport()` — new; this module had no report at all.
+    The "console:" line has three states and I want whichever you get.
+    "not seen yet this session" is HEALTHY on a boot where you have
+    not opened the Console — it is not a fault, and it tells you the
+    one thing to do (open it, press ⌥Tab once on that desktop).
+
+C. MUST STILL WORK — the memory is shared with every window, so this
+   is the regression sweep and it is the important half.
+C1. Park a Chrome window on another desktop, ⌥Tab there once, come
+    back, ⌥Tab. EXPECT: that window is still offered, as before.
+C2. ⌥⇧Tab backwards, ← →, ↑ ↓, Home/End, Return, Esc — unchanged.
+C3. A minimised window is still listed; switching to it un-minimises.
+C4. ⌥Tab must not feel slower. If it does, B1's "last :" line names
+    the phase and the app — paste it.
+
+D. A JUDGEMENT ONLY YOU CAN MAKE.
+D1. The Console now stays on the wheel once you have opened it, for
+    the rest of the session. Is that right, or is it clutter on the
+    days you open the Console once and never want it again? "keep it"
+    · "only while it is open" decides it — the second is a smaller
+    wheel and brings back exactly the bug you reported.
+D2. Should the MUSIC CARD be on ⌥Tab too? You asked in September and
+    I have not built it. It is the one panel that keeps playing when
+    it is not in front, which is the argument for doing it alone
+    rather than adding every panel this config draws.
+
+
 
 ## 6.282.0
 
@@ -218,64 +272,6 @@ E2. .trash keeps everything for ever. Do you want it emptied on a
     thing you go back for.
 E3. Rename is the obvious next thing and I have NOT built it. Say if
     you want it.
-
-
-
-## 6.279.0
-
-6.279.0 verify with LL — 📓 WHAT FAILED TODAY (KNOWN GROUND)
-WHAT CHANGED: one command, `_G.todayReport()`, names every tool that
-failed today with the time and the reason — read back off a file, so it
-survives a reload.
-WHY IT MATTERS: your 4 PM double-check. The old ledger was in memory
-only, so every reload wiped it — and a reload is likeliest exactly when
-something has broken and you have just edited something.
-
-A. THE HEADLINE.
-A1. Console: `_G.todayReport()`.
-    EXPECT on a healthy Mac, and it should be BORING:
-      📓 WHAT FAILED TODAY — 2026-09-23
-         log    : …/Logs/degrades-<your Mac>.csv
-         ✅ nothing failed today — the log was read and holds no row…
-         wrote  : 0 row(s) this session
-A2. Make something fail on purpose: `_G.degrade("Test tool", "on purpose")`.
-A3. `_G.todayReport()` again.
-    EXPECT: "⚠️ 1 failure(s) across 1 tool(s)" and a line naming Test
-    tool, the time, and "on purpose".
-
-B. THE ONE THAT MATTERS — it has to survive a reload.
-B1. Reload Hammerspoon (⌘⌃R, or the menu).
-B2. `_G.todayReport()`.
-    EXPECT: the Test tool row is STILL THERE. On every build before
-    this one it would be gone. That is the whole release.
-B3. `_G.degradeReport()` for contrast.
-    EXPECT: it says nothing has degraded THIS SESSION — correct, and
-    the difference between the two is the point.
-
-C. IT MUST NOT LIE TO YOU WHEN IT CANNOT READ.
-C1. Look at the "log :" path in A1 and confirm the file exists in your
-    Logs folder. Open it — it is plain CSV, one row per failure:
-    date, time, epoch, tool, reason.
-C2. You do not need to break it on purpose, but know the rule: if that
-    file ever cannot be read, the report says "COULD NOT READ IT …
-    treat it as unknown, not as clear". It will never print "nothing
-    failed today" about a log it could not open.
-
-D. PASTE BACK, PASS OR FAIL.
-D1. `_G.todayReport()` at the end of a normal day. That is the artefact
-    I want from now on whenever anything feels off — it turns "I think
-    something didn't work" into a list with times on it.
-
-E. A JUDGEMENT ONLY YOU CAN MAKE.
-E1. Is the Console the right place, or do you want this somewhere you
-    will actually look at 4 PM? The obvious next step is making it a
-    ⇪D source (`@fails`) so it is in the search you already use. Say
-    the word and it is one line plus a release.
-E2. The file grows for ever, one short line per failure. On a healthy
-    Mac that is a few rows a week. Tell me if you would rather it kept
-    only the last N days — I left it uncapped deliberately, because a
-    log that prunes itself is a log that can lose the thing you are
-    looking for.
 
 
 

@@ -2,10 +2,28 @@
 -- * Working VERSION *
 -- =====================================================================
 -- =====================================================================
--- 09-25-26 using Claude          ← EDITED date. Bumped with every release.
+-- 09-26-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.282.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.283.0
 -- =====================================================================
+
+-- NEW IN 6.283.0 — 🧠 ⌥Tab NEVER REMEMBERED THE HAMMERSPOON CONSOLE
+--   (modules/window_switcher.lua):
+--   LL, twice: "Still can't see Hammerspoon window using Alt+tab …
+--      unless I switch to that desktop I can't see it." His second
+--      sentence IS the diagnosis.
+--   🔎 The memory is the ONLY way any window on another desktop is ever
+--      listed (6.152.0 — AX does not report other Spaces). The per-app
+--      sweep recorded what it accepted into altTab.known; §1b's console
+--      block built its tile and recorded NOTHING, so the console was
+--      listable only from its own Space and no press could teach it.
+--   🔑 ONE DOOR, `altTab.remember`: two copies of a rule with one of
+--      them missing. A source sentry keeps other writers out (the prune
+--      may still assign nil, or it could not forget).
+--   🖥 AND CHOOSING A CONSOLE CARD OPENS IT — nothing cheap tells "on
+--      another desktop" from "closed", so the answer is not a better
+--      probe. 6.147.0 is RE-ASKED, not dropped (6.280.0).
+--   🔎 `_G.switcherReport()`: the module had no report at all.
 
 -- NEW IN 6.282.0 — 🕒 THE REPORT DIED ON A FLOAT, SO NO ARTEFACT
 --   COULD BE ASKED FOR (modules/screenshots.lua):
@@ -16,38 +34,18 @@
 --      THREW, and took the whole report with it, in every session in
 --      which ⇪4 had been pressed even once. Live since 6.264.0.
 --   🔑 `shots.clockText` is PURE and is the ONE door all three report
---      clocks ask. Flooring the single float writer would fix the
---      instance; the other two are integers only because their writers
---      happen to call os.time(), so the class lives at the READER.
---   🚨 AND THE STUB WAS GENTLER IN A VALUE'S TYPE: the suite's
---      secondsSinceEpoch answered the INTEGER 1000, which os.date
---      accepts — so the check that renders this very line was green on
---      every run. 6.193.0 for the eighth time, in a number.
---   🔒 A source sentry holds the class: nothing in the module formats
---      a clock by hand. Eight mutations, eight bites.
---
--- NEW IN 6.281.0 — 🔁 A SCREENSHOT THAT OCR'd TO NOTHING IS NOT OCR'd
---   FOR EVER (modules/screenshots.lua):
---   LL, of the green menu-bar pills: "those green icons just do
---      something like loop and loop and loop like it's running OCR
---      nonstop." Each pill is one `shortcuts run "HS OCR"` process.
---   🚨 THE QUALIFIER NEVER STOPPED QUALIFYING: wantsName() refuses a
---      name only once it holds " — ", and a name is written only when
---      OCR returns WORDS — so a word-less arrival re-qualified on EVERY
---      folder event; OneDrive made it self-sustaining, since reading a
---      placeholder hydrates it and that is another event on that file.
---   🔑 FAILURES ONLY, IN MEMORY: a success RENAMES the file and the new
---      name refuses itself. COST: a reload gives each word-less file
---      triedMax fresh tries, once. 🎵 ⌘9 records but is never refused.
---   🚨 NOTHING RAN IS NOT EVIDENCE: nameByText answers WHY, so an OCR
---      outage cannot blacklist. 🔎 The old report read "0 · 0" (6.196.1).
---
--- (6.280.0 and earlier: see CHANGELOG.md — the complete record, and the
+--      clocks ask — flooring the one float writer would fix the
+--      instance and leave the class, so the fix is at the READER.
+--   🚨 AND THE STUB WAS GENTLER IN A VALUE'S TYPE: the suite answered
+--      the INTEGER 1000, which os.date accepts, so the check rendering
+--      this very line was green for eighteen releases. 6.193.0, eighth.
+
+-- (6.281.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.282.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.283.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -144,7 +142,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.282.0"
+_G.configVersion = "6.283.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the
