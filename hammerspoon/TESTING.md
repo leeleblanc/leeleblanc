@@ -1,4 +1,4 @@
-# TESTING — how to score release 6.284.0
+# TESTING — how to score release 6.285.0
 
 You install ONE archive and it carries several releases. Below are the
 steps for each release this archive is new for, newest first. Run the
@@ -26,6 +26,61 @@ else is a LOSS and I fix it before building further. You are the only
 scorer; I never mark my own.
 
 ---
+
+## 6.285.0
+
+6.285.0 verify with LL — 🔔 THE ⇪ WATCHDOG STOPS CRYING WOLF (KNOWN GROUND)
+WHAT CHANGED: nothing about how ⇪ works. What changed is what the
+Console says when a panel takes the keyboard.
+WHY IT MATTERS: your last paste carried this line —
+    ⌨️ ⇪ released by the watchdog — held 8s with no key event and no
+    F18 keyUp (release #1) — musicPlayer had taken the keyboard.
+Nothing was wrong. The music card takes the keyboard on purpose, so
+the Caps Lock release goes to ITS window, and a guard ends the hold
+1.5 seconds later exactly as designed. But that is the sentence this
+config prints when ⇪ is genuinely STUCK — the thing that killed your
+keyboard in 6.214.0 — and it was also adding to the count the storm
+report calls a fault. A warning you see every time you play music is
+a warning you stop reading.
+🚨 AND I HAD THE FIX WRONG IN MY OWN NOTES: I had written that the
+card should call `_G.hyperTouch()`. It should not — that call means
+"this hold is real, keep it", which would have held ⇪ latched LONGER.
+
+A. THE HEADLINE.
+A1. Press ⇪⇧pad. to open the music card. Watch the Console.
+    EXPECT, the FIRST time this session: `⌨️ ⇪ hold ended on schedule
+    — musicPlayer took the keyboard, so the F18 keyUp went to it.
+    Normal, not a stuck ⇪`.
+    EXPECT NOT: "released by the watchdog".
+A2. Close it and open it again, twice more.
+    EXPECT: NOTHING in the Console. It is explained once per panel and
+    counted after that.
+A3. Console: `_G.hyperKeyReport()`.
+    EXPECT three lines — relay · handover · latch — with handover at
+    3 and `latch : 0 — ⇪ has not stuck this session`.
+    THAT ZERO is the release. Paste the block.
+
+B. MUST STILL WORK — this is the ⇪ key, so it is the important half.
+B1. Use ⇪ normally for a day: ⇪T, ⇪D, ⇪N, ⇪3, ⇪X, ⇪4, ⇪space.
+    EXPECT: no change of any kind.
+B2. Hold ⇪ down for ten seconds without pressing anything, then let go.
+    EXPECT: `released by the watchdog — held 8s … (release #1)`, with
+    no panel named. THAT one must still appear — it is the real
+    warning and it has to keep its teeth.
+B3. `_G.hyperKeyReport()` again: `latch : ⚠️ 1`. The ⚠️ is the point.
+B4. `_G.stormReport()` — its "before :" line now reads LATCH releases,
+    panel handovers and keyUp relays separately instead of summing
+    them.
+B5. Open Hamsidian (⇪N) and type. The pad does the same handshake, so
+    you should see its one-off line too, and typing must be typing —
+    no letter should run a shortcut.
+
+C. A JUDGEMENT ONLY YOU CAN MAKE.
+C1. Is once per panel per session the right amount of talking, or
+    would you rather it never said anything and only counted? "once is
+    fine" · "say nothing" decides it.
+
+
 
 ## 6.284.0
 
@@ -184,90 +239,6 @@ D. A JUDGEMENT ONLY YOU CAN MAKE.
 D1. When a clock cannot be read, the line now says "time not recorded"
     rather than printing 1970. Is that the right wording, or would you
     rather it said nothing at all there? Either is one line.
-
-
-
-## 6.281.0
-
-6.281.0 verify with LL — 🔁 THE GREEN PILLS STOP (KNOWN GROUND)
-WHAT CHANGED: a screenshot that OCRs to nothing is now remembered as
-tried, and the folder watcher stops offering it after three goes. ⌘9 is
-unchanged and still OCRs anything you point it at.
-WHY IT MATTERS: you said the green icons "loop and loop and loop like
-it's running OCR nonstop." Each green pill in your menu bar is one
-`shortcuts run "HS OCR"` process. A word-less image was never renamed,
-so it never stopped qualifying, so it was re-OCR'd on every folder
-event — for ever. And because reading a OneDrive placeholder HYDRATES
-it, and a hydration is a write, the OCR was re-triggering the watcher
-for the file it had just OCR'd. No outside input needed.
-🚨 THIS IS ALSO IN 6.275.0, the build you rolled back to — the watcher
-is 6.155.0 code. The rollback did not remove this; only this does.
-
-A. THE HEADLINE. Do this FIRST.
-A1. Install, then Console: `_G.screenshotsReport()`.
-    EXPECT a new block, and on a fresh boot it should read:
-      OCR     : 0 run · 0 named · 0 read no text · …
-      yield   : no OCR has run this session
-      tried   : nothing has OCR'd to nothing yet
-A2. Use the Mac for an hour, normally. Watch the menu bar.
-    EXPECT: pills appear when a screenshot arrives and GO AWAY. What
-    must not happen is a pill that is always there, or pills that
-    reappear the moment they vanish.
-A3. `_G.screenshotsReport()` again. This is the artefact I want.
-    EXPECT "OCR : N run" to be a small number — roughly the number of
-    screenshots that actually arrived — and "tried : N file(s)
-    remembered · M at the 3-try cap".
-    A FAIL is "run" in the hundreds or thousands. Paste it either way.
-
-B. PROVE IT ON PURPOSE, if you want to see the rule work.
-B1. Put an image with NO words in it — a photo, a plain colour — into
-    the screenshots folder, named like `Screenshot 2026-09-26 at
-    10.00.00.png`.
-    EXPECT: three OCRs (three brief pills), then silence. Before this
-    release it would have gone on for as long as Hammerspoon ran.
-B2. `_G.screenshotsReport()` — the "tried" line names it, and says the
-    watcher no longer offers it while ⌘9 still does.
-
-C. MUST STILL WORK. This release touched the naming path, so this is
-   the regression sweep and it is the important half.
-C1. ⇪4, drag, let go. The shot lands and is named from its words as
-    ever.
-C2. Drop a screenshot WITH text into the folder from the other Mac (or
-    just take one). EXPECT: it is renamed to "… — <its words>.png"
-    within a few seconds, exactly as before.
-C3. ⇪⇧5 then ⌘9 (the naming sweep). EXPECT: it still names everything
-    it can, and still reports "N had no readable text". ⌘9 must never
-    refuse a file — if it ever says it is skipping something, that is a
-    real failure and I want to know at once.
-C4. ⇪5 scrolling capture, and ⇪⇧1 the editor. Unchanged.
-
-D. PASTE BACK, PASS OR FAIL.
-D1. `_G.screenshotsReport()` after a full day. The "OCR" and "tried"
-    lines are the whole answer, and they are the numbers that could not
-    be asked for before: through the entire runaway the old report read
-    "named on arrival 0 · left for ⌘9 0", because it counted only
-    successes and only cap overflow. A word-less image incremented
-    neither.
-D2. If a pill is ever stuck on screen with nothing else happening,
-    paste the report then too — that would be a hung `shortcuts`
-    process, which is a DIFFERENT bug I have named and not fixed (there
-    is no timeout on that task yet).
-
-E. A JUDGEMENT ONLY YOU CAN MAKE.
-E1. Three tries per file — right? A file gets three OCRs before the
-    watcher gives up on it. Fewer is quieter; more is more forgiving of
-    a OneDrive file that had not finished downloading the first time.
-    "three is fine" · "make it two" · "make it five" decides it.
-E2. The memory is in RAM, not on disk, on purpose — writing it would
-    mean a main-thread write into the very folder this watcher watches.
-    The cost is that a reload or a reboot gives every word-less image
-    three fresh tries, once. If you reload often and notice a small
-    burst of pills after each one, tell me and I will move it to disk
-    properly, with the write off the main thread.
-E3. How many word-less screenshots do you actually have? One line:
-    `ls "$HOME/Library/CloudStorage/OneDrive-Personal/2026 Screenshots" | grep -E '^(Screenshot |SCR-[0-9]{8}-)' | grep -vc ' — '`
-    That number is how big the burst in E2 is, and it also decides
-    whether ⌘9's 40-file cap needs raising — a separate release.
 
 
 

@@ -1008,6 +1008,33 @@ work Mac.
   one-hop symlink: a fixture where the right and wrong implementations
   AGREE proves nothing — pick the input where they must differ.
 
+- 🔔 A HANDOVER IS NOT A LATCH, AND THEY WERE PRINTED IDENTICALLY
+  (6.285.0, init.lua §3.12 + core/hyper_key.lua — LL's Console, on an
+  ordinary ⇪⇧pad.: "⇪ released by the watchdog — held 8s … musicPlayer
+  had taken the keyboard").
+  🔎 NOTHING WAS WRONG. The card takes the keys on purpose (6.251.0), so
+  the keyUp goes to ITS window; 6.165.1's handshake ends the hold 1.5 s
+  later by design. Both halves worked — and produced the sentence this
+  config prints when ⇪ is genuinely STUCK, plus an increment of
+  `hyperLatchReleases`, the number the storm report calls a fault. A
+  healthy Mac accumulating fault counts, and the line that should make
+  him look twice became the one he sees whenever he plays music.
+  6.269.0's rule, in an instrument that predates it.
+  🚨 AND `_G.hyperTouch()` WAS THE WRONG ANSWER — THIS FILE SAID IT FOR
+  A RELEASE. hyperTouch means "a key proves this hold is real" and
+  pushes the deadline OUT: a card calling it would hold ⇪ latched
+  LONGER. The card already does both correct halves. What was missing
+  was not a call, it was a DISTINCTION. GENERAL: before adding a call to
+  a guard, read what the guard's own vocabulary means — "alive" and
+  "ending cleanly" are opposite instructions.
+  🔑 THREE ENDINGS (6.196.1), only the third a fault: relay (a page saw
+  the keyUp) · handover (a panel declared itself) · latch. Relays were
+  counted as latches too. `_G.hyperEndVerdict` is PURE and answers kind
+  AND words so the callers cannot drift; it lives in core/hyper_key.lua
+  because init.lua is at its 3,800-line budget, and §3.12 falls back to
+  the old sentence when it is absent. 🔕 A handover is explained ONCE
+  per panel per session and counted every time. `_G.hyperKeyReport()`.
+
 - 🏷 A LIVE ANSWER TO A STALE QUESTION IS STILL STALE (6.284.0,
   modules/asana_comments.lua — LL: "Why do I have to hard code team
   names", with the team's real name beside it, two words shorter than
@@ -3389,6 +3416,7 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
+| 6.285.0 | 🔔 the ⇪ watchdog stops crying wolf — a panel that says it is taking the keyboard is a handover, not a stuck ⇪, and only a real latch counts as one | pending |
 | 6.284.0 | 🏷 an Asana team is pinned by its GID, so renaming it no longer costs the ⇪T picker — the fetch was always live, the stale half was the name we searched FOR | pending |
 | 6.283.0 | 🧠 ⌥Tab offers the Hammerspoon Console from any desktop — the console block was the one listing that never fed the memory, and the memory is the only route to another Space | pending |
 | 6.282.0 | 🕒 `_G.screenshotsReport()` stopped throwing — os.date refuses a float and `hs.timer.secondsSinceEpoch()` is one, so the report died at the `area` line in any session where ⇪4 had been pressed (since 6.264.0) | pending |
@@ -4257,6 +4285,57 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.285.0 verify with LL — 🔔 THE ⇪ WATCHDOG STOPS CRYING WOLF (KNOWN GROUND)
+  WHAT CHANGED: nothing about how ⇪ works. What changed is what the
+  Console says when a panel takes the keyboard.
+  WHY IT MATTERS: your last paste carried this line —
+      ⌨️ ⇪ released by the watchdog — held 8s with no key event and no
+      F18 keyUp (release #1) — musicPlayer had taken the keyboard.
+  Nothing was wrong. The music card takes the keyboard on purpose, so
+  the Caps Lock release goes to ITS window, and a guard ends the hold
+  1.5 seconds later exactly as designed. But that is the sentence this
+  config prints when ⇪ is genuinely STUCK — the thing that killed your
+  keyboard in 6.214.0 — and it was also adding to the count the storm
+  report calls a fault. A warning you see every time you play music is
+  a warning you stop reading.
+  🚨 AND I HAD THE FIX WRONG IN MY OWN NOTES: I had written that the
+  card should call `_G.hyperTouch()`. It should not — that call means
+  "this hold is real, keep it", which would have held ⇪ latched LONGER.
+
+  A. THE HEADLINE.
+  A1. Press ⇪⇧pad. to open the music card. Watch the Console.
+      EXPECT, the FIRST time this session: `⌨️ ⇪ hold ended on schedule
+      — musicPlayer took the keyboard, so the F18 keyUp went to it.
+      Normal, not a stuck ⇪`.
+      EXPECT NOT: "released by the watchdog".
+  A2. Close it and open it again, twice more.
+      EXPECT: NOTHING in the Console. It is explained once per panel and
+      counted after that.
+  A3. Console: `_G.hyperKeyReport()`.
+      EXPECT three lines — relay · handover · latch — with handover at
+      3 and `latch : 0 — ⇪ has not stuck this session`.
+      THAT ZERO is the release. Paste the block.
+
+  B. MUST STILL WORK — this is the ⇪ key, so it is the important half.
+  B1. Use ⇪ normally for a day: ⇪T, ⇪D, ⇪N, ⇪3, ⇪X, ⇪4, ⇪space.
+      EXPECT: no change of any kind.
+  B2. Hold ⇪ down for ten seconds without pressing anything, then let go.
+      EXPECT: `released by the watchdog — held 8s … (release #1)`, with
+      no panel named. THAT one must still appear — it is the real
+      warning and it has to keep its teeth.
+  B3. `_G.hyperKeyReport()` again: `latch : ⚠️ 1`. The ⚠️ is the point.
+  B4. `_G.stormReport()` — its "before :" line now reads LATCH releases,
+      panel handovers and keyUp relays separately instead of summing
+      them.
+  B5. Open Hamsidian (⇪N) and type. The pad does the same handshake, so
+      you should see its one-off line too, and typing must be typing —
+      no letter should run a shortcut.
+
+  C. A JUDGEMENT ONLY YOU CAN MAKE.
+  C1. Is once per panel per session the right amount of talking, or
+      would you rather it never said anything and only counted? "once is
+      fine" · "say nothing" decides it.
+
 - 6.284.0 verify with LL — 🏷 THE ASANA TEAM NAME (KNOWN GROUND)
   WHAT CHANGED: the team name in the config is corrected to the one you
   sent me, and — the actual release — a team's GID is remembered the

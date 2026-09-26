@@ -1250,9 +1250,12 @@ do
   check("_G.hyperKeyReport exists", type(w.SB.hyperKeyReport) == "function")
   w.SB.hyperKeyReport()
   local rep = table.concat(w.printed, "\n")
-  check("…and prints all three endings apart",
-        rep:find("relay", 1, true) and rep:find("handover", 1, true)
-        and rep:find("latch", 1, true), rep)
+  -- 🧪 THREE DISTINCT NUMBERS, or the check passes with two lines reading
+  -- the same counter — which is the exact defect this release is about,
+  -- one layer out (6.212.0: assert what is UNIQUE to the branch).
+  check("…and prints all three endings apart, each from its OWN counter",
+        rep:find("relay    : 2", 1, true) and rep:find("handover : 5", 1, true)
+        and rep:find("latch    : 0", 1, true), rep)
   check("…with a clean latch line reading 0, no ⚠️",
         rep:find("latch    : 0", 1, true) ~= nil, rep)
   check("…and it names the panels that have taken the keyboard",

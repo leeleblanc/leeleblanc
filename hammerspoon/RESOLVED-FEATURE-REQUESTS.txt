@@ -1,5 +1,5 @@
 ========================================================================
-RESOLVED FEATURE REQUESTS — Hammerspoon config 6.284.0
+RESOLVED FEATURE REQUESTS — Hammerspoon config 6.285.0
 Every feature and how to use it. Generated from the modules' own
 cheat sheets (the rows ⇪/ draws), so it is never out of date.
 ⇪ = Caps Lock held (the hyper key). ⇪⇧X = Caps Lock + Shift + X.
@@ -767,6 +767,7 @@ In the Console, _G.<tool>Report() prints any tool's own report.
 
 📜 RELEASE INDEX — newest first, one line per release (the full story of each is in CHANGELOG.md)
 ------------------------------------------------------------------------
+  6.285.0  🔔 A HANDOVER IS NOT A LATCH, AND THEY WERE PRINTED
   6.284.0  🏷 A TEAM IS PINNED BY ITS GID, SO A RENAME NO LONGER
   6.283.0  🧠 ⌥Tab NEVER REMEMBERED THE HAMMERSPOON CONSOLE
   6.282.0  🕒 THE REPORT DIED ON A FLOAT, SO NO ARTEFACT COULD BE

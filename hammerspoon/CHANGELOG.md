@@ -6,6 +6,80 @@ older lives only here.
 
 ```text
 
+NEW IN 6.285.0 — 🔔 A HANDOVER IS NOT A LATCH, AND THEY WERE PRINTED
+IDENTICALLY (init.lua §3.12, core/hyper_key.lua, modules/hyper_storm.lua):
+
+  LL's Console, in a paste about something else entirely, on an
+  ordinary press of ⇪⇧pad.:
+
+      ⌨️ ⇪ released by the watchdog — held 8s with no key event and
+      no F18 keyUp (release #1) — musicPlayer had taken the keyboard.
+
+  🔎 NOTHING WAS WRONG, and that is the finding. The music card takes
+  the keyboard on purpose (6.251.0), so the F18 keyUp goes to ITS
+  window and never reaches the hotkey; 6.165.1's handshake shortens
+  the deadline to 1.5 s precisely so the hold ends anyway. Both halves
+  worked. What they produced was the sentence this config prints when
+  ⇪ is genuinely STUCK — and an increment of `hyperLatchReleases`,
+  which the storm report prints as "before : watchdog releases this
+  session". A healthy Mac was accumulating fault counts, and the one
+  line that should make him look twice became the line he sees every
+  time he plays music. 6.269.0's rule, in an instrument that predates
+  it: a new instrument's first duty is to be silent when nothing is
+  wrong, or it is switched off before it ever sees the fault.
+
+  🚨 AND `_G.hyperTouch()` WAS THE WRONG ANSWER. CLAUDE.md said, for a
+  release, that "a panel that takes the keyboard should be telling the
+  hold it is alive (`_G.hyperTouch()`)". It should not. hyperTouch
+  means "a key proves this hold is real" and pushes the deadline OUT;
+  a card that called it would hold ⇪ latched LONGER, which is the
+  opposite of what the handshake exists for. The card already does
+  both correct halves — it declares itself with hyperExpectRelease,
+  and its page forwards the F18 keyUp when it gets one. What was
+  missing was not a call. It was a DISTINCTION. The note is corrected
+  rather than deleted, because the wrong first guess is the part worth
+  keeping.
+
+  🔑 THREE ENDINGS, NOT ONE (6.196.1), and only the third is a fault:
+    · relay    — a panel's page saw the F18 keyUp itself and told us.
+                 The release really happened; a panel passed it on.
+                 This was being counted as a latch too.
+    · handover — a panel had DECLARED it was taking the keyboard and
+                 the shortened deadline passed in silence. Expected.
+    · latch    — nobody declared anything and the hold went quiet past
+                 hyperLatchSecs, or a guard forced it. A FAULT, and
+                 the only one `hyperLatchReleases` counts now.
+
+  `_G.hyperEndVerdict(o)` is PURE and answers the kind AND the words,
+  so the two callers cannot drift. It lives in core/hyper_key.lua —
+  which already owns the hyper key — rather than in init.lua §3.12,
+  because that file is at its line budget; §3.12 ASKS it and falls
+  back to the old single sentence when it is absent, so a Hammerspoon
+  where that core file failed to load still releases a phantom hold
+  and still says so. Its own check.
+
+  🔕 THE HANDOVER IS EXPLAINED ONCE PER PANEL PER SESSION and counted
+  every time. He opens that card all day; the sentence is information
+  the first time and noise the fifth. The count is in the report.
+
+  🔎 `_G.hyperKeyReport()` prints the three apart, and the storm
+  report's "before :" line now reads "LATCH releases … panel handovers
+  … keyUp relays" instead of summing them.
+
+  🧪 TWO CHECKS ASSERTED THE OLD SENTENCE AND WENT RED (6.248.0). One
+  wanted "a pad had taken the keyboard" inside the watchdog's wording;
+  the rule it existed for — the panel is named, and the hold really
+  ends — is unchanged and is what it asserts now, plus that the line
+  says it is normal. The other asserted `hyperLatchReleases == 2`
+  after a RELAYED keyUp, which is the cleanest ending there is.
+
+  🧪 And the report check first passed its own mutation: it looked for
+  the words "relay", "handover" and "latch" and was satisfied when the
+  handover line read the LATCH counter. It asserts three distinct
+  numbers now — 6.212.0's rule, one layer out from the defect itself.
+
+  Eleven mutations, eleven bites.
+
 NEW IN 6.284.0 — 🏷 A TEAM IS PINNED BY ITS GID, SO A RENAME NO LONGER
 BREAKS IT (modules/asana_comments.lua, tests/test_asana_teams.lua):
 
