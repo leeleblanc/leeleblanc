@@ -246,10 +246,44 @@ _G.notices = { tell = function(title, text)
                    return true
                end,
                record = function() return true end }
+-- 🔬 6.299.0 — THE REAL SUBMIT ANSWERS TWICE, so this stub does too.
+-- `_G.asanaSubmitTask` returns the instant it fires the POST ("accepted
+-- for posting") and then calls `extra.onDone(ok, why, gid)` when Asana
+-- replies. A stub that only RETURNS is gentler than the provider
+-- (6.290.0) — and gentler in exactly the direction that hid the bug
+-- this release fixes, because every check here would go on passing with
+-- the whole second channel missing.
+--   SUBMIT_RESULT  — what the call RETURNS (a validation refusal is
+--                    false and answers onDone at once, as the real one
+--                    does).
+--   SUBMIT_ASANA   — Asana's own later answer. nil means "agrees with
+--                    the return"; setting it to false with
+--                    SUBMIT_RESULT true is the shape that was invisible:
+--                    accepted for posting, then REFUSED.
+--   SUBMIT_DEFER   — hold the answer instead of giving it, so the
+--                    waiting state can be driven. SUBMIT_ANSWER() then
+--                    delivers it, which is what an hs.http callback is.
 local SUBMITS, SUBMIT_RESULT = {}, true
+local SUBMIT_ASANA, SUBMIT_DEFER, SUBMIT_PENDING = nil, false, nil
+local SUBMIT_WHY = "Asana refused it (HTTP 400) — invalid assignee"
 _G.asanaSubmitTask = function(title, desc, assignee, attach, extra)
     SUBMITS[#SUBMITS + 1] = { title = title, desc = desc, assignee = assignee, attach = attach, extra = extra }
+    local asana = SUBMIT_ASANA
+    if asana == nil then asana = SUBMIT_RESULT end
+    local cb = (type(extra) == "table") and extra.onDone or nil
+    local fire = function()
+        if type(cb) == "function" then
+            cb(asana and true or false, asana and nil or SUBMIT_WHY,
+               asana and "9001" or nil)
+        end
+    end
+    if SUBMIT_DEFER then SUBMIT_PENDING = fire else fire() end
     return SUBMIT_RESULT
+end
+local function SUBMIT_ANSWER()
+    local f = SUBMIT_PENDING ; SUBMIT_PENDING = nil
+    if f then f() end
+    return f ~= nil
 end
 
 local HYPER, WRITE_WARNS = {}, {}
@@ -1318,7 +1352,12 @@ do
           #DEGRADES .. " degrade(s)")
     check("...and the alert says what happened rather than that something "
           .. "happened", #ALERTS > 0
-          and tostring(ALERTS[#ALERTS]):find("would not accept", 1, true) ~= nil,
+          -- 6.248.0 — the RULE, against the source of truth: whatever
+          -- reason the provider handed back has to be in the alert. The
+          -- literal this used to assert was the module's own sentence
+          -- for "something went wrong", which is the opposite of the
+          -- rule it was written for.
+          and tostring(ALERTS[#ALERTS]):find(SUBMIT_WHY, 1, true) ~= nil,
           tostring(ALERTS[#ALERTS]))
     check("🕰 ...and a NOTIFICATION goes with it — the persistent half. An "
           .. "hs.alert is gone in six seconds and 16:00 lands while he is "
@@ -1391,6 +1430,69 @@ do
           #DEGRADES .. "/" .. #ALERTS .. "/" .. #TOLD)
     check("...and with nothing waiting the report says so plainly",
           _G.scratchPadReport():find("nothing is waiting", 1, true) ~= nil)
+
+    -- =================================================================
+    -- 🔔 6.299.0 — IT ANNOUNCES WHEN ASANA ANSWERS, NOT WHEN IT POSTS
+    -- =================================================================
+    -- 🚨 THE SHAPE THAT WAS INVISIBLE: `_G.asanaSubmitTask` returns true
+    -- the instant it fires the POST, so a task Asana went on to REFUSE
+    -- printed "✅ Hamsidian → Asana: …" on screen. 6.278.0's whole
+    -- guarantee — "a send that failed is seen" — could only ever see
+    -- the failures that happen before the request leaves.
+    DEGRADES, ALERTS, TOLD = {}, {}, {}
+    sp.tabs = { { id = "s1", text = "a task I dumped", kind = nil, at = os.time() } }
+    sp.history, sp.active, sp.sent, sp.unsent = {}, "s1", {}, nil
+    SUBMIT_RESULT, SUBMIT_ASANA = true, false     -- posted, then refused
+    local okA = sp.send("scheduled")
+    check("🚨 a task ACCEPTED for posting and then REFUSED by Asana is "
+          .. "reported as a failure, not announced as a success",
+          okA == false and #DEGRADES == 1
+          and tostring(ALERTS[#ALERTS]):find(SUBMIT_WHY, 1, true) ~= nil,
+          tostring(ALERTS[#ALERTS]))
+    check("...and the day is NOT stamped, so it retries rather than "
+          .. "reading as unchanged", sp.sent[TODAY] == nil)
+    check("...and his text is untouched", sp.tabs[1].text == "a task I dumped")
+    SUBMIT_ASANA = nil
+
+    -- ⏳ POSTED IS NOT SENT (6.196.1). Between the request leaving and
+    -- Asana replying there is a real third state, and calling it "sent"
+    -- is exactly the lie this release removes.
+    DEGRADES, ALERTS, TOLD = {}, {}, {}
+    sp.sent, sp.unsent = {}, nil
+    sp.setText("s1", "waiting on the answer")
+    SUBMIT_DEFER = true
+    local okW = sp.send("scheduled")
+    check("⏳ with Asana yet to answer, NOTHING is announced — not a "
+          .. "success, not a failure", #ALERTS == 0 and #DEGRADES == 0
+          and #TOLD == 0, #ALERTS .. "/" .. #DEGRADES)
+    check("...the day is not stamped while the answer is out",
+          sp.sent[TODAY] == nil)
+    check("...and the report says posted-and-waiting rather than sent",
+          _G.scratchPadReport():find("waiting on Asana", 1, true) ~= nil)
+    check("...and the caller was told the request went (not that it landed)",
+          okW == true)
+    SUBMIT_ANSWER()
+    check("🔔 when Asana finally answers, THAT is when it announces",
+          #ALERTS == 1 and tostring(ALERTS[1]):find("✅", 1, true) ~= nil
+          and sp.sent[TODAY] ~= nil, tostring(ALERTS[1]))
+    SUBMIT_DEFER = false
+
+    -- 🚨 AND A SUBMIT THAT RAISES ANSWERS NOBODY. finish() covers every
+    -- RETURN inside asanaSubmitTask; a raise happens above it, so this
+    -- is the one outcome the door cannot report — and the one that
+    -- would otherwise leave the day silent.
+    DEGRADES, ALERTS, TOLD = {}, {}, {}
+    sp.sent, sp.unsent = {}, nil
+    sp.setText("s1", "the submit will throw")
+    local savedSubmit = _G.asanaSubmitTask
+    _G.asanaSubmitTask = function() error("kaboom", 0) end
+    local okT, whyT = sp.send("scheduled")
+    _G.asanaSubmitTask = savedSubmit
+    check("🚨 a submit that THROWS is reported, not swallowed",
+          okT == false and whyT == "threw" and #DEGRADES == 1
+          and tostring(ALERTS[#ALERTS]):find("kaboom", 1, true) ~= nil,
+          tostring(ALERTS[#ALERTS]))
+    check("...and the day is not stamped", sp.sent[TODAY] == nil)
 
     sp.unsent, sp.sendFails = nil, 0
     local ran = (pass + fail) - before

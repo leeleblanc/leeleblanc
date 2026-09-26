@@ -6,6 +6,82 @@ older lives only here.
 
 ```text
 
+NEW IN 6.299.0 — 🔔 ASANA'S OWN ANSWER REACHES THE CALLER
+(modules/task_creator.lua + modules/scratch_pad.lua):
+
+  🚨 `_G.asanaSubmitTask` HAS NEVER TOLD ANYBODY WHETHER A TASK WENT.
+  It returns `true` the instant `hs.http.asyncPost` is FIRED. Asana's
+  200, its 400 and its 401 all arrive later, in a callback that shows
+  its own alert and hands the caller nothing. The function's own header
+  has said "accepted for posting" since 6.86.0, and every caller has
+  read it as "sent" anyway — which is what a `true` from a function
+  called submitTask looks like.
+
+  🔎 AND IT DEFEATED 6.278.0 ENTIRELY. That release exists because LL
+  asked "how do I know if it didn't work? … I could lose important
+  information if not", and Hamsidian answers by announcing on this
+  return value. So a send REJECTED BY ASANA printed "✅ Hamsidian →
+  Asana: <task>" on screen, an alert, a cleared sticky flag and a
+  stamped "day done" — while task_creator's own callback printed
+  "❌ Error: 400" beside it. The instrument built to tell him about a
+  failure could only ever see the failures that happen BEFORE the
+  request leaves.
+
+  🔑 GENERAL, AND IT IS THE ONE TO CARRY: when a function's return
+  means ACCEPTED, every caller needs a second channel for DELIVERED —
+  or the comment naming the difference is the only thing standing
+  between them, and a comment is not an interface.
+
+  🔑 `extra.onDone(ok, why, taskGid)` IS THAT CHANNEL. Optional: every
+  existing caller passes nothing and is completely unchanged. It fires
+  EXACTLY ONCE, whatever happens — one refusal, one answer, one
+  timeout, never twice and never none. `finish` is the one door
+  (6.231.0) and the `answered` flag is what makes "exactly once" true
+  rather than intended; six exits used to each return in their own way.
+
+  🪪 AND IT HANDS BACK THE TASK'S GID, said AFTER the gid is parsed.
+  That is the other half of LL's question in the same message — an
+  Asana SUBTASK needs its parent's gid, and that gid does not exist
+  until the create has come back. (His pasted URL is the PROJECT gid,
+  745948257030523, which this config already posts to.)
+
+  🛟 A BELT, ARMED BEFORE THE ASK (6.246.0's ordering, and the check
+  asserts the ORDER rather than that both happened — 6.220.0). An
+  hs.http callback that never arrives would leave a caller waiting for
+  ever, and "waiting for ever" is the "did it send?" question all over
+  again. `M.config.answerSecs` (30). A Mac that cannot arm a timer
+  still POSTS — no belt is worse than no send, but only just — and the
+  report counts that apart rather than hiding it.
+
+  🔎 THE SUBMIT HAD NO REPORT AT ALL, which is how a `true` meaning
+  "posted" and a `true` meaning "Asana said yes" read the same for a
+  hundred releases. `_G.asanaSubmitReport()` counts three outcomes
+  apart (6.196.1): accepted by Asana · refused or never sent · never
+  answered. The third is not a failure of the task, it is a failure to
+  LEARN, and a caller that heard "no" and one that heard nothing do
+  different things.
+
+  ⏳ AND HAMSIDIAN NOW HAS A THIRD STATE OF ITS OWN: "posted — waiting
+  on Asana". Between the request leaving and the reply landing there is
+  a real state, and calling it "sent" is the lie this release removes.
+  The day's checksum is stamped in the ANSWER's success branch only, so
+  a refusal retries instead of reading as unchanged — its own check,
+  because the tempting way to write it is one step earlier.
+
+  🚨 A SUBMIT THAT RAISES ANSWERS NOBODY. `finish` covers every RETURN
+  inside asanaSubmitTask; a raise happens above it, so Hamsidian
+  reports that one itself rather than leaving the day silent.
+
+  🔬 AND THE STUBS WERE GENTLER THAN THE PROVIDER, in the one direction
+  that hid this: both suites' `_G.asanaSubmitTask` only RETURNED, so
+  every check would have gone on passing with the whole second channel
+  missing. test_stub_fidelity §6 fails the gate for a submit stub that
+  does not answer onDone — 6.290.0's ratchet, on its first new
+  contract, and it found the second stub by itself. test_task_creator's
+  hs.timer had no `doAfter` at all, so the belt could not have existed
+  there; it does now, and the "no timer" path is driven DELIBERATELY
+  (6.265.0) instead of by accident.
+
 NEW IN 6.298.0 — 🔎 THE @ SEARCHES NAME THEMSELVES
 (modules/unified_search.lua):
 

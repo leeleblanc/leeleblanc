@@ -40,6 +40,7 @@ local TMP = "/tmp/hs-test-task-creator-" .. tostring(os.time())
 os.execute('rm -rf "' .. TMP .. '" && mkdir -p "' .. TMP .. '"')
 
 local ALERTS, HTTP_POSTS, HTTP_GETS, TASKS, WARNS = {}, {}, {}, {}, {}
+local TIMERS = {}
 local BOUND, HYPER, SERVICE_CALLS = {}, {}, {}
 local POPUPS, PASTE, PASTE_SET = 0, nil, nil
 local NEXT_JSON = nil
@@ -95,6 +96,13 @@ hs = {
         BOUND[table.concat(mods, "+") .. "|" .. tostring(key)] = fn; return {} end },
     http = {
         asyncPost = function(url, body, headers, cb)
+            -- 6.299.0 — stamp the timers that already exist, so a check
+            -- can assert the belt was armed BEFORE the request went
+            -- out. A timer created afterwards is never stamped, which
+            -- is what makes the ordering provable rather than assumed.
+            for _, t in ipairs(TIMERS) do
+                if t.armedBefore == nil then t.armedBefore = true end
+            end
             table.insert(HTTP_POSTS, { url = url, body = body, headers = headers, cb = cb }) end,
         asyncGet = function(url, headers, cb)
             table.insert(HTTP_GETS, { url = url, headers = headers, cb = cb }) end,
@@ -106,7 +114,17 @@ hs = {
     pasteboard = { readString = function() return PASTE end,
                    setContents = function(s) PASTE_SET = s ; return true end },
     canvas = { windowLevels = { overlay = 1 }, new = function() return nil end },
-    timer  = { secondsSinceEpoch = function() return os.time() end },
+    -- 🔬 6.299.0 — a real Mac HAS hs.timer.doAfter, and the submit's
+    -- timeout belt is armed with it. A stub without it is a stub on
+    -- which the belt can never exist, so every belt check would pass by
+    -- never running (6.290.0). TIMERS holds them; a test fires one.
+    timer  = { secondsSinceEpoch = function() return os.time() end,
+               doAfter = function(secs, fn)
+                   local t = { secs = secs, fn = fn, stopped = false }
+                   t.stop = function(self) (self or t).stopped = true end
+                   TIMERS[#TIMERS + 1] = t
+                   return t
+               end },
     fs = {
         attributes = function(p)
             if os.execute('test -e "' .. p .. '"') then return { mode = "file" } end
@@ -560,6 +578,133 @@ check("warm() sweeps header files a killed Hammerspoon left behind",
       io.open(TMP .. "/.tmp/hdr-1-0001.txt", "r") == nil)
 check("...and says how many it cleared",
       printed[1] and printed[1]:find("leftover auth%-header"))
+
+out("\n=== C4d. 🔔 6.299.0 — Asana's own answer reaches the caller ===\n")
+-- 🚨 WHAT THIS FUNCTION RETURNS HAS NEVER MEANT "IT WENT": `true` is
+-- handed back the instant the POST is fired. Every caller read it as
+-- "sent" — which is how Hamsidian came to print "✅ → Asana" over a
+-- task Asana refused with a 400, defeating 6.278.0 entirely.
+do
+    local SEEN
+    local function catcher() SEEN = {} ; return function(ok, why, gid)
+        SEEN[#SEEN + 1] = { ok = ok, why = why, gid = gid } end end
+
+    -- 1. a refusal BEFORE the request leaves
+    ALERTS, HTTP_POSTS, TIMERS = {}, {}, {}
+    local cb = catcher()
+    local r = _G.asanaSubmitTask("", "", "", "", { onDone = cb })
+    check("a validation refusal answers onDone once, with the cause",
+          r == false and #SEEN == 1 and SEEN[1].ok == false
+          and tostring(SEEN[1].why):find("title", 1, true) ~= nil,
+          #SEEN .. " / " .. tostring(SEEN[1] and SEEN[1].why))
+    check("...and arms no belt, because there is nothing to wait for",
+          #TIMERS == 0, #TIMERS)
+
+    -- 2. 🚨 THE ONE THAT WAS INVISIBLE: accepted for posting, then
+    --    REFUSED by Asana. The return says true and always did.
+    ALERTS, HTTP_POSTS, TIMERS = {}, {}, {}
+    cb = catcher()
+    local posted = _G.asanaSubmitTask("Refused one", "", "", "", { onDone = cb })
+    check("🚨 the RETURN is true the moment the POST is fired — it has "
+          .. "never meant Asana said yes", posted == true and #SEEN == 0)
+    HTTP_POSTS[1].cb(400, '{"errors":[{"message":"bad"}]}')
+    check("...and Asana's refusal reaches the caller, with its own words",
+          #SEEN == 1 and SEEN[1].ok == false
+          and tostring(SEEN[1].why):find("400", 1, true) ~= nil
+          and tostring(SEEN[1].why):find("bad", 1, true) ~= nil,
+          tostring(SEEN[1] and SEEN[1].why))
+
+    -- 3. a success hands back the TASK GID — the half a subtask needs
+    ALERTS, HTTP_POSTS, TIMERS, NEXT_JSON = {}, {}, {}, { data = { gid = "7777" } }
+    cb = catcher()
+    _G.asanaSubmitTask("Good one", "", "", "", { onDone = cb })
+    HTTP_POSTS[1].cb(201, "{}")
+    check("🪪 a success answers with Asana's task gid — a subtask needs "
+          .. "its parent's, and it does not exist until the create returns",
+          #SEEN == 1 and SEEN[1].ok == true and SEEN[1].gid == "7777",
+          tostring(SEEN[1] and SEEN[1].gid))
+
+    -- 4. EXACTLY ONCE, whatever arrives afterwards
+    HTTP_POSTS[1].cb(500, "late")
+    check("🔑 exactly once — a second callback for the same submit is "
+          .. "ignored, or one send would be counted twice", #SEEN == 1, #SEEN)
+
+    -- 5. the belt: armed BEFORE the post (6.246.0), stopped by the answer
+    ALERTS, HTTP_POSTS, TIMERS = {}, {}, {}
+    cb = catcher()
+    _G.asanaSubmitTask("Belted", "", "", "", { onDone = cb })
+    check("🛟 a belt is armed for a caller that asked for the answer",
+          #TIMERS == 1 and TIMERS[1].secs == M.config.answerSecs,
+          #TIMERS .. " timer(s)")
+    check("...and it was armed BEFORE the request went out, not after — "
+          .. "the order is the guarantee, not that both happened "
+          .. "(6.220.0)", TIMERS[1].armedBefore == true,
+          "armedBefore=" .. tostring(TIMERS[1] and TIMERS[1].armedBefore))
+    NEXT_JSON = { data = { gid = "8" } }
+    HTTP_POSTS[1].cb(201, "{}")
+    check("...and Asana answering STOPS it, so the timeout cannot fire "
+          .. "over a task that already landed", TIMERS[1].stopped == true)
+    TIMERS[1].fn()
+    check("...and firing it anyway changes nothing — still exactly once",
+          #SEEN == 1, #SEEN)
+
+    -- 6. Asana never answers at all
+    ALERTS, HTTP_POSTS, TIMERS = {}, {}, {}
+    cb = catcher()
+    _G.asanaSubmitTask("Silent", "", "", "", { onDone = cb })
+    TIMERS[1].fn()
+    check("🛟 a silent Asana is REPORTED rather than left waiting for ever",
+          #SEEN == 1 and SEEN[1].ok == false
+          and tostring(SEEN[1].why):find("did not answer", 1, true) ~= nil,
+          tostring(SEEN[1] and SEEN[1].why))
+    HTTP_POSTS[1].cb(201, "{}")
+    check("...and a late answer after the timeout does not answer twice",
+          #SEEN == 1, #SEEN)
+
+    -- 7. a caller whose callback THROWS must not take the submit down
+    ALERTS, HTTP_POSTS, TIMERS = {}, {}, {}
+    local okThrow = pcall(_G.asanaSubmitTask, "Thrower", "", "", "",
+                          { onDone = function() error("boom", 0) end })
+    check("🔒 a caller's onDone that throws is caught — a raise inside an "
+          .. "hs.http callback is a silence (6.235.0)", okThrow == true)
+    local okThrow2 = pcall(function() HTTP_POSTS[1].cb(201, "{}") end)
+    check("...on the answer path too", okThrow2 == true)
+
+    -- 8. a caller that asks for nothing is completely unchanged
+    ALERTS, HTTP_POSTS, TIMERS = {}, {}, {}
+    local plain = _G.asanaSubmitTask("Plain", "", "", "")
+    check("a caller that passes no onDone arms no belt and still posts",
+          plain == true and #HTTP_POSTS == 1 and #TIMERS == 0)
+
+    -- 9. no hs.timer.doAfter: it POSTS anyway and SAYS it had no belt.
+    --    Driving a path with the dependency MISSING is the check 6.265.0
+    --    was lost for not having.
+    ALERTS, HTTP_POSTS, TIMERS = {}, {}, {}
+    local savedDo = hs.timer.doAfter
+    hs.timer.doAfter = nil
+    cb = catcher()
+    local noBelt = _G.asanaSubmitTask("Beltless", "", "", "", { onDone = cb })
+    hs.timer.doAfter = savedDo
+    check("a Mac that cannot arm a timer still POSTS — no belt is worse "
+          .. "than no send, but only just", noBelt == true and #HTTP_POSTS == 1)
+    HTTP_POSTS[1].cb(201, "{}")
+    check("...and the answer still reaches the caller", #SEEN == 1 and SEEN[1].ok)
+
+    -- 10. the report tells the three outcomes apart (6.196.1)
+    local printedR = {}
+    local savedPrint = print
+    print = function(x) printedR[#printedR + 1] = tostring(x) end
+    _G.asanaSubmitReport()
+    print = savedPrint
+    local rep = table.concat(printedR, "\n")
+    check("🔎 the report counts accepted, refused and never-answered apart",
+          rep:find("accepted by Asana", 1, true) ~= nil
+          and rep:find("refused or never sent", 1, true) ~= nil
+          and rep:find("never answered", 1, true) ~= nil, rep)
+    check("...and says plainly that the return has only ever meant "
+          .. "\"accepted for posting\"",
+          rep:find("accepted for posting", 1, true) ~= nil)
+end
 
 os.execute('rm -rf "' .. TMP .. '"')
 out(("\n── test_task_creator: %d passed, %d failed\n"):format(pass, fail))

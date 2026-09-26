@@ -58,6 +58,11 @@ local M = {
         -- otherwise hold its history row at "⏳ Posting…" forever.
         uploadTimeout = 120,
         historyDays   = 30,
+        -- 🔔 6.299.0 — how long a caller that asked for the real answer
+        -- waits before being told there was none. Asana can hang and an
+        -- hs.http callback that never arrives leaves the caller waiting
+        -- for ever, which is the "did it send?" question all over again.
+        answerSecs    = 30,
     },
 }
 
@@ -534,8 +539,71 @@ function M.setup(core)
         assignee, attach = assignee or "", attach or ""
         extra = (type(extra) == "table") and extra or {}
 
+        -- =============================================================
+        -- 🔔 6.299.0 — ASANA'S OWN ANSWER REACHES THE CALLER
+        -- =============================================================
+        -- 🚨 WHAT THIS RETURNS HAS NEVER MEANT "IT WENT". `true` is
+        -- handed back the instant `hs.http.asyncPost` is FIRED; Asana's
+        -- 200, its 400 and its 401 all land later, in a callback that
+        -- shows its own alert and tells the caller nothing. The header
+        -- above says so in one word — "accepted for posting" — and
+        -- every caller has read it as "sent" anyway, because that is
+        -- what a true from a function called submitTask looks like.
+        --
+        -- 🔎 AND IT COST 6.278.0'S WHOLE GUARANTEE. That release exists
+        -- because LL asked "how do I know if it didn't work?", and
+        -- Hamsidian answers by announcing on this return value — so a
+        -- send REJECTED BY ASANA printed "✅ Hamsidian → Asana: …" on
+        -- screen while task_creator's own callback printed "❌ Error:
+        -- 400" beside it. The instrument built to tell him about a
+        -- failure could only ever see the failures that happen before
+        -- the request leaves. GENERAL: when a function's return means
+        -- "accepted", every caller needs a second channel for
+        -- "delivered" — or the comment naming the difference is the
+        -- only thing standing between them, and a comment is not an
+        -- interface.
+        --
+        -- 🔑 `extra.onDone(ok, why, taskGid)` IS THAT CHANNEL, and it
+        -- is optional: every existing caller passes nothing and is
+        -- completely unchanged. It fires EXACTLY ONCE, whatever
+        -- happens — one refusal, one answer, one timeout, never twice
+        -- and never none. `finish` is the one door (6.231.0) and the
+        -- `answered` flag is what makes "exactly once" true rather
+        -- than intended.
+        --
+        -- 🪪 AND IT HANDS BACK THE TASK'S GID, which is the other half:
+        -- an Asana SUBTASK needs its parent's gid, and that gid does
+        -- not exist until the create has come back.
+        local answered = false
+        local submitTimer            -- HELD: an unreferenced timer never fires
+        local function stopAnswerBelt()
+            if submitTimer then pcall(function() submitTimer:stop() end) end
+            submitTimer = nil
+        end
+        local function finish(ok, why, gid)
+            if answered then return end
+            answered = true
+            stopAnswerBelt()
+            M.answers = (M.answers or { ok = 0, failed = 0, timedOut = 0 })
+            if ok then M.answers.ok = M.answers.ok + 1
+            else M.answers.failed = M.answers.failed + 1 end
+            M.answers.last = { at = os.time(), ok = ok and true or false,
+                               why = tostring(why or ""), title = title }
+            if type(extra.onDone) ~= "function" then return end
+            -- A throw in a caller's callback must not take this path
+            -- down: half of these fire from inside hs.http's callback,
+            -- where a raise is a silence (6.235.0).
+            local fine, err = pcall(extra.onDone, ok and true or false,
+                                    ok and nil or tostring(why or "?"), gid)
+            if not fine then
+                pcall(print, "⚠️ Asana submit: a caller's onDone threw — "
+                             .. tostring(err))
+            end
+        end
+
         if title == "" then
             hs.alert.show("⚠️ Task title cannot be empty")
+            finish(false, "the task title was empty")
             return false
         end
 
@@ -574,6 +642,7 @@ function M.setup(core)
         if assignee ~= "" and not resolvedAssignee then
             hs.alert.show("⚠️ No team member matches \"" .. assignee
                 .. "\" — ⌃⌥⌘B to browse names, or use their email", 5)
+            finish(false, "no team member matches \"" .. assignee .. "\"")
             return false
         end
 
@@ -599,17 +668,20 @@ function M.setup(core)
         local et = tostring(extra.dueTime or "")
         if (st ~= "" and sd == "") or (et ~= "" and ed == "") then
             hs.alert.show("⚠️ A time needs its date — fill the date beside it", 5)
+            finish(false, "a time was given with no date beside it")
             return false
         end
         if sd ~= "" and ed == "" then
             hs.alert.show("⚠️ Asana requires an END date whenever a start "
                           .. "date is set — fill End, or clear Start", 6)
+            finish(false, "a start date with no end date — Asana refuses it")
             return false
         end
         if sd ~= "" and ed ~= "" and ((st == "") ~= (et == "")) then
             hs.alert.show("⚠️ With both dates set, give BOTH times or "
                           .. "neither — Asana cannot mix a timed end with "
                           .. "an all-day start", 6)
+            finish(false, "both dates are set but only one time")
             return false
         end
         -- "2026-09-04T14:30:00-05:00" — local offset, spelled ±hh:mm
@@ -639,6 +711,8 @@ function M.setup(core)
                         hs.alert.show("⚠️ No team member matches \"" .. v
                             .. "\" for " .. (fieldMeta[gid].name or "a people field")
                             .. " — use their exact name or email", 6)
+                        finish(false, "no team member matches \"" .. v
+                               .. "\" for a people field")
                         return false
                     end
                     customOut[gid] = { g }
@@ -665,6 +739,30 @@ function M.setup(core)
         end
         if customAny then payloadData.custom_fields = customOut end
         local body = hs.json.encode({ data = payloadData })
+
+        -- 🛟 6.299.0 — THE BELT, ARMED BEFORE THE ASK (6.246.0's
+        -- ordering, and the check asserts the ORDER rather than that
+        -- both happened — 6.220.0). An hs.http callback that never
+        -- arrives leaves a caller waiting for ever, and a Hamsidian tab
+        -- that is never retitled is exactly the "did it send?" question
+        -- this whole channel exists to answer. A Mac that cannot arm a
+        -- timer still posts: no belt is worse than no send, but only
+        -- just, and the report counts the two apart.
+        if type(extra.onDone) == "function" and hs.timer and hs.timer.doAfter then
+            local okT, t = pcall(hs.timer.doAfter,
+                                 tonumber(M.config.answerSecs) or 30,
+                                 function()
+                M.answers = (M.answers or { ok = 0, failed = 0, timedOut = 0 })
+                M.answers.timedOut = (M.answers.timedOut or 0) + 1
+                finish(false, "Asana did not answer in "
+                       .. tostring(M.config.answerSecs or 30) .. " s")
+            end)
+            if okT and t then submitTimer = t
+            else
+                M.answers = (M.answers or { ok = 0, failed = 0, timedOut = 0 })
+                M.answers.noBelt = (M.answers.noBelt or 0) + 1
+            end
+        end
 
         hs.http.asyncPost("https://app.asana.com/api/1.0/tasks", body, {
             ["Authorization"] = "Bearer " .. core.asanaToken,
@@ -703,11 +801,22 @@ function M.setup(core)
                 elseif attach ~= "" then
                     hs.alert.show("⚠️ Could not parse task GID for attachment")
                 end
+                -- 🔔 6.299.0 — ASANA SAID YES. Said AFTER the gid is
+                -- parsed, so a caller that wants to hang a subtask off
+                -- this task is handed the parent it needs.
+                finish(true, nil, taskGid)
             else
                 hs.alert.show("❌ Error: " .. tostring(status))
                 print("Asana API Error: ", responseBody)
                 historyEntry.displaySub = "❌ Failed (HTTP " .. tostring(status) .. ")" ..
                     (#subParts > 0 and "  ·  " .. table.concat(subParts, "  ·  ") or "")
+                -- 🚨 AND THIS IS THE ONE THAT WAS INVISIBLE. Asana's own
+                -- refusal — 400, 401, 403 — reached nobody but this
+                -- alert, while the caller had long since been told true.
+                -- Asana's body carries the reason and is worth carrying
+                -- back, bounded: it can be a page of JSON.
+                finish(false, "Asana refused it (HTTP " .. tostring(status)
+                       .. ") — " .. tostring(responseBody or ""):sub(1, 200))
             end
 
             -- Always persist history after any outcome (including non-attachment path)
@@ -886,6 +995,48 @@ function M.warm(core)
         print("✅ Task Creator: cleared " .. swept ..
               " leftover auth-header file(s) from an interrupted upload")
     end
+end
+
+-- 🔎 6.299.0 — THE SUBMIT HAD NO REPORT AT ALL, which is why a `true`
+-- that meant "posted" and a `true` that meant "Asana said yes" could
+-- read the same for a hundred releases. Three outcomes, counted apart
+-- (6.196.1): Asana said yes · Asana refused or the request never left ·
+-- Asana never answered at all. The third is not a failure of the task,
+-- it is a failure to LEARN, and a caller that heard nothing and a
+-- caller that heard "no" do different things.
+function _G.asanaSubmitReport()
+    local a = M.answers or {}
+    local L = { "✅ ASANA SUBMIT — what Asana actually answered" }
+    local total = (a.ok or 0) + (a.failed or 0)
+    if total == 0 then
+        L[#L + 1] = "   answers: nothing has been submitted this session"
+    else
+        L[#L + 1] = string.format(
+            "   answers: %d accepted by Asana · %d refused or never sent",
+            a.ok or 0, a.failed or 0)
+        if (a.timedOut or 0) > 0 then
+            L[#L + 1] = "   ⚠️ " .. a.timedOut .. " never answered in "
+                        .. tostring(M.config.answerSecs or 30)
+                        .. " s — the caller was told so rather than left waiting"
+        end
+        local l = a.last
+        if l then
+            L[#L + 1] = "   last   : " .. (l.ok and "✅ " or "❌ ")
+                        .. tostring(l.title or "?")
+                        .. " at " .. os.date("%H:%M:%S", l.at or 0)
+                        .. (l.ok and "" or " — " .. tostring(l.why or "?"))
+        end
+    end
+    if (a.noBelt or 0) > 0 then
+        L[#L + 1] = "   ⚠️ " .. a.noBelt .. " submit(s) went with NO timeout belt "
+                    .. "— this Mac could not arm a timer, so a silent Asana "
+                    .. "would leave the caller waiting"
+    end
+    L[#L + 1] = "   note   : a caller learns the real outcome by passing"
+    L[#L + 1] = "            extra.onDone(ok, why, taskGid); the function's own"
+    L[#L + 1] = "            return has only ever meant \"accepted for posting\""
+    print(table.concat(L, "\n"))
+    return M.answers
 end
 
 return M

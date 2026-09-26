@@ -981,28 +981,64 @@ function M.setup(core)
                         .. "the text is safe in " .. sp.file, reason)
             return false, "asana off"
         end
-        local ok, accepted = pcall(_G.asanaSubmitTask, title, notes, sp.assignee, "", {
+        -- 🔔 6.299.0 — IT ANNOUNCES WHEN ASANA ANSWERS, NOT WHEN THE
+        -- REQUEST LEAVES. `_G.asanaSubmitTask` returns true the instant
+        -- it fires the POST, so this branch used to print "✅ Hamsidian
+        -- → Asana: …" over a task Asana went on to refuse with a 400 —
+        -- 6.278.0's whole guarantee, defeated by reading an "accepted"
+        -- as a "delivered". `extra.onDone` is the real answer and it
+        -- fires EXACTLY ONCE, including for a refusal that happens
+        -- before the request leaves, which is why nothing below
+        -- announces on the synchronous return any more.
+        local heard, heardOk = false, false
+        local okCall, accepted = pcall(_G.asanaSubmitTask, title, notes,
+                                       sp.assignee, "", {
             startDate = today, startTime = sp.startTime,
             dueDate   = today, dueTime   = sp.dueTime,
             comment   = sp.comment,
+            onDone    = function(ok, why)
+                heard, heardOk = true, (ok and true or false)
+                if ok then
+                    -- 🚨 STAMPED HERE AND NOWHERE ELSE, and "here" is
+                    -- one step later than it used to be: the day is
+                    -- marked done only once ASANA has said yes, so a
+                    -- refusal is retried rather than recorded as
+                    -- finished. Its own check.
+                    sp.sent[today] = sum
+                    sp.lastSend = { at = os.time(), reason = reason,
+                                    outcome = "sent · " .. n .. " section"
+                                    .. (n == 1 and "" or "s"), title = title }
+                    pcall(sp.saveNow)
+                    sp.announce("sent", title, reason)
+                else
+                    sp.lastSend = { at = os.time(), reason = reason,
+                                    outcome = "rejected — " .. tostring(why) }
+                    sp.announce("failed", tostring(why) .. " — nothing was "
+                                .. "sent and your text is still in the tabs",
+                                reason)
+                end
+            end,
         })
-        if ok and accepted then
-            -- 🚨 STAMPED HERE AND NOWHERE ELSE. Marking the day done
-            -- before the answer is in would make a failed send look like
-            -- a finished one and the retry would never happen.
-            sp.sent[today] = sum
-            sp.lastSend = { at = os.time(), reason = reason, outcome = "sent · " .. n .. " section"
-                            .. (n == 1 and "" or "s"), title = title }
-            sp.saveNow()
-            sp.announce("sent", title, reason)
+        -- 🚨 AND A SUBMIT THAT THREW ANSWERS NOBODY. finish() covers
+        -- every RETURN inside asanaSubmitTask; a raise happens above it,
+        -- so this is the one outcome the door cannot report and the one
+        -- that would otherwise leave the day silent.
+        if not okCall and not heard then
+            sp.lastSend = { at = os.time(), reason = reason,
+                            outcome = "the Asana submit threw" }
+            sp.announce("failed", "the Asana submit threw — "
+                        .. tostring(accepted), reason)
+            return false, "threw"
+        end
+        if not heard then
+            -- Posted, and Asana has not answered yet. NOT "sent"
+            -- (6.196.1): the report says so in its own words and the
+            -- announce lands when the answer does.
+            sp.lastSend = { at = os.time(), reason = reason,
+                            outcome = "posted — waiting on Asana", title = title }
             return true, title
         end
-        local whyR = tostring(ok and "Asana would not accept it" or accepted)
-        sp.lastSend = { at = os.time(), reason = reason,
-                        outcome = "rejected — " .. whyR }
-        sp.announce("failed", whyR .. " — nothing was sent and your text is "
-                    .. "still in the tabs", reason)
-        return false, "rejected"
+        return heardOk, (heardOk and title or "rejected")
     end
     _G.scratchPadSend = function() return sp.send("manual") end
 

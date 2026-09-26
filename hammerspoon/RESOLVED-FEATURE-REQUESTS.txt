@@ -1,5 +1,5 @@
 ========================================================================
-RESOLVED FEATURE REQUESTS — Hammerspoon config 6.298.0
+RESOLVED FEATURE REQUESTS — Hammerspoon config 6.299.0
 Every feature and how to use it. Generated from the modules' own
 cheat sheets (the rows ⇪/ draws), so it is never out of date.
 ⇪ = Caps Lock held (the hyper key). ⇪⇧X = Caps Lock + Shift + X.
@@ -774,6 +774,7 @@ In the Console, _G.<tool>Report() prints any tool's own report.
 
 📜 RELEASE INDEX — newest first, one line per release (the full story of each is in CHANGELOG.md)
 ------------------------------------------------------------------------
+  6.299.0  🔔 ASANA'S OWN ANSWER REACHES THE CALLER
   6.298.0  🔎 THE @ SEARCHES NAME THEMSELVES
   6.297.0  🗂 A LINE IS A TASK: THE HAMSIDIAN TASK GRAMMAR
   6.296.0  🏷 JUG PLAYER

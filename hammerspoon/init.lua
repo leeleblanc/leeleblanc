@@ -4,8 +4,26 @@
 -- =====================================================================
 -- 09-26-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.298.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.299.0
 -- =====================================================================
+
+-- NEW IN 6.299.0 — 🔔 ASANA'S OWN ANSWER REACHES THE CALLER
+--   (modules/task_creator.lua + scratch_pad.lua): `asanaSubmitTask`
+--   returns TRUE the instant it fires the POST — Asana's 200, its
+--   400 and its 401 all land later, in a callback that told the
+--   caller nothing. Every caller read "accepted" as "sent".
+--   🚨 AND IT COST 6.278.0'S WHOLE GUARANTEE: a send Asana REFUSED
+--   printed "✅ Hamsidian → Asana" beside task_creator's own
+--   "❌ Error: 400". The instrument built to report a failure could
+--   only see failures that happen before the request leaves.
+--   🔑 `extra.onDone(ok, why, taskGid)` — optional, existing callers
+--   unchanged, fires EXACTLY ONCE through one door, and hands back
+--   the gid a subtask needs. 🛟 A BELT armed BEFORE the post
+--   (6.246.0) answers a silent Asana instead of leaving the caller
+--   waiting for ever. `_G.asanaSubmitReport()`.
+--   🔬 The suites' stubs only RETURNED, so every check passed with
+--   the second channel missing — test_stub_fidelity §6 now fails
+--   the gate for it (6.290.0).
 
 -- NEW IN 6.298.0 — 🔎 THE @ SEARCHES NAME THEMSELVES
 --   (modules/unified_search.lua): LL: "All @ searches should be
@@ -21,28 +39,11 @@
 --   through the haystack, so a menu on every prefix would take a
 --   working search away. A @word that is no tag says so instead.
 
--- NEW IN 6.297.0 — 🗂 A LINE IS A TASK: THE HAMSIDIAN GRAMMAR
---   (modules/scratch_pad.lua): LL asked what "→ Asana now" does, and
---   the answer is the opposite of the assumption — it builds ONE
---   task for the whole day, every tab's text as its description.
---   🗂 HIS GRAMMAR: a bare line is a task · `=` divides · `P:` title
---   · `A:` who · `D:` body · `S:` subtask · `T:` dates. PURE, and
---   the CLOCK IS AN ARGUMENT (6.234.0).
---   🚨 IT PARSES AND PREVIEWS, AND SENDS NOTHING — 6.237.0's habit:
---   only he knows what he will type, so the first release PRINTS
---   what it understood. A BARE LINE AFTER A P: BLOCK IS ITS OWN
---   TASK (the other reading swallows one into a description), and
---   WHAT IT CANNOT READ IS NAMED.
---   🧪 TWO BUGS CAME OUT OF WRITING THE CHECKS FROM HIS OWN EXAMPLE
---   rather than a fixture: "7:00 AM" is one moment and whitespace
---   made it two; "•" is three BYTES, so `[%-%*•]` stripped nothing
---   (6.226.0, in a Lua pattern).
-
--- (6.296.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.297.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 cut the inline count to
 --  TWO; a gate check proves every entry here is also in CHANGELOG.md.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.298.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.299.0
 -- =====================================================================
 -- The catalogue that used to sit here moved to GUIDE.md ("What each
 -- tool does") in 6.180.0 — 259 lines of prose inside the orchestrator.
@@ -135,7 +136,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.298.0"
+_G.configVersion = "6.299.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the

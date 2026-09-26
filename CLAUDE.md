@@ -1008,6 +1008,41 @@ work Mac.
   one-hop symlink: a fixture where the right and wrong implementations
   AGREE proves nothing — pick the input where they must differ.
 
+- 🔔 A RETURN THAT MEANS "ACCEPTED" IS NOT A RETURN THAT MEANS
+  "DELIVERED" (6.299.0, modules/task_creator.lua + scratch_pad.lua).
+  `_G.asanaSubmitTask` answers `true` the instant `hs.http.asyncPost`
+  is FIRED; Asana's 200, its 400 and its 401 land later, in a callback
+  that showed its own alert and told the caller nothing. Its header has
+  said "accepted for posting" since 6.86.0 and every caller read it as
+  "sent", because that is what a true from a function called submitTask
+  looks like.
+  🚨 AND IT DEFEATED 6.278.0 ENTIRELY — the release built from LL's own
+  "how do I know if it didn't work?". A send REJECTED BY ASANA printed
+  "✅ Hamsidian → Asana", cleared the sticky flag and stamped the day
+  done, while task_creator's own callback printed "❌ Error: 400"
+  beside it. The instrument could only ever see failures that happen
+  BEFORE the request leaves. GENERAL: when a function's return means
+  ACCEPTED, every caller needs a second channel for DELIVERED — a
+  comment naming the difference is not an interface.
+  🔑 `extra.onDone(ok, why, taskGid)` — optional, existing callers
+  untouched, EXACTLY ONCE through one door (`finish`, with an
+  `answered` flag: six exits used to each return their own way). 🪪 It
+  hands back the GID, which is what a SUBTASK's parent needs and what
+  does not exist until the create returns.
+  🛟 A BELT ARMED BEFORE THE ASK (6.246.0; the check asserts the ORDER,
+  6.220.0) answers a silent Asana rather than leaving the caller
+  waiting for ever — `answerSecs` (30). A Mac that cannot arm a timer
+  still POSTS and the report counts that apart.
+  ⏳ AND HAMSIDIAN GAINED A THIRD STATE: "posted — waiting on Asana".
+  The day's checksum is stamped in the ANSWER's success branch only, so
+  a refusal retries instead of reading as unchanged.
+  🔬 THE STUBS ONLY RETURNED, so every check passed with the whole
+  second channel missing. test_stub_fidelity §6 fails the gate for a
+  submit stub that does not answer onDone — 6.290.0's ratchet on its
+  first new contract, and it found the second stub by itself.
+  test_task_creator's hs.timer had no `doAfter`, so the belt could not
+  have existed there.
+
 - 🔎 A TAG YOU MUST KNOW BEFORE YOU CAN FIND IT IS NOT A TAG YOU CAN
   USE (6.298.0, modules/unified_search.lua — LL, with a ⇪D screenshot:
   "All @ searches should be listed so I know what I can use to
@@ -3554,6 +3589,7 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
+| 6.299.0 | 🔔 Asana's own answer reaches the caller — the submit returned true the moment it fired the POST, so a task Asana REFUSED was announced as sent | pending |
 | 6.298.0 | 🔎 typing @ on its own lists all fourteen searches — the tags were only ever named in a section header you had to search your way into | pending |
 | 6.297.0 | 🗂 Hamsidian reads his task grammar — a bare line is a task, `=` divides, P:/A:/D:/S:/T: — and PREVIEWS what it would send without sending anything | pending |
 | 6.296.0 | 🏷 the music player is the Jug Player, with its name to the left of the now-playing line — one field every surface reads, so a rename cannot drift | pending |
@@ -4451,6 +4487,73 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.299.0 verify with LL — 🔔 A SEND THAT FAILS IS FINALLY SEEN (KNOWN GROUND)
+  WHAT CHANGED: Hamsidian now says "sent" when ASANA says yes, not when
+  the request leaves this Mac.
+  WHY IT MATTERS: 6.278.0 was built from your own question — "how do I
+  know if it didn't work? I could lose important information if not" —
+  and it had a hole in it I did not see until I went to build the send
+  you asked for. `asanaSubmitTask` hands back "true" the instant it fires
+  the request; Asana's yes or no arrives a second later, in a callback
+  that told nobody. So a task Asana REFUSED showed you "✅ Hamsidian →
+  Asana" and cleared the warning flag, while a separate "❌ Error: 400"
+  flashed beside it from the other half of the config. Both were true
+  sentences about different moments.
+  🚨 NOTHING YOU PRESS CHANGES. This is a correctness release and the
+  next one is the send you actually asked for.
+
+  A. THE HEADLINE — it still works on a good day.
+  A1. ⇪N, type something into a tab, then Console: `_G.scratchPadSend()`.
+      EXPECT: the task appears in Asana, and you get "✅ Hamsidian →
+      Asana: Hamsidian · <date>" — a moment LATER than it used to,
+      because it now waits for Asana to say yes.
+  A2. Console: `_G.asanaSubmitReport()` — NEW.
+      EXPECT: `answers: 1 accepted by Asana · 0 refused or never sent`,
+      and a `last : ✅ …` line with the time.
+  A3. `_G.scratchPadReport()` — its last-send line should say "sent",
+      not "posted — waiting on Asana". If it is stuck on waiting, Asana
+      never answered and I want that block.
+
+  B. THE ONE THAT PROVES THE FIX — make Asana refuse one.
+  B1. ⇪T, and put a nonsense name in the Assignee field that is not on
+      your team — or any field Asana will reject. Create it.
+  B2. EXPECT: "❌ Error: <code>" as before.
+  B3. Console: `_G.asanaSubmitReport()`.
+      EXPECT: `0 accepted · 1 refused`, and a `last : ❌ … — Asana
+      refused it (HTTP 4xx) — <Asana's own words>` line. Those words are
+      new: Asana's reason used to reach the Console and nothing else.
+  B4. If you can make the 4 PM send itself fail, that is the real test:
+      EXPECT an on-screen ⚠️ naming Asana's reason, a notification, and
+      `_G.scratchPadReport()` carrying a ⚠️ NOT SENT line — and NO "✅"
+      anywhere. Before this release that case showed you a ✅.
+
+  C. MUST STILL WORK — this touched the one path every Asana task takes.
+  C1. ⇪T creates a task: title, description, assignee, priority, SAC
+      Values, dates and times, an attachment. All unchanged.
+  C2. ⇪A (the pipe chooser) still creates a task.
+  C3. The ⇪N button "→ Asana now" still sends.
+  C4. A task you create still gets its automatic comment.
+
+  D. PASTE BACK, PASS OR FAIL.
+  D1. `_G.asanaSubmitReport()` after a day of normal use. If it ever
+      carries a `⚠️ N never answered in 30 s` line, that is a new fact —
+      Asana going silent on your network — and I want it.
+  D2. `_G.scratchPadReport()`.
+
+  E. A JUDGEMENT ONLY YOU CAN MAKE.
+  E1. Thirty seconds is how long it waits for Asana before telling you it
+      heard nothing. Too long to sit wondering, or too short on a slow
+      network? It is a number, not a release.
+  E2. ANSWERING YOUR OTHER QUESTION, because it belongs here: the id in
+      the URL you sent — 745948257030523 — is your PROJECT gid, and this
+      config already posts every task to it (it is in init.lua as
+      `asanaProjectId`, alongside workspace 182448385076670). A SUBTASK's
+      "parent" is a different thing: it is the gid of the TASK the
+      subtask hangs under, and that number does not exist until the
+      parent task has been created. This release is what makes it
+      reachable — the submit now hands that gid back — and 6.301.0 is
+      what uses it.
+
 - 6.298.0 verify with LL — 🔎 THE @ SEARCHES NAME THEMSELVES (KNOWN GROUND)
   WHAT CHANGED: type @ on its own in ⇪D and every source you can search is
   listed — its tag, what it holds, and how many.

@@ -81,11 +81,22 @@ hs = {
 _G.diag = { say = function() end, warn = function() end, err = function() end }
 
 -- the globals init.lua §4 publishes for this module
+-- 🔬 6.299.0 — the real submit answers TWICE: this return means
+-- "accepted for posting", and `extra.onDone(ok, why, gid)` carries
+-- Asana's own later answer. A stub that only returns is gentler than
+-- the provider (6.290.0, and test_stub_fidelity §6 fails the gate for
+-- it) — the form passes no onDone today, so this exists so that the
+-- day it does, the fixture is already telling the truth.
 local SUBMITS, SUBMIT_OK = {}, true
 _G.asanaSubmitTask = function(title, desc, assignee, attach, extra)
     SUBMITS[#SUBMITS + 1] = { title = title, desc = desc,
                               assignee = assignee, attach = attach,
                               extra = extra }
+    if type(extra) == "table" and type(extra.onDone) == "function" then
+        extra.onDone(SUBMIT_OK and true or false,
+                     SUBMIT_OK and nil or "Asana refused it (HTTP 400)",
+                     SUBMIT_OK and "9001" or nil)
+    end
     return SUBMIT_OK
 end
 _G.asanaNormalizePath = function(s)

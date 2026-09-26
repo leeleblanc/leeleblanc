@@ -370,7 +370,44 @@ do
 end
 
 -- =====================================================================
-out("\n=== 6. 📏 NAMED, NOT AUTOMATED — the gap, written down ===\n")
+out("\n=== 6. 🔔 A SUBMIT ANSWERS TWICE (6.299.0) ===\n")
+-- =====================================================================
+-- `_G.asanaSubmitTask` is not macOS, but it is a provider with exactly
+-- the shape this file exists for: it RETURNS "accepted for posting" the
+-- instant the POST is fired, and then calls `extra.onDone(ok, why, gid)`
+-- when Asana replies. A stub that only returns is gentler than the
+-- provider in the one direction that matters, and it was: every check
+-- in test_scratch_pad passed while Hamsidian announced "✅ → Asana" over
+-- a task Asana had refused with a 400.
+--
+-- 🔎 SO THE CONTRACT IS THE SECOND CHANNEL. A stub that never mentions
+-- onDone cannot tell an accepted send from a delivered one — which is
+-- the whole defect, reproduced inside the instrument.
+local muteSubmit = {}
+for _, f in ipairs(files) do
+    for _, st in ipairs(stubsOf(f.code, "asanaSubmitTask")) do
+        if not throws(st.body) and not st.body:find("onDone", 1, true) then
+            muteSubmit[#muteSubmit + 1] = f.name
+        end
+    end
+end
+check("every asanaSubmitTask stub answers onDone as the real one does",
+      #muteSubmit == 0, table.concat(muteSubmit, " · "))
+
+do
+    local sick = stripComments(
+        "_G.asanaSubmitTask = function(t, d, a, x, e) SUB = t ; return true end")
+    check("§6 BITES: a submit stub with no second channel is found",
+          #stubsOf(sick, "asanaSubmitTask") == 1
+          and not stubsOf(sick, "asanaSubmitTask")[1].body:find("onDone", 1, true))
+    local ok = stripComments(
+        "_G.asanaSubmitTask = function(t, d, a, x, e) if e.onDone then e.onDone(true) end return true end")
+    check("§6 IS SILENT on a stub that carries it",
+          stubsOf(ok, "asanaSubmitTask")[1].body:find("onDone", 1, true) ~= nil)
+end
+
+-- =====================================================================
+out("\n=== 7. 📏 NAMED, NOT AUTOMATED — the gap, written down ===\n")
 -- =====================================================================
 -- 🚨 A COMMENT CLAIMING A GUARD THAT DOES NOT EXIST is worse than no
 -- guard (6.269.0: when a comment claims a check, grep for the check). So
