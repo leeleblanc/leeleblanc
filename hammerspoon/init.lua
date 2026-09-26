@@ -4,8 +4,27 @@
 -- =====================================================================
 -- 09-26-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.293.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.294.0
 -- =====================================================================
+
+-- NEW IN 6.294.0 — 🎯 THE ASANA CARD NAMES THE KEY THAT MAKES A TASK
+--   (core/cheatsheet.lua + tests/test_integration.lua):
+--   LL: "Build the hyper+T Asana card row next." The ✅ ASANA card
+--   listed ⇪A ⇪B ⇪C ⇪L and never the tool's front door.
+--   🔑 A POINTER, NOT A CLAIM: 6.114.0 took ⇪T out of this group on
+--   purpose — one key on two cards reads as a conflict, which is his
+--   own 6.90.1 complaint — so the key column is a WORD and the combo
+--   sits in the prose (6.211.0). Both halves are asserted: deleting
+--   the row and writing it as a bare { "⇪T", … } each fail a check.
+--   🔎 AND THE OTHER BLIND SIDE IS CLOSED: the 6.196.0 auditor flags
+--   MISATTRIBUTION and never ABSENCE. It runs the other way now for
+--   keys whose owner is known — 76 bound, and the single orphan was
+--   an ALIAS (the card prints ⇪⇧Esc, the binding says "escape"), so
+--   ⇪⇧Esc was audited by nothing in either direction until now.
+--   🚨 IT WOULD NOT HAVE CAUGHT HIS COMPLAINT, and that is said rather
+--   than left flattering: ⇪T has had a row since 6.86.0, on its own
+--   card. "Filed under the wrong heading for how he thinks about the
+--   tool" is a taxonomy question no join between two tables can see.
 
 -- NEW IN 6.293.0 — ⌨️ ⌥⌥ OPENS THE FRONT APP'S MENUS
 --   (modules/menu_search.lua):
@@ -17,32 +36,15 @@
 --   with no tap, no state machine and no keycode table of its own — a
 --   check asserts menu_search grows none of those, because a second
 --   engine here is how ⌘⌘ and ⌥⌥ come to behave differently.
---   🚨 A REAL ⌘⌥ CHORD TAPPED TWICE FIRES NEITHER: ⌘ is an "other"
---   modifier to the ⌥ gesture and ⌥ is one to the ⌘ gesture, so both
---   dirty. Its own check, driven through the one watcher.
---   Registered in warm(), never setup (6.228.0). ⇪. is unchanged.
+--   🚨 A REAL ⌘⌥ CHORD TAPPED TWICE FIRES NEITHER: each is an "other"
+--   modifier to the other's gesture, so both dirty. Its own check,
+--   through the one watcher. warm(), never setup (6.228.0).
 
--- NEW IN 6.292.0 — ⌨️ ⌘⌘ OPENS THE CLIPBOARD HISTORY
---   (core/double_tap.lua + modules/clipboard_history.lua):
---   LL, for the third time (6.198.0 · 2026-09-13 · 2026-09-26): "My
---   double tap for my clipboard history uses command+command, is that
---   built?" It was not — while the MACHINERY has been driving ⌃⌃ on
---   his Mac since 6.116.0, inside editor_picker. That engine is lifted
---   into core/ so a gesture is a REGISTRATION rather than a second
---   copy of a state machine (6.231.0), and ⌘⌘ is the first on it.
---   🔑 ⌃⌃ IS NOT MIGRATED YET, ON PURPOSE: editor_picker's tap is the
---   one here that watches keyDown globally, and a mistake there does
---   not break a feature, it takes the keyboard (6.214.0). The new
---   engine proves itself on NEW gestures first. The cost — two copies
---   of the rule, two taps — is printed by `_G.doubleTapReport()`.
---   🖥 "even if the app is full-screen" needed no work: these panels
---   are drawn by an accessory app. Registered in warm() (6.228.0).
-
--- (6.291.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.292.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 cut the inline count to
 --  TWO; a gate check proves every entry here is also in CHANGELOG.md.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.293.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.294.0
 -- =====================================================================
 -- The catalogue that used to sit here moved to GUIDE.md ("What each
 -- tool does") in 6.180.0 — 259 lines of prose inside the orchestrator.
@@ -135,7 +137,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.293.0"
+_G.configVersion = "6.294.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the

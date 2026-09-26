@@ -1,4 +1,4 @@
-# TESTING — how to score release 6.293.0
+# TESTING — how to score release 6.294.0
 
 You install ONE archive and it carries several releases. Below are the
 steps for each release this archive is new for, newest first. Run the
@@ -26,6 +26,54 @@ else is a LOSS and I fix it before building further. You are the only
 scorer; I never mark my own.
 
 ---
+
+## 6.294.0
+
+6.294.0 verify with LL — 🎯 ⇪T IS ON THE ASANA CARD (KNOWN GROUND)
+WHAT CHANGED: the ✅ ASANA card on ⇪/ now points at ⇪T, the key that
+creates a task.
+WHY IT MATTERS: you were right, and you have been since 2026-09-20.
+The card listed ⇪A ⇪B ⇪C ⇪L and never the tool's front door.
+🔎 THE HONEST PART, because it changes what to expect: ⇪T was not
+forgotten. It was REMOVED from that card on purpose in 6.114.0, because
+it has its own card and one key printed twice reads as a conflict —
+which is your own complaint from a screenshot in 6.90.1, about ⇪V. So
+this is a POINTER row, not a second claim: the left column reads "task
+form" and the key sits in the sentence.
+
+A. THE HEADLINE.
+A1. Press ⇪/ and search `asana`.
+    EXPECT: the ✅ ASANA card, and in it a row reading
+    `task form — CREATE a task — ⇪T opens the labeled form (its own
+    card on this sheet)`.
+A2. Search `⇪T` instead.
+    EXPECT: BOTH that row and the ✅ TASK FORM card below it. The
+    search matches the whole row, so the key finds it either way.
+A3. Press Esc, then ⇪T. EXPECT: the task form opens, unchanged.
+
+B. MUST STILL WORK — nothing about any key moved in this release.
+B1. ⇪A, ⇪B, ⇪C, ⇪L all behave exactly as before.
+B2. ⇪⇧Esc still pauses the config, and ⇪⇧Esc again resumes.
+B3. ⇪/ filtering, scrolling and Esc are unchanged.
+
+C. PASTE BACK, PASS OR FAIL.
+C1. `_G.cheatSheetReport()` — "empty" and "faults" should both read
+    **none**, as they did on 6.269.0. If either is a number, paste it.
+
+D. A JUDGEMENT ONLY YOU CAN MAKE — and it is the useful one.
+D1. Is "task form" the right words in that left column, or would you
+    rather it read "make one", "new task", or just "⇪T"? The last of
+    those is the one I will not do silently: it re-creates the
+    double-listing you objected to in 6.90.1. If you want it anyway,
+    say so and it is your call, not a slip.
+D2. 🚩 THE THING I COULD NOT FIX WITH A CHECK: the gate now fails if a
+    bound key is printed on NO card anywhere — and it would NOT have
+    caught this. ⇪T always had a row; it was on the wrong card for the
+    way you think about the tool. If any OTHER key is filed somewhere
+    you would not look, tell me which and where you expected it — that
+    is a judgement no test can make, and you are the only one who can.
+
+
 
 ## 6.293.0
 
@@ -215,61 +263,6 @@ E1. With "standard function keys" ON, F8 has a second job — some apps
     the card has a queue and only with no modifier held. Is that
     narrow enough, or does F8 matter to an app you use? Name the app
     and I will exempt it.
-
-
-
-## 6.290.0
-
-6.290.0 verify with LL — 🔬 THE GATE TESTS ITS OWN BELIEFS (KNOWN GROUND)
-WHAT CHANGED: nothing you can press. This release changes what the test
-gate is allowed to believe about macOS, and it is the answer to your
-question — how have so many mistakes been introduced.
-WHY IT MATTERS: I classified all ten losses on the scoreboard by where
-the defect actually lived. Eight of ten sit at the macOS boundary — the
-one surface the gate cannot see. One is a bad test recipe of mine. At
-most two are a solved thing coming unsolved. ZERO are logic errors in
-pure Lua; not one. So the mechanism is not carelessness: this config
-writes the code, the test AND the stub from one model of macOS, and
-when that model is wrong all three are wrong the same way and they
-agree with each other. Green meant "the code matches our beliefs". It
-never once meant "the code matches macOS". Your loop is closed — you
-press the key and reality answers. Mine was open.
-🔎 AND THE CLASS WAS LEARNED FIFTEEN TIMES AND ENFORCED ZERO TIMES.
-Every instance was fixed at the one stub that had just cost a release,
-while seventy-five other suites went on telling the same lie about the
-same provider. 28 of them were corrected in this release.
-
-A. THE HEADLINE — there is nothing to press, so this is the whole test.
-A1. Install and reload. Everything must behave exactly as it did on
-    6.289.0: ⇪T, ⇪D, ⇪N, ⇪3, ⇪4, ⇪X, ⇪space, the music card.
-    EXPECT: no visible difference of any kind. This release does not
-    touch a single shipped module — only tests/ and the documents.
-A2. Console: `_G.configVersion` → `6.290.0`.
-A3. That is it. If anything at all behaves differently, that is a real
-    finding and I want it, because this release claims to change
-    nothing you can see.
-
-B. IF YOU WANT TO SEE THE INSTRUMENT (optional, needs the repo, not
-   your Mac's install).
-B1. `lua5.4 tests/test_stub_fidelity.lua` from the unpacked archive.
-    EXPECT: `27 passed, 0 failed`, and a printed list of eight further
-    contracts it knows about and deliberately does NOT check.
-B2. That printed list is the point as much as the checks are. A gap
-    written down is not a gap implied by silence.
-
-C. A JUDGEMENT ONLY YOU CAN MAKE.
-C1. This release spends a whole version number on testing rather than
-    on anything you can use. Was that the right call? You asked for it,
-    and I think it is the highest-value thing in this batch — but you
-    are the one waiting on features, so say if you would rather I spend
-    the next one on the queue and fold work like this in alongside.
-C2. The three self-inflicted bugs this audit found IN ITSELF are in
-    CHANGELOG 6.290.0, named. One of them — a sentry searching for a
-    phrase that existed only on the sentry's own line, so it matched
-    itself and could never fail — is the kind of thing that would have
-    sat there for a year. If you want, the next audit release is the
-    one that sweeps the OTHER sentries in this config for the same
-    shape. Say the word.
 
 
 

@@ -3524,6 +3524,7 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
+| 6.294.0 | 🎯 the ✅ ASANA card finally names ⇪T — the key that creates a task, absent from it since 6.114.0 removed it for a good reason; plus an auditor for a bound key printed on no card at all | pending |
 | 6.293.0 | ⌨️ ⌥⌥ opens the front app's menus — his 6.198.0 ask, never built, and nine lines now that 6.292.0 made a gesture a registration rather than an engine | pending |
 | 6.292.0 | ⌨️ ⌘⌘ opens the clipboard history — asked for three times since 6.198.0 and never built, while the engine for it had been driving ⌃⌃ on his Mac since 6.116.0; it is lifted into core/ so a gesture is a registration | pending |
 | 6.291.0 | ⌨️ F8 drives the music card whichever of the two events macOS sends for it — an NSSystemDefined media key with "standard function keys" OFF, a plain keyDown with it ON, and 6.289.0 watched only the first | pending |
@@ -4416,6 +4417,50 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.294.0 verify with LL — 🎯 ⇪T IS ON THE ASANA CARD (KNOWN GROUND)
+  WHAT CHANGED: the ✅ ASANA card on ⇪/ now points at ⇪T, the key that
+  creates a task.
+  WHY IT MATTERS: you were right, and you have been since 2026-09-20.
+  The card listed ⇪A ⇪B ⇪C ⇪L and never the tool's front door.
+  🔎 THE HONEST PART, because it changes what to expect: ⇪T was not
+  forgotten. It was REMOVED from that card on purpose in 6.114.0, because
+  it has its own card and one key printed twice reads as a conflict —
+  which is your own complaint from a screenshot in 6.90.1, about ⇪V. So
+  this is a POINTER row, not a second claim: the left column reads "task
+  form" and the key sits in the sentence.
+
+  A. THE HEADLINE.
+  A1. Press ⇪/ and search `asana`.
+      EXPECT: the ✅ ASANA card, and in it a row reading
+      `task form — CREATE a task — ⇪T opens the labeled form (its own
+      card on this sheet)`.
+  A2. Search `⇪T` instead.
+      EXPECT: BOTH that row and the ✅ TASK FORM card below it. The
+      search matches the whole row, so the key finds it either way.
+  A3. Press Esc, then ⇪T. EXPECT: the task form opens, unchanged.
+
+  B. MUST STILL WORK — nothing about any key moved in this release.
+  B1. ⇪A, ⇪B, ⇪C, ⇪L all behave exactly as before.
+  B2. ⇪⇧Esc still pauses the config, and ⇪⇧Esc again resumes.
+  B3. ⇪/ filtering, scrolling and Esc are unchanged.
+
+  C. PASTE BACK, PASS OR FAIL.
+  C1. `_G.cheatSheetReport()` — "empty" and "faults" should both read
+      **none**, as they did on 6.269.0. If either is a number, paste it.
+
+  D. A JUDGEMENT ONLY YOU CAN MAKE — and it is the useful one.
+  D1. Is "task form" the right words in that left column, or would you
+      rather it read "make one", "new task", or just "⇪T"? The last of
+      those is the one I will not do silently: it re-creates the
+      double-listing you objected to in 6.90.1. If you want it anyway,
+      say so and it is your call, not a slip.
+  D2. 🚩 THE THING I COULD NOT FIX WITH A CHECK: the gate now fails if a
+      bound key is printed on NO card anywhere — and it would NOT have
+      caught this. ⇪T always had a row; it was on the wrong card for the
+      way you think about the tool. If any OTHER key is filed somewhere
+      you would not look, tell me which and where you expected it — that
+      is a judgement no test can make, and you are the only one who can.
+
 - 6.293.0 verify with LL — ⌨️ ⌥⌥ OPENS THE MENUS (KNOWN GROUND)
   WHAT CHANGED: tap ⌥ twice, quickly, and the front app's own menus
   open — the same picker ⇪. gives you.

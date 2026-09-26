@@ -6,6 +6,76 @@ older lives only here.
 
 ```text
 
+NEW IN 6.294.0 — 🎯 THE ASANA CARD NAMES THE KEY THAT MAKES A TASK
+(core/cheatsheet.lua + tests/test_integration.lua):
+
+  LL: "Build the hyper+T Asana card row next." He is right, and he has
+  been right since 2026-09-20: the ✅ ASANA card lists ⇪A ⇪B ⇪C ⇪L and
+  never mentions ⇪T, the key that actually CREATES a task. The tool's
+  front door, absent from the card he goes to for Asana.
+
+  🔑 A POINTER, NOT A CLAIM, and the reason matters because the obvious
+  fix is the one this project already rejected. 6.114.0 deliberately
+  REMOVED ⇪T from this group: task_form.lua has documented it on its
+  own card since 6.86.0, and one key printed on two cards reads as a
+  conflict — which is LL's own complaint from a screenshot in 6.90.1,
+  about ⇪V. Putting ⇪T back as a bare row would answer this ask by
+  re-creating that one.
+
+  So the row uses 6.211.0's shape: a WORD in the key column and the
+  combo in the prose. The 6.196.0 auditor reads a key column that is
+  only combos as a PROMISE and one with a word in it as a POINTER at a
+  neighbouring tool, so "task form → CREATE a task — ⇪T opens the
+  labeled form" costs no double-claim and is still found by the ⇪/
+  search, which matches the whole row.
+
+  🧪 BOTH HALVES ARE ASSERTED, because either alone passes the mutation
+  it exists to catch. Deleting the row passes a check that only asks
+  about the key column; writing it as { "⇪T", … } passes a check that
+  only asks whether ⇪T is named. The check requires the row to mention
+  ⇪T AND its key column not to begin with ⇪.
+
+  🔎 AND THE OTHER BLIND SIDE IS CLOSED IN THE SAME RELEASE. The
+  6.196.0 audit joins a card's key column to the module that BOUND the
+  key, so it can only speak about rows that exist: it flags
+  MISATTRIBUTION and never ABSENCE. 6.269.0 wrote that down about a
+  card with no rows, and 6.276.0 about a row that names no owner; a
+  bound key printed nowhere is the third face of the same shape, and
+  it is a feature he cannot find that no report can tell him about.
+
+  It runs the other way now, and only where the owner is known: every
+  combo in HYPER_OWNER — the ones that came through hyperAddShortcut —
+  must be printed on some cheat sheet. §0.4's migration map binds a
+  dozen keys outside that call and they are absent from the table, so
+  they are silently out of scope, which is the same narrowing that
+  keeps the audit above trustworthy (widen the join and an auditor
+  cries wolf and gets switched off).
+
+  📏 MEASURED AGAINST THE HEALTHY TREE FIRST, which is 6.269.0's rule
+  for any new instrument: 76 bound keys, and exactly ONE with no row —
+  ⇪⇧Esc. And the finding was an ALIAS rather than a gap. power_tools
+  prints "⇪⇧Esc" on its pause row and binds hs's keycode name
+  "escape", so comboOf answered "shift|esc" while the registry held
+  "shift|escape" and the two could never join. ⇪⇧Esc was therefore
+  audited by NOTHING, in either direction, until this release. One
+  alias, not a map of every key name: measured over every ⇪ row in
+  modules/ and core/, it is the only human spelling on any card that
+  differs from its keycode.
+
+  🚨 AND IT WOULD NOT HAVE CAUGHT THE COMPLAINT THAT PROMPTED IT. Said
+  here rather than left flattering: ⇪T has had a row since 6.86.0. His
+  complaint is that the row is not where he LOOKED — and "this key is
+  filed under the wrong heading for the way he thinks about the tool"
+  is a taxonomy question that no join between two tables can see. The
+  pointer row is the fix for that. The auditor is the fix for a
+  different hole, found while looking at it.
+
+  GENERAL: when a report names one instance, ask what CLASS it belongs
+  to — and then check whether the class you found is really the one
+  that bit him. Two different holes came out of one sentence here, and
+  only one of them was his.
+
+
 NEW IN 6.293.0 — ⌨️ ⌥⌥ OPENS THE FRONT APP'S MENUS
 (modules/menu_search.lua):
 

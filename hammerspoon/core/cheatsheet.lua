@@ -343,6 +343,17 @@ return function(core)
                 -- LL raised about ⇪V from a screenshot in 6.90.1 and the
                 -- reason the ⇪V note below exists. Same fix, same reason.
                 { "⇪L", "List tasks — Today / Week / Overdue" },
+                -- 🎯 6.294.0 — AND ⇪T IS POINTED AT FROM HERE. LL, reading
+                -- this card: it lists ⇪A ⇪B ⇪C ⇪L and never mentions the key
+                -- that actually CREATES a task, which is the tool's front
+                -- door. 6.114.0's removal above was RIGHT — one key printed
+                -- on two cards reads as a conflict, which is his own 6.90.1
+                -- complaint — so the answer is not to put ⇪T back as a
+                -- claim. The KEY COLUMN IS A WORD, which 6.211.0 established
+                -- as this sheet's way of saying "the neighbouring tool lives
+                -- there": the 6.196.0 auditor reads a bare combo as a claim
+                -- and a word as prose, so a pointer costs no double-claim.
+                { "task form", "CREATE a task — ⇪T opens the labeled form (its own card on this sheet)" },
                 { "auto", "Color legend strip under the list" },
             }},
             -- ⇪V/⇪⇧V are deliberately NOT here: clipboard history has owned

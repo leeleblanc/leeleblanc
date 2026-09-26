@@ -729,7 +729,17 @@ local function comboOf(token)
         mods[#mods + 1] = "shift" ; rest = rest:sub(#m + 1)
     end
     if rest == "" then return nil end
-    return table.concat(mods, "+") .. "|" .. rest:lower()
+    rest = rest:lower()
+    -- 🔤 6.294.0 — THE CARD IS WRITTEN FOR A HUMAN AND THE BINDING IS NOT.
+    -- power_tools' pause row prints "⇪⇧Esc" and binds hs's keycode name
+    -- "escape", so this returned "shift|esc" while HYPER_OWNER held
+    -- "shift|escape" and the two could never join — which meant ⇪⇧Esc was
+    -- audited by NOTHING, in either direction. One alias, not a map of
+    -- every key name: this is the only human spelling any card uses that
+    -- differs from its keycode (measured over every ⇪ row in modules/ and
+    -- core/ — "space" is spelled the same on both sides).
+    if rest == "esc" then rest = "escape" end
+    return table.concat(mods, "+") .. "|" .. rest
 end
 
 -- Combos that are RIGHT while being unclaimed, each for a stated reason.
@@ -806,6 +816,70 @@ do
     -- the 6.187.0 rule (a budget that exists is not a budget that bites).
     check("...and the audit really walked the sheets rather than finding "
           .. "no combos to check", audited >= 30, audited .. " combos audited")
+end
+
+-- 🔎 6.294.0 — AND A KEY WITH NO ROW AT ALL IS THE OTHER BLIND SIDE.
+--
+-- The audit above joins a card's key column to the module that bound the
+-- key, so it speaks only about rows that EXIST: it flags misattribution,
+-- never absence. 6.269.0 wrote that down about a card with no rows and
+-- 6.276.0 about a row that names no owner; this is the third face of the
+-- same shape — a key that is bound and printed nowhere, which is a
+-- feature he cannot find and no report can tell him about.
+--
+-- 🚨 IT IS RUN THE OTHER WAY ROUND, AND ONLY WHERE THE OWNER IS KNOWN.
+-- "Is this bound key printed anywhere" is answerable for the combos that
+-- came through hyperAddShortcut, because HYPER_OWNER names their module.
+-- §0.4's migration map binds a dozen keys outside it and they are absent
+-- from that table, so they are silently out of scope here — which is the
+-- same narrowing that keeps the audit above trustworthy (6.269.0: widen
+-- the join and the auditor cries wolf and gets switched off).
+--
+-- 📏 MEASURED AGAINST THE HEALTHY TREE FIRST, which is 6.269.0's rule for
+-- any new instrument: 76 bound keys, and exactly ONE with no row — ⇪⇧Esc,
+-- and only because the card spells it "Esc" while the binding says
+-- "escape". So the finding was an alias, not a gap, and comboOf carries
+-- it now. A row-less key from here on is a real one.
+--
+-- 🚨 AND IT WOULD NOT HAVE CAUGHT THE COMPLAINT THAT PROMPTED IT, which
+-- is worth saying rather than letting the release look bigger than it
+-- is. ⇪T has had a row since 6.86.0 — on task_form's own card. LL's
+-- complaint is that the row is not where he LOOKED, and "the key is
+-- filed under the wrong heading for the way he thinks about the tool" is
+-- a taxonomy question no join between two tables can see. The pointer
+-- row on the Asana card is the fix for that; this is the fix for a
+-- different hole found while looking at it.
+do
+    local printed, rows = {}, 0
+    for _, g in ipairs(_G.moduleCheatsheets or {}) do
+        for _, e in ipairs(g.entries or {}) do
+            local keyCol = type(e) == "table" and tostring(e[1] or "") or ""
+            for token in keyCol:gmatch("[^%s·]+") do
+                local c = comboOf(token)
+                if c then printed[c] = true ; rows = rows + 1 end
+            end
+        end
+    end
+    local orphan, bound = {}, 0
+    for combo, owner in pairs(HYPER_OWNER) do
+        bound = bound + 1
+        if not printed[combo] then
+            orphan[#orphan + 1] = combo .. " (" .. tostring(owner) .. ")"
+        end
+    end
+    table.sort(orphan)
+    check("🔎 EVERY KEY BOUND THROUGH hyperAddShortcut IS PRINTED ON SOME "
+          .. "CHEAT SHEET — a bound key with no row is a feature he cannot "
+          .. "find, and the misattribution audit is blind to it by design",
+          #orphan == 0, #orphan > 0 and table.concat(orphan, " · ") or nil)
+    check("...and it had both sides to join — a run where either is empty "
+          .. "passes while proving nothing (6.187.0)",
+          bound >= 60 and rows >= 60, bound .. " bound · " .. rows .. " printed")
+    -- 🔤 The alias earns its own row: without it ⇪⇧Esc joins to neither
+    -- audit, and a mutation that removes it must fail something.
+    check("🔤 ...and the human spelling joins to the keycode — ⇪⇧Esc on the "
+          .. "card is shift|escape in the registry",
+          comboOf("⇪⇧Esc") == "shift|escape", tostring(comboOf("⇪⇧Esc")))
 end
 
 out("   -- free-key claims --\n")

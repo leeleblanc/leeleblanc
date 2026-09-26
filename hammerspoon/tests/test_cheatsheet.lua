@@ -773,6 +773,40 @@ check("...and A–Z still runs INSIDE each family, ignoring the leading "
   end
   return true
 end)())
+-- 🎯 6.294.0 — THE ASANA CARD POINTS AT ⇪T.
+--
+-- LL, reading this card: it lists ⇪A ⇪B ⇪C ⇪L and never names the key
+-- that CREATES a task. 6.114.0 took ⇪T out of this group on purpose (one
+-- key on two cards reads as a conflict — his own 6.90.1 complaint), so
+-- the row that answers him is a POINTER: 6.211.0's rule, a WORD in the
+-- key column and the combo in the prose, which the cheat-sheet auditor
+-- reads as prose rather than as a second claim.
+--
+-- 🚨 BOTH HALVES ARE ASSERTED, because either alone passes the mutation
+-- this check exists to catch: the row must NAME ⇪T (deleting the row
+-- passes a check that only asks about the key column) and its key column
+-- must NOT be a bare combo (writing it as { "⇪T", ... } answers him and
+-- re-creates the double-claim 6.114.0 removed).
+check("🎯 the ASANA card points at ⇪T without claiming it — the key that "
+      .. "creates a task, named on the card he goes to for Asana",
+      (function()
+  for _, g in ipairs(CS.groups()) do
+    if g.title:find("ASANA", 1, true) then
+      for _, e in ipairs(g.entries or {}) do
+        if tostring(e[2] or ""):find("⇪T", 1, true) then
+          local keyCol = tostring(e[1] or "")
+          if keyCol:find("^⇪") then
+            return false, "the key column is a bare combo: " .. keyCol
+          end
+          return true, keyCol .. " → " .. tostring(e[2])
+        end
+      end
+      return false, "no row on the ASANA card mentions ⇪T"
+    end
+  end
+  return false, "no ASANA group"
+end)())
+
 check("the emoji does NOT decide position — ✅ ASANA sorts under A among "
       .. "its own family, not under whatever ✅ happens to be", (function()
   local list = CS.groups()
