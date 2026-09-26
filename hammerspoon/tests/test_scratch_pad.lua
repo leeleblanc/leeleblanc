@@ -264,7 +264,7 @@ _G.notices = { tell = function(title, text)
 --                    waiting state can be driven. SUBMIT_ANSWER() then
 --                    delivers it, which is what an hs.http callback is.
 local SUBMITS, SUBMIT_RESULT = {}, true
-local SUBMIT_ASANA, SUBMIT_DEFER, SUBMIT_PENDING = nil, false, nil
+local SUBMIT_ASANA, SUBMIT_DEFER, SUBMIT_PENDING = nil, false, {}
 local SUBMIT_WHY = "Asana refused it (HTTP 400) — invalid assignee"
 _G.asanaSubmitTask = function(title, desc, assignee, attach, extra)
     SUBMITS[#SUBMITS + 1] = { title = title, desc = desc, assignee = assignee, attach = attach, extra = extra }
@@ -277,11 +277,15 @@ _G.asanaSubmitTask = function(title, desc, assignee, attach, extra)
                asana and "9001" or nil)
         end
     end
-    if SUBMIT_DEFER then SUBMIT_PENDING = fire else fire() end
+    -- 🔬 A QUEUE, not a slot: several requests are in flight at once on
+    -- a real Mac (6.300.0 posts one per task), and a single pending
+    -- slot would silently drop all but the last — which is exactly the
+    -- bug a "the mark lands on the LAST answer" check exists to catch.
+    if SUBMIT_DEFER then SUBMIT_PENDING[#SUBMIT_PENDING + 1] = fire else fire() end
     return SUBMIT_RESULT
 end
 local function SUBMIT_ANSWER()
-    local f = SUBMIT_PENDING ; SUBMIT_PENDING = nil
+    local f = table.remove(SUBMIT_PENDING, 1)
     if f then f() end
     return f ~= nil
 end
@@ -344,12 +348,14 @@ check("scratch.show / scratch.send / scratch.report are published",
 check("the store lives under logsDir/scratch", sp.file == "/logs/scratch/scratch.json")
 check("the store is registered with the write ledger", _G.rewrittenFiles[sp.file] ~= nil)
 check("a fresh install starts with exactly one blank tab", #sp.tabs == 1 and sp.tabs[1].text == "")
--- 🗑 6.254.0 — the daily send is OFF by default now (LL: "I don't need to
--- send these at 4pm"), so warm() arms nothing. The switch, the timer it
--- arms when it is ON, and the fact that nothing was deleted, are all
--- checked in the 6.254.0 section at the end of this file.
-check("🗑 the 16:00 send is NOT armed by default — no timer is held",
-      sp.sendDaily == false and sp.sendTimer == nil, tostring(sp.sendTimer))
+-- 🗓 6.300.0 — AND HE TURNED IT BACK ON. 6.254.0 switched the 16:00
+-- send off on his word ("I don't need to send these at 4pm"); his
+-- 6.300.0 message reverses that in the same breath as the grammar
+-- ("tasks send at 4pm whether Hamsidian is open or not"). The switch
+-- is unchanged and still works in both directions — the 6.254.0
+-- section at the end of this file still drives the OFF side.
+check("🗓 the 16:00 send IS armed by default again — his own reversal",
+      sp.sendDaily == true and sp.sendTimer ~= nil, tostring(sp.sendTimer))
 
 -- =======================================================================
 out("2) typing — Lua at once, disk after the debounce, one held timer\n")
@@ -456,8 +462,15 @@ sp.show()
 check("⇪1 while open closes (toggle)", sp.webview == nil)
 
 -- =======================================================================
-out("6) the 16:00 task — one task, every section, 07:30 → 16:00, me\n")
+out("6) the DAY task — one task, every section, 07:30 → 16:00, me\n")
 -- =======================================================================
+-- 🗂 6.300.0 — THIS SECTION IS ABOUT `sp.sendDay`, which is no longer
+-- the default: `sendGrammar` sends his task grammar instead, one Asana
+-- task per parsed task. The day task is kept whole and reachable by a
+-- settings line (6.254.0's shape — a switch, never a deletion), and
+-- that is exactly why it still has to work. The checks below are
+-- unchanged in what they assert; they name which send they drive.
+sp.sendGrammar = false
 SUBMITS = {}
 local ok, why = sp.send("scheduled")
 check("with text the send is accepted", ok == true and #SUBMITS == 1, why)
@@ -1254,7 +1267,11 @@ do
     m.setup(CORE)
     local sp = m.config
 
-    check("the daily Asana send is OFF by default", sp.sendDaily == false)
+    -- 🗓 6.300.0 — the 16:00 send is ON again, on his own reversal.
+    -- What 6.254.0 proved is the SWITCH, and that is what this section
+    -- is for: the OFF side below is unchanged and still has teeth.
+    check("the daily Asana send is ON again (6.300.0, his own reversal)",
+          sp.sendDaily == true)
     check("the + Capture / + Append rows are OFF by default",
           sp.showKindRows == false)
 
@@ -1341,6 +1358,11 @@ do
     sp.tabs = { { id = "s1", text = "a task I dumped", kind = nil, at = os.time() } }
     sp.history, sp.active = {}, "s1"
     sp.sent, sp.unsent, sp.sendFails = {}, nil, 0
+    -- 🗂 6.300.0 — this section is 6.278.0's and 6.299.0's, and both
+    -- were written against the DAY task, which is still shipped and
+    -- still has to be right. The grammar send's own announce is §6.300
+    -- at the end of this file.
+    sp.sendGrammar = false
 
     -- ---- a REJECTED send ------------------------------------------------
     DEGRADES, ALERTS, TOLD = {}, {}, {}
@@ -1495,6 +1517,7 @@ do
     check("...and the day is not stamped", sp.sent[TODAY] == nil)
 
     sp.unsent, sp.sendFails = nil, 0
+    sp.sendGrammar = true      -- restored: later sections read this copy
     local ran = (pass + fail) - before
     check("§6.278.0 ran all of its checks (" .. ran .. " of 15+)", ran >= 15, ran)
 end
@@ -1511,6 +1534,7 @@ end
 do
     local before = pass + fail
     local S = _G.scratchPad
+    S.sendGrammar = true       -- this section is about the grammar
     -- 2026-09-26 12:00:00 UTC-ish; only the DATE arithmetic matters and
     -- os.date uses the same local zone on both sides of each check.
     local NOW = os.time({ year = 2026, month = 9, day = 26, hour = 12 })
@@ -1676,12 +1700,30 @@ do
     check("🔎 the preview names both tasks it found", 
           prev:find("Fix the printer", 1, true) ~= nil
           and prev:find("Ship the release", 1, true) ~= nil, prev)
-    check("🚨 ...and says plainly that nothing was sent, because the "
-          .. "release that PARSES must not read as the one that SENDS",
-          prev:find("NOTHING here has been sent", 1, true) ~= nil)
-    check("🚨 ...and says what 'Asana now' does TODAY, which is ONE task "
-          .. "for the whole day — his actual question",
-          prev:find("ONE task for the whole day", 1, true) ~= nil, prev)
+    -- 🗂 6.300.0 — THESE TWO SUPERSEDE 6.297.0'S. That release's rule
+    -- was "a preview must not read as a send"; it sends now, so the
+    -- rule becomes "the preview describes the send that is ARMED", and
+    -- the check drives BOTH switch positions rather than asserting one
+    -- sentence (6.248.0).
+    check("🗂 with the grammar armed, the preview says one task per task "
+          .. "and names the two marks",
+          prev:find("ONE ASANA TASK PER TASK", 1, true) ~= nil
+          and prev:find(S.sentMark, 1, true) ~= nil
+          and prev:find(S.failMark, 1, true) ~= nil, prev)
+    S.sendGrammar = false
+    local prevDay = S.taskPreview(NOW)
+    check("🗂 ...and with it off it describes the DAY task instead — the "
+          .. "switch is real in the preview too",
+          prevDay:find("ONE task for the whole day", 1, true) ~= nil
+          and prevDay:find("ONE ASANA TASK PER TASK", 1, true) == nil, prevDay)
+    S.sendGrammar = true
+    -- 📅 `T: today` is a start date with no end, which Asana refuses
+    -- outright — so the preview shows what Asana will RECEIVE and says
+    -- what it did to the line.
+    check("📅 a lone date is previewed as the DUE date, and it says so",
+          prev:find("one date given", 1, true) ~= nil
+          and prev:find("due " .. os.date("%Y-%m-%d", NOW), 1, true) ~= nil,
+          prev)
     check("⚠️ ...and warns that a subtask is read but not yet sent, "
           .. "beside the row it affects rather than in a footnote",
           prev:find("subtasks are read but NOT yet sent", 1, true) ~= nil, prev)
@@ -1695,6 +1737,228 @@ do
 
     local ran = (pass + fail) - before
     check("§6.297.0 ran all of its checks (" .. ran .. " of 28+)", ran >= 28, ran)
+end
+
+-- =====================================================================
+out("\n🗂 6.300.0 — THE GRAMMAR SENDS, AND THE TAB WEARS THE ANSWER\n")
+-- =====================================================================
+-- LL: "Can we rewrite the task titles to either of the names in the
+-- screenshot … So they stay until I delete them?" — his own answer to
+-- the question 6.297.0 asked about where cleared text should go. He
+-- does not want it cleared: the tab keeps every word and wears the
+-- outcome as its title.
+do
+    local before = pass + fail
+    -- The controllable world again: several sections above hand io.open
+    -- back to the real one, and /logs is not a real folder.
+    io.open = function(path, mode)
+        if (mode or "r"):find("w") then
+            if WRITE_FAILS then return nil end
+            local buf = {}
+            return { write = function(_, s) buf[#buf + 1] = s return true end,
+                     close = function() FILES[path] = table.concat(buf) end }
+        end
+        if FILES[path] == nil then return nil end
+        local content, done = FILES[path], false
+        return { read = function() if done then return nil end done = true return content end,
+                 close = function() end }
+    end
+    os.rename = function(a, b)
+        if FILES[a] == nil then return nil, "no such file" end
+        FILES[b] = FILES[a] ; FILES[a] = nil ; return true
+    end
+    local m9 = dofile(HS .. "/modules/scratch_pad.lua")
+    m9.setup(CORE)
+    local sp = _G.scratchPad
+    sp.sendGrammar, sp.sendDaily = true, true
+    local TODAY9 = os.date("%Y-%m-%d")
+    local function reset(text)
+        sp.tabs = { { id = "t1", text = text, kind = nil, at = os.time() } }
+        sp.history, sp.active, sp.sent, sp.unsent = {}, "t1", {}, nil
+        SUBMITS, DEGRADES, ALERTS, TOLD = {}, {}, {}, {}
+        SUBMIT_RESULT, SUBMIT_ASANA, SUBMIT_DEFER = true, nil, false
+        SUBMIT_PENDING = {}
+        -- §7 leaves the fake disk refusing writes; this section is not
+        -- about that, and a "NOT SAVED" alert would be counted as the
+        -- send's own.
+        WRITE_FAILS, sp.saveErrSaid = false, nil
+    end
+
+    -- ---- one Asana task per parsed task ---------------------------------
+    reset("Fix the printer\nCall the vendor\n=\nP: Ship the release\n"
+          .. "A: sarah\nD: with words\nT: today +1w 7:00 AM 4:00 PM")
+    local ok = sp.send("scheduled")
+    check("🗂 every parsed task becomes its OWN Asana task",
+          ok == true and #SUBMITS == 3, #SUBMITS .. " submit(s)")
+    check("...with the task's own title", SUBMITS[1].title == "Fix the printer"
+          and SUBMITS[2].title == "Call the vendor"
+          and SUBMITS[3].title == "Ship the release",
+          SUBMITS[3] and SUBMITS[3].title)
+    check("...its assignee, defaulting to \"me\" where he named nobody",
+          SUBMITS[1].assignee == "me" and SUBMITS[3].assignee == "sarah")
+    check("...its description", SUBMITS[3].desc == "with words")
+    check("📅 ...and its dates, both ends with both times",
+          SUBMITS[3].extra.startDate == TODAY9
+          and SUBMITS[3].extra.startTime == "07:00"
+          and SUBMITS[3].extra.dueTime == "16:00"
+          and SUBMITS[3].extra.dueDate ~= TODAY9,
+          tostring(SUBMITS[3].extra.dueDate))
+
+    -- ---- 🏷 THE MARK ----------------------------------------------------
+    check("🏷 the tab is retitled with HIS success label",
+          sp.tabs[1].mark == sp.sentMark
+          and sp.titleOf(sp.tabs[1]) == sp.sentMark, sp.titleOf(sp.tabs[1]))
+    check("...and every word is still in it — nothing is cleared, which "
+          .. "is the whole shape of his answer",
+          sp.tabs[1].text:find("Fix the printer", 1, true) ~= nil)
+    check("...and the announce names the run once, not once per task",
+          #ALERTS == 1 and tostring(ALERTS[1]):find("3 task", 1, true) ~= nil,
+          tostring(ALERTS[1]))
+    check("...and it survives the store", (function()
+        local raw = FILES[sp.file] and jdec(FILES[sp.file])
+        return raw and raw.tabs and raw.tabs[1] and raw.tabs[1].mark == sp.sentMark
+    end)(), tostring(FILES[sp.file]))
+
+    -- 🔑 THE RENAME IS THE MEMORY (6.281.0): a ✅ tab is never sent twice,
+    -- or the 4 PM run would post yesterday's tasks again every day.
+    SUBMITS, ALERTS = {}, {}
+    local ok2 = sp.send("scheduled")
+    check("🔑 a ✅ tab is SKIPPED by the next send — the rename is the "
+          .. "memory, so nothing is posted twice",
+          ok2 == false and #SUBMITS == 0, #SUBMITS)
+    check("...and a run with nothing new says nothing on screen",
+          #ALERTS == 0 and #DEGRADES == 0)
+
+    -- 🏷 TYPING CLEARS THE MARK: new text is new work.
+    sp.setText("t1", "A brand new thing")
+    check("🏷 editing a ✅ tab clears its mark", sp.tabs[1].mark == nil)
+    SUBMITS = {}
+    sp.send("scheduled")
+    check("...and it sends again", #SUBMITS == 1
+          and SUBMITS[1].title == "A brand new thing")
+
+    -- ---- ❌ AND THE FAILURE MARK ----------------------------------------
+    reset("Something that will be refused")
+    SUBMIT_ASANA = false                     -- posted, then Asana says no
+    local okF = sp.send("scheduled")
+    check("❌ a refused task marks the tab with HIS failure label",
+          okF == true and sp.tabs[1].mark == sp.failMark, sp.tabs[1].mark)
+    check("...and his text is untouched",
+          sp.tabs[1].text == "Something that will be refused")
+    check("...and it takes the 🔔 door with Asana's own reason",
+          #DEGRADES == 1
+          and tostring(ALERTS[#ALERTS]):find(SUBMIT_WHY, 1, true) ~= nil,
+          tostring(ALERTS[#ALERTS]))
+    -- 🔑 A ❌ TAB IS RETRIED. That is the only reason to mark a failure.
+    SUBMITS, SUBMIT_ASANA = {}, nil
+    sp.send("scheduled")
+    check("🔑 a ❌ tab is RETRIED on the next send, and goes green",
+          #SUBMITS == 1 and sp.tabs[1].mark == sp.sentMark, sp.tabs[1].mark)
+
+    -- 🚨 ONE FAILURE IN A TAB MARKS THE WHOLE TAB FAILED. A ✅ over a tab
+    -- that lost a task is the reassuring answer and the wrong one.
+    reset("First one\nSecond one")
+    local n = 0
+    local savedSubmit = _G.asanaSubmitTask
+    _G.asanaSubmitTask = function(t, d, a, x, e)
+        n = n + 1
+        SUBMITS[#SUBMITS + 1] = { title = t, extra = e }
+        if e and e.onDone then e.onDone(n ~= 2, n == 2 and "refused" or nil, "1") end
+        return true
+    end
+    sp.send("scheduled")
+    _G.asanaSubmitTask = savedSubmit
+    check("🚨 one refused task in a tab marks the whole tab ❌ — a ✅ over "
+          .. "a lost task is the reassuring answer and the wrong one",
+          #SUBMITS == 2 and sp.tabs[1].mark == sp.failMark, sp.tabs[1].mark)
+
+    -- ⏳ THE MARK LANDS WHEN THE LAST ANSWER DOES, not the first.
+    reset("Alpha\nBravo")
+    SUBMIT_DEFER = true
+    sp.send("scheduled")
+    check("⏳ with the answers still out, the tab wears no mark and "
+          .. "nothing is announced",
+          sp.tabs[1].mark == nil and #ALERTS == 0, tostring(sp.tabs[1].mark))
+    SUBMIT_ANSWER()
+    check("...still nothing after only ONE of the two answers",
+          sp.tabs[1].mark == nil, tostring(sp.tabs[1].mark))
+    SUBMIT_ANSWER()
+    check("...and the mark lands when the LAST one does",
+          sp.tabs[1].mark == sp.sentMark and #ALERTS == 1)
+    SUBMIT_DEFER = false
+
+    -- ---- Asana off is a failure, and it says so on every tab -----------
+    reset("Written expecting it to go")
+    CORE.asanaEnabled = false
+    sp.send("scheduled")
+    check("Asana off marks the tab ❌ and takes the 🔔 door",
+          sp.tabs[1].mark == sp.failMark and #DEGRADES == 1)
+    CORE.asanaEnabled = true
+
+    -- 🚨 A SUBMIT THAT RAISES must not hold the run open for ever.
+    reset("This one throws")
+    _G.asanaSubmitTask = function() error("kaboom", 0) end
+    sp.send("scheduled")
+    _G.asanaSubmitTask = savedSubmit
+    check("🚨 a submit that THROWS still marks the tab and ends the run — "
+          .. "one un-answered tab would hold it open for ever, with no ✅, "
+          .. "no ❌ and no announce",
+          sp.tabs[1].mark == sp.failMark and #DEGRADES == 1,
+          tostring(sp.tabs[1].mark))
+
+    -- 📏 CLOSED ROWS ARE NAMED, NOT SILENTLY DROPPED (6.201.1). The day
+    -- task swept them; a closed row has no title to rewrite.
+    reset("An open one")
+    sp.history = { { id = "h1", text = "closed earlier today", kind = nil,
+                     closedAt = os.time() } }
+    sp.send("scheduled")
+    check("📏 a row closed today is NOT sent — and it is counted, not "
+          .. "quietly dropped", #SUBMITS == 1
+          and sp.lastTaskSend.closedToday == 1, tostring(sp.lastTaskSend.closedToday))
+    check("...and the report says so where he would read it",
+          _G.scratchPadReport():find("closed", 1, true) ~= nil)
+
+    -- 🔌 THE SWITCH IS REAL IN BOTH DIRECTIONS (6.228.0): the day task is
+    -- kept whole, not deleted, and one settings line brings it back.
+    reset("Line one\nLine two")
+    sp.sendGrammar = false
+    sp.send("scheduled")
+    check("🔌 sendGrammar = false sends the DAY task instead — ONE submit "
+          .. "for every tab, exactly as before", #SUBMITS == 1
+          and SUBMITS[1].title:find(sp.titlePrefix, 1, true) == 1,
+          #SUBMITS .. " / " .. tostring(SUBMITS[1] and SUBMITS[1].title))
+    check("...and the day task does not mark the tab — the marks belong "
+          .. "to the send that can answer for each one",
+          sp.tabs[1].mark == nil, tostring(sp.tabs[1].mark))
+    sp.sendGrammar = true
+
+    -- ---- 📅 whenForAsana, PURE -----------------------------------------
+    local w, notes = sp.whenForAsana({ startDate = "2026-09-26" })
+    check("📅 a lone date is the DUE date — the only shape Asana takes, "
+          .. "and what a single date means everywhere else",
+          w.dueDate == "2026-09-26" and w.startDate == nil and #notes == 1,
+          tostring(w.startDate) .. "/" .. tostring(w.dueDate))
+    w = sp.whenForAsana({ startDate = "2026-09-26", startTime = "07:00" })
+    check("...and its time goes with it", w.dueTime == "07:00" and w.startTime == nil)
+    w, notes = sp.whenForAsana({ startDate = "a", dueDate = "b", startTime = "07:00" })
+    check("📅 two dates with only ONE time go all-day — Asana cannot mix "
+          .. "a timed end with an all-day start",
+          w.startDate == "a" and w.dueDate == "b"
+          and w.startTime == nil and w.dueTime == nil and #notes == 1)
+    w = sp.whenForAsana({ startDate = "a", dueDate = "b",
+                          startTime = "07:00", dueTime = "16:00" })
+    check("📅 ...and his own two-date, two-time line is passed through "
+          .. "untouched", w.startDate == "a" and w.dueDate == "b"
+          and w.startTime == "07:00" and w.dueTime == "16:00")
+    w, notes = sp.whenForAsana({ dueTime = "16:00" })
+    check("📅 a time with no date at all is dropped and NAMED",
+          w.dueTime == nil and #notes == 1, #notes)
+    check("📅 ...and nothing at all answers nothing, quietly",
+          (function() local a, b = sp.whenForAsana(nil)
+             return a.dueDate == nil and #b == 0 end)())
+
+    local ran = (pass + fail) - before
+    check("§6.300.0 ran all of its checks (" .. ran .. " of 30+)", ran >= 30, ran)
 end
 
 out(string.format("\n%d passed, %d failed\n", pass, fail))

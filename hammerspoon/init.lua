@@ -4,8 +4,23 @@
 -- =====================================================================
 -- 09-26-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.299.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.300.0
 -- =====================================================================
+
+-- NEW IN 6.300.0 — 🗂 THE GRAMMAR SENDS, AND THE TAB WEARS THE ANSWER
+--   (modules/scratch_pad.lua): 6.297.0 read his task grammar and
+--   deliberately sent nothing. Every parsed task is now its own
+--   Asana task in his default project.
+--   🏷 HIS OWN ANSWER to the question 6.297.0 asked: he does not
+--   want the text cleared — "rewrite the task titles … so they stay
+--   until I delete them." The tab keeps every word and wears
+--   ✅ Success: tasks sent / ❌ Error: tasks not sent.
+--   🔑 THE RENAME IS THE MEMORY (6.281.0): a ✅ tab is skipped for
+--   ever, so 16:00 cannot post yesterday again; a ❌ tab is RETRIED;
+--   typing clears the mark. 📅 A LONE DATE IS THE DUE DATE
+--   (`whenForAsana`, PURE) — `T: today` is a start with no end,
+--   which Asana refuses. 📏 OPEN TABS ONLY, the rest NAMED
+--   (6.201.1). 🗓 16:00 is ON again, reversing 6.254.0 on his word.
 
 -- NEW IN 6.299.0 — 🔔 ASANA'S OWN ANSWER REACHES THE CALLER
 --   (modules/task_creator.lua + scratch_pad.lua): `asanaSubmitTask`
@@ -25,25 +40,11 @@
 --   the second channel missing — test_stub_fidelity §6 now fails
 --   the gate for it (6.290.0).
 
--- NEW IN 6.298.0 — 🔎 THE @ SEARCHES NAME THEMSELVES
---   (modules/unified_search.lua): LL: "All @ searches should be
---   listed so I know what I can use to search." There are FOURTEEN,
---   and the only place any was named is a section header in the
---   results — which you reach by already searching that store. A tag
---   you must know first is not a tag you can use.
---   🔑 TYPE @ ON ITS OWN: every source, its tag, what it HOLDS and
---   how many; ⏎ puts that @tag in the box. Empty sources are listed
---   too — "@pad holds nothing" and "there is no @pad" are opposite
---   facts (6.196.1).
---   🚨 IT IS @ ALONE, NEVER ANY @WORD: "@o" already searches @ocr
---   through the haystack, so a menu on every prefix would take a
---   working search away. A @word that is no tag says so instead.
-
--- (6.297.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.298.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 cut the inline count to
 --  TWO; a gate check proves every entry here is also in CHANGELOG.md.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.299.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.300.0
 -- =====================================================================
 -- The catalogue that used to sit here moved to GUIDE.md ("What each
 -- tool does") in 6.180.0 — 259 lines of prose inside the orchestrator.
@@ -136,7 +137,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.299.0"
+_G.configVersion = "6.300.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the

@@ -100,7 +100,10 @@ local M = {
             { "📌",        "Pin: stays up beside the app; Esc only hands the keys back" },
             { "+ 🗒 · + ➕", "OFF since 6.254.0 — the Capture / Append rows are hidden. Nothing was deleted: both stores are intact and still searched by ⇪space. settings = { scratch_pad = { showKindRows = true } } brings the rows back" },
             { "⇪2",        "SEQUENTIAL COPY: select text, press it, select more, press again — the grabs join into ONE block on the clipboard, so ⌘V pastes the lot. Copying anything else starts a new sequence. Nothing is filed into the pad" },
-            { "16:00",     "OFF since 6.254.0 — no daily Asana task. _G.scratchPadSend() sends one by hand; settings = { scratch_pad = { sendDaily = true } } puts the schedule back" },
+            { "16:00",     "ON again (6.300.0, his own reversal): every unsent tab's tasks go to Asana at 16:00, open window or not. _G.scratchPadSend() sends by hand; settings = { scratch_pad = { sendDaily = false } } switches the schedule off" },
+            { "grammar",   "A bare line is a task · = divides · P: title · A: assignee · D: description · S: subtask (read, not yet sent) · T: dates and times. One Asana task per task, into your default project" },
+            { "✅ / ❌",    "After a send each tab is RETITLED \"✅ Success: tasks sent\" or \"❌ Error: tasks not sent\" and kept until you delete it. A ✅ tab is never sent twice; a ❌ tab is retried; typing in a tab clears its mark" },
+            { "preview",   "_G.scratchPadTasks() shows every task a send WOULD create, and what it did to each T: line — nothing is sent" },
             { "search",    "⇪space finds everything here — tabs and history" },
             { "own window","settings = { scratch_pad = { viaVault = false } } brings the old window back" },
             { "⌘⇧S",       "Export every tab to <Vault>/Scratch as .md — Obsidian opens them" },
@@ -155,8 +158,30 @@ function M.setup(core)
         -- ⇪D. What goes is the DOORS: the daily Asana task, and the two
         -- + rows in the Hamsidian window that open a kind tab. Each is a
         -- switch, so any of the three comes back with no release.
-        sendDaily     = false,    -- settings = { scratch_pad = { sendDaily = true } }
+        -- 🗂 6.300.0 — AND HE TURNED THE 4 PM SEND BACK ON, in the same
+        -- message that asked for the grammar to be sent: "tasks send at
+        -- 4pm whether Hamsidian is open or not". That reverses his own
+        -- 6.254.0 decision and it is HIS to reverse; it is said out
+        -- loud here rather than changed quietly, because a default that
+        -- flips back without a sentence is how a tool starts doing
+        -- something nobody remembers asking for.
+        sendDaily     = true,     -- settings = { scratch_pad = { sendDaily = false } }
         showKindRows  = false,    -- settings = { scratch_pad = { showKindRows = true } }
+
+        -- 🗂 6.300.0 — WHICH SEND. true = his grammar, one Asana task
+        -- per parsed task. false = the pre-6.300.0 behaviour, ONE task
+        -- for the whole day with every tab's text as its description.
+        -- The old path is kept whole and still tested (6.254.0's shape:
+        -- a switch, never a deletion).
+        sendGrammar   = true,     -- settings = { scratch_pad = { sendGrammar = false } }
+        -- 🏷 THE TWO LABELS, his own words from his own screenshot. A
+        -- tab wearing the sent one is SKIPPED by every later send —
+        -- the rename IS the memory (6.281.0) — and it stays until he
+        -- deletes it, which is what he asked for. A tab wearing the
+        -- failed one is RETRIED, which is the whole point of marking
+        -- it. Editing a tab clears the mark: new text is new work.
+        sentMark      = "✅ Success: tasks sent",
+        failMark      = "❌ Error: tasks not sent",
 
         -- the 4 PM task
         sendAt        = "16:00",
@@ -206,6 +231,11 @@ function M.setup(core)
     -- An empty tab is named for what it IS (6.165.1 — "Untitled ×2 told
     -- me nothing"): "Capture", "Append", or "Scratch N" by its place.
     function sp.titleOf(tab)
+        -- 🏷 6.300.0 — a tab the send has answered for wears its answer.
+        -- LL: "Can we rewrite the task titles to either of the names in
+        -- the screenshot … So they stay until I delete them?"
+        local mark = tostring(tab.mark or "")
+        if mark ~= "" then return mark end
         local first = tostring(tab.text or ""):match("[^\r\n]*") or ""
         first = trim(first)
         if first == "" then
@@ -386,7 +416,12 @@ function M.setup(core)
         if not t then return false end
         text = tostring(text or "")
         if t.text ~= text then
-            t.text, t.updatedAt = text, os.time()
+            -- 🏷 6.300.0 — TYPING CLEARS THE MARK. A ✅ describes the
+            -- text that was sent; the moment that text changes the
+            -- label is a claim about something else, and a ✅ tab that
+            -- can never be sent again would freeze his new writing out
+            -- of the 4 PM run. Its own check.
+            t.text, t.updatedAt, t.mark = text, os.time(), nil
             sp.scheduleSave()
         end
         return true
@@ -956,7 +991,10 @@ function M.setup(core)
         end
     end
 
-    function sp.send(reason)
+    -- 📅 THE PRE-6.300.0 SEND, kept whole: ONE Asana task for the whole
+    -- day, every tab's text as its description. `sendGrammar = false`
+    -- brings it back (6.254.0's shape — a switch, never a deletion).
+    function sp.sendDay(reason)
         reason = reason or "manual"
         local today = os.date("%Y-%m-%d")
         local title, notes, n = sp.dayBody(today)
@@ -1040,6 +1078,199 @@ function M.setup(core)
         end
         return heardOk, (heardOk and title or "rejected")
     end
+
+    -- 📅 6.300.0 — WHAT ASANA WILL ACTUALLY TAKE. PURE, and it earns
+    -- its place because his simplest likely line would otherwise be
+    -- refused: Asana's own rules (enforced in asanaSubmitTask since
+    -- 6.152.0) are that a time needs its date, a START date needs an
+    -- END date, and with both dates the times come as a pair or not at
+    -- all. `T: today` parses to a start date with no end — which Asana
+    -- refuses outright, so the tab would wear ❌ for writing the most
+    -- natural thing in the grammar.
+    --
+    -- 🔑 A LONE DATE IS THE DUE DATE. That is a DECISION and it is said
+    -- rather than assumed: a single date means "by then" everywhere
+    -- else, Asana's own UI reads it that way, and it is the only shape
+    -- Asana accepts. His two-date spec — first is the start, second the
+    -- end — is untouched, because two dates are unambiguous.
+    --
+    -- It answers the fields AND the notes, so the preview can SAY what
+    -- it did to his line before a task exists (6.237.0).
+    function sp.whenForAsana(w)
+        w = (type(w) == "table") and w or {}
+        local sd, st = w.startDate, w.startTime
+        local ed, et = w.dueDate,   w.dueTime
+        local notes = {}
+        if sd and not ed then
+            ed, et, sd, st = sd, st, nil, nil
+            notes[#notes + 1] = "one date given — sent as the DUE date"
+        end
+        if sd and ed and ((st and not et) or (et and not st)) then
+            st, et = nil, nil
+            notes[#notes + 1] = "two dates but one time — sent all-day, "
+                                .. "because Asana cannot mix a timed end "
+                                .. "with an all-day start"
+        end
+        if st and not sd then
+            st = nil
+            notes[#notes + 1] = "a start time with no date — dropped"
+        end
+        if et and not ed then
+            et = nil
+            notes[#notes + 1] = "a time with no date — dropped"
+        end
+        return { startDate = sd, startTime = st,
+                 dueDate = ed, dueTime = et }, notes
+    end
+
+    -- =================================================================
+    -- 🗂 6.300.0 — THE GRAMMAR SENDS, AND THE TAB WEARS THE ANSWER
+    -- =================================================================
+    -- 6.297.0 read his grammar and deliberately sent nothing, so that
+    -- the first thing either of us learned about a misreading was a
+    -- preview and not a wrong task in Asana (6.237.0). This is the
+    -- other half: every parsed task becomes an Asana task in his
+    -- default project, and the TAB is retitled with his own two
+    -- labels.
+    --
+    -- 🏷 HIS ANSWER TO THE QUESTION 6.297.0 ASKED, and it is better
+    -- than any of the three I offered. I asked where the cleared text
+    -- should GO — nowhere, the history, or an exported note. He
+    -- answered by not clearing it: "rewrite the task titles … so they
+    -- stay until I delete them." NOTHING IS DESTROYED, so 6.280.0's
+    -- rule is satisfied by construction rather than by a safety net,
+    -- and the tab list becomes a ledger of what went and what did not.
+    --
+    -- 🔑 THE RENAME IS THE MEMORY (6.281.0). A tab wearing the sent
+    -- mark is skipped by every later send, so the 4 PM run cannot post
+    -- yesterday's tasks again; a tab wearing the FAILED mark is
+    -- retried, which is the only reason to mark a failure at all.
+    -- Nothing else is remembered and nothing else has to be.
+    --
+    -- 📏 OPEN TABS ONLY, and that is a real narrowing from the day
+    -- task, which also swept today's CLOSED rows. A closed row has no
+    -- title to rewrite and no way to show him an answer, so sending
+    -- one would be sending into silence. It is NAMED rather than
+    -- dropped quietly (6.201.1): the report counts them and says so.
+    function sp.sendTasks(reason)
+        reason = reason or "manual"
+        local now = os.time()
+        local today = os.date("%Y-%m-%d", now)
+
+        local jobs, alreadySent, noTasks = {}, 0, 0
+        for _, t in ipairs(sp.tabs) do
+            if not t.kind and trim(t.text or "") ~= "" then
+                if tostring(t.mark or "") == sp.sentMark then
+                    alreadySent = alreadySent + 1
+                else
+                    local tasks = sp.parseTasks(t.text, now, sp.assignee)
+                    if #tasks > 0 then
+                        jobs[#jobs + 1] = { tab = t, tasks = tasks }
+                    else
+                        noTasks = noTasks + 1
+                    end
+                end
+            end
+        end
+        local closedToday = 0
+        for _, h in ipairs(sp.history or {}) do
+            if not h.kind and trim(h.text or "") ~= ""
+               and os.date("%Y-%m-%d", h.closedAt or 0) == today then
+                closedToday = closedToday + 1
+            end
+        end
+        sp.lastTaskSend = { at = now, reason = reason, tabs = #jobs,
+                            alreadySent = alreadySent, noTasks = noTasks,
+                            closedToday = closedToday, sent = 0, failed = 0 }
+
+        if #jobs == 0 then
+            sp.lastSend = { at = now, reason = reason,
+                            outcome = "nothing new to send" }
+            sp.announce("skipped", alreadySent > 0
+                        and (alreadySent .. " tab(s) already sent")
+                        or "nothing written today", reason)
+            return false, "nothing to send"
+        end
+        if not (core.asanaEnabled and _G.asanaSubmitTask) then
+            for _, j in ipairs(jobs) do j.tab.mark = sp.failMark end
+            pcall(sp.saveNow)
+            sp.lastSend = { at = now, reason = reason,
+                            outcome = "Asana is off on this Mac" }
+            sp.announce("failed", "Asana is off on this Mac (secret.lua) — "
+                        .. "the text is safe in " .. sp.file, reason)
+            return false, "asana off"
+        end
+
+        -- 🔢 ONE COUNTER PER TAB AND ONE FOR THE RUN. A tab is marked
+        -- when ITS tasks have all answered; the run announces when
+        -- every tab has. Marking on the first answer would put a ✅ on
+        -- a tab whose second task was still in flight.
+        local openJobs, sentN, failN, lastWhy = #jobs, 0, 0, nil
+        local function runDone()
+            sp.lastTaskSend.sent, sp.lastTaskSend.failed = sentN, failN
+            pcall(sp.saveNow)
+            if failN == 0 then
+                sp.lastSend = { at = os.time(), reason = reason,
+                                outcome = "sent · " .. sentN .. " task"
+                                          .. (sentN == 1 and "" or "s") }
+                sp.announce("sent", sentN .. " task" .. (sentN == 1 and "" or "s")
+                            .. " from " .. #jobs .. " tab" .. (#jobs == 1 and "" or "s"),
+                            reason)
+            else
+                sp.lastSend = { at = os.time(), reason = reason,
+                                outcome = failN .. " of " .. (sentN + failN)
+                                          .. " task(s) refused" }
+                sp.announce("failed", failN .. " of " .. (sentN + failN)
+                            .. " task(s) did not reach Asana ("
+                            .. tostring(lastWhy or "?") .. ") — every word is "
+                            .. "still in the tab, marked " .. sp.failMark, reason)
+            end
+        end
+        local function jobDone(job)
+            job.tab.mark = (job.bad == 0) and sp.sentMark or sp.failMark
+            openJobs = openJobs - 1
+            if openJobs == 0 then runDone() end
+        end
+
+        for _, job in ipairs(jobs) do
+            job.left, job.bad = #job.tasks, 0
+            for _, task in ipairs(job.tasks) do
+                local heard = false
+                local function answer(ok, why)
+                    if heard then return end
+                    heard = true
+                    if ok then sentN = sentN + 1
+                    else failN = failN + 1 ; job.bad = job.bad + 1
+                         lastWhy = why end
+                    job.left = job.left - 1
+                    if job.left == 0 then jobDone(job) end
+                end
+                local w = sp.whenForAsana(task.when)
+                local okCall, err = pcall(_G.asanaSubmitTask, task.title,
+                                          task.desc or "", task.assignee or sp.assignee, "", {
+                    startDate = w.startDate, startTime = w.startTime,
+                    dueDate   = w.dueDate,   dueTime   = w.dueTime,
+                    comment   = sp.comment,
+                    onDone    = function(ok, why) answer(ok, why) end,
+                })
+                -- 🚨 A SUBMIT THAT RAISES ANSWERS NOBODY, and one tab
+                -- left un-marked would hold the whole run open — no
+                -- announce, no ✅, no ❌, for ever.
+                if not okCall then answer(false, "the Asana submit threw — "
+                                          .. tostring(err)) end
+            end
+        end
+        return true, sentN .. " task(s) posted"
+    end
+
+    -- 🚪 ONE DOOR, TWO SENDS. Every caller — the button, the 4 PM
+    -- timer, the service and the Console — goes through here, so the
+    -- switch is real in both directions rather than reachable from one
+    -- of them (6.228.0's lesson about a flag nobody reads).
+    function sp.send(reason)
+        if sp.sendGrammar then return sp.sendTasks(reason) end
+        return sp.sendDay(reason)
+    end
     _G.scratchPadSend = function() return sp.send("manual") end
 
     -- 🗂 6.297.0 — THE PREVIEW. Every tab this would read, every task
@@ -1053,10 +1284,20 @@ function M.setup(core)
     -- artefact before building on a belief).
     function sp.taskPreview(now)
         local L = { "🗂 HAMSIDIAN → ASANA — what \"Asana now\" WOULD send" }
-        L[#L + 1] = "   today   : ONE task for the whole day (title + every tab "
-                    .. "as its description). That is what it does now."
-        L[#L + 1] = "   below   : what the 6.297.0 grammar reads out of the same "
-                    .. "tabs. NOTHING here has been sent."
+        -- 🗂 6.300.0 — it SENDS now, so the preview says which send is
+        -- armed rather than describing the one it used to be.
+        if sp.sendGrammar then
+            L[#L + 1] = "   sends   : ONE ASANA TASK PER TASK BELOW, into your "
+                        .. "default project. Nothing here has been sent yet."
+            L[#L + 1] = "   marks   : each tab is then retitled \"" .. sp.sentMark
+                        .. "\" or \"" .. sp.failMark .. "\" and KEPT until you "
+                        .. "delete it; a ✅ tab is never sent twice."
+        else
+            L[#L + 1] = "   today   : ONE task for the whole day (title + every tab "
+                        .. "as its description) — sendGrammar is off."
+            L[#L + 1] = "   below   : what the grammar reads out of the same "
+                        .. "tabs. NOTHING here would be sent."
+        end
         local total, probs = 0, 0
         for _, t in ipairs(sp.tabs or {}) do
             local body = tostring(t.text or "")
@@ -1065,6 +1306,8 @@ function M.setup(core)
                 L[#L + 1] = ""
                 L[#L + 1] = "   📝 " .. tostring(sp.titleOf(t)) .. " — "
                             .. #tasks .. " task(s)"
+                            .. (tostring(t.mark or "") == sp.sentMark
+                                and "  (already sent — this tab is skipped)" or "")
                 for i, k in ipairs(tasks) do
                     total = total + 1
                     L[#L + 1] = ("      %d. %s"):format(i, k.title)
@@ -1077,10 +1320,18 @@ function M.setup(core)
                     for _, sub in ipairs(k.subs) do
                         L[#L + 1] = "         ↳ " .. sub
                     end
-                    local w = k.when or {}
+                    -- 📅 SHOWN AS ASANA WILL RECEIVE IT, not as the line
+                    -- was typed: `T: today` is a start date with no end,
+                    -- which Asana refuses outright, so the preview that
+                    -- printed the parse would promise a task that cannot
+                    -- exist. Every adjustment is NAMED under the row.
+                    local w, notes = sp.whenForAsana(k.when)
                     if w.startDate or w.dueDate or w.startTime or w.dueTime then
                         L[#L + 1] = ("         📅 start %s %s · due %s %s"):format(
                             w.startDate or "—", w.startTime or "", w.dueDate or "—", w.dueTime or "")
+                    end
+                    for _, note in ipairs(notes) do
+                        L[#L + 1] = "         ↳ " .. note
                     end
                     -- 🚨 SUBTASKS ARE NOT BUILT YET AND IT SAYS SO HERE,
                     -- beside the row it affects rather than in a footnote:
@@ -1846,6 +2097,51 @@ t.focus(); try { t.setSelectionRange(CARET, CARET); } catch(e){}
                         .. " · assignee " .. sp.assignee .. " · "
                         .. (sp.sendTimer and "armed" or "NOT armed")
                         .. " · Asana " .. (core.asanaEnabled and "on" or "off on this Mac")
+        end
+        -- 🗂 6.300.0 — WHICH SEND IS ARMED, and what the last run did.
+        -- Two sends ship and only one can be right for what he expects
+        -- to appear in Asana, so the report names it rather than
+        -- leaving him to infer it from the tasks that turn up.
+        L[#L + 1] = "   send  : " .. (sp.sendGrammar
+                    and ("HIS GRAMMAR — one Asana task per parsed task; "
+                         .. "each tab is then retitled and KEPT")
+                    or ("the DAY task — ONE task, every tab as its "
+                        .. "description (settings = { scratch_pad = "
+                        .. "{ sendGrammar = true } } for the grammar)"))
+        if sp.sendGrammar then
+            L[#L + 1] = "   marks : \"" .. sp.sentMark .. "\" is never sent "
+                        .. "again · \"" .. sp.failMark .. "\" is retried · "
+                        .. "typing in a tab clears its mark"
+            local marked, failed = 0, 0
+            for _, t in ipairs(sp.tabs or {}) do
+                if tostring(t.mark or "") == sp.sentMark then marked = marked + 1
+                elseif tostring(t.mark or "") == sp.failMark then failed = failed + 1 end
+            end
+            L[#L + 1] = "           " .. marked .. " tab(s) sent · " .. failed
+                        .. " tab(s) failed and waiting to retry"
+            local ls = sp.lastTaskSend
+            if ls then
+                L[#L + 1] = "   run   : " .. os.date("%b %d %H:%M", ls.at or 0)
+                            .. " (" .. tostring(ls.reason) .. ") — "
+                            .. tostring(ls.tabs) .. " tab(s) read · "
+                            .. tostring(ls.sent) .. " task(s) sent · "
+                            .. tostring(ls.failed) .. " refused"
+                -- 📏 NAMED, NOT SWEPT (6.201.1): the day task also swept
+                -- rows closed today; this send does not, because a
+                -- closed row has no title to carry an answer back on.
+                if (ls.closedToday or 0) > 0 then
+                    L[#L + 1] = "           ↳ " .. ls.closedToday .. " row(s) "
+                                .. "closed today were NOT read — this send "
+                                .. "reads OPEN tabs only, so each one can "
+                                .. "be told what happened to it"
+                end
+                if (ls.alreadySent or 0) > 0 then
+                    L[#L + 1] = "           ↳ " .. ls.alreadySent
+                                .. " tab(s) skipped, already sent"
+                end
+            else
+                L[#L + 1] = "   run   : nothing sent this session"
+            end
         end
         L[#L + 1] = "   + rows: " .. (sp.showKindRows
                     and "🗒 Capture and ➕ Append are offered in the window"

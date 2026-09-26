@@ -1,4 +1,4 @@
-# TESTING — how to score release 6.299.0
+# TESTING — how to score release 6.300.0
 
 You install ONE archive and it carries several releases. Below are the
 steps for each release this archive is new for, newest first. Run the
@@ -26,6 +26,99 @@ else is a LOSS and I fix it before building further. You are the only
 scorer; I never mark my own.
 
 ---
+
+## 6.300.0
+
+6.300.0 verify with LL — 🗂 THE GRAMMAR SENDS (NEW GROUND — expect a round)
+WHAT CHANGED: Hamsidian sends your grammar now. Every task it reads
+becomes its own Asana task, and the tab is retitled with your labels.
+🏷 YOUR ANSWER WAS BETTER THAN ALL THREE OF MINE. I asked where the
+cleared text should go and you answered by not clearing it. Nothing is
+deleted — the tab keeps every word and wears the outcome.
+
+🚨 DO THE PREVIEW FIRST. This is new ground and it writes to Asana:
+`_G.scratchPadTasks()` still shows exactly what a send would create,
+and it now also shows what it did to each `T:` line. Read it once
+before step A2.
+
+A. THE HEADLINE.
+A1. ⇪N, a new tab, and type your own example:
+      Create the Asana task maker in Hamsidian
+      =
+      P: Generate a new init.lua feature
+      A: me
+      D: We need to structure a new Hammerspoon feature.
+      T: today +1w 7:00 AM 4:00 PM
+A2. Console: `_G.scratchPadTasks()`. EXPECT two tasks, as before.
+A3. Press "→ Asana now" in the window (or `_G.scratchPadSend()`).
+    EXPECT: TWO separate tasks in Asana, in your usual project — not
+    one task with both lines in its description.
+A4. Look at the tab list. EXPECT: that tab is now called
+    **✅ Success: tasks sent**, and its text is untouched inside.
+A5. Press "→ Asana now" again.
+    EXPECT: NOTHING is sent and nothing is announced. A ✅ tab is
+    never sent twice — that is what stops 16:00 posting today's tasks
+    again tomorrow.
+A6. Click into that tab and type a character.
+    EXPECT: the ✅ disappears and the title goes back to your first
+    line. New text is new work. Send again and it goes.
+
+B. THE DATES — the part I had to make a decision about.
+B1. New tab: `Buy milk` then `T: today`.
+B2. `_G.scratchPadTasks()`. EXPECT: `📅 start — · due <today>` and,
+    under it, `↳ one date given — sent as the DUE date`.
+    WHY: Asana refuses a start date with no end date outright, so
+    `T: today` would have failed. A single date means "by then"
+    everywhere else, so that is what I made it mean. Your two-date
+    lines are untouched.
+B3. Send it. EXPECT: a task due today, no start date, no error.
+B4. Tell me if that is wrong. It is a decision, not a rule, and you
+    are the only one who can say whether "T: today" means due today or
+    starts today.
+
+C. WHEN IT FAILS — please do at least C1.
+C1. Put a nonsense assignee in a task: `A: notarealperson`.
+C2. Send. EXPECT: the tab is retitled **❌ Error: tasks not sent**, the
+    text is all still there, and you get an on-screen ⚠️ naming what
+    Asana said.
+C3. Fix the name and send again. EXPECT: the ❌ tab IS retried and
+    turns ✅. That is the only reason to mark a failure.
+C4. A tab with two tasks where only ONE fails is marked ❌, not ✅. If
+    you ever see a ✅ over a task that did not arrive, stop and tell
+    me — that is the worst failure this release can have.
+
+D. MUST STILL WORK.
+D1. ⇪N and ⇪3 open as before; your tabs and notes are untouched.
+D2. ⌘T, ⌘W, ⌘1–9, the history pane, 📌, ⌘⇧S export — unchanged.
+D3. ⇪T still creates a single task from the form.
+D4. `_G.scratchPadReport()` — new `send :`, `marks :` and `run :`
+    lines. PASTE THE WHOLE THING after a day.
+
+E. THE TWO THINGS I CHANGED THAT YOU SHOULD AGREE WITH.
+E1. 🗓 **16:00 IS BACK ON.** You switched it off in 6.254.0 ("I don't
+    need to send these at 4pm") and this message switched it back on
+    ("tasks send at 4pm whether Hamsidian is open or not"). It is your
+    call either way, but I am naming it rather than letting you find
+    out at four o'clock. `settings = { scratch_pad = { sendDaily =
+    false } }` — or just say so and I will change the default.
+E2. 📏 **A TAB YOU CLOSED TODAY IS NO LONGER SENT.** The old day task
+    swept them; a closed tab has no title to put a ✅ or ❌ on, so
+    sending it would be sending into silence. The report counts them
+    and says so. If you want them back in, that is a decision and I
+    will build it — say how you would want to be told what happened
+    to one.
+
+F. A JUDGEMENT ONLY YOU CAN MAKE.
+F1. Every sent tab reads exactly "✅ Success: tasks sent", so five of
+    them look identical in the list. That is literally what you asked
+    for and it is right for a done-pile you are going to delete — but
+    say if you would rather it read "✅ Sent · <your first line>" so
+    you can tell them apart.
+F2. `S:` subtasks are still read and still not sent — Asana needs the
+    parent task's id back first, which is a second call. That is
+    6.301.0, and it is the next thing I build unless you say otherwise.
+
+
 
 ## 6.299.0
 
@@ -247,63 +340,6 @@ E4. **4 PM back on, open or not.** The schedule already runs whether
     window — it is simply switched off. It comes back on with the
     send, not before, because a schedule that fires a grammar I have
     not proven is the wrong order.
-
-
-
-## 6.296.0
-
-6.296.0 verify with LL — 🏷 JUG PLAYER (KNOWN GROUND)
-WHAT CHANGED: the music player is called the Jug Player everywhere you
-can see it, and its name sits to the left of the now-playing line.
-WHY IT MATTERS: your words, and the rename is the easy half. The half
-worth a release is that ONE field carries the name — the card, the
-alert, the error door, both reports and the ⇪/ card all read it — so
-it cannot end up saying one thing in one place and another elsewhere.
-
-A. THE HEADLINE.
-A1. ⇪⇧pad. EXPECT: the card's top line reads
-    `Jug Player   nothing playing`, with the name on the LEFT in
-    blue, on the same line, not above it.
-A2. Drop a track on it. EXPECT: `Jug Player   <track name>` — the
-    name stays put and the track fills the rest of the line.
-A3. Drop a track with a very long name. EXPECT: the track name is cut
-    with an ellipsis; "Jug Player" is never squeezed or wrapped.
-A4. ⇪/ and search `jug`. EXPECT: the 🎵 JUG PLAYER card.
-A5. Console: `_G.musicReport()`. EXPECT the first line reads
-    `🎵 JUG PLAYER — ⇪⇧pad.`
-
-B. THE ONE THING MOST LIKELY TO HAVE BROKEN — please do this.
-B1. Press on the card's TITLE STRIP (where the name is) and drag.
-    EXPECT: the card moves. The name is a new element inside that
-    strip, so this is the thing the rename could have cost.
-B2. ⌘-drag anywhere on the card. EXPECT: it moves.
-B3. Close and reopen. EXPECT: it comes back where you left it.
-B4. A bare click on a TRACK ROW still plays that track — it must not
-    pick the window up.
-
-C. MUST STILL WORK.
-C1. space, ↑↓, ⏎, ⌘1–9, ← →, ⌫, the ✕ on a history row, the repeat
-    button — all unchanged.
-C2. F7/F8/F9 still drive it (6.291.0).
-
-D. AND IT IS QUIET NOW, which is 6.295.0 landing on this tool.
-D1. `_G.degradeReport()` → the quiet list should read **Jug Player**,
-    not "Music player". If it still says the old name, the two
-    releases have drifted and I want to know at once.
-D2. If the player fails at something, you get a Console line and no
-    alert — which is what you asked for. `_G.todayReport()` still has
-    it.
-
-E. A JUDGEMENT ONLY YOU CAN MAKE.
-E1. The name is drawn in blue at the same size as the track. Too
-    loud, too quiet, or right? It is a colour and a number, not a
-    release.
-E2. NAMED, NOT SWEPT, so it is not a surprise: the FILE is still
-    `music_player.lua`, the settings key is still `music_player`, and
-    the store folder is still `music`. Those are ids you never see,
-    and renaming a store folder is how a queue goes missing. If you
-    want them moved anyway, say so and it is a careful release of its
-    own.
 
 
 

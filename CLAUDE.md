@@ -1008,6 +1008,46 @@ work Mac.
   one-hop symlink: a fixture where the right and wrong implementations
   AGREE proves nothing — pick the input where they must differ.
 
+- 🏷 THE RENAME IS THE MEMORY, AND HIS ANSWER BEAT ALL THREE OF MINE
+  (6.300.0, modules/scratch_pad.lua — LL, with a photograph of three
+  tabs he had typed the labels into: "Can we rewrite the task titles to
+  either of the names in the screenshot … So they stay until I delete
+  them?"). 6.297.0's verify block asked where the CLEARED text should
+  go — nowhere · the tab's history · exported as a note — and he
+  answered by not clearing it. The tab keeps every word and wears the
+  outcome as its title: ✅ Success: tasks sent · ❌ Error: tasks not
+  sent. NOTHING IS DESTROYED, so 6.280.0's rule is satisfied by
+  construction rather than by a safety net, and the tab list becomes a
+  ledger of what went — which no report can be, because it is the thing
+  he is already looking at. GENERAL: when a design question has three
+  defensible answers, the person living with the tool may have a fourth
+  that dissolves it.
+  🔑 6.281.0's RULE, SECOND TIME IT HAS DECIDED A RELEASE: a ✅ tab is
+  SKIPPED for ever, so 16:00 cannot post yesterday again — no second
+  store, nothing to go stale. A ❌ tab is RETRIED, which is the only
+  reason to mark a failure. TYPING CLEARS THE MARK: a ✅ describes the
+  text that was sent, and a ✅ tab that could never be sent again would
+  freeze his new writing out of the run.
+  🔢 ONE COUNTER PER TAB, ONE FOR THE RUN — a tab is marked when ITS
+  tasks have all answered, and one refused task marks the WHOLE tab
+  failed (a ✅ over a lost task is the reassuring answer and the wrong
+  one). Only possible because 6.299.0 made the submit answer honestly;
+  on any earlier build every mark would have been a ✅.
+  📅 A LONE DATE IS THE DUE DATE (`sp.whenForAsana`, PURE). Asana
+  refuses a start with no end, so `T: today` — the most natural line in
+  his own grammar — would have marked the tab ❌. A single date means
+  "by then" everywhere else; his two-date spec is untouched, because
+  two dates are unambiguous. Every adjustment is NAMED in the preview.
+  📏 OPEN TABS ONLY: a closed row has no title to answer on, so sending
+  one is sending into silence — counted and said, not dropped
+  (6.201.1). 🔌 The day task is kept whole behind `sendGrammar`, and
+  every caller goes through one `sp.send` so the switch is real from
+  all four doors (6.228.0). 🗓 AND 16:00 IS ON AGAIN, reversing
+  6.254.0 on his own equally explicit word — said out loud in the
+  config, the sheet, the report and the changelog, because a default
+  that flips back without a sentence is how a tool starts doing
+  something nobody remembers asking for.
+
 - 🔔 A RETURN THAT MEANS "ACCEPTED" IS NOT A RETURN THAT MEANS
   "DELIVERED" (6.299.0, modules/task_creator.lua + scratch_pad.lua).
   `_G.asanaSubmitTask` answers `true` the instant `hs.http.asyncPost`
@@ -3589,6 +3629,7 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
+| 6.300.0 | 🗂 Hamsidian sends his grammar — one Asana task per task — and each tab is retitled ✅ Success / ❌ Error and kept until he deletes it | pending |
 | 6.299.0 | 🔔 Asana's own answer reaches the caller — the submit returned true the moment it fired the POST, so a task Asana REFUSED was announced as sent | pending |
 | 6.298.0 | 🔎 typing @ on its own lists all fourteen searches — the tags were only ever named in a section header you had to search your way into | pending |
 | 6.297.0 | 🗂 Hamsidian reads his task grammar — a bare line is a task, `=` divides, P:/A:/D:/S:/T: — and PREVIEWS what it would send without sending anything | pending |
@@ -4487,6 +4528,95 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.300.0 verify with LL — 🗂 THE GRAMMAR SENDS (NEW GROUND — expect a round)
+  WHAT CHANGED: Hamsidian sends your grammar now. Every task it reads
+  becomes its own Asana task, and the tab is retitled with your labels.
+  🏷 YOUR ANSWER WAS BETTER THAN ALL THREE OF MINE. I asked where the
+  cleared text should go and you answered by not clearing it. Nothing is
+  deleted — the tab keeps every word and wears the outcome.
+
+  🚨 DO THE PREVIEW FIRST. This is new ground and it writes to Asana:
+  `_G.scratchPadTasks()` still shows exactly what a send would create,
+  and it now also shows what it did to each `T:` line. Read it once
+  before step A2.
+
+  A. THE HEADLINE.
+  A1. ⇪N, a new tab, and type your own example:
+        Create the Asana task maker in Hamsidian
+        =
+        P: Generate a new init.lua feature
+        A: me
+        D: We need to structure a new Hammerspoon feature.
+        T: today +1w 7:00 AM 4:00 PM
+  A2. Console: `_G.scratchPadTasks()`. EXPECT two tasks, as before.
+  A3. Press "→ Asana now" in the window (or `_G.scratchPadSend()`).
+      EXPECT: TWO separate tasks in Asana, in your usual project — not
+      one task with both lines in its description.
+  A4. Look at the tab list. EXPECT: that tab is now called
+      **✅ Success: tasks sent**, and its text is untouched inside.
+  A5. Press "→ Asana now" again.
+      EXPECT: NOTHING is sent and nothing is announced. A ✅ tab is
+      never sent twice — that is what stops 16:00 posting today's tasks
+      again tomorrow.
+  A6. Click into that tab and type a character.
+      EXPECT: the ✅ disappears and the title goes back to your first
+      line. New text is new work. Send again and it goes.
+
+  B. THE DATES — the part I had to make a decision about.
+  B1. New tab: `Buy milk` then `T: today`.
+  B2. `_G.scratchPadTasks()`. EXPECT: `📅 start — · due <today>` and,
+      under it, `↳ one date given — sent as the DUE date`.
+      WHY: Asana refuses a start date with no end date outright, so
+      `T: today` would have failed. A single date means "by then"
+      everywhere else, so that is what I made it mean. Your two-date
+      lines are untouched.
+  B3. Send it. EXPECT: a task due today, no start date, no error.
+  B4. Tell me if that is wrong. It is a decision, not a rule, and you
+      are the only one who can say whether "T: today" means due today or
+      starts today.
+
+  C. WHEN IT FAILS — please do at least C1.
+  C1. Put a nonsense assignee in a task: `A: notarealperson`.
+  C2. Send. EXPECT: the tab is retitled **❌ Error: tasks not sent**, the
+      text is all still there, and you get an on-screen ⚠️ naming what
+      Asana said.
+  C3. Fix the name and send again. EXPECT: the ❌ tab IS retried and
+      turns ✅. That is the only reason to mark a failure.
+  C4. A tab with two tasks where only ONE fails is marked ❌, not ✅. If
+      you ever see a ✅ over a task that did not arrive, stop and tell
+      me — that is the worst failure this release can have.
+
+  D. MUST STILL WORK.
+  D1. ⇪N and ⇪3 open as before; your tabs and notes are untouched.
+  D2. ⌘T, ⌘W, ⌘1–9, the history pane, 📌, ⌘⇧S export — unchanged.
+  D3. ⇪T still creates a single task from the form.
+  D4. `_G.scratchPadReport()` — new `send :`, `marks :` and `run :`
+      lines. PASTE THE WHOLE THING after a day.
+
+  E. THE TWO THINGS I CHANGED THAT YOU SHOULD AGREE WITH.
+  E1. 🗓 **16:00 IS BACK ON.** You switched it off in 6.254.0 ("I don't
+      need to send these at 4pm") and this message switched it back on
+      ("tasks send at 4pm whether Hamsidian is open or not"). It is your
+      call either way, but I am naming it rather than letting you find
+      out at four o'clock. `settings = { scratch_pad = { sendDaily =
+      false } }` — or just say so and I will change the default.
+  E2. 📏 **A TAB YOU CLOSED TODAY IS NO LONGER SENT.** The old day task
+      swept them; a closed tab has no title to put a ✅ or ❌ on, so
+      sending it would be sending into silence. The report counts them
+      and says so. If you want them back in, that is a decision and I
+      will build it — say how you would want to be told what happened
+      to one.
+
+  F. A JUDGEMENT ONLY YOU CAN MAKE.
+  F1. Every sent tab reads exactly "✅ Success: tasks sent", so five of
+      them look identical in the list. That is literally what you asked
+      for and it is right for a done-pile you are going to delete — but
+      say if you would rather it read "✅ Sent · <your first line>" so
+      you can tell them apart.
+  F2. `S:` subtasks are still read and still not sent — Asana needs the
+      parent task's id back first, which is a second call. That is
+      6.301.0, and it is the next thing I build unless you say otherwise.
+
 - 6.299.0 verify with LL — 🔔 A SEND THAT FAILS IS FINALLY SEEN (KNOWN GROUND)
   WHAT CHANGED: Hamsidian now says "sent" when ASANA says yes, not when
   the request leaves this Mac.

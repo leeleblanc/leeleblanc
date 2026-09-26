@@ -6,6 +6,87 @@ older lives only here.
 
 ```text
 
+NEW IN 6.300.0 — 🗂 THE GRAMMAR SENDS, AND THE TAB WEARS THE ANSWER
+(modules/scratch_pad.lua):
+
+  6.297.0 read his task grammar and deliberately sent nothing, so that
+  the first thing either of us learned about a misreading was a preview
+  rather than a wrong task sitting in Asana (6.237.0). This is the other
+  half: every parsed task becomes its own Asana task in his default
+  project — 745948257030523, the one in the URL he sent, which this
+  config has always posted to.
+
+  🏷 AND HIS ANSWER TO THE QUESTION 6.297.0 ASKED IS BETTER THAN ANY OF
+  THE THREE I OFFERED. I asked where the CLEARED text should go —
+  nowhere, the tab's history, or an exported note. He answered by not
+  clearing it: "Can we rewrite the task titles to either of the names in
+  the screenshot … So they stay until I delete them?" The tab keeps
+  every word and wears the outcome as its title:
+
+        ✅ Success: tasks sent
+        ❌ Error: tasks not sent
+
+  Nothing is destroyed, so 6.280.0's rule — deleting his writing is the
+  one failure with no way back — is satisfied by construction rather
+  than by a safety net. And the tab list becomes a ledger of what went
+  and what did not, which no report can be, because it is the thing he
+  is already looking at.
+
+  🔑 THE RENAME IS THE MEMORY (6.281.0, second time it has decided a
+  release). A tab wearing the success mark is SKIPPED by every later
+  send, so the 16:00 run cannot post yesterday's tasks again — there is
+  no second store to keep, and nothing to go stale. A tab wearing the
+  FAILURE mark is RETRIED, which is the only reason to mark a failure at
+  all. And TYPING CLEARS THE MARK: a ✅ describes the text that was
+  sent, so the moment that text changes the label is a claim about
+  something else — and a ✅ tab that could never be sent again would
+  freeze his new writing out of the 4 PM run.
+
+  🔢 ONE COUNTER PER TAB, ONE FOR THE RUN. A tab is marked when ITS
+  tasks have all answered; the run announces once, when every tab has.
+  Marking on the first answer would put a ✅ on a tab whose second task
+  was still in flight, and one refused task in a tab marks the WHOLE tab
+  failed — a ✅ over a lost task is the reassuring answer and the wrong
+  one. This is only possible because 6.299.0 made the submit answer
+  honestly; on any earlier build every mark would have been a ✅.
+
+  📅 A LONE DATE IS THE DUE DATE (`sp.whenForAsana`, PURE). Asana's own
+  rules, enforced since 6.152.0, are that a time needs its date, a START
+  date needs an END date, and with both dates the times come as a pair
+  or not at all. `T: today` parses to a start with no end, which Asana
+  refuses outright — so the most natural line in his own grammar would
+  have marked the tab ❌. A single date means "by then" everywhere else
+  and Asana's own UI reads it that way, so that is the decision, stated
+  rather than assumed; his two-date spec is untouched, because two dates
+  are unambiguous. Every adjustment is NAMED under the row in the
+  preview, so he sees what his line became before a task exists.
+
+  📏 OPEN TABS ONLY, and that is a real narrowing from the day task,
+  which also swept rows closed today. A closed row has no title to
+  rewrite and no way to show him an answer, so sending one would be
+  sending into silence. It is NAMED rather than dropped quietly
+  (6.201.1): the report counts them and says why.
+
+  🔌 THE DAY TASK IS KEPT WHOLE, not deleted — `sendGrammar = false`
+  brings back one task for the whole day with every tab's text as its
+  description, and its own checks still drive it (6.254.0's shape: a
+  switch, never a deletion). Every caller goes through one `sp.send`, so
+  the switch is real from the button, the timer, the service and the
+  Console alike rather than from one of them (6.228.0).
+
+  🗓 AND 16:00 IS ON AGAIN, reversing 6.254.0. That release switched the
+  daily send off on his explicit word — "I don't need to send these at
+  4pm" — and this message reverses it just as explicitly: "tasks send at
+  4pm whether Hamsidian is open or not." It is his to reverse. It is
+  said out loud in the config, the cheat sheet, the report and here,
+  because a default that flips back without a sentence is how a tool
+  starts doing something nobody remembers asking for.
+
+  📏 NAMED, NOT BUILT: `S:` lines are still read and still not sent. An
+  Asana subtask needs its parent's gid, which does not exist until the
+  create returns — 6.299.0 is what hands that gid back, and 6.301.0 is
+  what uses it. The preview says so beside every row that has one.
+
 NEW IN 6.299.0 — 🔔 ASANA'S OWN ANSWER REACHES THE CALLER
 (modules/task_creator.lua + modules/scratch_pad.lua):
 
