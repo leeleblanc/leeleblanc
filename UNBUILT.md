@@ -1,4 +1,4 @@
-# UNBUILT — what is asked for, known, or owed, as of 6.293.0
+# UNBUILT — what is asked for, known, or owed, as of 6.297.0
 
 Swept from CLAUDE.md and **checked against the code**, not just read off
 the queue — six of the deferred defects below were re-verified in the
@@ -16,7 +16,7 @@ reality have already diverged once.
 
 | # | What | Asked | Size |
 |---|---|---|---|
-| A1 | 🚩 **⇪T is missing from the Asana cheat-sheet card.** Marked ✅ in the queue with **no release number, and I can find no release that did it.** ⇪T *does* have its own card ("✅ TASK FORM (⇪T — labeled Asana task entry)"), so it is on the sheet — but the Asana card lists ⇪A ⇪B ⇪C ⇪L and never points at it, which is why he did not find it. | 2026-09-20 | Small |
+| ~~A1~~ | ✅ **SHIPPED AS 6.294.0** — a pointer row on the Asana card, plus an auditor for a bound key printed on no card at all. The finding worth keeping: ⇪T was removed from that card *on purpose* in 6.114.0, and the new auditor would NOT have caught his complaint. | | done |
 | A2 | **Nothing names the @ searches.** There are fourteen (`clip cmd shots note asana ocr images doc file pad scratch vault web tool`) and they appear only as section headers in results. Fix at the point of use: typing `@` alone in ⇪D lists every source. | 2026-09-20 | Small |
 | A3 | **⇪7's macOS line wants more detail.** Reads `macOS 27.0 (26A5388g)`. Marketing name, "BETA", Darwin version and install date are all readable with no binary. Decide what "more" means first. | 2026-09-20 | Small |
 | A4 | **⌥Tab should list the music card.** Needs his call first: just the music card, or every panel this config draws? The card is the only one that keeps *playing* when it is not in front, which is the argument for doing it alone. | 2026-09-20 | Small, after his answer |
@@ -31,6 +31,10 @@ reality have already diverged once.
 | A13 | **A public, sanitised config** for GitHub. Waiting on his strings list ("I will after you build"). | 2026-09-12 | Medium |
 
 ---
+
+| A14 | 🗂 **THE HAMSIDIAN SEND** — one Asana task per parsed line instead of one a day, the 4 PM schedule back on, the tabs cleared afterwards with "All tasks sent." left behind. 6.297.0 built and proved the PARSER; this is the half that writes to Asana and deletes his text. **Blocked on B7** (where the cleared text goes). | 2026-09-26 | Medium |
+| A15 | 🗂 **SUBTASKS.** `_G.asanaSubmitTask` has no `parent`, so an `S:` row needs the parent task's gid back from Asana and a second call. The preview reads them and says on every row that they are not sent yet. | 2026-09-26 | Medium |
+| A16 | 🔕 **MORE TOOLS ON THE QUIET LIST.** 6.295.0 ships with one name on it (the Jug Player) because that is the only one he named. Candidates he has not ruled on: the QR reader, Bluetooth, the key caster, the mini calendar, the pomodoro tone. | 2026-09-26 | Trivial, after his answer |
 
 ## B. BLOCKED ON AN ANSWER FROM HIM
 
@@ -60,6 +64,16 @@ Building either way risks building the wrong thing.
   only. Needs his word.
 - **B5 — The screenshots folder override.** Waiting on him to name a path;
   then one settings line, zero code.
+- **B7 — WHERE THE CLEARED TEXT GOES.** He wants the pad emptied after
+  the 4 PM send, with "All tasks sent." left behind. Deleting his
+  writing is the one failure with no way back (6.280.0), so it has to
+  land somewhere first. (a) nowhere; (b) the tab's history, recoverable
+  from the report; (c) exported as a note in `<Vault>/Scratch`, so it is
+  a file he can open. *I will build (c) unless he says otherwise.*
+- **B8 — THE `T:` SYNTAX.** He described the intent, not a syntax.
+  6.297.0 guessed one and its preview NAMES every word it cannot read,
+  so the artefact that settles this is him writing a `T:` line his own
+  way and pasting `_G.scratchPadTasks()`.
 - **B6 — Canvas (JSON Canvas / Obsidian).** Architecture settled — write the
   open `.canvas` format so the same file opens in Obsidian. Open question:
   is v1 a read/arrange surface, or also an authoring one (edges, embeds)?
@@ -105,6 +119,16 @@ These need **his report**, not more code. Each has a working instrument now.
   has no row for any of them, which may be a delivery failure rather than a
   bug. `sed -n 7p ~/.hammerspoon/init.lua` **in Terminal** answers it.
 - **D5 — The work Mac's `_G.stormReport()`** — owed since 6.214.2.
+- **D6 — 🚨 HE IS NOT RUNNING 6.289.0 OR LATER, and four reports say so
+  in the same way.** His 2026-09-26 paste: `_G.doubleTapReport()` is
+  nil (6.292.0), `_G.musicReport()` has no `⏯ keys` line (6.289.0) and
+  no `by route` line (6.291.0), `_G.clipboardReport()` has no `⌘⌘` line
+  (6.292.0), `_G.menuSearchReport()` has no `⌥⌥` line (6.293.0). Every
+  one of those is absent from a build older than 6.289.0 and present in
+  the repo, so this is ONE fact, not four bugs. His poll line reads
+  `741 min`, so the session booted ~20:43 the previous evening and has
+  not reloaded since. **`_G.configVersion` in the Console is the one
+  line that settles it** — and it is the same open question as D4.
 
 ---
 
@@ -126,6 +150,17 @@ These need **his report**, not more code. Each has a working instrument now.
   move the focus (6.251.0), a canvas can refuse to show (6.265.0), a tap
   can refuse to start (6.289.0), `setContents` may need `changeCount`
   beside it (6.201.0).
+- **E4 — init.lua is fighting its ceiling every release.** CLAUDE.md
+  says 3,800 leaves "real headroom", and in practice the file sits at
+  3,797–3,800 and each release costs 1–3 net lines that have to be
+  trimmed out of the previous release's NEW IN block before the gate
+  goes green. 6.217.0's answer was to trim twenty pre-6.15x story
+  blocks to their rules; that is due again. It is a release of its own
+  and it changes no behaviour.
+- **E5 — The `=` divider is redundant with `P:`.** In 6.297.0 a new
+  `P:` also ends the previous task, so `=` is only needed to end a
+  block that has no `P:` after it. That is harmless and it is one more
+  thing to remember; worth asking whether he wants it kept.
 - **E3 — A sweep of the config's other sentries** for the shape the audit
   found in itself: a sentry whose needle exists only on the sentry's own
   line, so it matches itself and can never fail. One was found today; I
