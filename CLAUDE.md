@@ -3428,7 +3428,7 @@ THE METHOD, when something breaks after a stacked zip:
    6.216.0 6f06071 · 6.217.0 a475bef · 6.218.0 41b002b · 6.219.0 862c177
    · 6.220.0 ac3975e · 6.221.0 ead07d9 · 6.222.0 1842ca7 · 6.223.0
    86ac82b · 6.224.0 67957ea · 6.225.0 98434fe · 6.226.0 304f1f9 ·
-   6.227.0 14e953a · 6.228.0 2aa3dfe · 6.229.0 a1318e1 · 6.230.0 0740c07 · 6.231.0 c1921af · 6.231.1 5a5c298 · 6.232.0 1ca3f6f · 6.233.0 2328c8c · 6.234.0 57f78d0 · 6.235.0 52e5b21 · 6.236.0 34cff8b · 6.236.1 fdce771 · 6.237.0 adf9256 · 6.238.0 3adad4f · 6.239.0 3adad4f (one commit, two releases) · 6.240.0 8f44bec · 6.241.0 dce517e · 6.242.0 1a1dab0 · 6.243.0 8fba04f · 6.244.0 9320906 · 6.245.0 9c1a8b1 · 6.246.0 1400abd · 6.247.0 3b92e99 · 6.248.0 e4e3a03 · 6.249.0 e4edc3f · 6.250.0 c267c1b · 6.251.0 f7b0d57 · 6.252.0 6307253 · 6.253.0 ef20313 · 6.254.0 14493e5 · 6.255.0 d371b34 · 6.256.0 3c29888 · 6.257.0 7f55d2b · 6.258.0 10d2250 · 6.259.0 2bcda06 · 6.260.0 f16e286 · 6.261.0 8680504 · 6.262.0 595dc2e · 6.263.0 014ddf6 · 6.264.0 5e41879 · 6.265.0 f0c487c · 6.266.0 9135f7b · 6.267.0 a621a60 · 6.268.0 c2e513f · 6.269.0 f6552ea (078cece is the same release before the report was corrected) · 6.270.0 b8eda88 · 6.271.0 b8edbe1 · 6.272.0 881a91b · 6.273.0 56b0d2b · 6.274.0 c6e9b6b · 6.275.0 9cebe19 · 6.276.0 3db904e · 6.277.0 c6632a1 · 6.278.0 6c1fe75 · 6.279.0 a6241f5 · 6.280.0 893b40b · 6.281.0 5611a4a · 6.282.0 11dc992 · 6.283.0 3fa417f · 6.284.0 a8f3df4 · 6.285.0 70d118b · 6.286.0 fa93f1b · 6.287.0 39b9dba · 6.288.0 8508186 · 6.289.0 83f5296 · 6.290.0 6daee50 · 6.291.0 aec4561.
+   6.227.0 14e953a · 6.228.0 2aa3dfe · 6.229.0 a1318e1 · 6.230.0 0740c07 · 6.231.0 c1921af · 6.231.1 5a5c298 · 6.232.0 1ca3f6f · 6.233.0 2328c8c · 6.234.0 57f78d0 · 6.235.0 52e5b21 · 6.236.0 34cff8b · 6.236.1 fdce771 · 6.237.0 adf9256 · 6.238.0 3adad4f · 6.239.0 3adad4f (one commit, two releases) · 6.240.0 8f44bec · 6.241.0 dce517e · 6.242.0 1a1dab0 · 6.243.0 8fba04f · 6.244.0 9320906 · 6.245.0 9c1a8b1 · 6.246.0 1400abd · 6.247.0 3b92e99 · 6.248.0 e4e3a03 · 6.249.0 e4edc3f · 6.250.0 c267c1b · 6.251.0 f7b0d57 · 6.252.0 6307253 · 6.253.0 ef20313 · 6.254.0 14493e5 · 6.255.0 d371b34 · 6.256.0 3c29888 · 6.257.0 7f55d2b · 6.258.0 10d2250 · 6.259.0 2bcda06 · 6.260.0 f16e286 · 6.261.0 8680504 · 6.262.0 595dc2e · 6.263.0 014ddf6 · 6.264.0 5e41879 · 6.265.0 f0c487c · 6.266.0 9135f7b · 6.267.0 a621a60 · 6.268.0 c2e513f · 6.269.0 f6552ea (078cece is the same release before the report was corrected) · 6.270.0 b8eda88 · 6.271.0 b8edbe1 · 6.272.0 881a91b · 6.273.0 56b0d2b · 6.274.0 c6e9b6b · 6.275.0 9cebe19 · 6.276.0 3db904e · 6.277.0 c6632a1 · 6.278.0 6c1fe75 · 6.279.0 a6241f5 · 6.280.0 893b40b · 6.281.0 5611a4a · 6.282.0 11dc992 · 6.283.0 3fa417f · 6.284.0 a8f3df4 · 6.285.0 70d118b · 6.286.0 fa93f1b · 6.287.0 39b9dba · 6.288.0 8508186 · 6.289.0 83f5296 · 6.290.0 6daee50 · 6.291.0 aec4561 · 6.292.0 c89c65f.
    Keep this list current: one line per release, appended at ceremony
    time.
 4. A BISECT IS AN OPTION, NOT THE FIRST MOVE — it costs him an install
@@ -3524,6 +3524,7 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
+| 6.293.0 | ⌨️ ⌥⌥ opens the front app's menus — his 6.198.0 ask, never built, and nine lines now that 6.292.0 made a gesture a registration rather than an engine | pending |
 | 6.292.0 | ⌨️ ⌘⌘ opens the clipboard history — asked for three times since 6.198.0 and never built, while the engine for it had been driving ⌃⌃ on his Mac since 6.116.0; it is lifted into core/ so a gesture is a registration | pending |
 | 6.291.0 | ⌨️ F8 drives the music card whichever of the two events macOS sends for it — an NSSystemDefined media key with "standard function keys" OFF, a plain keyDown with it ON, and 6.289.0 watched only the first | pending |
 | 6.290.0 | 🔬 the gate now fails a stub that is gentler than macOS — eight of ten scored losses sit at the macOS boundary and zero are pure-Lua logic, because the code, the test and the stub come from one model of macOS and agree with each other when it is wrong | pending |
@@ -4415,6 +4416,52 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.293.0 verify with LL — ⌨️ ⌥⌥ OPENS THE MENUS (KNOWN GROUND)
+  WHAT CHANGED: tap ⌥ twice, quickly, and the front app's own menus
+  open — the same picker ⇪. gives you.
+  WHY IT MATTERS: the second half of what you asked for, and the proof
+  that 6.292.0 was worth a release of its own. Adding ⌥⌥ was nine
+  lines, because the engine already existed and a gesture is now a
+  registration rather than a second copy of a state machine.
+
+  A. THE HEADLINE.
+  A1. Click into an app with real menus — Word, Chrome, Finder.
+  A2. Tap the ⌥ key twice, quickly, with nothing else held.
+      EXPECT: a picker listing that app's menu items, searchable.
+  A3. Type a few letters, press ⏎. EXPECT: that menu item runs.
+  A4. Press ⇪. EXPECT: the identical picker — one function, two doors.
+  A5. Full screen an app (⌃⌘F) and tap ⌥⌥ there. EXPECT: it opens.
+
+  B. THE ONES THAT PROTECT YOUR TYPING.
+  B1. Use ⌥ normally — ⌥click, ⌥drag, ⌥⌫, and typing accented
+      characters if you use them. EXPECT: nothing opens.
+  B2. Hold ⌥ for a second and release, twice. EXPECT: nothing.
+  B3. Tap ⌥, type a letter, tap ⌥. EXPECT: nothing.
+  B4. 🚨 THE ONE I MOST WANT: hold ⌘ AND ⌥ together and tap twice.
+      EXPECT: NEITHER the clipboard nor the menus open. A real chord
+      must satisfy no gesture, and with two gestures live that is the
+      property that makes them safe together.
+  B5. ⌘⌘ still opens the clipboard history (6.292.0), and ⌃⌃ still
+      opens the editor picker.
+
+  C. PASTE BACK, PASS OR FAIL.
+  C1. `_G.doubleTapReport()` — it should now list BOTH gestures under
+      one watcher: `⌘⌘ : clipboard history` and `⌥⌥ : the front app's
+      menus`, with `watcher : running` once, not twice.
+  C2. `_G.menuSearchReport()` — its new `⌥⌥` line, whichever of the
+      three states you get.
+
+  D. IF IT GETS IN THE WAY.
+  D1. `settings = { menu_search = { optOpt = false } }` switches just
+      this one off; ⌘⌘ and ⇪. are unaffected.
+
+  E. A JUDGEMENT ONLY YOU CAN MAKE.
+  E1. ⌥ is a modifier you probably use more than ⌘⌘'s ⌘ for one-handed
+      things — ⌥click, ⌥drag. If ⌥⌥ fires when you did not mean it,
+      tell me how it felt rather than a number and I will move the
+      timing; if it is simply the wrong key for this, say so and it
+      moves to another modifier in one line.
+
 - 6.292.0 verify with LL — ⌨️ ⌘⌘ OPENS THE CLIPBOARD (KNOWN GROUND)
   WHAT CHANGED: tap ⌘ twice, quickly, and the clipboard history opens —
   the same window ⇪V gives you.

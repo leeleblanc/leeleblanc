@@ -1,4 +1,4 @@
-# TESTING — how to score release 6.292.0
+# TESTING — how to score release 6.293.0
 
 You install ONE archive and it carries several releases. Below are the
 steps for each release this archive is new for, newest first. Run the
@@ -26,6 +26,56 @@ else is a LOSS and I fix it before building further. You are the only
 scorer; I never mark my own.
 
 ---
+
+## 6.293.0
+
+6.293.0 verify with LL — ⌨️ ⌥⌥ OPENS THE MENUS (KNOWN GROUND)
+WHAT CHANGED: tap ⌥ twice, quickly, and the front app's own menus
+open — the same picker ⇪. gives you.
+WHY IT MATTERS: the second half of what you asked for, and the proof
+that 6.292.0 was worth a release of its own. Adding ⌥⌥ was nine
+lines, because the engine already existed and a gesture is now a
+registration rather than a second copy of a state machine.
+
+A. THE HEADLINE.
+A1. Click into an app with real menus — Word, Chrome, Finder.
+A2. Tap the ⌥ key twice, quickly, with nothing else held.
+    EXPECT: a picker listing that app's menu items, searchable.
+A3. Type a few letters, press ⏎. EXPECT: that menu item runs.
+A4. Press ⇪. EXPECT: the identical picker — one function, two doors.
+A5. Full screen an app (⌃⌘F) and tap ⌥⌥ there. EXPECT: it opens.
+
+B. THE ONES THAT PROTECT YOUR TYPING.
+B1. Use ⌥ normally — ⌥click, ⌥drag, ⌥⌫, and typing accented
+    characters if you use them. EXPECT: nothing opens.
+B2. Hold ⌥ for a second and release, twice. EXPECT: nothing.
+B3. Tap ⌥, type a letter, tap ⌥. EXPECT: nothing.
+B4. 🚨 THE ONE I MOST WANT: hold ⌘ AND ⌥ together and tap twice.
+    EXPECT: NEITHER the clipboard nor the menus open. A real chord
+    must satisfy no gesture, and with two gestures live that is the
+    property that makes them safe together.
+B5. ⌘⌘ still opens the clipboard history (6.292.0), and ⌃⌃ still
+    opens the editor picker.
+
+C. PASTE BACK, PASS OR FAIL.
+C1. `_G.doubleTapReport()` — it should now list BOTH gestures under
+    one watcher: `⌘⌘ : clipboard history` and `⌥⌥ : the front app's
+    menus`, with `watcher : running` once, not twice.
+C2. `_G.menuSearchReport()` — its new `⌥⌥` line, whichever of the
+    three states you get.
+
+D. IF IT GETS IN THE WAY.
+D1. `settings = { menu_search = { optOpt = false } }` switches just
+    this one off; ⌘⌘ and ⇪. are unaffected.
+
+E. A JUDGEMENT ONLY YOU CAN MAKE.
+E1. ⌥ is a modifier you probably use more than ⌘⌘'s ⌘ for one-handed
+    things — ⌥click, ⌥drag. If ⌥⌥ fires when you did not mean it,
+    tell me how it felt rather than a number and I will move the
+    timing; if it is simply the wrong key for this, say so and it
+    moves to another modifier in one line.
+
+
 
 ## 6.292.0
 
@@ -220,57 +270,6 @@ C2. The three self-inflicted bugs this audit found IN ITSELF are in
     sat there for a year. If you want, the next audit release is the
     one that sweeps the OTHER sentries in this config for the same
     shape. Say the word.
-
-
-
-## 6.289.0
-
-6.289.0 verify with LL — ⏯ THE PLAY/PAUSE KEY (KNOWN GROUND)
-WHAT CHANGED: the keyboard's own ⏯, ⏮ and ⏭ keys now drive the music
-card — but only while it has a queue.
-WHY IT MATTERS: you said "pressing play/pause doesn't work, but volume
-keys do", and those two sentences are about the same row of keys. The
-volume keys are macOS's own, which is why they work everywhere. ⏯ was
-going wherever macOS thinks your music is, and that was never this
-card. Nothing was broken — the key had simply never been claimed.
-🚨 AND I DELIBERATELY DID NOT TAKE IT ALWAYS. If this config ate ⏯
-whenever it was loaded, Music.app and every browser tab playing audio
-would lose the key the moment Hammerspoon booted, silently. So it is
-taken only when the card has a queue.
-
-A. THE HEADLINE.
-A1. ⇪⇧pad., drop two or three tracks on the card. Something plays.
-A2. Press the keyboard's ⏯ key (F8).
-    EXPECT: the card pauses. Press it again: it resumes.
-A3. Press ⏭ and ⏮. EXPECT: the card steps forward and back.
-A4. Volume keys: unchanged, still macOS's. That was your own call in
-    6.231.0 and I have not touched it.
-
-B. THE ONE THAT PROTECTS EVERY OTHER APP — please do this one.
-B1. Empty the card's queue (or just do not queue anything), then play
-    something in Music.app, Spotify or a YouTube tab.
-B2. Press ⏯.
-    EXPECT: THAT app pauses, exactly as it does today. Hammerspoon must
-    not swallow the key.
-    A FAIL here is the serious one: tell me at once and
-    `settings = { music_player = { mediaKeys = false } }` turns it off.
-B3. Now queue something on the card and press ⏯ again: the card wins.
-    That is the trade, and it is the narrowest one I could draw.
-
-C. PASTE BACK, PASS OR FAIL.
-C1. `_G.musicReport()` — a new "⏯ keys" line reads
-    `watching ⏯ ⏮ ⏭ · N taken · N passed through to macOS`.
-    If it reads `⚠️ WANTED but not running`, this Mac would not give
-    Hammerspoon an event tap and the keys are doing nothing new —
-    paste it, that is the evidence.
-
-D. A SENTENCE I NEED FROM YOU.
-D1. When you wrote "pressing play/pause doesn't work", did you mean
-    the KEYBOARD's ⏯ key — which is what I have built — or the ▶︎
-    BUTTON on the card / the space bar? If it was the button or the
-    space bar, that is a different fault and the report's "keyboard :"
-    line names it: paste `_G.musicReport()` right after pressing space
-    on the card and I will fix that instead. One sentence is enough.
 
 
 

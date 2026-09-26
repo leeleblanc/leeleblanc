@@ -6,6 +6,47 @@ older lives only here.
 
 ```text
 
+NEW IN 6.293.0 — ⌨️ ⌥⌥ OPENS THE FRONT APP'S MENUS
+(modules/menu_search.lua):
+
+  LL: "doesn't option+option move me to the application bar? I made
+  this request several releases back." He did — 6.198.0, and again on
+  2026-09-13 — and it had never been built.
+
+  🔑 THIS IS THE RELEASE 6.292.0 EXISTED TO MAKE CHEAP, and that is the
+  whole argument for having lifted the engine rather than copying it.
+  The second gesture is a REGISTRATION: nine lines in warm(), naming a
+  modifier, a side and an action. No tap. No state machine. No keycode
+  table. A check asserts menu_search grows none of those, because a
+  second engine here is precisely how ⌘⌘ and ⌥⌥ would come to behave
+  differently — one fixed, one not (6.231.0).
+
+  🚨 A REAL ⌘⌥ CHORD TAPPED TWICE FIRES NEITHER, and it has its own
+  check driven through the one watcher: ⌘ is an "other" modifier to the
+  ⌥ gesture and ⌥ is one to the ⌘ gesture, so both dirty. That is the
+  property that makes two gestures on one engine safe, and asserting it
+  functionally is the only way to know the per-gesture state really is
+  per gesture — the mutation that makes them share a field bites here
+  and nowhere else.
+
+  🔎 THREE STATES ON THE REPORT LINE (6.196.1): OFF by settings ·
+  wanted but the watcher is not running · watching, with a count. "⌥⌥
+  does nothing" reads the same in all three.
+  Registered in warm(), never setup (6.228.0). ⇪. is unchanged, and
+  with no engine loaded it is untouched and the reason is kept.
+
+  🧪 7 mutations, 7 bites — after three survived and named two loose
+  checks of mine and one mutation that did not mutate anything:
+    · "a reason is kept" matched `optOptWhy` ANYWHERE in warm(), and it
+      appears on three paths, so deleting the no-engine one left the
+      check green. It names that branch now.
+    · NOTHING AT ALL covered the report's three states until a mutation
+      deleted the ⌥⌥ line and everything stayed green — a report line
+      written and never asserted, which is the shape 6.276.0 is about.
+    · And my own P6 added a field that nothing read, so "it survived"
+      said nothing. Rewritten to make the gestures genuinely share
+      their state, where it bites on the ⌘⌥ check above.
+
 NEW IN 6.292.0 — ⌨️ ⌘⌘ OPENS THE CLIPBOARD HISTORY, ON A SHARED ENGINE
 (core/double_tap.lua — new — + modules/clipboard_history.lua):
 

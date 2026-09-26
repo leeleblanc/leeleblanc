@@ -4,8 +4,23 @@
 -- =====================================================================
 -- 09-26-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.292.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.293.0
 -- =====================================================================
+
+-- NEW IN 6.293.0 — ⌨️ ⌥⌥ OPENS THE FRONT APP'S MENUS
+--   (modules/menu_search.lua):
+--   LL: "doesn't option+option move me to the application bar? I made
+--   this request several releases back." He did — 6.198.0, and again
+--   on 2026-09-13 — and it had never been built.
+--   🔑 THIS IS THE RELEASE 6.292.0 EXISTED TO MAKE CHEAP: the second
+--   gesture is a REGISTRATION against core/double_tap.lua, nine lines,
+--   with no tap, no state machine and no keycode table of its own — a
+--   check asserts menu_search grows none of those, because a second
+--   engine here is how ⌘⌘ and ⌥⌥ come to behave differently.
+--   🚨 A REAL ⌘⌥ CHORD TAPPED TWICE FIRES NEITHER: ⌘ is an "other"
+--   modifier to the ⌥ gesture and ⌥ is one to the ⌘ gesture, so both
+--   dirty. Its own check, driven through the one watcher.
+--   Registered in warm(), never setup (6.228.0). ⇪. is unchanged.
 
 -- NEW IN 6.292.0 — ⌨️ ⌘⌘ OPENS THE CLIPBOARD HISTORY
 --   (core/double_tap.lua + modules/clipboard_history.lua):
@@ -23,28 +38,11 @@
 --   🖥 "even if the app is full-screen" needed no work: these panels
 --   are drawn by an accessory app. Registered in warm() (6.228.0).
 
--- NEW IN 6.291.0 — ⌨️ F8 ARRIVES BY TWO ROUTES, ONE UNWATCHED
---   (modules/music_player.lua):
---   LL, asked which key he meant: "It's the F8 Key." F7 · F8 · F9 ARE
---   ⏮ · ⏯ · ⏭ on an Apple keyboard, and WHICH event macOS sends for
---   that one physical key depends on a System Setting: an
---   NSSystemDefined media key with "Use F1, F2… as standard function
---   keys" OFF, a plain keyDown carrying keycode 100 with it ON. So
---   6.289.0 watched only the first — and the report could not tell
---   that from "he never pressed it" (6.196.1), because on the second
---   setting NEITHER count moves. Both routes are watched and COUNTED
---   APART now rather than asking him to read a System Setting
---   (6.267.0), and the count IS the diagnosis. `mp.fnKeyVerdict` is
---   PURE: a BARE press only, so ⌘F8 stays the app's; `fn` is not
---   asked, because macOS sets that mask under BOTH settings.
---   🚨 hs-lint caught two rules this project already owned, both about
---   a tap that sees keyDown: a throw in the callback is a silence ONCE
---   PER KEYSTROKE (6.235.0); a synthetic key is not a press (6.218.0).
--- (6.290.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.291.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 cut the inline count to
 --  TWO; a gate check proves every entry here is also in CHANGELOG.md.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.292.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.293.0
 -- =====================================================================
 -- The catalogue that used to sit here moved to GUIDE.md ("What each
 -- tool does") in 6.180.0 — 259 lines of prose inside the orchestrator.
@@ -137,7 +135,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.292.0"
+_G.configVersion = "6.293.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the

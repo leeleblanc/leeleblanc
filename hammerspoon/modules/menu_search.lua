@@ -443,6 +443,21 @@ function M.setup(core)
         if ms.lastNote then
             L[#L + 1] = "   last problem  : " .. ms.lastNote
         end
+        -- ⌨️ 6.293.0 — THREE STATES (6.196.1): "⌥⌥ does nothing" reads
+        -- the same whether it is switched off, wanted but unable to
+        -- start, or running and simply not pressed yet.
+        if not ms.optOpt then
+            L[#L + 1] = "   ⌥⌥            : OFF — settings = { menu_search "
+                        .. "= { optOpt = true } }"
+        elseif ms.optOptWhy then
+            L[#L + 1] = "   ⌥⌥            : ⚠️ WANTED but not running — "
+                        .. tostring(ms.optOptWhy) .. " · ⇪. still works"
+        else
+            local g = _G.doubleTap and _G.doubleTap.byName
+                      and _G.doubleTap.byName.menuSearch
+            L[#L + 1] = "   ⌥⌥            : watching · " .. ((g and g.fires) or 0)
+                        .. " open(s) this session  ·  _G.doubleTapReport()"
+        end
         local s = table.concat(L, "\n")
         print(s)
         return s
@@ -455,9 +470,54 @@ function M.setup(core)
     core.provide("menuSearch.show",   function() return ms.show() end)
     core.provide("menuSearch.report", function() return _G.menuSearchReport() end)
 
+    -- ⌨️ 6.293.0 — the ⌥⌥ gesture. LL: "doesn't option+option move me to
+    -- the application bar? I made this request several releases back."
+    -- He did — 6.198.0, and again on 2026-09-13 — and it was never
+    -- built. `side` is "either" because no Apple keyboard has only one
+    -- ⌥ and a side setting that cannot be honoured is a gesture that
+    -- quietly stops working (6.124.0).
+    ms.optOpt     = true      -- settings = { menu_search = { optOpt = false } }
+    ms.optOptSide = "either"  -- or "left" / "right"
+
     _G.menuSearch = ms
     M.ms     = ms
     M.config = ms
+end
+
+-- ⌨️ 6.293.0 — REGISTERED IN warm(), NEVER IN setup(): a profile's
+-- `settings` land AFTER setup returns, so a gesture registered in setup
+-- could be switched off and never unregistered (6.228.0).
+-- 🔑 AND IT IS A REGISTRATION, NOT AN ENGINE. 6.292.0 lifted the
+-- double-tap machinery into core/double_tap.lua for exactly this: the
+-- second gesture is nine lines, and ⌘⌘ and ⌥⌥ cannot drift apart
+-- because there is only one state machine to drift.
+function M.warm(core)
+    local ms = M.ms
+    if not ms or not ms.optOpt then return end
+    local dt = _G.doubleTap
+    if not dt then
+        -- IT DEGRADES, IT NEVER BREAKS: ⇪. is untouched and still opens
+        -- the menu search. Kept as a reason, not shouted as an alert on
+        -- a Mac where nothing he asked for has failed.
+        ms.optOptWhy = "core/double_tap.lua did not load"
+        return
+    end
+    local g, why = dt.register("menuSearch", {
+        mod = "alt", side = ms.optOptSide, action = function() ms.show() end,
+        label = "the front app's menus (⇪.)",
+    })
+    if not g then
+        ms.optOptWhy = tostring(why)
+        if core and core.degrade then
+            pcall(core.degrade, "Menu search ⌥⌥", tostring(why))
+        end
+        return
+    end
+    local ok, startWhy = dt.start()
+    ms.optOptWhy = ok and nil or tostring(startWhy)
+    if not ok and core and core.degrade then
+        pcall(core.degrade, "Menu search ⌥⌥", tostring(startWhy))
+    end
 end
 
 return M

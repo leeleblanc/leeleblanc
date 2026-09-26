@@ -478,6 +478,91 @@ do
           warmBody:find("cmdCmdWhy") ~= nil)
 end
 
+-- =====================================================================
+out("\n=== 10. 🔎 THE MENU-SEARCH SIDE — ⌥⌥, the second gesture ===\n")
+-- =====================================================================
+-- 6.293.0. LL: "doesn't option+option move me to the application bar?
+-- I made this request several releases back." He did — 6.198.0, and
+-- again on 2026-09-13 — and it was never built. This is the release
+-- 6.292.0 existed to make cheap: a REGISTRATION, not an engine.
+do
+    local fh = io.open(HS .. "/modules/menu_search.lua", "r")
+    local raw = fh and fh:read("a") or ""
+    if fh then fh:close() end
+    local code = raw:gsub("%-%-%[%[.-%]%]", " "):gsub("%-%-[^\n]*", "")
+    check("menu_search has a warm()", code:find("function M%.warm") ~= nil)
+    local warmBody = code:match("function M%.warm.*$") or ""
+    check("🔌 …and the ⌥⌥ registration is INSIDE it, never in setup (6.228.0)",
+          warmBody:find('dt%.register%("menuSearch"') ~= nil
+          and (code:sub(1, code:find("function M%.warm"))
+               :find('register%("menuSearch"')) == nil)
+    check("⌥⌥ is on ALT, which is what he asked for",
+          warmBody:find('mod = "alt"') ~= nil)
+    check("the switch exists and ships ON", code:find("ms%.optOpt%s*=%s*true") ~= nil)
+    -- 🚨 AND THIS ASSERTED TOO LOOSELY AT FIRST: `optOptWhy` appears on
+    -- three paths in warm(), so deleting the no-engine one left the
+    -- check green. It names that branch now.
+    check("IT DEGRADES: no engine means ⇪. is untouched and a reason is kept",
+          warmBody:find('optOptWhy = "core/double_tap%.lua did not load"') ~= nil)
+    check("…and the other two failure paths keep a reason too",
+          select(2, warmBody:gsub("optOptWhy", "")) >= 3)
+    -- 🔎 THREE STATES IN THE REPORT (6.196.1) — off · wanted but not
+    -- running · watching. No check covered this line at all until a
+    -- mutation deleted it and nothing went red.
+    check("🔎 the report tells the three ⌥⌥ states apart",
+          code:find("OFF — settings", 1, true) ~= nil
+          and code:find("WANTED but not running", 1, true) ~= nil
+          and code:find("⌥⌥            : watching", 1, true) ~= nil)
+    -- 🔑 IT IS A REGISTRATION, NOT A SECOND ENGINE. That is the whole
+    -- point of 6.292.0, and a check earns its place by making it
+    -- impossible to quietly grow one here later.
+    check("🔑 menu_search grows NO engine of its own — no tap, no state"
+          .. " machine, no keycode table",
+          code:find("hs%.eventtap%.new") == nil
+          and code:find("flagsChanged") == nil
+          and code:find("rightalt") == nil)
+end
+
+-- 🚨 AND THE TWO GESTURES MUST COEXIST, which is the claim 6.292.0's
+-- register makes and the reason it refuses a duplicate modifier.
+do
+    for i = #dt.gestures, 1, -1 do dt.unregister(dt.gestures[i].name) end
+    local c, a = 0, 0
+    local gc = dt.register("clipboardHistory",
+                           { mod = "cmd", action = function() c = c + 1 end })
+    local ga = dt.register("menuSearch",
+                           { mod = "alt", action = function() a = a + 1 end })
+    check("⌘⌘ and ⌥⌥ register side by side", gc ~= nil and ga ~= nil)
+    dt.stop() ; TAPS = {} ; dt.start()
+    local fire = TAPS[1] and TAPS[1].fn
+    local function ev(t, flags, code)
+        return { getType = function() return t end,
+                 getFlags = function() return flags or {} end,
+                 getKeyCode = function() return code end }
+    end
+    NOW = 9000.5  ; fire(ev(12, { alt = true }, 58))
+    NOW = 9000.55 ; fire(ev(12, {}, 58))
+    NOW = 9000.7  ; fire(ev(12, { alt = true }, 58))
+    NOW = 9000.75 ; fire(ev(12, {}, 58))
+    check("🔑 ⌥⌥ through the one watcher runs the MENU action and only it",
+          a == 1 and c == 0, a .. "/" .. c)
+    NOW = 9100.5  ; fire(ev(12, { cmd = true }, CMD))
+    NOW = 9100.55 ; fire(ev(12, {}, CMD))
+    NOW = 9100.7  ; fire(ev(12, { cmd = true }, CMD))
+    NOW = 9100.75 ; fire(ev(12, {}, CMD))
+    check("…and ⌘⌘ runs the CLIPBOARD action and only it",
+          a == 1 and c == 1, a .. "/" .. c)
+    -- 🚨 ⌘ IS AN "OTHER" MODIFIER TO ⌥ AND VICE VERSA, so a real ⌘⌥
+    -- chord must satisfy neither.
+    a, c = 0, 0
+    for _, g in ipairs(dt.gestures) do dt.resetState(g) end
+    NOW = 9200.5  ; fire(ev(12, { cmd = true, alt = true }, CMD))
+    NOW = 9200.55 ; fire(ev(12, {}, CMD))
+    NOW = 9200.7  ; fire(ev(12, { cmd = true, alt = true }, CMD))
+    NOW = 9200.75 ; fire(ev(12, {}, CMD))
+    check("🚨 a real ⌘⌥ chord tapped twice fires NEITHER", a == 0 and c == 0)
+end
+
 print = realPrint
 out(string.format("\n%d passed, %d failed\n", pass, fail))
 if fail > 0 then os.exit(1) end
