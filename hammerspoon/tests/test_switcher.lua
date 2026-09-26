@@ -1115,15 +1115,100 @@ end)())
 check("altTab.consoleWindow() is the one way in, and it names the title it matches",
       type(AT.consoleWindow) == "function" and AT.consoleWindow() == CONSOLE
       and AT.consoleTitle == "Hammerspoon Console")
-OWN_WINS = {}
+
+out("\n  14a. 🧠 6.283.0 — and it is REMEMBERED, so another desktop keeps it\n")
+-- LL, twice: "Still can't see Hammerspoon window using Alt+tab … unless I
+-- switch to that desktop I can't see it." The memory (6.152.0) is the ONLY
+-- way any window on another Space is ever listed, and §1b built its tile
+-- and recorded NOTHING — so the console was listable only from the Space it
+-- was on, which is his sentence exactly.
+check("the listing that SEES the console writes it into the memory",
+      AT.known[999] ~= nil and AT.known[999].console == true)
+check("…with its application, so the memory can prune it when Hammerspoon dies",
+      AT.known[999] and AT.known[999].app ~= nil
+      and AT.known[999].app:name() == "Hammerspoon")
+-- Another desktop, modelled the way the harness has modelled it since
+-- 6.152.0: allWindows() stops answering about it.
+CONSOLE.space = "other"
 AT.cache = nil
-check("a CLOSED console is not a tile — it is a tool you have not opened",
-      (function()
+local otherDesk = (function()
+    for _, e in ipairs(AT.listWindows()) do
+        if e.win and e.win:id() == 999 then return e end
+    end
+    return nil
+end)()
+check("🚨 ON ANOTHER DESKTOP THE CONSOLE IS STILL A CARD — served from the "
+      .. "memory, which is what it was never in", otherDesk ~= nil)
+check("…and the card SAYS it is remembered, so it is not passed off as seen",
+      otherDesk and otherDesk.remembered == true)
+check("…and it still carries the console flag through the memory",
+      otherDesk and otherDesk.console == true)
+-- 🚨 6.248.0 — THE OLD CHECK HERE ASSERTED "a CLOSED console is not a tile",
+-- which was 6.147.0's decision and is RE-ASKED in this release (6.280.0's
+-- rule). Nothing cheap tells "closed" from "on another desktop" — the AX
+-- handle of an ordered-out window can go on answering role() — so the
+-- answer is not a better guess, it is that CHOOSING a console card opens
+-- it. A dead card is what the old rule existed to prevent, and there is
+-- no dead card to prevent any more.
+local DESTROYED = false
+CONSOLE.dead = true
+AT.cache = nil
+check("a console whose window is really GONE is culled by the memory probe, "
+      .. "exactly like any other remembered window", (function()
     for _, e in ipairs(AT.listWindows()) do
         if e.win and e.win:id() == 999 then return false end
     end
-    return true
+    return AT.known[999] == nil
 end)())
+CONSOLE.dead = false; CONSOLE.space = nil
+AT.cache = nil
+AT.listWindows()
+
+out("\n  14b. 🖥 choosing a console card OPENS the console\n")
+local OPENED = 0
+hs.openConsole = function(front) OPENED = OPENED + 1; DESTROYED = front end
+ACTIVATED = nil
+AT.switchTo({ win = CONSOLE, app = mkapp("Hammerspoon", { CONSOLE }, 0),
+              console = true })
+check("🖥 hs.openConsole is called, and with bringToFront", OPENED == 1 and DESTROYED == true,
+      tostring(OPENED) .. "/" .. tostring(DESTROYED))
+check("…and the ordinary activate+focus still happen underneath",
+      ACTIVATED == "Hammerspoon" and focused == 999,
+      tostring(ACTIVATED) .. "/" .. tostring(focused))
+OPENED = 0
+ACTIVATED = nil
+AT.switchTo({ win = WINS[1], app = mkapp("App1", { WINS[1] }, 1) })
+check("an ordinary window does NOT open the console", OPENED == 0)
+hs.openConsole = nil
+ACTIVATED = nil
+AT.switchTo({ win = CONSOLE, app = mkapp("Hammerspoon", { CONSOLE }, 0),
+              console = true })
+check("a Hammerspoon with no hs.openConsole still switches, never throws",
+      ACTIVATED == "Hammerspoon")
+
+out("\n  14c. the report — three states, because two of them look alike\n")
+local printed = {}
+local realPrint = print
+print = function(...) local t = {} for _, v in ipairs({...}) do t[#t+1] = tostring(v) end
+                      printed[#printed+1] = table.concat(t, " ") end
+_G.switcherReport()
+print = realPrint
+local rep = table.concat(printed, "\n")
+check("the module HAS a report at all (it had none — 6.196.1)",
+      type(_G.switcherReport) == "function" and rep:find("WINDOW SWITCHER"))
+check("…and it names the console state", rep:find("console:") ~= nil, rep)
+AT.known = {}
+AT.consoleSeen = false
+printed = {}
+print = function(...) local t = {} for _, v in ipairs({...}) do t[#t+1] = tostring(v) end
+                      printed[#printed+1] = table.concat(t, " ") end
+_G.switcherReport()
+print = realPrint
+check("🔎 NEVER SEEN reads differently from remembered — the third state",
+      table.concat(printed, "\n"):find("not seen yet this session") ~= nil)
+AT.cache = nil
+AT.listWindows()
+
 local MINI_CONSOLE = mkwin(998, "Hammerspoon", "Hammerspoon Console", true, false)
 OWN_WINS = { MINI_CONSOLE }
 AT.cache = nil
@@ -1136,6 +1221,12 @@ check("a minimised console honours includeMinimized like every window",
     return true
 end)())
 AT.includeMinimized = true
+-- 🚨 6.248.0 — THIS CHECK USED TO SHARE A MEMORY WITH THE ONE ABOVE and so
+-- measured two rules at once. The rule it exists for is "a Hammerspoon with
+-- no applicationForPID costs the console tile and NOTHING ELSE — no error,
+-- and above all no fallback cross-app sweep", so it starts from an unlearned
+-- memory; the memory's own half is asserted separately underneath.
+AT.known = {}
 hs.application.applicationForPID = nil
 AT.cache = nil
 local allBefore2 = COUNT.all
@@ -1148,6 +1239,20 @@ check("no applicationForPID on this build: no console tile, no error — and "
     end
     return COUNT.all == allBefore2
 end)(), "allWindows calls +" .. (COUNT.all - allBefore2))
+-- 🧠 …and the other half: a console already in the memory survives the door
+-- it came through being taken away, because the memory holds the WINDOW.
+-- That is what makes it reachable from a desktop the sweep cannot see.
+AT.remember(998, MINI_CONSOLE, mkapp("Hammerspoon", {}, 0), "Hammerspoon", 0, true)
+AT.cache = nil
+local allBefore3 = COUNT.all
+check("…but a console the memory already holds is STILL a card — and still "
+      .. "with no sweep", (function()
+    for _, e in ipairs(AT.listWindows()) do
+        if e.win and e.win:id() == 998 then return COUNT.all == allBefore3 end
+    end
+    return false
+end)())
+AT.known = {}
 hs.processInfo = nil
 hs.console = nil
 
@@ -1166,6 +1271,25 @@ do
     check("🚨 SOURCE: no " .. banned:gsub("%%", "") .. " in the module's code",
           code:find(banned) == nil)
   end
+  -- 🧠 6.283.0 — ONE DOOR INTO THE MEMORY (6.231.0). The sweep had its own
+  -- copy of "remember this window" and the console block had none, which is
+  -- the entire defect: two copies of a rule, one of them missing. Nothing
+  -- may WRITE an entry into altTab.known except altTab.remember; the prune
+  -- loop assigns nil and that is deliberately still allowed, because a
+  -- sentry that forbade it would forbid forgetting.
+  local writes = 0
+  for _ in code:gmatch("altTab%.known%[[^%]]*%]%s*=%s*{") do writes = writes + 1 end
+  check("🚨 SOURCE: altTab.remember is the ONLY thing that puts a window in "
+        .. "the memory — the console block had its own missing copy of that "
+        .. "rule for 136 releases", writes == 1, writes .. " table assignment(s)")
+  check("🚨 SOURCE: …and it is inside altTab.remember", (function()
+      local fn = code:match("function altTab%.remember.-\nend")
+      return fn ~= nil and fn:find("altTab%.known%[") ~= nil
+  end)())
+  check("🚨 SOURCE: the console block goes through it", (function()
+      local blk = code:match("local cw, me = altTab%.consoleWindow%(%).-phase%(\"console\"%)")
+      return blk ~= nil and blk:find("altTab%.remember%(") ~= nil
+  end)())
 end
 
 -- =====================================================================

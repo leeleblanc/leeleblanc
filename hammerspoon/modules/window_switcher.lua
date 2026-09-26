@@ -61,7 +61,9 @@ local M = {
         entries = {
             { "⌥Tab", "Hold ⌥, tap Tab to turn the ROLODEX of windows, release to switch" },
             { "⌥⇧Tab", "Turn it backwards" },
-            { "console", "The Hammerspoon Console is a card too, whenever it is open" },
+            { "console", "The Hammerspoon Console is a card too — remembered from" },
+            { "",        "the first press that saw it, so it is on the wheel from" },
+            { "",        "any desktop; choosing it opens it if it was closed" },
             { "← →", "Keep ⌥ down: one card, wrapping like Tab" },
             { "↑ ↓", "Keep ⌥ down: turn the wheel FIVE cards at a time" },
             { "Home / End", "First card / last card" },
@@ -78,6 +80,7 @@ local M = {
             { "no perms", "altTab.useSnapshots = false — icons not thumbnails, and macOS" },
             { "",       "is never asked for Screen Recording (nothing else here needs it)" },
             { "⌘Tab", "Untouched — macOS reserves it, and it switches apps not windows" },
+            { "report", "_G.switcherReport() — the memory, the console, the last switch" },
         },
     },
 }
@@ -227,6 +230,9 @@ function M.setup(core)
     -- altTab.consoleTitle. nil when it is not open (a closed console is
     -- not a tile). Never hs.console.hswindow(): see §1b in listWindows.
     altTab.consoleTitle = "Hammerspoon Console"
+    -- 🧠 6.283.0 — it answers the APP as a second value now. A window this
+    -- function finds has to go into the memory below, and a memory entry
+    -- without its application cannot be pruned when the app dies.
     function altTab.consoleWindow()
         local pid
         pcall(function() pid = hs.processInfo and hs.processInfo.processID end)
@@ -239,9 +245,32 @@ function M.setup(core)
         for _, w in ipairs(type(wins) == "table" and wins or {}) do
             local t
             pcall(function() t = w:title() end)
-            if t == altTab.consoleTitle then return w end
+            if t == altTab.consoleTitle then return w, me end
         end
         return nil
+    end
+
+    -- 🧠 6.283.0 — THE ONE DOOR INTO THE MEMORY, and the whole release is
+    -- that the console never went through it. LL, twice: "Still can't see
+    -- Hammerspoon window using Alt+tab … unless I switch to that desktop I
+    -- can't see it."
+    --
+    -- 🔎 THE MEMORY IS THE ONLY WAY ANY WINDOW ON ANOTHER DESKTOP IS EVER
+    -- LISTED (6.152.0: AX does not report other Spaces). The per-app sweep
+    -- recorded every window it accepted; §1b's console block did not
+    -- record ANYTHING — it built its tile and returned. So the console was
+    -- listable only from the Space it was on, which is his sentence
+    -- exactly, and no amount of pressing ⌥Tab could teach it.
+    --
+    -- 🔑 ONE FUNCTION, TWO CALLERS (6.231.0), because the two copies of
+    -- "remember this" are what drifted: the sweep's copy existed and the
+    -- console's was never written. A source sentry holds every other
+    -- writer out — the prune loop may only ever assign nil.
+    function altTab.remember(id, w, app, name, at, isConsole)
+        if not id or not w then return false end
+        altTab.known[id] = { win = w, app = app, name = name, at = at,
+                             console = isConsole and true or nil }
+        return true
     end
 
     function altTab.listWindows()
@@ -360,8 +389,7 @@ function M.setup(core)
                             -- nothing has vouched for lately.
                             local okId, id = pcall(function() return w:id() end)
                             if okId and id and seenWin[id] then
-                                altTab.known[id] = { win = w, app = a.app,
-                                                     name = a.name, at = a0 }
+                                altTab.remember(id, w, a.app, a.name, a0)
                             end
                         end
                     end
@@ -400,11 +428,24 @@ function M.setup(core)
         -- asked of the one process that owns it — ours — by pid: one
         -- app, no cross-app AX, and altTab.consoleWindow() is the
         -- only way in (test_switcher makes hswindow() throw).
+        --
+        -- 🧠 6.283.0 — AND IT IS REMEMBERED, like every window the sweep
+        -- lists. Until this release it was not, which is why it vanished
+        -- the moment he was on another desktop: consoleWindow() asks
+        -- allWindows(), allWindows() does not answer about other Spaces,
+        -- and nothing had ever written the console into altTab.known for
+        -- phase 2 to serve. The entry is flagged `console` so choosing it
+        -- can go through hs.openConsole (see raise()).
+        altTab.consoleSeen = false
         pcall(function()
-            local cw = altTab.consoleWindow()
+            local cw, me = altTab.consoleWindow()
             if not cw then return end
             local okId, id = pcall(function() return cw:id() end)
-            if not (okId and id) or seenWin[id] then return end
+            if not (okId and id) then return end
+            altTab.remember(id, cw, me, "Hammerspoon",
+                            hs.timer.secondsSinceEpoch(), true)
+            altTab.consoleSeen = true
+            if seenWin[id] then return end
             if not altTab.includeMinimized then
                 local okMin, min = pcall(function() return cw:isMinimized() end)
                 if okMin and min then return end
@@ -412,7 +453,7 @@ function M.setup(core)
             seenWin[id] = true
             seq = seq + 1
             table.insert(entries, { win = cw, id = id, rank = zorder[id], seq = seq,
-                                    appName = "Hammerspoon" })
+                                    console = true, appName = "Hammerspoon" })
         end)
         phase("console")
 
@@ -486,6 +527,7 @@ function M.setup(core)
                         remembered = remembered + 1
                         table.insert(entries, { win = k.win, id = id,
                                                 seq = seq, remembered = true,
+                                                console = k.console,
                                                 appName = k.name })
                     end
                 end
@@ -855,7 +897,24 @@ function M.setup(core)
     -- One switch attempt. Returns nothing; correctness is checked by the
     -- verifier below rather than assumed, because every call in here can
     -- fail silently at the macOS level.
+    -- 🖥 6.283.0 — A CONSOLE TILE IS OPENED, NOT MERELY RAISED. Once the
+    -- console is remembered it can be offered from another desktop — and
+    -- it can also be offered after it has been CLOSED, because nothing
+    -- cheap tells those two apart from here (allWindows() answers "not
+    -- present" for both, and the AX handle of an ordered-out window can go
+    -- on answering role()). hs.openConsole(true) makes both cases correct
+    -- with one call: it opens a closed console, and it brings an open one
+    -- forward with macOS carrying you to its Space. 6.147.0's "a closed
+    -- console is not a tile" is RE-ASKED here rather than quietly dropped
+    -- (6.280.0): the tile always works now, which is the thing that made
+    -- the old rule worth keeping.
+    altTab.consoleOpens = 0
     local function raise(item)
+        if item.console and hs.openConsole then
+            if pcall(function() hs.openConsole(true) end) then
+                altTab.consoleOpens = altTab.consoleOpens + 1
+            end
+        end
         if item.app then pcall(function() item.app:activate() end) end
         if item.win then
             pcall(function()
@@ -1291,6 +1350,79 @@ function M.setup(core)
         _G.claimEscape("switcher", nil,
             function() return altTab.session ~= nil end,
             function() altTab.finish(false) end)
+    end
+
+    -- 🔎 6.283.0 — THE SWITCHER HAD NO REPORT AT ALL, which is why "still
+    -- can't see the Hammerspoon window" could only ever be answered by
+    -- reading the source. 6.196.1's rule, and the console line is the one
+    -- that earns it: THREE STATES, because "open on this desktop",
+    -- "remembered from an earlier press" and "never seen this session" are
+    -- three different facts and the first two used to look identical from
+    -- his side (a tile) while the third looked identical to a bug.
+    function _G.switcherReport()
+        local L = {}
+        local function line(t) L[#L + 1] = t end
+        line("🔄 WINDOW SWITCHER — ⌥Tab")
+        line("   state  : " .. (altTab.enabled and "on" or
+             "OFF — settings = { window_switcher = { enabled = false } }"))
+
+        local lastL = _G.altTabLastListing
+        if not lastL then
+            line("   last   : ⌥Tab has not listed anything this session")
+        else
+            line(string.format(
+                "   last   : %d entr%s in %.2fs · %d app(s) · %d remembered · "
+                .. "%d probed in %.2fs%s",
+                lastL.entries or 0, (lastL.entries == 1) and "y" or "ies",
+                lastL.seconds or 0, lastL.apps or 0, lastL.remembered or 0,
+                lastL.probed or 0, lastL.probeSecs or 0,
+                lastL.truncated and " · ⚠️ BUDGET SPENT" or ""))
+            if lastL.slowPhase then
+                line(string.format("   slowest: phase %s %.2fs%s",
+                    tostring(lastL.slowPhase), lastL.slowPhaseSecs or 0,
+                    lastL.slowestApp and string.format(" · app %s %.2fs",
+                        tostring(lastL.slowestApp), lastL.slowestTime or 0) or ""))
+            end
+        end
+
+        local remembered, consoleRow = 0, nil
+        for _, k in pairs(altTab.known or {}) do
+            remembered = remembered + 1
+            if k.console then consoleRow = k end
+        end
+        line("   memory : " .. remembered .. " window(s) remembered"
+             .. (altTab.includeOtherSpaces and
+                 " — this is the ONLY way another desktop's windows are listed"
+                 or " · ⚠️ includeOtherSpaces is OFF, so none of them are listed"))
+
+        -- 🖥 THE CONSOLE, THREE STATES.
+        if altTab.consoleSeen then
+            line("   console: OPEN on this desktop — listed from the sweep, and"
+                 .. " remembered so it stays on the wheel from any desktop")
+        elseif consoleRow then
+            line("   console: remembered from an earlier press — it is on the"
+                 .. " wheel from every desktop now")
+        else
+            line("   console: not seen yet this session. Open the Hammerspoon"
+                 .. " Console and press ⌥Tab once on that desktop; from then on"
+                 .. " it is remembered. (A reload starts the memory fresh.)")
+        end
+        line("   ↳ choosing a console card calls hs.openConsole, so it works"
+             .. " whether the console is on another desktop or closed ("
+             .. altTab.consoleOpens .. " time(s) this session)")
+
+        local sw = _G.altTabLastSwitch
+        if not sw then
+            line("   switch : nothing switched to this session")
+        elseif sw.ok then
+            line("   switch : ✅ " .. tostring(sw.app) .. " on attempt "
+                 .. tostring(sw.attempts))
+        else
+            line("   switch : ⚠️ asked for " .. tostring(sw.app)
+                 .. " and the focus stayed on " .. tostring(sw.got or "nothing"))
+        end
+        print(table.concat(L, "\n"))
+        return true
     end
 
     _G.altTab = altTab
