@@ -1,4 +1,4 @@
-# TESTING — how to score release 6.290.0
+# TESTING — how to score release 6.291.0
 
 You install ONE archive and it carries several releases. Below are the
 steps for each release this archive is new for, newest first. Run the
@@ -26,6 +26,78 @@ else is a LOSS and I fix it before building further. You are the only
 scorer; I never mark my own.
 
 ---
+
+## 6.291.0
+
+6.291.0 verify with LL — ⌨️ F8, BOTH WAYS (KNOWN GROUND)
+WHAT CHANGED: "It's the F8 Key" answered it, and then raised a second
+question I had not asked. That one physical key sends two completely
+different events depending on a System Setting, and 6.289.0 watched
+only one of them. Both are watched now.
+WHY IT MATTERS: with "Use F1, F2, etc. as standard function keys" OFF
+— the macOS default — F8 is a media key and 6.289.0 already works.
+With it ON, F8 is a plain function key carrying keycode 100, and
+6.289.0 could never have seen it. I cannot tell which you have from
+here, and rather than ask you to go and read a System Setting, the
+release handles both and the report SAYS which one your Mac uses.
+🚨 AND THE OLD REPORT COULD NOT HAVE TOLD US. On the second setting
+neither counter moved, so it read "0 taken · 0 passed" on a Mac where
+you had been pressing the key all morning — identical to never having
+pressed it. That is the thing I most want to stop doing.
+
+A. THE HEADLINE.
+A1. ⇪⇧pad., drop two or three tracks on the card. Something plays.
+A2. Press F8. EXPECT: it pauses. Press again: it resumes.
+A3. Press F7 and F9. EXPECT: back a track, forward a track.
+A4. Console: `_G.musicReport()`. Find the new "↳ by route" line.
+    EXPECT one of these, and BOTH are a pass — I want to know which:
+    · `3 as a media key · 0 as a plain F7/F8/F9` — your setting is OFF
+      and 6.289.0 was already right.
+    · `0 as a media key · 3 as a plain F7/F8/F9`, with a line under it
+      naming the setting — your setting is ON, and this release is
+      what made F8 work at all.
+    PASTE THAT LINE either way. It is the fact neither of us has.
+
+B. THE ONE THAT PROTECTS EVERY OTHER APP — please do this one.
+B1. Empty the card's queue, then play something in Music.app, Spotify
+    or a YouTube tab. Press F8.
+    EXPECT: THAT app pauses. Hammerspoon must not swallow the key.
+B2. With a queue on the card, hold ⌘ and press F8 (⌘F8).
+    EXPECT: the card does NOT react — ⌘F8 belongs to whatever app you
+    are in. Same for ⌥F8, ⌃F8 and ⇧F8.
+    A FAIL on either of these is the serious one:
+    `settings = { music_player = { mediaKeys = false } }` turns the
+    whole thing off and tell me at once.
+B3. Hold F8 down. EXPECT: it toggles ONCE, not forty times.
+
+C. MUST STILL WORK — this release added a tap that sees every
+   keystroke on the Mac, so this is the regression sweep and it is
+   the important half.
+C1. Type normally in Chrome, Word and Hamsidian for a while.
+    EXPECT: no missed characters, no lag, nothing odd. If typing ever
+    feels heavier on this build than on 6.290.0, stop and tell me —
+    that is exactly what I would want to know.
+C2. Your autocorrect still works: type `teh ` in Chrome → `the `.
+C3. ⇪⇧Esc pauses the config; press F8 with a queue.
+    EXPECT: nothing (every tap here stands down when paused). ⇪⇧Esc
+    again and F8 works.
+C4. The card's own space bar, ↑↓, ⏎, ⌘1–9 and ← → are unchanged.
+C5. The volume keys stay macOS's, as you decided in 6.231.0.
+
+D. PASTE BACK, PASS OR FAIL.
+D1. `_G.musicReport()` — the whole block. Two lines matter: "by route"
+    (above), and a `⚠️ N press(es) THREW inside the handler` line. That
+    second one should NOT be there; if it is, paste it — it means the
+    handler is failing and the key is silently doing nothing.
+
+E. A JUDGEMENT ONLY YOU CAN MAKE.
+E1. With "standard function keys" ON, F8 has a second job — some apps
+    use it as a plain function key. This config takes it only while
+    the card has a queue and only with no modifier held. Is that
+    narrow enough, or does F8 matter to an app you use? Name the app
+    and I will exempt it.
+
+
 
 ## 6.290.0
 
@@ -180,65 +252,6 @@ D1. When your saved spot does not fit the smaller screen, I nudge it to
     the nearest edge rather than re-centring — so a sheet you like on
     the right stays on the right. Is that what you want, or would you
     rather it centred on a screen it does not fit? "nudge" · "centre".
-
-
-
-## 6.287.0
-
-6.287.0 verify with LL — ✏️ THE TEXT TOOL IS A TEXT BOX (KNOWN GROUND)
-WHAT CHANGED: all four of your text-box asks, in one release, because
-they were one defect seen from four sides.
-WHY IT MATTERS: a text note had never had a WIDTH — only a font size.
-6.188.0 made the corner handle scale the letters, so there was nothing
-to wrap at, nothing for Return to make a second line of, and the one
-control on the box did the one thing you did not want it to.
-
-A. THE HEADLINE. ⇪⇧1 on a screenshot, press T, click.
-A1. Type a sentence long enough to be worth wrapping, then press ⏎.
-    EXPECT: a NEW LINE inside the box. It must NOT finish the box.
-A2. Type a second line. Press ⇧⏎.
-    EXPECT: done, and the note shows BOTH lines on the shot.
-A3. Drag the corner handle to the LEFT (no modifier).
-    EXPECT: the box gets narrower and the words RE-WRAP. The letters
-    stay exactly the same size. That is asks 2, 3 and 5 at once.
-A4. Hold ⇧ and drag the same corner.
-    EXPECT: the letters grow and shrink, the way they always did.
-A5. ⌘Z. EXPECT: the last of those goes back — a re-wrap undoes like
-    a move.
-
-B. THE ONES THAT PROTECT WHAT YOU ALREADY HAVE.
-B1. Make a box, close the editor with Esc, reopen the SAME shot.
-    EXPECT: the box comes back with its lines and its width intact.
-    (6.286.0 is what makes Esc keep it at all — do that block first.)
-B2. Open a shot you annotated on an OLDER build, if you have one.
-    EXPECT: the old text notes look exactly as they did. They have no
-    width stored, so they stay one line until you drag one.
-B3. Type a very long single word with no spaces — a URL will do — in a
-    narrow box. EXPECT: it breaks across lines rather than running out
-    of the box.
-B4. Make a two-line note ON something (an arrow tip, a button).
-    EXPECT: it grows DOWNWARD. The first line stays where you clicked,
-    so the note never walks off the thing it points at.
-
-C. MUST STILL WORK — every tool shares this canvas.
-C1. ⌘click a text box: its words open, pre-filled.
-C2. Drag a text box by its middle: it moves.
-C3. Esc with the box open cancels the BOX; Esc again closes the editor.
-C4. ⌘⏎ saves, and the saved PNG has the wrapped lines in it exactly as
-    they looked on screen.
-C5. Blur, arrow, line, oval, highlighter, counter, spotlight,
-    magnifier — unchanged.
-
-D. A JUDGEMENT ONLY YOU CAN MAKE — and this is the one I most want.
-D1. ⇧⏎ to finish. Is that the right key? The alternatives are ⌘⏎
-    (which is Save & copy everywhere else in the editor, so it would
-    be two meanings for one chord) or "click away", which already
-    works. "⇧⏎ is fine" · "make it something else" decides it.
-D2. Plain drag re-wraps, ⇧drag scales — your suggestion. If it feels
-    backwards in the hand, say so and I will swap them; it is one line.
-D3. A new box is born as wide as the words you typed. Would you rather
-    it started at a fixed width — say a quarter of the shot — so it
-    wraps from the first sentence? That is a default, not a release.
 
 
 

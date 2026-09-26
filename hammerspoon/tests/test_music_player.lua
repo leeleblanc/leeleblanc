@@ -82,7 +82,15 @@ TAP_REFUSES = false
 TAP_START_REFUSES = false
 hs = {
     eventtap = {
-        event = { types = { systemDefined = 14 } },
+        -- 6.291.0 — the SECOND route. F8 is an NSSystemDefined media key
+        -- with "Use F1, F2… as standard function keys" OFF and a plain
+        -- keyDown with it ON, so the stub has to be able to deliver
+        -- both or the release is untestable (6.193.0, the whole point
+        -- of 6.290.0's audit).
+        event = {
+            types = { systemDefined = 14, keyDown = 10 },
+            properties = { keyboardEventAutorepeat = "autorepeat" },
+        },
         new = function(types, fn)
             if TAP_REFUSES then error("macOS refused the tap", 0) end
             local t = { types = types, fn = fn, running = false }
@@ -2029,14 +2037,24 @@ do
     mp.stopMediaTap()
     mp.mediaKeys = true
     local ok = mp.startMediaTap()
-    check("the tap is created AND started, not merely created",
-          ok == true and #TAPS == 1 and TAPS[1].running == true)
-    check("…and it watches systemDefined and nothing else",
+    -- 🚨 6.291.0 — TWO TAPS NOW, and these two checks MOVED rather than
+    -- being deleted: they were written when there was one route, and
+    -- asserting the literal 1 would have gone red with nothing to say
+    -- about the change it exists to prove (6.248.0). What they assert is
+    -- the RULE — every route this module claims is created AND started.
+    check("both routes are created AND started, not merely created",
+          ok == true and #TAPS == 2
+          and TAPS[1].running == true and TAPS[2].running == true, #TAPS)
+    check("…the media route watches systemDefined and nothing else",
           TAPS[1].types[1] == 14 and #TAPS[1].types == 1)
-    check("…and it is HELD, or nothing would ever fire it", mp.mediaTap ~= nil)
+    check("…the function-key route watches keyDown and nothing else",
+          TAPS[2].types[1] == 10 and #TAPS[2].types == 1, TAPS[2].types[1])
+    check("…and BOTH are HELD, in their own slots — one global holding"
+          .. " two taps drops the first (6.196.1)",
+          mp.mediaTap ~= nil and mp.fnTap ~= nil and mp.mediaTap ~= mp.fnTap)
     local again = mp.startMediaTap()
-    check("starting twice does not stack a second tap",
-          again == false and #TAPS == 1)
+    check("starting twice does not stack another pair",
+          again == false and #TAPS == 2)
 
     -- ---- driving it -----------------------------------------------------
     local function press(keyName, opts)
@@ -2048,7 +2066,7 @@ do
     end
 
     mp.queue = {}
-    mp.media = { taken = 0, passed = 0, last = nil }
+    mp.resetMedia()
     check("🚨 with an EMPTY queue ⏯ is not eaten", press("PLAY") == false)
     check("…and it is counted as passed, so the report can say so",
           mp.media.passed == 1 and mp.media.taken == 0)
@@ -2056,7 +2074,7 @@ do
     FILES["/m/a.mp3"], DURATION["/m/a.mp3"] = true, 100
     FILES["/m/b.mp3"], DURATION["/m/b.mp3"] = true, 100
     mp.takeDrop({ "/m/a.mp3", "/m/b.mp3" })
-    mp.media = { taken = 0, passed = 0, last = nil }
+    mp.resetMedia()
     local wasPlaying = mp.playing
     check("(fixture) something is playing", wasPlaying == true and #mp.queue == 2)
     check("⏯ is EATEN when there is a queue — macOS must not act on it too",
@@ -2166,7 +2184,189 @@ do
     mp.startMediaTap()
 
     check("the 6.289.0 block ran every one of its checks",
-          (pass + fail) - n == 42, (pass + fail) - n)
+          (pass + fail) - n == 43, (pass + fail) - n)
+end
+
+-- =====================================================================
+out("\n⌨️ 6.291.0 — F8 ARRIVES BY TWO ROUTES AND ONLY ONE WAS WATCHED\n")
+-- =====================================================================
+-- LL, asked which key he meant: "It's the F8 Key." On an Apple keyboard
+-- F7 · F8 · F9 ARE ⏮ · ⏯ · ⏭, and WHICH event macOS sends for that one
+-- physical key depends on a System Setting: an NSSystemDefined media key
+-- with "Use F1, F2… as standard function keys" OFF, and a plain keyDown
+-- carrying keycode 100 with it ON. 6.289.0 watched only the first, and
+-- its report could not tell the second apart from "he never pressed it".
+do
+    local n = pass + fail
+    reset()
+
+    -- ---- the verdict is PURE, and the codes are an ARGUMENT ------------
+    -- 6.239.0's rule: the gate moves the map under the rule, so a check
+    -- cannot pass by asserting the same literal the code was typed with.
+    local FV = mp.fnKeyVerdict
+    local CODES = { [98] = "REWIND", [100] = "PLAY", [101] = "FAST" }
+    check("mp.fnKeyVerdict is pure and reachable", type(FV) == "function")
+    check("F8 with a queue is TAKEN", FV(100, CODES, {}, true, true) == "take")
+    check("…and it answers WHICH action, so one function serves both routes",
+          select(3, FV(100, CODES, {}, true, true)) == "PLAY")
+    check("F7 is ⏮ and F9 is ⏭",
+          select(3, FV(98, CODES, {}, true, true)) == "REWIND"
+          and select(3, FV(101, CODES, {}, true, true)) == "FAST")
+    -- 🚨 THE RULE THAT PROTECTS EVERY OTHER APP, twice over.
+    check("🚨 F8 with NOTHING QUEUED is passed through",
+          FV(100, CODES, {}, false, true) == "pass")
+    check("🚨 ⌘F8 is NEVER ours — that chord belongs to the app",
+          FV(100, CODES, { cmd = true }, true, true) == "pass")
+    check("🚨 ⌥F8, ⌃F8 and ⇧F8 likewise",
+          FV(100, CODES, { alt = true },   true, true) == "pass"
+          and FV(100, CODES, { ctrl = true },  true, true) == "pass"
+          and FV(100, CODES, { shift = true }, true, true) == "pass")
+    -- 🔎 fn is IGNORED on purpose: macOS sets the function-key mask on
+    -- F1–F12 under BOTH settings, so testing it would kill the feature
+    -- under one of them and which is which is not knowable from here.
+    check("fn alone does NOT disqualify a press — that decision is stated",
+          FV(100, CODES, { fn = true }, true, true) == "take")
+    check("F5 is not a key this player answers",
+          FV(96, CODES, {}, true, true) == "pass")
+    check("switched off, nothing is taken", FV(100, CODES, {}, true, false) == "pass")
+    check("a nil keycode is not a key", FV(nil, CODES, {}, true, true) == "pass")
+    check("every answer carries a reason",
+          select(2, FV(100, CODES, {}, true, true)) ~= nil
+          and select(2, FV(100, CODES, {}, false, true)) ~= nil)
+
+    -- ---- driving the REAL tap, not the pure function -------------------
+    -- 6.264.0's rule: proving a pure decision function is not proving
+    -- that anything CALLS it with the values that matter.
+    TAPS = {}
+    mp.stopMediaTap()
+    mp.fnCodesCache = nil
+    mp.mediaKeys = true
+    mp.startMediaTap()
+    local fnFire = TAPS[2] and TAPS[2].fn
+    check("the function-key route has a callback wired", type(fnFire) == "function")
+
+    local function fkey(code, opts)
+        opts = opts or {}
+        return fnFire({
+            getKeyCode = function() return code end,
+            getFlags   = function() return opts.flags or {} end,
+            getProperty = function() return opts.rep and 1 or 0 end,
+        })
+    end
+
+    FILES["/m/a.mp3"], DURATION["/m/a.mp3"] = true, 100
+    FILES["/m/b.mp3"], DURATION["/m/b.mp3"] = true, 100
+    mp.takeDrop({ "/m/a.mp3", "/m/b.mp3" })
+    mp.resetMedia()
+    check("(fixture) something is playing", mp.playing == true and #mp.queue == 2)
+
+    check("⌨️ a bare F8 is EATEN when there is a queue", fkey(100) == true)
+    check("…and it really paused the player", mp.playing == false)
+    check("…and it was counted on the FUNCTION-KEY route, not the media one",
+          mp.media.viaFnKey == 1 and mp.media.viaMedia == 0, mp.media.viaFnKey)
+    check("⌨️ F9 steps forward", (function()
+              local at = mp.index ; return fkey(101) == true and mp.index ~= at end)())
+    check("⌨️ F7 steps back", (function()
+              local at = mp.index ; return fkey(98) == true and mp.index ~= at end)())
+
+    -- 🚨 THE ONE THAT PROTECTS HIS OTHER APPS — the check that bites.
+    mp.resetMedia()
+    check("🚨 ⌘F8 is passed straight through", fkey(100, { flags = { cmd = true } }) == false)
+    check("🚨 and it is counted as PASSED, not silently dropped",
+          mp.media.passed == 1 and mp.media.taken == 0)
+    local held = mp.queue
+    mp.queue = {}
+    mp.resetMedia()
+    check("🚨 with an empty queue F8 goes to macOS", fkey(100) == false)
+    mp.queue = held
+
+    -- 🔎 SEEN IS COUNTED EVEN WHEN PASSED — this is the whole diagnosis,
+    -- and the number 6.289.0's report could not produce.
+    check("⌨️ every F7/F8/F9 arrival is counted, acted on or not",
+          mp.media.fnSeen == 1, mp.media.fnSeen)
+    mp.resetMedia()
+    check("…and a key that is NOT the media row is not counted at all",
+          fkey(96) == false and mp.media.fnSeen == 0)
+
+    -- an autorepeat is not a press (holding ⏯ must not toggle forty times)
+    mp.resetMedia()
+    check("⌨️ an autorepeat is not a press",
+          fkey(100, { rep = true }) == false and mp.media.fnSeen == 0)
+
+    -- the pause switch, which every tap in this config answers (6.152.0)
+    mp.resetMedia()
+    _G.hsPaused = true
+    check("⌨️ paused, the function-key route stands down", fkey(100) == false)
+    _G.hsPaused = false
+
+    -- 🚪 the shape door: a caller that rebuilds mp.media must not be able
+    -- to kill ⏯ silently, because a throw in a tap callback is a silence.
+    mp.media = { taken = 0, passed = 0, last = nil }   -- the old shape
+    mp.resetMedia()
+    check("🚪 mp.resetMedia is the one door and it builds every field",
+          mp.media.viaMedia == 0 and mp.media.viaFnKey == 0
+          and mp.media.fnSeen == 0 and mp.media.taken == 0)
+    -- 🚨 AND THIS CHECK WAS MEASURING THE WRONG GUARD. It asked only
+    -- whether the call threw — which the outer pcall added above makes
+    -- true whether or not the `or 0` defences exist, so the mutation
+    -- stripping them SURVIVED. What the defences actually buy is that
+    -- the key still WORKS over a half-built table instead of silently
+    -- doing nothing, so that is what is asserted.
+    mp.queue = held
+    if not mp.playing then mp.togglePlay() end
+    mp.media = { taken = 0, passed = 0 }               -- a hand-built table
+    local wasPlaying = mp.playing
+    check("🚪 …and over a hand-built table the key still ACTS, rather than"
+          .. " dying quietly inside the callback",
+          fkey(100) == true and mp.playing ~= wasPlaying)
+
+    -- the report NAMES the route, or none of this is askable
+    mp.resetMedia()
+    mp.queue = held
+    fkey(100)
+    local rep = _G.musicReport()
+    check("🔎 the report counts the routes apart",
+          rep:find("by route", 1, true) ~= nil
+          and rep:find("as a plain F7/F8/F9", 1, true) ~= nil, rep)
+    check("🔎 …and SAYS the setting when the plain route is the live one",
+          rep:find("standard", 1, true) ~= nil)
+
+    -- 🚨 THE TWO GUARDS hs-lint CAUGHT, each with its own check. Both
+    -- are rules this project already owned and the first draft of this
+    -- release paid neither — and a keyDown tap is the one place they
+    -- matter most, because it sees every keystroke on the Mac.
+    mp.resetMedia()
+    _G.typingInjection = function() return true end
+    check("🔁 a SYNTHETIC key is not a press (6.218.0) — our own retypes"
+          .. " must not drive the player",
+          fkey(100) == false and mp.media.fnSeen == 0)
+    _G.typingInjection = nil
+    check("…and a real key still is, with the guard back down",
+          fkey(100) == true)
+
+    -- 6.235.0: a throw in a tap callback is a silence, so the body is
+    -- pcall'd and the throw is COUNTED.
+    -- 🚨 AND THE FIRST VERSION OF THIS CHECK PROVED NOTHING: it made
+    -- getKeyCode raise, which is INSIDE the body's own inner pcall
+    -- around the three reads — so the body never threw and the outer
+    -- guard was never exercised. 6.235.0's own words: the check that
+    -- earns its place makes something throw that is NOT already guarded
+    -- on its own. mp.fnKeyVerdict is that line.
+    mp.resetMedia()
+    local realVerdict = mp.fnKeyVerdict
+    mp.fnKeyVerdict = function() error("the verdict blew up", 0) end
+    local threw = fkey(100)
+    mp.fnKeyVerdict = realVerdict
+    check("🔒 a throw inside the handler does not escape the callback",
+          threw == false)
+    check("…and it is COUNTED, never swallowed",
+          mp.media.threw == 1 and mp.media.lastThrow ~= nil, mp.media.threw)
+    check("…and the report's ⚠️ outranks the counts above it",
+          _G.musicReport():find("THREW inside the handler", 1, true) ~= nil)
+    mp.resetMedia()
+
+    check("the 6.291.0 block ran every one of its checks",
+          (pass + fail) - n == 35, (pass + fail) - n)
 end
 
 if fail > 0 then

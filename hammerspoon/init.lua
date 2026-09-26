@@ -4,9 +4,26 @@
 -- =====================================================================
 -- 09-26-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.290.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.291.0
 -- =====================================================================
 
+-- NEW IN 6.291.0 — ⌨️ F8 ARRIVES BY TWO ROUTES, ONE UNWATCHED
+--   (modules/music_player.lua):
+--   LL, asked which key he meant: "It's the F8 Key." F7 · F8 · F9 ARE
+--   ⏮ · ⏯ · ⏭ on an Apple keyboard, and WHICH event macOS sends for
+--   that one physical key depends on a System Setting: an
+--   NSSystemDefined media key with "Use F1, F2… as standard function
+--   keys" OFF, a plain keyDown carrying keycode 100 with it ON. So
+--   6.289.0 watched only the first — and the report could not tell
+--   that from "he never pressed it" (6.196.1), because on the second
+--   setting NEITHER count moves. Both routes are watched and COUNTED
+--   APART now rather than asking him to read a System Setting
+--   (6.267.0), and the count IS the diagnosis. `mp.fnKeyVerdict` is
+--   PURE: a BARE press only, so ⌘F8 stays the app's; `fn` is not
+--   asked, because macOS sets that mask under BOTH settings.
+--   🚨 hs-lint caught two rules this project already owned, both about
+--   a tap that sees keyDown: a throw in the callback is a silence ONCE
+--   PER KEYSTROKE (6.235.0); a synthetic key is not a press (6.218.0).
 -- NEW IN 6.290.0 — 🔬 A STUB GENTLER THAN macOS FAILS THE GATE NOW
 --   (tests/test_stub_fidelity.lua):
 --   Classify this project's ten scored losses by where the defect lived
@@ -23,28 +40,11 @@
 --   (6.273.0). 28 stubs in 25 files fixed, so it ships SILENT (6.269.0).
 --   📏 NAMED: it is STATIC — eight more contracts print as data.
 
--- NEW IN 6.289.0 — ⏯ THE KEYBOARD'S OWN PLAY/PAUSE KEY DRIVES THIS
---   PLAYER (modules/music_player.lua):
---   LL: "Pressing play/pause doesn't work. But volume keys do." Both
---   sentences are about the same row of keys — the volume keys are
---   macOS's and work everywhere, and F8 was going wherever macOS thought
---   the music was, which is not this card.
---   🚨 AND IT MUST NOT STEAL THE KEY: swallowing ⏯ whenever this config
---   is loaded would cost him Music.app and every browser tab playing
---   audio, silently, which is a worse bug than the one being fixed. So
---   `mp.mediaVerdict` is PURE and narrow — the key is TAKEN only when
---   this player has a queue; with nothing queued it passes straight
---   through and macOS routes it as it does today.
---   ⏭ `mp.step` is ONE function with two callers, the card's buttons and
---   the keys. The tap starts in warm(), never setup (6.228.0), stands
---   down while paused (6.152.0), ignores a key UP and an autorepeat, and
---   the report counts taken apart from passed in three states.
-
--- (6.288.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.289.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 cut the inline count to
 --  TWO; a gate check proves every entry here is also in CHANGELOG.md.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.290.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.291.0
 -- =====================================================================
 -- The catalogue that used to sit here moved to GUIDE.md ("What each
 -- tool does") in 6.180.0 — 259 lines of prose inside the orchestrator.
@@ -137,7 +137,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.290.0"
+_G.configVersion = "6.291.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the

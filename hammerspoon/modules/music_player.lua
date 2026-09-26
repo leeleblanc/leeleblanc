@@ -71,8 +71,10 @@ local M = {
             { "✕",       "On a 🕘 history row: forget that track (the file is not touched)" },
             { "drag",    "Move the card: grab its title strip — or ⌘-drag anywhere on it. It reopens where you left it" },
             { "volume",  "Use the Mac's own volume keys — this player has none, by design" },
-            { "⏯ ⏮ ⏭",   "The keyboard's own media keys drive THIS player while it has a" },
-            { "",         "queue; with nothing queued they pass through to macOS (6.289.0)" },
+            { "⏯ ⏮ ⏭",   "F8 · F7 · F9 — the keyboard's own play/pause row drives THIS" },
+            { "",         "player while it has a queue, whichever of the two events macOS" },
+            { "",         "sends for them; with nothing queued, or with any modifier held," },
+            { "",         "they pass straight through to macOS (6.289.0, 6.291.0)" },
             { "focus",   "The card takes the keyboard when it opens — no click first" },
             { "Console", "_G.musicReport()" },
         },
@@ -1644,9 +1646,54 @@ say({a:'ready'});
     -- narrow and it is PURE: the key is TAKEN only when this player has a
     -- queue to act on. With nothing queued the event passes straight
     -- through and macOS routes it exactly as it does today.
+    -- ⌨️ 6.291.0 — AND F8 ARRIVES BY TWO ROUTES; ONLY ONE WAS WATCHED.
+    -- LL, asked which key he meant: "It's the F8 Key." On an Apple
+    -- keyboard F7 · F8 · F9 ARE ⏮ · ⏯ · ⏭, and which of two entirely
+    -- different events macOS sends for that one physical key depends on
+    -- a System Setting:
+    --
+    --   "Use F1, F2, etc. as standard function keys" OFF (the default)
+    --       → an NSSystemDefined event. 6.289.0 watches this one.
+    --   the same setting ON
+    --       → a plain keyDown carrying keycode 100. 6.289.0 never saw it.
+    --
+    -- 🚨 AND THE REPORT COULD NOT TELL THAT APART FROM "HE NEVER PRESSED
+    -- IT" (6.196.1). On the second setting neither `taken` nor `passed`
+    -- moves, because the event never reaches the systemDefined tap at
+    -- all — so the line reads "0 taken · 0 passed" on a Mac where he has
+    -- been pressing the key all morning, which is the single most
+    -- misleading thing an instrument here can do.
+    --
+    -- 🔑 SO BOTH ROUTES ARE WATCHED AND COUNTED APART, rather than asking
+    -- him to go and read a System Setting: a knob nobody turns is a
+    -- default that is wrong (6.267.0), and his answer to "which setting
+    -- do you have" is a round trip that this can answer by itself. The
+    -- count is also the diagnosis — the next report SAYS which route his
+    -- Mac uses, and that is a fact neither of us has today.
     mp.mediaKeys = true          -- settings = { music_player = { mediaKeys = false } }
-    mp.media = { taken = 0, passed = 0, last = nil }
+    mp.media = {
+        taken = 0, passed = 0, last = nil,
+        -- 6.274.0's rule: when a thing can happen two ways, count the
+        -- ways apart or the total answers nothing.
+        viaMedia = 0,            -- arrived as an NSSystemDefined media key
+        viaFnKey = 0,            -- arrived as a plain F7/F8/F9 keyDown
+        fnSeen   = 0,            -- ...and how many we saw at all, acted on or not
+    }
     mp.mediaTap = nil            -- HELD: an unreferenced tap is collected
+    mp.fnTap    = nil            -- HELD, and a SECOND slot (6.196.1): one
+                                 -- global holding two taps drops the first
+
+    -- 🚪 ONE DOOR FOR THE SHAPE. The counters are read inside a tap
+    -- callback, where a throw is a SILENCE (6.235.0) — so a caller that
+    -- rebuilds this table by hand and forgets a field would not merely
+    -- lose a number, it would kill ⏯ with nothing printed anywhere. The
+    -- module owns the shape; every reader also defends with `or 0`.
+    function mp.resetMedia()
+        mp.media = { taken = 0, passed = 0, last = nil,
+                     viaMedia = 0, viaFnKey = 0, fnSeen = 0,
+                     threw = 0, lastThrow = nil }
+        return mp.media
+    end
 
     -- PURE: which key, and is there anything for it to act on?
     -- Answers "take"/"pass" AND the reason, so the report can say why a
@@ -1672,14 +1719,133 @@ say({a:'ready'});
         local verdict, why = mp.mediaVerdict(sk.key, #mp.queue > 0, mp.mediaKeys)
         mp.media.last = tostring(sk.key) .. " — " .. why
         if verdict ~= "take" then
-            mp.media.passed = mp.media.passed + 1
+            mp.media.passed = (mp.media.passed or 0) + 1
             return false
         end
-        mp.media.taken = mp.media.taken + 1
-        if sk.key == "PLAY" then pcall(mp.togglePlay)
-        elseif sk.key == "FAST" then pcall(mp.step, 1)
-        else pcall(mp.step, -1) end
+        mp.media.taken    = (mp.media.taken or 0) + 1
+        mp.media.viaMedia = (mp.media.viaMedia or 0) + 1
+        mp.act(sk.key)
         return true          -- eaten, so macOS does not also act on it
+    end
+
+    -- ONE function, two callers (6.231.0): the systemDefined route and
+    -- the function-key route must never drift into doing different
+    -- things for the same physical key.
+    function mp.act(key)
+        if key == "PLAY" then pcall(mp.togglePlay)
+        elseif key == "FAST" then pcall(mp.step, 1)
+        elseif key == "REWIND" then pcall(mp.step, -1) end
+    end
+
+    -- ---- the function-key route ------------------------------------------
+    -- The media row's keycodes. Documented and twenty years old, but the
+    -- FALLBACK and not the source — hs.keycodes is the thing that knows
+    -- (core/hyper_key.lua's F18 lookup and editor_picker's modifier table
+    -- take exactly this shape, for exactly this reason).
+    mp.FN_MEDIA  = { f7 = "REWIND", f8 = "PLAY", f9 = "FAST" }
+    mp.FN_FALLBACK = { f7 = 98, f8 = 100, f9 = 101 }
+
+    function mp.fnCodes()
+        local codes = {}
+        for name, act in pairs(mp.FN_MEDIA) do
+            local code = mp.FN_FALLBACK[name]
+            pcall(function()
+                local map = hs.keycodes and hs.keycodes.map
+                if type(map) == "table" and type(map[name]) == "number" then
+                    code = map[name]
+                end
+            end)
+            if code then codes[code] = act end
+        end
+        return codes
+    end
+
+    -- PURE: the whole rule, so the gate proves it with no Mac.
+    --
+    -- 🚨 A BARE PRESS ONLY. ⌘F8, ⌥F8 and ⇧F8 are an app's business and
+    -- this must not eat one of them — the narrowness is the entire
+    -- licence for touching a key that has a second, non-media meaning
+    -- whenever that System Setting is on.
+    --
+    -- 🔎 AND `fn` IS DELIBERATELY NOT ASKED, which is a decision and not
+    -- an oversight: macOS sets the function-key mask on F1–F12 in BOTH
+    -- settings, so requiring fn to be absent would kill this on one of
+    -- them and requiring it present would kill it on the other — and
+    -- which is which is not knowable from here (6.233.0: a platform fact
+    -- that decides a design is checked in the source, with the file
+    -- named, and this one has not been). Ignoring it is the answer that
+    -- is wrong in neither.
+    function mp.fnKeyVerdict(code, codes, flags, hasQueue, on)
+        if not on then return "pass", "media keys are switched off here" end
+        local act = codes and codes[code]
+        if not act then return "pass", "not a key this player answers" end
+        flags = flags or {}
+        if flags.cmd or flags.alt or flags.ctrl or flags.shift then
+            return "pass", "a modifier is held — that chord belongs to the app"
+        end
+        if not hasQueue then
+            return "pass", "nothing is queued — macOS keeps the key"
+        end
+        return "take", "the player has a queue", act
+    end
+
+    -- 🚨 THE BODY IS KEPT OUT OF THE CALLBACK, and hs-lint caught this
+    -- before the gate did. Two rules this project already owns, both
+    -- unpaid in the first draft, and BOTH of them are about a tap that
+    -- sees keyDown — which this one does, unlike 6.289.0's:
+    --
+    --   · A THROW INSIDE A TAP CALLBACK IS A SILENCE (6.235.0), and here
+    --     it would escape into the event system ONCE PER KEYSTROKE
+    --     rather than once. The callback is `pcall(body, ev)` and a
+    --     return, which is the shape the Key Caster, autocorrect, the
+    --     expander and editor_picker all use.
+    --   · A SYNTHETIC KEY IS NOT A PRESS (6.218.0). keyStrokes POSTS its
+    --     events and they come back through every tap as typing, so
+    --     without the guard this config's own injections could drive the
+    --     player. Cheap, and it is the rule that cost 208 releases.
+    local function fnKeyBody(ev)
+        local code, flags, isRepeat
+        pcall(function()
+            code     = ev:getKeyCode()
+            flags    = ev:getFlags()
+            isRepeat = ev:getProperty(
+                hs.eventtap.event.properties.keyboardEventAutorepeat)
+        end)
+        if isRepeat == 1 or isRepeat == true then return false end
+        mp.fnCodesCache = mp.fnCodesCache or mp.fnCodes()
+        -- 🔎 COUNTED EVEN WHEN IT IS PASSED ON. This number is the whole
+        -- diagnosis: a non-zero `fnSeen` on his Mac says F8 is arriving
+        -- as a plain function key, which is the fact 6.289.0's report
+        -- could not produce and which decides whether that release was
+        -- ever going to work for him.
+        if not mp.fnCodesCache[code] then return false end
+        mp.media.fnSeen = (mp.media.fnSeen or 0) + 1
+        local verdict, why, act =
+            mp.fnKeyVerdict(code, mp.fnCodesCache, flags, #mp.queue > 0, mp.mediaKeys)
+        mp.media.last = "F-key " .. tostring(code) .. " — " .. tostring(why)
+        if verdict ~= "take" then
+            mp.media.passed = (mp.media.passed or 0) + 1
+            return false
+        end
+        mp.media.taken    = (mp.media.taken or 0) + 1
+        mp.media.viaFnKey = (mp.media.viaFnKey or 0) + 1
+        mp.act(act)
+        return true
+    end
+
+    function mp.onFnKey(ev)
+        -- Every tap in this config starts here (6.152.0).
+        if _G.hsPaused then return false end
+        if _G.typingInjection and _G.typingInjection() then return false end
+        local ok, eat = pcall(fnKeyBody, ev)
+        if not ok then
+            -- COUNTED, never swallowed: a throw on this path would
+            -- otherwise be a dead ⏯ with nothing anywhere to read.
+            mp.media.threw = (mp.media.threw or 0) + 1
+            mp.media.lastThrow = tostring(eat)
+            return false
+        end
+        return eat == true
     end
 
     -- 🔌 STARTED IN warm(), NEVER IN setup(): init.lua applies a profile's
@@ -1701,12 +1867,26 @@ say({a:'ready'});
             mp.mediaTap = nil
             return false, "macOS refused the media-key tap"
         end
+        -- 6.291.0 — the second route, in its OWN slot. A failure here is
+        -- reported separately: the two taps answer different System
+        -- Settings, so one of them working is not the other working.
+        local ok2 = pcall(function()
+            mp.fnTap = hs.eventtap.new(
+                { hs.eventtap.event.types.keyDown }, mp.onFnKey)
+            mp.fnTap:start()
+        end)
+        if not ok2 or not mp.fnTap then
+            mp.fnTap = nil
+            return true, "the function-key route could not start"
+        end
         return true
     end
 
     function mp.stopMediaTap()
         if mp.mediaTap then pcall(function() mp.mediaTap:stop() end) end
         mp.mediaTap = nil
+        if mp.fnTap then pcall(function() mp.fnTap:stop() end) end
+        mp.fnTap = nil
     end
 
     function mp.toggle()
@@ -1736,10 +1916,36 @@ say({a:'ready'});
                  .. " Mac, so the keyboard's ⏯ goes wherever macOS sends it")
         else
             line("   ⏯ keys   : watching ⏯ ⏮ ⏭ · " .. (md.taken or 0)
-                 .. " taken · " .. (md.passed or 0) .. " passed through to macOS")
+                 .. " taken · " .. (md.passed or 0) .. " passed through to macOS"
+                 .. (mp.fnTap and "" or "  ⚠️ media route only —"
+                     .. " the function-key route did not start"))
+            -- 🔎 6.291.0 — WHICH ROUTE, and this is the line that decides
+            -- whether 6.289.0 could ever have worked on this Mac. F8 is
+            -- an NSSystemDefined media key with "Use F1, F2… as standard
+            -- function keys" OFF and a plain keyDown with it ON, and no
+            -- number in the old report could tell those apart from "the
+            -- key was never pressed" (6.196.1).
+            line("   ↳ by route: " .. (md.viaMedia or 0) .. " as a media key · "
+                 .. (md.viaFnKey or 0) .. " as a plain F7/F8/F9")
+            if (md.fnSeen or 0) == 0 and (md.viaMedia or 0) == 0 then
+                line("   ↳ this Mac has sent NEITHER yet — if ⏯ feels dead,"
+                     .. " that is the fact to paste: the key is reaching"
+                     .. " no route at all")
+            elseif (md.fnSeen or 0) > 0 then
+                line("   ↳ F7/F8/F9 arrive here as PLAIN FUNCTION KEYS ("
+                     .. md.fnSeen .. " seen) — \"Use F1, F2… as standard"
+                     .. " function keys\" is ON, and 6.289.0 alone could"
+                     .. " never have answered them")
+            end
             line("   ↳ a press is only TAKEN when this player has a queue, so"
                  .. " your other apps keep the key the rest of the time"
                  .. (md.last and ("  ·  last: " .. tostring(md.last)) or ""))
+            -- ⚠️ OUTRANKS THE COUNTS ABOVE (6.260.0): healthy-looking
+            -- numbers over a handler that is throwing is 6.196.1 exactly.
+            if (md.threw or 0) > 0 then
+                line("   ↳ ⚠️ " .. md.threw .. " press(es) THREW inside the"
+                     .. " handler and did nothing — " .. tostring(md.lastThrow))
+            end
         end
         -- ⌨️ 6.251.0 — WHICH OF THE THREE STATES THIS MAC REACHED. "not
         -- asked" is not "asked and failed" is not "it has the keys"

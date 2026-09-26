@@ -3428,7 +3428,7 @@ THE METHOD, when something breaks after a stacked zip:
    6.216.0 6f06071 · 6.217.0 a475bef · 6.218.0 41b002b · 6.219.0 862c177
    · 6.220.0 ac3975e · 6.221.0 ead07d9 · 6.222.0 1842ca7 · 6.223.0
    86ac82b · 6.224.0 67957ea · 6.225.0 98434fe · 6.226.0 304f1f9 ·
-   6.227.0 14e953a · 6.228.0 2aa3dfe · 6.229.0 a1318e1 · 6.230.0 0740c07 · 6.231.0 c1921af · 6.231.1 5a5c298 · 6.232.0 1ca3f6f · 6.233.0 2328c8c · 6.234.0 57f78d0 · 6.235.0 52e5b21 · 6.236.0 34cff8b · 6.236.1 fdce771 · 6.237.0 adf9256 · 6.238.0 3adad4f · 6.239.0 3adad4f (one commit, two releases) · 6.240.0 8f44bec · 6.241.0 dce517e · 6.242.0 1a1dab0 · 6.243.0 8fba04f · 6.244.0 9320906 · 6.245.0 9c1a8b1 · 6.246.0 1400abd · 6.247.0 3b92e99 · 6.248.0 e4e3a03 · 6.249.0 e4edc3f · 6.250.0 c267c1b · 6.251.0 f7b0d57 · 6.252.0 6307253 · 6.253.0 ef20313 · 6.254.0 14493e5 · 6.255.0 d371b34 · 6.256.0 3c29888 · 6.257.0 7f55d2b · 6.258.0 10d2250 · 6.259.0 2bcda06 · 6.260.0 f16e286 · 6.261.0 8680504 · 6.262.0 595dc2e · 6.263.0 014ddf6 · 6.264.0 5e41879 · 6.265.0 f0c487c · 6.266.0 9135f7b · 6.267.0 a621a60 · 6.268.0 c2e513f · 6.269.0 f6552ea (078cece is the same release before the report was corrected) · 6.270.0 b8eda88 · 6.271.0 b8edbe1 · 6.272.0 881a91b · 6.273.0 56b0d2b · 6.274.0 c6e9b6b · 6.275.0 9cebe19 · 6.276.0 3db904e · 6.277.0 c6632a1 · 6.278.0 6c1fe75 · 6.279.0 a6241f5 · 6.280.0 893b40b · 6.281.0 5611a4a · 6.282.0 11dc992 · 6.283.0 3fa417f · 6.284.0 a8f3df4 · 6.285.0 70d118b · 6.286.0 fa93f1b · 6.287.0 39b9dba · 6.288.0 8508186 · 6.289.0 83f5296.
+   6.227.0 14e953a · 6.228.0 2aa3dfe · 6.229.0 a1318e1 · 6.230.0 0740c07 · 6.231.0 c1921af · 6.231.1 5a5c298 · 6.232.0 1ca3f6f · 6.233.0 2328c8c · 6.234.0 57f78d0 · 6.235.0 52e5b21 · 6.236.0 34cff8b · 6.236.1 fdce771 · 6.237.0 adf9256 · 6.238.0 3adad4f · 6.239.0 3adad4f (one commit, two releases) · 6.240.0 8f44bec · 6.241.0 dce517e · 6.242.0 1a1dab0 · 6.243.0 8fba04f · 6.244.0 9320906 · 6.245.0 9c1a8b1 · 6.246.0 1400abd · 6.247.0 3b92e99 · 6.248.0 e4e3a03 · 6.249.0 e4edc3f · 6.250.0 c267c1b · 6.251.0 f7b0d57 · 6.252.0 6307253 · 6.253.0 ef20313 · 6.254.0 14493e5 · 6.255.0 d371b34 · 6.256.0 3c29888 · 6.257.0 7f55d2b · 6.258.0 10d2250 · 6.259.0 2bcda06 · 6.260.0 f16e286 · 6.261.0 8680504 · 6.262.0 595dc2e · 6.263.0 014ddf6 · 6.264.0 5e41879 · 6.265.0 f0c487c · 6.266.0 9135f7b · 6.267.0 a621a60 · 6.268.0 c2e513f · 6.269.0 f6552ea (078cece is the same release before the report was corrected) · 6.270.0 b8eda88 · 6.271.0 b8edbe1 · 6.272.0 881a91b · 6.273.0 56b0d2b · 6.274.0 c6e9b6b · 6.275.0 9cebe19 · 6.276.0 3db904e · 6.277.0 c6632a1 · 6.278.0 6c1fe75 · 6.279.0 a6241f5 · 6.280.0 893b40b · 6.281.0 5611a4a · 6.282.0 11dc992 · 6.283.0 3fa417f · 6.284.0 a8f3df4 · 6.285.0 70d118b · 6.286.0 fa93f1b · 6.287.0 39b9dba · 6.288.0 8508186 · 6.289.0 83f5296 · 6.290.0 6daee50.
    Keep this list current: one line per release, appended at ceremony
    time.
 4. A BISECT IS AN OPTION, NOT THE FIRST MOVE — it costs him an install
@@ -3524,6 +3524,7 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
+| 6.291.0 | ⌨️ F8 drives the music card whichever of the two events macOS sends for it — an NSSystemDefined media key with "standard function keys" OFF, a plain keyDown with it ON, and 6.289.0 watched only the first | pending |
 | 6.290.0 | 🔬 the gate now fails a stub that is gentler than macOS — eight of ten scored losses sit at the macOS boundary and zero are pure-Lua logic, because the code, the test and the stub come from one model of macOS and agree with each other when it is wrong | pending |
 | 6.289.0 | ⏯ the keyboard's own play/pause, ⏮ and ⏭ keys drive the music card while it has a queue, and pass through to macOS when it does not | pending |
 | 6.288.0 | 🖥 the cheat sheet opens on the screen it resolved — a spot saved on the 4K was being clamped back onto the 4K by a helper that picks its own screen | pending |
@@ -4413,6 +4414,74 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.291.0 verify with LL — ⌨️ F8, BOTH WAYS (KNOWN GROUND)
+  WHAT CHANGED: "It's the F8 Key" answered it, and then raised a second
+  question I had not asked. That one physical key sends two completely
+  different events depending on a System Setting, and 6.289.0 watched
+  only one of them. Both are watched now.
+  WHY IT MATTERS: with "Use F1, F2, etc. as standard function keys" OFF
+  — the macOS default — F8 is a media key and 6.289.0 already works.
+  With it ON, F8 is a plain function key carrying keycode 100, and
+  6.289.0 could never have seen it. I cannot tell which you have from
+  here, and rather than ask you to go and read a System Setting, the
+  release handles both and the report SAYS which one your Mac uses.
+  🚨 AND THE OLD REPORT COULD NOT HAVE TOLD US. On the second setting
+  neither counter moved, so it read "0 taken · 0 passed" on a Mac where
+  you had been pressing the key all morning — identical to never having
+  pressed it. That is the thing I most want to stop doing.
+
+  A. THE HEADLINE.
+  A1. ⇪⇧pad., drop two or three tracks on the card. Something plays.
+  A2. Press F8. EXPECT: it pauses. Press again: it resumes.
+  A3. Press F7 and F9. EXPECT: back a track, forward a track.
+  A4. Console: `_G.musicReport()`. Find the new "↳ by route" line.
+      EXPECT one of these, and BOTH are a pass — I want to know which:
+      · `3 as a media key · 0 as a plain F7/F8/F9` — your setting is OFF
+        and 6.289.0 was already right.
+      · `0 as a media key · 3 as a plain F7/F8/F9`, with a line under it
+        naming the setting — your setting is ON, and this release is
+        what made F8 work at all.
+      PASTE THAT LINE either way. It is the fact neither of us has.
+
+  B. THE ONE THAT PROTECTS EVERY OTHER APP — please do this one.
+  B1. Empty the card's queue, then play something in Music.app, Spotify
+      or a YouTube tab. Press F8.
+      EXPECT: THAT app pauses. Hammerspoon must not swallow the key.
+  B2. With a queue on the card, hold ⌘ and press F8 (⌘F8).
+      EXPECT: the card does NOT react — ⌘F8 belongs to whatever app you
+      are in. Same for ⌥F8, ⌃F8 and ⇧F8.
+      A FAIL on either of these is the serious one:
+      `settings = { music_player = { mediaKeys = false } }` turns the
+      whole thing off and tell me at once.
+  B3. Hold F8 down. EXPECT: it toggles ONCE, not forty times.
+
+  C. MUST STILL WORK — this release added a tap that sees every
+     keystroke on the Mac, so this is the regression sweep and it is
+     the important half.
+  C1. Type normally in Chrome, Word and Hamsidian for a while.
+      EXPECT: no missed characters, no lag, nothing odd. If typing ever
+      feels heavier on this build than on 6.290.0, stop and tell me —
+      that is exactly what I would want to know.
+  C2. Your autocorrect still works: type `teh ` in Chrome → `the `.
+  C3. ⇪⇧Esc pauses the config; press F8 with a queue.
+      EXPECT: nothing (every tap here stands down when paused). ⇪⇧Esc
+      again and F8 works.
+  C4. The card's own space bar, ↑↓, ⏎, ⌘1–9 and ← → are unchanged.
+  C5. The volume keys stay macOS's, as you decided in 6.231.0.
+
+  D. PASTE BACK, PASS OR FAIL.
+  D1. `_G.musicReport()` — the whole block. Two lines matter: "by route"
+      (above), and a `⚠️ N press(es) THREW inside the handler` line. That
+      second one should NOT be there; if it is, paste it — it means the
+      handler is failing and the key is silently doing nothing.
+
+  E. A JUDGEMENT ONLY YOU CAN MAKE.
+  E1. With "standard function keys" ON, F8 has a second job — some apps
+      use it as a plain function key. This config takes it only while
+      the card has a queue and only with no modifier held. Is that
+      narrow enough, or does F8 matter to an app you use? Name the app
+      and I will exempt it.
+
 - 6.290.0 verify with LL — 🔬 THE GATE TESTS ITS OWN BELIEFS (KNOWN GROUND)
   WHAT CHANGED: nothing you can press. This release changes what the test
   gate is allowed to believe about macOS, and it is the answer to your

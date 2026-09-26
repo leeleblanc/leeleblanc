@@ -6,6 +6,108 @@ older lives only here.
 
 ```text
 
+NEW IN 6.291.0 — ⌨️ F8 ARRIVES BY TWO ROUTES AND ONLY ONE WAS WATCHED
+(modules/music_player.lua, tests/test_music_player.lua):
+
+  LL, asked which key he meant: "It's the F8 Key."
+
+  🔎 AND THAT ONE PHYSICAL KEY SENDS TWO ENTIRELY DIFFERENT EVENTS,
+  depending on a System Setting nobody had thought to ask about:
+
+    "Use F1, F2, etc. as standard function keys" OFF (the default)
+        → an NSSystemDefined media key. 6.289.0 watches this one.
+    the same setting ON
+        → a plain keyDown carrying keycode 100. 6.289.0 never saw it.
+
+  So 6.289.0 is correct on one setting and does nothing at all on the
+  other — and there is no way to know which LL has without asking him
+  to go and read a System Setting, which is 6.267.0's rule ("a knob
+  nobody turns is a default that is wrong") pointed at macOS instead of
+  at this config.
+
+  🚨 AND THE REPORT COULD NOT TELL THAT APART FROM "HE NEVER PRESSED
+  IT" (6.196.1). On the second setting the event never reaches the
+  systemDefined tap at all, so NEITHER `taken` NOR `passed` moves and
+  the line reads "0 taken · 0 passed" on a Mac where he has been
+  pressing the key all morning. That is the single most misleading
+  thing an instrument in this config can do, and it would have sent the
+  next release hunting a fault in the verdict function.
+
+  🔑 SO BOTH ROUTES ARE WATCHED, AND COUNTED APART (6.274.0). The
+  report's new "by route" line says how many presses arrived as a media
+  key and how many as a plain F7/F8/F9, and a non-zero count on the
+  second says outright that "Use F1, F2… as standard function keys" is
+  ON — a fact about his Mac that neither of us has today and that no
+  number in the old report could have produced.
+
+  🚨 A BARE PRESS ONLY. `mp.fnKeyVerdict` is PURE and refuses ⌘F8, ⌥F8,
+  ⌃F8 and ⇧F8 outright: those chords are an app's business, and the
+  narrowness is the entire licence for touching a key that has a
+  second, non-media meaning whenever that setting is on. The empty
+  queue still passes the key through, exactly as 6.289.0 does.
+
+  🔎 `fn` IS DELIBERATELY NOT ASKED, and that is a decision rather than
+  an oversight: macOS sets the function-key mask on F1–F12 under BOTH
+  settings, so requiring it absent would kill this on one and requiring
+  it present would kill it on the other — and which is which is not
+  knowable from here (6.233.0: a platform fact that decides a design is
+  checked in the source, with the file named, and this one has not
+  been). Ignoring it is the answer that is wrong in neither.
+
+  🔑 ONE FUNCTION, TWO CALLERS: `mp.act(key)` (6.231.0). The two routes
+  must never drift into doing different things for the same physical
+  key. And `mp.resetMedia()` is the ONE door for the counters' shape,
+  because they are read inside a tap callback where a nil field is not
+  a lost number but a dead ⏯ with nothing printed anywhere.
+
+  🚨 hs-lint CAUGHT TWO RULES THIS PROJECT ALREADY OWNED, both unpaid
+  in the first draft and both about a tap that watches keyDown — which
+  this one does and 6.289.0's does not:
+
+    · A THROW INSIDE A TAP CALLBACK IS A SILENCE (6.235.0), and on this
+      path it would escape into the event system ONCE PER KEYSTROKE
+      rather than once. The callback is `pcall(body, ev)` and a return
+      now — the shape the Key Caster, autocorrect, the expander and
+      editor_picker all use — and a throw is COUNTED, with the report's
+      ⚠️ outranking the healthy-looking numbers above it (6.260.0).
+    · A SYNTHETIC KEY IS NOT A PRESS (6.218.0). keyStrokes POSTS its
+      events and they arrive back through every tap as typing, so
+      without `_G.typingInjection` this config's own retypes could
+      drive the player.
+
+  GENERAL, and it is the half worth carrying: THE LINTER FOUND BOTH OF
+  THESE BEFORE THE GATE DID, because they are rules about a CLASS of
+  code rather than about behaviour — a functional check cannot notice a
+  missing guard whose case has not happened yet. A release that adds a
+  new kind of tap, watcher or callback should be linted before it is
+  tested, not after.
+
+  🧪 AND TWO CHECKS OF MINE WERE WRONG BEFORE THE CODE WAS:
+    · The throw check first made `getKeyCode` raise — which is INSIDE
+      the body's own inner pcall around the three reads, so the body
+      never threw and the outer guard was never exercised. 6.235.0's
+      own words: make something throw that is NOT already guarded on
+      its own. It drives `mp.fnKeyVerdict` now.
+    · The `or 0` check asked only whether the call threw, which the new
+      outer pcall makes true either way — so the mutation stripping
+      those defences SURVIVED. What they actually buy is that the key
+      still WORKS over a half-built table rather than dying quietly, so
+      that is what is asserted. 6.276.0's rule again: assert the RULE,
+      never the words a thing says about itself.
+
+  🧪 And two existing checks MOVED rather than being deleted: "the tap
+  is created AND started" and "starting twice does not stack a second
+  tap" were written when there was one route, and asserting the literal
+  1 would have gone red with nothing to say about the change they exist
+  to prove (6.248.0). They assert the RULE — every route this module
+  claims is created AND started, each in its own held slot (6.196.1).
+
+  🧪 The suite's eventtap stub can deliver BOTH kinds of event now;
+  before this release the second route was untestable (6.193.0, which
+  is the whole point of 6.290.0's audit one release earlier).
+
+  📏 15 mutations, 15 bites. 342 checks in this suite.
+
 NEW IN 6.290.0 — 🔬 A STUB THAT IS GENTLER THAN macOS IS A GATE FAILURE
 (tests/test_stub_fidelity.lua, 28 stubs across 25 files):
 
