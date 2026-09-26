@@ -48,6 +48,89 @@
 --   5. _G.hyperSelfTest — presses ⇪⇧F19 and reads the answer
 -- =====================================================================
 
+-- =====================================================================
+-- 🔔 6.285.0 — HOW A ⇪ HOLD ENDED, AND WHY THAT IS THREE FACTS
+-- =====================================================================
+-- LL's Console, on an ordinary press of ⇪⇧pad.:
+--
+--   ⌨️ ⇪ released by the watchdog — held 8s with no key event and no
+--   F18 keyUp (release #1) — musicPlayer had taken the keyboard.
+--
+-- NOTHING WAS WRONG. The music card takes the keyboard on purpose
+-- (6.251.0), so the F18 keyUp goes to ITS window and never reaches the
+-- hotkey; 6.165.1's handshake shortens the deadline to 1.5 s precisely
+-- so the hold ends anyway. That is the design working end to end. But it
+-- printed the sentence this config uses when ⇪ is genuinely STUCK, and
+-- it incremented `hyperLatchReleases` — the number the storm report
+-- prints as "before : watchdog releases this session". So a healthy Mac
+-- accumulated fault counts, and the one line that should make him look
+-- twice became the line he sees every time he plays music. 6.269.0's
+-- rule, in an instrument that predates it: a new instrument's first duty
+-- is to be SILENT when nothing is wrong.
+--
+-- 🚨 AND `_G.hyperTouch()` IS THE WRONG ANSWER — written down because it
+-- was this project's own first guess. hyperTouch means "a key proves
+-- this hold is real" and pushes the deadline OUT, so a card that called
+-- it would hold ⇪ latched LONGER: the opposite of what the handshake is
+-- for. The card already does both correct halves (it declares itself,
+-- and its page forwards the keyUp when it gets one). What was missing
+-- was not a call. It was a DISTINCTION.
+--
+-- PURE, and it lives here rather than in init.lua §3.12 because that
+-- file is at its line budget and this one already owns the hyper key.
+-- §3.12 asks it and falls back to the old single sentence if this file
+-- did not load — it degrades, it never breaks.
+function _G.hyperEndVerdict(o)
+    o = o or {}
+    local kind = "latch"
+    if o.relayed then kind = "relay"
+    elseif o.expected and o.expected ~= "" then kind = "handover" end
+    local who = tostring(o.expected or o.who or "a panel")
+    if kind == "relay" then
+        return kind, "⌨️ ⇪ keyUp seen by " .. who .. " — released there "
+            .. "(the F18 release never reached the hotkey)."
+    elseif kind == "handover" then
+        -- Said ONCE per panel per session: he opens that card all day,
+        -- and the count carries the rest.
+        if o.said then return kind, nil end
+        return kind, "⌨️ ⇪ hold ended on schedule — " .. who .. " took the "
+            .. "keyboard, so the F18 keyUp went to it. Normal, not a stuck "
+            .. "⇪; _G.hyperKeyReport() counts them."
+    end
+    return kind, string.format(
+        "⌨️ ⇪ released by the watchdog — held %.0fs with no key event and no "
+        .. "F18 keyUp (release #%d). Press Caps Lock again as normal.",
+        tonumber(o.quiet) or 0, tonumber(o.count) or 0)
+end
+
+-- 🔎 THREE STATES, READABLE AFTER THE FACT (6.196.1). Until this release
+-- there was one counter and it summed a fault with two kinds of health.
+function _G.hyperKeyReport()
+    local L = { "⌨️ HYPER KEY — how the hold has ended this session" }
+    local function line(t) L[#L + 1] = t end
+    line("   right now: " .. (_G.hyperActive and "⇪ IS DOWN" or "⇪ is up"))
+    line("   relay    : " .. (tonumber(_G.hyperRelayReleases) or 0)
+         .. " — a panel's page saw the F18 keyUp and told us. Health.")
+    line("   handover : " .. (tonumber(_G.hyperPanelHandovers) or 0)
+         .. " — a panel said it was taking the keyboard and the hold ended"
+         .. " on schedule. Expected: the keyUp went to that window.")
+    local latches = tonumber(_G.hyperLatchReleases) or 0
+    if latches == 0 then
+        line("   latch    : 0 — ⇪ has not stuck this session")
+    else
+        line("   latch    : ⚠️ " .. latches .. " — ⇪ went silent with NO panel"
+             .. " expecting it and had to be broken. This is the fault"
+             .. " number, and the storm report prints it.")
+    end
+    local names = {}
+    for n in pairs(_G.hyperSaidHandover or {}) do names[#names + 1] = tostring(n) end
+    table.sort(names)
+    line("   panels   : " .. (#names > 0 and table.concat(names, ", ")
+                              or "none has taken the keyboard yet"))
+    print(table.concat(L, "\n"))
+    return true
+end
+
 return function(core)
 
 local hyperEnter = core.enter

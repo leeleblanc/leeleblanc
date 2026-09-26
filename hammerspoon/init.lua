@@ -4,56 +4,42 @@
 -- =====================================================================
 -- 09-26-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.284.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.285.0
 -- =====================================================================
+
+-- NEW IN 6.285.0 — 🔔 A HANDOVER IS NOT A LATCH, AND THEY WERE
+--   PRINTED IDENTICALLY (init.lua §3.12, core/hyper_key.lua):
+--   LL's Console on an ordinary ⇪⇧pad.: "⇪ released by the watchdog —
+--   held 8s … musicPlayer had taken the keyboard". Nothing was wrong —
+--   the card takes the keys on purpose (6.251.0) and 6.165.1's
+--   handshake ends the hold — but that is the sentence printed when ⇪
+--   is genuinely STUCK, and a line that cries wolf is one he reads past.
+--   🔑 THREE ENDINGS (6.196.1), only the third a fault: relay · handover
+--   · latch. Only a latch counts in `hyperLatchReleases`, the number the
+--   storm report prints. `_G.hyperEndVerdict` is PURE (core/hyper_key);
+--   `_G.hyperKeyReport()`. 🚨 `_G.hyperTouch()` was the WRONG answer and
+--   is recorded as such: it pushes the deadline OUT.
 
 -- NEW IN 6.284.0 — 🏷 A TEAM IS PINNED BY ITS GID, SO A RENAME NO
 --   LONGER BREAKS IT (modules/asana_comments.lua):
---   LL: "Why do I have to hard code team names" — and he had renamed
---      the team, which is exactly what broke it.
---   🔎 THE FETCH WAS NEVER STALE: the team list is asked of Asana LIVE
---      every boot. What is stale is the name we search FOR, a literal
---      in this file — a fresh answer to a stale question.
---   🔑 `M.teamKey` / `M.matchTeam` are PURE. The key survives the
---      decoration drifting (the "| N. |" wrapper, case, &/and, a
---      doubled or NON-BREAKING space), and a gid that resolved once is
---      PINNED in hs.settings, so the NEXT rename costs nothing. Three
---      answers: by name · by pinned gid (saying what it is called now)
---      · not found, which NAMES what Asana actually answered.
---   📏 A miss costs a shortened ⇪T picker, never a broken submit.
---      `_G.asanaTeams()`. 13 mutations, 13 bites.
+--   LL: "Why do I have to hard code team names" — and he had renamed it.
+--   🔎 THE FETCH WAS NEVER STALE: Asana's team list is asked LIVE every
+--   boot. The stale half is the name we search FOR, a literal here.
+--   🔑 `M.teamKey` / `M.matchTeam` are PURE, and a gid that resolved once
+--   is PINNED in hs.settings, so the NEXT rename costs nothing: by name ·
+--   by pinned gid (saying what it is called now) · not found, which NAMES
+--   what Asana answered. A miss costs a shortened ⇪T picker, never a
+--   broken submit. `_G.asanaTeams()`.
 
--- NEW IN 6.283.0 — 🧠 ⌥Tab NEVER REMEMBERED THE HAMMERSPOON CONSOLE
---   (modules/window_switcher.lua):
---   LL, twice: "Still can't see Hammerspoon window using Alt+tab …
---      unless I switch to that desktop I can't see it." His second
---      sentence IS the diagnosis.
---   🔎 The memory is the ONLY way any window on another desktop is ever
---      listed (6.152.0 — AX does not report other Spaces). The sweep
---      recorded what it accepted into altTab.known; §1b's console block
---      built its tile and recorded NOTHING, so the console was listable
---      only from its own Space and no press could teach it.
---   🔑 ONE DOOR, `altTab.remember`: two copies of a rule with one of
---      them missing, held apart now by a source sentry.
---   🖥 AND CHOOSING A CONSOLE CARD OPENS IT — nothing cheap tells "on
---      another desktop" from "closed", so the answer is not a better
---      probe. 6.147.0 is RE-ASKED, not dropped (6.280.0).
---   🔎 `_G.switcherReport()`: the module had no report at all.
-
--- (6.282.0 and earlier: see CHANGELOG.md — the complete record, and the
---  reason trimming this header is safe. 6.180.0 dropped the inline count
---  from five entries to TWO: five had grown to 135 lines of release notes
---  inside the orchestrator, and CHANGELOG.md carries every word of them.)
+-- (6.283.0 and earlier: see CHANGELOG.md — the complete record, and the
+--  reason trimming this header is safe. 6.180.0 cut the inline count to
+--  TWO; a gate check proves every entry here is also in CHANGELOG.md.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.284.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.285.0
 -- =====================================================================
--- The catalogue that used to sit here — every tool, its key and what it
--- is for, in prose — moved to GUIDE.md ("What each tool does") in
--- 6.180.0. It was 259 lines of documentation inside the orchestrator,
--- and it had pushed this file to within two lines of its own 4,000-line
--- budget. Nothing was lost: GUIDE.md is in the zip, in git, and is where
--- a person looks for prose. The version stamp stays here because the
--- release ceremony counts three of them in this file.
+-- The catalogue that used to sit here moved to GUIDE.md ("What each
+-- tool does") in 6.180.0 — 259 lines of prose inside the orchestrator.
+-- The stamp stays: the release ceremony counts three in this file.
 -- =====================================================================
 -- 🗺 FILE MAP — the sections below, in the order they actually RUN
 -- =====================================================================
@@ -68,8 +54,8 @@
 --   §0.2   credentials — secret.lua loader (no token lives here)
 --   §0.3   hotkey conflict sentry    §0.4   hyper migration map
 --   §1     global state              §1.5   popup positioning
---   §1.6   cheat sheet (core/cheatsheet.lua) · safe canvas show ·
---          draggable panels · shared arbitration (core/coexist.lua)
+--   §1.6   cheat sheet · safe canvas show · draggable panels · shared
+--          arbitration (core/cheatsheet.lua, core/coexist.lua)
 --   §1.11  diagnostics (core/diagnostics.lua)
 --   §2     shared helpers (the OCR engine that was here moved to
 --          modules/ocr_engine.lua in 6.105.0)
@@ -81,7 +67,7 @@
 --   §1.4   shared text/CSV helpers (late on purpose — everything
 --          CALLS them after load; nothing above needs them sooner)
 --   §1.12  module loader → BASE list → machine profiles → safe
---          mode → boot report. The 46 modules/*.lua load HERE, last.
+--          mode → boot report. Every modules/*.lua loads HERE, last.
 -- =====================================================================
 
 -- =====================================================================
@@ -142,7 +128,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.284.0"
+_G.configVersion = "6.285.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the
@@ -1221,27 +1207,17 @@ end)
 -- still refuses, say so and let the caller clean up. Story: NEW IN 6.56.0.
 --
 -- 🚨 6.266.0 — AND THE RETRY NEVER SHOWS A CANVAS BEHIND ITS CALLER'S
--- BACK. Until this release the retry called `canvas:show()` itself, a
--- run-loop turn later, telling nobody. mouse_grid's showCanvas records
--- every canvas it shows in `grid.shown`, and grid.hide() hides that list
--- and EMPTIES it — so an Esc inside that 50 ms window hid the box, threw
--- away the only handle to it, and then the retry put it back on screen
--- with nothing able to reach it. `_G.mouseGrid.hide()` could not clear
--- it; only hs.reload() could. That is LL's "Frozen grid again", and it
--- was a suspect in CLAUDE.md for eight releases until the two halves
--- were read side by side.
--- 🔑 THE ANSWER IS `onLate`: the retry HANDS THE CANVAS BACK and the
--- CALLER decides whether it still wants the panel. A caller that passes
--- nothing gets NO second show at all — the safe default, and the one
--- every caller but mouse_grid takes today, so the whole orphan class
--- closes in one change rather than in fifteen modules.
--- 📏 COST, NAMED: a panel whose first show is refused no longer comes up
--- by itself a moment later — you press the key again, which is what the
--- message has always told you to do. It is said on the FIRST refusal now
--- (there is no second one to wait for), so a panel that did not open is
--- a panel that says so.
--- 🔔 The hs.alert retry below is deliberately NOT changed: an alert owns
--- itself, expires in two seconds and has no caller to orphan.
+-- BACK. It used to call `canvas:show()` itself a turn later, telling
+-- nobody: an Esc inside that 50 ms hid mouse_grid's box and emptied the
+-- only list holding it, and the retry then put it back with nothing able
+-- to reach it — LL's "Frozen grid again", which only hs.reload() cleared.
+-- 🔑 `onLate` HANDS THE CANVAS BACK and the CALLER decides. Passing
+-- nothing means no second show, which is the safe default every caller
+-- but mouse_grid takes — so the orphan class closes in ONE change.
+-- 📏 COST: a refused panel no longer reappears by itself; press the key
+-- again, which the message has always said, and it is said on the FIRST
+-- refusal now. 🔔 The hs.alert retry below is deliberately unchanged: an
+-- alert owns itself and expires in two seconds. Story: CHANGELOG 6.266.0.
 _G.canvasShowTimers = _G.canvasShowTimers or {}
 _G.canvasLate = _G.canvasLate
     or { refused = 0, handed = 0, dropped = 0, last = nil, lastAt = nil }
@@ -1878,7 +1854,12 @@ _G.hyperHeldAt        = 0
 _G.hyperEnteredAt     = nil
 _G.hyperRepeatAt      = nil
 _G.hyperRepeats       = 0
-_G.hyperLatchReleases = 0
+-- 🔔 6.285.0 — THREE ENDINGS, ONE OF THEM A FAULT. `_G.hyperEndVerdict`
+-- (PURE, core/hyper_key.lua) decides which; only a latch is a fault.
+_G.hyperLatchReleases  = 0      -- ⇪ STUCK and broken by force
+_G.hyperPanelHandovers = 0      -- a panel declared it was taking the keys
+_G.hyperRelayReleases  = 0      -- a panel's page relayed the real keyUp
+_G.hyperSaidHandover   = {}     -- panel -> already explained once
 _G.hyperLatchTimer    = nil     -- HELD: an unreferenced timer is collected
 
 local hyperExit  -- forward: the watchdog calls it
@@ -1894,12 +1875,26 @@ local function hyperWatchLatch(delay)
             hyperWatchLatch(_G.hyperLatchSecs - quiet)
             return
         end
-        _G.hyperLatchReleases = _G.hyperLatchReleases + 1
-        print(string.format("⌨️ ⇪ released by the watchdog — held %.0fs with no "
-              .. "key event and no F18 keyUp (release #%d)%s. Press Caps Lock "
-              .. "again as normal.", quiet, _G.hyperLatchReleases,
-              _G.hyperReleaseExpected
-                  and (" — " .. _G.hyperReleaseExpected .. " had taken the keyboard") or ""))
+        -- A panel that SAID it would take the keyboard is not a latch:
+        -- same deadline, same release, opposite fact.
+        local who = _G.hyperReleaseExpected
+        local kind, words = "latch", nil
+        if _G.hyperEndVerdict then
+            kind, words = _G.hyperEndVerdict({ expected = who, quiet = quiet,
+                count = _G.hyperLatchReleases + 1,
+                said = _G.hyperSaidHandover[who] and true or false })
+        end
+        if kind == "handover" then
+            _G.hyperPanelHandovers = _G.hyperPanelHandovers + 1
+            _G.hyperSaidHandover[who] = true
+        else
+            _G.hyperLatchReleases = _G.hyperLatchReleases + 1
+            words = words or string.format("⌨️ ⇪ released by the watchdog — "
+                .. "held %.0fs with no key event and no F18 keyUp (release "
+                .. "#%d). Press Caps Lock again as normal.",
+                quiet, _G.hyperLatchReleases)
+        end
+        if words then print(words) end
         _G.hyperReleaseExpected = nil
         hyperExit()
     end)
@@ -1930,9 +1925,12 @@ end
 -- when the Carbon release never fires): that is the release, take it.
 _G.hyperReleaseSeen = function(who)
     if not _G.hyperActive then return false end
+    -- 6.285.0 — the cleanest ending: the release really happened and a
+    -- panel relayed it. Counting it as a latch made the storm report's
+    -- "watchdog releases this session" climb on a healthy Mac.
     print("⌨️ ⇪ keyUp seen by " .. tostring(who or "a panel") .. " — released there "
           .. "(the F18 release never reached the hotkey).")
-    _G.hyperLatchReleases = _G.hyperLatchReleases + 1
+    _G.hyperRelayReleases = _G.hyperRelayReleases + 1
     hyperExit()
     return true
 end

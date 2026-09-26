@@ -1135,9 +1135,42 @@ do
   t.fn()
   check("🚨 after 1.5s of silence the phantom hold is let go",
         w.SB.hyperActive == false and w.modal.entered == false)
+  -- 🚨 6.248.0 — THIS CHECK ASSERTED A SENTENCE 6.285.0 DELIBERATELY
+  -- CHANGES. The old line read "released by the watchdog — held 8s …
+  -- a pad had taken the keyboard", which is the sentence this config
+  -- prints when ⇪ is genuinely STUCK — printed on a Mac where nothing
+  -- was wrong, every time LL opened the music card. The RULE it existed
+  -- for (the panel is named, and the hold really ends) is unchanged and
+  -- is what it asserts now.
   local said = false
-  for _, l in ipairs(w.printed) do if l:find("a pad had taken the keyboard", 1, true) then said = true end end
-  check("...and the Console line names the panel that took the keyboard", said)
+  for _, l in ipairs(w.printed) do
+      if l:find("a pad took the keyboard", 1, true) then said = true end
+  end
+  check("...and the Console line names the panel that took the keyboard",
+        said, w.printed[#w.printed])
+  check("🔔 …and says it is NORMAL rather than reading as a stuck ⇪", (function()
+      for _, l in ipairs(w.printed) do
+          if l:find("a pad took the keyboard", 1, true) then
+              return l:find("Normal, not a stuck", 1, true) ~= nil
+          end
+      end
+      return false
+  end)())
+  check("🚨 …and it is NOT counted as a latch. That number is what the storm "
+        .. "report prints as a fault, and it used to climb on a healthy Mac",
+        w.SB.hyperLatchReleases == 0 and w.SB.hyperPanelHandovers == 1,
+        tostring(w.SB.hyperLatchReleases) .. "/" .. tostring(w.SB.hyperPanelHandovers))
+  -- Said ONCE per panel: he opens that card all day.
+  local before = #w.printed
+  w.now = 3003
+  w.mkEvent({}, "f18", true, false, false).post()
+  w.SB.hyperExpectRelease(1.5, "a pad")
+  local t2 = w.SB.hyperLatchTimer; w.SB.hyperLatchTimer = nil
+  w.now = 3005
+  t2.fn()
+  check("🔕 the same panel is explained ONCE, then counted in silence",
+        w.SB.hyperPanelHandovers == 2 and #w.printed == before,
+        tostring(w.SB.hyperPanelHandovers) .. " / +" .. (#w.printed - before))
   check("...expectation cleared", w.SB.hyperReleaseExpected == nil)
   check("with ⇪ up the call is a no-op (false)", w.SB.hyperExpectRelease(1.5) == false)
 
@@ -1158,10 +1191,98 @@ do
   -- the page saw the F18 keyUp itself
   w.now = 3020
   w.mkEvent({}, "f18", true, false, false).post()
-  check("_G.hyperReleaseSeen releases at once and counts it",
+  -- 🚨 6.248.0 again: this asserted hyperLatchReleases == 2, which made a
+  -- RELAYED keyUp — the cleanest ending there is, the release really
+  -- happened and a panel passed it on — indistinguishable from ⇪ sticking.
+  check("_G.hyperReleaseSeen releases at once and counts it as a RELAY, "
+        .. "never as a latch",
         w.SB.hyperReleaseSeen("the scratch pad") == true and w.SB.hyperActive == false
-        and w.SB.hyperLatchTimer == nil and w.SB.hyperLatchReleases == 2)
+        and w.SB.hyperLatchTimer == nil and w.SB.hyperRelayReleases == 1
+        and w.SB.hyperLatchReleases == 0,
+        tostring(w.SB.hyperRelayReleases) .. "/" .. tostring(w.SB.hyperLatchReleases))
   check("...and is a no-op with ⇪ up", w.SB.hyperReleaseSeen("x") == false)
+end
+
+-- =====================================================================
+section("13b. 🔔 6.285.0 — A HANDOVER IS NOT A LATCH")
+-- =====================================================================
+-- LL's Console on an ordinary ⇪⇧pad.: "⇪ released by the watchdog — held
+-- 8s … musicPlayer had taken the keyboard." Nothing was wrong; the card
+-- takes the keys on purpose and the handshake ends the hold. But that is
+-- the sentence printed when ⇪ is genuinely stuck, and it incremented the
+-- number the storm report calls a fault.
+do
+  local w = world{}
+  loadHyperKey(w)
+  local V = w.SB.hyperEndVerdict
+  check("the verdict is PURE and reachable", type(V) == "function")
+
+  local k = V({ expected = "musicPlayer" })
+  check("a panel that DECLARED itself is a handover, not a latch", k == "handover", k)
+  check("no panel declared anything → latch", V({}) == "latch")
+  check("an EMPTY panel name is nobody, not a handover", V({ expected = "" }) == "latch")
+  check("a relayed keyUp outranks everything — the release really happened",
+        V({ relayed = true, expected = "musicPlayer" }) == "relay")
+
+  local _, w1 = V({ expected = "musicPlayer" })
+  check("the handover sentence names the panel and says it is normal",
+        w1 and w1:find("musicPlayer", 1, true) and w1:find("Normal, not a stuck", 1, true), w1)
+  local _, w2 = V({ expected = "musicPlayer", said = true })
+  check("🔕 …and is silent the second time for the same panel", w2 == nil)
+  local _, w3 = V({ quiet = 8, count = 3 })
+  check("the LATCH sentence keeps its urgency and its numbers",
+        w3 and w3:find("released by the watchdog", 1, true)
+        and w3:find("release #3", 1, true) and w3:find("held 8s", 1, true), w3)
+  -- 🚨 The fault sentence must NOT be reachable for a declared panel:
+  -- that is the entire complaint.
+  local _, w4 = V({ expected = "musicPlayer", quiet = 8, count = 3 })
+  check("🚨 a declared panel can never be handed the watchdog's wording",
+        w4 and w4:find("released by the watchdog", 1, true) == nil, w4)
+  check("nil arguments answer a latch and a sentence, never throw", (function()
+      local ok, kk, ww = pcall(V, nil)
+      return ok and kk == "latch" and type(ww) == "string"
+  end)())
+
+  -- the report
+  w.SB.hyperRelayReleases, w.SB.hyperPanelHandovers, w.SB.hyperLatchReleases = 2, 5, 0
+  w.SB.hyperSaidHandover = { musicPlayer = true }
+  w.printed = {}
+  check("_G.hyperKeyReport exists", type(w.SB.hyperKeyReport) == "function")
+  w.SB.hyperKeyReport()
+  local rep = table.concat(w.printed, "\n")
+  check("…and prints all three endings apart",
+        rep:find("relay", 1, true) and rep:find("handover", 1, true)
+        and rep:find("latch", 1, true), rep)
+  check("…with a clean latch line reading 0, no ⚠️",
+        rep:find("latch    : 0", 1, true) ~= nil, rep)
+  check("…and it names the panels that have taken the keyboard",
+        rep:find("musicPlayer", 1, true) ~= nil)
+  w.SB.hyperLatchReleases = 1
+  w.printed = {}
+  w.SB.hyperKeyReport()
+  check("🚨 a real latch DOES get the ⚠️ — the fault must still shout",
+        table.concat(w.printed, "\n"):find("⚠️ 1", 1, true) ~= nil,
+        table.concat(w.printed, "\n"))
+end
+
+do
+  -- 🚨 IT DEGRADES: a Hammerspoon where core/hyper_key.lua did not load
+  -- must still release a phantom hold and still say so.
+  local w = world{ dropKeyUp = true }
+  -- deliberately NOT loadHyperKey(w): hyperEndVerdict is undefined
+  bindShortcuts(w)
+  runTimers(w)
+  w.now = 5000
+  w.mkEvent({}, "f18", true, false, false).post()
+  w.now = 5000 + w.SB.hyperLatchSecs + 1
+  runTimers(w)
+  check("🛟 with no verdict function the watchdog still releases the hold",
+        w.SB.hyperActive == false)
+  local said = false
+  for _, l in ipairs(w.printed) do
+      if l:find("released by the watchdog", 1, true) then said = true end
+  end
+  check("🛟 …and still says so, with the old sentence", said)
 end
 
 -- =====================================================================
