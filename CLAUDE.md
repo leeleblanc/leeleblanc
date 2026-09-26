@@ -1008,6 +1008,38 @@ work Mac.
   one-hop symlink: a fixture where the right and wrong implementations
   AGREE proves nothing — pick the input where they must differ.
 
+- 🏷 A LIVE ANSWER TO A STALE QUESTION IS STILL STALE (6.284.0,
+  modules/asana_comments.lua — LL: "Why do I have to hard code team
+  names", with the team's real name beside it, two words shorter than
+  the literal the config was hunting for).
+  🔎 THE FETCH WAS NEVER THE STALE HALF. The team list is asked of
+  Asana LIVE on every boot; the literal in the file is the question.
+  So renaming a team is exactly what breaks it, and the warning is
+  CORRECT — which is why it survived in a boot log for months.
+  🔑 `M.teamKey` and `M.matchTeam` are PURE and live OUTSIDE setup(),
+  so the gate proves the rule with no Mac and no network and they cost
+  nothing from this file's near-the-ceiling local budget. A resolved
+  gid is PINNED in hs.settings, so the NEXT rename costs nothing:
+  three answers — by name · by pinned gid (SAYING what the team is
+  called now) · not found.
+  🚨 IT RE-PINS THE KEY WE ASKED WITH, not only the current name.
+  Pinning only the new name reads tidier and makes the pin DECAY — the
+  config still asks the old name, so the rename would survive exactly
+  one boot. Its own mutation, and a second boot drives it.
+  🚨 AND A STALE PIN MUST NOT INVENT A TEAM: a pinned gid Asana no
+  longer holds is "none", or the roster fetch is handed a gid that
+  404s and the picker shortens with nothing saying why.
+  🔎 THE ⚠️ NAMES WHAT ASANA ANSWERED. The old line advised "check
+  spelling/spacing" — which the comparison had already ruled out, being
+  case-folded and trimmed on both sides — and named no real team, so a
+  WRONG rename warned identically. `_G.asanaTeams()`.
+  📏 COST OF A MISS: a shortened ⇪T picker; a name not on the list
+  still submits. GENERAL: when a lookup joins something we ASK with
+  something a service ANSWERS, check which side is the one going stale
+  — and pin the service's own identifier, which cannot be renamed.
+  🧪 The module had NO SUITE, which is how a hand-rolled :lower()
+  comparison sat in it for a hundred releases. 13 mutations, 13 bites.
+
 - 🧠 A WINDOW THAT IS NEVER REMEMBERED CAN ONLY BE SEEN FROM ITS OWN
   DESKTOP (6.283.0, modules/window_switcher.lua — LL, twice: "Still
   can't see Hammerspoon window using Alt+tab … unless I switch to that
@@ -3357,6 +3389,7 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
+| 6.284.0 | 🏷 an Asana team is pinned by its GID, so renaming it no longer costs the ⇪T picker — the fetch was always live, the stale half was the name we searched FOR | pending |
 | 6.283.0 | 🧠 ⌥Tab offers the Hammerspoon Console from any desktop — the console block was the one listing that never fed the memory, and the memory is the only route to another Space | pending |
 | 6.282.0 | 🕒 `_G.screenshotsReport()` stopped throwing — os.date refuses a float and `hs.timer.secondsSinceEpoch()` is one, so the report died at the `area` line in any session where ⇪4 had been pressed (since 6.264.0) | pending |
 | 6.281.0 | 🔁 the green OCR pills stop: a screenshot that OCRs to nothing is remembered and not re-OCR'd for ever — the watcher had no way to stop offering a word-less image, and the report counted only successes so it read 0 through the whole runaway | pending |
@@ -4224,6 +4257,60 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.284.0 verify with LL — 🏷 THE ASANA TEAM NAME (KNOWN GROUND)
+  WHAT CHANGED: the team name in the config is corrected to the one you
+  sent me, and — the actual release — a team's GID is remembered the
+  first time it resolves, so renaming it in Asana no longer breaks
+  anything.
+  WHY IT MATTERS: you asked why you have to hard code team names. You
+  don't, and you were right to ask. The honest finding is that the half
+  everyone would suspect was never stale: this config asks Asana for the
+  team list on EVERY boot, so its answer is always current. What was
+  stale is the question — the name it searches for, typed into a file.
+  A fresh answer to a stale question, which is why the warning was
+  correct and useless at the same time.
+
+  A. THE HEADLINE.
+  A1. Install and reload. Watch the Console during boot.
+      EXPECT: the `⚠️ Asana team not found by name: "| 2. SAC Library
+      Team Member Projects & Tasks |"` line is GONE.
+  A2. Console: `_G.asanaTeams()`.
+      EXPECT: an "asked" block with your two team names, an "answer"
+      block listing every team Asana holds WITH ITS GID, and two ✅
+      lines. Paste it — this is the artefact I have been asking for and
+      it is the first build that can produce it.
+  A3. Press ⇪T and start typing a colleague's name from that team.
+      EXPECT: they are suggested. That is the thing the warning was
+      costing you, and nothing else.
+
+  B. THE REAL TEST — RENAME IT ON PURPOSE. Worth five minutes, because
+     it is the whole release and you are the only one who can run it.
+  B1. In Asana, rename that team — add a word, take one away, anything.
+  B2. Reload Hammerspoon.
+      EXPECT in the Console: `🏷 Asana team renamed — "| 2. SAC Library
+      Team Member Projects |" is called "<the new name>" now; matched by
+      its GID, nothing to edit`. NO ⚠️.
+  B3. ⇪T again: the same colleagues are still suggested.
+  B4. Reload once more. EXPECT the same 🏷 line, not a ⚠️ — the pin has
+      to be re-written every boot or it would survive exactly one.
+  B5. Rename it back if you like. Either way it keeps working.
+
+  C. MUST STILL WORK.
+  C1. ⇪T creates a task, with a priority and SAC Values, as ever.
+  C2. A name that is NOT in the list still submits — that was true
+      before and must stay true.
+  C3. Hamsidian's `_G.scratchPadSend()` still posts to Asana.
+
+  D. A JUDGEMENT ONLY YOU CAN MAKE.
+  D1. Team 1 is "| 1. SAC Library Core Projects |" and I have not
+      touched it. If that one has also been renamed, `_G.asanaTeams()`
+      will now show you Asana's real name for it — send me the output
+      rather than editing the file.
+  D2. Should the config stop naming teams altogether and just use the
+      whole workspace? I have NOT done that: 6.16.9 found the workspace
+      is a college with thousands of student accounts, which made the
+      picker useless. Say if that has changed.
+
 - 6.283.0 verify with LL — 🧠 ⌥Tab SEES THE CONSOLE (KNOWN GROUND)
   WHAT CHANGED: the Hammerspoon Console is remembered by ⌥Tab now, so it
   is on the wheel from every desktop instead of only the one it is on.

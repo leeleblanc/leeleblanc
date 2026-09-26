@@ -51,8 +51,18 @@ check("a DOUBLED space inside the name is not a difference",
 -- already stale advice — the compare was case-folded and trimmed on both
 -- sides — and it could never have found THIS, because a non-breaking
 -- space is invisible in a name copied out of a browser.
-check("🚨 a NON-BREAKING space reads as a space (invisible in a copied name)",
-      K("SAC\194\160Library") == K("SAC Library"), K("SAC\194\160Library"))
+-- 🧪 6.230.0 — PICK THE INPUT WHERE THE TWO IMPLEMENTATIONS MUST DIFFER.
+-- A bare "SAC<nbsp>Library" proves nothing: the punctuation rule below
+-- already turns those two bytes into spaces and the answer comes out the
+-- same with the nbsp line deleted. The fixture that bites puts the
+-- non-breaking space INSIDE the decoration, where the "| N. …" pattern
+-- needs a real %s and will not match one.
+check("🚨 a NON-BREAKING space reads as a space — including inside the "
+      .. "\"| N. \" wrapper, where it would otherwise defeat the strip",
+      K("|\194\1602. SAC Library |") == K("| 2. SAC Library |"),
+      K("|\194\1602. SAC Library |"))
+check("…and in the body of the name too",
+      K("SAC\194\160Library") == K("SAC Library"))
 check("\"&\" and \"and\" are the same word",
       K("Projects & Tasks") == K("Projects and Tasks"), K("Projects & Tasks"))
 check("punctuation is decoration", K("Projects: Tasks!") == K("Projects Tasks"))
@@ -97,6 +107,13 @@ check("…and it says what the team is called NOW, so the config can be "
 check("…and it pins the NEW key too, so a config brought into line matches "
       .. "by name again (the cheap way)",
       r2[2].pin and r2[2].pin[K("| 2. SAC Library Reading Room |")] == "222")
+-- 🚨 AND IT RE-PINS THE KEY WE ASKED WITH. Pinning only the new name reads
+-- as tidier and makes the pin DECAY: the config still asks the old name,
+-- so the next boot would find no pin under it and fall to "none" — the
+-- rename would survive exactly one boot.
+check("🚨 …and it RE-PINS THE ASKED key, or the pin decays after one boot "
+      .. "and the rename breaks on the next one",
+      r2[2].pin and r2[2].pin[K(stale[2])] == "222")
 check("…while the team that did NOT move still matches by name",
       r2[1].how == "name")
 
@@ -243,6 +260,13 @@ check("…and the line says what it is called NOW",
 check("…and there is no ⚠️ at all, because nothing failed",
       said("⚠️ Asana team not found") == nil)
 check("…and its members are still in the picker", #(_G.asanaTeamMembers or {}) == 2)
+-- 🚨 A SECOND BOOT ON THE RENAMED TEAM. This is what a pin that only ever
+-- records the CURRENT name cannot do: the config still asks the old name,
+-- so the pin under the old key has to be re-written every boot.
+boot()
+check("🚨 …and it is STILL resolved on the boot after that — the pin does "
+      .. "not decay", said("Asana team renamed") ~= nil
+      and said("⚠️ Asana team not found") == nil)
 
 -- --- 3c. no pin, no match -------------------------------------------------
 out("\n  3c. 🔎 a team that really is missing NAMES what Asana answered\n")

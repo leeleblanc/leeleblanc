@@ -1,4 +1,4 @@
-# TESTING — how to score release 6.283.0
+# TESTING — how to score release 6.284.0
 
 You install ONE archive and it carries several releases. Below are the
 steps for each release this archive is new for, newest first. Run the
@@ -26,6 +26,64 @@ else is a LOSS and I fix it before building further. You are the only
 scorer; I never mark my own.
 
 ---
+
+## 6.284.0
+
+6.284.0 verify with LL — 🏷 THE ASANA TEAM NAME (KNOWN GROUND)
+WHAT CHANGED: the team name in the config is corrected to the one you
+sent me, and — the actual release — a team's GID is remembered the
+first time it resolves, so renaming it in Asana no longer breaks
+anything.
+WHY IT MATTERS: you asked why you have to hard code team names. You
+don't, and you were right to ask. The honest finding is that the half
+everyone would suspect was never stale: this config asks Asana for the
+team list on EVERY boot, so its answer is always current. What was
+stale is the question — the name it searches for, typed into a file.
+A fresh answer to a stale question, which is why the warning was
+correct and useless at the same time.
+
+A. THE HEADLINE.
+A1. Install and reload. Watch the Console during boot.
+    EXPECT: the `⚠️ Asana team not found by name: "| 2. SAC Library
+    Team Member Projects & Tasks |"` line is GONE.
+A2. Console: `_G.asanaTeams()`.
+    EXPECT: an "asked" block with your two team names, an "answer"
+    block listing every team Asana holds WITH ITS GID, and two ✅
+    lines. Paste it — this is the artefact I have been asking for and
+    it is the first build that can produce it.
+A3. Press ⇪T and start typing a colleague's name from that team.
+    EXPECT: they are suggested. That is the thing the warning was
+    costing you, and nothing else.
+
+B. THE REAL TEST — RENAME IT ON PURPOSE. Worth five minutes, because
+   it is the whole release and you are the only one who can run it.
+B1. In Asana, rename that team — add a word, take one away, anything.
+B2. Reload Hammerspoon.
+    EXPECT in the Console: `🏷 Asana team renamed — "| 2. SAC Library
+    Team Member Projects |" is called "<the new name>" now; matched by
+    its GID, nothing to edit`. NO ⚠️.
+B3. ⇪T again: the same colleagues are still suggested.
+B4. Reload once more. EXPECT the same 🏷 line, not a ⚠️ — the pin has
+    to be re-written every boot or it would survive exactly one.
+B5. Rename it back if you like. Either way it keeps working.
+
+C. MUST STILL WORK.
+C1. ⇪T creates a task, with a priority and SAC Values, as ever.
+C2. A name that is NOT in the list still submits — that was true
+    before and must stay true.
+C3. Hamsidian's `_G.scratchPadSend()` still posts to Asana.
+
+D. A JUDGEMENT ONLY YOU CAN MAKE.
+D1. Team 1 is "| 1. SAC Library Core Projects |" and I have not
+    touched it. If that one has also been renamed, `_G.asanaTeams()`
+    will now show you Asana's real name for it — send me the output
+    rather than editing the file.
+D2. Should the config stop naming teams altogether and just use the
+    whole workspace? I have NOT done that: 6.16.9 found the workspace
+    is a college with thousands of student accounts, which made the
+    picker useless. Say if that has changed.
+
+
 
 ## 6.283.0
 
@@ -210,68 +268,6 @@ E3. How many word-less screenshots do you actually have? One line:
     `ls "$HOME/Library/CloudStorage/OneDrive-Personal/2026 Screenshots" | grep -E '^(Screenshot |SCR-[0-9]{8}-)' | grep -vc ' — '`
     That number is how big the burst in E2 is, and it also decides
     whether ⌘9's 40-file cap needs raising — a separate release.
-
-
-
-## 6.280.0
-
-6.280.0 verify with LL — 🗑 DELETE A NOTE (KNOWN GROUND)
-WHAT CHANGED: every note row in Hamsidian has a ✕ at its right-hand end.
-It deletes the note — to <Vault>/.trash, never erased.
-WHY IT MATTERS: you asked twice. It was not a bug: vault.lua has said
-"No file delete — Finder and Obsidian do" since the vault was built,
-when that was how you opened it. That stopped being true and nobody
-re-asked the question.
-
-A. THE HEADLINE.
-A1. Press ⇪3. Look at the right-hand end of any note row.
-    EXPECT: a dim ✕, visible WITHOUT hovering, brighter under the
-    pointer and red when you are on it.
-A2. Make a throwaway note (⌘N, call it "Delete me") and type a word.
-A3. Click its ✕.
-    EXPECT: the row disappears, and an alert reads
-    "🗑 Delete me → .trash · _G.vaultUndelete() puts it back".
-    A FAIL — and the most important one here — is the note OPENING
-    instead of being deleted. Tell me immediately if that happens.
-A4. In Finder, open <OneDrive>/Vault and press ⌘⇧. to show hidden
-    files. EXPECT: a .trash folder with "Delete me  <date> <time>.md"
-    in it, holding your word. NOTHING IS EVER ERASED.
-A5. Console: `_G.vaultUndelete()`.
-    EXPECT: "🕸 Delete me is back", and the note is in the list again.
-
-B. THE ONE THAT PROTECTS YOUR WRITING.
-B1. Delete a note that OTHER notes link to with [[Name]].
-    EXPECT: the alert also says "⚠️ N notes link to it". That number is
-    the thing you cannot see from the row you are clicking.
-B2. Delete the note you currently have OPEN.
-    EXPECT: the editor moves off it rather than sitting on a file that
-    no longer exists. It goes back to your last note (6.277.0).
-B3. Delete two notes with the SAME name from different folders.
-    EXPECT: both are in .trash, as two separate files. If the second
-    overwrote the first, that is a real failure — say so.
-
-C. MUST STILL WORK.
-C1. Click a note row on its NAME (not the ✕). EXPECT: it opens, as ever.
-C2. ⌘F filter, ↑↓, ⏎ — unchanged.
-C3. A scratch tab's own ✕ still closes the tab, not a note.
-C4. Obsidian: open the Vault folder. EXPECT: the deleted note is gone
-    from its list too, and .trash is ignored there.
-
-D. PASTE BACK, PASS OR FAIL.
-D1. `_G.vaultReport()` — the new "deleted:" line names the count, the
-    trash folder and the last note deleted.
-
-E. A JUDGEMENT ONLY YOU CAN MAKE.
-E1. Should a delete ASK first? I made it immediate, like the music
-    history's ✕ you already use, because nothing is destroyed and
-    `_G.vaultUndelete()` is one command. If you would rather have a
-    confirm, say so — "ask me first" and it is a small release.
-E2. .trash keeps everything for ever. Do you want it emptied on a
-    schedule — 30 days, say — or left alone? I left it alone on
-    purpose: a trash that empties itself is a trash that can lose the
-    thing you go back for.
-E3. Rename is the obvious next thing and I have NOT built it. Say if
-    you want it.
 
 
 

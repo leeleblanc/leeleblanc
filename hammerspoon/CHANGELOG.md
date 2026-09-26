@@ -6,6 +6,92 @@ older lives only here.
 
 ```text
 
+NEW IN 6.284.0 — 🏷 A TEAM IS PINNED BY ITS GID, SO A RENAME NO LONGER
+BREAKS IT (modules/asana_comments.lua, tests/test_asana_teams.lua):
+
+  LL, with the team's real name beside the question:
+
+      "Why do I have to hard code team names:
+       | 2. SAC Library Team Member Projects |"
+
+  and the config had been hunting for "| 2. SAC Library Team Member
+  Projects & Tasks |" since it was written.
+
+  🔎 THE FETCH WAS NEVER STALE, and that is the thing worth saying
+  first, because it inverts where the bug looks like it is.
+  `resolveAsanaTeamGids` asks Asana for GET /workspaces/{gid}/teams
+  on every single boot; the list it compares against is always
+  current. What is stale is the OTHER side — the name it is looking
+  FOR, a literal in this file. Asana's answer is fresh and our
+  question is not, so renaming a team in Asana is precisely what
+  breaks it, and the config then says, correctly, that no team has
+  that name. His instinct that this should not need hard-coding was
+  right.
+
+  🔑 `M.teamKey(name)` is PURE and lives at the TOP LEVEL, outside
+  setup(), so the gate proves the whole rule with no Mac and no
+  network — and so it costs nothing from this file's near-the-ceiling
+  main-chunk local budget. The key is what survives the decoration
+  drifting: the "| N. Name |" wrapper this org uses, the number inside
+  it, case, "&" against "and", punctuation, a doubled space — and a
+  NON-BREAKING space, which is invisible in a name copied out of a
+  browser and which the old warning's advice ("check spelling/spacing")
+  could never have found.
+
+  🚨 BUT NORMALISING ALONE CANNOT FIX HIS CASE, and the suite says so
+  in its own check: his rename REMOVED two words. No amount of folding
+  turns "Projects & Tasks" into "Projects". So the release is the
+  second half.
+
+  🏷 `M.matchTeam(wants, teams, pins)` is PURE and answers THREE
+  states (6.196.1), of which the middle one is the whole point:
+    · "name" — Asana holds a team with this name. Ordinary.
+    · "gid"  — no team has this name any more, but a team still has
+               the gid we resolved on an EARLIER boot. He renamed it;
+               we find it anyway, and the Console line says what it is
+               called NOW so the config can be brought into line rather
+               than guessed at.
+    · "none" — neither, and the caller names what Asana DID answer.
+  The gids live in hs.settings under "asana.teamGids", written only
+  when they change (hs.settings writes the whole domain on the main
+  thread — 6.228.0).
+
+  🚨 IT RE-PINS THE KEY WE ASKED WITH, not only the team's current
+  name. Pinning only the new name reads as tidier and makes the pin
+  DECAY: the config still asks the old name, so the next boot would
+  find no pin under it and fall back to "none" — the rename would
+  survive exactly one boot. Its own mutation, and a second boot in the
+  suite drives it.
+
+  🚨 AND A STALE PIN MUST NOT INVENT A TEAM. A gid pinned once whose
+  team is gone from Asana is not a match: answering "gid" there would
+  hand the roster fetch a gid that 404s, and the picker would be
+  shortened with no line saying why.
+
+  🔎 THE ⚠️ NAMES WHAT ASANA ANSWERED. The old line read "check
+  spelling/spacing against Asana" — advice the comparison had already
+  ruled out, since it was case-folded and trimmed on both sides — and
+  it named no real team, so a WRONG rename warned identically and
+  there was nothing to act on. It lists the teams now, and points at
+  `_G.asanaTeams()`, which prints what we asked for beside what Asana
+  answered, with gids, and names the cost of a miss.
+
+  🔐 The token stays in secret.lua and travels only as an
+  Authorization header — asserted in the suite, never in a URL, never
+  in a process argument list, never printed by the report.
+
+  📏 COST OF A MISS, NAMED, so it is neither over- nor under-sold:
+  that team's members are absent from `_G.asanaTeamMembers`, whose one
+  consumer is ⇪T's assignee suggestions. A name that is not on the
+  list still submits. It is a shortened picker, not a broken door —
+  which is why it survived in a boot log this long.
+
+  🧪 The module had NO SUITE AT ALL, which is why a hand-rolled
+  :lower() comparison could sit in it for a hundred releases.
+  tests/test_asana_teams.lua is new, and a source sentry now fails the
+  gate if a second, gentler comparison is ever written beside the
+  first. Thirteen mutations, thirteen bites.
+
 NEW IN 6.283.0 — 🧠 ⌥Tab NEVER REMEMBERED THE HAMMERSPOON CONSOLE
 (modules/window_switcher.lua, tests/test_switcher.lua):
 
