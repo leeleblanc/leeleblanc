@@ -1204,20 +1204,32 @@ function M.setup(core)
         return ("%08x%x"):format(h, #s)
     end
 
+    -- PURE. The dates, as one canonical string. Walked with pairs()
+    -- rather than read field by field — a field name I get wrong here
+    -- is a field that silently stops counting, and the walk cannot be
+    -- wrong about one — and then SORTED, which is load-bearing across
+    -- a RELOAD rather than within one run: Lua seeds its string hashes
+    -- per state, so the order pairs() hands back can differ between
+    -- processes, and an unsorted key would stop matching the one in
+    -- the store. It is its own function so the sort can be ASSERTED;
+    -- a two-field fixture cannot tell sorted from unsorted, because
+    -- two tables holding the same two keys iterate the same way
+    -- (6.230.0 — pick the input where the two must differ).
+    function sp.canonWhen(when)
+        local out = {}
+        if type(when) == "table" then
+            for k, v in pairs(when) do
+                out[#out + 1] = tostring(k) .. "=" .. tostring(v)
+            end
+            table.sort(out)
+        end
+        return table.concat(out, "\1")
+    end
+
     -- PURE. The canonical form of a task: everything that decides what
-    -- Asana receives. `when` is walked with pairs() and SORTED rather
-    -- than read field by field — a field name I get wrong here is a
-    -- field that silently stops counting, and the walk cannot be wrong
-    -- about one.
+    -- Asana receives.
     function sp.taskKey(task)
         local t = type(task) == "table" and task or {}
-        local when = {}
-        if type(t.when) == "table" then
-            for k, v in pairs(t.when) do
-                when[#when + 1] = tostring(k) .. "=" .. tostring(v)
-            end
-            table.sort(when)
-        end
         local subs = {}
         if type(t.subs) == "table" then
             for _, x in ipairs(t.subs) do subs[#subs + 1] = tostring(x) end
@@ -1226,7 +1238,7 @@ function M.setup(core)
             tostring(t.title or ""),
             tostring(t.desc or ""),
             tostring(t.assignee or ""),
-            table.concat(when, "\1"),
+            sp.canonWhen(t.when),
             table.concat(subs, "\1"),
         }, "\2"))
     end
@@ -1237,8 +1249,16 @@ function M.setup(core)
         local have, seen, send, done = {}, {}, {}, {}
         if type(landed) == "table" then
             for k, v in pairs(landed) do
-                local n = tonumber(type(v) == "table" and v.n or v) or 0
-                if n > 0 then have[k] = math.floor(n) end
+                -- 🗑 TWO GUARDS WERE WRITTEN HERE AND TAKEN OUT AGAIN
+                -- (6.199.0, third and fourth time, and the mutation sweep
+                -- is what said so): an `n > 0` test and a math.floor. The
+                -- comparison below counts with an INTEGER, so `seen <= n`
+                -- and `seen <= floor(n)` can never disagree, and a 0 or a
+                -- negative n already fails it. Neither guard could be
+                -- killed by any mutation — a guard no test can fail is
+                -- dead code with a comment on it. The RULE is still
+                -- asserted; it is carried by `seen[k] <= have[k]`.
+                have[k] = tonumber(type(v) == "table" and v.n or v) or 0
             end
         end
         for _, task in ipairs(type(tasks) == "table" and tasks or {}) do

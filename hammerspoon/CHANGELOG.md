@@ -97,6 +97,46 @@ NEW IN 6.305.0 — 🔁 A RETRY MUST NOT RE-SEND WHAT ALREADY LANDED
   run should be reading those tabs at all is a question in the verify
   block, not a guess here.
 
+  🧪 THE MUTATION SWEEP'S OWN FOUR FINDINGS, and one of them is about
+  the harness rather than the code:
+
+  · 🗑 TWO DEAD GUARDS, removed rather than kept (6.199.0, third and
+    fourth time this project has made that call). `if n > 0` and
+    `math.floor` around the landed count could not be killed by any
+    mutation, because `seen` is an integer and `seen <= n` and
+    `seen <= floor(n)` can never disagree. A guard no test can fail is
+    dead code with a comment on it; the rule is carried by the
+    comparison itself, and the 0-and-negative checks still assert it.
+
+  · 🧪 THE LENGTH CHECK AGREED WITH BOTH IMPLEMENTATIONS. It compared
+    digest("a") with digest("a "), and a plain FNV-1a with no length
+    term already answers differently for those — so it proved nothing
+    about the term it existed for. There is no input where the two
+    must differ short of a real 32-bit collision, so it asserts the
+    FORMAT the contract promises instead (6.230.0, in the case where
+    the right fixture does not exist).
+
+  · 🧪 AND THE ORDER-INDEPENDENCE CHECK COULD NOT BITE AT TWO KEYS.
+    Two tables holding the same two string keys iterate identically
+    inside one process, so deleting `table.sort` changed nothing. The
+    sort is load-bearing across a RELOAD and not within a run — Lua
+    seeds its string hashes per state — which is a property no
+    in-process test can show. `sp.canonWhen` was split out so the
+    contract itself can be asserted, over eight keys whose pairs()
+    order is reliably not alphabetical. 🧪 Its sibling check then
+    KILLED the suite instead of failing it under the mutation that
+    removes the type guard — pairs("nonsense") raises — so it pcalls
+    its own call (6.186.0, eighth time).
+
+  · 🪜 AND THE HARNESS REVERTED THE FIXES IT WAS TESTING. It restored
+    each mutation with `git checkout --`, which silently threw away
+    three uncommitted repairs mid-sweep; the SHA check 6.239.0 asked
+    for is what caught it. It restores from a SNAPSHOT now. GENERAL,
+    and it is the other half of 6.270.0's commit-first rule: a harness
+    that restores from the index can only be trusted while the tree
+    matches the index, which is exactly what it stops being the moment
+    the sweep finds something.
+
 
 NEW IN 6.304.0 — 🚨 A GUARD THAT ONLY A SUCCESS CAN CLEAR IS A WEDGE
 (core/capabilities.lua):

@@ -2119,10 +2119,18 @@ do
           sp.digest("Café — naïve 🎵"):match("^[0-9a-f]+$") ~= nil,
           sp.digest("Café — naïve 🎵"))
     check("...and a nil does not throw", sp.digest(nil) ~= nil)
-    -- Two strings of different length must not collide just because the
-    -- hash wrapped; the length rides in the key for exactly that.
-    check("...and length is part of the key",
-          sp.digest("a") ~= sp.digest("a "))
+    -- 🧪 THE FIRST VERSION OF THIS CHECK PASSED ITS OWN MUTATION: it
+    -- compared digest("a") with digest("a "), and a plain FNV-1a with
+    -- NO length term already answers differently for those, so it
+    -- proved nothing about the term it was written for (6.230.0 — pick
+    -- the input where the two implementations must differ; here there
+    -- is none, so assert the FORMAT the contract promises instead).
+    check("...and the length is part of the key, so two strings of "
+          .. "different length can never collide",
+          sp.digest(("x"):rep(255)):match("^%x%x%x%x%x%x%x%xff$") ~= nil,
+          sp.digest(("x"):rep(255)))
+    check("...and a shorter one carries its own length",
+          sp.digest("ab"):match("^%x%x%x%x%x%x%x%x2$") ~= nil, sp.digest("ab"))
 
     -- ---- 🔑 sp.taskKey — PURE, and keyed by WHAT IT SAYS -----------------
     local function T(over)
@@ -2147,9 +2155,33 @@ do
               when = { startDate = "2026-02-02", dueDate = "2026-01-08" } })))
     check("...a different SUBTASK is a different task",
           sp.taskKey(T()) ~= sp.taskKey(T({ subs = { "one", "three" } })))
-    -- The `when` table is walked with pairs() and sorted, so the key
-    -- cannot depend on the order Lua happens to hand the fields back.
-    check("...and the date fields are ORDER-INDEPENDENT", (function()
+    -- 🧪 AND THE ORDER-INDEPENDENCE CHECK COULD NOT BITE AT TWO KEYS.
+    -- Two tables holding the same two string keys iterate the same way
+    -- inside one process, so deleting `table.sort` changed nothing and
+    -- the mutation survived. The sort is load-bearing across a RELOAD,
+    -- not within a run — Lua seeds its string hashes per state — so
+    -- the contract is asserted directly, over enough keys that the
+    -- hash order is reliably not alphabetical (6.230.0).
+    check("🔑 the dates are canonicalised in SORTED order", (function()
+        local w = {}
+        for _, k in ipairs({ "h", "g", "f", "e", "d", "c", "b", "a" }) do
+            w[k] = k:upper()
+        end
+        return sp.canonWhen(w) ==
+            "a=A\1b=B\1c=C\1d=D\1e=E\1f=F\1g=G\1h=H"
+    end)(), sp.canonWhen({ b = "B", a = "A" }))
+    -- 🧪 pcall'd, because the mutation that takes the type guard off
+    -- makes pairs("nonsense") RAISE — and a raise inside a check kills
+    -- the run with "0 failed" never printed, which in a gate that reads
+    -- the tail looks like a pass (6.186.0, eighth time).
+    check("...and no dates at all answers an empty string, not a throw",
+          (function()
+              local okA, a = pcall(sp.canonWhen, nil)
+              local okB, b = pcall(sp.canonWhen, "nonsense")
+              return okA and a == "" and okB and b == ""
+          end)())
+    check("...so the same task keys the same whatever order Lua walks "
+          .. "its date fields in", (function()
         local a = { title = "x", when = { dueDate = "b", startDate = "a" } }
         local b = { title = "x", when = { startDate = "a", dueDate = "b" } }
         return sp.taskKey(a) == sp.taskKey(b)
