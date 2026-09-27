@@ -90,7 +90,13 @@ return function(core)
     local SI_BROAD  = { "-l", "-w", "0" }
     _G.secureInput = _G.secureInput
         or { on = nil, pid = nil, app = nil, at = nil, checks = 0,
-             fails = 0, why = "not probed yet", changes = 0, lastSaid = nil }
+             fails = 0, why = "not probed yet", changes = 0, lastSaid = nil,
+             -- 6.304.0: three ways a probe can fail, counted APART. One
+             -- "failed" total reads the same for all three and names
+             -- none of them, and they want different fixes. A table kept
+             -- across a reload will not carry these, so every read of
+             -- them stays `or 0`.
+             refused = 0, timeouts = 0, noBelt = 0 }
 
     -- PURE, so the gate can prove the parse with no Mac under it. Returns
     -- pid (number) or nil. A PID of 0 is macOS saying "nobody" and must
@@ -152,7 +158,22 @@ return function(core)
 
     -- ONE probe in flight at a time (the 6.170.1 rule for any external
     -- command on a timer): a slow ioreg under load must not stack up.
+    --
+    -- 🚨 AND A GUARD THAT ONLY A SUCCESS CAN CLEAR IS A WEDGE (6.304.0).
+    -- siBusy short-circuits EVERY later probe and was cleared in exactly
+    -- one place — finish(), reachable only from a task callback. So one
+    -- ioreg that never called back, or one macOS refused to launch, shut
+    -- Secure Input down for the whole session, silently, with the state
+    -- reading "not probed yet" for ever and `started` frozen at 1 while
+    -- the 60 s timer went on ticking into the short-circuit.
+    -- WHY THIS ONE MATTERS MORE THAN ITS SIZE: Secure Input is the thing
+    -- that stops every event tap AND hotkey dispatch system-wide with no
+    -- error anywhere (6.196.0 — it took the keyboard for four hours). A
+    -- probe that has gone quiet and a Mac that is healthy read exactly
+    -- the same, which is 6.196.1's rule broken inside the one instrument
+    -- built to keep it.
     local siBusy = false
+    local siGen  = 0
     local function siProbe(done)
         if siBusy then if done then done(_G.secureInput) end return false end
         if not (hs.task and hs.task.new) then
@@ -162,16 +183,67 @@ return function(core)
             return false
         end
         siBusy = true
+        siGen  = siGen + 1
+        local myGen = siGen
         -- STARTED vs CHECKS. `checks` only rises when a probe COMPLETES,
         -- so a probe that starts and dies leaves the state reading
         -- "not probed yet" forever — which is exactly what 6.196.0's
         -- crash looked like from outside: the honest-looking state of a
         -- feature that had never once run. Counting the attempts makes
-        -- the difference visible instead of indistinguishable.
+        -- the difference visible instead of indistinguishable. It is also
+        -- what NAMED 6.304.0: started 1 · checks 0, nine ticks after boot.
         _G.secureInput.started = (_G.secureInput.started or 0) + 1
-        local function finish(pid, why)
+        local answerSecs = tonumber(_G.secureInputAnswerSecs) or 20
+
+        local finish
+        -- 🛟 THE BELT IS ARMED BEFORE THE ASK (6.246.0), covers the WHOLE
+        -- probe rather than one run (the narrow → broad chain is one
+        -- probe), and lives in its OWN held slot (6.196.1). A Mac that
+        -- cannot arm a timer still probes — it simply has no belt, and
+        -- the report counts that apart rather than implying one is there.
+        local beltOK = pcall(function()
+            _G.secureInputBelt = hs.timer.doAfter(answerSecs, function()
+                _G.secureInput.timeouts = (_G.secureInput.timeouts or 0) + 1
+                _G.secureInput.fails    = _G.secureInput.fails + 1
+                finish(nil, "ioreg was asked and never answered in "
+                            .. answerSecs .. "s", true)
+            end)
+        end)
+        if not beltOK then
+            _G.secureInput.noBelt = (_G.secureInput.noBelt or 0) + 1
+        end
+
+        finish = function(pid, why, failed)
+            -- ANSWERED EXACTLY ONCE, THROUGH ONE DOOR (6.299.0). Two
+            -- callers reach here for one probe — the real callback and
+            -- the belt — and a callback that arrives AFTER its own belt
+            -- fired belongs to a probe that is over: without the
+            -- generation check it would close the NEXT probe instead,
+            -- which is the same wedge wearing a different hat.
+            if myGen ~= siGen or not siBusy then return end
             siBusy = false
-            siApply(pid, why)
+            pcall(function()
+                if _G.secureInputBelt then _G.secureInputBelt:stop() end
+            end)
+            _G.secureInputBelt = nil
+            if failed then
+                -- 🚨 A PROBE THAT COULD NOT RUN IS NOT AN ANSWER, and
+                -- routing one through siApply says it is: that function
+                -- sets `on = (pid ~= nil)`, so a refused launch reported
+                -- "off — nothing is holding the keyboard" off a probe
+                -- that never happened. That is the confident lie
+                -- 6.196.0's boot line told for four hours, in the one
+                -- row that cannot afford it. `checks` must not move
+                -- either — it counts COMPLETIONS, and started-vs-checks
+                -- is the fingerprint that named this bug in the first
+                -- place. The last good reading stands; only `why` moves,
+                -- because one failed probe is not evidence the state
+                -- changed.
+                _G.secureInput.why      = why
+                _G.secureInput.failedAt = os.time()
+            else
+                siApply(pid, why)
+            end
             if done then pcall(done, _G.secureInput) end
         end
         -- 🚨 ONE SLOT PER PROBE, NEVER ONE SLOT FOR BOTH (6.196.1). The
@@ -186,15 +258,37 @@ return function(core)
         -- deferred out of the callback below, close it from both sides.
         _G.secureInputTasks = _G.secureInputTasks or {}
         local function run(slot, args, andThen)
+            local why, refused
             local ok = pcall(function()
-                _G.secureInputTasks[slot] = hs.task.new("/usr/sbin/ioreg", function(_, so)
+                local t = hs.task.new("/usr/sbin/ioreg", function(_, so)
                     andThen(_G.secureInputParse(so))
-                end, args):start()
+                end, args)
+                if not t then
+                    why = "hs.task would not make the ioreg task"
+                    return
+                end
+                -- 🔬 :start() REFUSES BY RETURNING FALSE. It does not
+                -- throw — extensions/task/libtask.m, task_launch: the
+                -- success path pushes the task itself, the @catch pushes
+                -- a boolean. So on a refusal this pcall SUCCEEDED, fails
+                -- stayed 0, finish was never called and siBusy stayed
+                -- true for the session. 6.179.0's read-the-return rule,
+                -- and 6.265.0's: a dependency that is MISSING and one
+                -- that REFUSES are different failures, and driving the
+                -- path with it absent never exercises the second.
+                _G.secureInputTasks[slot] = t:start() or false
+                if not _G.secureInputTasks[slot] then
+                    refused, why = true, "macOS refused to run ioreg"
+                end
             end)
-            if not ok then
-                _G.secureInput.fails = _G.secureInput.fails + 1
-                finish(nil, "ioreg could not be run")
+            if not ok then why = "ioreg could not be run" end
+            if not why then return true end
+            _G.secureInput.fails = _G.secureInput.fails + 1
+            if refused then
+                _G.secureInput.refused = (_G.secureInput.refused or 0) + 1
             end
+            finish(nil, why, true)
+            return false
         end
         -- Narrow first. The broad form is the fallback and runs ONLY when
         -- the narrow one came back with nothing — which on a healthy Mac
@@ -204,8 +298,10 @@ return function(core)
         -- the task that owns it. Never start a task from inside another
         -- task's callback without stepping off it first.
         run("narrow", SI_NARROW, function(pid)
+            if myGen ~= siGen then return end
             if pid then return finish(pid) end
             _G.secureInputHop = hs.timer.doAfter(0, function()
+                if myGen ~= siGen then return end
                 run("broad", SI_BROAD, function(pid2) finish(pid2) end)
             end)
         end)
@@ -220,7 +316,12 @@ return function(core)
             L[#L + 1] = "   state  : UNKNOWN — " .. tostring(si.why)
             if (si.started or 0) > 0 and si.checks == 0 then
                 L[#L + 1] = "   ⚠️ " .. si.started .. " probe(s) STARTED and none "
-                            .. "finished — ioreg is being run but never calls back."
+                            .. "finished. The ↳ lines below say why; with none of "
+                            .. "them, one is still in flight."
+            end
+            if si.failedAt then
+                L[#L + 1] = "   tried  : " .. os.date("%Y-%m-%d %H:%M:%S", si.failedAt)
+                            .. " (the last probe that could not answer)"
             end
         elseif si.on then
             L[#L + 1] = "   state  : ON — " .. tostring(si.app) .. " holds it"
@@ -233,6 +334,24 @@ return function(core)
         end
         L[#L + 1] = string.format("   probes : %d checked · %d failed · %d change(s) seen",
             si.checks or 0, si.fails or 0, si.changes or 0)
+        -- THREE WAYS A PROBE CAN FAIL AND THEY WANT DIFFERENT FIXES
+        -- (6.196.1): macOS refusing to launch ioreg, ioreg starting and
+        -- never answering, and a Mac that could not arm the belt that
+        -- tells the first two apart. Printed only when non-zero, so a
+        -- healthy Mac stays as quiet as it was (6.269.0).
+        if (si.refused or 0) > 0 then
+            L[#L + 1] = "   ↳ " .. si.refused .. " × macOS REFUSED to launch ioreg "
+                        .. "— hs.task:start() said no, which it does by returning "
+                        .. "false rather than throwing"
+        end
+        if (si.timeouts or 0) > 0 then
+            L[#L + 1] = "   ↳ " .. si.timeouts .. " × ioreg started and NEVER "
+                        .. "ANSWERED — the belt ended the probe, so the next one runs"
+        end
+        if (si.noBelt or 0) > 0 then
+            L[#L + 1] = "   ⚠️ " .. si.noBelt .. " probe(s) ran with NO belt — this Mac "
+                        .. "would not arm a timer, so a hung ioreg can still wedge it"
+        end
         if si.at then
             L[#L + 1] = "   last   : " .. os.date("%Y-%m-%d %H:%M:%S", si.at)
         end
@@ -449,6 +568,11 @@ return function(core)
     -- boot path: this is an external command, and the one thing this
     -- config will not spend is main-thread time during startup.
     _G.secureInputEvery = tonumber(_G.secureInputEvery) or 60
+    -- How long a probe may go unanswered before the belt ends it. Well
+    -- under the poll interval on purpose: a belt that outlives the tick
+    -- it protects is a wedge with a longer fuse. Read INSIDE siProbe, not
+    -- captured here, so setting it later is real (6.228.0).
+    _G.secureInputAnswerSecs = tonumber(_G.secureInputAnswerSecs) or 20
     pcall(function()
         _G.secureInputFirstTimer = hs.timer.doAfter(3, function()
             _G.secureInputCheck(function(si)

@@ -1927,9 +1927,13 @@ if capChunk then
           .. "callback was still running, and that crashed Hammerspoon",
           capsSrc and not capsSrc:match("_G%.secureInputTask%s*=%s*hs%.task"),
           "a single-slot assignment is back")
-    check("...and the slot is chosen by the caller, so the narrow and broad "
+    -- 6.248.0, third time: this asserted ADJACENCY ("...[slot] = hs.task")
+  -- and went red in 6.304.0 on a change that kept the rule perfectly —
+  -- reading :start()'s return put an expression between the two halves.
+  -- The RULE is that the caller names the slot, so that is what is asked.
+  check("...and the slot is chosen by the caller, so the narrow and broad "
           .. "probes cannot land on the same one by accident",
-          capsSrc and capsSrc:match("_G%.secureInputTasks%[slot%]%s*=%s*hs%.task"))
+          capsSrc and capsSrc:match("_G%.secureInputTasks%[slot%]%s*="))
     check("🚨 ...and the fallback is STEPPED OFF the narrow callback before "
           .. "it starts — never start a task from inside another task's "
           .. "callback, or its owner can be released under the live frame",
@@ -1950,6 +1954,177 @@ if capChunk then
           .. "the boot line told for four hours",
           un.secureinput and un.secureinput.state == "UNKNOWN",
           un.secureinput and un.secureinput.state)
+  end
+
+  -- ---- 🚨 THE WEDGE (6.304.0) ---------------------------------------
+  -- siBusy lets one probe run at a time, and was cleared in exactly one
+  -- place: finish(), reachable only from a task callback. So a probe
+  -- that could never finish shut the feature down for the whole session
+  -- — silently, with the state reading "not probed yet" and the 60 s
+  -- timer ticking straight into the short-circuit. LL's Mac: started 1 ·
+  -- checks 0, nine ticks after boot, and again the next day.
+  --
+  -- DRIVEN, NOT GREPPED. 6.290.0's rule is that the stub must answer what
+  -- macOS answers — and 6.265.0's is that driving a path with the
+  -- dependency MISSING is not the same as driving it with the dependency
+  -- REFUSING. The old stub had no hs.task at all, so siProbe took its
+  -- "hs.task is unavailable" branch on every run and the entire probe
+  -- body — every line this release fixes — was unreachable by the gate.
+  do
+    local beltSrc
+    do
+      local bf = realopen(HS .. "/core/capabilities.lua", "r")
+      if bf then beltSrc = bf:read("*a") ; bf:close() end
+    end
+    local realTask, realTimerSave = hs.task, hs.timer
+    local T = { newCalls = 0, started = {}, cb = nil, startOK = true,
+                afters = {}, order = {}, doAfterThrows = false }
+    hs.task = {
+      new = function(_, cb, _)
+        T.newCalls = T.newCalls + 1
+        T.order[#T.order + 1] = "task.new"
+        local task = {}
+        -- :start() REFUSES BY RETURNING FALSE (libtask.m, task_launch).
+        -- A stub that returns the task unconditionally is gentler than
+        -- macOS and certifies the bug (6.290.0).
+        function task:start()
+          if T.startOK then T.cb = cb ; T.started[#T.started + 1] = true ; return self end
+          return false
+        end
+        return task
+      end,
+    }
+    hs.timer = {
+      secondsSinceEpoch = realTimerSave and realTimerSave.secondsSinceEpoch,
+      doEvery = function() return { stop = function() end } end,
+      doAfter = function(secs, fn)
+        if T.doAfterThrows then error("no timers on this Mac", 0) end
+        T.order[#T.order + 1] = "doAfter"
+        local t = { stopped = false, fn = fn, secs = secs }
+        function t:stop() self.stopped = true end
+        T.afters[#T.afters + 1] = t
+        return t
+      end,
+    }
+    local function freshMac()
+      T.newCalls, T.started, T.cb = 0, {}, nil
+      T.afters, T.order = {}, {}
+      asMac({}, { hyperRemapOK = true, ocrShortcutAvailable = true, brewPathInUse = "/b" })
+      T.newCalls, T.started, T.cb = 0, {}, nil   -- drop the boot probe's own timers
+      T.afters, T.order = {}, {}
+    end
+    -- The belt is the LAST doAfter armed before the task is made; the
+    -- hop is armed later, inside the narrow callback.
+    local function belt() return T.afters[#T.afters] end
+    local function capture(fn)
+      printed = {}
+      pcall(fn)
+      return table.concat(printed, "\n")
+    end
+
+    -- 1. THE HEADLINE: a refused launch must not wedge the next probe.
+    T.startOK = false
+    freshMac()
+    _G.secureInputCheck()
+    local afterFirst = _G.secureInput.started
+    _G.secureInputCheck()
+    check("🚨 macOS REFUSING to launch ioreg does not wedge the probe — "
+          .. "hs.task:start() says no by RETURNING FALSE, not by throwing, "
+          .. "so the pcall around it succeeded, finish() was never called "
+          .. "and siBusy stayed true for the whole session",
+          _G.secureInput.started == afterFirst + 1,
+          "started went " .. tostring(afterFirst) .. " -> "
+          .. tostring(_G.secureInput.started) .. " (a second probe never ran)")
+    check("...and the refusal is COUNTED as a refusal, not just a failure — "
+          .. "refused and never-answered want different fixes (6.196.1)",
+          (_G.secureInput.refused or 0) >= 1, tostring(_G.secureInput.refused))
+    check("...and the state stays UNKNOWN rather than reading a confident "
+          .. "'off' off a probe that never ran",
+          _G.secureInput.on == nil, tostring(_G.secureInput.on))
+
+    -- 2. A task that starts and never answers: the belt must end it.
+    T.startOK = true
+    freshMac()
+    _G.secureInputCheck()
+    local hung = _G.secureInput.started
+    _G.secureInputCheck()
+    check("...and while a probe really is in flight the next one is still "
+          .. "short-circuited — the one-at-a-time rule is not what broke",
+          _G.secureInput.started == hung, tostring(_G.secureInput.started))
+    check("🛟 a probe that never answers has a BELT armed on it",
+          belt() ~= nil and belt().fn ~= nil)
+    if belt() and belt().fn then belt().fn() end
+    check("🚨 ...and when the belt fires the wedge clears, so the NEXT "
+          .. "probe runs — one hung ioreg used to cost the session",
+          (function()
+            local before = _G.secureInput.started
+            _G.secureInputCheck()
+            return _G.secureInput.started == before + 1, tostring(before)
+          end)())
+    check("...and a never-answered probe is counted apart from a refused one",
+          (_G.secureInput.timeouts or 0) >= 1, tostring(_G.secureInput.timeouts))
+
+    -- 3. ORDER, not presence (6.220.0): a belt armed after the ask is no
+    -- belt at all for the case where :start() itself blocks.
+    freshMac()
+    _G.secureInputCheck()
+    check("🚨 the belt is armed BEFORE ioreg is asked for, not after",
+          T.order[1] == "doAfter" and T.order[2] == "task.new",
+          table.concat(T.order, ","))
+
+    -- 4. A stale callback must not close somebody else's probe.
+    freshMac()
+    _G.secureInputCheck()
+    local staleCb = T.cb
+    if belt() and belt().fn then belt().fn() end     -- probe 1 times out
+    _G.secureInputCheck()                            -- probe 2 starts
+    local duringTwo = _G.secureInput.started
+    if staleCb then staleCb(nil, 'kCGSSessionSecureInputPID" = 4242') end
+    check("🚨 a callback arriving AFTER its own belt fired does NOT close "
+          .. "the probe that is running now — without the generation "
+          .. "check it is the same wedge wearing a different hat",
+          (function()
+            local before = _G.secureInput.started
+            _G.secureInputCheck()   -- must be short-circuited: probe 2 is live
+            return _G.secureInput.started == before,
+                   "a stale answer ended probe " .. tostring(duringTwo)
+          end)())
+    check("...and the stale answer is not applied to the state either",
+          _G.secureInput.pid ~= 4242, tostring(_G.secureInput.pid))
+
+    -- 5. A Mac with no timers still probes, and SAYS it has no belt
+    -- rather than implying one is there (6.196.1).
+    T.doAfterThrows = true
+    freshMac()
+    _G.secureInputCheck()
+    T.doAfterThrows = false
+    check("...and a Mac that cannot arm a timer still probes, with the "
+          .. "missing belt COUNTED rather than assumed",
+          (_G.secureInput.noBelt or 0) >= 1 and T.newCalls >= 1,
+          "noBelt=" .. tostring(_G.secureInput.noBelt) .. " tasks=" .. tostring(T.newCalls))
+
+    -- 6. The three causes must be readable apart in the report.
+    _G.secureInput.refused, _G.secureInput.timeouts = 2, 3
+    local rep = capture(_G.secureInputReport)
+    check("...and the report names the three causes apart, so one number "
+          .. "does not stand for three different fixes",
+          rep:find("REFUSED", 1, true) and rep:find("NEVER", 1, true),
+          rep)
+    _G.secureInput.refused, _G.secureInput.timeouts, _G.secureInput.noBelt = 0, 0, 0
+    local quiet = capture(_G.secureInputReport)
+    check("🔕 ...and a healthy Mac says none of it — a new instrument is "
+          .. "silent when nothing is wrong, or it gets switched off "
+          .. "long before it sees the fault it was built for (6.269.0)",
+          not quiet:find("REFUSED", 1, true) and not quiet:find("NO belt", 1, true),
+          quiet)
+
+    check("🛟 ...and the belt is HELD in its own _G slot (6.196.1 — an "
+          .. "unreferenced timer is collected and a collected timer "
+          .. "never fires, and a shared slot is the use-after-free)",
+          beltSrc and beltSrc:match("_G%.secureInputBelt%s*=%s*hs%.timer%.doAfter"))
+
+    hs.task, hs.timer = realTask, realTimerSave
+    _G.secureInput = nil
   end
 
   -- ---- the work Mac: no admin, no brew, no OneDrive, no remap -------

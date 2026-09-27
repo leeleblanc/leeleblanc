@@ -4,8 +4,24 @@
 -- =====================================================================
 -- 09-27-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.303.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.304.0
 -- =====================================================================
+
+-- NEW IN 6.304.0 — 🚨 THE SECURE INPUT PROBE CAN NO LONGER WEDGE
+--   (core/capabilities.lua). His report: `secure: not known` on
+--   every wake, and `started 1 · checks 0` nine ticks after boot —
+--   one probe attempted, none ever finished, the 60 s timer ticking
+--   into a short-circuit. siBusy lets one ioreg run at a time and
+--   was cleared in ONE place, finish(), reachable only from a task
+--   callback. So a probe that could never finish shut the feature
+--   down for the whole session, silently. 🔬 hs.task:start() REFUSES
+--   BY RETURNING FALSE, it does not throw (libtask.m, task_launch),
+--   so the pcall around it succeeded and `fails` stayed 0 — 6.265.0,
+--   MISSING is not REFUSING. Now the return is read, a BELT ends a
+--   probe that never answers, and refused · never-answered · no-belt
+--   are counted APART. 🚨 A failed probe no longer reports a
+--   confident "off": that is the lie 6.196.0's boot line told for
+--   four hours, in the one row that cannot afford it.
 
 -- NEW IN 6.303.0 — 🔬 WHAT THE KEYBOARD LOOKS LIKE AFTER A WAKE
 --   (core/hyper_key.lua): aimed at the 10:57 storm, and a PROBE not
@@ -20,27 +36,11 @@
 --   a remap that was GONE, which it puts back with init.lua's own
 --   mapping. 🔎 Only a GONE remap repairs, never an unread one.
 
--- NEW IN 6.302.0 — 🌅 A WAKE IS SEEN AT ALL, AND A HOLD ACROSS ONE
---   IS RELEASED (core/hyper_key.lua). 🚨 AND IT IS **NOT** THE
---   ANSWER TO HIS 10:57 STORM — said here because the framing that
---   nearly shipped implied it was. That report's hold was 10.5 s
---   old, and `hyperEnteredAt` is stamped only on a FRESH press, so
---   the hold BEGAN AFTER the wake. Releasing on wake cannot have
---   prevented it. 6.198.0, caught on the way out of the door.
---   🔎 WHAT IS TRUE is that nothing here watched the wake at all —
---   the one hs.caffeinate.watcher in this config is
---   activity_tracker's, on the SLEEP side. So wakes are now seen
---   and counted, and a hold still open across one is let go
---   (nobody holds ⇪ through a sleep; the cost if wrong is one more
---   press). 🚨 NOT counted as a latch — that is the storm report's
---   fault number and this happens every morning (6.285.0). 🔕
---   Console only. 🔬 6.303.0 is the probe aimed at the storm.
-
--- (6.301.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.302.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 cut the inline count to
 --  TWO; a gate check proves every entry here is also in CHANGELOG.md.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.303.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.304.0
 -- =====================================================================
 -- The catalogue that used to sit here moved to GUIDE.md ("What each
 -- tool does") in 6.180.0 — 259 lines of prose inside the orchestrator.
@@ -133,7 +133,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.303.0"
+_G.configVersion = "6.304.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the

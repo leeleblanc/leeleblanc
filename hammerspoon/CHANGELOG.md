@@ -6,6 +6,106 @@ older lives only here.
 
 ```text
 
+NEW IN 6.304.0 — 🚨 A GUARD THAT ONLY A SUCCESS CAN CLEAR IS A WEDGE
+(core/capabilities.lua):
+
+  LL's report, two days running: `secure: not known — capabilities.lua
+  has not answered yet`, and underneath it the line that named the bug —
+  `1 probe(s) STARTED and none finished`, with `started 1 · checks 0`
+  nine ticks of a 60-second timer after boot.
+
+  🔎 SO THE ARITHMETIC WAS THE DIAGNOSIS, and it only existed because
+  6.196.1 wrote it down: `checks` counts COMPLETIONS, `started` counts
+  ATTEMPTS, and that release added the second one precisely so "never
+  probed" and "probed and died" could not read the same. Frozen at 1
+  across nine ticks is not a slow probe — it is a probe that is not
+  being attempted, which means something is turning every later one
+  away.
+
+  🚨 THAT SOMETHING IS siBusy. One ioreg in flight at a time is the
+  right rule (6.170.1 — an external command on a timer must not stack
+  up), and the flag was cleared in exactly ONE place: finish(),
+  reachable only from a task callback. So a probe that could never
+  finish shut Secure Input down for the rest of the session, silently,
+  with the state reading "not probed yet" and the timer ticking
+  straight into the short-circuit. GENERAL, and it is the half to
+  carry: A BUSY FLAG NEEDS A PATH OUT FOR EVERY WAY THE WORK CAN END,
+  not just the way it ends when it works — and the failure paths are
+  exactly the ones nobody drives.
+
+  🔬 AND THE WAY OUT IT WAS MISSING IS 6.265.0's RULE, CHECKED IN THE
+  SOURCE (6.233.0 — a platform fact that decides a design is read, with
+  the file named). extensions/task/libtask.m, `task_launch`: the
+  success path pushes the task itself, the @catch pushes a BOOLEAN. So
+  `hs.task.new(...):start()` REFUSES BY RETURNING FALSE and does not
+  throw — the pcall wrapped around it SUCCEEDED on a refusal, `fails`
+  stayed 0, finish() was never called and siBusy stayed true for ever.
+  MISSING is not REFUSING: the old code handled hs.task being absent
+  (that throws, and was caught) and could not see hs.task saying no.
+  The return is read now.
+
+  🛟 AND A TASK THAT STARTS AND NEVER ANSWERS NEEDS A BELT, because
+  reading the return only closes one of the two shapes. One belt per
+  PROBE, not per run — the narrow → broad chain is one probe, and on a
+  healthy Mac the broad fallback is the normal path — armed BEFORE the
+  ask (6.246.0; the check asserts the ORDER, not that both happened —
+  6.220.0) and held in its own slot (6.196.1). `secureInputAnswerSecs`
+  (20) is well under the 60-second poll on purpose: a belt that outlives
+  the tick it protects is a wedge with a longer fuse. A Mac that cannot
+  arm a timer still probes, and the missing belt is COUNTED rather than
+  assumed.
+
+  🚪 ANSWERED EXACTLY ONCE, THROUGH ONE DOOR (6.299.0), and the
+  generation counter is not decoration: once a belt has ended a probe,
+  the next tick starts a new one — and the ORIGINAL ioreg's callback can
+  still arrive. Without the generation check it would close somebody
+  else's probe, which is the same wedge wearing a different hat. Its own
+  check, driven by timing a probe out and then delivering the stale
+  answer.
+
+  🚨 AND THE FIRST VERSION REPORTED A CONFIDENT "off" OFF A PROBE THAT
+  NEVER RAN — caught by its own new check before it shipped, not by
+  reading. Every failure path called `finish(nil, why)`, and finish
+  routed everything through siApply, which sets `on = (pid ~= nil)`. A
+  refused launch therefore answered "off — nothing is holding the
+  keyboard". That is the exact lie 6.196.0's boot line told for four
+  hours while Chrome held the keyboard, reintroduced in the one row that
+  cannot afford it. A failure now moves `why` and nothing else: the last
+  good reading stands, `checks` does not move (it counts completions,
+  and it is half the fingerprint that named this bug), and UNKNOWN stays
+  UNKNOWN.
+
+  🔎 THREE CAUSES, COUNTED APART (6.196.1): refused · never answered ·
+  ran with no belt. One "failed" total reads the same for all three and
+  names none of them, and they want three different fixes. Printed only
+  when non-zero, so a healthy Mac stays exactly as quiet as it was
+  (6.269.0 — a new instrument's first duty is silence). Which also means
+  the release does not have to guess WHICH of the two shapes his Mac is
+  hitting: the next report says so itself.
+
+  🧪 DRIVEN, NOT GREPPED, and that is what this release rests on. The
+  suite had no `hs.task` at all, so siProbe took its "hs.task is
+  unavailable" branch on every run and the ENTIRE probe body — every
+  line fixed here — was unreachable by the gate, which is how this
+  survived from 6.196.0. 6.290.0's rule (a stub must answer what macOS
+  answers, refusals included) and 6.265.0's (driving a path with a
+  dependency MISSING is not driving it with the dependency REFUSING) are
+  the same sentence from two sides, and both were unpaid here. The stub
+  now has a `:start()` that can say no.
+
+  🧪 AND A SENTRY WENT RED ON CORRECT CODE, which is 6.248.0 for the
+  fourth time: it matched `_G.secureInputTasks[slot] = hs.task`, an
+  ADJACENCY, while the rule it protects is that the CALLER names the
+  slot (6.196.1's use-after-free). Reading :start()'s return put an
+  expression between the two halves and the check failed with nothing to
+  say about the change. It asks the rule now, and still bites a revert
+  to one shared global.
+
+  📏 NAMED, NOT FIXED: this is the probe's plumbing, not a cause for the
+  storm. What it buys is that the third of 6.303.0's three candidates
+  can be MEASURED at all — until now `secure:` could only ever read "not
+  known" on his Mac, whichever way the keyboard was behaving.
+
 NEW IN 6.303.0 — 🔬 WHAT THE KEYBOARD LOOKS LIKE THE MOMENT AFTER A WAKE
 (core/hyper_key.lua + init.lua §3.12):
 

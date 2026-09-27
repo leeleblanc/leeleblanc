@@ -1282,6 +1282,63 @@ work Mac.
   taken out again — close() does it on every path that reaches there
   (6.199.0, fourth time).
 
+- 🚧 A BUSY FLAG NEEDS A WAY OUT FOR EVERY WAY THE WORK CAN END
+  (6.304.0, core/capabilities.lua). `siBusy` lets one ioreg run at a
+  time — right, and 6.170.1's rule for any external command on a timer
+  — and was cleared in exactly ONE place: `finish()`, reachable only
+  from a task callback. So the first probe that could never finish shut
+  Secure Input down for the whole session, silently, while the 60 s
+  timer went on ticking into the short-circuit. GENERAL: the failure
+  paths out of a guarded section are the ones nobody drives, and a
+  guard only a SUCCESS can release is a wedge.
+  🔎 THE ARITHMETIC WAS THE DIAGNOSIS, and it existed only because
+  6.196.1 wrote it down: `started 1 · checks 0`, nine ticks after boot.
+  Frozen at 1 is not a slow probe, it is a probe not being ATTEMPTED.
+  That release added `started` for exactly this and the payoff came
+  eight releases later — which is the argument for the distinction
+  every time it looks like bookkeeping.
+  🔬 `hs.task:start()` REFUSES BY RETURNING FALSE (extensions/task/
+  libtask.m, `task_launch`: the success path pushes the task, the
+  @catch pushes a boolean). So the `pcall` around it SUCCEEDED on a
+  refusal, `fails` stayed 0 and finish was never called. 6.265.0 in a
+  new module — MISSING is not REFUSING, and the old code handled
+  hs.task being absent (that throws) while being blind to hs.task
+  saying no. 6.233.0's rule bought this: the fact was read in the
+  source, with the file named.
+  🛟 ONE BELT PER PROBE, NOT PER RUN — the narrow → broad chain is one
+  probe and the broad fallback is the NORMAL path. Armed BEFORE the ask
+  (6.246.0; the check asserts the ORDER — 6.220.0), in its own held
+  slot (6.196.1), `secureInputAnswerSecs` (20) well under the 60 s poll
+  because a belt that outlives the tick it protects is a wedge with a
+  longer fuse. A Mac that cannot arm it still probes and the missing
+  belt is COUNTED.
+  🚪 ONE DOOR, ONCE (6.299.0) — plus a GENERATION counter, which is not
+  decoration: after a belt ends a probe the next tick starts another,
+  and the original ioreg's callback can still arrive. Without the
+  generation check it closes somebody else's probe — the same wedge
+  wearing a different hat.
+  🚨 AND THE FIRST VERSION REPORTED A CONFIDENT "off" OFF A PROBE THAT
+  NEVER RAN, caught by its own new check rather than by reading. Every
+  failure called `finish(nil, why)` and finish routed everything
+  through `siApply`, which sets `on = (pid ~= nil)`. That is 6.196.0's
+  four-hour lie reintroduced in the one row that cannot afford it. A
+  failure moves `why` and nothing else now: the last good reading
+  stands and `checks` does not move, because it counts COMPLETIONS and
+  is half the fingerprint above. GENERAL: when a function's one exit
+  both records an ANSWER and clears a FLAG, a failure routed through it
+  is published as an answer.
+  🧪 THE ENTIRE PROBE BODY WAS UNREACHABLE BY THE GATE, which is how
+  this survived from 6.196.0: the suite had no `hs.task` at all, so
+  siProbe took its "hs.task is unavailable" branch on every run.
+  6.290.0's rule and 6.265.0's are the same sentence from two sides and
+  both were unpaid here. The stub has a `:start()` that can say no now,
+  and the checks DRIVE the wedge rather than grepping for its absence.
+  🧪 AND A SENTRY WENT RED ON CORRECT CODE — 6.248.0, fourth time. It
+  matched `_G.secureInputTasks[slot] = hs.task`, an ADJACENCY, while
+  the rule it protects is that the CALLER names the slot; reading
+  :start()'s return put an expression between the two halves. It asks
+  the rule now and still bites a revert to one shared global.
+
 - 🔬 `a and b or c` CANNOT CARRY A FALSE b (6.303.0, core/hyper_key.lua).
   The wake probe asks three things macOS will not otherwise tell you —
   the hidutil Caps Lock → F18 remap (set once at boot, never read
@@ -3779,6 +3836,7 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
+| 6.304.0 | 🚨 the Secure Input probe can no longer wedge — one ioreg that never answered shut the last of 6.303.0's three candidates down for the whole session, and `secure: not known` was the only thing it could ever say | pending |
 | 6.303.0 | 🔬 two seconds after every wake, the three things that can kill ⇪ silently are asked — the hidutil remap, the event tap and Secure Input — and a remap that has GONE is put back | pending |
 | 6.302.0 | 🌅 a ⇪ hold still open when the Mac wakes is let go, and a wake is visible to the hyper key at all — NOT the answer to his 10:57 storm, said out loud, because that hold began after the wake | pending |
 | 6.301.0 | 🗂 an S: line is a real Asana subtask — it needed the parent task's gid, which only exists once the parent has been created | pending |
@@ -3846,6 +3904,39 @@ next boot announced it (LL: "fortunately hammerspoon caught itself"). LL is on
 built. The work Mac's storm report is still owed, on 6.215.0 now.
 
 ## Open items — update as they move
+
+- 🌅 HIS 2026-09-27 REPORT — WHAT IT SETTLES, AND THE QUESTION THAT IS
+  NOW UNANSWERABLE. Four wakes, six probe reads, 15:07.
+  ✅ THE WAKE WATCHER WORKS: `wake : 4 wake(s) seen, none found ⇪ held`
+  and `probe : after screensDidUnlock, at 15:06:44`. 6.302.0's A3 asked
+  for any number above 0 and named 0 as the fail. It is 4 — and the
+  event that reaches us is **screensDidUnlock**, not systemDidWake,
+  which is worth knowing: the lock screen is where Secure Input lives.
+  NOT SCORED — he pasted a report, not a verdict, and only he scores.
+  ✅ THE REMAP AND THE TAP ARE MEASURED HEALTHY ACROSS ALL FOUR:
+  `remap : Caps Lock → F18 still set`, `tap : the F18 event tap is
+  running`, `counts: 6 read(s) · 0 could not be read · 0 remap(s) put
+  back`. So on these wakes the remap is NOT being lost.
+  🗳 AND E1 IS CLOSED AS UNANSWERABLE — his words: "On these two, no
+  idea that was hours ago." Was ⇪ working between the 10:57 storm and
+  his evening reload? He cannot say, and asking again is asking him to
+  remember something he has already told me he does not. STOP ASKING
+  IT. What replaces it is the measurement above, which is better
+  evidence than the memory would have been: 6.303.0's probe now answers
+  that question every morning without him.
+  🚨 WHICH LEAVES SECURE INPUT AS THE ONLY UNMEASURED CANDIDATE, and it
+  is the one that best fits the symptom (it kills every tap AND hotkey
+  dispatch system-wide with no error, and a lock screen on wake is
+  where it lives). `secure: not known` on all six reads — the 6.304.0
+  wedge, now fixed. His next report on that row is the next move.
+  📏 NO NEW STORM: `0 storms this session · 0 watchdog release(s) · 60
+  Caps Lock autorepeat(s)`, newest file still the 09-26 10:57:30 one.
+  🔎 ONE LINE IN THAT STORM FILE'S NOTICES, NAMED NOT CHASED:
+  `10:30:29 runtime window switcher — AppKit refused to order the
+  window on screen`. That is 6.266.0's refusal class in a module that
+  has not taken the `onLate` door. Its own release, on evidence, not
+  now.
+
 
 - 🆔 THE OCR TAG READS AN INODE AS A PATH — 6.237.0'S CLASS, IN A
   MODULE THAT NEVER GOT THE FIX (2026-09-26, his Console, unprompted and
@@ -4711,6 +4802,84 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.304.0 verify with LL — 🚨 SECURE INPUT CAN FINALLY ANSWER (KNOWN GROUND)
+  WHAT CHANGED: the probe that asks whether anything has locked your
+  keyboard could stop for the whole session and never say so. It cannot
+  any more.
+  WHY IT MATTERS, and your own report is what named it: every
+  `_G.hyperKeyReport()` you have sent reads `secure: not known —
+  capabilities.lua has not answered yet`, and `_G.secureInputReport()`
+  said `1 probe(s) STARTED and none finished`. One probe attempted,
+  never a second — while a timer went on asking every sixty seconds and
+  being turned away at the door.
+  🔬 THE CAUSE, in one sentence: a flag says "a probe is already
+  running" so two ioregs never stack up, and the ONLY thing that
+  cleared it was a probe finishing successfully. So the first one that
+  could not finish shut the feature down until the next reload.
+  🚨 AND IT IS THE LAST OF 6.303.0's THREE CANDIDATES. The remap and
+  the tap have both been answering you correctly since you installed
+  it; Secure Input — the one that kills every shortcut on the Mac with
+  no error anywhere, and lives on the lock screen a wake goes through —
+  is the one that has never once been measured on your Mac. This is
+  what makes it answerable. It is NOT itself a fix for the storm.
+
+  A. THE HEADLINE — one command, and it is the whole test.
+  A1. Install, reload, wait about ten seconds.
+  A2. Console: `_G.secureInputReport()`.
+      EXPECT, and this is the line that has never appeared on your Mac:
+        state  : off — nothing is holding the keyboard
+        probes : 1 checked · 0 failed · 0 change(s) seen
+      A `state : ON — <app> holds it` is also a pass, and a much more
+      interesting one: paste it immediately, it means something really
+      is sitting on your keyboard.
+      **A FAIL is `state : UNKNOWN` still.** If you get that, the ↳
+      lines under it now say WHY, which is the part that did not exist
+      before — paste the whole block.
+  A3. `_G.hyperKeyReport()`.
+      EXPECT the `secure:` row to read `Secure Input clear` instead of
+      `not known — capabilities.lua has not answered yet`.
+      That row going from "not known" to an actual answer IS the
+      release.
+
+  B. IT MUST KEEP ANSWERING — the wedge was a thing that happened over
+     time, so one good reading is not proof.
+  B1. Use the Mac for a few hours.
+  B2. `_G.secureInputReport()` again.
+      EXPECT `probes :` to be a COUNT IN THE DOZENS — one a minute — not
+      1, and not stuck at whatever it said in A2. A number that has not
+      moved in an hour is the same bug in a new place.
+  B3. `_G.hyperKeyReport()` — the `secure:` row should still answer.
+
+  C. IF IT EVER FAILS, IT NOW SAYS WHICH WAY (this is the new half).
+  C1. If you see any of these ↳ lines, paste them — each one sends me
+      somewhere different:
+      · `↳ N × macOS REFUSED to launch ioreg` — your Mac would not run
+        the command at all. That is a permissions or a beta-OS answer.
+      · `↳ N × ioreg started and NEVER ANSWERED` — it ran and hung.
+        Different fix entirely.
+      · `⚠️ N probe(s) ran with NO belt` — this Mac would not give us a
+        timer, which would be a finding of its own.
+      Before this release all three were one silent nothing.
+
+  D. MUST STILL WORK — this touched a core file that every boot runs.
+  D1. Boot is normal, `All green`, and the module count is unchanged.
+  D2. Use ⇪ normally for a day: ⇪T, ⇪D, ⇪N, ⇪3, ⇪X, ⇪4, ⇪space.
+  D3. `_G.capabilityReport()` still prints, with its 🔒 row.
+  D4. Typing does not feel heavier. The probe runs off the main thread
+      as it always has; nothing about that changed.
+  D5. `_G.stormReport()`, `_G.degradeReport()` and `_G.todayReport()`
+      all still print.
+
+  E. A JUDGEMENT ONLY YOU CAN MAKE.
+  E1. Twenty seconds is how long a probe may go unanswered before it is
+      given up on. If you ever see the "never answered" line on an
+      ordinary day, that number is probably too short for your Mac and
+      it is a setting, not a release.
+  E2. 📏 SAID RATHER THAN IMPLIED: if Secure Input now reads ON at some
+      point and your shortcuts were dead at that moment, that is an
+      ANSWER to the storm question, not a new bug. Tell me the app it
+      names.
+
 - 6.303.0 verify with LL — 🔬 THE KEYBOARD, AFTER A WAKE (NEW GROUND)
   WHAT CHANGED: two seconds after your Mac wakes, this config now looks
   at the three things that can make ⇪ die without saying anything, and
