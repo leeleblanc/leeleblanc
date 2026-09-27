@@ -96,6 +96,39 @@ work Mac.
      bad build from a bad delivery. The archive is still committed — the
      repo is the archive and a rollback needs it — it is simply not the
      route he is pointed at.
+  ⚖️ 6.303.0 — AND THE VARIABLE WAS **SIZE**, MEASURED AT LAST. Five
+     rounds blamed the format (.zip → .tar.gz), the tracking (untracked
+     → committed) and the route (GitHub → inline), and all five moved
+     something that was not it. The controlled comparison: the 2.76 MB
+     archive was sent INLINE TWICE and arrived neither time (his
+     Downloads jumps 6.301.0 → nothing; a Files search returns "No
+     matching files"), and a **94 KB three-file patch sent by the SAME
+     route on the SAME day installed first try** — his boot log read
+     6.303.0 minutes later. One variable changed, one outcome changed.
+     🔑 SO THE DELIVERY IS A PATCH WHEN A PATCH WILL DO: `git diff --stat
+     <prev-sha> <sha> -- hammerspoon/` names the RUNTIME files (tests,
+     CHANGELOG, GUIDE and TESTING are not run by his Mac), and when that
+     list is short the archive is those files alone. 6.301.0 → 6.303.0
+     was three: init.lua, core/hyper_key.lua, modules/hyper_storm.lua —
+     94 KB against 2.76 MB. VERIFY THE SAME WAY (md5 each file against
+     the release commit, grep line 7 of the unpacked init.lua) and SAY
+     THE NUMBERS; a patch is not a lesser delivery, it is the same
+     delivery with the 1,926 snippets and the 1.28 MB changelog left out.
+     🚨 A PATCH IS ONLY SAFE OVER A BASE YOU HAVE ASKED FOR. Ask
+     `_G.configVersion` FIRST — his said 6.301.0, which is why the three
+     files were the whole gap; over any other base the same three files
+     are a half-upgrade that works for a week.
+     📝 AND A PATCH THAT CARRIES CODE WITHOUT ITS CHANGELOG ENTRY TRIPS A
+     GUARD DOING ITS JOB: core/changelog_csv.lua lifts the version's
+     notes out of ~/.hammerspoon/CHANGELOG.md and REFUSES to write a
+     blank CSV row, so every boot printed "no CHANGELOG.md entry for
+     6.303.0". Not a bug and not his — a consequence of what I left out,
+     so it is NAMED and fixed with a 15 KB entries file prepended to his
+     copy (the parser wants `\nNEW IN <v>` up to the next `\nNEW IN `, so
+     a prepend parses; proven against a merged fixture before sending).
+     GENERAL: when a partial delivery makes an honest guard complain,
+     the guard is the evidence the delivery was partial — ship the
+     missing half, never silence the guard.
 - ✍️ LL DOES NOT EDIT init.lua AND A SETTINGS LINE IS NOT AN ANSWER
   (6.267.0, LL: "I do not edit the init.lua so I don't cause simple
   errors. You are to generate and test a new init.lua."). Every
@@ -3813,6 +3846,36 @@ next boot announced it (LL: "fortunately hammerspoon caught itself"). LL is on
 built. The work Mac's storm report is still owed, on 6.215.0 now.
 
 ## Open items — update as they move
+
+- 🆔 THE OCR TAG READS AN INODE AS A PATH — 6.237.0'S CLASS, IN A
+  MODULE THAT NEVER GOT THE FIX (2026-09-26, his Console, unprompted and
+  beside the 6.303.0 install):
+  `⚠️ OCR tag: clipboard file URL(s) matched no usable image — a
+  file-reference path macOS would not resolve — raw value:
+  "/.file/id=6571367.28635714/"`
+  🔎 READ, NOT PROVEN, and the reading is short because the mechanism is
+  already written down: macOS puts FILE REFERENCE URLs on a pasteboard
+  — volume and inode, no name, no extension — and 6.237.0 solved that
+  for the music player with `mp.resolveRefs` → `hs.fs.pathToBookmark` →
+  `hs.fs.pathFromBookmark` (realpath does NOT resolve one; it answers a
+  plausible name in a folder that holds nothing, which is the expensive
+  wrong fix). The screenshots/OCR side reads the same pasteboard and
+  never got that door. The message is HONEST — it names the raw value,
+  which is how this was diagnosable from one line — and the feature
+  still fails.
+  🔑 THE SHAPE IS A LIFT, NOT A SECOND COPY (6.231.0): `mp.resolveRefs`
+  takes its resolver as an ARGUMENT and is already PURE, so the release
+  publishes it (a service, or core/) and the OCR tag path asks it.
+  A second bookmark round-trip written beside it is how the two drift.
+  📏 ASK FIRST (6.201.0): which ACTION produced that line — copying a
+  file in Finder and pressing the OCR tag key, or a drag? The pasteboard
+  flavours differ, and NSFilenamesPboardType (a plist array of POSIX
+  paths) may be on the board already, in which case the fix is asking
+  the plain-path flavour FIRST and none of this arises. Do not build
+  before that sentence.
+  📝 NOT SCORED AGAINST 6.303.0 — it is unrelated to that release and
+  predates it; it surfaced in the same paste, which is not the same
+  thing.
 
 - 🔗 THE CHEAT-SHEET PASS, 2026-09-20 (LL: "please make a good pass down
   the cheat sheet"). WHAT IT FOUND, and what is left:
