@@ -1422,8 +1422,10 @@ do
   check("🚨 the sleep side is not counted as a wake either",
         w.SB.hyperWakesSeen == 2, w.SB.hyperWakesSeen)
 
-  -- 🔑 THE EXPECTATION IS CLEARED. Leaving the name set would attribute
-  -- the NEXT hold's ending to a panel that is long gone.
+  -- 🔑 THE EXPECTATION IS CLEARED — a stale name would attribute the
+  -- NEXT hold's ending to a panel that is long gone. Earned by
+  -- hyperExit(), not by a line in the wake door: a second assignment
+  -- there survived its own mutation and was taken out (6.199.0).
   w.now = 7100
   w.mkEvent({}, "f18", true, false, false).post()
   w.SB.hyperExpectRelease(1.5, "a pad")
@@ -1437,10 +1439,21 @@ do
         w.SB.hyperWakeRelease("systemWillSleep") == false)
 
   -- 🔒 6.235.0 — INSIDE A PLATFORM CALLBACK A THROW IS A SILENCE, so the
-  -- guard goes around the WHOLE body. The mutation that evaluates
-  -- wakeName() as an argument to pcall puts it outside, and this bites.
+  -- guard goes around the WHOLE body.
+  -- 🧪 AND THE FIRST VERSION OF THIS CHECK PASSED ITS OWN MUTATION: it
+  -- nil'd hyperWakeVerdict, which makes the RELEASE throw — and the
+  -- release is already the pcall's argument, so `pcall(f, wakeName(ev))`
+  -- catches it just as happily as the wrapped form. The only thing that
+  -- tells the two apart is a throw in the ARGUMENT, i.e. inside
+  -- wakeName itself. 6.235.0's own sentence, unpaid until the sweep ran:
+  -- the check that proves a guard makes something throw that is not
+  -- already guarded on its own.
+  w.SB.hyperWakeEvents = 5                 -- ipairs(5) raises in wakeName
+  check("🔒 a throw while RESOLVING the event cannot escape the callback",
+        w.fireWake(1) == true)
+  w.SB.hyperWakeEvents = { "systemDidWake" }
   w.SB.hyperWakeVerdict = nil
-  check("🔒 a throw inside the watcher callback cannot escape it",
+  check("🔒 …and so can a throw inside the release itself",
         w.fireWake(1) == true)
 end
 

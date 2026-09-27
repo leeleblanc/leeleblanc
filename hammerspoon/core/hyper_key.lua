@@ -515,10 +515,12 @@ function _G.hyperWakeRelease(name)
     if kind ~= "release" then return false, "⇪ was not held" end
     _G.hyperWakeReleases = (_G.hyperWakeReleases or 0) + 1
     if words then print(words) end
-    -- The panel that asked for a release is gone too: whatever it was
-    -- expecting arrived, or did not, before the Mac slept. Leaving the
-    -- name set would attribute the NEXT hold's ending to it.
-    _G.hyperReleaseExpected = nil
+    -- 🗑 A `_G.hyperReleaseExpected = nil` sat here and was taken out
+    -- again: hyperExit() already clears it, so no mutation could fail
+    -- it — a guard no test can fail is dead code with a comment on it
+    -- (6.199.0, fifth time). The CHECK that a wake release leaves no
+    -- stale expectation stays, because that invariant is real; it is
+    -- simply earned by the door rather than by a second line here.
     hyperExit()
     return true, words
 end
