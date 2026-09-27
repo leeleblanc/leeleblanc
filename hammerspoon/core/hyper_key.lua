@@ -103,6 +103,72 @@ function _G.hyperEndVerdict(o)
         tonumber(o.quiet) or 0, tonumber(o.count) or 0)
 end
 
+-- =====================================================================
+-- 🌅 6.302.0 — A WAKE IS A RELEASE
+-- =====================================================================
+-- LL, handed a storm report written at 10:57: "My laptop travelled with
+-- me in my car and I just plugged it in." Every number in that file
+-- fits it. The hold was 10.5 s old — not the 58 minutes since the
+-- previous ⇪ key — so `_G.hyperEnteredAt` was stamped AFTER the wake:
+-- the first Caps Lock press once the lid opened never ended, six
+-- different shortcuts fired under it while he typed, and ten seconds
+-- later 6.214.1's storm guard broke it and wrote the file.
+--
+-- 🔎 AND NOTHING IN THIS CONFIG TOLD THE HOLD THAT THE MAC HAD SLEPT.
+-- The only hs.caffeinate.watcher here is activity_tracker's, and it
+-- listens to screensDidLock and systemWillSleep — the SLEEP side. Not
+-- one line watched the wake.
+--
+-- 🗳 THE MECHANISM IS A READING, NOT A VERDICT (6.198.0; 6.262.0 is
+-- what believing one costs). The best candidate is the hidutil remap:
+-- Caps Lock → F18 is applied ONCE at boot by §3.12 and never read back,
+-- so a keyboard re-enumerated across a wake can deliver the keyDown as
+-- F18 while the keyUp arrives as Caps Lock — a press this config sees
+-- and a release it cannot. That is a reading, and this release does not
+-- rest on it.
+--
+-- 🔑 WHAT IT RESTS ON IS TRUE WHICHEVER MECHANISM IT WAS: nobody holds
+-- Caps Lock through a sleep. A hold still open when the Mac wakes is
+-- stale by definition, so it is let go — and the cost of being wrong is
+-- that he presses ⇪ again. That is why it could be built before the
+-- mechanism was named rather than after.
+--
+-- 🚨 AND A WAKE RELEASE IS NOT A LATCH. `hyperLatchReleases` is the
+-- number the storm report prints as a fault; this one happens every
+-- morning on a perfectly healthy Mac, so counting it there would make
+-- the fault counter climb on health — 6.285.0's lesson verbatim, one
+-- release later. Its own counter, its own line in the report.
+--
+-- 🔕 AND IT IS SILENT: a Console line, no alert. An alert every time he
+-- opens the lid is a warning he stops reading (6.269.0).
+--
+-- PURE. The event list is a TABLE so a check can move it and require
+-- the verdict to follow (6.239.0) rather than asserting three literals
+-- that the code also spells out.
+_G.hyperWakeEvents = { "systemDidWake", "screensDidUnlock",
+                       "sessionDidBecomeActive" }
+
+-- THREE ANSWERS, NEVER TWO (6.196.1). "a wake found nothing held" and
+-- "no wake has happened" are opposite facts, and on a healthy Mac the
+-- first is what health looks like — a report that could not tell them
+-- apart would read as silence on the day the watcher was not running.
+function _G.hyperWakeVerdict(name, active)
+    local watched = false
+    for _, n in ipairs(_G.hyperWakeEvents or {}) do
+        if n == name then watched = true; break end
+    end
+    if not watched then return "ignored", nil end
+    if not active then return "clear", nil end
+    return "release", "⌨️ ⇪ let go on " .. tostring(name) .. " — this Mac "
+        .. "woke with a Caps Lock hold still open, and nobody holds ⇪ "
+        .. "through a sleep. Not a stuck ⇪; press Caps Lock again as "
+        .. "normal. _G.hyperKeyReport() counts them."
+end
+
+_G.hyperWakesSeen    = 0            -- wake events seen this session
+_G.hyperWakeReleases = 0            -- ...that found ⇪ held. NOT a latch.
+_G.hyperWakeState    = "not started"
+
 -- 🔎 THREE STATES, READABLE AFTER THE FACT (6.196.1). Until this release
 -- there was one counter and it summed a fault with two kinds of health.
 function _G.hyperKeyReport()
@@ -121,6 +187,21 @@ function _G.hyperKeyReport()
         line("   latch    : ⚠️ " .. latches .. " — ⇪ went silent with NO panel"
              .. " expecting it and had to be broken. This is the fault"
              .. " number, and the storm report prints it.")
+    end
+    -- 🌅 6.302.0 — and the fourth way a hold can end, counted apart.
+    local wakes = tonumber(_G.hyperWakesSeen) or 0
+    local woke  = tonumber(_G.hyperWakeReleases) or 0
+    if _G.hyperWakeState ~= "watching" then
+        line("   wake     : ⚠️ " .. tostring(_G.hyperWakeState or "not started")
+             .. " — a ⇪ hold still open when this Mac wakes will NOT be let"
+             .. " go here. That is the 10:57 storm's own shape.")
+    elseif woke == 0 then
+        line("   wake     : " .. wakes .. " wake(s) seen, none found ⇪ held."
+             .. " Health — and not the same fact as no wake at all.")
+    else
+        line("   wake     : " .. wakes .. " wake(s) seen · " .. woke
+             .. " found ⇪ STILL HELD and let it go. Not a latch: nobody"
+             .. " holds Caps Lock through a sleep.")
     end
     local names = {}
     for n in pairs(_G.hyperSaidHandover or {}) do names[#names + 1] = tostring(n) end
@@ -413,6 +494,90 @@ if not tapOK then
           .. "do not, this line is the reason there is no second opinion.")
     pcall(function() _G.diag.warn("hyper", "event-tap fallback: "
           .. tostring(tapErr)) end)
+end
+
+-- =====================================================================
+-- 🌅 THE WAKE DOOR, AND THE WATCHER THAT KNOCKS ON IT (6.302.0)
+-- =====================================================================
+-- It lives here rather than in init.lua §3.12 for the same reason
+-- `hyperEndVerdict` does: that file is at its 3,800-line budget and
+-- this one already owns the hyper key. It needs nothing from §3.12 but
+-- `core.exit`, which is the same door every other ending uses — so a
+-- wake release cannot drift from a keyUp release.
+--
+-- 🚪 IT IS NOT `_G.hyperForceRelease`, deliberately. That door counts a
+-- latch, and counting a wake there is the whole thing this release
+-- refuses to do.
+function _G.hyperWakeRelease(name)
+    local kind, words = _G.hyperWakeVerdict(name, _G.hyperActive and true or false)
+    if kind == "ignored" then return false, "not a wake event" end
+    _G.hyperWakesSeen = (_G.hyperWakesSeen or 0) + 1
+    if kind ~= "release" then return false, "⇪ was not held" end
+    _G.hyperWakeReleases = (_G.hyperWakeReleases or 0) + 1
+    if words then print(words) end
+    -- The panel that asked for a release is gone too: whatever it was
+    -- expecting arrived, or did not, before the Mac slept. Leaving the
+    -- name set would attribute the NEXT hold's ending to it.
+    _G.hyperReleaseExpected = nil
+    hyperExit()
+    return true, words
+end
+
+-- macOS hands the callback a NUMBER. The names are resolved against
+-- hs.caffeinate.watcher's own constants rather than written down as
+-- integers — the same rule F18's keycode follows above, and for the
+-- same reason: a constant that drifts is a guard that dies quietly.
+-- An event this Hammerspoon does not define is simply not watched.
+local function wakeName(ev)
+    local W = hs.caffeinate and hs.caffeinate.watcher
+    if not W then return nil end
+    for _, n in ipairs(_G.hyperWakeEvents or {}) do
+        if W[n] ~= nil and ev == W[n] then return n end
+    end
+    return nil
+end
+
+-- 🔒 THE GUARD GOES AROUND THE WHOLE BODY (6.235.0): inside a platform
+-- callback a throw is a silence, so wakeName is inside the pcall too —
+-- evaluating it as an argument would put it outside.
+--
+-- 🛟 TWO REFUSAL SHAPES, and hs.caffeinate.watcher makes only these two
+-- visible: `new` throwing or answering nothing, and `start` throwing.
+-- Unlike hs.eventtap there is no isEnabled to ask, so "created and then
+-- refused to run" (6.265.0's beta-OS shape) cannot be detected here —
+-- said rather than hoped past, and the report line says what the state
+-- really is instead of claiming health it cannot check.
+local wakeOK, wakeErr = pcall(function()
+    if not (hs.caffeinate and hs.caffeinate.watcher
+            and hs.caffeinate.watcher.new) then
+        error("hs.caffeinate.watcher is not available on this Mac", 0)
+    end
+    local wat = hs.caffeinate.watcher.new(function(ev)
+        pcall(function() _G.hyperWakeRelease(wakeName(ev)) end)
+    end)
+    if not wat then error("hs.caffeinate.watcher.new answered nothing", 0) end
+    _G.hyperWakeWatcher = wat          -- HELD: a collected watcher never fires
+    wat:start()
+end)
+if wakeOK then
+    _G.hyperWakeState = "watching"
+else
+    _G.hyperWakeWatcher = nil
+    _G.hyperWakeState = "NOT watching — " .. tostring(wakeErr)
+    -- 🔔 A BREAK IS SEEN. It takes the door once, at boot, because a Mac
+    -- that cannot hear its own wake is a Mac where ⇪ can latch across
+    -- every lid-open with nothing to end it — which is exactly the
+    -- 10:57 storm. On a healthy Mac this never runs: hs.caffeinate is
+    -- required in §0 and activity_tracker has watched the sleep side
+    -- for releases.
+    print("⚠️ 🌅 ⇪ wake release: " .. tostring(wakeErr)
+          .. " — a Caps Lock hold still open when this Mac wakes will not "
+          .. "be let go. _G.hyperKeyReport() says so too.")
+    if _G.degrade then
+        pcall(_G.degrade, "Hyper wake release", tostring(wakeErr))
+    else
+        pcall(function() _G.diag.warn("hyper", "wake watcher: " .. tostring(wakeErr)) end)
+    end
 end
 
 -- =====================================================================

@@ -239,9 +239,42 @@ local function newWorld(opts)
       end
       return KEYCODES[k]
     end }) },
+    -- 🔬 6.302.0 — hs.caffeinate.watcher, modelled rather than mimed.
+    -- 6.290.0's rule: a stub must answer what the real provider answers.
+    -- The two that matter here are that it KEEPS the callback (a stub
+    -- whose new() throws the function away makes every wake path
+    -- untestable — 6.273.0's service.provide hole exactly), and that
+    -- macOS hands that callback a NUMBER, never a name.
+    caffeinate = (not opts.noCaffeinate) and {
+      watcher = {
+        systemDidWake         = 1,
+        screensDidUnlock      = 2,
+        sessionDidBecomeActive = 3,
+        screensDidLock        = 4,
+        systemWillSleep       = 5,
+        new = function(fn)
+          if opts.watcherNewThrows then error("no caffeinate here", 0) end
+          if opts.watcherNewNil then return nil end
+          local wat = { fn = fn, on = false }
+          function wat:start()
+            if opts.watcherStartThrows then error("refused to start", 0) end
+            self.on = true; return self
+          end
+          function wat:stop() self.on = false; return self end
+          w.wakeWatcher = wat
+          return wat
+        end,
+      },
+    } or nil,
     configdir = HS,
   }
   w.hs = hs
+
+  -- macOS firing a caffeinate event: by CONSTANT, the way it really does.
+  function w.fireWake(const)
+    if not w.wakeWatcher then return false, "no watcher was made" end
+    return pcall(w.wakeWatcher.fn, const)
+  end
 
   -- The sandbox every lifted block and core/hyper_key.lua runs inside.
   local SB = {
@@ -1286,6 +1319,210 @@ do
       if l:find("released by the watchdog", 1, true) then said = true end
   end
   check("🛟 …and still says so, with the old sentence", said)
+end
+
+-- =====================================================================
+section("13c. 🌅 6.302.0 — A WAKE IS A RELEASE")
+-- =====================================================================
+-- LL's 10:57 storm report: ⇪ held 10.5 s, six shortcuts fired inside it,
+-- 266 Caps Lock autorepeats that session so the key really does repeat
+-- on his Mac, and "My laptop travelled with me in my car and I just
+-- plugged it in." The hold's AGE is what decides it — 10.5 s, not the
+-- 58 minutes since the previous ⇪ key — so it began after the wake.
+-- Nothing in this config watched the wake side at all.
+do
+  local w = world{}
+  loadHyperKey(w)
+  local V = w.SB.hyperWakeVerdict
+  check("the wake verdict is PURE and reachable", type(V) == "function")
+
+  check("systemDidWake with ⇪ HELD is a release", V("systemDidWake", true) == "release")
+  check("screensDidUnlock too", V("screensDidUnlock", true) == "release")
+  check("sessionDidBecomeActive too", V("sessionDidBecomeActive", true) == "release")
+  -- 🔎 THREE ANSWERS (6.196.1): a wake that found nothing held is health,
+  -- and it is NOT the same fact as no wake at all. A verdict with two
+  -- answers would make a Mac whose watcher never ran read identically to
+  -- a Mac that woke five times with ⇪ up.
+  check("🔎 a wake with ⇪ UP is 'clear', not 'release' and not 'ignored'",
+        V("systemDidWake", false) == "clear")
+  check("the SLEEP side is ignored — that half was never the bug",
+        V("systemWillSleep", true) == "ignored"
+        and V("screensDidLock", true) == "ignored")
+  check("an unknown event is ignored, and nil never throws", (function()
+      local ok, k = pcall(V, nil, true)
+      return ok and k == "ignored"
+  end)())
+  local _, words = V("systemDidWake", true)
+  check("the release sentence says it is NOT a stuck ⇪",
+        words and words:find("Not a stuck", 1, true) and words:find("systemDidWake", 1, true),
+        words)
+  check("...and 'clear' and 'ignored' say nothing at all",
+        select(2, V("systemDidWake", false)) == nil
+        and select(2, V("systemWillSleep", true)) == nil)
+
+  -- 📐 6.239.0 — THE EVENT LIST IS CONFIG, so the check MOVES it and
+  -- requires the verdict to follow. Asserting the three literals would
+  -- pass against a verdict that spells them out a second time.
+  local keep = w.SB.hyperWakeEvents
+  w.SB.hyperWakeEvents = { "somethingNobodyHasHeardOf" }
+  check("🔌 the verdict reads the event TABLE, not three names of its own",
+        V("somethingNobodyHasHeardOf", true) == "release"
+        and V("systemDidWake", true) == "ignored")
+  w.SB.hyperWakeEvents = keep
+end
+
+do
+  -- THE DOOR, driven end to end through the real §3.12 hold.
+  local w = world{}
+  bindShortcuts(w)
+  loadHyperKey(w)
+  runTimers(w)
+  w.now = 7000
+  w.mkEvent({}, "f18", true, false, false).post()
+  check("⇪ is held", w.SB.hyperActive == true)
+
+  local before = w.SB.hyperLatchReleases
+  local ok = w.fireWake(1)                      -- hs.caffeinate systemDidWake
+  check("macOS fires the watcher by CONSTANT and nothing throws", ok)
+  check("🌅 the hold is let go", w.SB.hyperActive == false)
+  check("...through the same door every other ending uses (modal exited, "
+        .. "watchdog timer dropped)",
+        w.modal.entered == false and w.SB.hyperLatchTimer == nil)
+  -- 🚨 THE HEADLINE RULE. hyperLatchReleases is what the storm report
+  -- prints as a fault; a wake release happens every morning on a healthy
+  -- Mac, so counting it there would make the fault counter climb on
+  -- health — 6.285.0's lesson one release later.
+  check("🚨 …and it is NOT counted as a latch",
+        w.SB.hyperLatchReleases == before and w.SB.hyperWakeReleases == 1,
+        tostring(w.SB.hyperLatchReleases) .. "/" .. tostring(w.SB.hyperWakeReleases))
+  check("…nor as a handover or a relay",
+        w.SB.hyperPanelHandovers == 0 and w.SB.hyperRelayReleases == 0)
+  check("…and the wake was SEEN as well as acted on",
+        w.SB.hyperWakesSeen == 1, w.SB.hyperWakesSeen)
+  check("🔕 it says so in the Console and nowhere else — no alert",
+        (function()
+            local said = false
+            for _, l in ipairs(w.printed) do
+                if l:find("nobody holds", 1, true) then said = true end
+            end
+            return said and #w.told == 0
+        end)(), table.concat(w.told, ","))
+
+  -- a wake with ⇪ up is counted and silent
+  local quiet = #w.printed
+  w.fireWake(2)
+  check("a wake with ⇪ UP is counted, releases nothing and says nothing",
+        w.SB.hyperWakesSeen == 2 and w.SB.hyperWakeReleases == 1
+        and #w.printed == quiet,
+        tostring(w.SB.hyperWakesSeen) .. "/" .. tostring(w.SB.hyperWakeReleases))
+  -- 🚨 an event we do not watch must not even count as a wake, or the
+  -- report's "N wake(s) seen" becomes "N caffeinate events", which is a
+  -- different and useless number on a Mac that locks its screen all day.
+  w.fireWake(4)                                 -- screensDidLock
+  check("🚨 the sleep side is not counted as a wake either",
+        w.SB.hyperWakesSeen == 2, w.SB.hyperWakesSeen)
+
+  -- 🔑 THE EXPECTATION IS CLEARED. Leaving the name set would attribute
+  -- the NEXT hold's ending to a panel that is long gone.
+  w.now = 7100
+  w.mkEvent({}, "f18", true, false, false).post()
+  w.SB.hyperExpectRelease(1.5, "a pad")
+  w.fireWake(1)
+  check("🔑 a wake release clears the panel expectation",
+        w.SB.hyperReleaseExpected == nil, tostring(w.SB.hyperReleaseExpected))
+
+  check("the door answers false with ⇪ up rather than throwing",
+        w.SB.hyperWakeRelease("systemDidWake") == false)
+  check("...and false for an event it does not watch",
+        w.SB.hyperWakeRelease("systemWillSleep") == false)
+
+  -- 🔒 6.235.0 — INSIDE A PLATFORM CALLBACK A THROW IS A SILENCE, so the
+  -- guard goes around the WHOLE body. The mutation that evaluates
+  -- wakeName() as an argument to pcall puts it outside, and this bites.
+  w.SB.hyperWakeVerdict = nil
+  check("🔒 a throw inside the watcher callback cannot escape it",
+        w.fireWake(1) == true)
+end
+
+do
+  -- 🔎 THE REPORT'S THREE STATES.
+  local w = world{}
+  loadHyperKey(w)
+  check("the watcher is HELD in a global — a collected one never fires",
+        w.SB.hyperWakeWatcher ~= nil and w.SB.hyperWakeWatcher.on == true)
+  check("...and the state says so", w.SB.hyperWakeState == "watching")
+
+  w.SB.hyperWakesSeen, w.SB.hyperWakeReleases = 4, 0
+  w.printed = {}; w.SB.hyperKeyReport()
+  local rep = table.concat(w.printed, "\n")
+  check("🔎 health reads as wakes SEEN with none held — not as silence",
+        rep:find("wake     : 4 wake(s) seen, none found ⇪ held", 1, true) ~= nil, rep)
+  check("...and carries no ⚠️ on the wake line", (function()
+      for _, l in ipairs(w.printed) do
+          if l:find("wake     :", 1, true) then return l:find("⚠️") == nil end
+      end
+      return false
+  end)())
+
+  w.SB.hyperWakeReleases = 2
+  w.printed = {}; w.SB.hyperKeyReport()
+  rep = table.concat(w.printed, "\n")
+  check("a wake that DID find ⇪ held is named, and said not to be a latch",
+        rep:find("2 found ⇪ STILL HELD", 1, true)
+        and rep:find("Not a latch", 1, true), rep)
+  -- 🧪 6.212.0's rule: assert what is UNIQUE to the branch. Two lines
+  -- reading one counter would pass a check that only looked for a number.
+  check("🧪 …from its OWN counter, distinct from latch/handover/relay",
+        rep:find("latch    : 0", 1, true) and rep:find("handover : 0", 1, true)
+        and rep:find("relay    : 0", 1, true), rep)
+end
+
+do
+  -- 🛟 A MAC THAT CANNOT HEAR ITS OWN WAKE SAYS SO — three ways in, one
+  -- honest answer each. 6.196.1: "not watching" must never read as
+  -- "no wake has happened yet".
+  for _, case in ipairs({
+        { "hs.caffeinate missing",   { noCaffeinate = true },      "not available" },
+        { "watcher.new throws",      { watcherNewThrows = true },  "no caffeinate here" },
+        { "watcher.new answers nil", { watcherNewNil = true },     "answered nothing" },
+        { "start() throws",          { watcherStartThrows = true }, "refused to start" },
+      }) do
+    local w = world(case[2])
+    loadHyperKey(w)
+    check("🛟 " .. case[1] .. ": the boot survives and the state NAMES it",
+          w.SB.hyperWakeState ~= "watching"
+          and tostring(w.SB.hyperWakeState):find(case[3], 1, true) ~= nil,
+          w.SB.hyperWakeState)
+    check("   ↳ …no half-made watcher is left holding the slot",
+          w.SB.hyperWakeWatcher == nil)
+    w.printed = {}; w.SB.hyperKeyReport()
+    check("   ↳ …and the report line is a ⚠️, never a count of zero",
+          table.concat(w.printed, "\n"):find("wake     : ⚠️", 1, true) ~= nil,
+          table.concat(w.printed, "\n"))
+  end
+  -- and the ⚠️ reaches him at boot, once
+  local w = world{ watcherNewThrows = true }
+  local degraded = {}
+  w.SB.degrade = function(tool, why) degraded[#degraded + 1] = tostring(tool) end
+  loadHyperKey(w)
+  check("🔔 …and it takes the degrade door once, naming the tool",
+        #degraded == 1 and degraded[1] == "Hyper wake release",
+        table.concat(degraded, ","))
+end
+
+do
+  -- 🌩 THE STORM REPORT'S FINGERPRINT. The `before :` line is what named
+  -- 6.282.0 as the build LL was running; it has to carry the new ending
+  -- or the next storm cannot say whether the wake release was even up.
+  local src = readAll(HS .. "/modules/hyper_storm.lua") or ""
+  check("🌩 the storm report's `before :` line carries the wake count",
+        src:find("wake releases %d", 1, true) ~= nil)
+  check("   ↳ …and its STATE beside it, so 0 releases on a Mac that was "
+        .. "not watching cannot read as 0 releases on one that was",
+        src:find("_G.hyperWakeState", 1, true) ~= nil)
+  check("   ↳ …read through tonumber, so a build without core/hyper_key.lua "
+        .. "prints a number rather than throwing (6.282.0)",
+        src:find("tonumber(_G.hyperWakeReleases) or 0", 1, true) ~= nil)
 end
 
 -- =====================================================================

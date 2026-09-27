@@ -1554,6 +1554,19 @@ do
     local comments = select(2, init:gsub("\n%s*%-%-", ""))
     check("init.lua stays under 4,000 lines — it is the orchestrator, and "
           .. "every feature belongs in modules/ or core/", total < 4000, total)
+    -- 🚨 6.302.0 — AND THE 3,800 LINE THIS PROJECT ACTUALLY WORKS TO,
+    -- which until now was a number in CLAUDE.md claiming a gate check
+    -- that did not exist. 6.269.0's rule, in the file that enforces the
+    -- architecture: WHEN A COMMENT CLAIMS A CHECK, GREP FOR THE CHECK.
+    -- Found by writing a release header that pushed the file to 3,802
+    -- and watching nothing go red. The 4,000 line above is the hard
+    -- wall; this is the working budget, so there is real headroom
+    -- rather than a ceiling to fight, and a release that wants header
+    -- room takes it from the older NEW IN block — which is already the
+    -- ceremony (two inline, the third drops into CHANGELOG.md).
+    check("...and under the 3,800 this project actually works to, so the "
+          .. "hard wall above is never the thing that stops a release",
+          total < 3800, total)
     check("...and under 60% comment, which is where the header bloat shows "
           .. "up before the line count does",
           comments / total < 0.60, string.format("%.0f%%", comments / total * 100))

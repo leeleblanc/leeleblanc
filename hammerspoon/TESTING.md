@@ -1,4 +1,4 @@
-# TESTING — how to score release 6.301.0
+# TESTING — how to score release 6.302.0
 
 You install ONE archive and it carries several releases. Below are the
 steps for each release this archive is new for, newest first. Run the
@@ -26,6 +26,93 @@ else is a LOSS and I fix it before building further. You are the only
 scorer; I never mark my own.
 
 ---
+
+## 6.302.0
+
+6.302.0 verify with LL — 🌅 A WAKE IS SEEN (NEW GROUND — expect a round)
+WHAT CHANGED: this config now knows when your Mac wakes up. Nothing
+here had ever watched the wake side — the one sleep/wake watcher in
+seventy-one modules listens for the screen LOCKING. And a ⇪ hold
+still open across a wake is let go.
+🚨 AND IT IS NOT THE ANSWER TO YOUR STORM. I am saying that first
+because the message I sent you implied it was, and the report you
+sent me says otherwise. Your hold was 10.5 seconds old. That clock
+starts on a FRESH Caps Lock press, so the hold began AFTER the car
+journey, not across it — the first ⇪ press once you opened the lid
+never ended. A watcher firing as the lid opens would have found ⇪ up
+and done nothing, and your storm would have happened exactly as it
+did. The wake is still the setting; this release is not the fix, and
+6.303.0 is the probe aimed at it.
+🔎 ONE THING IN THAT REPORT THAT IS NOT A SECOND FAULT, so you do not
+read it as one: `0 watchdog release(s)`. The 8-second watchdog cannot
+end a latch while keys keep arriving — every key you press proves the
+hold is real and pushes its deadline out, by design — and a person
+fighting a dead keyboard never stops pressing keys. That is exactly
+the hole the storm guard was built to cover, and it covered it:
+released at 10.5 s, wrote the file, announced it at the next boot.
+
+A. THE HEADLINE — and it is quiet, which is the point.
+A1. Install and reload. Console: `_G.hyperKeyReport()`.
+    EXPECT a new line: `wake     : 0 wake(s) seen, none found ⇪ held.`
+    A ⚠️ on that line instead means this Mac would not give us a
+    sleep/wake watcher — paste it, that is a real finding.
+A2. Close the lid. Wait thirty seconds. Open it, log back in.
+A3. `_G.hyperKeyReport()` again.
+    EXPECT the wake count to have gone UP — 1, 2 or 3 depending on
+    whether macOS sent one event or several. Any number above 0 is a
+    pass. **0 IS THE FAIL**, and it is the one I most want to hear
+    about, because everything in 6.303.0 hangs off this working.
+A4. Note that number and tell me what it is. I genuinely do not know
+    whether your Mac sends one wake event or three, and it decides
+    how 6.303.0 reads its own measurements.
+
+B. THE RELEASE ITSELF — only if you want to see it fire.
+B1. Hold Caps Lock down and, while still holding it, close the lid.
+    Wait ten seconds, open it, log back in.
+B2. `_G.hyperKeyReport()`.
+    EXPECT `N wake(s) seen · 1 found ⇪ STILL HELD and let it go`,
+    and the line says it is NOT a latch.
+B3. Console, scroll back: one line reading "⇪ let go on
+    systemDidWake … nobody holds ⇪ through a sleep". No alert on
+    screen — deliberately. If you got an alert, tell me: waking your
+    Mac should never pop a message at you.
+B4. `latch    : 0` on that same report. That number is the one the
+    storm report prints as a fault, and a wake release must never
+    touch it — otherwise it climbs every morning on a healthy Mac
+    and stops meaning anything.
+
+C. MUST STILL WORK — this is the ⇪ key, so this is the important half.
+C1. Use ⇪ normally for a day: ⇪T, ⇪D, ⇪N, ⇪3, ⇪X, ⇪4, ⇪space.
+    EXPECT no change of any kind.
+C2. Hold ⇪ for ten seconds without pressing anything, then let go.
+    EXPECT the old `released by the watchdog — held 8s` line. That
+    warning must keep its teeth.
+C3. Open the music card (⇪⇧pad.) — its one-off "took the keyboard"
+    line still appears, and `handover` still counts.
+C4. `_G.stormReport()` — it must PRINT, not throw (6.282.0), and its
+    `before :` line now carries a wake count and the watcher's state.
+
+D. PASTE BACK, PASS OR FAIL.
+D1. `_G.hyperKeyReport()` after a few days of ordinary lid-opening.
+D2. `_G.stormReport()` if another storm happens. The `before :` line
+    is now the fingerprint for this too.
+
+E. THE ONE SENTENCE I NEED, AND IT IS WORTH MORE THAN ANY PROBE.
+E1. **Was ⇪ working between that storm at 10:57 and your reload that
+    evening?** Two answers, two different bugs:
+    · ⇪ was DEAD until you reloaded → the Caps Lock → F18 remap is
+      being lost when the Mac wakes. That is bigger than the storm:
+      it means ⇪ stops existing after every car journey until
+      Hammerspoon restarts. 6.303.0 becomes a repair.
+    · ⇪ went on working → the remap survived, and the keyUp was
+      eaten by something else (the event tap being switched off
+      across the transition, or macOS's Secure Input during the lock
+      screen). 6.303.0 stays a probe that tells those two apart.
+E2. If you would rather not wait: press ⇪ a few times right after
+    the next wake and see whether anything happens. That is the same
+    answer in ten seconds.
+
+
 
 ## 6.301.0
 
@@ -251,65 +338,6 @@ E2. ANSWERING YOUR OTHER QUESTION, because it belongs here: the id in
     parent task has been created. This release is what makes it
     reachable — the submit now hands that gid back — and 6.301.0 is
     what uses it.
-
-
-
-## 6.298.0
-
-6.298.0 verify with LL — 🔎 THE @ SEARCHES NAME THEMSELVES (KNOWN GROUND)
-WHAT CHANGED: type @ on its own in ⇪D and every source you can search is
-listed — its tag, what it holds, and how many.
-WHY IT MATTERS: you were right that nothing named them. There are
-fourteen, and the only place any of them appeared was a section header
-in the results — which you can only read after searching for something
-that happens to be in that store. A tag you have to know before you can
-find it is not a tag you can use, which is why fourteen of them have
-been sitting there unused.
-
-A. THE HEADLINE.
-A1. Press ⇪D. Type a single `@` and nothing else.
-    EXPECT: the list becomes a directory — 🔎 THE @ SEARCHES — 14, and
-    one row per source reading e.g. `📋 @clip` with "Clipboard ·
-    everything you have copied" under it and a number on the right.
-A2. Read the fourteen. EXPECT: @clip @cmd @shots @note @asana @ocr
-    @images @doc @file @pad @scratch @vault @web @tool.
-A3. Press ↓ a few times, then ⏎.
-    EXPECT: that source's tag lands in the box as `@ocr ` (or whichever)
-    and the results below become that store. It must NOT copy anything.
-A4. Press ⇪D again, type `@`, and CLICK a row.
-    EXPECT: the same — the tag goes in the box.
-A5. With the directory up, look at the right-hand pane.
-    EXPECT: it says what the highlighted source holds and how many items
-    are indexed right now.
-
-B. THE ONE THAT MUST NOT HAVE REGRESSED — please do this one.
-B1. Type `@ocr` (with the r). EXPECT: OCR rows, exactly as before. The
-    directory must NOT appear. It is `@` alone, never any @word — `@o`
-    already searched @ocr and that had to keep working.
-B2. Type `@shots`, `@vault`, `@clip`. EXPECT: each pins its store as
-    always.
-B3. Type an ordinary word — `receipt`. EXPECT: unchanged.
-B4. ⇪⇧space and ⇪⇧/ still open pinned to @shots and @tool.
-
-C. THE SECOND DOOR.
-C1. Type `@tasks` — a tag that does not exist.
-    EXPECT: "Nothing matches … and there is no @tasks source. Type @ on
-    its own to see all 14."
-C2. Type `zzznothing`. EXPECT: the plain "⌫ widens it again" message —
-    it must not start talking about @ for an ordinary miss.
-
-D. PASTE BACK, PASS OR FAIL.
-D1. `_G.unifiedSearchReport()` — the store list and its counts.
-
-E. A JUDGEMENT ONLY YOU CAN MAKE.
-E1. Read the fourteen one-line descriptions. Any of them wrong, or
-    describing something other than what you thought that tag searched?
-    That is the answer I most want — they are my words for your stores,
-    and a wrong one is worse than none.
-E2. 📏 NAMED, NOT FIXED, so it is not a surprise: with `@ocr` typed, the
-    line under the box still reads "200 matches across every store" —
-    which is not true, it is pinned to one store. Your screenshot. It is
-    its own small release; say if you want it sooner.
 
 
 

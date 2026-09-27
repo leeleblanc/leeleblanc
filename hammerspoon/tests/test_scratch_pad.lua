@@ -1555,7 +1555,17 @@ do
     -- 2026-09-26 12:00:00 UTC-ish; only the DATE arithmetic matters and
     -- os.date uses the same local zone on both sides of each check.
     local NOW = os.time({ year = 2026, month = 9, day = 26, hour = 12 })
-    local TODAY = os.date("%Y-%m-%d")
+    -- 🚨 OFF THE PINNED CLOCK, NOT THE WALL ONE. This read
+    -- os.date("%Y-%m-%d") with no argument — the REAL today — while
+    -- every answer under test comes from the pinned NOW above. The two
+    -- agreed on 26 September 2026 and on no other day, so these checks
+    -- passed once, on the day they were written, and turned the whole
+    -- gate red at the next midnight with nothing wrong in the config.
+    -- GENERAL, and it is 6.230.0's rule in a clock: a fixture whose
+    -- right and wrong answers AGREE proves nothing — and one that agrees
+    -- for a day is worse, because it reports the disagreement as a bug
+    -- in the code it was meant to check.
+    local TODAY = os.date("%Y-%m-%d", NOW)
 
     -- 🧪 6.186.0, NINTH TIME: the parser walks a state machine, so a
     -- deleted guard leaves `cur` nil and the next branch indexes it —

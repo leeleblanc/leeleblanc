@@ -58,7 +58,7 @@ local M = {
             { "report",    "~/.hammerspoon/.storm/storm-<epoch>.txt — send that file; the alert names it" },
             { "twice",     "a second storm in 10 min also pauses Hammerspoon — ⇪⇧Esc resumes" },
             { "console",   "_G.stormReport() — the last storm, the counts, the newest report's text" },
-            { "endings",   "_G.hyperKeyReport() — how the ⇪ hold ended: relay · handover · LATCH." },
+            { "endings",   "_G.hyperKeyReport() — how the ⇪ hold ended: relay · handover · wake · LATCH." },
             { "",          "Only a latch is a fault; a panel taking the keyboard is not (6.285.0)" },
             { "off",       "settings = { hyper_storm = { on = false } }" },
         },
@@ -217,10 +217,17 @@ function M.setup(core)
         -- summed a real latch with two kinds of health (a panel taking
         -- the keyboard, and a page relaying the keyUp), so it climbed on
         -- a Mac where ⇪ had never once stuck.
-        add(string.format("before : LATCH releases this session %d · panel handovers %d · keyUp relays %d · Caps Lock autorepeats %d · storms this session %d",
+        -- 6.302.0 — and a FOURTH ending: the Mac woke with ⇪ still held
+        -- and the hold was let go. That is the shape of the 10:57 storm
+        -- this line was read to diagnose, so a storm written AFTER this
+        -- release with a wake count of 0 says the wake was not the cause.
+        add(string.format("before : LATCH releases this session %d · panel handovers %d · keyUp relays %d · wake releases %d (of %d wake(s) seen, %s) · Caps Lock autorepeats %d · storms this session %d",
                           tonumber(_G.hyperLatchReleases) or 0,
                           tonumber(_G.hyperPanelHandovers) or 0,
                           tonumber(_G.hyperRelayReleases) or 0,
+                          tonumber(_G.hyperWakeReleases) or 0,
+                          tonumber(_G.hyperWakesSeen) or 0,
+                          tostring(_G.hyperWakeState or "not started"),
                           tonumber(_G.hyperRepeats) or 0, st.storms))
         add("keys   : (in order, combo · owner)")
         for i, k in ipairs(st.order) do add(string.format("   %2d. ⇪%s · %s", i, k[1], k[2])) end

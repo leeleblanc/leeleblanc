@@ -434,10 +434,14 @@ local NOT_AUTOMATED = {
     { "6.251.0", "window:focus() must MOVE the focus — a getter-only stub hides the feature" },
     { "6.265.0", "a canvas can be created, wired, and then REFUSE to show" },
     { "6.289.0", "an eventtap can be created and then refuse to START" },
+    { "6.302.0", "an hs.caffeinate.watcher stub must KEEP its callback and hand"
+                 .. " it a CONSTANT — one that drops the function makes every"
+                 .. " wake path untestable, and six suites stub it today with"
+                 .. " `new = function()`, so automating it is its own release" },
     { "6.201.0", "a suite stubbing setContents may also need changeCount — a join too"
                  .. " narrow to automate without crying wolf on 31 files" },
 }
-check("the unautomated contracts are listed, not implied", #NOT_AUTOMATED == 8)
+check("the unautomated contracts are listed, not implied", #NOT_AUTOMATED == 9)
 for _, row in ipairs(NOT_AUTOMATED) do
     out("   · " .. row[1] .. "  " .. row[2] .. "\n")
 end

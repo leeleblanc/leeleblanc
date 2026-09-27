@@ -1249,6 +1249,53 @@ work Mac.
   taken out again — close() does it on every path that reaches there
   (6.199.0, fourth time).
 
+- 🌅 A FIX AND AN ARTEFACT CAN AGREE ABOUT THE CAUSE AND DISAGREE
+  ABOUT THE ORDER OF EVENTS (6.302.0, core/hyper_key.lua). LL's storm
+  report, plus his one sentence when asked what happened just before:
+  "My laptop travelled with me in my car and I just plugged it in."
+  Every field fits a wake — the 58-minute gap to the previous ⇪ key is
+  the journey, 266 autorepeats that session prove Caps Lock really does
+  repeat on his Mac so it was not physically held, and `0 watchdog
+  release(s)` is the 6.162.1 rule working (a key under ⇪ proves the
+  hold, and a person fighting a dead keyboard never stops pressing
+  keys — which is the exact hole the storm guard exists to cover).
+  🚨 AND THE FIX THAT FELL OUT OF IT WAS WRONG BY ONE INSTANT, caught
+  at the door rather than a year later. "Release the hold on wake"
+  cannot have prevented that storm: `_G.hyperEnteredAt` is stamped in
+  ONE place — hyperEnter's `else`, taken only when ⇪ was not already
+  down — so an age of `10.5 s` means the hold BEGAN AFTER the wake. A
+  watcher firing as the lid opened finds ⇪ up and releases nothing.
+  🔑 GENERAL, and it is a new shape of 6.198.0 rather than a repeat:
+  this was not a correct fix for a plausible-but-wrong MECHANISM — the
+  wake really is the setting. It was a correct fix for the wrong
+  MOMENT, right neighbourhood and wrong instant, which reads as a
+  diagnosis until you ask WHICH SIDE of the event the symptom began
+  on. When a story fits every field, find the field that carries a
+  CLOCK and check the order.
+  🔎 WHAT SHIPPED ANYWAY, honestly labelled: wakes are visible to the
+  hyper key at all (nothing here had ever watched the wake side — the
+  one hs.caffeinate.watcher in this config is activity_tracker.lua:891,
+  on `screensDidLock` / `systemWillSleep`), and a hold still open
+  ACROSS a wake is let go, which is right on its own terms and closes
+  a neighbouring hole. `hyperWakeVerdict` is PURE with the event list
+  as a TABLE the gate moves (6.239.0); THREE answers (6.196.1) —
+  ignored · clear · release — because "a wake found ⇪ up" is health
+  and must not read like a watcher that never ran.
+  🚨 A WAKE RELEASE IS NOT A LATCH: `hyperLatchReleases` is the storm
+  report's fault number and this fires every morning on a healthy Mac.
+  Its own counter, its own report line, its own field on `before :`.
+  🔕 Console only — an alert every lid-open is one he stops reading.
+  🔬 AND THE PROBE IS THE NEXT RELEASE, because this is NEW GROUND:
+  three things can latch ⇪ with the key physically up and all three
+  are invisible from Lua today — the hidutil Caps Lock → F18 remap
+  (applied once at boot, never read back), the F18 event tap (macOS
+  disables taps across some transitions), and SECURE EVENT INPUT
+  (6.196.0 — it stops every tap AND hotkey dispatch system-wide with
+  no error anywhere, and a lock screen on wake is where it lives).
+  🗳 ONE SENTENCE FROM HIM STILL BEATS ALL THREE: was ⇪ working
+  between the storm and his evening reload? Dead → the remap is being
+  lost on wake, a bigger bug than the storm. Working → the keyUp was
+  dropped by the tap or by Secure Input.
 - 🔔 A HANDOVER IS NOT A LATCH, AND THEY WERE PRINTED IDENTICALLY
   (6.285.0, init.lua §3.12 + core/hyper_key.lua — LL's Console, on an
   ordinary ⇪⇧pad.: "⇪ released by the watchdog — held 8s … musicPlayer
@@ -3657,6 +3704,7 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
+| 6.302.0 | 🌅 a ⇪ hold still open when the Mac wakes is let go, and a wake is visible to the hyper key at all — NOT the answer to his 10:57 storm, said out loud, because that hold began after the wake | pending |
 | 6.301.0 | 🗂 an S: line is a real Asana subtask — it needed the parent task's gid, which only exists once the parent has been created | pending |
 | 6.300.0 | 🗂 Hamsidian sends his grammar — one Asana task per task — and each tab is retitled ✅ Success / ❌ Error and kept until he deletes it | pending |
 | 6.299.0 | 🔔 Asana's own answer reaches the caller — the submit returned true the moment it fired the POST, so a task Asana REFUSED was announced as sent | pending |
@@ -4557,6 +4605,89 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.302.0 verify with LL — 🌅 A WAKE IS SEEN (NEW GROUND — expect a round)
+  WHAT CHANGED: this config now knows when your Mac wakes up. Nothing
+  here had ever watched the wake side — the one sleep/wake watcher in
+  seventy-one modules listens for the screen LOCKING. And a ⇪ hold
+  still open across a wake is let go.
+  🚨 AND IT IS NOT THE ANSWER TO YOUR STORM. I am saying that first
+  because the message I sent you implied it was, and the report you
+  sent me says otherwise. Your hold was 10.5 seconds old. That clock
+  starts on a FRESH Caps Lock press, so the hold began AFTER the car
+  journey, not across it — the first ⇪ press once you opened the lid
+  never ended. A watcher firing as the lid opens would have found ⇪ up
+  and done nothing, and your storm would have happened exactly as it
+  did. The wake is still the setting; this release is not the fix, and
+  6.303.0 is the probe aimed at it.
+  🔎 ONE THING IN THAT REPORT THAT IS NOT A SECOND FAULT, so you do not
+  read it as one: `0 watchdog release(s)`. The 8-second watchdog cannot
+  end a latch while keys keep arriving — every key you press proves the
+  hold is real and pushes its deadline out, by design — and a person
+  fighting a dead keyboard never stops pressing keys. That is exactly
+  the hole the storm guard was built to cover, and it covered it:
+  released at 10.5 s, wrote the file, announced it at the next boot.
+
+  A. THE HEADLINE — and it is quiet, which is the point.
+  A1. Install and reload. Console: `_G.hyperKeyReport()`.
+      EXPECT a new line: `wake     : 0 wake(s) seen, none found ⇪ held.`
+      A ⚠️ on that line instead means this Mac would not give us a
+      sleep/wake watcher — paste it, that is a real finding.
+  A2. Close the lid. Wait thirty seconds. Open it, log back in.
+  A3. `_G.hyperKeyReport()` again.
+      EXPECT the wake count to have gone UP — 1, 2 or 3 depending on
+      whether macOS sent one event or several. Any number above 0 is a
+      pass. **0 IS THE FAIL**, and it is the one I most want to hear
+      about, because everything in 6.303.0 hangs off this working.
+  A4. Note that number and tell me what it is. I genuinely do not know
+      whether your Mac sends one wake event or three, and it decides
+      how 6.303.0 reads its own measurements.
+
+  B. THE RELEASE ITSELF — only if you want to see it fire.
+  B1. Hold Caps Lock down and, while still holding it, close the lid.
+      Wait ten seconds, open it, log back in.
+  B2. `_G.hyperKeyReport()`.
+      EXPECT `N wake(s) seen · 1 found ⇪ STILL HELD and let it go`,
+      and the line says it is NOT a latch.
+  B3. Console, scroll back: one line reading "⇪ let go on
+      systemDidWake … nobody holds ⇪ through a sleep". No alert on
+      screen — deliberately. If you got an alert, tell me: waking your
+      Mac should never pop a message at you.
+  B4. `latch    : 0` on that same report. That number is the one the
+      storm report prints as a fault, and a wake release must never
+      touch it — otherwise it climbs every morning on a healthy Mac
+      and stops meaning anything.
+
+  C. MUST STILL WORK — this is the ⇪ key, so this is the important half.
+  C1. Use ⇪ normally for a day: ⇪T, ⇪D, ⇪N, ⇪3, ⇪X, ⇪4, ⇪space.
+      EXPECT no change of any kind.
+  C2. Hold ⇪ for ten seconds without pressing anything, then let go.
+      EXPECT the old `released by the watchdog — held 8s` line. That
+      warning must keep its teeth.
+  C3. Open the music card (⇪⇧pad.) — its one-off "took the keyboard"
+      line still appears, and `handover` still counts.
+  C4. `_G.stormReport()` — it must PRINT, not throw (6.282.0), and its
+      `before :` line now carries a wake count and the watcher's state.
+
+  D. PASTE BACK, PASS OR FAIL.
+  D1. `_G.hyperKeyReport()` after a few days of ordinary lid-opening.
+  D2. `_G.stormReport()` if another storm happens. The `before :` line
+      is now the fingerprint for this too.
+
+  E. THE ONE SENTENCE I NEED, AND IT IS WORTH MORE THAN ANY PROBE.
+  E1. **Was ⇪ working between that storm at 10:57 and your reload that
+      evening?** Two answers, two different bugs:
+      · ⇪ was DEAD until you reloaded → the Caps Lock → F18 remap is
+        being lost when the Mac wakes. That is bigger than the storm:
+        it means ⇪ stops existing after every car journey until
+        Hammerspoon restarts. 6.303.0 becomes a repair.
+      · ⇪ went on working → the remap survived, and the keyUp was
+        eaten by something else (the event tap being switched off
+        across the transition, or macOS's Secure Input during the lock
+        screen). 6.303.0 stays a probe that tells those two apart.
+  E2. If you would rather not wait: press ⇪ a few times right after
+      the next wake and see whether anything happens. That is the same
+      answer in ten seconds.
+
 - 6.301.0 verify with LL — 🗂 SUBTASKS (NEW GROUND — expect a round)
   WHAT CHANGED: an `S:` line is a real Asana subtask now, hanging under
   its own task.

@@ -2,10 +2,26 @@
 -- * Working VERSION *
 -- =====================================================================
 -- =====================================================================
--- 09-26-26 using Claude          ← EDITED date. Bumped with every release.
+-- 09-27-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.301.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.302.0
 -- =====================================================================
+
+-- NEW IN 6.302.0 — 🌅 A WAKE IS SEEN AT ALL, AND A HOLD ACROSS ONE
+--   IS RELEASED (core/hyper_key.lua). 🚨 AND IT IS **NOT** THE
+--   ANSWER TO HIS 10:57 STORM — said here because the framing that
+--   nearly shipped implied it was. That report's hold was 10.5 s
+--   old, and `hyperEnteredAt` is stamped only on a FRESH press, so
+--   the hold BEGAN AFTER the wake. Releasing on wake cannot have
+--   prevented it. 6.198.0, caught on the way out of the door.
+--   🔎 WHAT IS TRUE is that nothing here watched the wake at all —
+--   the one hs.caffeinate.watcher in this config is
+--   activity_tracker's, on the SLEEP side. So wakes are now seen
+--   and counted, and a hold still open across one is let go
+--   (nobody holds ⇪ through a sleep; the cost if wrong is one more
+--   press). 🚨 NOT counted as a latch — that is the storm report's
+--   fault number and this happens every morning (6.285.0). 🔕
+--   Console only. 🔬 6.303.0 is the probe aimed at the storm.
 
 -- NEW IN 6.301.0 — 🗂 SUBTASKS, THROUGH THE PARENT'S OWN GID
 --   (modules/task_creator.lua + scratch_pad.lua): an `S:` line is a
@@ -23,26 +39,11 @@
 --   🛟 The belt is re-armed for the second leg; a subtask is never
 --   given `projects` (that draws the same line twice on the board).
 
--- NEW IN 6.300.0 — 🗂 THE GRAMMAR SENDS, AND THE TAB WEARS THE ANSWER
---   (modules/scratch_pad.lua): 6.297.0 read his task grammar and
---   deliberately sent nothing. Every parsed task is now its own
---   Asana task in his default project.
---   🏷 HIS OWN ANSWER to the question 6.297.0 asked: he does not
---   want the text cleared — "rewrite the task titles … so they stay
---   until I delete them." The tab keeps every word and wears
---   ✅ Success: tasks sent / ❌ Error: tasks not sent.
---   🔑 THE RENAME IS THE MEMORY (6.281.0): a ✅ tab is skipped for
---   ever, so 16:00 cannot post yesterday again; a ❌ tab is RETRIED;
---   typing clears the mark. 📅 A LONE DATE IS THE DUE DATE
---   (`whenForAsana`, PURE) — `T: today` is a start with no end,
---   which Asana refuses. 📏 OPEN TABS ONLY, the rest NAMED
---   (6.201.1). 🗓 16:00 is ON again, reversing 6.254.0 on his word.
-
--- (6.299.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.300.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 cut the inline count to
 --  TWO; a gate check proves every entry here is also in CHANGELOG.md.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.301.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.302.0
 -- =====================================================================
 -- The catalogue that used to sit here moved to GUIDE.md ("What each
 -- tool does") in 6.180.0 — 259 lines of prose inside the orchestrator.
@@ -135,7 +136,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.301.0"
+_G.configVersion = "6.302.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the
