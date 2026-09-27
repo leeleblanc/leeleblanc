@@ -1925,7 +1925,12 @@ if capChunk then
     check("🚨 the two ioreg probes are held in SEPARATE slots — one shared "
           .. "global meant starting the fallback released the task whose "
           .. "callback was still running, and that crashed Hammerspoon",
-          capsSrc and not capsSrc:match("_G%.secureInputTask%s*=%s*hs%.task"),
+          -- 6.304.0: this named the right rule and matched one exact
+          -- SHAPE of it (`= hs.task`), so a single global assigned from
+          -- anything else walked straight past. The plural is safe: in
+          -- `_G.secureInputTasks =` the character after "Task" is "s",
+          -- which is neither whitespace nor "=".
+          capsSrc and not capsSrc:match("_G%.secureInputTask%s*="),
           "a single-slot assignment is back")
     -- 6.248.0, third time: this asserted ADJACENCY ("...[slot] = hs.task")
   -- and went red in 6.304.0 on a change that kept the rule perfectly —
@@ -1977,12 +1982,19 @@ if capChunk then
       if bf then beltSrc = bf:read("*a") ; bf:close() end
     end
     local realTask, realTimerSave = hs.task, hs.timer
-    local T = { newCalls = 0, started = {}, cb = nil, startOK = true,
+    local T = { newCalls = 0, started = {}, cb = nil, cbs = {}, startOK = true,
                 afters = {}, order = {}, doAfterThrows = false }
     hs.task = {
-      new = function(_, cb, _)
+      new = function(_, cb, args)
         T.newCalls = T.newCalls + 1
         T.order[#T.order + 1] = "task.new"
+        -- narrow is `-k IOConsoleUsers`, broad is the whole `-l` dump.
+        -- Keeping them apart matters: the BROAD probe is the normal path
+        -- on a healthy Mac, and it is the one whose late callback reaches
+        -- finish() directly.
+        local kind = "narrow"
+        for _, a in ipairs(args or {}) do if a == "-l" then kind = "broad" end end
+        T.cbs[kind] = cb
         local task = {}
         -- :start() REFUSES BY RETURNING FALSE (libtask.m, task_launch).
         -- A stub that returns the task unconditionally is gentler than
@@ -2000,22 +2012,36 @@ if capChunk then
       doAfter = function(secs, fn)
         if T.doAfterThrows then error("no timers on this Mac", 0) end
         T.order[#T.order + 1] = "doAfter"
-        local t = { stopped = false, fn = fn, secs = secs }
+        -- A STOPPED TIMER DOES NOT FIRE. Storing `fn` raw let a test fire
+        -- one that had been stopped, which macOS never does — the stub
+        -- being gentler than the provider in the other direction
+        -- (6.290.0). Wrapping it means "fire it anyway" is a faithful
+        -- question: nothing happens, exactly as on a Mac.
+        local t = { stopped = false, secs = secs }
+        t.fn = function(...) if not t.stopped then return fn(...) end end
         function t:stop() self.stopped = true end
         T.afters[#T.afters + 1] = t
         return t
       end,
     }
     local function freshMac()
-      T.newCalls, T.started, T.cb = 0, {}, nil
+      T.newCalls, T.started, T.cb, T.cbs = 0, {}, nil, {}
       T.afters, T.order = {}, {}
       asMac({}, { hyperRemapOK = true, ocrShortcutAvailable = true, brewPathInUse = "/b" })
-      T.newCalls, T.started, T.cb = 0, {}, nil   -- drop the boot probe's own timers
+      T.newCalls, T.started, T.cb, T.cbs = 0, {}, nil, {}  -- drop the boot probe's
       T.afters, T.order = {}, {}
     end
-    -- The belt is the LAST doAfter armed before the task is made; the
-    -- hop is armed later, inside the narrow callback.
-    local function belt() return T.afters[#T.afters] end
+    -- The belt is the timer with a real delay; the HOP that steps the
+    -- broad probe off the narrow callback is a doAfter(0). Told apart by
+    -- their delay, because both land in the same recorder.
+    local function pick(want)
+      for i = #T.afters, 1, -1 do
+        local a = T.afters[i]
+        if (want == "belt") == ((a.secs or 0) > 0) then return a end
+      end
+    end
+    local function belt() return pick("belt") end
+    local function hop()  return pick("hop")  end
     local function capture(fn)
       printed = {}
       pcall(fn)
@@ -2041,6 +2067,12 @@ if capChunk then
     check("...and the state stays UNKNOWN rather than reading a confident "
           .. "'off' off a probe that never ran",
           _G.secureInput.on == nil, tostring(_G.secureInput.on))
+    check("🔎 ...and `checks` does NOT move on a failure — it counts "
+          .. "COMPLETIONS, and started-vs-checks is the fingerprint that "
+          .. "named this bug. Bumping it here makes a Mac where every "
+          .. "probe is refused read `started N \u{b7} checks N`, which "
+          .. "looks like health (6.196.1)",
+          (_G.secureInput.checks or 0) == 0, tostring(_G.secureInput.checks))
 
     -- 2. A task that starts and never answers: the belt must end it.
     T.startOK = true
@@ -2064,6 +2096,21 @@ if capChunk then
     check("...and a never-answered probe is counted apart from a refused one",
           (_G.secureInput.timeouts or 0) >= 1, tostring(_G.secureInput.timeouts))
 
+    -- A belt left running after a probe ANSWERS fires later and books a
+    -- timeout against a probe that worked — an instrument inventing the
+    -- fault it was built to find.
+    freshMac()
+    _G.secureInputCheck()
+    local liveBelt, before = belt(), _G.secureInput.timeouts or 0
+    if T.cbs.narrow then T.cbs.narrow(nil, 'kCGSSessionSecureInputPID" = 77') end
+    check("🛟 ...and a probe that ANSWERS stops its own belt, or the belt "
+          .. "fires later and books a timeout against a probe that worked",
+          liveBelt and liveBelt.stopped == true)
+    if liveBelt and liveBelt.fn then liveBelt.fn() end
+    check("...proven by firing it anyway: no phantom timeout is counted",
+          (_G.secureInput.timeouts or 0) == before,
+          tostring(_G.secureInput.timeouts) .. " vs " .. tostring(before))
+
     -- 3. ORDER, not presence (6.220.0): a belt armed after the ask is no
     -- belt at all for the case where :start() itself blocks.
     freshMac()
@@ -2073,9 +2120,20 @@ if capChunk then
           table.concat(T.order, ","))
 
     -- 4. A stale callback must not close somebody else's probe.
+    -- Driven through the BROAD probe on purpose. The narrow callback has
+    -- a guard of its own, so a stale NARROW answer never reaches finish()
+    -- and proves nothing about finish's own generation check — and broad
+    -- is the normal path on a healthy Mac anyway (the narrow form finds
+    -- nothing every time). The first version of this drove narrow and
+    -- survived its own mutation.
     freshMac()
     _G.secureInputCheck()
-    local staleCb = T.cb
+    if T.cbs.narrow then T.cbs.narrow(nil, "no pid here") end  -- narrow finds nothing
+    if hop() and hop().fn then hop().fn() end                  -- ...so broad starts
+    local staleCb = T.cbs.broad
+    check("...and a narrow probe that finds nothing falls back to the broad "
+          .. "one, which is the path a healthy Mac takes every time",
+          staleCb ~= nil)
     if belt() and belt().fn then belt().fn() end     -- probe 1 times out
     _G.secureInputCheck()                            -- probe 2 starts
     local duringTwo = _G.secureInput.started
@@ -2091,6 +2149,53 @@ if capChunk then
           end)())
     check("...and the stale answer is not applied to the state either",
           _G.secureInput.pid ~= 4242, tostring(_G.secureInput.pid))
+
+    -- The NARROW callback carries its own generation check, and it is not
+    -- covered by the one in finish(): a stale narrow answer with no pid
+    -- never reaches finish at all — it arms _G.secureInputHop. Assigning
+    -- that slot drops the reference to the LIVE probe's hop timer, and an
+    -- unreferenced timer is collected and never fires (6.155.0), so the
+    -- running probe would lose its broad fallback and sit until its own
+    -- belt. 6.273.0: a line no mutation can kill means the check is
+    -- missing, not that the line is spare.
+    local function hops()
+      local n = 0
+      for _, a in ipairs(T.afters) do if (a.secs or 0) == 0 then n = n + 1 end end
+      return n
+    end
+    freshMac()
+    _G.secureInputCheck()                                   -- probe 1
+    local staleNarrow = T.cbs.narrow
+    if belt() and belt().fn then belt().fn() end             -- probe 1 times out
+    _G.secureInputCheck()                                   -- probe 2
+    if T.cbs.narrow then T.cbs.narrow(nil, "no pid here") end  -- probe 2 hops
+    local hopsBefore = hops()
+    if staleNarrow then staleNarrow(nil, "no pid here") end  -- probe 1 answers, late
+    check("🚨 ...and a stale NARROW answer does not arm a second hop over "
+          .. "the live probe's own — that slot holds the only reference to "
+          .. "it, and a collected timer never fires (6.155.0)",
+          hops() == hopsBefore,
+          "hops went " .. tostring(hopsBefore) .. " -> " .. tostring(hops()))
+
+    -- And the HOP carries a third one, for the sliver where the belt
+    -- expires between arming the hop and the hop firing. Narrow: without
+    -- it, a dead probe's hop starts a broad ioreg into the LIVE probe's
+    -- broad slot, dropping the reference to its task — collected, never
+    -- calls back, and that probe waits for its own belt. Same class as
+    -- the two above, so it gets driven rather than trusted.
+    freshMac()
+    _G.secureInputCheck()                                    -- probe 1
+    if T.cbs.narrow then T.cbs.narrow(nil, "no pid here") end -- arms probe 1's hop
+    local staleHop = hop()
+    if belt() and belt().fn then belt().fn() end              -- probe 1 times out
+    _G.secureInputCheck()                                    -- probe 2 is live
+    local madeBefore = T.newCalls
+    if staleHop and staleHop.fn then staleHop.fn() end        -- probe 1's hop, late
+    check("🚨 ...and a dead probe's HOP does not start a broad ioreg into "
+          .. "the live probe's slot — that assignment drops the only "
+          .. "reference to its task",
+          T.newCalls == madeBefore,
+          "tasks went " .. tostring(madeBefore) .. " -> " .. tostring(T.newCalls))
 
     -- 5. A Mac with no timers still probes, and SAYS it has no belt
     -- rather than implying one is there (6.196.1).

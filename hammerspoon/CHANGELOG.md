@@ -101,6 +101,39 @@ NEW IN 6.304.0 — 🚨 A GUARD THAT ONLY A SUCCESS CAN CLEAR IS A WEDGE
   say about the change. It asks the rule now, and still bites a revert
   to one shared global.
 
+  🧪 AND THE SWEEP FOUND FOUR THINGS THE FIRST VERSION HAD WRONG,
+  which is the argument for running it rather than reasoning about it.
+  TWO GUARDS WERE UNDRIVEN: the narrow callback's generation check and
+  the hop's both survived deletion, because the stale-answer check was
+  driving the NARROW path — which has a guard of its own, so the stale
+  answer never reached finish() and proved nothing about it. Driven
+  through the BROAD probe now (the normal path on a healthy Mac), and
+  the other two have checks of their own: without them a dead probe's
+  late answer arms a second hop, or starts a broad ioreg, INTO THE LIVE
+  PROBE'S SLOT — which drops the only reference to what is there, and a
+  collected timer or task never fires (6.155.0). 6.273.0: a line no
+  mutation can kill means the check is missing, not that the line is
+  spare.
+  🧪 A BELT LEFT RUNNING AFTER A PROBE ANSWERS had no check either, and
+  it is the shape where an instrument invents the fault it was built to
+  find — the timer fires later and books a timeout against a probe that
+  worked. It is asserted STOPPED, and then fired anyway to prove
+  nothing is counted.
+  🧪 AND THAT CHECK FAILED UNTIL THE STUB STOPPED BEING GENTLE IN THE
+  OTHER DIRECTION: the fake timer stored its callback raw, so a test
+  could fire one that had been stopped, which macOS never does. 6.290.0
+  is usually about a stub that is too FORGIVING of the code; this is a
+  stub too PERMISSIVE of the test, and it produced a red check over
+  correct code. A stopped timer no-ops now.
+  🔒 AND AN EXISTING SENTRY WAS WEAKER THAN IT READ. 6.196.1's "never
+  one slot for both" matched `_G.secureInputTask = hs.task`, one exact
+  SHAPE, so a single global assigned from anything else walked past it
+  — proven by a mutation that reintroduced the crash and stayed green.
+  It refuses any assignment to the singular name now. GENERAL, and it
+  is the fourth time in this file: a sentry that names a thing must
+  match the THING, not one sentence it once appeared in.
+  🧪 Fourteen mutations, fourteen bites.
+
   📏 NAMED, NOT FIXED: this is the probe's plumbing, not a cause for the
   storm. What it buys is that the third of 6.303.0's three candidates
   can be MEASURED at all — until now `secure:` could only ever read "not

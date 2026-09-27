@@ -1333,6 +1333,26 @@ work Mac.
   6.290.0's rule and 6.265.0's are the same sentence from two sides and
   both were unpaid here. The stub has a `:start()` that can say no now,
   and the checks DRIVE the wedge rather than grepping for its absence.
+  🧪 THE SWEEP FOUND TWO UNDRIVEN GUARDS AND ONE WEAK SENTRY, and that
+  is the part worth carrying. The stale-answer check drove the NARROW
+  callback, which has a guard of its own — so the stale answer never
+  reached finish() and proved nothing about it. Driven through the
+  BROAD probe now. The narrow and hop guards got checks of their own:
+  a dead probe's late answer arms a second hop, or starts a broad
+  ioreg, INTO THE LIVE PROBE'S SLOT, dropping the only reference to
+  what is there (6.155.0). 6.273.0 again — a line no mutation can kill
+  means the CHECK is missing, not that the line is spare.
+  🔒 AND 6.196.1's OWN SENTRY WAS WEAKER THAN IT READ: it matched
+  `_G.secureInputTask = hs.task`, one exact SHAPE, so a single global
+  assigned from anything else walked past — proven by a mutation that
+  reintroduced the crash and stayed green. It refuses any assignment to
+  the singular name now. FOURTH time in this file: a sentry that names
+  a thing matches the THING, not one sentence it once appeared in.
+  🧪 AND A STUB WAS TOO PERMISSIVE OF THE TEST, which is a new
+  direction for 6.290.0: the fake timer stored its callback raw, so a
+  check could fire a timer that had been STOPPED — something macOS
+  never does — and a correct implementation went red. A stub models the
+  provider's refusals in both directions.
   🧪 AND A SENTRY WENT RED ON CORRECT CODE — 6.248.0, fourth time. It
   matched `_G.secureInputTasks[slot] = hs.task`, an ADJACENCY, while
   the rule it protects is that the CALLER names the slot; reading
