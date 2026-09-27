@@ -1249,6 +1249,48 @@ work Mac.
   taken out again — close() does it on every path that reaches there
   (6.199.0, fourth time).
 
+- 🔬 `a and b or c` CANNOT CARRY A FALSE b (6.303.0, core/hyper_key.lua).
+  The wake probe asks three things macOS will not otherwise tell you —
+  the hidutil Caps Lock → F18 remap (set once at boot, never read
+  back), the F18 event tap (macOS switches taps off across some
+  transitions), and SECURE EVENT INPUT (6.196.0, which kills every tap
+  AND hotkey dispatch with no error anywhere, and lives on the lock
+  screen a wake goes through). Two seconds after a wake, off the main
+  thread, silent when healthy.
+  🚨 AND ITS FIRST VERSION DESTROYED THE ONE DISTINCTION IT EXISTS FOR,
+  in one line: `P.remap = (code == 0) and present(out) or nil`. A
+  genuinely GONE mapping returns false, `false or nil` is nil, so
+  "gone" read as "could not be asked" and nothing would ever have been
+  repaired. GENERAL: never write `a and b or c` where b can be FALSE AS
+  A MEANING rather than as a failure — 6.179.0's read-three-values rule
+  in the other direction, and the suite is what found it.
+  🔔 ONLY A MEASURED ABSENCE REPAIRS. "gone" puts the remap back (with
+  `_G.hyperRemapJSON`, init.lua's own published literal — 6.231.0, one
+  literal two callers, and a build that does not publish it REFUSES
+  rather than inventing one) and takes the door, because ⇪ had stopped
+  existing. "could not be asked" touches nothing, or a Mac without
+  hidutil re-applies the remap after every wake for ever.
+  🔢 `hidutil property --get` ANSWERS IN DECIMAL, not the hex this
+  config sets with: 0x700000039 is 30064771129, 0x70000006D is
+  30064771181. `hyperRemapPresent` is PURE and matches the PAIR — a
+  Caps Lock remapped to something ELSE passes a Src-only test and reads
+  as health while ⇪ is dead (6.230.0: pick the input where right and
+  wrong must differ).
+  🧪 AND 6.262.0'S COMMENT-STRIPPER EATS AN ARGV. `%-%-[^\n]*` removes
+  everything after the first double dash on a line, so a sentry reading
+  stripped source cannot see `"--get"` or `"--set"` — it went red on a
+  healthy tree. Full-LINE comments only, plus a check that the argument
+  survived, so a stripper that eats it again cannot pass by leaving an
+  empty haystack. NAMED, NOT SWEPT: other sentries here strip the naive
+  way; none reads an argv today.
+  🔒 Secure Input is READ from core/capabilities.lua, never re-probed
+  (6.242.0), and a sentry keeps ioreg out of this file. 🪜 The read and
+  the repair have SEPARATE task slots and the repair is armed off a
+  HELD doAfter(0) — 6.196.1's use-after-free, which has killed this
+  process natively twice with nothing in the Console.
+  📏 NAMED, NOT FIXED: a tap found switched off is REPORTED, not
+  restarted — it may have been stopped by this config's own failure
+  counter, and re-arming it would undo a decision made on purpose.
 - 🌅 A FIX AND AN ARTEFACT CAN AGREE ABOUT THE CAUSE AND DISAGREE
   ABOUT THE ORDER OF EVENTS (6.302.0, core/hyper_key.lua). LL's storm
   report, plus his one sentence when asked what happened just before:
@@ -3608,7 +3650,7 @@ THE METHOD, when something breaks after a stacked zip:
    6.216.0 6f06071 · 6.217.0 a475bef · 6.218.0 41b002b · 6.219.0 862c177
    · 6.220.0 ac3975e · 6.221.0 ead07d9 · 6.222.0 1842ca7 · 6.223.0
    86ac82b · 6.224.0 67957ea · 6.225.0 98434fe · 6.226.0 304f1f9 ·
-   6.227.0 14e953a · 6.228.0 2aa3dfe · 6.229.0 a1318e1 · 6.230.0 0740c07 · 6.231.0 c1921af · 6.231.1 5a5c298 · 6.232.0 1ca3f6f · 6.233.0 2328c8c · 6.234.0 57f78d0 · 6.235.0 52e5b21 · 6.236.0 34cff8b · 6.236.1 fdce771 · 6.237.0 adf9256 · 6.238.0 3adad4f · 6.239.0 3adad4f (one commit, two releases) · 6.240.0 8f44bec · 6.241.0 dce517e · 6.242.0 1a1dab0 · 6.243.0 8fba04f · 6.244.0 9320906 · 6.245.0 9c1a8b1 · 6.246.0 1400abd · 6.247.0 3b92e99 · 6.248.0 e4e3a03 · 6.249.0 e4edc3f · 6.250.0 c267c1b · 6.251.0 f7b0d57 · 6.252.0 6307253 · 6.253.0 ef20313 · 6.254.0 14493e5 · 6.255.0 d371b34 · 6.256.0 3c29888 · 6.257.0 7f55d2b · 6.258.0 10d2250 · 6.259.0 2bcda06 · 6.260.0 f16e286 · 6.261.0 8680504 · 6.262.0 595dc2e · 6.263.0 014ddf6 · 6.264.0 5e41879 · 6.265.0 f0c487c · 6.266.0 9135f7b · 6.267.0 a621a60 · 6.268.0 c2e513f · 6.269.0 f6552ea (078cece is the same release before the report was corrected) · 6.270.0 b8eda88 · 6.271.0 b8edbe1 · 6.272.0 881a91b · 6.273.0 56b0d2b · 6.274.0 c6e9b6b · 6.275.0 9cebe19 · 6.276.0 3db904e · 6.277.0 c6632a1 · 6.278.0 6c1fe75 · 6.279.0 a6241f5 · 6.280.0 893b40b · 6.281.0 5611a4a · 6.282.0 11dc992 · 6.283.0 3fa417f · 6.284.0 a8f3df4 · 6.285.0 70d118b · 6.286.0 fa93f1b · 6.287.0 39b9dba · 6.288.0 8508186 · 6.289.0 83f5296 · 6.290.0 6daee50 · 6.291.0 aec4561 · 6.292.0 c89c65f · 6.293.0 10c9410 · 6.294.0 0aeebdc · 6.295.0 641c45c (52c1b2b adds the check its own mutation sweep found missing) · 6.296.0 e82ad95 (8bd970b adds the cross-file sentry) · 6.297.0 dacb791 (1604d55 hardens the suite) · 6.298.0 f77c47e (fe109ff adds the two checks its sweep found missing) · 6.299.0 bdc6855 (c587502 the same) · 6.300.0 8ab4802 (cc8b7f9 the same) · 6.301.0 dcff776.
+   6.227.0 14e953a · 6.228.0 2aa3dfe · 6.229.0 a1318e1 · 6.230.0 0740c07 · 6.231.0 c1921af · 6.231.1 5a5c298 · 6.232.0 1ca3f6f · 6.233.0 2328c8c · 6.234.0 57f78d0 · 6.235.0 52e5b21 · 6.236.0 34cff8b · 6.236.1 fdce771 · 6.237.0 adf9256 · 6.238.0 3adad4f · 6.239.0 3adad4f (one commit, two releases) · 6.240.0 8f44bec · 6.241.0 dce517e · 6.242.0 1a1dab0 · 6.243.0 8fba04f · 6.244.0 9320906 · 6.245.0 9c1a8b1 · 6.246.0 1400abd · 6.247.0 3b92e99 · 6.248.0 e4e3a03 · 6.249.0 e4edc3f · 6.250.0 c267c1b · 6.251.0 f7b0d57 · 6.252.0 6307253 · 6.253.0 ef20313 · 6.254.0 14493e5 · 6.255.0 d371b34 · 6.256.0 3c29888 · 6.257.0 7f55d2b · 6.258.0 10d2250 · 6.259.0 2bcda06 · 6.260.0 f16e286 · 6.261.0 8680504 · 6.262.0 595dc2e · 6.263.0 014ddf6 · 6.264.0 5e41879 · 6.265.0 f0c487c · 6.266.0 9135f7b · 6.267.0 a621a60 · 6.268.0 c2e513f · 6.269.0 f6552ea (078cece is the same release before the report was corrected) · 6.270.0 b8eda88 · 6.271.0 b8edbe1 · 6.272.0 881a91b · 6.273.0 56b0d2b · 6.274.0 c6e9b6b · 6.275.0 9cebe19 · 6.276.0 3db904e · 6.277.0 c6632a1 · 6.278.0 6c1fe75 · 6.279.0 a6241f5 · 6.280.0 893b40b · 6.281.0 5611a4a · 6.282.0 11dc992 · 6.283.0 3fa417f · 6.284.0 a8f3df4 · 6.285.0 70d118b · 6.286.0 fa93f1b · 6.287.0 39b9dba · 6.288.0 8508186 · 6.289.0 83f5296 · 6.290.0 6daee50 · 6.291.0 aec4561 · 6.292.0 c89c65f · 6.293.0 10c9410 · 6.294.0 0aeebdc · 6.295.0 641c45c (52c1b2b adds the check its own mutation sweep found missing) · 6.296.0 e82ad95 (8bd970b adds the cross-file sentry) · 6.297.0 dacb791 (1604d55 hardens the suite) · 6.298.0 f77c47e (fe109ff adds the two checks its sweep found missing) · 6.299.0 bdc6855 (c587502 the same) · 6.300.0 8ab4802 (cc8b7f9 the same) · 6.301.0 dcff776 · 6.302.0 b465418 (e287164 the mutation sweep's own two findings).
    Keep this list current: one line per release, appended at ceremony
    time.
 4. A BISECT IS AN OPTION, NOT THE FIRST MOVE — it costs him an install
@@ -3704,6 +3746,7 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
+| 6.303.0 | 🔬 two seconds after every wake, the three things that can kill ⇪ silently are asked — the hidutil remap, the event tap and Secure Input — and a remap that has GONE is put back | pending |
 | 6.302.0 | 🌅 a ⇪ hold still open when the Mac wakes is let go, and a wake is visible to the hyper key at all — NOT the answer to his 10:57 storm, said out loud, because that hold began after the wake | pending |
 | 6.301.0 | 🗂 an S: line is a real Asana subtask — it needed the parent task's gid, which only exists once the parent has been created | pending |
 | 6.300.0 | 🗂 Hamsidian sends his grammar — one Asana task per task — and each tab is retitled ✅ Success / ❌ Error and kept until he deletes it | pending |
@@ -4605,6 +4648,93 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.303.0 verify with LL — 🔬 THE KEYBOARD, AFTER A WAKE (NEW GROUND)
+  WHAT CHANGED: two seconds after your Mac wakes, this config now looks
+  at the three things that can make ⇪ die without saying anything, and
+  writes down what it found. If the Caps Lock remap has gone, it puts
+  it back.
+  WHY THIS ONE AND NOT ANOTHER GUESS: 6.302.0 could not have prevented
+  your storm and says so. This is the release aimed at it — and it is a
+  PROBE, because everything I can offer about the cause right now is a
+  story that fits. The three candidates, all invisible from here until
+  today: the Caps Lock → F18 remap (set once when Hammerspoon starts
+  and never checked again), the event tap that reads F18 (macOS
+  switches taps off across some transitions and tells nobody), and
+  macOS's Secure Input (it stops every shortcut on the Mac, system
+  wide, with no error anywhere — it took your keyboard for four hours
+  once, and a lock screen is exactly where it lives).
+  🔕 ON A HEALTHY MAC THIS SAYS NOTHING. That is deliberate, and it
+  means the test below is "go and read the numbers", not "wait for a
+  message".
+
+  A. THE HEADLINE — no lid-closing required.
+  A1. Console: `_G.hyperWakeProbeRun("by hand")`
+      Wait two seconds, then `_G.hyperKeyReport()`.
+      EXPECT a `probe :` block with three rows, and on a healthy Mac
+      all three read plainly, with no ⚠️:
+        remap : Caps Lock → F18 still set
+        tap   : the F18 event tap is running
+        secure: Secure Input clear
+  A2. **PASTE THAT BLOCK.** It is the first time this config has ever
+      been able to answer any of those three questions, and I want to
+      see what your Mac says on a good day before we look at a bad one.
+  A3. Any ⚠️ on those three rows on a healthy, just-booted Mac is a
+      real finding — say so immediately.
+
+  B. THE REAL ONE — the car journey, reproduced.
+  B1. Close the lid. Wait a minute or two. Open it and log back in.
+  B2. Wait a few seconds, then `_G.hyperKeyReport()`.
+      EXPECT the `probe :` line to say `after systemDidWake` with a
+      time on it. If it still says "nothing looked at yet", the wake
+      never reached us and that is 6.302.0's step A3 failing — tell me.
+  B3. Read the three rows. **This is the whole point of the release.**
+      · `remap : ⚠️ GONE` → THAT IS YOUR BUG, found. It will have put
+        it back, and you will have seen a Console line saying so.
+      · `tap : ⚠️ the F18 event tap was NOT running` → it is the tap,
+        and the fix is a different one line.
+      · `secure: ⚠️ Secure Input held by …` → it is macOS's lock
+        screen, and the fix is different again.
+      · all three clean → none of my three candidates, and that is
+        genuinely useful: it means the keyUp is being lost somewhere
+        else and I stop guessing in this direction.
+  B4. Then press ⇪ and hold it while you press a few letters, right
+      after a wake, and see whether it storms. If it does, send me
+      `_G.stormReport()` AND `_G.hyperKeyReport()` together — the two
+      side by side is what no previous build could give.
+
+  C. MUST STILL WORK — this touched the ⇪ key and added a background
+     process, so this is the half that matters more than A or B.
+  C1. Use ⇪ normally for a day. No change of any kind.
+  C2. Typing must not feel heavier after a wake. The probe runs off the
+      main thread on purpose (6.228.0 — a busy main thread is a mouse
+      this Mac has lost), but if the Mac stutters a couple of seconds
+      after every lid-open, that is me and I want to know at once.
+  C3. Caps Lock must still behave as ⇪ and must NOT start toggling
+      capitals. If it ever does, the remap has been changed rather than
+      restored — stop and tell me, that is the worst thing here.
+  C4. `_G.stormReport()` still prints. `_G.degradeReport()` and
+      `_G.todayReport()` still print.
+
+  D. PASTE BACK, PASS OR FAIL.
+  D1. `_G.hyperKeyReport()` from A1, on a good day.
+  D2. `_G.hyperKeyReport()` from B2, after a real wake.
+  D3. If `counts:` ever shows a repair, that line is the answer to
+      everything we have been chasing — send it whatever else you do.
+
+  E. THE SENTENCE I STILL WANT, and it beats all three probes.
+  E1. Was ⇪ working between the storm at 10:57 and your reload that
+      evening? Dead until the reload → the remap is being lost, and
+      this release will now catch it and repair it. Working → the
+      remap survived, and the probe's other two rows are where to look.
+  E2. 📏 SAID RATHER THAN HIDDEN: if the probe finds the event tap
+      switched off, it REPORTS it and does not restart it. Restarting
+      a tap is not the same kind of act as restoring a mapping — this
+      config switches that tap off itself after five consecutive
+      errors, on purpose, and re-arming it automatically would undo a
+      decision it made for a reason. If your report ever shows that
+      row, the next release decides what to do about it with evidence
+      instead of a guess.
+
 - 6.302.0 verify with LL — 🌅 A WAKE IS SEEN (NEW GROUND — expect a round)
   WHAT CHANGED: this config now knows when your Mac wakes up. Nothing
   here had ever watched the wake side — the one sleep/wake watcher in

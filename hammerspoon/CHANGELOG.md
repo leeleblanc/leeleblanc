@@ -6,6 +6,120 @@ older lives only here.
 
 ```text
 
+NEW IN 6.303.0 — 🔬 WHAT THE KEYBOARD LOOKS LIKE THE MOMENT AFTER A WAKE
+(core/hyper_key.lua + init.lua §3.12):
+
+  The release aimed at LL's 10:57 storm, and a PROBE rather than a fix,
+  because this is NEW GROUND and the habit written down after the music
+  drop says so: on a macOS surface this config has never touched, the
+  first release prints what macOS actually answered, never a fix built
+  on a belief.
+
+  🔎 THREE THINGS CAN LATCH ⇪ WITH THE KEY PHYSICALLY UP, and until now
+  not one of them could be seen from Lua:
+
+    1. THE hidutil REMAP. Caps Lock → F18 is applied ONCE at boot and
+       never read back. Drop it between a keyDown and a keyUp and this
+       config sees a press it recognises and a release it does not —
+       which is the latch, exactly.
+    2. THE F18 EVENT TAP. macOS switches taps off across some
+       transitions and tells nobody. A dead tap loses the keyUp with
+       Carbon as the only remaining path.
+    3. SECURE EVENT INPUT (6.196.0). It stops every tap AND hotkey
+       dispatch system-wide with no error anywhere — and the lock
+       screen on wake is precisely where it lives. It already took his
+       keyboard for four hours once, under a boot line reading
+       "All green · 104 ⇪ shortcuts".
+
+  Two seconds after every wake, all three are asked. The beat is the
+  point: macOS re-enumerates the keyboard asynchronously, so asking
+  inside the wake callback measures the moment BEFORE the one that
+  matters. HELD in its own slot — a collected timer never fires, which
+  would remove the whole measurement.
+
+  🔕 SILENT WHEN HEALTHY (6.269.0). It writes numbers and says nothing.
+
+  🔔 THE ONE THING IT SHOUTS ABOUT IS A REMAP THAT WAS GONE, because
+  that means ⇪ had stopped existing — and it puts it back. That is not
+  a fix built on a belief: it acts on a MEASURED absence, and the
+  alternative is a Mac whose hyper key is dead until Hammerspoon is
+  restarted.
+
+  🔎 "GONE" AND "COULD NOT BE ASKED" ARE OPPOSITE FACTS, and only the
+  first repairs. A Mac that cannot run hidutil would otherwise re-apply
+  the remap after every wake, for ever, on no evidence at all.
+
+  🚨 AND THE FIRST VERSION COLLAPSED EXACTLY THOSE TWO STATES, in one
+  line, caught by the suite: `P.remap = (code == 0) and present(out) or
+  nil`. That idiom CANNOT RETURN false — `false or nil` is nil — so a
+  mapping that was genuinely gone would have read as "could not be
+  asked" and nothing would ever have been repaired. The two states this
+  release exists to separate, destroyed by a ternary. 6.179.0's family
+  (read three values; two makes a refusal look like success), in a new
+  costume: A LUA `a and b or c` CANNOT CARRY A FALSE `b`, so it must
+  never be used where false is a MEANING rather than a failure.
+
+  🔑 ONE LITERAL, TWO CALLERS (6.231.0): init.lua now publishes
+  `_G.hyperRemapJSON`, the exact mapping it applies at boot, and the
+  repair uses that. Two copies of that JSON is how a repair comes to
+  restore something subtly different from what was there. A build whose
+  init.lua does not publish it REFUSES to repair and says why, rather
+  than inventing a literal of its own.
+
+  🔢 AND THE ANSWER COMES BACK IN DECIMAL. `hidutil property --get`
+  prints the usage codes as plain integers, not as the hex this config
+  SETS them with: 0x700000039 is 30064771129 and 0x70000006D is
+  30064771181. A parser written for the hex would read "no remap" on
+  every healthy Mac and repair a keyboard that was never broken.
+  `hyperRemapPresent` is PURE and matches the PAIR, never the source
+  alone — a Caps Lock remapped to something ELSE satisfies a Src-only
+  test and reads as health while ⇪ is dead, which is the plausible
+  wrong implementation and therefore the fixture kept (6.230.0: pick
+  the input where right and wrong must differ).
+
+  🪜 6.196.1 / 6.262.0 PAID IN FULL: the read and the repair have
+  SEPARATE task slots, so starting one never drops the other, and the
+  repair is armed off a HELD doAfter(0) so the read's callback has
+  RETURNED before another task starts. That shape has killed this
+  process natively twice, with nothing in the Console.
+
+  🔒 SECURE INPUT IS READ, NEVER RE-PROBED. core/capabilities.lua owns
+  that ioreg and asks it on its own clock (6.242.0: a probe reads what
+  other modules already know and asks only what nobody has asked). A
+  source sentry keeps ioreg out of this file.
+
+  🧪 AND A SENTRY WENT RED ON A HEALTHY TREE BEFORE IT WENT GREEN,
+  twice over, both worth keeping. It first forbade the string
+  `HIDKeyboardModifierMappingSrc` — which is exactly what the PARSER
+  must match on, so it could not tell the thing from the thing that
+  reads it (6.269.0: an instrument that warns on day one is switched
+  off before it ever sees the fault). And 6.262.0's comment-stripper
+  ATE THE ARGUMENT: a naive `%-%-[^\n]*` removes everything after the
+  first double dash on a line, and hidutil's argv is `{ "property",
+  "--get", "UserKeyMapping" }`, so the stripped source lost the one
+  occurrence the sentry needed. Full-line comments only now, with a
+  second check proving the argument survived — so a stripper that eats
+  it again cannot pass by leaving an empty haystack. NAMED, NOT SWEPT:
+  other sentries here strip the naive way; none reads an argv today,
+  and the one that does next inherits this.
+
+  🧪 The suite DIED instead of failing under two of its own mutations —
+  the probe timer's slot is nil when the probe fires inline, and
+  indexing it ends the run with "0 failed" never printed. 6.186.0,
+  tenth time: a test HELPER answers falsely rather than dying.
+
+  🔬 `_G.hyperWakeProbeRun("by hand")` is public ON PURPOSE. An
+  instrument that only runs when the lid opens is one he cannot be
+  asked for by name — 6.267.0's lesson, where a verify block asked him
+  to paste a line that a WORKING release guarantees will not exist.
+
+  📏 NAMED, NOT FIXED: a tap found switched off is REPORTED, not
+  restarted. Restarting a tap is not the same kind of act as restoring
+  a mapping — the tap may have been stopped by this config's own
+  failure counter, and re-arming it would undo a decision made on
+  purpose. Its own release, once his report says whether it ever
+  happens.
+
 NEW IN 6.302.0 — 🌅 A WAKE IS A RELEASE
 (core/hyper_key.lua + modules/hyper_storm.lua):
 

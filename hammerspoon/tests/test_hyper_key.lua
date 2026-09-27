@@ -110,6 +110,7 @@ local function newWorld(opts)
     dropKeyUp = opts.dropKeyUp == true,  -- swallow F18 keyUp on the way out
     tapNewThrows = opts.tapNewThrows == true,
     taps = {}, timers = {}, printed = {}, told = {}, recorded = {},
+    tasks = {},
     carbonBinds = {}, enters = 0, exits = 0, tapThrows = 0, posts = {},
   }
 
@@ -266,9 +267,38 @@ local function newWorld(opts)
         end,
       },
     } or nil,
+    -- 🔬 6.303.0 — hs.task. The fidelity that matters (6.290.0): it is
+    -- ASYNCHRONOUS. A stub that calls back from inside :start() would
+    -- make "nothing starts a task from inside another task's callback"
+    -- untestable and would hide 6.196.1's whole class, so the callback
+    -- is parked and the test fires it deliberately. Three values, in
+    -- macOS's own order: exit code, stdout, stderr.
+    task = (not opts.noTask) and {
+      new = function(bin, cb, args)
+        if opts.taskNewThrows then error("no hs.task here", 0) end
+        local t = { bin = bin, cb = cb, args = args or {}, started = false }
+        function t:start() self.started = true; w.tasks[#w.tasks + 1] = self; return self end
+        return t
+      end,
+    } or nil,
     configdir = HS,
   }
   w.hs = hs
+
+  -- the newest started task whose argv contains `which`
+  function w.taskFor(which)
+    for i = #w.tasks, 1, -1 do
+      for _, a in ipairs(w.tasks[i].args) do
+        if tostring(a):find(which, 1, true) then return w.tasks[i] end
+      end
+    end
+  end
+  function w.answerTask(which, code, out, err)
+    local t = w.taskFor(which)
+    if not t then return false, "no such task started" end
+    t.answered = true
+    return pcall(t.cb, code, out, err)
+  end
 
   -- macOS firing a caffeinate event: by CONSTANT, the way it really does.
   function w.fireWake(const)
@@ -286,6 +316,11 @@ local function newWorld(opts)
     -- wrapper takes the xpcall + debug.traceback branch when they exist —
     -- leaving them out of the sandbox meant that branch never ran here.
     xpcall = xpcall, debug = debug,
+    -- 6.303.0: the probe stamps os.time() and the report renders it.
+    -- time comes off the world's clock so a report is reproducible;
+    -- date is the real one, because formatting is not the thing here.
+    os = { time = function() return math.floor(w.now or 1000) end,
+           date = os.date },
     print = function(...)
       local p = {}
       for i = 1, select("#", ...) do p[#p + 1] = tostring((select(i, ...))) end
@@ -1536,6 +1571,302 @@ do
   check("   ↳ …read through tonumber, so a build without core/hyper_key.lua "
         .. "prints a number rather than throwing (6.282.0)",
         src:find("tonumber(_G.hyperWakeReleases) or 0", 1, true) ~= nil)
+end
+
+-- =====================================================================
+section("13d. 🔬 6.303.0 — WHAT THE KEYBOARD LOOKS LIKE AFTER A WAKE")
+-- =====================================================================
+-- 6.302.0 could not have prevented the 10:57 storm. This is the release
+-- aimed at it, and it is a PROBE because this is new ground: three
+-- things can latch ⇪ with the key physically up, and none of them was
+-- visible from Lua.
+
+-- hidutil's REAL output shape. The usage codes come back as DECIMAL,
+-- not as the hex this config sets them with — a parser written for the
+-- hex would read "no remap" on every healthy Mac and repair a keyboard
+-- that was never broken.
+local HID_OK = [[(
+    {
+        HIDKeyboardModifierMappingDst = 30064771181;
+        HIDKeyboardModifierMappingSrc = 30064771129;
+    }
+)]]
+local HID_EMPTY = "(\n)\n"
+-- 🚨 THE FIXTURE THAT DECIDES IT: Caps Lock remapped to ESCAPE. A
+-- Src-only test — the plausible wrong implementation — calls this
+-- health while ⇪ is dead (6.230.0: pick the input where the right and
+-- wrong answers must DIFFER).
+local HID_ELSEWHERE = [[(
+    {
+        HIDKeyboardModifierMappingDst = 30064771113;
+        HIDKeyboardModifierMappingSrc = 30064771129;
+    }
+)]]
+local HID_SECOND = [[(
+    {
+        HIDKeyboardModifierMappingDst = 30064771113;
+        HIDKeyboardModifierMappingSrc = 30064771111;
+    },
+    {
+        HIDKeyboardModifierMappingDst = 30064771181;
+        HIDKeyboardModifierMappingSrc = 30064771129;
+    }
+)]]
+
+do
+  local w = world{}
+  loadHyperKey(w)
+  local R = w.SB.hyperRemapPresent
+  check("the remap parser is PURE and reachable", type(R) == "function")
+  check("🔢 hidutil's DECIMAL answer reads as present", R(HID_OK) == true)
+  check("...and the hex spelling too, since tonumber takes both",
+        R((HID_OK:gsub("30064771181", "0x70000006D")
+                 :gsub("30064771129", "0x700000039"))) == true)
+  check("an EMPTY mapping list is a real answer: false, not nil",
+        R(HID_EMPTY) == false)
+  check("🚨 Caps Lock remapped to something ELSE is NOT our remap — the "
+        .. "Src alone would call a dead ⇪ healthy", R(HID_ELSEWHERE) == false)
+  check("...and our pair is found when it is not the first entry",
+        R(HID_SECOND) == true)
+  -- 🔎 6.196.1: "it answered and the mapping is gone" and "it could not
+  -- be asked" are opposite facts, and only the first may repair.
+  check("🔎 handed no string at all, it answers nil — never false",
+        R(nil) == nil and R(42) == nil)
+  check("...and junk it cannot parse is false, not a throw", (function()
+      local ok, v = pcall(R, "not a plist at all")
+      return ok and v == false
+  end)())
+end
+
+do
+  -- THE PROBE, driven end to end.
+  local w = world{}
+  w.SB.hyperRemapJSON = '{"UserKeyMapping":[{"a":1}]}'
+  w.SB.secureInput = { on = false }
+  bindShortcuts(w)
+  loadHyperKey(w)
+  runTimers(w)
+  w.now = 9000
+
+  check("nothing has been looked at before the first wake",
+        w.SB.hyperWakeProbe.at == nil)
+  w.printed = {}; w.SB.hyperKeyReport()
+  check("...and the report SAYS so, and names the command to ask by hand",
+        table.concat(w.printed, "\n"):find("hyperWakeProbeRun", 1, true) ~= nil,
+        table.concat(w.printed, "\n"))
+
+  -- a wake fires it, but only after a beat: macOS re-enumerates the
+  -- keyboard asynchronously, so asking inside the callback measures the
+  -- moment BEFORE the one that matters.
+  w.fireWake(1)
+  check("🔬 a wake does not probe immediately — it arms a HELD timer",
+        w.SB.hyperWakeProbe.at == nil and w.SB.hyperWakeProbeTimer ~= nil)
+  -- 🧪 GUARDED, because the mutation that fires the probe inline leaves
+  -- this slot nil and indexing it ENDS the run with "0 failed" never
+  -- printed — a dead suite reads as a passing one in a gate that greps
+  -- the tail. 6.186.0, tenth time: a test answers falsely, never dies.
+  check("...for the configured beat, not a number of its own",
+        w.SB.hyperWakeProbeTimer ~= nil
+        and w.SB.hyperWakeProbeTimer.secs == w.SB.hyperWakeProbeAfter,
+        w.SB.hyperWakeProbeTimer and w.SB.hyperWakeProbeTimer.secs)
+  runTimers(w)
+  check("...and then it looks", w.SB.hyperWakeProbe.at ~= nil
+        and w.SB.hyperWakeProbe.at >= 9000, tostring(w.SB.hyperWakeProbe.at))
+
+  check("the tap was asked, and answered about the object we HOLD",
+        w.SB.hyperWakeProbe.tap == true)
+  check("Secure Input is READ from capabilities.lua, not re-probed",
+        w.SB.hyperWakeProbe.secure == "clear")
+  local t = w.taskFor("UserKeyMapping")
+  check("🔎 the remap is asked OUT OF PROCESS — hidutil, --get, started",
+        t ~= nil and t.bin == "/usr/bin/hidutil" and t.started == true
+        and t.args[2] == "--get", t and t.bin)
+  check("...and nothing is decided until it answers",
+        w.SB.hyperWakeProbe.remap == nil and w.SB.hyperWakeProbe.reads == 0)
+
+  w.answerTask("UserKeyMapping", 0, HID_OK)
+  check("a healthy Mac reads present, repairs nothing, says nothing",
+        w.SB.hyperWakeProbe.remap == true
+        and w.SB.hyperWakeProbe.repaired == 0
+        and w.taskFor("--set") == nil)
+end
+
+do
+  -- 🚨 THE REMAP IS GONE. This is the candidate for LL's storm, and the
+  -- only thing this probe is allowed to repair.
+  local w = world{}
+  w.SB.hyperRemapJSON = '{"UserKeyMapping":[{"a":1}]}'
+  bindShortcuts(w); loadHyperKey(w); runTimers(w)
+  w.now = 9100
+  w.fireWake(1); runTimers(w)
+  local degraded = {}
+  w.SB.degrade = function(tool, why) degraded[#degraded + 1] = tostring(tool) end
+  w.answerTask("UserKeyMapping", 0, HID_EMPTY)
+
+  check("🚨 hidutil says the mapping is GONE", w.SB.hyperWakeProbe.remap == false)
+  -- 🪜 6.196.1 / 6.262.0: the repair must NOT be started from inside the
+  -- read's own callback. It steps off a held doAfter(0) first.
+  check("🪜 the repair is armed off a HELD hop, not fired inside the "
+        .. "read's callback", w.SB.hyperRemapRepairHop ~= nil
+        and w.taskFor("--set") == nil)
+  runTimers(w)
+  local fix = w.taskFor("--set")
+  check("...and then it runs", fix ~= nil and fix.started == true)
+  check("🔑 …with init.lua's OWN published mapping, never a second copy",
+        fix and fix.args[3] == w.SB.hyperRemapJSON, fix and fix.args[3])
+  check("🪜 …in its own slot, so starting it never dropped the read",
+        w.SB.hyperRemapRepairTask ~= nil and w.SB.hyperRemapReadTask ~= nil
+        and w.SB.hyperRemapRepairTask ~= w.SB.hyperRemapReadTask)
+
+  w.answerTask("--set", 0)
+  check("🔔 a remap that was GONE is the one thing this shouts about — ⇪ "
+        .. "had stopped existing", #degraded == 1
+        and degraded[1] == "Hyper wake probe", table.concat(degraded, ","))
+  check("...and it is counted", w.SB.hyperWakeProbe.repaired == 1)
+  check("...and the Console says what it means, not just that it happened",
+        (function()
+            for _, l in ipairs(w.printed) do
+                if l:find("was GONE", 1, true) then
+                    return l:find("latch across a wake", 1, true) ~= nil
+                end
+            end
+            return false
+        end)(), w.printed[#w.printed])
+end
+
+do
+  -- 🔎 "COULD NOT BE ASKED" MUST NEVER REPAIR. A Mac that cannot run
+  -- hidutil would otherwise re-apply the remap after every wake, for
+  -- ever, on no evidence at all.
+  local w = world{}
+  w.SB.hyperRemapJSON = '{"x":1}'
+  bindShortcuts(w); loadHyperKey(w); runTimers(w)
+  w.fireWake(1); runTimers(w)
+  w.answerTask("UserKeyMapping", 1, "")
+  check("🔎 a non-zero exit is nil — not 'gone'",
+        w.SB.hyperWakeProbe.remap == nil)
+  runTimers(w)
+  check("🚨 …and NOTHING is repaired on an answer nobody got",
+        w.taskFor("--set") == nil and w.SB.hyperWakeProbe.repaired == 0)
+  check("...it is counted as unreadable instead",
+        w.SB.hyperWakeProbe.failed == 1, w.SB.hyperWakeProbe.failed)
+end
+
+do
+  -- 🛟 A BUILD WHOSE init.lua DID NOT PUBLISH THE MAPPING refuses the
+  -- repair and says why, rather than inventing a literal of its own.
+  local w = world{}
+  w.SB.hyperRemapJSON = nil
+  bindShortcuts(w); loadHyperKey(w); runTimers(w)
+  w.fireWake(1); runTimers(w)
+  w.answerTask("UserKeyMapping", 0, HID_EMPTY)
+  runTimers(w)
+  check("🛟 with no published mapping the repair is REFUSED and named",
+        w.taskFor("--set") == nil
+        and w.SB.hyperWakeProbe.repairFailed == 1
+        and table.concat(w.printed, "\n"):find("hyperRemapJSON", 1, true) ~= nil,
+        table.concat(w.printed, "\n"))
+end
+
+do
+  -- 🛟 NO hs.task AT ALL — the probe still answers the two free
+  -- questions and does not throw.
+  local w = world{ noTask = true }
+  bindShortcuts(w); loadHyperKey(w); runTimers(w)
+  w.fireWake(1); runTimers(w)
+  check("🛟 with no hs.task the probe still ran and still answered",
+        w.SB.hyperWakeProbe.at ~= nil and w.SB.hyperWakeProbe.tap == true
+        and w.SB.hyperWakeProbe.remap == nil
+        and w.SB.hyperWakeProbe.failed == 1)
+end
+
+do
+  -- 🔎 THE REPORT — three states per row, and the third is always
+  -- "could not be asked", which must never read like health.
+  local w = world{}
+  loadHyperKey(w)
+  local P = w.SB.hyperWakeProbe
+  P.at, P.why = 9000, "systemDidWake"
+  P.remap, P.tap, P.secure, P.reads = true, true, "clear", 1
+  w.printed = {}; w.SB.hyperKeyReport()
+  local rep = table.concat(w.printed, "\n")
+  check("🔎 a healthy probe prints three plain rows and no ⚠️",
+        rep:find("Caps Lock → F18 still set", 1, true)
+        and rep:find("the F18 event tap is running", 1, true)
+        and rep:find("Secure Input clear", 1, true), rep)
+  check("...with no warning anywhere in the probe block", (function()
+      for _, l in ipairs(w.printed) do
+          if l:find("remap :", 1, true) or l:find("tap   :", 1, true)
+             or l:find("secure:", 1, true) then
+              if l:find("⚠️") then return false end
+          end
+      end
+      return true
+  end)(), rep)
+
+  P.remap, P.tap, P.secure = false, false, "loginwindow"
+  w.printed = {}; w.SB.hyperKeyReport()
+  rep = table.concat(w.printed, "\n")
+  check("🚨 …and each fault is named in its own words, not one summary",
+        rep:find("GONE — ⇪ had stopped existing", 1, true)
+        and rep:find("event tap was NOT running", 1, true)
+        and rep:find("Secure Input held by loginwindow", 1, true), rep)
+
+  P.remap, P.tap, P.secure = nil, nil, nil
+  w.printed = {}; w.SB.hyperKeyReport()
+  rep = table.concat(w.printed, "\n")
+  check("🔎 …and 'could not be asked' is its OWN third answer, distinct "
+        .. "from both health and fault",
+        rep:find("could not be read", 1, true)
+        and rep:find("capabilities.lua has not answered yet", 1, true), rep)
+
+  P.repairFailed = 2
+  w.printed = {}; w.SB.hyperKeyReport()
+  check("a FAILED repair is a ⚠️ on the counts line — the worst state "
+        .. "here is a dead ⇪ that could not be revived",
+        table.concat(w.printed, "\n"):find("2 repair(s) FAILED", 1, true) ~= nil,
+        table.concat(w.printed, "\n"))
+end
+
+do
+  -- 🔒 SOURCE SENTRIES, both about a CLASS rather than a line.
+  local src = readAll(HS .. "/core/hyper_key.lua") or ""
+  -- 🚨 6.262.0's STRIPPER EATS `--get`. A naive `%-%-[^\n]*` removes
+  -- everything after the first double dash on a line, and hidutil's
+  -- argv is `{ "property", "--get", "UserKeyMapping" }` — so the
+  -- stripped source lost the one occurrence this sentry needed and the
+  -- check went red on a healthy tree. Full-LINE comments only, and the
+  -- next check proves the argument survived, so a stripper that eats it
+  -- again cannot pass by making the haystack empty.
+  -- 📏 NAMED, NOT SWEPT: other sentries in this config strip comments
+  -- the naive way. None of them reads an argv today; if one comes to,
+  -- it inherits this bug.
+  local bare = src:gsub("\n%s*%-%-[^\n]*", "\n")
+  -- 🧪 AND THE FIRST VERSION OF THIS SENTRY WENT RED ON A HEALTHY TREE:
+  -- it forbade `HIDKeyboardModifierMappingSrc`, which is exactly what
+  -- the PARSER has to match on. A sentry that cannot tell the thing
+  -- from the thing that reads it is one that gets switched off in a
+  -- week (6.269.0). What must not be here is the JSON we would SET
+  -- with, so that is what it looks for.
+  check("🔒 the hidutil --get argument really is in the stripped source, "
+        .. "so the sentry below has a haystack to search",
+        bare:find('"--get", "UserKeyMapping"', 1, true) ~= nil)
+  check("🔒 this file grows no second copy of the UserKeyMapping JSON "
+        .. "— the repair uses init.lua's published one",
+        bare:find('UserKeyMapping":', 1, true) == nil
+        and bare:find('UserKeyMapping\\":', 1, true) == nil
+        and bare:find("HIDKeyboardModifierMappingDst:", 1, true) == nil,
+        "found a mapping literal in core/hyper_key.lua")
+  check("   ↳ …and the comment explaining why still exists, so the sentry "
+        .. "cannot be satisfied by deleting the reason (6.280.0)",
+        src:find("hyperRemapJSON", 1, true) ~= nil
+        and src:find("6.231.0", 1, true) ~= nil)
+  check("🔒 …and it never grows its own ioreg — Secure Input belongs to "
+        .. "core/capabilities.lua, which asks it on its own clock (6.242.0)",
+        bare:find("ioreg", 1, true) == nil)
+  local init = INIT_SRC or ""
+  check("🔑 init.lua publishes the mapping it actually applies",
+        init:find("_G.hyperRemapJSON = HYPER_REMAP_ON", 1, true) ~= nil)
 end
 
 -- =====================================================================

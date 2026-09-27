@@ -4,8 +4,21 @@
 -- =====================================================================
 -- 09-27-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.302.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.303.0
 -- =====================================================================
+
+-- NEW IN 6.303.0 — 🔬 WHAT THE KEYBOARD LOOKS LIKE AFTER A WAKE
+--   (core/hyper_key.lua): aimed at the 10:57 storm, and a PROBE not
+--   a fix — this is new ground. Three things can latch ⇪ with the
+--   key physically up and none was visible from Lua: the hidutil
+--   Caps Lock → F18 remap (set once at boot, never read back), the
+--   F18 event tap (macOS switches taps off across some transitions),
+--   and SECURE EVENT INPUT (6.196.0 — it kills every tap AND hotkey
+--   dispatch, and a lock screen on wake is exactly where it lives).
+--   Two seconds after a wake all three are asked, off the main
+--   thread. 🔕 SILENT WHEN HEALTHY: the one thing it shouts about is
+--   a remap that was GONE, which it puts back with init.lua's own
+--   mapping. 🔎 Only a GONE remap repairs, never an unread one.
 
 -- NEW IN 6.302.0 — 🌅 A WAKE IS SEEN AT ALL, AND A HOLD ACROSS ONE
 --   IS RELEASED (core/hyper_key.lua). 🚨 AND IT IS **NOT** THE
@@ -23,27 +36,11 @@
 --   fault number and this happens every morning (6.285.0). 🔕
 --   Console only. 🔬 6.303.0 is the probe aimed at the storm.
 
--- NEW IN 6.301.0 — 🗂 SUBTASKS, THROUGH THE PARENT'S OWN GID
---   (modules/task_creator.lua + scratch_pad.lua): an `S:` line is a
---   real Asana subtask now. It could not be before: a subtask is a
---   task carrying `parent = <gid>`, and that gid does not exist
---   until the parent's create has come back — which is the thing
---   6.299.0's answer channel made reachable.
---   🪪 LL ASKED IF HIS PROJECT URL HELD THE PARENT ID. It does not:
---   745948257030523 is the PROJECT gid, and every task here already
---   goes to it. A parent is a TASK, and its gid is minted on send.
---   🚨 A REFUSED SUBTASK DOES NOT FAIL ITS TASK. The parent exists,
---   so a ❌ would retry and put a SECOND copy on his board —
---   duplicating it is worse than a missing line he is TOLD about,
---   so the subtask takes the 🔔 door itself, at that moment.
---   🛟 The belt is re-armed for the second leg; a subtask is never
---   given `projects` (that draws the same line twice on the board).
-
--- (6.300.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.301.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 cut the inline count to
 --  TWO; a gate check proves every entry here is also in CHANGELOG.md.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.302.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.303.0
 -- =====================================================================
 -- The catalogue that used to sit here moved to GUIDE.md ("What each
 -- tool does") in 6.180.0 — 259 lines of prose inside the orchestrator.
@@ -136,7 +133,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.302.0"
+_G.configVersion = "6.303.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the
@@ -1815,6 +1812,10 @@ local hyperActions = {}
 local HYPER_REMAP_ON  =
     '{"UserKeyMapping":[{"HIDKeyboardModifierMappingSrc":0x700000039,'
     .. '"HIDKeyboardModifierMappingDst":0x70000006D}]}'
+
+-- 6.303.0 — PUBLISHED: the wake probe repairs with THIS literal, never
+-- a copy (6.231.0); a sentry forbids a second one in hyper_key.lua.
+_G.hyperRemapJSON = HYPER_REMAP_ON
 
 _G.hyperModal = hs.hotkey.modal.new({}, nil)
 

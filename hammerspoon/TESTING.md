@@ -1,4 +1,4 @@
-# TESTING — how to score release 6.302.0
+# TESTING — how to score release 6.303.0
 
 You install ONE archive and it carries several releases. Below are the
 steps for each release this archive is new for, newest first. Run the
@@ -26,6 +26,97 @@ else is a LOSS and I fix it before building further. You are the only
 scorer; I never mark my own.
 
 ---
+
+## 6.303.0
+
+6.303.0 verify with LL — 🔬 THE KEYBOARD, AFTER A WAKE (NEW GROUND)
+WHAT CHANGED: two seconds after your Mac wakes, this config now looks
+at the three things that can make ⇪ die without saying anything, and
+writes down what it found. If the Caps Lock remap has gone, it puts
+it back.
+WHY THIS ONE AND NOT ANOTHER GUESS: 6.302.0 could not have prevented
+your storm and says so. This is the release aimed at it — and it is a
+PROBE, because everything I can offer about the cause right now is a
+story that fits. The three candidates, all invisible from here until
+today: the Caps Lock → F18 remap (set once when Hammerspoon starts
+and never checked again), the event tap that reads F18 (macOS
+switches taps off across some transitions and tells nobody), and
+macOS's Secure Input (it stops every shortcut on the Mac, system
+wide, with no error anywhere — it took your keyboard for four hours
+once, and a lock screen is exactly where it lives).
+🔕 ON A HEALTHY MAC THIS SAYS NOTHING. That is deliberate, and it
+means the test below is "go and read the numbers", not "wait for a
+message".
+
+A. THE HEADLINE — no lid-closing required.
+A1. Console: `_G.hyperWakeProbeRun("by hand")`
+    Wait two seconds, then `_G.hyperKeyReport()`.
+    EXPECT a `probe :` block with three rows, and on a healthy Mac
+    all three read plainly, with no ⚠️:
+      remap : Caps Lock → F18 still set
+      tap   : the F18 event tap is running
+      secure: Secure Input clear
+A2. **PASTE THAT BLOCK.** It is the first time this config has ever
+    been able to answer any of those three questions, and I want to
+    see what your Mac says on a good day before we look at a bad one.
+A3. Any ⚠️ on those three rows on a healthy, just-booted Mac is a
+    real finding — say so immediately.
+
+B. THE REAL ONE — the car journey, reproduced.
+B1. Close the lid. Wait a minute or two. Open it and log back in.
+B2. Wait a few seconds, then `_G.hyperKeyReport()`.
+    EXPECT the `probe :` line to say `after systemDidWake` with a
+    time on it. If it still says "nothing looked at yet", the wake
+    never reached us and that is 6.302.0's step A3 failing — tell me.
+B3. Read the three rows. **This is the whole point of the release.**
+    · `remap : ⚠️ GONE` → THAT IS YOUR BUG, found. It will have put
+      it back, and you will have seen a Console line saying so.
+    · `tap : ⚠️ the F18 event tap was NOT running` → it is the tap,
+      and the fix is a different one line.
+    · `secure: ⚠️ Secure Input held by …` → it is macOS's lock
+      screen, and the fix is different again.
+    · all three clean → none of my three candidates, and that is
+      genuinely useful: it means the keyUp is being lost somewhere
+      else and I stop guessing in this direction.
+B4. Then press ⇪ and hold it while you press a few letters, right
+    after a wake, and see whether it storms. If it does, send me
+    `_G.stormReport()` AND `_G.hyperKeyReport()` together — the two
+    side by side is what no previous build could give.
+
+C. MUST STILL WORK — this touched the ⇪ key and added a background
+   process, so this is the half that matters more than A or B.
+C1. Use ⇪ normally for a day. No change of any kind.
+C2. Typing must not feel heavier after a wake. The probe runs off the
+    main thread on purpose (6.228.0 — a busy main thread is a mouse
+    this Mac has lost), but if the Mac stutters a couple of seconds
+    after every lid-open, that is me and I want to know at once.
+C3. Caps Lock must still behave as ⇪ and must NOT start toggling
+    capitals. If it ever does, the remap has been changed rather than
+    restored — stop and tell me, that is the worst thing here.
+C4. `_G.stormReport()` still prints. `_G.degradeReport()` and
+    `_G.todayReport()` still print.
+
+D. PASTE BACK, PASS OR FAIL.
+D1. `_G.hyperKeyReport()` from A1, on a good day.
+D2. `_G.hyperKeyReport()` from B2, after a real wake.
+D3. If `counts:` ever shows a repair, that line is the answer to
+    everything we have been chasing — send it whatever else you do.
+
+E. THE SENTENCE I STILL WANT, and it beats all three probes.
+E1. Was ⇪ working between the storm at 10:57 and your reload that
+    evening? Dead until the reload → the remap is being lost, and
+    this release will now catch it and repair it. Working → the
+    remap survived, and the probe's other two rows are where to look.
+E2. 📏 SAID RATHER THAN HIDDEN: if the probe finds the event tap
+    switched off, it REPORTS it and does not restart it. Restarting
+    a tap is not the same kind of act as restoring a mapping — this
+    config switches that tap off itself after five consecutive
+    errors, on purpose, and re-arming it automatically would undo a
+    decision it made for a reason. If your report ever shows that
+    row, the next release decides what to do about it with evidence
+    instead of a guess.
+
+
 
 ## 6.302.0
 
@@ -267,77 +358,6 @@ F1. Every sent tab reads exactly "✅ Success: tasks sent", so five of
 F2. `S:` subtasks are still read and still not sent — Asana needs the
     parent task's id back first, which is a second call. That is
     6.301.0, and it is the next thing I build unless you say otherwise.
-
-
-
-## 6.299.0
-
-6.299.0 verify with LL — 🔔 A SEND THAT FAILS IS FINALLY SEEN (KNOWN GROUND)
-WHAT CHANGED: Hamsidian now says "sent" when ASANA says yes, not when
-the request leaves this Mac.
-WHY IT MATTERS: 6.278.0 was built from your own question — "how do I
-know if it didn't work? I could lose important information if not" —
-and it had a hole in it I did not see until I went to build the send
-you asked for. `asanaSubmitTask` hands back "true" the instant it fires
-the request; Asana's yes or no arrives a second later, in a callback
-that told nobody. So a task Asana REFUSED showed you "✅ Hamsidian →
-Asana" and cleared the warning flag, while a separate "❌ Error: 400"
-flashed beside it from the other half of the config. Both were true
-sentences about different moments.
-🚨 NOTHING YOU PRESS CHANGES. This is a correctness release and the
-next one is the send you actually asked for.
-
-A. THE HEADLINE — it still works on a good day.
-A1. ⇪N, type something into a tab, then Console: `_G.scratchPadSend()`.
-    EXPECT: the task appears in Asana, and you get "✅ Hamsidian →
-    Asana: Hamsidian · <date>" — a moment LATER than it used to,
-    because it now waits for Asana to say yes.
-A2. Console: `_G.asanaSubmitReport()` — NEW.
-    EXPECT: `answers: 1 accepted by Asana · 0 refused or never sent`,
-    and a `last : ✅ …` line with the time.
-A3. `_G.scratchPadReport()` — its last-send line should say "sent",
-    not "posted — waiting on Asana". If it is stuck on waiting, Asana
-    never answered and I want that block.
-
-B. THE ONE THAT PROVES THE FIX — make Asana refuse one.
-B1. ⇪T, and put a nonsense name in the Assignee field that is not on
-    your team — or any field Asana will reject. Create it.
-B2. EXPECT: "❌ Error: <code>" as before.
-B3. Console: `_G.asanaSubmitReport()`.
-    EXPECT: `0 accepted · 1 refused`, and a `last : ❌ … — Asana
-    refused it (HTTP 4xx) — <Asana's own words>` line. Those words are
-    new: Asana's reason used to reach the Console and nothing else.
-B4. If you can make the 4 PM send itself fail, that is the real test:
-    EXPECT an on-screen ⚠️ naming Asana's reason, a notification, and
-    `_G.scratchPadReport()` carrying a ⚠️ NOT SENT line — and NO "✅"
-    anywhere. Before this release that case showed you a ✅.
-
-C. MUST STILL WORK — this touched the one path every Asana task takes.
-C1. ⇪T creates a task: title, description, assignee, priority, SAC
-    Values, dates and times, an attachment. All unchanged.
-C2. ⇪A (the pipe chooser) still creates a task.
-C3. The ⇪N button "→ Asana now" still sends.
-C4. A task you create still gets its automatic comment.
-
-D. PASTE BACK, PASS OR FAIL.
-D1. `_G.asanaSubmitReport()` after a day of normal use. If it ever
-    carries a `⚠️ N never answered in 30 s` line, that is a new fact —
-    Asana going silent on your network — and I want it.
-D2. `_G.scratchPadReport()`.
-
-E. A JUDGEMENT ONLY YOU CAN MAKE.
-E1. Thirty seconds is how long it waits for Asana before telling you it
-    heard nothing. Too long to sit wondering, or too short on a slow
-    network? It is a number, not a release.
-E2. ANSWERING YOUR OTHER QUESTION, because it belongs here: the id in
-    the URL you sent — 745948257030523 — is your PROJECT gid, and this
-    config already posts every task to it (it is in init.lua as
-    `asanaProjectId`, alongside workspace 182448385076670). A SUBTASK's
-    "parent" is a different thing: it is the gid of the TASK the
-    subtask hangs under, and that number does not exist until the
-    parent task has been created. This release is what makes it
-    reachable — the submit now hands that gid back — and 6.301.0 is
-    what uses it.
 
 
 

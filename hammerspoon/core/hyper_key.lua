@@ -165,6 +165,62 @@ function _G.hyperWakeVerdict(name, active)
         .. "normal. _G.hyperKeyReport() counts them."
 end
 
+-- =====================================================================
+-- 🔬 6.303.0 — WHAT THE KEYBOARD LOOKS LIKE THE MOMENT AFTER A WAKE
+-- =====================================================================
+-- 6.302.0 could not have prevented LL's 10:57 storm and says so. This
+-- is the release aimed at it, and because this is NEW GROUND it is a
+-- PROBE: three things can make a ⇪ press latch with the key physically
+-- up, all three are invisible from Lua today, and all three are cheap
+-- to ask the instant after a wake.
+--
+--   1. THE hidutil REMAP. Caps Lock → F18 is applied ONCE at boot
+--      (§3.12) and never read back. If a wake drops it between the
+--      keyDown and the keyUp, this config sees a press it recognises
+--      and a release it does not — which is the latch, exactly.
+--   2. THE F18 EVENT TAP. macOS switches taps off across some
+--      transitions and tells nobody; a dead tap loses the keyUp with
+--      Carbon as the only remaining path.
+--   3. SECURE EVENT INPUT (6.196.0). It stops every tap AND hotkey
+--      dispatch system-wide with no error anywhere, and the lock
+--      screen on wake is precisely where it lives.
+--
+-- 🔕 SILENT WHEN HEALTHY (6.269.0) — it writes numbers and says
+-- nothing. The ONE thing it shouts about is a remap that was GONE,
+-- because that means ⇪ had stopped existing.
+--
+-- 🔢 AND THE REMAP IS READ IN DECIMAL. `hidutil property --get` answers
+-- the usage codes as plain integers, not as the hex this config SETS
+-- them with: 0x700000039 is 30064771129 and 0x70000006D is 30064771181.
+-- Checked against hidutil's own output shape rather than assumed —
+-- a parser written for the hex would read "no remap" on every healthy
+-- Mac and repair a keyboard that was never broken.
+_G.hyperCapsLockUsage = 30064771129     -- 0x700000039
+_G.hyperF18Usage      = 30064771181     -- 0x70000006D
+
+-- PURE, and TOTAL over strings: true (the pair is there) · false (it
+-- answered, and the pair is not) · nil (it was handed no string at
+-- all). 🚨 THE PAIR, never the source alone — a Caps Lock remapped to
+-- something ELSE would satisfy a Src-only test and read as health
+-- while ⇪ was dead, which is the plausible wrong implementation and
+-- therefore the fixture worth keeping.
+function _G.hyperRemapPresent(out)
+    if type(out) ~= "string" then return nil end
+    for entry in out:gmatch("{(.-)}") do
+        local src = tonumber(entry:match("HIDKeyboardModifierMappingSrc%s*=%s*(%w+)") or "")
+        local dst = tonumber(entry:match("HIDKeyboardModifierMappingDst%s*=%s*(%w+)") or "")
+        if src == _G.hyperCapsLockUsage and dst == _G.hyperF18Usage then
+            return true
+        end
+    end
+    return false
+end
+
+_G.hyperWakeProbeAfter = 2.0        -- a beat for macOS to re-enumerate
+_G.hyperWakeProbe = { at = nil, why = "no wake probed yet", tap = nil,
+                      secure = nil, remap = nil, reads = 0, failed = 0,
+                      repaired = 0, repairFailed = 0 }
+
 _G.hyperWakesSeen    = 0            -- wake events seen this session
 _G.hyperWakeReleases = 0            -- ...that found ⇪ held. NOT a latch.
 _G.hyperWakeState    = "not started"
@@ -202,6 +258,32 @@ function _G.hyperKeyReport()
         line("   wake     : " .. wakes .. " wake(s) seen · " .. woke
              .. " found ⇪ STILL HELD and let it go. Not a latch: nobody"
              .. " holds Caps Lock through a sleep.")
+    end
+    -- 🔬 6.303.0 — the three things that can latch ⇪ with the key up.
+    local P = _G.hyperWakeProbe or {}
+    if not P.at then
+        line("   probe    : nothing looked at yet — "
+             .. tostring(P.why or "no wake probed yet")
+             .. ". `_G.hyperWakeProbeRun(\"by hand\")` asks now.")
+    else
+        line("   probe    : after " .. tostring(P.why) .. ", at "
+             .. os.date("%H:%M:%S", math.floor(tonumber(P.at) or 0)))
+        -- Each of the three has THREE states, and the third is always
+        -- "could not be asked" — which must never read like health.
+        line("      remap : " .. (P.remap == true and "Caps Lock → F18 still set"
+             or P.remap == false and "⚠️ GONE — ⇪ had stopped existing"
+             or "⚠️ could not be read (hidutil did not answer)"))
+        line("      tap   : " .. (P.tap == true and "the F18 event tap is running"
+             or P.tap == false and "⚠️ the F18 event tap was NOT running"
+             or "no tap on this Mac (Carbon only), or it could not be asked"))
+        line("      secure: " .. (P.secure == "clear" and "Secure Input clear"
+             or P.secure and ("⚠️ Secure Input held by " .. tostring(P.secure))
+             or "not known — capabilities.lua has not answered yet"))
+        line("      counts: " .. (tonumber(P.reads) or 0) .. " read(s) · "
+             .. (tonumber(P.failed) or 0) .. " could not be read · "
+             .. (tonumber(P.repaired) or 0) .. " remap(s) put back"
+             .. ((tonumber(P.repairFailed) or 0) > 0
+                 and (" · ⚠️ " .. P.repairFailed .. " repair(s) FAILED") or ""))
     end
     local names = {}
     for n in pairs(_G.hyperSaidHandover or {}) do names[#names + 1] = tostring(n) end
@@ -525,6 +607,131 @@ function _G.hyperWakeRelease(name)
     return true, words
 end
 
+-- ---- the probe, and the one repair it is allowed to make -----------
+-- 🪜 6.196.1 / 6.262.0 — NOTHING STARTS A TASK FROM INSIDE ANOTHER
+-- TASK'S CALLBACK, and nothing clears its own slot from inside it. The
+-- read and the repair have SEPARATE slots, so starting one never drops
+-- the other, and the repair is armed off a HELD doAfter(0) so the read's
+-- callback has RETURNED first. A Mac that cannot arm that timer still
+-- repairs, on the old shape, and the report carries the ⚠️.
+local function repairRemap()
+    local P = _G.hyperWakeProbe
+    local function fire()
+        local ok = pcall(function()
+            _G.hyperRemapRepairTask = hs.task.new("/usr/bin/hidutil",
+                function(code, _, errOut)
+                    if code == 0 then
+                        P.repaired = P.repaired + 1
+                        -- 🔔 THE ONE THING THIS SHOUTS ABOUT. ⇪ had
+                        -- stopped existing and has just been put back;
+                        -- that is not a number to find on Tuesday.
+                        local said = "🎹 Caps Lock → F18 was GONE after "
+                            .. tostring(P.why) .. " and has been put back. "
+                            .. "That is why ⇪ can latch across a wake."
+                        print(said)
+                        if _G.degrade then
+                            pcall(_G.degrade, "Hyper wake probe", said)
+                        end
+                    else
+                        P.repairFailed = P.repairFailed + 1
+                        print("⚠️ 🎹 the Caps Lock remap was gone after "
+                              .. tostring(P.why) .. " and hidutil REFUSED to "
+                              .. "put it back (exit " .. tostring(code) .. ") "
+                              .. tostring(errOut or ""))
+                    end
+                end,
+                { "property", "--set", tostring(_G.hyperRemapJSON or "") })
+            _G.hyperRemapRepairTask:start()
+        end)
+        if not ok then P.repairFailed = P.repairFailed + 1 end
+    end
+    -- No JSON published means init.lua is older than this file; repairing
+    -- with a literal of our own is how the two come to disagree, so it
+    -- is refused and SAID rather than guessed (6.231.0).
+    if not _G.hyperRemapJSON then
+        P.repairFailed = P.repairFailed + 1
+        print("⚠️ 🎹 the Caps Lock remap is gone and this build cannot put "
+              .. "it back — init.lua did not publish _G.hyperRemapJSON.")
+        return false
+    end
+    if hs.timer and hs.timer.doAfter then
+        _G.hyperRemapRepairHop = hs.timer.doAfter(0, fire)
+    else
+        fire()
+    end
+    return true
+end
+
+-- Public on purpose: an instrument that only runs when the lid opens is
+-- one he cannot be asked for by name (6.267.0's lesson), so he can run
+-- `_G.hyperWakeProbeRun("by hand")` in the Console and read the same
+-- three answers without closing anything.
+function _G.hyperWakeProbeRun(why)
+    local P = _G.hyperWakeProbe
+    P.at, P.why = os.time(), tostring(why or "a wake")
+
+    -- 1. THE TAP — synchronous, free, and it asks the object we hold
+    --    rather than assuming the one we created is the one running.
+    P.tap = nil
+    pcall(function()
+        if _G.hyperKeyTap and _G.hyperKeyTap.isEnabled then
+            P.tap = _G.hyperKeyTap:isEnabled() and true or false
+        end
+    end)
+
+    -- 2. SECURE INPUT — READ, never re-probed. core/capabilities.lua
+    --    owns that ioreg and asks it on its own clock; a second reader
+    --    here would be two probes racing over one fact (6.242.0), and a
+    --    sentry keeps ioreg out of this file.
+    P.secure = nil
+    pcall(function()
+        local si = _G.secureInput
+        if type(si) == "table" then
+            if si.on == true       then P.secure = tostring(si.app or "held")
+            elseif si.on == false  then P.secure = "clear" end
+        end
+    end)
+
+    -- 3. THE REMAP — out of process, off the main thread (6.228.0: a
+    --    main thread this config is busy on is a mouse this Mac has
+    --    lost, and this runs while he is typing his password).
+    if not (hs.task and hs.task.new) then
+        P.remap = nil
+        P.failed = P.failed + 1
+        return false, "hs.task is unavailable"
+    end
+    local ok = pcall(function()
+        _G.hyperRemapReadTask = hs.task.new("/usr/bin/hidutil",
+            function(code, out)
+                -- 🔎 THREE ANSWERS (6.196.1), and the difference decides
+                -- whether anything is repaired: false is "hidutil
+                -- answered and the mapping is gone" — act. nil is "it
+                -- could not be asked" — say so and touch nothing, or a
+                -- Mac that cannot run hidutil re-applies the remap after
+                -- every single wake for ever.
+                -- 🚨 NOT `(code == 0) and present(out) or nil`. That
+                -- idiom CANNOT RETURN false: `false or nil` is nil, so
+                -- a mapping that is genuinely GONE would read as "could
+                -- not be asked" and nothing would ever be repaired —
+                -- the two states this release exists to separate,
+                -- collapsed by a one-line ternary. 6.179.0's family,
+                -- and the suite is what found it.
+                if code == 0 then
+                    P.remap = _G.hyperRemapPresent(out)
+                else
+                    P.remap = nil
+                end
+                P.reads = P.reads + 1
+                if P.remap == nil then P.failed = P.failed + 1 end
+                if P.remap == false then repairRemap() end
+            end,
+            { "property", "--get", "UserKeyMapping" })
+        _G.hyperRemapReadTask:start()
+    end)
+    if not ok then P.failed = P.failed + 1 end
+    return ok
+end
+
 -- macOS hands the callback a NUMBER. The names are resolved against
 -- hs.caffeinate.watcher's own constants rather than written down as
 -- integers — the same rule F18's keycode follows above, and for the
@@ -555,7 +762,24 @@ local wakeOK, wakeErr = pcall(function()
         error("hs.caffeinate.watcher is not available on this Mac", 0)
     end
     local wat = hs.caffeinate.watcher.new(function(ev)
-        pcall(function() _G.hyperWakeRelease(wakeName(ev)) end)
+        pcall(function()
+            local name = wakeName(ev)
+            if not name then return end
+            _G.hyperWakeRelease(name)
+            -- 🔬 6.303.0 — and then LOOK at the keyboard, a beat later:
+            -- macOS re-enumerates asynchronously, so asking inside the
+            -- wake callback measures the moment before the one that
+            -- matters. HELD in its own slot (6.196.1) — an unreferenced
+            -- timer is collected and a collected timer never fires,
+            -- which would remove the entire measurement.
+            if hs.timer and hs.timer.doAfter then
+                _G.hyperWakeProbeTimer = hs.timer.doAfter(
+                    tonumber(_G.hyperWakeProbeAfter) or 2.0,
+                    function() pcall(_G.hyperWakeProbeRun, name) end)
+            else
+                pcall(_G.hyperWakeProbeRun, name)
+            end
+        end)
     end)
     if not wat then error("hs.caffeinate.watcher.new answered nothing", 0) end
     _G.hyperWakeWatcher = wat          -- HELD: a collected watcher never fires
