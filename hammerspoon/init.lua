@@ -4,43 +4,40 @@
 -- =====================================================================
 -- 09-27-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.304.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.305.0
 -- =====================================================================
 
+-- NEW IN 6.305.0 — 🔁 A RETRY MUST NOT RE-SEND WHAT ALREADY LANDED
+--   (modules/scratch_pad.lua). His first unattended 16:00 run: "1 of
+--   122 task(s) did not reach Asana … marked ❌ Error: tasks not
+--   sent". 121 of those ARE in Asana. The mark is per TAB and a ❌
+--   tab is re-parsed WHOLE, so the next run would have posted all
+--   121 again, and the day after 242 — compounding daily. 6.301.0
+--   wrote the rule four releases ago (ask what a RETRY would do) and
+--   applied it only to subtasks. 🚨 And the ✅ side had the same
+--   hole with no failure at all: typing in a tab clears its mark, so
+--   editing one character re-armed every task in it. 🔑 THE MARK IS
+--   ABOUT THE TAB, THE RECORD ABOUT THE TASKS — each task Asana takes is
+--   remembered on its tab by a digest of what it SAYS, never its
+--   position: an untouched line is skipped, an EDITED one is new work.
+
 -- NEW IN 6.304.0 — 🚨 THE SECURE INPUT PROBE CAN NO LONGER WEDGE
---   (core/capabilities.lua). His report: `secure: not known` on
---   every wake, and `started 1 · checks 0` nine ticks after boot —
---   one probe attempted, none ever finished, the 60 s timer ticking
---   into a short-circuit. siBusy lets one ioreg run at a time and
---   was cleared in ONE place, finish(), reachable only from a task
---   callback. So a probe that could never finish shut the feature
---   down for the whole session, silently. 🔬 hs.task:start() REFUSES
---   BY RETURNING FALSE, it does not throw (libtask.m, task_launch),
---   so the pcall around it succeeded and `fails` stayed 0 — 6.265.0,
---   MISSING is not REFUSING. Now the return is read, a BELT ends a
---   probe that never answers, and refused · never-answered · no-belt
---   are counted APART. 🚨 A failed probe no longer reports a
---   confident "off": that is the lie 6.196.0's boot line told for
---   four hours, in the one row that cannot afford it.
+--   (core/capabilities.lua). His `started 1 · checks 0`, nine ticks
+--   of a 60 s timer after boot: siBusy lets one ioreg run at a time
+--   and was cleared ONLY in finish(), reachable only from a task
+--   callback — so the first probe that could not finish shut the
+--   feature down for the session, silently. 🔬 hs.task:start()
+--   REFUSES BY RETURNING FALSE (libtask.m, task_launch), so the
+--   pcall succeeded and `fails` stayed 0 — 6.265.0, MISSING is not
+--   REFUSING. The return is read now, a BELT ends a probe that never
+--   answers, and refused · never-answered · no-belt are counted
+--   APART. 🚨 A failed probe no longer publishes a confident "off".
 
--- NEW IN 6.303.0 — 🔬 WHAT THE KEYBOARD LOOKS LIKE AFTER A WAKE
---   (core/hyper_key.lua): aimed at the 10:57 storm, and a PROBE not
---   a fix — this is new ground. Three things can latch ⇪ with the
---   key physically up and none was visible from Lua: the hidutil
---   Caps Lock → F18 remap (set once at boot, never read back), the
---   F18 event tap (macOS switches taps off across some transitions),
---   and SECURE EVENT INPUT (6.196.0 — it kills every tap AND hotkey
---   dispatch, and a lock screen on wake is exactly where it lives).
---   Two seconds after a wake all three are asked, off the main
---   thread. 🔕 SILENT WHEN HEALTHY: the one thing it shouts about is
---   a remap that was GONE, which it puts back with init.lua's own
---   mapping. 🔎 Only a GONE remap repairs, never an unread one.
-
--- (6.302.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.303.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 cut the inline count to
 --  TWO; a gate check proves every entry here is also in CHANGELOG.md.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.304.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.305.0
 -- =====================================================================
 -- The catalogue that used to sit here moved to GUIDE.md ("What each
 -- tool does") in 6.180.0 — 259 lines of prose inside the orchestrator.
@@ -133,7 +130,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.304.0"
+_G.configVersion = "6.305.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the

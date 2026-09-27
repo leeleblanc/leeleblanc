@@ -2049,5 +2049,287 @@ do
     check("§6.300.0 ran all of its checks (" .. ran .. " of 30+)", ran >= 30, ran)
 end
 
+-- ==========================================================================
+-- §6.305.0 — A RETRY MUST NOT RE-SEND WHAT ALREADY LANDED
+-- ==========================================================================
+-- LL's first unattended 16:00 run read 122 tasks out of his tabs, 121
+-- reached Asana and one was refused. The tab was marked ❌, and a ❌ tab
+-- is re-parsed WHOLE — so the next run would have posted those 121 a
+-- second time, and the run after that a third. The same hole was open
+-- with no failure at all: typing in a ✅ tab clears its mark.
+do
+    local before = pass + fail
+    io.open = function(path, mode)
+        if (mode or "r"):find("w") then
+            if WRITE_FAILS then return nil end
+            local buf = {}
+            return { write = function(_, s) buf[#buf + 1] = s return true end,
+                     close = function() FILES[path] = table.concat(buf) end }
+        end
+        if FILES[path] == nil then return nil end
+        local content, done = FILES[path], false
+        return { read = function() if done then return nil end done = true return content end,
+                 close = function() end }
+    end
+    os.rename = function(a, b)
+        if FILES[a] == nil then return nil, "no such file" end
+        FILES[b] = FILES[a] ; FILES[a] = nil ; return true
+    end
+    local m10 = dofile(HS .. "/modules/scratch_pad.lua")
+    m10.setup(CORE)
+    local sp = _G.scratchPad
+    sp.sendGrammar, sp.sendDaily = true, true
+    local function reset(text)
+        sp.tabs = { { id = "t1", text = text, kind = nil, at = os.time() } }
+        sp.history, sp.active, sp.sent, sp.unsent = {}, "t1", {}, nil
+        SUBMITS, DEGRADES, ALERTS, TOLD = {}, {}, {}, {}
+        SUBMIT_RESULT, SUBMIT_ASANA, SUBMIT_DEFER = true, nil, false
+        SUBMIT_PENDING, SUBMIT_SUBFAIL = {}, false
+        WRITE_FAILS, sp.saveErrSaid = false, nil
+    end
+    local function titles()
+        local t = {}
+        for _, x in ipairs(SUBMITS) do t[#t + 1] = x.title end
+        return table.concat(t, "|")
+    end
+    -- A report PRINTS and returns nothing (6.179.1 — one string, one
+    -- print), and earlier sections hand `print` back to the real one,
+    -- so this section captures it for itself.
+    local function reportText()
+        local cap, saved = {}, print
+        print = function(...)
+            local q = {}
+            for i = 1, select("#", ...) do q[#q + 1] = tostring((select(i, ...))) end
+            cap[#cap + 1] = table.concat(q, " ")
+        end
+        pcall(_G.scratchPadReport)
+        print = saved
+        return table.concat(cap, "\n")
+    end
+
+    -- ---- 🔑 sp.digest — PURE ---------------------------------------------
+    check("🔑 the digest is deterministic",
+          sp.digest("abc") == sp.digest("abc"))
+    check("...and different text answers differently",
+          sp.digest("abc") ~= sp.digest("abd"))
+    -- 🚨 THE KEY BECOMES A JSON OBJECT KEY, so it must never carry his
+    -- own characters: a truncated slice of a title can cut a UTF-8 glyph
+    -- in half and make the WHOLE store unencodable (6.204.0).
+    check("🚨 the key is pure ASCII hex — his text never rides in it",
+          sp.digest("Café — naïve 🎵"):match("^[0-9a-f]+$") ~= nil,
+          sp.digest("Café — naïve 🎵"))
+    check("...and a nil does not throw", sp.digest(nil) ~= nil)
+    -- Two strings of different length must not collide just because the
+    -- hash wrapped; the length rides in the key for exactly that.
+    check("...and length is part of the key",
+          sp.digest("a") ~= sp.digest("a "))
+
+    -- ---- 🔑 sp.taskKey — PURE, and keyed by WHAT IT SAYS -----------------
+    local function T(over)
+        local t = { title = "Ship it", desc = "with words", assignee = "me",
+                    when = { startDate = "2026-01-01", dueDate = "2026-01-08" },
+                    subs = { "one", "two" } }
+        for k, v in pairs(over or {}) do t[k] = v end
+        return t
+    end
+    check("🔑 the same task answers the same key", sp.taskKey(T()) == sp.taskKey(T()))
+    -- Each of these is a field a mutation can drop out of the canonical
+    -- form; drop one and an EDIT to it stops counting as new work, so
+    -- the edited task is silently never sent again.
+    check("...a different TITLE is a different task",
+          sp.taskKey(T()) ~= sp.taskKey(T({ title = "Ship it now" })))
+    check("...a different DESCRIPTION is a different task",
+          sp.taskKey(T()) ~= sp.taskKey(T({ desc = "with other words" })))
+    check("...a different ASSIGNEE is a different task",
+          sp.taskKey(T()) ~= sp.taskKey(T({ assignee = "sarah" })))
+    check("...a different DATE is a different task",
+          sp.taskKey(T()) ~= sp.taskKey(T({
+              when = { startDate = "2026-02-02", dueDate = "2026-01-08" } })))
+    check("...a different SUBTASK is a different task",
+          sp.taskKey(T()) ~= sp.taskKey(T({ subs = { "one", "three" } })))
+    -- The `when` table is walked with pairs() and sorted, so the key
+    -- cannot depend on the order Lua happens to hand the fields back.
+    check("...and the date fields are ORDER-INDEPENDENT", (function()
+        local a = { title = "x", when = { dueDate = "b", startDate = "a" } }
+        local b = { title = "x", when = { startDate = "a", dueDate = "b" } }
+        return sp.taskKey(a) == sp.taskKey(b)
+    end)())
+    check("...and a bare table does not throw", sp.taskKey({}) ~= nil)
+
+    -- ---- 🔢 sp.tasksToSend — PURE, a MULTISET difference ------------------
+    local t1, t2, t3 = T({ title = "A" }), T({ title = "B" }), T({ title = "C" })
+    local send, done = sp.tasksToSend({ t1, t2, t3 }, nil)
+    check("🔢 with nothing landed, everything is sent",
+          #send == 3 and #done == 0)
+    send, done = sp.tasksToSend({ t1, t2, t3 }, { [sp.taskKey(t2)] = { n = 1 } })
+    check("🔢 a landed task is SKIPPED and the rest still go",
+          #send == 2 and #done == 1 and send[1].title == "A"
+          and send[2].title == "C" and done[1].title == "B",
+          #send .. "/" .. #done)
+    -- 🚨 THE FIXTURE THAT SEPARATES A COUNT FROM A SET (6.230.0): two
+    -- identical lines are two tasks. A set would skip both for ever
+    -- after one landed, losing the second silently.
+    send, done = sp.tasksToSend({ t1, t1 }, { [sp.taskKey(t1)] = { n = 1 } })
+    check("🚨 two identical tasks, ONE landed — exactly one is skipped "
+          .. "and one still goes", #send == 1 and #done == 1, #send .. "/" .. #done)
+    send = sp.tasksToSend({ t1, t1 }, { [sp.taskKey(t1)] = { n = 2 } })
+    check("...and both landed skips both", #send == 0)
+    send = sp.tasksToSend({ t1 }, { [sp.taskKey(t1)] = { n = 0 } })
+    check("...a count of 0 is not a landing", #send == 1)
+    send = sp.tasksToSend({ t1 }, { [sp.taskKey(t1)] = { n = -3 } })
+    check("...and neither is a negative one", #send == 1)
+    send = sp.tasksToSend({ t1 }, { ["a key for a line he deleted"] = { n = 9 } })
+    check("...a remembered key for a task no longer in the tab changes "
+          .. "nothing", #send == 1)
+    check("...and no input at all answers empty, not a throw",
+          #(sp.tasksToSend(nil, nil)) == 0)
+
+    -- ---- 🚨 HIS CASE, END TO END -----------------------------------------
+    -- Three tasks, the middle one refused. The tab is ❌ and is retried.
+    reset("Alpha\nBravo\nCharlie")
+    local savedSubmit = _G.asanaSubmitTask
+    _G.asanaSubmitTask = function(t, d, a, x, e)
+        SUBMITS[#SUBMITS + 1] = { title = t }
+        if e and e.onDone then
+            e.onDone(t ~= "Bravo", t == "Bravo" and "refused" or nil,
+                     t ~= "Bravo" and "9001" or nil)
+        end
+        return true
+    end
+    sp.send("scheduled")
+    check("🚨 three tasks go, one is refused, the tab is ❌",
+          #SUBMITS == 3 and sp.tabs[1].mark == sp.failMark, titles())
+    -- THE WHOLE RELEASE IS THIS CHECK. Before it, the retry sent all
+    -- three again and his Asana board grew by 121 a day.
+    SUBMITS = {}
+    sp.send("scheduled")
+    check("🚨 the retry sends ONLY the task that did not land — the two "
+          .. "already in Asana are not posted a second time",
+          #SUBMITS == 1 and SUBMITS[1].title == "Bravo", titles())
+    _G.asanaSubmitTask = savedSubmit
+    -- ...and once the last one lands the tab goes green.
+    SUBMITS = {}
+    sp.send("scheduled")
+    check("...and when the last one finally lands the tab goes ✅",
+          #SUBMITS == 1 and SUBMITS[1].title == "Bravo"
+          and sp.tabs[1].mark == sp.sentMark, sp.tabs[1].mark)
+
+    -- ---- 🚨 THE ✅ SIDE, WHICH NEEDS NO FAILURE AT ALL --------------------
+    reset("One\nTwo")
+    sp.send("scheduled")
+    check("🏷 a clean send marks ✅", #SUBMITS == 2 and sp.tabs[1].mark == sp.sentMark)
+    SUBMITS = {}
+    sp.setText("t1", "One\nTwo\nThree")
+    check("🏷 typing clears the mark, as it must — new text is new work",
+          sp.tabs[1].mark == nil)
+    sp.send("scheduled")
+    check("🚨 ...and the next send posts ONLY the new line. Before this "
+          .. "release, editing one character in a sent tab re-posted "
+          .. "every task in it",
+          #SUBMITS == 1 and SUBMITS[1].title == "Three", titles())
+
+    -- ---- 🔁 A TAB WITH NOTHING LEFT TO SEND IS DONE, NOT FAILED ----------
+    -- His tab today is ❌ over one bad line. If he deletes that line,
+    -- the tab must stop being retried rather than sitting ❌ for ever.
+    reset("Alpha\nBravo")
+    sp.send("scheduled")
+    sp.tabs[1].mark = sp.failMark          -- as a partial failure left it
+    SUBMITS, ALERTS = {}, {}
+    local okN = sp.send("scheduled")
+    check("🔁 a ❌ tab whose tasks have ALL landed is marked ✅ and sends "
+          .. "nothing — it stops being retried for ever",
+          okN == false and #SUBMITS == 0 and sp.tabs[1].mark == sp.sentMark,
+          tostring(sp.tabs[1].mark) .. " / " .. #SUBMITS)
+    check("...and the announce says so rather than \"nothing written\"",
+          #ALERTS == 0 and (sp.lastSend and sp.lastSend.outcome or ""):find("nothing", 1, true) ~= nil,
+          tostring(sp.lastSend and sp.lastSend.outcome))
+
+    -- ---- 🔔 RECORDED ON THE ANSWER, NEVER ON THE ASK ---------------------
+    -- `asanaSubmitTask` returns the moment the POST is fired (6.299.0).
+    -- Recording there would mark a REFUSED task as landed, and it would
+    -- then never be retried — the opposite failure, and a silent one.
+    reset("Refused one")
+    SUBMIT_ASANA = false
+    sp.send("scheduled")
+    check("🔔 a refused task is NOT remembered as landed",
+          sp.tabs[1].landed == nil or next(sp.tabs[1].landed) == nil,
+          tostring(sp.tabs[1].landed and next(sp.tabs[1].landed)))
+    SUBMITS, SUBMIT_ASANA = {}, nil
+    sp.send("scheduled")
+    check("...so it IS retried, and lands", #SUBMITS == 1
+          and sp.tabs[1].mark == sp.sentMark, #SUBMITS)
+
+    -- ---- 💾 IT SURVIVES THE STORE ----------------------------------------
+    -- A record that lives only in memory is no record at all: the 16:00
+    -- run that duplicates is the one after a reload.
+    reset("Persisted task")
+    sp.send("scheduled")
+    check("💾 the landed record is written to the store", (function()
+        local raw = FILES[sp.file] and jdec(FILES[sp.file])
+        local t = raw and raw.tabs and raw.tabs[1]
+        return t and type(t.landed) == "table" and next(t.landed) ~= nil
+    end)(), tostring(FILES[sp.file]):sub(1, 200))
+    check("...and it is read back", (function()
+        sp.tabs = {}
+        sp.load()
+        return sp.tabs[1] and type(sp.tabs[1].landed) == "table"
+               and next(sp.tabs[1].landed) ~= nil
+    end)())
+    SUBMITS = {}
+    sp.tabs[1].mark = nil                  -- as typing would leave it
+    sp.send("scheduled")
+    check("🚨 ...so a send AFTER A RELOAD posts nothing that already "
+          .. "landed", #SUBMITS == 0, titles())
+
+    -- ---- 📣 THE SKIP IS SAID AND COUNTED ---------------------------------
+    reset("Kept\nNew one")
+    sp.send("scheduled")
+    SUBMITS, ALERTS = {}, {}
+    sp.setText("t1", "Kept\nNew one\nThird")
+
+    -- ---- 👁 THE PREVIEW ASKS THE SAME SELECTOR ---------------------------
+    -- One function, two callers (6.231.0): a preview that promised a
+    -- task the send will correctly skip is a preview that lies. Asked
+    -- BEFORE the send below, so the two tasks it names are the two the
+    -- send is about to skip.
+    local pv = sp.taskPreview()
+    check("👁 the preview marks a task already in Asana",
+          pv:find("already in Asana", 1, true) ~= nil, pv:sub(1, 400))
+    check("...and says how many of the tab's tasks are already there",
+          pv:find("2 already in Asana", 1, true) ~= nil, pv:sub(1, 400))
+    check("...and it does NOT print the dates of a task it will not send "
+          .. "— \"would send\" and \"already sent\" must not read alike",
+          select(2, pv:gsub("📅", "")) == 0, pv:sub(1, 400))
+
+    sp.send("scheduled")
+    check("📣 the announce names how many were already in Asana",
+          #ALERTS == 1 and tostring(ALERTS[1]):find("already in Asana", 1, true) ~= nil,
+          tostring(ALERTS[1]))
+    check("...and the run records the skip count",
+          (sp.lastTaskSend and sp.lastTaskSend.landed) == 2,
+          tostring(sp.lastTaskSend and sp.lastTaskSend.landed))
+    local rep = reportText()
+    check("📣 the report carries the ledger",
+          rep:find("landed", 1, true) ~= nil
+          and rep:find("already in Asana", 1, true) ~= nil, rep:sub(1, 300))
+
+    -- ---- 📏 THE BOUND IS A STATE, NOT A FOOTNOTE (6.197.2) ---------------
+    reset("Aaa\nBbb\nCcc\nDdd")
+    local savedMax = sp.landedMax
+    sp.landedMax, sp.landedEvicted = 2, 0
+    sp.send("scheduled")
+    check("📏 past the cap the oldest remembered task is forgotten",
+          (sp.landedEvicted or 0) > 0, tostring(sp.landedEvicted))
+    local rep2 = reportText()
+    check("...and the report WARNS, because a forgotten key is a task "
+          .. "that can be sent twice",
+          rep2:find("were forgotten this session", 1, true) ~= nil,
+          rep2:sub(1, 300))
+    sp.landedMax, sp.landedEvicted = savedMax, 0
+
+    local ran = (pass + fail) - before
+    check("§6.305.0 ran all of its checks (" .. ran .. " of 32+)", ran >= 32, ran)
+end
+
 out(string.format("\n%d passed, %d failed\n", pass, fail))
 os.exit(fail == 0 and 0 or 1)

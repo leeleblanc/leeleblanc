@@ -1,5 +1,5 @@
 ========================================================================
-RESOLVED FEATURE REQUESTS — Hammerspoon config 6.304.0
+RESOLVED FEATURE REQUESTS — Hammerspoon config 6.305.0
 Every feature and how to use it. Generated from the modules' own
 cheat sheets (the rows ⇪/ draws), so it is never out of date.
 ⇪ = Caps Lock held (the hyper key). ⇪⇧X = Caps Lock + Shift + X.
@@ -184,7 +184,7 @@ In the Console, _G.<tool>Report() prints any tool's own report.
   ⇪2      SEQUENTIAL COPY: select text, press it, select more, press again — the grabs join into ONE block on the clipboard, so ⌘V pastes the lot. Copying anything else starts a new sequence. Nothing is filed into the pad
   16:00     ON again (6.300.0, his own reversal): every unsent tab's tasks go to Asana at 16:00, open window or not. _G.scratchPadSend() sends by hand; settings = { scratch_pad = { sendDaily = false } } switches the schedule off
   grammar   A bare line is a task · = divides · P: title · A: assignee · D: description · S: subtask (a real Asana subtask) · T: dates and times. One Asana task per task, into your default project
-  ✅ / ❌ After a send each tab is RETITLED "✅ Success: tasks sent" or "❌ Error: tasks not sent" and kept until you delete it. A ✅ tab is never sent twice; a ❌ tab is retried; typing in a tab clears its mark
+  ✅ / ❌ After a send each tab is RETITLED "✅ Success: tasks sent" or "❌ Error: tasks not sent" and kept until you delete it. A ✅ tab is never sent twice; a ❌ tab is retried, and the retry sends ONLY the tasks that did not reach Asana (6.305.0); typing in a tab clears its mark
   preview   _G.scratchPadTasks() shows every task a send WOULD create, and what it did to each T: line — nothing is sent
   search    ⇪space finds everything here — tabs and history
   own window settings = { scratch_pad = { viaVault = false } } brings the old window back
@@ -777,6 +777,7 @@ In the Console, _G.<tool>Report() prints any tool's own report.
 
 📜 RELEASE INDEX — newest first, one line per release (the full story of each is in CHANGELOG.md)
 ------------------------------------------------------------------------
+  6.305.0  🔁 A RETRY MUST NOT RE-SEND WHAT ALREADY LANDED
   6.304.0  🚨 A GUARD THAT ONLY A SUCCESS CAN CLEAR IS A WEDGE
   6.303.0  🔬 WHAT THE KEYBOARD LOOKS LIKE THE MOMENT AFTER A WAKE
   6.302.0  🌅 A WAKE IS A RELEASE

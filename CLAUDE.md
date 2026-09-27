@@ -1282,6 +1282,61 @@ work Mac.
   taken out again — close() does it on every path that reaches there
   (6.199.0, fourth time).
 
+- 🔁 A RULE WRITTEN ABOUT ONE CALLER IS NOT A RULE UNTIL EVERY CALLER
+  HAS BEEN ASKED (6.305.0, modules/scratch_pad.lua — LL's first
+  unattended 16:00 run: "1 of 122 task(s) did not reach Asana (no team
+  member matches …) — every word is still in the tab, marked ❌ Error:
+  tasks not sent").
+  🔎 READ THE OTHER NUMBER. One refused means ONE HUNDRED AND
+  TWENTY-ONE LANDED. The mark is per TAB, a ❌ tab is retried, and the
+  retry re-parses the tab WHOLE — so the next 16:00 posts those 121
+  again, the one after that a third time, compounding daily until he
+  happens to fix the one bad line. His message was about a warning;
+  the warning was the smaller half of what it was telling us.
+  🚨 AND 6.301.0 WROTE THE RULE FOUR RELEASES AGO, IN THIS FILE, about
+  subtasks: "before deciding what a partial failure should report, ask
+  what a RETRY would do — an error that causes a duplicate is worse
+  than a warning that causes a correction." It was applied to the
+  subtask leg and not to the tab mark two hundred lines above it.
+  GENERAL: when a release states a principle, grep the module for the
+  other places that decide the same thing, in the same commit.
+  🚨 THE ✅ SIDE HAD THE SAME HOLE WITH NO FAILURE INVOLVED: typing in
+  a tab clears its mark (6.300.0 chose that deliberately — a ✅ tab
+  that could never be sent again would freeze his new writing out of
+  the run), so editing ONE character in a fully-sent tab re-armed every
+  task in it. Two routes to a duplicate, one mechanism for both.
+  🔑 THE MARK IS ABOUT THE TAB; THE RECORD IS ABOUT THE TASKS. Each
+  task Asana ACCEPTS is remembered on its tab by a digest of WHAT IT
+  SAYS — title, description, assignee, dates, subtasks — never by its
+  position (6.186.0/6.272.0: an edit renumbers everything under his
+  hand, so an index forgets a different task than the one that
+  landed). The content key does double duty: an untouched line keeps
+  its key and is skipped, an EDITED line has a new key and is
+  correctly read as new work. Nothing of his text is changed.
+  🔢 COUNTED, NOT A SET — two identical lines are two tasks, and a set
+  would send the pair once then skip both for ever. `sp.tasksToSend`
+  is a multiset difference and PURE; the fixture that separates it
+  from a set is two identical tasks with ONE landed (6.230.0).
+  🔔 RECORDED ON THE ANSWER, NEVER ON THE ASK: the submit returns the
+  moment the POST is fired (6.299.0), so recording there marks a
+  REFUSED task as landed and it is never retried — the opposite
+  failure, and a silent one. 🔁 A tab with nothing left to send is
+  marked ✅, or it is retried for ever over a line he has since fixed.
+  🔒 THE KEY IS PURE ASCII HEX and that is not tidiness: it becomes a
+  JSON object key, and a truncated slice of a title can cut a UTF-8
+  glyph in half and make the WHOLE store unencodable (6.204.0's rule,
+  in the place where the answer is to carry none of his characters).
+  `sp.taskKey` walks `when` with pairs() and SORTS it rather than
+  naming fields — a field name got wrong there silently stops counting.
+  📏 BOUNDED, AND THE BOUND IS A STATE (6.197.2): past `landedMax`
+  (400) the oldest row goes, counted and WARNED, because a forgotten
+  key is a task that can be sent twice.
+  📏 NAMED, NOT FIXED, because it is his call: 122 tasks out of one
+  day's tabs is a lot, and the grammar reads every bare line as a
+  task, so prose he keeps in Hamsidian becomes Asana tasks at 16:00.
+  This release makes the run idempotent; whether it should be reading
+  those tabs at all is a question in the verify block, not a guess.
+
 - 🚧 A BUSY FLAG NEEDS A WAY OUT FOR EVERY WAY THE WORK CAN END
   (6.304.0, core/capabilities.lua). `siBusy` lets one ioreg run at a
   time — right, and 6.170.1's rule for any external command on a timer
@@ -3856,6 +3911,7 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
+| 6.305.0 | 🔁 a retry no longer re-sends what already reached Asana — 121 of his 122 tasks landed, the tab was marked ❌, and tomorrow's 16:00 would have posted all 121 again | pending |
 | 6.304.0 | 🚨 the Secure Input probe can no longer wedge — one ioreg that never answered shut the last of 6.303.0's three candidates down for the whole session, and `secure: not known` was the only thing it could ever say | pending |
 | 6.303.0 | 🔬 two seconds after every wake, the three things that can kill ⇪ silently are asked — the hidutil remap, the event tap and Secure Input — and a remap that has GONE is put back | pending |
 | 6.302.0 | 🌅 a ⇪ hold still open when the Mac wakes is let go, and a wake is visible to the hyper key at all — NOT the answer to his 10:57 storm, said out loud, because that hold began after the wake | pending |
@@ -4822,6 +4878,90 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.305.0 verify with LL — 🔁 A RETRY NO LONGER DUPLICATES (KNOWN GROUND)
+  WHAT CHANGED: a task that reached Asana is remembered, so a retry —
+  and a tab you type in again — sends only what did NOT land.
+  🚨 WHY THIS JUMPED THE QUEUE, and please read this bit even if you
+  skip the steps. Your 16:00 line said "1 of 122 task(s) did not reach
+  Asana". The number that matters is the other one: **121 of them
+  DID**. A tab with one refused task is marked ❌, a ❌ tab is retried,
+  and the retry re-reads the whole tab — so tomorrow at 16:00 those
+  121 would have gone to Asana a second time, and the day after a
+  third, growing every day until you happened to fix the one bad line.
+  I wrote the rule that forbids this four releases ago, for subtasks,
+  and did not apply it to the tab two hundred lines above.
+  🕒 IF YOU DO NOT INSTALL TONIGHT, one Console line stops tomorrow's
+  run: `_G.scratchPad.sendTimer:stop()`. It lasts until the next
+  reload, and `_G.scratchPadSend()` still sends by hand.
+
+  A. THE HEADLINE — this is the whole test and it takes two minutes.
+  A1. ⇪N, a fresh tab, three lines:
+        Alpha test one
+        Bravo test two
+        Charlie test three
+  A2. Console: `_G.scratchPadTasks()`. EXPECT three tasks, none marked.
+  A3. Send it ("→ Asana now"). EXPECT three tasks in Asana and the tab
+      retitled ✅ Success: tasks sent.
+  A4. Click into the tab and add a fourth line: `Delta test four`.
+      EXPECT the ✅ disappears (typing clears the mark — that is right
+      and unchanged).
+  A5. `_G.scratchPadTasks()` again.
+      EXPECT the first three each marked **✅ already in Asana — not
+      sent again**, and only Delta shown as a task that would go.
+  A6. Send again.
+      EXPECT **ONE** new task in Asana — Delta. Not four.
+      **A FAIL here is four tasks**, and it is the bug this release
+      exists to fix. Tell me at once.
+  A7. The alert should read "…1 task from 1 tab · 3 already in Asana,
+      not sent again".
+
+  B. THE ONE THAT IS ACTUALLY YOUR CASE.
+  B1. Make a tab with two good lines and one line Asana will refuse —
+      `A: notarealperson` under a `P:` task will do it.
+  B2. Send. EXPECT the two good ones in Asana, the tab marked ❌.
+  B3. Send again (or wait for 16:00).
+      EXPECT **only the bad one is retried**. The two that landed must
+      NOT appear in Asana a second time.
+  B4. Fix the bad name and send once more. EXPECT one task, and the
+      tab goes ✅.
+
+  C. IT HAS TO SURVIVE A RELOAD — the duplicate that would really have
+     bitten you is the one after Hammerspoon restarts.
+  C1. After A6, reload Hammerspoon.
+  C2. `_G.scratchPadTasks()`. EXPECT all four still marked ✅ already
+      in Asana.
+  C3. Type a character in the tab (clearing the ✅) and send.
+      EXPECT **nothing is sent** — there is nothing new. A run that
+      posts four tasks here is the memory not reaching disk.
+
+  D. PASTE BACK, PASS OR FAIL.
+  D1. `_G.scratchPadReport()` — there is a new `landed:` line saying
+      how many tasks across how many tabs are remembered as already in
+      Asana. On your Mac after today that number should be large.
+  D2. If it ever carries "⚠️ N remembered task(s) were forgotten this
+      session", paste it — that is the 400-per-tab bound biting, and
+      past it a duplicate becomes possible again.
+
+  E. A JUDGEMENT ONLY YOU CAN MAKE — and this is the real question.
+  E1. **Did you want 121 tasks on your Asana board today?** The
+      grammar reads every bare line as a task, and it sweeps every
+      open tab, so any prose you keep in Hamsidian became Asana tasks
+      at 16:00. I have NOT capped or narrowed that, deliberately — you
+      asked for one task per line and I am not going to quietly
+      un-decide it. Three answers, each a different next release:
+      · "yes, that is what I wanted" → nothing more to do.
+      · "no — only tabs I mark should send" → the send reads only tabs
+        that opt in (a marker line, or a tab title convention).
+      · "no — it should refuse a run that big and ask me first" → a
+        ceiling on the UNATTENDED 16:00 run only, with the button
+        still uncapped because you are watching it.
+  E2. 📏 SAID RATHER THAN IMPLIED: the line that failed was
+      `A: <a default assignee of 'me'>`. That is prose, not a name,
+      and the guard did exactly the right thing — it refused it, kept
+      every word, and marked the tab. That part is not a bug. But it
+      does mean something in your tabs is being read as an assignee
+      when you meant it as text.
+
 - 6.304.0 verify with LL — 🚨 SECURE INPUT CAN FINALLY ANSWER (KNOWN GROUND)
   WHAT CHANGED: the probe that asks whether anything has locked your
   keyboard could stop for the whole session and never say so. It cannot

@@ -102,7 +102,7 @@ local M = {
             { "⇪2",        "SEQUENTIAL COPY: select text, press it, select more, press again — the grabs join into ONE block on the clipboard, so ⌘V pastes the lot. Copying anything else starts a new sequence. Nothing is filed into the pad" },
             { "16:00",     "ON again (6.300.0, his own reversal): every unsent tab's tasks go to Asana at 16:00, open window or not. _G.scratchPadSend() sends by hand; settings = { scratch_pad = { sendDaily = false } } switches the schedule off" },
             { "grammar",   "A bare line is a task · = divides · P: title · A: assignee · D: description · S: subtask (a real Asana subtask) · T: dates and times. One Asana task per task, into your default project" },
-            { "✅ / ❌",    "After a send each tab is RETITLED \"✅ Success: tasks sent\" or \"❌ Error: tasks not sent\" and kept until you delete it. A ✅ tab is never sent twice; a ❌ tab is retried; typing in a tab clears its mark" },
+            { "✅ / ❌",    "After a send each tab is RETITLED \"✅ Success: tasks sent\" or \"❌ Error: tasks not sent\" and kept until you delete it. A ✅ tab is never sent twice; a ❌ tab is retried, and the retry sends ONLY the tasks that did not reach Asana (6.305.0); typing in a tab clears its mark" },
             { "preview",   "_G.scratchPadTasks() shows every task a send WOULD create, and what it did to each T: line — nothing is sent" },
             { "search",    "⇪space finds everything here — tabs and history" },
             { "own window","settings = { scratch_pad = { viaVault = false } } brings the old window back" },
@@ -182,6 +182,7 @@ function M.setup(core)
         -- it. Editing a tab clears the mark: new text is new work.
         sentMark      = "✅ Success: tasks sent",
         failMark      = "❌ Error: tasks not sent",
+        landedMax     = 400,      -- keys remembered per tab (6.305.0)
 
         -- the 4 PM task
         sendAt        = "16:00",
@@ -1145,8 +1146,140 @@ function M.setup(core)
     -- mark is skipped by every later send, so the 4 PM run cannot post
     -- yesterday's tasks again; a tab wearing the FAILED mark is
     -- retried, which is the only reason to mark a failure at all.
-    -- Nothing else is remembered and nothing else has to be.
+    -- 6.305.0 CORRECTS THE LINE THAT SAT HERE ("nothing else is
+    -- remembered and nothing else has to be"): a retry re-parses the
+    -- tab WHOLE, so everything in it that already reached Asana went
+    -- again. What each task landed is remembered now, below.
     --
+    -- =================================================================
+    -- 🔁 6.305.0 — A RETRY MUST NOT RE-SEND WHAT ALREADY LANDED
+    -- =================================================================
+    -- LL's first unattended 16:00 run: "1 of 122 task(s) did not reach
+    -- Asana … marked ❌ Error: tasks not sent". 121 of those tasks ARE
+    -- in Asana. The mark is per TAB, and a ❌ tab is re-parsed WHOLE on
+    -- the next run — so tomorrow would have posted all 121 again, and
+    -- the day after 242, compounding daily until he happened to fix
+    -- the one bad line. 6.301.0 wrote the rule four releases ago —
+    -- "before deciding what a partial failure should report, ask what
+    -- a RETRY would do; an error that causes a duplicate is worse than
+    -- a warning that causes a correction" — and applied it only to
+    -- subtasks. The tab mark was doing the thing that rule forbids.
+    --
+    -- 🚨 AND THE ✅ SIDE HAD THE SAME HOLE WITH NO FAILURE INVOLVED:
+    -- typing in a tab clears its mark (sp.setText), and rightly — a ✅
+    -- tab that could never be sent again would freeze his new writing
+    -- out of the run. So editing ONE character in a sent tab re-armed
+    -- every task in it. Two routes to a duplicate, one mechanism for
+    -- both.
+    --
+    -- 🔑 THE MARK IS ABOUT THE TAB; THE RECORD IS ABOUT THE TASKS, and
+    -- that separation is the whole design. Each task Asana ACCEPTS is
+    -- remembered on its tab by a digest of WHAT IT SAYS — title,
+    -- description, assignee, dates, subtasks — never by its position
+    -- (6.186.0/6.272.0: an edit renumbers everything under his hand,
+    -- so an index forgets a different task than the one that landed).
+    -- The content key does double duty: an untouched line keeps its
+    -- key and is skipped, an EDITED line has a new key and is
+    -- correctly read as new work. Nothing of his text is changed and
+    -- nothing is cleared — 6.300.0's design is untouched.
+    --
+    -- 🔢 COUNTED, NOT A SET. Two identical task lines in one tab are
+    -- two tasks; a set would send the pair once and then skip both for
+    -- ever, losing one silently. The record holds HOW MANY of each key
+    -- landed and the selector is a multiset difference.
+
+    -- PURE. FNV-1a over the bytes with the length mixed in, so a key
+    -- is fixed-width ASCII hex. It becomes a JSON object key, and a
+    -- truncated slice of his own text could cut a UTF-8 glyph in half
+    -- and make the whole store unencodable — 6.204.0's rule about
+    -- cutting in characters, in the one place where the answer is to
+    -- not carry his characters at all.
+    function sp.digest(s)
+        s = tostring(s or "")
+        local h = 2166136261
+        for i = 1, #s do
+            h = h ~ s:byte(i)
+            h = (h * 16777619) & 0xFFFFFFFF
+        end
+        return ("%08x%x"):format(h, #s)
+    end
+
+    -- PURE. The canonical form of a task: everything that decides what
+    -- Asana receives. `when` is walked with pairs() and SORTED rather
+    -- than read field by field — a field name I get wrong here is a
+    -- field that silently stops counting, and the walk cannot be wrong
+    -- about one.
+    function sp.taskKey(task)
+        local t = type(task) == "table" and task or {}
+        local when = {}
+        if type(t.when) == "table" then
+            for k, v in pairs(t.when) do
+                when[#when + 1] = tostring(k) .. "=" .. tostring(v)
+            end
+            table.sort(when)
+        end
+        local subs = {}
+        if type(t.subs) == "table" then
+            for _, x in ipairs(t.subs) do subs[#subs + 1] = tostring(x) end
+        end
+        return sp.digest(table.concat({
+            tostring(t.title or ""),
+            tostring(t.desc or ""),
+            tostring(t.assignee or ""),
+            table.concat(when, "\1"),
+            table.concat(subs, "\1"),
+        }, "\2"))
+    end
+
+    -- PURE. Given a tab's parsed tasks and what it has landed before,
+    -- answers the tasks still to send and the ones already in Asana.
+    function sp.tasksToSend(tasks, landed)
+        local have, seen, send, done = {}, {}, {}, {}
+        if type(landed) == "table" then
+            for k, v in pairs(landed) do
+                local n = tonumber(type(v) == "table" and v.n or v) or 0
+                if n > 0 then have[k] = math.floor(n) end
+            end
+        end
+        for _, task in ipairs(type(tasks) == "table" and tasks or {}) do
+            local k = sp.taskKey(task)
+            seen[k] = (seen[k] or 0) + 1
+            if seen[k] <= (have[k] or 0) then done[#done + 1] = task
+            else send[#send + 1] = task end
+        end
+        return send, done
+    end
+
+    -- Records one landed task on its tab. BOUNDED: a tab edited for
+    -- months keeps keys for lines no longer in it, and an unbounded
+    -- map inside a store rewritten whole on every keystroke only
+    -- grows. Past the cap the OLDEST row goes — and the eviction is
+    -- COUNTED and said in the report, because a forgotten key is a
+    -- task that can be sent twice, which is the one thing this release
+    -- exists to stop (6.197.2: a bound that changes the answer is a
+    -- state, never a footnote).
+    function sp.noteLanded(tab, task, gid)
+        if type(tab) ~= "table" then return end
+        tab.landed = type(tab.landed) == "table" and tab.landed or {}
+        local k = sp.taskKey(task)
+        local row = tab.landed[k]
+        if type(row) ~= "table" then row = { n = 0 }; tab.landed[k] = row end
+        row.n     = (tonumber(row.n) or 0) + 1
+        row.title = tostring((type(task) == "table" and task.title) or "")
+        row.at    = os.time()
+        if gid then row.gid = tostring(gid) end
+        local n, oldest, oldK = 0, nil, nil
+        for key, r in pairs(tab.landed) do
+            n = n + 1
+            local at = tonumber(type(r) == "table" and r.at) or 0
+            if not oldest or at < oldest then oldest, oldK = at, key end
+        end
+        if n > (tonumber(sp.landedMax) or 400) and oldK then
+            tab.landed[oldK] = nil
+            sp.landedEvicted = (sp.landedEvicted or 0) + 1
+        end
+    end
+
     -- 📏 OPEN TABS ONLY, and that is a real narrowing from the day
     -- task, which also swept today's CLOSED rows. A closed row has no
     -- title to rewrite and no way to show him an answer, so sending
@@ -1157,15 +1290,25 @@ function M.setup(core)
         local now = os.time()
         local today = os.date("%Y-%m-%d", now)
 
-        local jobs, alreadySent, noTasks = {}, 0, 0
+        local jobs, alreadySent, noTasks, landedSkip = {}, 0, 0, 0
         for _, t in ipairs(sp.tabs) do
             if not t.kind and trim(t.text or "") ~= "" then
                 if tostring(t.mark or "") == sp.sentMark then
                     alreadySent = alreadySent + 1
                 else
                     local tasks = sp.parseTasks(t.text, now, sp.assignee)
-                    if #tasks > 0 then
-                        jobs[#jobs + 1] = { tab = t, tasks = tasks }
+                    local toSend, already = sp.tasksToSend(tasks, t.landed)
+                    landedSkip = landedSkip + #already
+                    if #toSend > 0 then
+                        jobs[#jobs + 1] = { tab = t, tasks = toSend }
+                    elseif #tasks > 0 then
+                        -- 🔁 EVERY TASK IN THIS TAB IS ALREADY IN ASANA.
+                        -- That is not "nothing to send", it is DONE — so
+                        -- it wears the sent mark and stops being a ❌
+                        -- retried for ever over one bad line he has since
+                        -- fixed or deleted.
+                        t.mark = sp.sentMark
+                        alreadySent = alreadySent + 1
                     else
                         noTasks = noTasks + 1
                     end
@@ -1181,14 +1324,18 @@ function M.setup(core)
         end
         sp.lastTaskSend = { at = now, reason = reason, tabs = #jobs,
                             alreadySent = alreadySent, noTasks = noTasks,
-                            closedToday = closedToday, sent = 0, failed = 0 }
+                            closedToday = closedToday, sent = 0, failed = 0,
+                            landed = landedSkip }
 
         if #jobs == 0 then
             sp.lastSend = { at = now, reason = reason,
                             outcome = "nothing new to send" }
-            sp.announce("skipped", alreadySent > 0
-                        and (alreadySent .. " tab(s) already sent")
-                        or "nothing written today", reason)
+            sp.announce("skipped", landedSkip > 0
+                        and (landedSkip .. " task(s) are already in Asana — "
+                             .. "nothing new to send")
+                        or (alreadySent > 0
+                            and (alreadySent .. " tab(s) already sent")
+                            or "nothing written today"), reason)
             return false, "nothing to send"
         end
         if not (core.asanaEnabled and _G.asanaSubmitTask) then
@@ -1220,7 +1367,9 @@ function M.setup(core)
                             .. (subN > 0 and (" · " .. subN .. " subtask"
                                               .. (subN == 1 and "" or "s")) or "")
                             .. (subBad > 0 and (" · ⚠️ " .. subBad
-                                                .. " subtask(s) refused") or ""),
+                                                .. " subtask(s) refused") or "")
+                            .. (landedSkip > 0 and (" · " .. landedSkip
+                                                    .. " already in Asana, not sent again") or ""),
                             reason)
             else
                 sp.lastSend = { at = os.time(), reason = reason,
@@ -1242,10 +1391,16 @@ function M.setup(core)
             job.left, job.bad = #job.tasks, 0
             for _, task in ipairs(job.tasks) do
                 local heard = false
-                local function answer(ok, why, _, info)
+                local function answer(ok, why, gid, info)
                     if heard then return end
                     heard = true
+                    -- 🔁 6.305.0 — REMEMBERED ON THE ANSWER, never on
+                    -- the ask: `asanaSubmitTask` returns the moment the
+                    -- POST is fired (6.299.0), so recording it there
+                    -- would mark a refused task as landed and lose it
+                    -- from every future retry.
                     if ok then sentN = sentN + 1
+                         pcall(sp.noteLanded, job.tab, task, gid)
                     else failN = failN + 1 ; job.bad = job.bad + 1
                          lastWhy = why end
                     -- 🗂 6.301.0 — the S: lines. A refused subtask does
@@ -1322,14 +1477,33 @@ function M.setup(core)
             local body = tostring(t.text or "")
             if body:gsub("%s", "") ~= "" and not t.kind then
                 local tasks, problems = sp.parseTasks(body, now, sp.assignee)
+                -- 🔁 6.305.0 — ONE FUNCTION, TWO CALLERS (6.231.0). The
+                -- preview asks the same selector the send asks, or it
+                -- would promise tasks the send will correctly skip.
+                local _, already = sp.tasksToSend(tasks, t.landed)
+                local landedKeys = {}
+                for _, k in ipairs(already) do
+                    landedKeys[sp.taskKey(k)] = (landedKeys[sp.taskKey(k)] or 0) + 1
+                end
                 L[#L + 1] = ""
                 L[#L + 1] = "   📝 " .. tostring(sp.titleOf(t)) .. " — "
                             .. #tasks .. " task(s)"
+                            .. (#already > 0 and ("  (" .. #already
+                                .. " already in Asana — not sent again)") or "")
                             .. (tostring(t.mark or "") == sp.sentMark
                                 and "  (already sent — this tab is skipped)" or "")
                 for i, k in ipairs(tasks) do
                     total = total + 1
+                    local kk = sp.taskKey(k)
+                    local done = (landedKeys[kk] or 0) > 0
+                    if done then landedKeys[kk] = landedKeys[kk] - 1 end
                     L[#L + 1] = ("      %d. %s"):format(i, k.title)
+                                .. (done and "   ✅ already in Asana — not sent again" or "")
+                    -- A task Asana already holds is named and nothing
+                    -- else: its dates and subtasks describe a send that
+                    -- is not going to happen (6.196.1 — "would send" and
+                    -- "already sent" must not read alike).
+                    if not done then
                     if k.assignee ~= "" then
                         L[#L + 1] = "         👤 " .. k.assignee
                     end
@@ -1360,6 +1534,7 @@ function M.setup(core)
                         L[#L + 1] = "         ↳ " .. #k.subs .. " subtask(s) sent "
                                     .. "under this task · a refused one does NOT "
                                     .. "fail the task (retrying would duplicate it)"
+                    end
                     end
                 end
                 for _, why in ipairs(problems) do
@@ -2139,6 +2314,32 @@ t.focus(); try { t.setSelectionRange(CARET, CARET); } catch(e){}
             end
             L[#L + 1] = "           " .. marked .. " tab(s) sent · " .. failed
                         .. " tab(s) failed and waiting to retry"
+            -- 🔁 6.305.0 — THE LEDGER THAT STOPS A RETRY DUPLICATING.
+            -- Counted here rather than claimed: a retry sends only what
+            -- is NOT in this list, so a number that is 0 on a tab that
+            -- has sent is the bug back.
+            local landedN, landedTabs = 0, 0
+            for _, t in ipairs(sp.tabs or {}) do
+                if type(t.landed) == "table" then
+                    local n = 0
+                    for _, r in pairs(t.landed) do
+                        n = n + (tonumber(type(r) == "table" and r.n or r) or 0)
+                    end
+                    if n > 0 then landedN, landedTabs = landedN + n, landedTabs + 1 end
+                end
+            end
+            L[#L + 1] = "   landed: " .. (landedN == 0
+                        and "nothing has reached Asana from a tab yet"
+                        or (landedN .. " task(s) across " .. landedTabs
+                            .. " tab(s) are remembered as already in Asana — a "
+                            .. "retry, and a tab you type in again, send only "
+                            .. "what has not landed"))
+            if (sp.landedEvicted or 0) > 0 then
+                L[#L + 1] = "   ⚠️ " .. sp.landedEvicted .. " remembered task(s) "
+                            .. "were forgotten this session (a tab passed "
+                            .. tostring(sp.landedMax) .. " keys) — those can be "
+                            .. "sent a second time if they are still in the tab"
+            end
             local ls = sp.lastTaskSend
             if ls then
                 L[#L + 1] = "   run   : " .. os.date("%b %d %H:%M", ls.at or 0)
@@ -2146,6 +2347,9 @@ t.focus(); try { t.setSelectionRange(CARET, CARET); } catch(e){}
                             .. tostring(ls.tabs) .. " tab(s) read · "
                             .. tostring(ls.sent) .. " task(s) sent · "
                             .. tostring(ls.failed) .. " refused"
+                            .. ((tonumber(ls.landed) or 0) > 0
+                                and (" · " .. ls.landed .. " skipped (already in Asana)")
+                                or "")
                 -- 📏 NAMED, NOT SWEPT (6.201.1): the day task also swept
                 -- rows closed today; this send does not, because a
                 -- closed row has no title to carry an answer back on.

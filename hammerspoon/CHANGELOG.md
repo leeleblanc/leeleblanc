@@ -6,6 +6,98 @@ older lives only here.
 
 ```text
 
+NEW IN 6.305.0 — 🔁 A RETRY MUST NOT RE-SEND WHAT ALREADY LANDED
+(modules/scratch_pad.lua):
+
+  LL's first unattended 16:00 run, pasted without comment in the
+  NONBREAKING block: `⚠️ Hamsidian 4 PM send: 1 of 122 task(s) did not
+  reach Asana (no team member matches "<a default assignee of 'me'") —
+  every word is still in the tab, marked ❌ Error: tasks not sent`.
+
+  🔎 READ THE OTHER NUMBER. One task was refused, which means ONE
+  HUNDRED AND TWENTY-ONE REACHED ASANA. The mark is per TAB, a ❌ tab
+  is retried, and the retry re-parses the tab WHOLE — so the next
+  16:00 would have posted those 121 a second time, the one after that
+  a third, compounding every day until he happened to notice and fix
+  the one bad line. His message was about a warning; the warning was
+  the smaller half of what it was telling us.
+
+  🚨 AND 6.301.0 WROTE THE RULE FOUR RELEASES AGO, in this same file,
+  about subtasks: "before deciding what a partial failure should
+  report, ask what a RETRY would do — an error that causes a duplicate
+  is worse than a warning that causes a correction." It was applied to
+  the subtask leg and not to the tab mark two hundred lines above it.
+  GENERAL, and it is the half worth carrying: A RULE WRITTEN ABOUT ONE
+  CALLER IS NOT A RULE UNTIL EVERY CALLER HAS BEEN ASKED — when a
+  release states a principle, grep the module for the other places
+  that decide the same thing.
+
+  🚨 AND THE ✅ SIDE HAD THE SAME HOLE WITH NO FAILURE INVOLVED, which
+  is the one that would have bitten him even if every task had landed:
+  typing in a tab clears its mark (sp.setText), and rightly — 6.300.0
+  chose that deliberately, because a ✅ tab that could never be sent
+  again would freeze his new writing out of the run. So editing ONE
+  character in a fully-sent tab re-armed every task in it. Two routes
+  to a duplicate, and both are closed by one mechanism.
+
+  🔑 THE MARK IS ABOUT THE TAB; THE RECORD IS ABOUT THE TASKS. That
+  separation is the whole design. Each task Asana ACCEPTS is now
+  remembered on its tab by a digest of WHAT IT SAYS — title,
+  description, assignee, dates, subtasks — never by its position
+  (6.186.0/6.272.0: an edit renumbers everything under his hand, so an
+  index forgets a different task than the one that landed). The
+  content key does double duty: an untouched line keeps its key and is
+  skipped, an EDITED line has a new key and is correctly read as new
+  work. Nothing of his text is changed and nothing is cleared, so
+  6.300.0's design is untouched.
+
+  🔢 COUNTED, NOT A SET. Two identical task lines in one tab are two
+  tasks; a set would send the pair once and then skip both for ever,
+  losing the second silently. The record holds HOW MANY of each key
+  landed and `sp.tasksToSend` is a multiset difference — PURE, so the
+  whole rule is proven with no Mac and no Asana. The fixture that
+  separates the two implementations is two identical tasks with one
+  landed (6.230.0: pick the input where right and wrong must differ).
+
+  🔔 RECORDED ON THE ANSWER, NEVER ON THE ASK. `asanaSubmitTask`
+  returns the moment the POST is fired (6.299.0), so recording there
+  would mark a REFUSED task as landed and it would never be retried —
+  the opposite failure, and a silent one. Its own check.
+
+  🔁 AND A TAB WITH NOTHING LEFT TO SEND IS DONE, NOT FAILED. His tab
+  today is ❌ over one bad line; once every task in it has landed it
+  wears the sent mark instead of being retried for ever over a line he
+  has since fixed or deleted.
+
+  🔒 THE KEY IS PURE ASCII HEX, and that is not tidiness. It becomes a
+  JSON object key, and a truncated slice of his own title could cut a
+  UTF-8 glyph in half and make the WHOLE store unencodable — 6.204.0's
+  rule about cutting in characters, in the one place where the answer
+  is to not carry his characters at all. `sp.digest` is FNV-1a with
+  the length mixed in; `sp.taskKey` walks the `when` table with
+  pairs() and SORTS it rather than reading fields by name, because a
+  field name I get wrong there is a field that silently stops counting.
+
+  📏 BOUNDED, AND THE BOUND IS A STATE (6.197.2). A tab edited for
+  months keeps keys for lines no longer in it, and an unbounded map
+  inside a store rewritten whole on every keystroke only grows. Past
+  `landedMax` (400) the OLDEST row goes — and the eviction is counted
+  and WARNED in the report, because a forgotten key is a task that can
+  be sent twice, which is the one thing this release exists to stop.
+
+  👁 ONE FUNCTION, TWO CALLERS (6.231.0): `_G.scratchPadTasks()` asks
+  the same selector the send asks, marks an already-landed task ✅ and
+  does not print its dates — "would send" and "already sent" must not
+  read alike (6.196.1).
+
+  📏 NAMED, NOT FIXED, because it is his call and not mine: 122 tasks
+  out of one day's tabs is a lot, and the grammar reads every bare
+  line as a task, so any prose he keeps in Hamsidian becomes Asana
+  tasks at 16:00. This release makes the run idempotent; whether that
+  run should be reading those tabs at all is a question in the verify
+  block, not a guess here.
+
+
 NEW IN 6.304.0 — 🚨 A GUARD THAT ONLY A SUCCESS CAN CLEAR IS A WEDGE
 (core/capabilities.lua):
 

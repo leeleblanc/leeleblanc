@@ -1,4 +1,4 @@
-# TESTING — how to score release 6.304.0
+# TESTING — how to score release 6.305.0
 
 You install ONE archive and it carries several releases. Below are the
 steps for each release this archive is new for, newest first. Run the
@@ -26,6 +26,94 @@ else is a LOSS and I fix it before building further. You are the only
 scorer; I never mark my own.
 
 ---
+
+## 6.305.0
+
+6.305.0 verify with LL — 🔁 A RETRY NO LONGER DUPLICATES (KNOWN GROUND)
+WHAT CHANGED: a task that reached Asana is remembered, so a retry —
+and a tab you type in again — sends only what did NOT land.
+🚨 WHY THIS JUMPED THE QUEUE, and please read this bit even if you
+skip the steps. Your 16:00 line said "1 of 122 task(s) did not reach
+Asana". The number that matters is the other one: **121 of them
+DID**. A tab with one refused task is marked ❌, a ❌ tab is retried,
+and the retry re-reads the whole tab — so tomorrow at 16:00 those
+121 would have gone to Asana a second time, and the day after a
+third, growing every day until you happened to fix the one bad line.
+I wrote the rule that forbids this four releases ago, for subtasks,
+and did not apply it to the tab two hundred lines above.
+🕒 IF YOU DO NOT INSTALL TONIGHT, one Console line stops tomorrow's
+run: `_G.scratchPad.sendTimer:stop()`. It lasts until the next
+reload, and `_G.scratchPadSend()` still sends by hand.
+
+A. THE HEADLINE — this is the whole test and it takes two minutes.
+A1. ⇪N, a fresh tab, three lines:
+      Alpha test one
+      Bravo test two
+      Charlie test three
+A2. Console: `_G.scratchPadTasks()`. EXPECT three tasks, none marked.
+A3. Send it ("→ Asana now"). EXPECT three tasks in Asana and the tab
+    retitled ✅ Success: tasks sent.
+A4. Click into the tab and add a fourth line: `Delta test four`.
+    EXPECT the ✅ disappears (typing clears the mark — that is right
+    and unchanged).
+A5. `_G.scratchPadTasks()` again.
+    EXPECT the first three each marked **✅ already in Asana — not
+    sent again**, and only Delta shown as a task that would go.
+A6. Send again.
+    EXPECT **ONE** new task in Asana — Delta. Not four.
+    **A FAIL here is four tasks**, and it is the bug this release
+    exists to fix. Tell me at once.
+A7. The alert should read "…1 task from 1 tab · 3 already in Asana,
+    not sent again".
+
+B. THE ONE THAT IS ACTUALLY YOUR CASE.
+B1. Make a tab with two good lines and one line Asana will refuse —
+    `A: notarealperson` under a `P:` task will do it.
+B2. Send. EXPECT the two good ones in Asana, the tab marked ❌.
+B3. Send again (or wait for 16:00).
+    EXPECT **only the bad one is retried**. The two that landed must
+    NOT appear in Asana a second time.
+B4. Fix the bad name and send once more. EXPECT one task, and the
+    tab goes ✅.
+
+C. IT HAS TO SURVIVE A RELOAD — the duplicate that would really have
+   bitten you is the one after Hammerspoon restarts.
+C1. After A6, reload Hammerspoon.
+C2. `_G.scratchPadTasks()`. EXPECT all four still marked ✅ already
+    in Asana.
+C3. Type a character in the tab (clearing the ✅) and send.
+    EXPECT **nothing is sent** — there is nothing new. A run that
+    posts four tasks here is the memory not reaching disk.
+
+D. PASTE BACK, PASS OR FAIL.
+D1. `_G.scratchPadReport()` — there is a new `landed:` line saying
+    how many tasks across how many tabs are remembered as already in
+    Asana. On your Mac after today that number should be large.
+D2. If it ever carries "⚠️ N remembered task(s) were forgotten this
+    session", paste it — that is the 400-per-tab bound biting, and
+    past it a duplicate becomes possible again.
+
+E. A JUDGEMENT ONLY YOU CAN MAKE — and this is the real question.
+E1. **Did you want 121 tasks on your Asana board today?** The
+    grammar reads every bare line as a task, and it sweeps every
+    open tab, so any prose you keep in Hamsidian became Asana tasks
+    at 16:00. I have NOT capped or narrowed that, deliberately — you
+    asked for one task per line and I am not going to quietly
+    un-decide it. Three answers, each a different next release:
+    · "yes, that is what I wanted" → nothing more to do.
+    · "no — only tabs I mark should send" → the send reads only tabs
+      that opt in (a marker line, or a tab title convention).
+    · "no — it should refuse a run that big and ask me first" → a
+      ceiling on the UNATTENDED 16:00 run only, with the button
+      still uncapped because you are watching it.
+E2. 📏 SAID RATHER THAN IMPLIED: the line that failed was
+    `A: <a default assignee of 'me'>`. That is prose, not a name,
+    and the guard did exactly the right thing — it refused it, kept
+    every word, and marked the tab. That part is not a bug. But it
+    does mean something in your tabs is being read as an assignee
+    when you meant it as text.
+
+
 
 ## 6.304.0
 
@@ -284,69 +372,6 @@ E1. **Was ⇪ working between that storm at 10:57 and your reload that
 E2. If you would rather not wait: press ⇪ a few times right after
     the next wake and see whether anything happens. That is the same
     answer in ten seconds.
-
-
-
-## 6.301.0
-
-6.301.0 verify with LL — 🗂 SUBTASKS (NEW GROUND — expect a round)
-WHAT CHANGED: an `S:` line is a real Asana subtask now, hanging under
-its own task.
-🪪 AND IT ANSWERS YOUR QUESTION WITH CODE. You asked whether the id in
-your project URL was the parent id. It is not — 745948257030523 is
-your PROJECT gid, and this config has posted every task to it since it
-was set up (it is already in init.lua, beside workspace
-182448385076670; neither had to change). A PARENT is a TASK, and its
-id is created at the moment the task is. So there is nothing for you
-to look up and nothing to paste.
-
-A. THE HEADLINE.
-A1. ⇪N, a new tab:
-      P: Generate a new init.lua feature
-      D: We need to structure a new Hammerspoon feature.
-      S: Structure tool request
-      S: Submit tool request
-      S: Begin coding today
-A2. `_G.scratchPadTasks()`. EXPECT the three ↳ lines, and under them
-    "3 subtask(s) sent under this task".
-A3. Send it. EXPECT in Asana: ONE task "Generate a new init.lua
-    feature" with THREE SUBTASKS under it — not four tasks side by
-    side, and not three tasks with no parent.
-A4. The alert should read something like "✅ Hamsidian → Asana: 1 task
-    from 1 tab · 3 subtasks".
-A5. The tab is retitled ✅ Success: tasks sent.
-
-B. THE ONE THAT PROTECTS YOUR BOARD — read this even if you skip it.
-B1. If a subtask is refused, the tab still goes ✅ and you get a
-    separate ⚠️ naming which subtask and which task it belonged to.
-B2. That is DELIBERATE and it is the one thing here I want you to
-    disagree with if you disagree: by then the parent task EXISTS in
-    Asana. Marking the tab ❌ would make the next send retry it — and
-    a retry creates a SECOND copy of the task on your board, silently,
-    every time. A missing line you are told about is recoverable; a
-    duplicating retry is not.
-B3. `_G.asanaSubmitReport()` — a new `subtasks: N sent · N refused`
-    line, with that reason spelled out under it.
-
-C. MUST STILL WORK.
-C1. A task with NO `S:` lines behaves exactly as it did in 6.300.0.
-C2. ⇪T still creates a single task (it does not send subtasks — the
-    form has no field for them).
-C3. ⇪A, the pipe chooser, unchanged.
-
-D. PASTE BACK, PASS OR FAIL.
-D1. `_G.asanaSubmitReport()` and `_G.scratchPadReport()` after a real
-    day of use.
-
-E. A JUDGEMENT ONLY YOU CAN MAKE.
-E1. A subtask is given only its name — no assignee, no dates, no
-    description. Do you want `A:` and `T:` to flow down to the
-    subtasks as well, or should they stay the parent's alone? I made
-    them the parent's, because a subtask inheriting a due date you
-    only meant for the task is noise on your board.
-E2. Subtasks are filed under the parent only, NOT added to your
-    project separately. That is why they do not appear as their own
-    rows in the project list. Say if you want them listed there too.
 
 
 
