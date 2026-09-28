@@ -6,6 +6,102 @@ older lives only here.
 
 ```text
 
+NEW IN 6.306.0 — 🚪 A DRAG ENDS WHEREVER THE BUTTON COMES UP
+(core/coexist.lua, lifted out of init.lua):
+
+  LL, twice, eleven releases apart, in almost the same words. 6.138.0:
+  "Seems like a drag kills the sheet functionality." Tonight: "just
+  because I can launch the cheat sheet doesn't mean it is functional",
+  sent beside "when I move the cheat sheet, I am jumped to another
+  desktop". He also said "Review your code. We have solved this issue
+  or a similar one." He was right on both counts — it had been solved,
+  twice, in two other places, and never here.
+
+  🔎 BOTH SENTENCES ARE ONE MECHANISM, read out of the source rather
+  than guessed. `_G.makeCanvasDraggable` has dragged four panels since
+  6.67.0 — the cheat sheet, the key caster, the pomodoro and the Mac
+  panel. It had FOUR ways to end a drag and called `onDrop` from
+  exactly ONE of them:
+
+      the tap's leftMouseUp .......... called onDrop
+      the canvas's own mouseUp ....... silent
+      the 20-second watchdog ......... silent
+      superseded by the next drag .... silent
+
+  And `onDrop` is not bookkeeping. It is what moves the cheat sheet's
+  WHEEL HIT BOX — the entirety of 6.138.0's fix — and what saves the
+  panel's position. The panel has ALREADY been moved by the time any
+  exit runs, so a silent exit leaves it physically somewhere new with
+  every record of where it is still pointing at the old spot: the wheel
+  dead over the sheet, still swallowed over the bare desk it used to
+  cover, and the next open back in the wrong place. 6.138.0 wrote the
+  update and put it behind the one door that can fail to open.
+
+  🖥 AND THE DESKTOP JUMP IS WHAT MAKES THAT DOOR FAIL. The drag tap
+  returns false on purpose — it observes, it never swallows, because
+  the button belongs to the person and eating it would cost every app
+  underneath. So macOS sees the drag too, and reads a three-finger one
+  as a swipe between Spaces. A Space switch is exactly the kind of
+  transition macOS switches event taps off across (6.303.0 found that
+  about the F18 tap), so the mouseUp never arrives and the watchdog
+  takes the drag twenty seconds later, silently. His two sentences are
+  cause and effect, not two bugs. THE JUMP ITSELF IS NOT FIXED HERE
+  and is named rather than quietly folded in: it is macOS's gesture,
+  and the only lever on our side is to start swallowing the drag,
+  which has its own cost and is his call. What changes is that it no
+  longer costs him the panel.
+
+  🧊 6.222.0 SOLVED THIS, FOR A PAGE. Its durable rule: "a drag ends
+  when the button comes up, WHEREVER that happens — listen for the
+  release, and ALSO treat moving with nothing held as the release."
+  That was written for the screenshot editor's own JavaScript, where a
+  mouseup outside the window is never delivered. The identical hole in
+  the Lua engine that drags four panels was never looked at. This is
+  6.305.0's rule from one release ago, paid a second time: A RULE
+  WRITTEN ABOUT ONE CALLER IS NOT A RULE UNTIL EVERY CALLER HAS BEEN
+  ASKED. And window_move already had the right shape sitting beside it
+  — `wm.endDrag` is one exit and runs `endFn` from every path,
+  watchdog included.
+
+  🚪 THE FIX IS ONE EXIT, AND THE DELIVERY LIVES INSIDE IT. `dragStop`
+  itself calls `onDrop`, so every existing exit is fixed at once and an
+  exit added later cannot forget — the shape 6.299.0 named (one door,
+  and through it exactly once). The frame is read AT THE EXIT, never
+  from the caller's copy: the panel moved, and where it ENDED is the
+  only useful answer. Plus the missing release: a `mouseMoved` arriving
+  mid-drag IS the button coming up somewhere we were not told about,
+  because macOS sends leftMouseDragged while it is held and mouseMoved
+  when it is not.
+
+  🔬 `checkMouseButtons` IS A VETO, NOT AN ORACLE, and that direction
+  is load-bearing. window_move 6.156.0 paid for trusting it the other
+  way: a consumed mouse-down never updates the session's button state,
+  so it reads as "released" on the first tick and kills a drag before
+  it moves anything. Believed only when it positively says "still
+  down", it is safe both ways — stale-as-released ends the drag
+  correctly, stale-as-held is no worse than the behaviour replaced.
+
+  📏 MOVED OUT OF init.lua, which was at its 3,800-line budget (3,795).
+  6.285.0 moved `_G.hyperEndVerdict` for the same reason, and this one
+  belongs in core/coexist.lua on its merits too: that file answers "two
+  features want the same resource, who gets it?", the pointer is a
+  fifth such resource, and init.lua's own file map has filed "draggable
+  panels" beside coexist since §1.6 was written. init.lua 3,795 →
+  3,725. COST, NAMED: a coexist that fails to load leaves panels
+  undraggable — every caller already guards, so that is a panel you
+  cannot move, never a panel that breaks.
+
+  🧪 THE ENGINE HAD NO SUITE AND NO REPORT, which is the whole reason
+  this survived two reports and eleven releases. tests/test_panel_drag
+  loads core/coexist.lua the way init.lua does and drives all four
+  exits plus the new one; `_G.dragReport()` names the live drag, the
+  deliveries, and how the last drag ENDED — the question the release
+  turned on. 35 checks, and the sweep found a real one: a `delivered`
+  flag written into the fix was UNKILLABLE, because `_G.dragging` is
+  nil'd before onDrop runs and no second call can reach it. Removed
+  rather than left as a guard no test can fail — 6.199.0, fifth time.
+  8 mutations, 8 bites after that.
+
 NEW IN 6.305.0 — 🔁 A RETRY MUST NOT RE-SEND WHAT ALREADY LANDED
 (modules/scratch_pad.lua):
 

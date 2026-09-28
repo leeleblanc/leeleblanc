@@ -1282,6 +1282,68 @@ work Mac.
   taken out again — close() does it on every path that reaches there
   (6.199.0, fourth time).
 
+- 🚪 A DRAG ENDS WHEREVER THE BUTTON COMES UP, AND EVERY EXIT OWES THE
+  CALLER ITS ANSWER (6.306.0, core/coexist.lua — LL, twice, eleven
+  releases apart: "Seems like a drag kills the sheet functionality"
+  (6.138.0) and "just because I can launch the cheat sheet doesn't mean
+  it is functional", beside "when I move the cheat sheet, I am jumped to
+  another desktop"). His third sentence is the one that found it:
+  "Review your code. We have solved this issue or a similar one."
+  🔎 BOTH REPORTS ARE ONE MECHANISM. `_G.makeCanvasDraggable` has dragged
+  four panels since 6.67.0 and had FOUR exits, calling `onDrop` from
+  exactly ONE — the tap's leftMouseUp. The canvas's own mouseUp, the 20 s
+  watchdog and the supersede all tore the drag down SILENTLY. And onDrop
+  is not bookkeeping: it moves the cheat sheet's WHEEL HIT BOX (6.138.0's
+  entire fix) and saves the position. THE PANEL HAS ALREADY MOVED by the
+  time any exit runs, so a silent exit leaves it physically elsewhere with
+  every record of it stale — the wheel dead over the sheet, still
+  swallowed over the bare desk it used to cover, the next open in the
+  wrong place. 6.138.0 wrote the update and put it behind the one door
+  that can fail to open.
+  🖥 AND THE DESKTOP JUMP IS WHAT OPENS THAT FAILURE. The tap returns
+  false on purpose — it observes, never swallows, because the button is
+  the person's — so macOS sees the drag too and reads a three-finger one
+  as a Space swipe. A Space switch is exactly the transition macOS
+  disables event taps across (6.303.0 found that about the F18 tap), so
+  the mouseUp never arrives. Cause and effect, not two bugs. THE JUMP IS
+  NAMED, NOT FIXED: it is macOS's gesture and the only lever here is to
+  start swallowing the drag, which costs every app underneath and is his
+  call.
+  🧊 6.222.0 SOLVED THIS FOR A PAGE AND NOBODY ASKED THE ENGINE. Its rule
+  — "listen for the release, and ALSO treat moving with nothing held as
+  the release" — was written for the screenshot editor's JS. 6.305.0's
+  rule one release later, paid again: A RULE WRITTEN ABOUT ONE CALLER IS
+  NOT A RULE UNTIL EVERY CALLER HAS BEEN ASKED. And window_move already
+  had the right shape beside it: `wm.endDrag` is one exit and runs endFn
+  from every path, watchdog included. GENERAL: when a helper hands
+  control out and the world can end the interaction somewhere it cannot
+  see, grep its exits and count how many tell the caller.
+  🚪 ONE EXIT, AND THE DELIVERY LIVES INSIDE IT — `dragStop` itself calls
+  onDrop, so every existing exit is fixed at once and one added later
+  cannot forget (6.299.0's shape). The frame is read AT THE EXIT, never
+  from the caller's copy.
+  🔬 `checkMouseButtons` IS A VETO, NOT AN ORACLE, and the direction is
+  load-bearing: window_move 6.156.0 paid for trusting it the other way,
+  where a CONSUMED press never updates the session's button state and
+  reads as "released" on the first tick, killing a drag before it moves.
+  Believed only when it positively says "still down", it is safe both
+  ways.
+  📏 MOVED OUT OF init.lua at its 3,800-line budget (3,795 → 3,725),
+  6.285.0's precedent — and it belongs in coexist on its merits: that
+  file answers "two features want the same resource, who gets it?", the
+  POINTER is a fifth such resource, and init.lua's file map has filed
+  draggable panels beside coexist since §1.6 was written. COST: a coexist
+  that fails to load leaves panels undraggable; every caller guards, so
+  that is a panel you cannot move, never one that breaks.
+  🧪 THE ENGINE HAD NO SUITE AND NO REPORT, which is exactly why it
+  survived two reports and eleven releases — 6.196.1 in the oldest shared
+  helper in the config. tests/test_panel_drag drives all four exits plus
+  the new one; `_G.dragReport()` names how the last drag ENDED. The sweep
+  found a real one: a `delivered` flag in the fix was UNKILLABLE, because
+  `_G.dragging` is nil'd before onDrop runs and nothing can reach the
+  second call it guarded — removed rather than left as a guard no test
+  can fail (6.199.0, FIFTH time). 8 mutations, 8 bites after that.
+
 - 🗂 A PARTIAL DIRECTORY IN A DELIVERED ARCHIVE DESTROYS THAT
   DIRECTORY (6.305.0 delivery, LL's 16:41 boot log, minutes after
   installing the 6.304.0 patch: twelve of his thirteen `core/*.lua`
@@ -3948,6 +4010,7 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
+| 6.306.0 | 🚪 a drag that ends anywhere but on the panel no longer leaves the cheat sheet moved with its scroll hit box at the old spot — three of the engine's four exits never told the panel it had moved | pending |
 | 6.305.0 | 🔁 a retry no longer re-sends what already reached Asana — 121 of his 122 tasks landed, the tab was marked ❌, and tomorrow's 16:00 would have posted all 121 again | pending |
 | 6.304.0 | 🚨 the Secure Input probe can no longer wedge — one ioreg that never answered shut the last of 6.303.0's three candidates down for the whole session, and `secure: not known` was the only thing it could ever say | pending |
 | 6.303.0 | 🔬 two seconds after every wake, the three things that can kill ⇪ silently are asked — the hidutil remap, the event tap and Secure Input — and a remap that has GONE is put back | pending |
@@ -4915,6 +4978,95 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.306.0 verify with LL — 🚪 A DRAG NO LONGER KILLS THE PANEL (KNOWN GROUND)
+  WHAT CHANGED: when you drag the cheat sheet — or the pomodoro, the key
+  caster, the Mac panel — the panel now always tells itself where it
+  ended up, however the drag finished.
+  🔎 YOU HAVE REPORTED THIS TWICE, and you were right both times. In
+  6.138.0 your words were "Seems like a drag kills the sheet
+  functionality"; this time, "just because I can launch the cheat sheet
+  doesn't mean it is functional". And "we have solved this issue or a
+  similar one" is what found it — we had, twice, in two other places,
+  and never in the engine that drags your panels.
+  🚨 THE CAUSE, in one paragraph. That engine had four ways a drag can
+  end and only ONE of them told the panel: the mouse-up that our own
+  watcher sees. The other three — releasing with the pointer still on
+  the panel, our twenty-second safety timer, and starting a second drag
+  — moved the panel and said nothing. And the thing they were not
+  saying is what moves the cheat sheet's SCROLL HIT BOX and saves its
+  position. So the sheet ended up somewhere new while everything that
+  needed to know where it was still pointed at the old spot: the wheel
+  dead over the sheet, still swallowed over the empty desk it used to
+  cover, and the next ⇪/ back in the wrong place.
+  🖥 AND YOUR DESKTOP JUMP IS THE CAUSE, NOT A SECOND BUG. Our watcher
+  deliberately does not swallow your drag — the button is yours, and
+  eating it would cost every app underneath. So macOS sees the drag too
+  and reads a three-finger one as a swipe between Spaces; a Space switch
+  is exactly when macOS switches watchers like ours off, so the mouse-up
+  never reaches us. Both your sentences, one mechanism.
+
+  A. THE HEADLINE — two minutes, and it is the whole test.
+  A1. ⇪/ to open the cheat sheet. Drag it somewhere new and let go with
+      the pointer STILL OVER the sheet.
+  A2. Two-finger scroll over the sheet where it is NOW.
+      EXPECT: it scrolls. **A FAIL here is the bug** — on every build
+      before this one that release told the sheet nothing.
+  A3. Scroll over the empty desk where the sheet USED to be.
+      EXPECT: whatever is under there scrolls normally. The sheet must
+      not still be eating the wheel at its old spot.
+  A4. Esc, then ⇪/ again.
+      EXPECT: the sheet opens WHERE YOU PUT IT.
+  A5. Type a few letters to filter, then scroll again. EXPECT: still
+      scrolls — the sheet redraws on every keystroke, which is where a
+      stale position used to come back.
+
+  B. THE DESKTOP JUMP — worth doing even though it is not fixed.
+  B1. Drag the sheet with THREE FINGERS (if three-finger drag is on).
+      If you get thrown to another desktop, come back and do A2–A4.
+      EXPECT: the sheet still scrolls and still reopens where you left
+      it. The jump may still happen; it must no longer cost you the
+      panel.
+  B2. Then drag it by physically clicking and holding ONE finger.
+      **Tell me whether that one jumps too.** That single answer decides
+      whether the jump is macOS's gesture (one finger will not jump) or
+      something of ours (it will), and it is the only thing I cannot
+      determine from here.
+
+  C. MUST STILL WORK — three other panels use the same engine.
+  C1. ⇪⇧P the pomodoro: drag it, close it, reopen. It is where you left
+      it.
+  C2. ⇪⇧K the key caster (if you use it) and the Mac panel: same.
+  C3. ⇪⇧pad. the music card: drag its title strip. Unchanged — it moves
+      on a different mechanism and this release must not have touched it.
+  C4. A click on the cheat sheet still does not close it.
+
+  D. PASTE BACK, PASS OR FAIL.
+  D1. `_G.dragReport()` — new; this engine has never had one, which is
+      most of why it survived two of your reports. After a drag it should
+      read `drops : 1 delivered to the panel that moved` and a `last :`
+      line naming the panel and HOW the drag ended. That "how" is the
+      whole release: `mouseUp` is the ordinary one, `the button came up
+      elsewhere` is the new rule catching a release we never saw, and
+      `watchdog` means the mouse-up went missing entirely — which is the
+      desktop-jump case and the one I most want to see.
+  D2. If it ever carries `⚠️ N drag(s) ended with a canvas that could not
+      answer its own frame`, paste it — that is a panel that moved and
+      could not be recorded, and it is a different fault.
+
+  E. A JUDGEMENT ONLY YOU CAN MAKE.
+  E1. I can stop the desktop jump by making the drag SWALLOW your mouse
+      events while a panel is being dragged. I have NOT done it: it would
+      mean every app underneath stops seeing that drag, and this engine
+      has deliberately never done that since 6.67.0. Say the word if you
+      want it and it is a small release — but it is your call, not a
+      default I should change quietly.
+  E2. 📏 SAID RATHER THAN IMPLIED: this release moved the drag engine out
+      of init.lua into core/coexist.lua, because init.lua was one line
+      under its size limit. Nothing about it behaves differently. If
+      panels ever stop being draggable ENTIRELY, that is coexist failing
+      to load and the boot log will say so — that would be a real
+      finding.
+
 - 6.305.0 verify with LL — 🔁 A RETRY NO LONGER DUPLICATES (KNOWN GROUND)
   WHAT CHANGED: a task that reached Asana is remembered, so a retry —
   and a tab you type in again — sends only what did NOT land.

@@ -1,4 +1,4 @@
-# TESTING — how to score release 6.305.0
+# TESTING — how to score release 6.306.0
 
 You install ONE archive and it carries several releases. Below are the
 steps for each release this archive is new for, newest first. Run the
@@ -26,6 +26,99 @@ else is a LOSS and I fix it before building further. You are the only
 scorer; I never mark my own.
 
 ---
+
+## 6.306.0
+
+6.306.0 verify with LL — 🚪 A DRAG NO LONGER KILLS THE PANEL (KNOWN GROUND)
+WHAT CHANGED: when you drag the cheat sheet — or the pomodoro, the key
+caster, the Mac panel — the panel now always tells itself where it
+ended up, however the drag finished.
+🔎 YOU HAVE REPORTED THIS TWICE, and you were right both times. In
+6.138.0 your words were "Seems like a drag kills the sheet
+functionality"; this time, "just because I can launch the cheat sheet
+doesn't mean it is functional". And "we have solved this issue or a
+similar one" is what found it — we had, twice, in two other places,
+and never in the engine that drags your panels.
+🚨 THE CAUSE, in one paragraph. That engine had four ways a drag can
+end and only ONE of them told the panel: the mouse-up that our own
+watcher sees. The other three — releasing with the pointer still on
+the panel, our twenty-second safety timer, and starting a second drag
+— moved the panel and said nothing. And the thing they were not
+saying is what moves the cheat sheet's SCROLL HIT BOX and saves its
+position. So the sheet ended up somewhere new while everything that
+needed to know where it was still pointed at the old spot: the wheel
+dead over the sheet, still swallowed over the empty desk it used to
+cover, and the next ⇪/ back in the wrong place.
+🖥 AND YOUR DESKTOP JUMP IS THE CAUSE, NOT A SECOND BUG. Our watcher
+deliberately does not swallow your drag — the button is yours, and
+eating it would cost every app underneath. So macOS sees the drag too
+and reads a three-finger one as a swipe between Spaces; a Space switch
+is exactly when macOS switches watchers like ours off, so the mouse-up
+never reaches us. Both your sentences, one mechanism.
+
+A. THE HEADLINE — two minutes, and it is the whole test.
+A1. ⇪/ to open the cheat sheet. Drag it somewhere new and let go with
+    the pointer STILL OVER the sheet.
+A2. Two-finger scroll over the sheet where it is NOW.
+    EXPECT: it scrolls. **A FAIL here is the bug** — on every build
+    before this one that release told the sheet nothing.
+A3. Scroll over the empty desk where the sheet USED to be.
+    EXPECT: whatever is under there scrolls normally. The sheet must
+    not still be eating the wheel at its old spot.
+A4. Esc, then ⇪/ again.
+    EXPECT: the sheet opens WHERE YOU PUT IT.
+A5. Type a few letters to filter, then scroll again. EXPECT: still
+    scrolls — the sheet redraws on every keystroke, which is where a
+    stale position used to come back.
+
+B. THE DESKTOP JUMP — worth doing even though it is not fixed.
+B1. Drag the sheet with THREE FINGERS (if three-finger drag is on).
+    If you get thrown to another desktop, come back and do A2–A4.
+    EXPECT: the sheet still scrolls and still reopens where you left
+    it. The jump may still happen; it must no longer cost you the
+    panel.
+B2. Then drag it by physically clicking and holding ONE finger.
+    **Tell me whether that one jumps too.** That single answer decides
+    whether the jump is macOS's gesture (one finger will not jump) or
+    something of ours (it will), and it is the only thing I cannot
+    determine from here.
+
+C. MUST STILL WORK — three other panels use the same engine.
+C1. ⇪⇧P the pomodoro: drag it, close it, reopen. It is where you left
+    it.
+C2. ⇪⇧K the key caster (if you use it) and the Mac panel: same.
+C3. ⇪⇧pad. the music card: drag its title strip. Unchanged — it moves
+    on a different mechanism and this release must not have touched it.
+C4. A click on the cheat sheet still does not close it.
+
+D. PASTE BACK, PASS OR FAIL.
+D1. `_G.dragReport()` — new; this engine has never had one, which is
+    most of why it survived two of your reports. After a drag it should
+    read `drops : 1 delivered to the panel that moved` and a `last :`
+    line naming the panel and HOW the drag ended. That "how" is the
+    whole release: `mouseUp` is the ordinary one, `the button came up
+    elsewhere` is the new rule catching a release we never saw, and
+    `watchdog` means the mouse-up went missing entirely — which is the
+    desktop-jump case and the one I most want to see.
+D2. If it ever carries `⚠️ N drag(s) ended with a canvas that could not
+    answer its own frame`, paste it — that is a panel that moved and
+    could not be recorded, and it is a different fault.
+
+E. A JUDGEMENT ONLY YOU CAN MAKE.
+E1. I can stop the desktop jump by making the drag SWALLOW your mouse
+    events while a panel is being dragged. I have NOT done it: it would
+    mean every app underneath stops seeing that drag, and this engine
+    has deliberately never done that since 6.67.0. Say the word if you
+    want it and it is a small release — but it is your call, not a
+    default I should change quietly.
+E2. 📏 SAID RATHER THAN IMPLIED: this release moved the drag engine out
+    of init.lua into core/coexist.lua, because init.lua was one line
+    under its size limit. Nothing about it behaves differently. If
+    panels ever stop being draggable ENTIRELY, that is coexist failing
+    to load and the boot log will say so — that would be a real
+    finding.
+
+
 
 ## 6.305.0
 
@@ -285,93 +378,6 @@ E2. 📏 SAID RATHER THAN HIDDEN: if the probe finds the event tap
     decision it made for a reason. If your report ever shows that
     row, the next release decides what to do about it with evidence
     instead of a guess.
-
-
-
-## 6.302.0
-
-6.302.0 verify with LL — 🌅 A WAKE IS SEEN (NEW GROUND — expect a round)
-WHAT CHANGED: this config now knows when your Mac wakes up. Nothing
-here had ever watched the wake side — the one sleep/wake watcher in
-seventy-one modules listens for the screen LOCKING. And a ⇪ hold
-still open across a wake is let go.
-🚨 AND IT IS NOT THE ANSWER TO YOUR STORM. I am saying that first
-because the message I sent you implied it was, and the report you
-sent me says otherwise. Your hold was 10.5 seconds old. That clock
-starts on a FRESH Caps Lock press, so the hold began AFTER the car
-journey, not across it — the first ⇪ press once you opened the lid
-never ended. A watcher firing as the lid opens would have found ⇪ up
-and done nothing, and your storm would have happened exactly as it
-did. The wake is still the setting; this release is not the fix, and
-6.303.0 is the probe aimed at it.
-🔎 ONE THING IN THAT REPORT THAT IS NOT A SECOND FAULT, so you do not
-read it as one: `0 watchdog release(s)`. The 8-second watchdog cannot
-end a latch while keys keep arriving — every key you press proves the
-hold is real and pushes its deadline out, by design — and a person
-fighting a dead keyboard never stops pressing keys. That is exactly
-the hole the storm guard was built to cover, and it covered it:
-released at 10.5 s, wrote the file, announced it at the next boot.
-
-A. THE HEADLINE — and it is quiet, which is the point.
-A1. Install and reload. Console: `_G.hyperKeyReport()`.
-    EXPECT a new line: `wake     : 0 wake(s) seen, none found ⇪ held.`
-    A ⚠️ on that line instead means this Mac would not give us a
-    sleep/wake watcher — paste it, that is a real finding.
-A2. Close the lid. Wait thirty seconds. Open it, log back in.
-A3. `_G.hyperKeyReport()` again.
-    EXPECT the wake count to have gone UP — 1, 2 or 3 depending on
-    whether macOS sent one event or several. Any number above 0 is a
-    pass. **0 IS THE FAIL**, and it is the one I most want to hear
-    about, because everything in 6.303.0 hangs off this working.
-A4. Note that number and tell me what it is. I genuinely do not know
-    whether your Mac sends one wake event or three, and it decides
-    how 6.303.0 reads its own measurements.
-
-B. THE RELEASE ITSELF — only if you want to see it fire.
-B1. Hold Caps Lock down and, while still holding it, close the lid.
-    Wait ten seconds, open it, log back in.
-B2. `_G.hyperKeyReport()`.
-    EXPECT `N wake(s) seen · 1 found ⇪ STILL HELD and let it go`,
-    and the line says it is NOT a latch.
-B3. Console, scroll back: one line reading "⇪ let go on
-    systemDidWake … nobody holds ⇪ through a sleep". No alert on
-    screen — deliberately. If you got an alert, tell me: waking your
-    Mac should never pop a message at you.
-B4. `latch    : 0` on that same report. That number is the one the
-    storm report prints as a fault, and a wake release must never
-    touch it — otherwise it climbs every morning on a healthy Mac
-    and stops meaning anything.
-
-C. MUST STILL WORK — this is the ⇪ key, so this is the important half.
-C1. Use ⇪ normally for a day: ⇪T, ⇪D, ⇪N, ⇪3, ⇪X, ⇪4, ⇪space.
-    EXPECT no change of any kind.
-C2. Hold ⇪ for ten seconds without pressing anything, then let go.
-    EXPECT the old `released by the watchdog — held 8s` line. That
-    warning must keep its teeth.
-C3. Open the music card (⇪⇧pad.) — its one-off "took the keyboard"
-    line still appears, and `handover` still counts.
-C4. `_G.stormReport()` — it must PRINT, not throw (6.282.0), and its
-    `before :` line now carries a wake count and the watcher's state.
-
-D. PASTE BACK, PASS OR FAIL.
-D1. `_G.hyperKeyReport()` after a few days of ordinary lid-opening.
-D2. `_G.stormReport()` if another storm happens. The `before :` line
-    is now the fingerprint for this too.
-
-E. THE ONE SENTENCE I NEED, AND IT IS WORTH MORE THAN ANY PROBE.
-E1. **Was ⇪ working between that storm at 10:57 and your reload that
-    evening?** Two answers, two different bugs:
-    · ⇪ was DEAD until you reloaded → the Caps Lock → F18 remap is
-      being lost when the Mac wakes. That is bigger than the storm:
-      it means ⇪ stops existing after every car journey until
-      Hammerspoon restarts. 6.303.0 becomes a repair.
-    · ⇪ went on working → the remap survived, and the keyUp was
-      eaten by something else (the event tap being switched off
-      across the transition, or macOS's Secure Input during the lock
-      screen). 6.303.0 stays a probe that tells those two apart.
-E2. If you would rather not wait: press ⇪ a few times right after
-    the next wake and see whether anything happens. That is the same
-    answer in ten seconds.
 
 
 

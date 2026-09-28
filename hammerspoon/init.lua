@@ -2,10 +2,30 @@
 -- * Working VERSION *
 -- =====================================================================
 -- =====================================================================
--- 09-27-26 using Claude          ← EDITED date. Bumped with every release.
+-- 09-28-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.305.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.306.0
 -- =====================================================================
+
+-- NEW IN 6.306.0 — 🚪 A DRAG ENDS WHEREVER THE BUTTON COMES UP
+--   (core/coexist.lua). LL, for the SECOND time in eleven releases:
+--   "just because I can launch the cheat sheet doesn't mean it is
+--   functional", beside "when I move the cheat sheet, I am jumped to
+--   another desktop". 🔎 BOTH SENTENCES ARE ONE MECHANISM. The panel
+--   drag engine had FOUR exits and called onDrop from ONE — the tap's
+--   leftMouseUp. The canvas's own mouseUp, the 20 s watchdog and the
+--   supersede were silent. onDrop is what moves the cheat sheet's
+--   WHEEL HIT BOX (6.138.0's whole fix, behind the one door that can
+--   fail to open) and saves the spot, so a drag whose mouseUp was
+--   missed left the panel moved with every record of it stale. 🖥 And
+--   the jump is what MISSES it: the tap observes without swallowing,
+--   so macOS reads a three-finger drag as a Space swipe, and a Space
+--   switch is a transition macOS disables taps across (6.303.0).
+--   🧊 6.222.0 wrote the rule — "moving with nothing held IS the
+--   release" — for the editor's PAGE and never asked it of the engine
+--   that drags four panels (6.305.0's rule, one release on).
+--   🚪 ONE EXIT NOW, inside dragStop itself, so an exit added later
+--   cannot forget. Moved out of init.lua at its 3,800-line budget.
 
 -- NEW IN 6.305.0 — 🔁 A RETRY MUST NOT RE-SEND WHAT ALREADY LANDED
 --   (modules/scratch_pad.lua). His first unattended 16:00 run: "1 of
@@ -21,23 +41,11 @@
 --   remembered on its tab by a digest of what it SAYS, never its
 --   position: an untouched line is skipped, an EDITED one is new work.
 
--- NEW IN 6.304.0 — 🚨 THE SECURE INPUT PROBE CAN NO LONGER WEDGE
---   (core/capabilities.lua). His `started 1 · checks 0`, nine ticks
---   of a 60 s timer after boot: siBusy lets one ioreg run at a time
---   and was cleared ONLY in finish(), reachable only from a task
---   callback — so the first probe that could not finish shut the
---   feature down for the session, silently. 🔬 hs.task:start()
---   REFUSES BY RETURNING FALSE (libtask.m, task_launch), so the
---   pcall succeeded and `fails` stayed 0 — 6.265.0, MISSING is not
---   REFUSING. The return is read now, a BELT ends a probe that never
---   answers, and refused · never-answered · no-belt are counted
---   APART. 🚨 A failed probe no longer publishes a confident "off".
-
--- (6.303.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.304.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 cut the inline count to
 --  TWO; a gate check proves every entry here is also in CHANGELOG.md.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.305.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.306.0
 -- =====================================================================
 -- The catalogue that used to sit here moved to GUIDE.md ("What each
 -- tool does") in 6.180.0 — 259 lines of prose inside the orchestrator.
@@ -130,7 +138,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.305.0"
+_G.configVersion = "6.306.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the
@@ -1397,91 +1405,13 @@ if _G.rawAlertShow then hs.alert.show = function(...)
 end end -- alert wrap (6.88.0, sweep-and-retry 6.100.1, counted 6.274.0)
 
 -- =====================================================================
--- 🖐 DRAGGABLE CANVAS PANELS (6.67.0)
+-- 🖐 DRAGGABLE CANVAS PANELS (6.67.0) → core/coexist.lua (6.306.0)
 -- =====================================================================
--- An hs.canvas has no title bar, so dragging is built once for every
--- panel: the press is caught on the canvas and the DRAG is followed by a
--- global eventtap (a canvas only reports movement while the pointer is
--- inside it, and a fast drag leaves it).
--- ⚠️ AN EVENTTAP IS THE MOST DANGEROUS OBJECT IN THIS CONFIG, so:
---   · it starts on mouseDown and stops on mouseUp;
---   · a WATCHDOG stops it after dragMaxSecs no matter what, because a
---     mouseUp delivered to another process is a mouseUp we never see;
---   · it returns false — it observes the drag, it does not swallow it;
---   · only ONE drag can be live at a time.
--- ⚖️ THE COST: a panel that can be grabbed CAPTURES CLICKS; the cheat
--- sheet no longer lets clicks fall through. Asked for, and accepted.
-_G.dragMaxSecs = 20
-_G.dragTap, _G.dragGuard, _G.dragging = nil, nil, nil
-
-local function dragStop(why)
-    if _G.dragTap   then pcall(function() _G.dragTap:stop()   end) end
-    if _G.dragGuard then pcall(function() _G.dragGuard:stop() end) end
-    _G.dragTap, _G.dragGuard, _G.dragging = nil, nil, nil
-    if why and _G.diag then _G.diag.say("drag", "ended (" .. why .. ")") end
-end
-_G.dragStop = dragStop
-
--- onDrop(frame) is called when the drag finishes, so a caller can
--- REMEMBER where you put the panel. Without it a dragged panel snaps
--- back to its computed position the next time it is drawn — and the cheat
--- sheet redraws on every keystroke you type into it.
-function _G.makeCanvasDraggable(canvas, label, onDrop)
-    if not canvas then return false end
-    local okEv = pcall(function() canvas:canvasMouseEvents(true, true, false, false) end)
-    if not okEv then return false end
-    local okCb = pcall(function()
-        canvas:mouseCallback(function(cv, ev)
-            if ev ~= "mouseDown" then
-                if ev == "mouseUp" then dragStop("mouseUp on the panel") end
-                return
-            end
-            dragStop(nil)                       -- never two at once
-            local okM, m0 = pcall(hs.mouse.absolutePosition)
-            local okF, f0 = pcall(function() return cv:frame() end)
-            if not (okM and m0 and okF and f0) then return end
-            _G.dragging = { canvas = cv, m0 = m0, f0 = f0, label = label }
-
-            -- 🚨 WATCHDOG FIRST, THEN THE TAP — the same ordering the
-            -- Mouse Grid and the pomodoro use. Armed before the thing it
-            -- protects exists, so a throw in between cannot leave a
-            -- global mouse tap running with nothing scheduled to stop it.
-            _G.dragGuard = hs.timer.doAfter(_G.dragMaxSecs, function()
-                dragStop("watchdog — no mouseUp arrived")
-            end)
-
-            local okTap, tap = pcall(hs.eventtap.new, {
-                hs.eventtap.event.types.leftMouseDragged,
-                hs.eventtap.event.types.leftMouseUp,
-            }, function(e)
-                local d = _G.dragging
-                if not d then return false end
-                local t = e:getType()
-                if t == hs.eventtap.event.types.leftMouseUp then
-                    local f
-                    pcall(function() f = d.canvas:frame() end)
-                    dragStop("mouseUp")
-                    if f and onDrop then pcall(onDrop, f) end
-                    return false
-                end
-                local okNow, m = pcall(hs.mouse.absolutePosition)
-                if not (okNow and m) then return false end
-                pcall(function()
-                    d.canvas:topLeft({ x = d.f0.x + (m.x - d.m0.x),
-                                       y = d.f0.y + (m.y - d.m0.y) })
-                end)
-                return false        -- observe, never swallow
-            end)
-            if not (okTap and tap) then
-                dragStop("could not create the drag tap")
-                return
-            end
-            _G.dragTap = tap
-            pcall(function() tap:start() end)
-        end)
-    end)
-    return okCb
-end
+-- _G.makeCanvasDraggable / _G.dragStop / _G.dragReport moved there when
+-- this file reached its 3,800-line budget, and because §1.6 above has
+-- filed draggable panels beside coexist since it was written. Every
+-- caller is guarded, so a coexist that fails to load costs a panel its
+-- drag and nothing else. Story: CHANGELOG 6.306.0.
 
 -- Keep a panel on a real screen. A dragged position is remembered, and a
 -- remembered position outlives the display it was set on: unplug the

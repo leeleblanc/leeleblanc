@@ -530,4 +530,213 @@ function _G.escapeReport()
     return #claims
 end
 
+
+-- =====================================================================
+-- 🖐 DRAGGABLE CANVAS PANELS — lifted out of init.lua in 6.306.0
+-- =====================================================================
+-- A fifth thing two features want: THE POINTER. It sat in init.lua
+-- because it was written there (6.67.0), and init.lua is at its
+-- 3,800-line budget — 6.285.0 moved _G.hyperEndVerdict for the same
+-- reason. It belongs here on its own merits too: init.lua's file map
+-- has filed "draggable panels" beside this file since §1.6 was written.
+-- 📏 COST, NAMED: if this file fails to load, panels are no longer
+-- draggable. Every caller already guards with `if _G.makeCanvasDraggable
+-- then`, so that is a panel you cannot move, never a panel that breaks.
+-- =====================================================================
+-- 🖐 DRAGGABLE CANVAS PANELS (6.67.0)
+-- =====================================================================
+-- An hs.canvas has no title bar, so dragging is built once for every
+-- panel: the press is caught on the canvas and the DRAG is followed by a
+-- global eventtap (a canvas only reports movement while the pointer is
+-- inside it, and a fast drag leaves it).
+-- ⚠️ AN EVENTTAP IS THE MOST DANGEROUS OBJECT IN THIS CONFIG, so:
+--   · it starts on mouseDown and stops on mouseUp;
+--   · a WATCHDOG stops it after dragMaxSecs no matter what, because a
+--     mouseUp delivered to another process is a mouseUp we never see;
+--   · it returns false — it observes the drag, it does not swallow it;
+--   · only ONE drag can be live at a time.
+-- ⚖️ THE COST: a panel that can be grabbed CAPTURES CLICKS; the cheat
+-- sheet no longer lets clicks fall through. Asked for, and accepted.
+_G.dragMaxSecs = 20
+_G.dragTap, _G.dragGuard, _G.dragging = nil, nil, nil
+
+-- 🚪 6.306.0 — ONE EXIT, AND IT ALWAYS TELLS THE CALLER. LL, for the
+-- SECOND time (6.138.0 was the first, in his words then: "Seems like a
+-- drag kills the sheet functionality"), now: "just because I can launch
+-- the cheat sheet doesn't mean it is functional", beside "when I move
+-- the cheat sheet, I am jumped to another desktop".
+-- 🔎 BOTH SENTENCES ARE ONE MECHANISM, and it is readable rather than
+-- guessed. onDrop was reachable from exactly ONE of this engine's four
+-- exits — the tap's leftMouseUp branch. The canvas's own mouseUp, the
+-- watchdog, and the supersede at the top of a new drag all tore the drag
+-- down SILENTLY. And onDrop is what does both of the things that keep the
+-- sheet working: it moves the wheel's hit box (st.rect — 6.138.0's whole
+-- fix) and it saves the position. So any drag whose mouseUp this tap did
+-- not see left the panel physically moved with its hit box and its
+-- remembered spot still at the old place: scrolling dead over the sheet,
+-- still swallowed over the bare desk it used to cover, and the next open
+-- back in the wrong spot. 6.138.0 fixed the update and put it behind the
+-- one door that can fail to open.
+-- 🖥 AND THE DESKTOP JUMP IS WHAT OPENS THAT FAILURE. This tap returns
+-- false on purpose — it observes, it never swallows — so macOS sees the
+-- drag too, and reads a three-finger one as a swipe between Spaces. A
+-- Space switch mid-drag is exactly the transition macOS switches event
+-- taps off across (6.303.0's own finding), so the mouseUp never arrives.
+-- The jump may still happen; what changes here is that it no longer
+-- costs him the panel.
+-- 🧊 6.222.0's RULE, WHICH HAD ONLY EVER BEEN APPLIED TO A PAGE: "a drag
+-- ends when the button comes up, WHEREVER that happens — listen for the
+-- release, and ALSO treat moving with nothing held as the release." That
+-- was written for the screenshot editor's own JS and never asked of this
+-- helper, which drags four panels. 6.305.0's rule, one release later: a
+-- rule written about one caller is not a rule until every caller has
+-- been asked. And window_move already has the right shape — wm.endDrag
+-- is one exit and runs endFn from every path, including its watchdog.
+local function leftStillDown()
+    local ok, btns = pcall(hs.eventtap.checkMouseButtons)
+    if not (ok and type(btns) == "table") then return false end
+    return btns.left == true or btns[1] == true
+end
+
+_G.dragDelivered, _G.dragNoFrame, _G.dragLastEnd = 0, 0, nil
+
+-- THE DELIVERY LIVES IN dragStop ITSELF, not beside its callers: that is
+-- what makes it impossible for a future exit to be added and forget
+-- (6.299.0 — one door, and through it EXACTLY once).
+local function dragStop(why)
+    local d = _G.dragging
+    if _G.dragTap   then pcall(function() _G.dragTap:stop()   end) end
+    if _G.dragGuard then pcall(function() _G.dragGuard:stop() end) end
+    _G.dragTap, _G.dragGuard, _G.dragging = nil, nil, nil
+    if why and _G.diag then _G.diag.say("drag", "ended (" .. why .. ")") end
+    -- 🗑 A `delivered` FLAG WAS WRITTEN HERE AND TAKEN OUT AGAIN (6.199.0,
+    -- fifth time this project has made that call). Exactly-once is already
+    -- structural: `d` is captured at the top and `_G.dragging` is nil'd
+    -- BEFORE onDrop runs, so every later exit — a racing canvas mouseUp, a
+    -- watchdog that was not stopped, a re-entrant call from inside onDrop
+    -- itself — reads nil and returns here. The mutation sweep proved the
+    -- flag unkillable: removing it failed no check, because nothing can
+    -- reach the second call it guarded. A guard no test can fail is dead
+    -- code with a comment on it. §4 asserts the real mechanism instead.
+    if not (d and d.onDrop) then return end
+    -- The panel has ALREADY moved by the time any exit is reached, so a
+    -- caller that is not told is a caller whose record of where its panel
+    -- sits is now wrong. The frame is read here, at the end, never from
+    -- the caller's stale copy.
+    local f
+    pcall(function() f = d.canvas:frame() end)
+    _G.dragLastEnd = { label = d.label, why = why or "superseded",
+                       at = os.time(), got = f ~= nil }
+    if f then
+        _G.dragDelivered = _G.dragDelivered + 1
+        pcall(d.onDrop, f)
+    else
+        -- A canvas that cannot answer its own frame is a panel nobody can
+        -- record. Counted rather than swallowed: "never told" and "told
+        -- wrongly" are different faults (6.196.1).
+        _G.dragNoFrame = _G.dragNoFrame + 1
+    end
+end
+_G.dragStop = dragStop
+
+-- 🔎 The engine had no report at all, which is why this took two reports
+-- from LL and a source read to find.
+function _G.dragReport()
+    local L = { "🖐 PANEL DRAG" }
+    L[#L + 1] = ("   live   : %s"):format(_G.dragging
+        and ("dragging " .. tostring(_G.dragging.label)) or "nothing is being dragged")
+    L[#L + 1] = ("   drops  : %d delivered to the panel that moved"):format(_G.dragDelivered or 0)
+    if (_G.dragNoFrame or 0) > 0 then
+        L[#L + 1] = ("   ⚠️ %d drag(s) ended with a canvas that could not answer its own "
+                     .. "frame — those panels moved and were never recorded"):format(_G.dragNoFrame)
+    end
+    local e = _G.dragLastEnd
+    L[#L + 1] = e
+        and ("   last   : %s ended by %s at %s%s"):format(e.label, e.why,
+              os.date("%H:%M:%S", e.at), e.got and "" or " — NO FRAME")
+        or  "   last   : no panel has been dragged this session"
+    print(table.concat(L, "\n"))
+end
+
+-- onDrop(frame) is called when the drag finishes, so a caller can
+-- REMEMBER where you put the panel. Without it a dragged panel snaps
+-- back to its computed position the next time it is drawn — and the cheat
+-- sheet redraws on every keystroke you type into it.
+function _G.makeCanvasDraggable(canvas, label, onDrop)
+    if not canvas then return false end
+    local okEv = pcall(function() canvas:canvasMouseEvents(true, true, false, false) end)
+    if not okEv then return false end
+    local okCb = pcall(function()
+        canvas:mouseCallback(function(cv, ev)
+            if ev ~= "mouseDown" then
+                if ev == "mouseUp" then dragStop("mouseUp on the panel") end
+                return
+            end
+            dragStop(nil)                       -- never two at once
+            local okM, m0 = pcall(hs.mouse.absolutePosition)
+            local okF, f0 = pcall(function() return cv:frame() end)
+            if not (okM and m0 and okF and f0) then return end
+            -- onDrop rides on the drag itself, so every exit can reach it
+            -- without the exit having to know the caller.
+            _G.dragging = { canvas = cv, m0 = m0, f0 = f0, label = label,
+                            onDrop = onDrop }
+
+            -- 🚨 WATCHDOG FIRST, THEN THE TAP — the same ordering the
+            -- Mouse Grid and the pomodoro use. Armed before the thing it
+            -- protects exists, so a throw in between cannot leave a
+            -- global mouse tap running with nothing scheduled to stop it.
+            _G.dragGuard = hs.timer.doAfter(_G.dragMaxSecs, function()
+                dragStop("watchdog — no mouseUp arrived")
+            end)
+
+            local T = hs.eventtap.event.types
+            local watch = { T.leftMouseDragged, T.leftMouseUp }
+            -- A Mac whose Hammerspoon has no mouseMoved type keeps the old
+            -- two-event drag rather than failing to build a tap at all.
+            if T.mouseMoved then watch[#watch + 1] = T.mouseMoved end
+            local okTap, tap = pcall(hs.eventtap.new, watch, function(e)
+                local d = _G.dragging
+                if not d then return false end
+                local t = e:getType()
+                if t == T.leftMouseUp then
+                    dragStop("mouseUp")
+                    return false
+                end
+                if T.mouseMoved and t == T.mouseMoved then
+                    -- 🧊 THE RELEASE WE NEVER SAW. macOS sends
+                    -- leftMouseDragged while the left button is held and
+                    -- mouseMoved when it is not, so a mouseMoved arriving
+                    -- mid-drag IS the button coming up somewhere we were
+                    -- not told about. checkMouseButtons is asked as a VETO
+                    -- ONLY — window_move 6.156.0 paid for trusting it the
+                    -- other way, where a consumed press reads as released
+                    -- on the first tick and ends a drag before it moves.
+                    -- Believing it only when it positively says "still
+                    -- down" is safe in both directions: stale-as-released
+                    -- ends the drag correctly, stale-as-held is no worse
+                    -- than the behaviour this replaces.
+                    if not leftStillDown() then
+                        dragStop("the button came up elsewhere")
+                    end
+                    return false
+                end
+                local okNow, m = pcall(hs.mouse.absolutePosition)
+                if not (okNow and m) then return false end
+                pcall(function()
+                    d.canvas:topLeft({ x = d.f0.x + (m.x - d.m0.x),
+                                       y = d.f0.y + (m.y - d.m0.y) })
+                end)
+                return false        -- observe, never swallow
+            end)
+            if not (okTap and tap) then
+                dragStop("could not create the drag tap")
+                return
+            end
+            _G.dragTap = tap
+            pcall(function() tap:start() end)
+        end)
+    end)
+    return okCb
+end
+
 end
