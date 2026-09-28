@@ -2134,27 +2134,80 @@ do
     reset()
 
     -- ---- the verdict is PURE -------------------------------------------
+    -- ⏯ 6.309.0 — the signature gained ON SCREEN, and it sits in front
+    -- of the queue because it is the gate LL actually asked for. These
+    -- rows MOVED rather than being deleted (6.248.0): what they prove is
+    -- unchanged — the volume keys are never ours, an unknown key is
+    -- never ours, the switch is real — and only the call shape moved.
     local V = mp.mediaVerdict
     check("mp.mediaVerdict is pure and reachable", type(V) == "function")
-    check("⏯ with a queue is TAKEN", V("PLAY", true, true) == "take")
-    check("⏭ with a queue is TAKEN", V("FAST", true, true) == "take")
-    check("⏮ with a queue is TAKEN", V("REWIND", true, true) == "take")
-    -- 🚨 THE RULE THAT PROTECTS EVERY OTHER APP. If this config ate ⏯
-    -- whenever it was loaded, his Music.app and every browser tab playing
-    -- audio would lose the key the moment Hammerspoon booted — a worse
-    -- bug than the one being fixed, and a silent one.
-    check("🚨 ⏯ with NOTHING QUEUED is passed through — macOS keeps the key",
-          V("PLAY", false, true) == "pass", V("PLAY", false, true))
-    check("…and says why", select(2, V("PLAY", false, true)):find("macOS", 1, true) ~= nil)
-    check("the volume keys are never ours", V("SOUND_UP", true, true) == "pass")
+    check("⏯ open with a queue is TAKEN", V("PLAY", true, true, true) == "take")
+    check("⏭ open with a queue is TAKEN", V("FAST", true, true, true) == "take")
+    check("⏮ open with a queue is TAKEN", V("REWIND", true, true, true) == "take")
+
+    -- 🚨 6.309.0 — LL's OWN RULE, AND THE CHECK THAT BITES. Closing the
+    -- card deliberately does not stop the sound, so on 6.289.0 a CLOSED
+    -- card went on holding ⏯ for as long as a queue survived it. He
+    -- reported it twice; the second time: "You're introducing a fix that
+    -- is not real." The queue is not the gate — the card being on screen
+    -- is, and the queue only stops an open card eating a key it cannot
+    -- act on. Both must hold, which is the narrow direction.
+    check("🚨 ⏯ with the card CLOSED is passed through, queue or not",
+          V("PLAY", false, true, true) == "pass", V("PLAY", false, true, true))
+    check("…and it says the card is closed, not something about a queue",
+          (select(2, V("PLAY", false, true, true)) or ""):find("closed", 1, true) ~= nil,
+          select(2, V("PLAY", false, true, true)))
+    check("⏭ and ⏮ are closed-card-passed too — one rule, every key",
+          V("FAST", false, true, true) == "pass"
+          and V("REWIND", false, true, true) == "pass")
+    check("🚨 ⏯ OPEN with NOTHING QUEUED is passed through — an open card"
+          .. " must not eat a key it cannot act on",
+          V("PLAY", true, false, true) == "pass", V("PLAY", true, false, true))
+    check("…and says why", select(2, V("PLAY", true, false, true)):find("macOS", 1, true) ~= nil)
+    check("the volume keys are never ours", V("SOUND_UP", true, true, true) == "pass")
     check("brightness, eject, anything else — never ours",
-          V("BRIGHTNESS_UP", true, true) == "pass" and V("EJECT", true, true) == "pass")
-    check("switched off, nothing is taken even with a queue",
-          V("PLAY", true, false) == "pass")
-    check("a nil key is not a media key", V(nil, true, true) == "pass")
+          V("BRIGHTNESS_UP", true, true, true) == "pass"
+          and V("EJECT", true, true, true) == "pass")
+    check("switched off, nothing is taken even open with a queue",
+          V("PLAY", true, true, false) == "pass")
+    check("a nil key is not a media key", V(nil, true, true, true) == "pass")
     check("every answer carries a reason",
-          select(2, V("PLAY", true, true)) ~= nil
-          and select(2, V("SOUND_UP", true, true)) ~= nil)
+          select(2, V("PLAY", true, true, true)) ~= nil
+          and select(2, V("SOUND_UP", true, true, true)) ~= nil)
+
+    -- 🔑 ONE DOOR, TWO ROUTES (6.231.0). 6.291.0 exists because the two
+    -- routes for one physical key nearly disagreed; this asserts they
+    -- ask the SAME function, so a rule changed in one cannot miss the
+    -- other. The mutation that gives fnKeyVerdict its own copy of the
+    -- rule passes every row above and fails this one.
+    do
+        local MT = mp.mayTake
+        check("mp.mayTake is the one gate and is pure", type(MT) == "function")
+        for _, st in ipairs({ { false, false }, { false, true },
+                              { true, false }, { true, true } }) do
+            local a, wa = MT(st[1], st[2], true)
+            local b, wb = V("PLAY", st[1], st[2], true)
+            local c, wc = mp.fnKeyVerdict(100, { [100] = "PLAY" }, {},
+                                          st[1], st[2], true)
+            check("⏯ on screen=" .. tostring(st[1]) .. " queue=" .. tostring(st[2])
+                  .. ": both routes give the same verdict AND the same reason",
+                  a == b and b == c and wa == wb and wb == wc,
+                  tostring(a) .. "/" .. tostring(b) .. "/" .. tostring(c))
+        end
+    end
+
+    -- 👁 mp.onScreen reads the WEBVIEW, not a flag beside it: mp.show
+    -- creates it and mp.hide deletes it, so there is nothing to fall out
+    -- of step with. A second boolean is how a card reports itself open
+    -- after macOS refused to draw it.
+    do
+        local was = mp.webview
+        mp.webview = nil
+        check("mp.onScreen() is false with no card", mp.onScreen() == false)
+        mp.webview = { fake = true }
+        check("mp.onScreen() is true once the card exists", mp.onScreen() == true)
+        mp.webview = was
+    end
 
     -- ---- the tap really runs -------------------------------------------
     TAPS = {}
@@ -2201,7 +2254,23 @@ do
     mp.resetMedia()
     local wasPlaying = mp.playing
     check("(fixture) something is playing", wasPlaying == true and #mp.queue == 2)
-    check("⏯ is EATEN when there is a queue — macOS must not act on it too",
+
+    -- 🚨 6.309.0 — DRIVEN THROUGH THE TAP, not just the pure function.
+    -- 6.264.0's rule: proving a decision function is not proving that
+    -- anything CALLS it with the values that matter. With a full queue
+    -- and NO CARD the key must reach macOS — which is LL's report, and
+    -- on 6.289.0 this press returned true.
+    mp.webview = nil
+    check("🚨 LL's bug: a full queue with the card CLOSED does NOT eat ⏯",
+          press("PLAY") == false)
+    check("…and it did not touch the player either",
+          mp.playing == wasPlaying)
+    check("…and the reason names the card, so the report can say so",
+          tostring(mp.media.last):find("closed", 1, true) ~= nil, mp.media.last)
+    mp.resetMedia()
+
+    mp.webview = { frame = function() return { x = 0, y = 0, w = 420, h = 320 } end }
+    check("⏯ is EATEN when the card is open with a queue — macOS must not act too",
           press("PLAY") == true)
     check("…and it really paused the player", mp.playing == false)
     check("⏯ again resumes", press("PLAY") == true and mp.playing == true)
@@ -2293,6 +2362,28 @@ do
           .. "in three states and they need different answers",
           rep:find("⏯ keys", 1, true) and rep:find("taken", 1, true)
           and rep:find("passed through to macOS", 1, true), rep)
+    -- ⏯ 6.309.0 — THE LINE SAYS WHAT THE KEY WOULD DO RIGHT NOW, and it
+    -- is mp.mayTake's OWN words rather than a sentence retyped beside
+    -- the rule (6.276.0). The check moves the STATE and requires the
+    -- line to follow — asserting the shipped wording passes with the
+    -- line hard-coded (6.239.0).
+    do
+        local wasW, wasQ = mp.webview, mp.queue
+        mp.webview, mp.queue = nil, { "x" }
+        PRINTED = {}; _G.musicReport()
+        local closed = table.concat(PRINTED, "\n")
+        mp.webview = { frame = function() return { x = 0, y = 0, w = 420, h = 320 } end }
+        PRINTED = {}; _G.musicReport()
+        local open = table.concat(PRINTED, "\n")
+        mp.webview, mp.queue = wasW, wasQ
+        check("6.309.0: the report names the live verdict, and it CHANGES "
+              .. "with the card — closed says so",
+              closed:find("right now", 1, true)
+              and closed:find("the card is closed", 1, true) ~= nil, closed)
+        check("…and open with a queue says it is holding the key",
+              open:find("right now", 1, true)
+              and open:find("holding a queue", 1, true) ~= nil, open)
+    end
     mp.stopMediaTap()
     PRINTED = {}
     _G.musicReport()
@@ -2307,8 +2398,12 @@ do
     mp.mediaKeys = true
     mp.startMediaTap()
 
-    check("the 6.289.0 block ran every one of its checks",
-          (pass + fail) - n == 43, (pass + fail) - n)
+    -- 6.186.0 — a section that can throw asserts its own check count, or
+    -- a raise deletes every check after it while the run still says
+    -- "0 failed". 43 → 58 in 6.309.0: the closed-card rows, the
+    -- one-door-two-routes join, mp.onScreen and the live report line.
+    check("the 6.289.0 / 6.309.0 block ran every one of its checks",
+          (pass + fail) - n == 58, (pass + fail) - n)
 end
 
 -- =====================================================================
@@ -2330,33 +2425,33 @@ do
     local FV = mp.fnKeyVerdict
     local CODES = { [98] = "REWIND", [100] = "PLAY", [101] = "FAST" }
     check("mp.fnKeyVerdict is pure and reachable", type(FV) == "function")
-    check("F8 with a queue is TAKEN", FV(100, CODES, {}, true, true) == "take")
+    check("F8 with a queue is TAKEN", FV(100, CODES, {}, true, true, true) == "take")
     check("…and it answers WHICH action, so one function serves both routes",
-          select(3, FV(100, CODES, {}, true, true)) == "PLAY")
+          select(3, FV(100, CODES, {}, true, true, true)) == "PLAY")
     check("F7 is ⏮ and F9 is ⏭",
-          select(3, FV(98, CODES, {}, true, true)) == "REWIND"
-          and select(3, FV(101, CODES, {}, true, true)) == "FAST")
+          select(3, FV(98, CODES, {}, true, true, true)) == "REWIND"
+          and select(3, FV(101, CODES, {}, true, true, true)) == "FAST")
     -- 🚨 THE RULE THAT PROTECTS EVERY OTHER APP, twice over.
     check("🚨 F8 with NOTHING QUEUED is passed through",
-          FV(100, CODES, {}, false, true) == "pass")
+          FV(100, CODES, {}, true, false, true) == "pass")
     check("🚨 ⌘F8 is NEVER ours — that chord belongs to the app",
-          FV(100, CODES, { cmd = true }, true, true) == "pass")
+          FV(100, CODES, { cmd = true }, true, true, true) == "pass")
     check("🚨 ⌥F8, ⌃F8 and ⇧F8 likewise",
-          FV(100, CODES, { alt = true },   true, true) == "pass"
-          and FV(100, CODES, { ctrl = true },  true, true) == "pass"
-          and FV(100, CODES, { shift = true }, true, true) == "pass")
+          FV(100, CODES, { alt = true }, true,   true, true) == "pass"
+          and FV(100, CODES, { ctrl = true }, true,  true, true) == "pass"
+          and FV(100, CODES, { shift = true }, true, true, true) == "pass")
     -- 🔎 fn is IGNORED on purpose: macOS sets the function-key mask on
     -- F1–F12 under BOTH settings, so testing it would kill the feature
     -- under one of them and which is which is not knowable from here.
     check("fn alone does NOT disqualify a press — that decision is stated",
-          FV(100, CODES, { fn = true }, true, true) == "take")
+          FV(100, CODES, { fn = true }, true, true, true) == "take")
     check("F5 is not a key this player answers",
-          FV(96, CODES, {}, true, true) == "pass")
-    check("switched off, nothing is taken", FV(100, CODES, {}, true, false) == "pass")
-    check("a nil keycode is not a key", FV(nil, CODES, {}, true, true) == "pass")
+          FV(96, CODES, {}, true, true, true) == "pass")
+    check("switched off, nothing is taken", FV(100, CODES, {}, true, true, false) == "pass")
+    check("a nil keycode is not a key", FV(nil, CODES, {}, true, true, true) == "pass")
     check("every answer carries a reason",
-          select(2, FV(100, CODES, {}, true, true)) ~= nil
-          and select(2, FV(100, CODES, {}, false, true)) ~= nil)
+          select(2, FV(100, CODES, {}, true, true, true)) ~= nil
+          and select(2, FV(100, CODES, {}, true, false, true)) ~= nil)
 
     -- ---- driving the REAL tap, not the pure function -------------------
     -- 6.264.0's rule: proving a pure decision function is not proving
@@ -2369,6 +2464,9 @@ do
     local fnFire = TAPS[2] and TAPS[2].fn
     check("the function-key route has a callback wired", type(fnFire) == "function")
 
+    -- 6.309.0 — the card is on screen for this block; the closed case has
+    -- its own rows below, driven through this same helper.
+    mp.webview = { frame = function() return { x = 0, y = 0, w = 420, h = 320 } end }
     local function fkey(code, opts)
         opts = opts or {}
         return fnFire({

@@ -1306,8 +1306,23 @@ function M.setup(core)
         else
             local g = _G.doubleTap and _G.doubleTap.byName
                       and _G.doubleTap.byName.clipboardHistory
-            L[#L + 1] = "   ⌘⌘       : watching · " .. ((g and g.fires) or 0)
-                        .. " open(s) this session  ·  _G.doubleTapReport()"
+            -- 🚨 6.308.0 — A FOURTH STATE, and it is the one that was true
+            -- on his Mac for sixteen releases. This branch read `g` and
+            -- then printed "watching" regardless, so a gesture that was
+            -- NEVER REGISTERED — no `why` recorded, because warm() had
+            -- been overwritten and never ran — reported as health with
+            -- "0 open(s)" beside it. 6.196.1 broken inside the very
+            -- instrument built to keep it: ASK THE REGISTRY, do not
+            -- infer health from the absence of a complaint.
+            if not g then
+                L[#L + 1] = "   ⌘⌘       : ⚠️ WANTED but NOT REGISTERED — the "
+                            .. "gesture is not in the double-tap registry and "
+                            .. "nothing recorded why (warm() did not run?) "
+                            .. "· ⇪ V still opens the history"
+            else
+                L[#L + 1] = "   ⌘⌘       : watching · " .. (g.fires or 0)
+                            .. " open(s) this session  ·  _G.doubleTapReport()"
+            end
         end
         L[#L + 1] = "   place    : " .. (clip.lastRestoredRow
             and ("the picker last landed on row " .. clip.lastRestoredRow
@@ -1333,7 +1348,14 @@ function M.setup(core)
     -- it is on the boot path otherwise. Copies made in the ~2 seconds
     -- before it lands are kept in clip.preload and re-applied on top
     -- afterwards, so nothing copied during boot is lost to the load.
-    M.warm = function()
+    -- 🚨 6.308.0 — THIS WAS `M.warm = function()` AND IT ATE ⌘⌘.
+    -- setup() runs AFTER the file is loaded, so assigning M.warm here
+    -- overwrote the top-level `function M.warm(core)` that 6.292.0 added
+    -- at the bottom of this file — the ⌘⌘ registration was destroyed
+    -- before init.lua ever called warm, silently, on every boot. ⌥⌥
+    -- worked because menu_search has only one M.warm. It is a FIELD now;
+    -- the one M.warm calls it, and a gate sentry refuses the shape.
+    clip.warmLoad = function()
         clip.load()
         for i = #clip.preload, 1, -1 do
             local t = clip.preload[i]
@@ -1366,7 +1388,13 @@ end
 -- 6.228.0's shape, which this project has now met in five modules.
 function M.warm(core)
     local clip = M.clip
-    if not clip or not clip.cmdCmd then return end
+    if not clip then return end
+    -- ⏱ THE STORE READ COMES FIRST AND IS UNCONDITIONAL. It used to live
+    -- in its own M.warm and is the reason this file had two (6.308.0);
+    -- putting it behind the ⌘⌘ switch would mean `cmdCmd = false` also
+    -- stopped the history loading, which is not what that switch says.
+    pcall(clip.warmLoad)
+    if not clip.cmdCmd then return end
     local dt = _G.doubleTap
     if not dt then
         -- IT DEGRADES, IT NEVER BREAKS: ⇪V is untouched and still opens
@@ -1387,7 +1415,15 @@ function M.warm(core)
         return
     end
     local ok, startWhy = dt.start()
-    clip.cmdCmdWhy = ok and nil or tostring(startWhy)
+    -- 🔬 6.308.0 — `ok and nil or X` CANNOT YIELD nil. nil is falsy, so
+    -- the `or` always runs and a SUCCESS recorded the string "nil" as
+    -- its reason — which the report reads as a fault. 6.303.0 wrote this
+    -- rule down about `a and b or c` with a FALSE b; this is the same
+    -- trap with a NIL b, and it was written into three files after that
+    -- release by the person who wrote the rule. 6.305.0: when a release
+    -- states a principle, grep the other places that decide the same
+    -- thing, in the same commit.
+    if ok then clip.cmdCmdWhy = nil else clip.cmdCmdWhy = tostring(startWhy) end
     if not ok and core and core.degrade then
         pcall(core.degrade, "Clipboard ⌘⌘", tostring(startWhy))
     end

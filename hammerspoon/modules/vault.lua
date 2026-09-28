@@ -2542,8 +2542,25 @@ q.addEventListener('input', function(){
   else { say({a:'filter', f: q.value}); drawRows(); } });
 q.addEventListener('keydown', function(e){
   if (e.key !== 'Enter' || SEL >= 0) return;
-  // notes: ⏎ creates the typed name — never one called "#x"; search / tasks: the first hit
-  if (MODE === 'notes') { var f = q.value.trim(); if (f && f.charAt(0) !== '#') { e.preventDefault(); say({a:'open', name: f}); } return; }
+  // 🔎 6.307.0 — A MATCH BEATS A CREATION. Notes mode sent the TYPED
+  // text as the name and v.openNote SEEDS a file that is not there, so ⏎
+  // over a list already showing the note he meant wrote a second,
+  // near-identical note into the folder holding his writing. The two
+  // lines below it have opened the first hit since they were written:
+  // ONE mode of three behaved differently, and it was the one that
+  // writes a file. `li[data-name]` is a note or a template and never a
+  // TAG row, so a tag cannot steal ⏎ either.
+  if (MODE === 'notes') {
+    var f = q.value.trim();
+    if (!f || f.charAt(0) === '#') return;
+    e.preventDefault();
+    var hit = document.querySelector('#rows li[data-name]');
+    if (hit) { say({a:'open', name: hit.getAttribute('data-name'), via:'filter'}); return; }
+    // Nothing matched — which is what the empty row has SAID all along
+    // ("no note matches — ⏎ creates …"). Now the handler agrees with it.
+    say({a:'open', name: f, via:'filter', made: true});
+    return;
+  }
   var r = rowsList()[0]; if (r) { e.preventDefault(); rowAct(r); }
 });
 // a tag row / chip → the notes list narrowed to that tag
@@ -3662,6 +3679,17 @@ else {
         elseif a == "filter" then
             v.filter = tostring(body.f or "")
         elseif a == "open" then
+            -- 🔎 6.307.0 — COUNTED APART, because "⏎ opened the note you
+            -- were looking at" and "⏎ made a new one" are opposite facts
+            -- and this tool could not tell them apart while it was doing
+            -- the wrong one (6.196.1). Only the filter box flags itself;
+            -- an ordinary click carries no `via` and moves neither.
+            if body.via == "filter" then
+                if body.made then v.enterMade   = (v.enterMade   or 0) + 1
+                else             v.enterOpened = (v.enterOpened or 0) + 1 end
+                v.enterLast = (body.made and "created " or "opened ")
+                              .. tostring(body.name or "")
+            end
             if v.openNote(tostring(body.name or "")) then
                 -- 6.174.0 — a search / task row names the line; the filter is only the notes list's
                 if body.line then v.caretLine = tonumber(body.line) end
@@ -4380,6 +4408,15 @@ else {
         -- other Mac) send LL to two different places, and until this
         -- release both looked like Scratch 1.
         L[#L + 1] = "   back to: " .. tostring(v.lastPlaceState)
+        -- 🔎 6.307.0 — WHAT ⏎ IN THE FILTER BOX DID. Two facts that read
+        -- alike from outside and are opposites: it opened the note the
+        -- list was already showing him, or it made a new one. Until this
+        -- release it was always the second, over a list showing the first.
+        local eo, em = v.enterOpened or 0, v.enterMade or 0
+        L[#L + 1] = "   ⏎ filter: " .. (eo + em == 0
+            and "⏎ has not been pressed in the filter box this session"
+            or (eo .. " opened the match · " .. em .. " created a new note"
+                .. (v.enterLast and ("  ↳ last: " .. tostring(v.enterLast)) or "")))
         -- 🗑 6.280.0 — NOTHING IS EVER ERASED, so the report says where it
         -- went. A count with no path is a delete he cannot undo by hand.
         L[#L + 1] = "   deleted: " .. v.deletes .. " this session → " .. v.trashDir()

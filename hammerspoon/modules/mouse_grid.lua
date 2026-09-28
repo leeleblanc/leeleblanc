@@ -1923,6 +1923,19 @@ function M.setup(core)
                 tostring(grid.locateRings), tostring(grid.locateCycle), tostring(grid.locateSecs),
                 last and string.format(" · last press drew radius %d at scale %.2f",
                                        last.radius, last.scale) or "")
+            -- 🎯 6.310.0 — the rings step outward, and the line says by how
+            -- much and how far the OUTERMOST one reaches, because that
+            -- number is the whole answer to "is it obvious enough yet".
+            local base = math.floor(num(grid.locateRadius, 110) * s + 0.5)
+            local g = grid.locateRingGrowth()
+            out[#out + 1] = string.format(
+                "   ↳ growth : each ring %+.0f%% on the one before it · "
+                .. "outermost %d pt of a %d pt canvas%s",
+                (g - 1) * 100, math.floor(grid.locateRingR(
+                    math.max(0, math.floor(num(grid.locateRings, 3)) - 1), base) + 0.5),
+                grid.locateSpan(base) * 2,
+                (g <= 1 and "  ⚠️ growth is 1.00 — every ring is the same size"
+                         or ""))
         end
         print(table.concat(out, "\n"))
         return table.concat(out, "\n")
@@ -2114,6 +2127,14 @@ function M.setup(core)
     grid.locateSecs   = 6       -- how long the pointer is marked (was 1.2): five whole pulses
     grid.locateCycle  = 1.2     -- one pulse of three rings; repeats until locateSecs
     grid.locateRings  = 3
+    -- 🎯 6.310.0 — EACH RING 10% WIDER THAN THE ONE BEFORE IT. LL: "⇪⇧L
+    -- needs to be more obvious. Can you make each ring grow in size by
+    -- 10% each time?" His answer, his number. Three rings at 1.10 puts
+    -- the outermost 21% past where it used to stop, so the whole mark is
+    -- bigger as well as more clearly a ripple travelling outward — and
+    -- the canvas grows with it (grid.locateSpan) rather than clipping
+    -- the very ring that makes it obvious.
+    grid.locateRingGrow = 1.10
     grid.locateStagger = 0.22   -- seconds between one ring leaving and the next
     grid.locateFps    = 30
     grid.locateScale  = nil     -- nil = from the pointer's screen; a number pins it
@@ -2157,9 +2178,38 @@ function M.setup(core)
     -- their life and fade as they go; the cycle repeats until locateSecs,
     -- with a white dot at the centre that flashes as each cycle starts.
     -- Pure, so the suite can check it frame by frame.
+    -- PURE. The outer radius ring `i` (0-based) reaches. A grow below 1
+    -- would SHRINK the rings, which is the opposite of what was asked,
+    -- so it is clamped — a typo in a settings line degrades to "no
+    -- growth", never to an invisible mark.
+    function grid.locateRingGrowth()
+        local g = tonumber(grid.locateRingGrow) or 1.10
+        if g ~= g or g < 1 then g = 1 end        -- NaN and shrink both floor
+        if g > 2 then g = 2 end
+        return g
+    end
+    function grid.locateRingR(i, r)
+        r = tonumber(r) or num(grid.locateRadius, 110)
+        return r * (grid.locateRingGrowth() ^ math.max(0, math.floor(i or 0)))
+    end
+    -- PURE. How big the canvas must be: the OUTERMOST ring's radius, not
+    -- the base one. Sized off the base and it would clip exactly the
+    -- ring this release added (6.270.0: reserve the room before you draw
+    -- the thing, or it covers or crops what is already there).
+    function grid.locateSpan(r)
+        r = tonumber(r) or num(grid.locateRadius, 110)
+        local rings = math.floor(num(grid.locateRings, 3))
+        if rings < 1 then rings = 1 end
+        local outer = grid.locateRingR(rings - 1, r)
+        return math.max(r, math.ceil(outer))
+    end
+
     function grid.locateFrame(t, r)
         r = r or grid.locateRadius
         local els = {}
+        -- 6.310.0 — every element is centred on the SPAN, so the rings
+        -- stay concentric on the pointer however far the outermost goes.
+        local span = grid.locateSpan(r)
         -- Every knob is a settings override away from a typo: a bad one
         -- falls back to the default rather than drawing NaN or nothing.
         local secs, cycle = num(grid.locateSecs, 6), num(grid.locateCycle, 1.2)
@@ -2174,12 +2224,14 @@ function M.setup(core)
             for i = 0, rings - 1 do
                 local p = (tc - i * stagger) / life
                 if p >= 0 and p <= 1 then
+                    local ri = grid.locateRingR(i, r)      -- 6.310.0
                     els[#els + 1] = {
                         type = "circle", action = "stroke",
                         strokeColor = { red = grid.locateColor.red, green = grid.locateColor.green,
                                         blue = grid.locateColor.blue, alpha = 0.95 * (1 - p) },
                         strokeWidth = (4 - 2 * p) * k,
-                        center = { x = r, y = r }, radius = 4 * k + (r - 8 * k) * p,
+                        center = { x = span, y = span },
+                        radius = 4 * k + (ri - 8 * k) * p,
                     }
                 end
             end
@@ -2187,7 +2239,7 @@ function M.setup(core)
                 type = "circle", action = "fill",
                 fillColor = { red = grid.locateColor.red, green = grid.locateColor.green,
                               blue = grid.locateColor.blue, alpha = 0.9 - 0.6 * (tc / cycle) },
-                center = { x = r, y = r }, radius = 3 * k,
+                center = { x = span, y = span }, radius = 3 * k,
             }
         end
         if #els == 0 then els[1] = { action = "skip" } end
@@ -2207,9 +2259,12 @@ function M.setup(core)
         if not (okPos and pos) then return false end
         local s = grid.locateScaleFor()
         local r = math.floor(grid.locateRadius * s + 0.5)
-        grid.locateLast = { scale = s, radius = r, at = os.time() }
+        -- 6.310.0 — the canvas is the OUTERMOST ring's size.
+        local span = grid.locateSpan(r)
+        grid.locateLast = { scale = s, radius = r, span = span, at = os.time() }
         local okNew, c = pcall(hs.canvas.new,
-                               { x = pos.x - r, y = pos.y - r, w = r * 2, h = r * 2 })
+                               { x = pos.x - span, y = pos.y - span,
+                                 w = span * 2, h = span * 2 })
         if not (okNew and c) then return false end
         pcall(function()
             c:replaceElements(grid.locateFrame(0, r))

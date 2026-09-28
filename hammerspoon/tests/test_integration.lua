@@ -2668,6 +2668,66 @@ do
           end)())
 end
 
+-- =====================================================================
+-- 🚨 6.308.0 — A MODULE HAS EXACTLY ONE M.warm, AND setup() NEVER
+-- ASSIGNS IT
+-- =====================================================================
+-- clipboard_history.lua had BOTH: `function M.warm(core)` at the top
+-- level (6.292.0's ⌘⌘ registration) and `M.warm = function()` inside
+-- setup() (the store read, there since 6.190.0). setup runs AFTER the
+-- file is loaded, so the inner assignment destroyed the outer function
+-- before init.lua ever called warm — ⌘⌘ was never registered, on every
+-- boot, in silence. ⌥⌥ worked because menu_search has only one.
+--
+-- 🔑 WHY NOTHING COULD SEE IT, which is why this is a sentry and not a
+-- comment: both halves are correct Lua, the module loads, warm() is
+-- called and returns, and the clipboard report's own ⌘⌘ line printed
+-- "watching · 0 open(s)" because it inferred health from the absence of
+-- a recorded reason. No functional test could catch it either — the
+-- suite calls M.warm() directly, which is exactly the shadowed one.
+--
+-- The rule is SHAPE, not spelling: a module's warm is declared once, at
+-- the top level, where load order cannot reach it.
+do
+    local files = {}
+    local p = io.popen('ls "' .. HS .. '"/modules/*.lua "' .. HS
+                       .. '"/core/*.lua 2>/dev/null')
+    if p then
+        for line in p:lines() do files[#files + 1] = line end
+        p:close()
+    end
+    check("🚨 the warm sentry has files to read (without them it proves nothing)",
+          #files >= 40, #files)
+    local bad = {}
+    for _, path in ipairs(files) do
+        local fh = io.open(path, "r")
+        local body = fh and fh:read("*a") or ""
+        if fh then fh:close() end
+        -- 6.262.0 — comments quote the very line they forbid, and the
+        -- block above this one does exactly that.
+        body = body:gsub("\n%s*%-%-[^\n]*", "\n")
+        local name = path:match("([^/]+)$") or path
+        local decls, assigns = 0, 0
+        for _ in body:gmatch("function%s+M%.warm%s*%(") do decls = decls + 1 end
+        for _ in body:gmatch("M%.warm%s*=%s*function") do assigns = assigns + 1 end
+        if decls + assigns > 1 then
+            bad[#bad + 1] = name .. " (" .. decls .. " declared, "
+                            .. assigns .. " assigned)"
+        end
+    end
+    -- 🚨 AND ITS FIRST VERSION CRIED WOLF ON TWELVE HEALTHY MODULES,
+    -- caught by the sweep before it shipped (6.269.0: a new instrument
+    -- is measured against the HEALTHY case first, or it is switched off
+    -- long before it sees the fault it was built for). `M.warm =
+    -- function()` inside setup is the NORMAL idiom here — warm usually
+    -- needs setup's upvalues and twelve modules do exactly that, all
+    -- correctly. The defect is having BOTH, because then load order
+    -- silently picks the loser. One is one; two is the bug.
+    check("🚨 no module both DECLARES and ASSIGNS M.warm — setup() runs "
+          .. "after the file loads, so the second one silently wins",
+          #bad == 0, table.concat(bad, " · "))
+end
+
 realPrint(table.concat(printed, "\n"))
 out("\n")
 if fail > 0 then

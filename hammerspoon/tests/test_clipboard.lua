@@ -992,6 +992,7 @@ do
     _G.lastPopupPlacement = nil
 end
 
+local fakeIoOpen = io.open
 io.open = realIoOpen
 out("\n")
 -- =====================================================================
@@ -1339,6 +1340,108 @@ ck2("_G.clipboardReport() names the Home/End state and where the picker "
     rep2)
 
 check("the 6.227.0 section ran every one of its checks", mine2 == 17, mine2)
+
+-- =====================================================================
+out("\n=== 8. 6.308.0 — ⌘⌘ IS REALLY REGISTERED, AND THE STORE STILL LOADS ===\n")
+-- =====================================================================
+-- LL: "cmd+cmd does not bring up unified clip" — while ⌥⌥ worked. This
+-- file declared `function M.warm(core)` at the top level (6.292.0's ⌘⌘
+-- registration) AND assigned `M.warm = function()` inside setup() (the
+-- store read). setup runs after the file loads, so the assignment
+-- destroyed the registration before init.lua could ever call it.
+--
+-- 🚨 AND THE OLD SUITE COULD NOT HAVE CAUGHT IT: section 6 above calls
+-- M.warm() and passes, because the function it calls IS the shadow. A
+-- functional check bites only if it asserts what the LOST half was
+-- supposed to do — so this one drives warm and asks the REGISTRY.
+do
+    local n = pass + fail
+    -- 🔌 The suite hands io.open back to the real one further up, so a
+    -- section down here reads the actual disk. Borrowed for this block
+    -- and given back at the end: the store read is half of what this
+    -- proves and it cannot be proven against /logs on Linux.
+    local realHere = io.open
+    io.open = fakeIoOpen
+    local calls = {}
+    _G.doubleTap = {
+        byName = {},
+        register = function(name, cfg)
+            calls[#calls + 1] = { name = name, cfg = cfg }
+            local g = { name = name, mod = cfg.mod, fires = 0 }
+            _G.doubleTap.byName[name] = g
+            return g
+        end,
+        start = function() calls.started = true return true end,
+    }
+    boot()
+    FILES = { [C.file] = "Aug 01\1from the file\2Aug 01\1older" }
+    M.warm()
+
+    check("🚨 6.308.0: warm() REGISTERS ⌘⌘ — it had been overwritten by "
+          .. "setup() and never ran", #calls == 1, #calls)
+    check("…under the name the report reads",
+          calls[1] and calls[1].name == "clipboardHistory")
+    check("…on ⌘, either side", calls[1] and calls[1].cfg.mod == "cmd"
+          and calls[1].cfg.side == "either")
+    -- 🔑 THE ACTION IS THE SAME DOOR ⇪V TAKES (6.231.0). A gesture that
+    -- opened the history another way is two features to keep in step.
+    check("…with a callable action, and it is clip.openHistory itself",
+          calls[1] and type(calls[1].cfg.action) == "function"
+          and calls[1].cfg.action == C.openHistory)
+    check("…and the watcher was started", calls.started == true)
+    -- 🔬 6.308.0 — `ok and nil or tostring(startWhy)` CANNOT YIELD nil,
+    -- so a SUCCESS recorded the string "nil" and the report read it as
+    -- a fault. 6.303.0's rule with a nil b instead of a false b.
+    check("🔬 …and nothing was recorded as a reason, because nothing "
+          .. "refused — not the STRING \"nil\" either",
+          C.cmdCmdWhy == nil, tostring(C.cmdCmdWhy))
+
+    -- ⏱ THE STORE READ STILL HAPPENS, and unconditionally: it used to
+    -- live in the shadowed warm, so merging it behind the ⌘⌘ switch
+    -- would have made `cmdCmd = false` also stop the history loading.
+    check("🚨 …and the store was still read — the merge kept both halves",
+          C.loaded == true and #_G.clipboardCache == 2,
+          tostring(C.loaded) .. "/" .. #_G.clipboardCache)
+
+    boot()
+    C.cmdCmd = false
+    calls = {}
+    _G.doubleTap.byName = {}
+    FILES = { [C.file] = "Aug 01\1from the file\2Aug 01\1older" }
+    M.warm()
+    check("⌘⌘ OFF registers nothing", #calls == 0, #calls)
+    check("🚨 …but the history STILL loads — that switch is about a "
+          .. "gesture, not about the store",
+          C.loaded == true and #_G.clipboardCache == 2,
+          tostring(C.loaded) .. "/" .. #_G.clipboardCache)
+
+    -- 🔎 THE FOURTH REPORT STATE (6.196.1). On his Mac the gesture was
+    -- never registered, nothing recorded why, and the report printed
+    -- "watching · 0 open(s)" — health, from the instrument built to
+    -- keep exactly this distinction. It asks the registry now.
+    boot()
+    C.cmdCmd, C.cmdCmdWhy = true, nil
+    _G.doubleTap.byName = {}
+    printed = {}
+    _G.clipboardReport()
+    local rep = table.concat(printed, "\n")
+    check("🚨 a ⌘⌘ that is WANTED but absent from the registry reads as a "
+          .. "⚠️, never as 'watching'",
+          rep:find("NOT REGISTERED", 1, true) ~= nil
+          and rep:find("watching", 1, true) == nil, rep)
+    _G.doubleTap.byName.clipboardHistory = { name = "clipboardHistory", fires = 3 }
+    printed = {}
+    _G.clipboardReport()
+    rep = table.concat(printed, "\n")
+    check("…and a registered one reads as watching, with its count",
+          rep:find("watching", 1, true) ~= nil
+          and rep:find("3 open", 1, true) ~= nil, rep)
+
+    _G.doubleTap = nil
+    io.open = realHere
+    check("the 6.308.0 section ran every one of its checks",
+          (pass + fail) - n == 11, (pass + fail) - n)
+end
 
 if fail > 0 then
     out("FAILURES:\n")

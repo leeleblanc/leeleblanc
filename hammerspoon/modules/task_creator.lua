@@ -648,8 +648,15 @@ function M.setup(core)
             -- A throw in a caller's callback must not take this path
             -- down: half of these fire from inside hs.http's callback,
             -- where a raise is a silence (6.235.0).
+            -- 🔬 6.308.0 — `ok and nil or X` CANNOT YIELD nil (nil is
+            -- falsy, so the `or` always runs). A task Asana ACCEPTED
+            -- handed its caller the string "nil" as its reason, and
+            -- 6.300.0's tab marking reads that slot. Same trap as
+            -- 6.303.0's FALSE b, with a nil b.
+            local doneWhy = nil
+            if not ok then doneWhy = tostring(why or "?") end
             local fine, err = pcall(extra.onDone, ok and true or false,
-                                    ok and nil or tostring(why or "?"), gid, info)
+                                    doneWhy, gid, info)
             if not fine then
                 pcall(print, "⚠️ Asana submit: a caller's onDone threw — "
                              .. tostring(err))

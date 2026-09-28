@@ -514,7 +514,15 @@ function M.warm(core)
         return
     end
     local ok, startWhy = dt.start()
-    ms.optOptWhy = ok and nil or tostring(startWhy)
+    -- 🔬 6.308.0 — `ok and nil or X` CANNOT YIELD nil. nil is falsy, so
+    -- the `or` always runs and a SUCCESS recorded the string "nil" as
+    -- its reason — which the report reads as a fault. 6.303.0 wrote this
+    -- rule down about `a and b or c` with a FALSE b; this is the same
+    -- trap with a NIL b, and it was written into three files after that
+    -- release by the person who wrote the rule. 6.305.0: when a release
+    -- states a principle, grep the other places that decide the same
+    -- thing, in the same commit.
+    if ok then ms.optOptWhy = nil else ms.optOptWhy = tostring(startWhy) end
     if not ok and core and core.degrade then
         pcall(core.degrade, "Menu search ⌥⌥", tostring(startWhy))
     end

@@ -1735,17 +1735,45 @@ say({a:'ready'});
     -- PURE: which key, and is there anything for it to act on?
     -- Answers "take"/"pass" AND the reason, so the report can say why a
     -- press did nothing rather than leaving him to guess (6.196.1).
-    function mp.mediaVerdict(key, hasQueue, on)
+    -- ⏯ 6.309.0 — ON SCREEN, AND THEN HOLDING SOMETHING. LL, twice:
+    -- "Still hold play pause when not visible. The player should only do
+    -- this if visible. Not while hidden … You're introducing a fix that
+    -- is not real." He is right and the correction is mine to own:
+    -- 6.289.0 gated on `hasQueue`, which I chose, and closing the card
+    -- deliberately does NOT stop the sound (mp.hide says so), so a
+    -- closed card went on holding ⏯ for as long as a queue survived it.
+    -- The gate he asked for is VISIBILITY — `mp.webview ~= nil`, which
+    -- is the whole truth here because show/hide creates and deletes it.
+    -- 🔑 THE QUEUE CHECK STAYS, and it is not a second rule smuggled in:
+    -- a card on screen with an empty queue would otherwise EAT ⏯ and do
+    -- nothing, which is worse than either answer. Both must hold, which
+    -- is the narrow direction — fewer keys taken, never more.
+    -- ONE function, TWO callers (6.231.0): the systemDefined route and
+    -- the plain-F-key route must never disagree about the same physical
+    -- key, and 6.291.0 exists because they nearly did.
+    function mp.mayTake(onScreen, hasQueue, on)
         if not on then return "pass", "media keys are switched off here" end
-        local k = tostring(key or "")
-        if k ~= "PLAY" and k ~= "FAST" and k ~= "REWIND" then
-            return "pass", "not a key this player answers"
+        if not onScreen then
+            return "pass", "the card is closed — macOS keeps the key"
         end
         if not hasQueue then
             return "pass", "nothing is queued — macOS keeps the key"
         end
-        return "take", "the player has a queue"
+        return "take", "the card is open and holding a queue"
     end
+
+    function mp.mediaVerdict(key, onScreen, hasQueue, on)
+        local k = tostring(key or "")
+        if on and k ~= "PLAY" and k ~= "FAST" and k ~= "REWIND" then
+            return "pass", "not a key this player answers"
+        end
+        return mp.mayTake(onScreen, hasQueue, on)
+    end
+
+    -- Is the card actually on screen? mp.show creates the webview and
+    -- mp.hide DELETES it, so the handle is the fact and there is no
+    -- second flag to fall out of step with it.
+    function mp.onScreen() return mp.webview ~= nil end
 
     function mp.onMediaKey(ev)
         -- Every tap in this config starts here (6.152.0).
@@ -1753,7 +1781,8 @@ say({a:'ready'});
         local sk
         pcall(function() sk = ev:systemKey() end)
         if type(sk) ~= "table" or not sk.down or sk["repeat"] then return false end
-        local verdict, why = mp.mediaVerdict(sk.key, #mp.queue > 0, mp.mediaKeys)
+        local verdict, why = mp.mediaVerdict(sk.key, mp.onScreen(),
+                                             #mp.queue > 0, mp.mediaKeys)
         mp.media.last = tostring(sk.key) .. " — " .. why
         if verdict ~= "take" then
             mp.media.passed = (mp.media.passed or 0) + 1
@@ -1812,7 +1841,7 @@ say({a:'ready'});
     -- that decides a design is checked in the source, with the file
     -- named, and this one has not been). Ignoring it is the answer that
     -- is wrong in neither.
-    function mp.fnKeyVerdict(code, codes, flags, hasQueue, on)
+    function mp.fnKeyVerdict(code, codes, flags, onScreen, hasQueue, on)
         if not on then return "pass", "media keys are switched off here" end
         local act = codes and codes[code]
         if not act then return "pass", "not a key this player answers" end
@@ -1820,10 +1849,10 @@ say({a:'ready'});
         if flags.cmd or flags.alt or flags.ctrl or flags.shift then
             return "pass", "a modifier is held — that chord belongs to the app"
         end
-        if not hasQueue then
-            return "pass", "nothing is queued — macOS keeps the key"
-        end
-        return "take", "the player has a queue", act
+        -- 6.309.0 — the SAME door the media-key route takes.
+        local verdict, why = mp.mayTake(onScreen, hasQueue, on)
+        if verdict ~= "take" then return verdict, why end
+        return "take", why, act
     end
 
     -- 🚨 THE BODY IS KEPT OUT OF THE CALLBACK, and hs-lint caught this
@@ -1858,7 +1887,8 @@ say({a:'ready'});
         if not mp.fnCodesCache[code] then return false end
         mp.media.fnSeen = (mp.media.fnSeen or 0) + 1
         local verdict, why, act =
-            mp.fnKeyVerdict(code, mp.fnCodesCache, flags, #mp.queue > 0, mp.mediaKeys)
+            mp.fnKeyVerdict(code, mp.fnCodesCache, flags, mp.onScreen(),
+                            #mp.queue > 0, mp.mediaKeys)
         mp.media.last = "F-key " .. tostring(code) .. " — " .. tostring(why)
         if verdict ~= "take" then
             mp.media.passed = (mp.media.passed or 0) + 1
@@ -1956,6 +1986,14 @@ say({a:'ready'});
                  .. " taken · " .. (md.passed or 0) .. " passed through to macOS"
                  .. (mp.fnTap and "" or "  ⚠️ media route only —"
                      .. " the function-key route did not start"))
+            -- ⏯ 6.309.0 — WHAT THE KEY WOULD DO RIGHT NOW, in words, because
+            -- "⏯ did nothing" and "⏯ went to Music.app" look identical from
+            -- the keyboard and are opposite facts. The reason printed here
+            -- is mp.mayTake's OWN answer, so the line cannot drift from
+            -- the rule (6.276.0: read the truth, never retype it).
+            local _, nowWhy = mp.mayTake(mp.onScreen(), #mp.queue > 0,
+                                         mp.mediaKeys)
+            line("   ↳ right now: " .. tostring(nowWhy))
             -- 🔎 6.291.0 — WHICH ROUTE, and this is the line that decides
             -- whether 6.289.0 could ever have worked on this Mac. F8 is
             -- an NSSystemDefined media key with "Use F1, F2… as standard

@@ -91,6 +91,17 @@ function makeEnv() {
         if (!want.length) return cached.rows;
         return cached.rows.filter((r) => want.some((k) => r.attrs && k in r.attrs));
       },
+      // 🧪 6.307.0 — THE STUB HAD querySelectorAll AND NOT querySelector,
+      // so a page that asked for the FIRST match threw where a browser
+      // answers. 6.193.0 for the ninth time, and the shape here is a
+      // MISSING METHOD on a provider the stub otherwise models well.
+      // Defined in terms of the list so the two can never disagree about
+      // what a selector matches — which is exactly what the real DOM
+      // guarantees and what a second hand-rolled matcher would not.
+      querySelector: (sel) => {
+        const all = sandbox.document.querySelectorAll(sel);
+        return all.length ? all[0] : null;
+      },
       activeElement: t,
       // 6.186.0 — the one thing a fake DOM cannot do for real. The test says
       // what the pointer is over; every other step of the drag is the page's.
@@ -174,6 +185,41 @@ console.log("── Vault: page JavaScript, executed ──");
   env.sent.length = 0;
   env.q.listeners.keydown({ key: "Enter", preventDefault() {} });
   check("⏎ in the filter with no row opens (creates) that name", env.sent[0] && env.sent[0].a === "open" && env.sent[0].name === "zzz", JSON.stringify(env.sent[0]));
+  check("6.307.0: a creation SAYS it made one, so the report can count them apart",
+        env.sent[0] && env.sent[0].made === true && env.sent[0].via === "filter", JSON.stringify(env.sent[0]));
+
+  // 🔎 6.307.0 — LL's bug, and the check that bites is the one where a
+  // note ALREADY MATCHES. He typed "examin" over a list showing
+  // "09-21-26 Examining relationship" and ⏎ wrote a NEW note called
+  // "examin" into the folder holding his writing. The name sent must be
+  // the ROW's, never the box's — asserting only `a === "open"` would
+  // pass with the bug in, because the bug also sent an open.
+  env.q.value = "long"; env.q.listeners.input({});
+  env.sent.length = 0;
+  env.q.listeners.keydown({ key: "Enter", preventDefault() {} });
+  check("6.307.0: ⏎ with a match opens THE MATCH, not the typed text",
+        env.sent[0] && env.sent[0].a === "open" && env.sent[0].name === "Long Name Here",
+        JSON.stringify(env.sent[0]));
+  check("6.307.0: …and it is not recorded as a creation",
+        env.sent[0] && !env.sent[0].made, JSON.stringify(env.sent[0]));
+
+  // A TAG ROW MUST NOT STEAL ⏎. `li[data-name]` is a note or a template
+  // and never a tag, so a filter that matches only tags falls through to
+  // the creation — which is what the empty row says it will do.
+  env.q.value = "#"; env.q.listeners.input({});
+  env.sent.length = 0;
+  env.q.listeners.keydown({ key: "Enter", preventDefault() {} });
+  check("6.307.0: a # filter still creates nothing and opens nothing",
+        env.sent.every((m) => m.a !== "open"), JSON.stringify(env.sent));
+
+  // A TEMPLATE is a data-name row too, and opening one is right: it is a
+  // note he can see in the list, which is the whole rule.
+  env.q.value = "Meet"; env.q.listeners.input({});
+  env.sent.length = 0;
+  env.q.listeners.keydown({ key: "Enter", preventDefault() {} });
+  check("6.307.0: ⏎ opens a matching template rather than making a twin of it",
+        env.sent[0] && env.sent[0].a === "open" && env.sent[0].name === "Meeting",
+        JSON.stringify(env.sent[0]));
 }
 // 2. every message carries the text and caret
 {
