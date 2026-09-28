@@ -4,48 +4,45 @@
 -- =====================================================================
 -- 09-28-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.306.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.310.0
 -- =====================================================================
 
--- NEW IN 6.306.0 — 🚪 A DRAG ENDS WHEREVER THE BUTTON COMES UP
---   (core/coexist.lua). LL, for the SECOND time in eleven releases:
---   "just because I can launch the cheat sheet doesn't mean it is
---   functional", beside "when I move the cheat sheet, I am jumped to
---   another desktop". 🔎 BOTH SENTENCES ARE ONE MECHANISM. The panel
---   drag engine had FOUR exits and called onDrop from ONE — the tap's
---   leftMouseUp. The canvas's own mouseUp, the 20 s watchdog and the
---   supersede were silent. onDrop is what moves the cheat sheet's
---   WHEEL HIT BOX (6.138.0's whole fix, behind the one door that can
---   fail to open) and saves the spot, so a drag whose mouseUp was
---   missed left the panel moved with every record of it stale. 🖥 And
---   the jump is what MISSES it: the tap observes without swallowing,
---   so macOS reads a three-finger drag as a Space swipe, and a Space
---   switch is a transition macOS disables taps across (6.303.0).
---   🧊 6.222.0 wrote the rule — "moving with nothing held IS the
---   release" — for the editor's PAGE and never asked it of the engine
---   that drags four panels (6.305.0's rule, one release on).
---   🚪 ONE EXIT NOW, inside dragStop itself, so an exit added later
---   cannot forget. Moved out of init.lua at its 3,800-line budget.
+-- NEW IN 6.310.0 — 🎯 EACH POINTER RING 10% WIDER THAN THE LAST
+--   (modules/mouse_grid.lua). LL: "⇪⇧L needs to be more obvious. Can
+--   you make each ring grow in size by 10% each time?" His answer,
+--   his number. `grid.locateRingR` is PURE and steps each ring out by
+--   `locateRingGrow` (1.10), so three rings put the outermost 21%
+--   past where it used to stop and the mark reads as a ripple
+--   travelling outward rather than three circles on one path.
+--   📐 AND THE CANVAS GROWS WITH IT (`grid.locateSpan`): sized off the
+--   BASE radius it would have cropped exactly the ring this release
+--   adds — 6.270.0's rule, reserve the room before you draw the
+--   thing. Every element centres on the span, so the rings stay
+--   concentric on the pointer. A growth below 1 is refused: a typo in
+--   a settings line must never SHRINK the mark it was asked to
+--   enlarge. The check MOVES the growth and requires the drawing to
+--   follow (6.239.0), with three rings at one p in flight — the only
+--   fixture where the old and new drawings must differ (6.230.0).
 
--- NEW IN 6.305.0 — 🔁 A RETRY MUST NOT RE-SEND WHAT ALREADY LANDED
---   (modules/scratch_pad.lua). His first unattended 16:00 run: "1 of
---   122 task(s) did not reach Asana … marked ❌ Error: tasks not
---   sent". 121 of those ARE in Asana. The mark is per TAB and a ❌
---   tab is re-parsed WHOLE, so the next run would have posted all
---   121 again, and the day after 242 — compounding daily. 6.301.0
---   wrote the rule four releases ago (ask what a RETRY would do) and
---   applied it only to subtasks. 🚨 And the ✅ side had the same
---   hole with no failure at all: typing in a tab clears its mark, so
---   editing one character re-armed every task in it. 🔑 THE MARK IS
---   ABOUT THE TAB, THE RECORD ABOUT THE TASKS — each task Asana takes is
---   remembered on its tab by a digest of what it SAYS, never its
---   position: an untouched line is skipped, an EDITED one is new work.
+-- NEW IN 6.309.0 — ⏯ THE PLAY KEY IS THE CARD'S ONLY WHILE IT IS ON SCREEN
+--   (modules/music_player.lua). LL, twice: "Still hold play pause when
+--   not visible. The player should only do this if visible. Not while
+--   hidden … You're introducing a fix that is not real." He is right.
+--   6.289.0 gated on `hasQueue`, which I chose, and closing the card
+--   deliberately does NOT stop the sound — so a closed card went on
+--   holding ⏯ for as long as a queue survived it, and macOS never got
+--   the key back. 🔑 `mp.mayTake` is the ONE gate and both routes ask
+--   it (6.231.0: the systemDefined and plain-F-key routes must never
+--   disagree about one physical key — 6.291.0 exists because they
+--   nearly did). The queue check STAYS beside it, not as a second
+--   rule smuggled in: an open card with an empty queue would else EAT
+--   ⏯ and do nothing. Both must hold, which is the narrow direction.
 
--- (6.304.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.308.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 cut the inline count to
 --  TWO; a gate check proves every entry here is also in CHANGELOG.md.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.306.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.310.0
 -- =====================================================================
 -- The catalogue that used to sit here moved to GUIDE.md ("What each
 -- tool does") in 6.180.0 — 259 lines of prose inside the orchestrator.
@@ -138,7 +135,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.306.0"
+_G.configVersion = "6.310.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the

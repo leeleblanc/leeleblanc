@@ -1282,6 +1282,111 @@ work Mac.
   taken out again — close() does it on every path that reaches there
   (6.199.0, fourth time).
 
+- 🚨 A MODULE WITH TWO `M.warm` LOSES ONE OF THEM, AND NOTHING CAN SEE
+  IT (6.308.0, modules/clipboard_history.lua — LL: "opt+opt seems to
+  work · cmd+cmd does not bring up unified clip"). This file declared
+  `function M.warm(core)` at the top level (6.292.0's ⌘⌘ registration)
+  AND assigned `M.warm = function()` inside setup() (the store read,
+  since 6.190.0). **setup() runs AFTER the file is loaded**, so the
+  assignment destroyed the registration before init.lua ever called
+  warm. ⌘⌘ was never registered, on every boot, in silence; ⌥⌥ worked
+  because menu_search has one.
+  🔑 THE IDIOM IS NOT THE BUG, which is what makes this a sentry rather
+  than a sweep: TWELVE modules assign M.warm inside setup and all twelve
+  are correct — warm usually needs setup's upvalues. Having BOTH is the
+  defect, because load order silently picks the loser. The store read
+  became a field the one warm calls, unconditionally and BEFORE the ⌘⌘
+  switch is read (behind it, `cmdCmd = false` would also have stopped
+  the history loading, which is not what that switch says).
+  🚨 AND THE REPORT CALLED IT HEALTHY. The ⌘⌘ line's third state read
+  the registry and printed "watching · 0 open(s)" regardless, so a
+  gesture that had never been registered — with no reason recorded,
+  because the code that records one never ran — reported as health.
+  6.196.1 broken inside the instrument built to keep it. A FOURTH state
+  ASKS THE REGISTRY. GENERAL: never infer health from the absence of a
+  complaint; ask the thing that would know.
+  🔬 `x and nil or y` CANNOT YIELD nil — nil is falsy, so the `or`
+  always runs and a SUCCESS is published as the STRING "nil". 6.303.0
+  wrote this down about a FALSE b; this is the same trap with a NIL b,
+  and it was written into THREE files AFTER that release by the person
+  who wrote the rule. All three fixed in one commit with a source sentry
+  (6.305.0: when a release states a principle, grep the other places
+  that decide the same thing, in the same commit).
+  🧪 NO FUNCTIONAL TEST COULD HAVE CAUGHT THE SHADOW: the suite calls
+  M.warm() and passes, because the function it calls IS the shadow. The
+  new section drives warm and asks the REGISTRY. 🚨 And the gate sentry's
+  first version CRIED WOLF on twelve healthy modules, caught by the
+  sweep before delivery (6.269.0). 🧪 One mutation KILLED the suite
+  instead of failing it — the report indexed `g` unguarded — which is
+  6.282.0: an instrument that can RAISE is worse than one that lies.
+
+- 🔎 A MATCH BEATS A CREATION (6.307.0, modules/vault.lua — LL, with a
+  screenshot: "Search finds a title but creates a new entry when using
+  cmd+f upon hitting enter"). The ⌘F box has THREE modes and only one
+  behaved this way: search and tasks mode have opened `rowsList()[0]`
+  since they were written, while notes mode sent the TYPED TEXT as the
+  name — and `v.openNote` SEEDS a missing file by design (6.174.0). So
+  ⏎ over a list already showing the note he meant wrote a second,
+  near-identical note into the folder holding his writing.
+  🔑 `li[data-name]` is the whole fix: a note or a template, never a TAG
+  row, so a tag cannot steal ⏎ either. Nothing matched → it still
+  creates, which is what the empty row has SAID all along ("no note
+  matches — ⏎ creates …"). THE PAGE WAS TELLING THE TRUTH AND THE
+  HANDLER WAS NOT OBEYING IT — general: when a feature does the wrong
+  thing, check whether some other part of the same page already says
+  what the right thing is.
+  🔎 Counted apart (6.196.1): `_G.vaultReport()`'s "⏎ filter" line says
+  how many presses opened the match and how many made a note.
+  🧪 THE STUB HAD querySelectorAll AND NOT querySelector — 6.193.0 for
+  the NINTH time, and a new shape of it: a MISSING METHOD on a provider
+  the stub otherwise models well. It is defined in terms of the list, so
+  the two cannot disagree about what a selector matches. 🧪 The check
+  that BITES asserts the NAME: asserting `a === "open"` passes with the
+  bug in, because the bug also sent an open.
+  🧨 AND A TOOL MISTAKE COST THE SUITE ITS WHOLE FILE: a python
+  `open(p, "w")` TRUNCATES before the write, so an encoding error inside
+  the write left test_clipboard.lua at zero bytes and the suite silently
+  produced nothing. `git checkout` restored it. RULE: any script that
+  rewrites a tracked file writes to a TEMP file and `os.replace`s it —
+  6.199.0's temp-then-rename rule, which this project applies to LL's
+  dictionary and had not applied to its own tooling.
+
+- ⏯ A MODE SAYS WHAT A TOOL DOES ON ITS OWN — AND A CLOSED PANEL OWNS
+  NOTHING (6.309.0, modules/music_player.lua — LL, twice: "Still hold
+  play pause when not visible. The player should only do this if
+  visible. Not while hidden … You're introducing a fix that is not
+  real"). He is right and the correction is mine: 6.289.0 gated on
+  `hasQueue`, a rule I chose, and closing the card deliberately does NOT
+  stop the sound — so a closed card held ⏯ for as long as a queue
+  survived it.
+  🔑 `mp.mayTake(onScreen, hasQueue, on)` is the ONE gate and BOTH
+  routes ask it (6.231.0; 6.291.0 exists because those two routes for
+  one physical key nearly came to disagree). A check joins them over all
+  four states and asserts the same verdict AND the same reason.
+  🚨 THE QUEUE CHECK STAYS beside his rule rather than replacing it: an
+  open card with an empty queue would otherwise EAT ⏯ and do nothing.
+  Both must hold — the NARROW direction, fewer keys taken, never more.
+  `mp.onScreen()` reads `mp.webview`, the handle show creates and hide
+  deletes, so there is no second flag to fall out of step.
+  🗳 GENERAL, and it is the one to carry: WHEN HE SAYS A FIX IS "NOT
+  REAL", THE GATE I CHOSE IS THE SUSPECT, not the implementation. A rule
+  the person never asked for will keep being almost right.
+
+- 🎯 A THING THAT GAINS FURNITURE RESERVES THE ROOM FIRST (6.310.0,
+  modules/mouse_grid.lua — LL: "⇪⇧L needs to be more obvious. Can you
+  make each ring grow in size by 10% each time?"). His answer, his
+  number, shipped as asked. `grid.locateRingR` is PURE and steps each
+  ring out by `locateRingGrow` (1.10); `grid.locateSpan` answers the
+  OUTERMOST ring's radius and the canvas is built from THAT — sized off
+  the base it would have cropped exactly the ring the release adds.
+  6.270.0's rule in a second place. A growth below 1 is refused: a typo
+  in a settings line must never SHRINK the mark it was asked to enlarge.
+  🧪 The check MOVES the growth and requires the drawing AND the canvas
+  to follow (6.239.0); the fixture that bites is the one moment three
+  rings are in flight at the same p, because with every ring on one path
+  their radii are equal and that is the only input where the old and new
+  drawings must differ (6.230.0).
+
 - 🚪 A DRAG ENDS WHEREVER THE BUTTON COMES UP, AND EVERY EXIT OWES THE
   CALLER ITS ANSWER (6.306.0, core/coexist.lua — LL, twice, eleven
   releases apart: "Seems like a drag kills the sheet functionality"
@@ -3914,7 +4019,7 @@ THE METHOD, when something breaks after a stacked zip:
    6.216.0 6f06071 · 6.217.0 a475bef · 6.218.0 41b002b · 6.219.0 862c177
    · 6.220.0 ac3975e · 6.221.0 ead07d9 · 6.222.0 1842ca7 · 6.223.0
    86ac82b · 6.224.0 67957ea · 6.225.0 98434fe · 6.226.0 304f1f9 ·
-   6.227.0 14e953a · 6.228.0 2aa3dfe · 6.229.0 a1318e1 · 6.230.0 0740c07 · 6.231.0 c1921af · 6.231.1 5a5c298 · 6.232.0 1ca3f6f · 6.233.0 2328c8c · 6.234.0 57f78d0 · 6.235.0 52e5b21 · 6.236.0 34cff8b · 6.236.1 fdce771 · 6.237.0 adf9256 · 6.238.0 3adad4f · 6.239.0 3adad4f (one commit, two releases) · 6.240.0 8f44bec · 6.241.0 dce517e · 6.242.0 1a1dab0 · 6.243.0 8fba04f · 6.244.0 9320906 · 6.245.0 9c1a8b1 · 6.246.0 1400abd · 6.247.0 3b92e99 · 6.248.0 e4e3a03 · 6.249.0 e4edc3f · 6.250.0 c267c1b · 6.251.0 f7b0d57 · 6.252.0 6307253 · 6.253.0 ef20313 · 6.254.0 14493e5 · 6.255.0 d371b34 · 6.256.0 3c29888 · 6.257.0 7f55d2b · 6.258.0 10d2250 · 6.259.0 2bcda06 · 6.260.0 f16e286 · 6.261.0 8680504 · 6.262.0 595dc2e · 6.263.0 014ddf6 · 6.264.0 5e41879 · 6.265.0 f0c487c · 6.266.0 9135f7b · 6.267.0 a621a60 · 6.268.0 c2e513f · 6.269.0 f6552ea (078cece is the same release before the report was corrected) · 6.270.0 b8eda88 · 6.271.0 b8edbe1 · 6.272.0 881a91b · 6.273.0 56b0d2b · 6.274.0 c6e9b6b · 6.275.0 9cebe19 · 6.276.0 3db904e · 6.277.0 c6632a1 · 6.278.0 6c1fe75 · 6.279.0 a6241f5 · 6.280.0 893b40b · 6.281.0 5611a4a · 6.282.0 11dc992 · 6.283.0 3fa417f · 6.284.0 a8f3df4 · 6.285.0 70d118b · 6.286.0 fa93f1b · 6.287.0 39b9dba · 6.288.0 8508186 · 6.289.0 83f5296 · 6.290.0 6daee50 · 6.291.0 aec4561 · 6.292.0 c89c65f · 6.293.0 10c9410 · 6.294.0 0aeebdc · 6.295.0 641c45c (52c1b2b adds the check its own mutation sweep found missing) · 6.296.0 e82ad95 (8bd970b adds the cross-file sentry) · 6.297.0 dacb791 (1604d55 hardens the suite) · 6.298.0 f77c47e (fe109ff adds the two checks its sweep found missing) · 6.299.0 bdc6855 (c587502 the same) · 6.300.0 8ab4802 (cc8b7f9 the same) · 6.301.0 dcff776 · 6.302.0 b465418 (e287164 the mutation sweep's own two findings) · 6.303.0 f5d89e1 · 6.304.0 b8b1b51 (7cf3d9b is the release; b8b1b51 adds the mutation sweep's own four findings) · 6.305.0 b1aa974 (f478dc8 is the release; b1aa974 adds the mutation sweep's own four findings) · 6.306.0 cf14689.
+   6.227.0 14e953a · 6.228.0 2aa3dfe · 6.229.0 a1318e1 · 6.230.0 0740c07 · 6.231.0 c1921af · 6.231.1 5a5c298 · 6.232.0 1ca3f6f · 6.233.0 2328c8c · 6.234.0 57f78d0 · 6.235.0 52e5b21 · 6.236.0 34cff8b · 6.236.1 fdce771 · 6.237.0 adf9256 · 6.238.0 3adad4f · 6.239.0 3adad4f (one commit, two releases) · 6.240.0 8f44bec · 6.241.0 dce517e · 6.242.0 1a1dab0 · 6.243.0 8fba04f · 6.244.0 9320906 · 6.245.0 9c1a8b1 · 6.246.0 1400abd · 6.247.0 3b92e99 · 6.248.0 e4e3a03 · 6.249.0 e4edc3f · 6.250.0 c267c1b · 6.251.0 f7b0d57 · 6.252.0 6307253 · 6.253.0 ef20313 · 6.254.0 14493e5 · 6.255.0 d371b34 · 6.256.0 3c29888 · 6.257.0 7f55d2b · 6.258.0 10d2250 · 6.259.0 2bcda06 · 6.260.0 f16e286 · 6.261.0 8680504 · 6.262.0 595dc2e · 6.263.0 014ddf6 · 6.264.0 5e41879 · 6.265.0 f0c487c · 6.266.0 9135f7b · 6.267.0 a621a60 · 6.268.0 c2e513f · 6.269.0 f6552ea (078cece is the same release before the report was corrected) · 6.270.0 b8eda88 · 6.271.0 b8edbe1 · 6.272.0 881a91b · 6.273.0 56b0d2b · 6.274.0 c6e9b6b · 6.275.0 9cebe19 · 6.276.0 3db904e · 6.277.0 c6632a1 · 6.278.0 6c1fe75 · 6.279.0 a6241f5 · 6.280.0 893b40b · 6.281.0 5611a4a · 6.282.0 11dc992 · 6.283.0 3fa417f · 6.284.0 a8f3df4 · 6.285.0 70d118b · 6.286.0 fa93f1b · 6.287.0 39b9dba · 6.288.0 8508186 · 6.289.0 83f5296 · 6.290.0 6daee50 · 6.291.0 aec4561 · 6.292.0 c89c65f · 6.293.0 10c9410 · 6.294.0 0aeebdc · 6.295.0 641c45c (52c1b2b adds the check its own mutation sweep found missing) · 6.296.0 e82ad95 (8bd970b adds the cross-file sentry) · 6.297.0 dacb791 (1604d55 hardens the suite) · 6.298.0 f77c47e (fe109ff adds the two checks its sweep found missing) · 6.299.0 bdc6855 (c587502 the same) · 6.300.0 8ab4802 (cc8b7f9 the same) · 6.301.0 dcff776 · 6.302.0 b465418 (e287164 the mutation sweep's own two findings) · 6.303.0 f5d89e1 · 6.304.0 b8b1b51 (7cf3d9b is the release; b8b1b51 adds the mutation sweep's own four findings) · 6.305.0 b1aa974 (f478dc8 is the release; b1aa974 adds the mutation sweep's own four findings) · 6.306.0 cf14689 · 6.307.0–6.310.0 SHA_PENDING (one commit, four releases — the four live in four different modules, so a break still names its version by which tool it is in).
    Keep this list current: one line per release, appended at ceremony
    time.
 4. A BISECT IS AN OPTION, NOT THE FIRST MOVE — it costs him an install
@@ -3927,6 +4032,73 @@ THE METHOD, when something breaks after a stacked zip:
 
 - run-tests.sh's "forty-one suites" comment.
 - GUIDE.md's "all 58 modules" wording (near line 679).
+
+## 🔨 CRUDE OR ELEGANT — LL's rule (6.307.0), and the index that makes it work
+
+LL, 2026-09-28: "When we solve a problem that we both determine, you
+will ask me, is this a problem that made your MacBook for work or home
+unusable? If it degrades gracefully where it's a fix, that's solved on
+one pass: elegant. If it became unusable, you are to create a new line
+that says **Crude problem** and logs it. If it is fixed in one pass call
+it **Elegant solution** … You need to be able to refer back to problems
+and not tell me it is different or only find it when I tell you it's
+something we already fixed. I mean come on… lol, you're the one with
+perfect memory."
+
+He is right, and it has cost us twice in a fortnight. 6.306.0 needed his
+own sentence — "We have solved this issue or a similar one" — to find
+6.138.0's identical report and 6.222.0's written rule. 6.305.0's
+duplicate-on-retry rule had been written FOUR RELEASES EARLIER in this
+very file and applied to one caller only.
+
+🔨 THE QUESTION, asked in every verify block from 6.307.0 on:
+**did this make a Mac — home or work — UNUSABLE, or did it degrade?**
+  🔨 **CRUDE PROBLEM** — the Mac was unusable while it lasted: a dead
+     keyboard, a panel only `hs.reload()` could clear, an archive he
+     could not open, a config that would not boot.
+  ✨ **ELEGANT SOLUTION** — it degraded gracefully AND was fixed in one
+     pass. Both halves, or it is not elegant yet.
+  A fix that took more than one pass is neither until it lands; the row
+  records the pass count, because that number is the honest measure.
+
+🗳 THE TAG IS HIS, NEVER MINE — same rule as the scoreboard. I ask; he
+answers; I log. A row with no answer reads "ask" and stays that way
+rather than being scored from this side.
+
+🔎 AND THE TAG IS NOT THE POINT — THE INDEX IS. The ledger is keyed by
+the SYMPTOM IN HIS WORDS, because his words are what comes back months
+later and his words are what I failed to search. **RULE: before
+diagnosing anything, grep this table for the nouns in his sentence.** A
+hit is not proof it is the same bug — 6.198.0 — but it is a precedent
+that must be READ before a new cause is named.
+
+| symptom, in his words | where it lives | releases | passes | tag |
+|---|---|---|---|---|
+| "killed my keyboard", every key runs a shortcut, ⇪ latched | core/hyper_key.lua · hyper_storm.lua | 6.162.1 · 6.214.1 · 6.214.2 · 6.302.0 · 6.303.0 · 6.304.0 | 6 | 🔨 crude |
+| "empty zip" / the archive will not open | delivery, not code | 6.263.0 → 6.303.0 | 6 | 🔨 crude |
+| "a drag kills the sheet functionality" · wheel dead over ⇪/ · desktop jump | core/coexist.lua drag engine | 6.138.0 · 6.306.0 | 2 | ask |
+| "hyper+4 no longer works" / "intermittently working" | modules/screenshots.lua | 6.264.0 · 6.265.0 · 6.274.0 · 6.282.0 | 4 | ask |
+| "frozen grid again" — a yellow box only a reload clears | modules/mouse_grid.lua · `_G.showCanvasSafely` | 6.266.0 | 1 | ask |
+| "can't move files in drag and drop" · Hammerspoon locked up | modules/file_tracker.lua | 6.228.0 · 6.229.0 · 6.230.0 · 6.241.0 | 4 | ask |
+| "can't drop a file on the music player" | modules/music_player.lua | 6.231.0 · 6.233.0 · 6.235.0 · 6.237.0 | 4 | ✨ WIN |
+| cheat sheet "appears on a different screen" | init.lua §1.5 · core/cheatsheet.lua | 6.236.0 · 6.288.0 | 2 | ask |
+| "the green icons loop and loop" — OCR nonstop | modules/screenshots.lua | 6.281.0 | 1 | ask |
+| ⇪Y "caused a lock up when I started to search" | modules/chrome_history.lua | 6.245.0 | 1 | ask |
+| "banshee" — a field of doesnt/dododod, tabs opening | modules/autocorrect.lua | 6.216.0 → 6.218.0 · 6.219.0 | 2 | 🔨 crude |
+| "closing the screenshot editor dumps the most recent edits" | modules/screenshot_editor.lua | 6.189.0 · 6.286.0 | 2 | ask |
+| "⇪⇧A on the blue line file" — one press behind | modules/universal_actions.lua | 6.246.0 | 1 | ask |
+| "I don't see items that i just copied" | modules/clipboard_history.lua | 6.224.0 | 1 | ask |
+| "1 of 122 task(s) did not reach Asana" → would re-send 121 | modules/scratch_pad.lua | 6.305.0 | 1 | ask |
+| "search finds a title but creates a new entry" (⌘F, ⏎) | modules/vault.lua | 6.307.0 | 1 | ask |
+| "cmd+cmd does not bring up unified clip" | modules/clipboard_history.lua warm | 6.308.0 | 1 | ask |
+| "still hold play pause when not visible" | modules/music_player.lua | 6.289.0 · 6.291.0 · 6.309.0 | 3 | ask |
+| "⇪⇧L needs to be more obvious" | modules/mouse_grid.lua | 6.167.0 · 6.195.0 · 6.310.0 | 3 | ask |
+
+📏 SEEDED FROM THE RECORD, NOT INVENTED: every row above is a real
+report with a real release beside it, and the pass counts are countable
+from the scoreboard. What is NOT filled in is the tag, because that is
+the answer only he can give — and a table full of guesses would be
+exactly the thing he is asking me to stop doing.
 
 ## Scoreboard — LL's rule, kept here (6.204.0 onward)
 
@@ -4010,6 +4182,10 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
+| 6.310.0 | 🎯 each ⇪⇧L ring 10% wider than the last, and the canvas grew to hold the outermost | pending |
+| 6.309.0 | ⏯ the Jug Player holds ⏯ only while its card is ON SCREEN — 6.289.0 gated on a queue, which is a rule he never asked for | pending |
+| 6.308.0 | ⌨️ ⌘⌘ opens the clipboard at last — two functions called M.warm in one file, and setup() destroyed the one that registered it | pending |
+| 6.307.0 | 🔎 ⌘F then ⏎ opens the note it found instead of writing a new one with the text you typed | pending |
 | 6.306.0 | 🚪 a drag that ends anywhere but on the panel no longer leaves the cheat sheet moved with its scroll hit box at the old spot — three of the engine's four exits never told the panel it had moved | pending |
 | 6.305.0 | 🔁 a retry no longer re-sends what already reached Asana — 121 of his 122 tasks landed, the tab was marked ❌, and tomorrow's 16:00 would have posted all 121 again | pending |
 | 6.304.0 | 🚨 the Secure Input probe can no longer wedge — one ioreg that never answered shut the last of 6.303.0's three candidates down for the whole session, and `secure: not known` was the only thing it could ever say | pending |
@@ -4978,6 +5154,185 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.310.0 verify with LL — 🎯 THE POINTER RINGS STEP OUTWARD (KNOWN GROUND)
+  WHAT CHANGED: each of the three rings ⇪⇧L throws is 10% wider than the
+  one before it, and the whole mark got bigger to hold the outermost.
+  Your number, your answer — I have not substituted one of mine.
+
+  A. THE HEADLINE — ten seconds.
+  A1. Press ⇪⇧L. EXPECT: three white rings leaving the pointer, each
+      visibly larger than the last, repeating for six seconds.
+  A2. Compare it to how it looked on 6.306.0 if you can. The outermost
+      ring now reaches 21% further out than it used to.
+  A3. Console: `_G.mouseGridReport()` — a new "↳ growth" line reads
+      `each ring +10% on the one before it · outermost NNN pt of a NNN pt
+      canvas`. PASTE IT.
+
+  B. MUST STILL WORK.
+  B1. ⇪X: the grid draws, three letters land, the box splits by letter,
+      arrows nudge, Esc closes. Nothing about the grid changed.
+  B2. On the 4K at full points the ring should still be bigger than on
+      the Air — the scale rule is untouched.
+
+  C. A JUDGEMENT ONLY YOU CAN MAKE — and this is the one I want.
+  C1. Is 10% enough? You asked for that number and I built exactly it,
+      but "more obvious" is your eye, not mine. If it still gets lost,
+      say which of these: bigger overall (`locateRadius`), MORE rings
+      (`locateRings`), a steeper step (`locateRingGrow`), or longer
+      (`locateSecs`). One word and it is a default change, not a release.
+  C2. 🔨 CRUDE OR ELEGANT: did this ever make the Mac unusable, or did it
+      just not stand out? My reading is neither — it is a feature ask,
+      not a defect — so I have logged it as a request rather than a
+      problem. Correct me if it belongs in the ledger.
+
+- 6.309.0 verify with LL — ⏯ THE PLAY KEY, ONLY WHILE THE CARD IS UP (KNOWN GROUND)
+  WHAT CHANGED: the Jug Player takes ⏯ ⏮ ⏭ only while its card is ON
+  SCREEN. Closed, the key goes back to macOS.
+  🚨 AND YOU WERE RIGHT THAT MY LAST FIX WAS NOT REAL. 6.289.0 gated on
+  "has a queue" — a rule I chose, not one you asked for — and closing
+  the card deliberately does not stop the sound, so a closed card went
+  on holding the key for as long as a queue survived it. Visibility is
+  the gate now.
+
+  A. THE HEADLINE — this is the whole test.
+  A1. ⇪⇧pad., drop two tracks, something plays. Press F8/⏯ — it pauses.
+      Press again — it resumes. Unchanged.
+  A2. Now CLOSE the card (⇪⇧pad. again). The music keeps playing, as it
+      always has.
+  A3. Press ⏯.
+      EXPECT: the Jug Player does NOT react. The key goes to macOS — so
+      if Music.app or a YouTube tab has audio, THAT pauses instead.
+      **A FAIL here is the card reacting**, and it is the bug you
+      reported twice. Tell me at once.
+  A4. ⇪⇧pad. to bring the card back. Press ⏯ — it works again.
+
+  B. THE ONE THAT STOPS A DEAD KEY.
+  B1. Open the card with NOTHING queued. Press ⏯.
+      EXPECT: it passes through to macOS. An open card with an empty
+      queue must not eat a key it cannot act on. That check is mine, not
+      yours — say if you would rather an open card always took the key.
+
+  C. MUST STILL WORK.
+  C1. With the card open: space, ↑↓, ⏎, ⌘1–9, ← → all unchanged.
+  C2. F7 and F9 step back and forward while the card is open, and pass
+      through while it is closed.
+  C3. The volume keys stay macOS's — your own decision in 6.231.0.
+
+  D. PASTE BACK, PASS OR FAIL.
+  D1. `_G.musicReport()` — a new "↳ right now" line says in words what ⏯
+      would do at this moment: `the card is closed — macOS keeps the
+      key` / `nothing is queued — macOS keeps the key` / `the card is
+      open and holding a queue`. Run it with the card open and again
+      with it closed; the line must CHANGE.
+  D2. The "↳ by route" line still tells me whether your F8 arrives as a
+      media key or a plain function key.
+
+  E. 🔨 CRUDE OR ELEGANT.
+  E1. Did the card holding ⏯ while hidden ever leave you unable to use
+      the Mac — stuck unable to pause something — or was it an annoyance
+      you worked around? Your answer tags the row, and it took three
+      passes (6.289.0, 6.291.0, this), so it is not elegant either way.
+
+- 6.308.0 verify with LL — ⌨️ ⌘⌘ OPENS THE CLIPBOARD (KNOWN GROUND)
+  WHAT CHANGED: ⌘⌘ works. It had never been registered — not once, on
+  any boot since 6.292.0.
+  🔎 WHY ⌥⌥ WORKED AND ⌘⌘ DID NOT, because it is nothing you could have
+  guessed: clipboard_history.lua had TWO functions called `M.warm` — the
+  one at the bottom that registers ⌘⌘, and one written inside setup()
+  that reads the clipboard store. setup runs after the file is loaded,
+  so the second one overwrote the first before Hammerspoon ever called
+  it. menu_search has only one, which is the whole difference.
+  🚨 AND THE REPORT SAID IT WAS FINE. `_G.clipboardReport()` printed
+  "⌘⌘ : watching · 0 open(s) this session" — because it inferred health
+  from the absence of a recorded complaint, and there was no complaint:
+  the code that would have recorded one never ran. That is exactly the
+  distinction that report exists to keep, broken inside itself.
+
+  A. THE HEADLINE.
+  A1. Tap ⌘ twice, quickly, nothing else held.
+      EXPECT: the clipboard history opens — the same panel ⇪V gives you.
+      **This is the whole release.**
+  A2. Esc, then ⇪V. EXPECT: the identical window. One function, two doors.
+  A3. Left ⌘ and right ⌘ both work.
+  A4. Console: `_G.doubleTapReport()`. EXPECT BOTH gestures listed now:
+      `⌘⌘ : clipboard history` AND `⌥⌥ : the front app's menus`, under
+      one `watcher : running`. PASTE IT.
+  A5. `_G.clipboardReport()` — the ⌘⌘ line must read `watching · N
+      open(s)`. If it EVER reads `⚠️ WANTED but NOT REGISTERED`, that is
+      the new fourth state doing its job — paste it.
+
+  B. THE ONES THAT PROTECT YOUR TYPING — these matter more than A.
+  B1. ⌘C, ⌘V, ⌘S, ⌘Tab, ⌘W as normal. EXPECT: nothing opens.
+  B2. HOLD ⌘ for a second and release, twice. EXPECT: nothing.
+  B3. Tap ⌘, type a letter, tap ⌘. EXPECT: nothing.
+  B4. Hold ⌘ AND ⌥ and tap twice. EXPECT: NEITHER opens.
+  B5. ⌥⌥ still opens the menus. ⌃⌃ still opens the editor picker.
+  B6. Type normally for a while — no missed characters, no lag.
+
+  C. MUST STILL WORK — the merge touched the clipboard's own load.
+  C1. Copy three things, press ⇪V. EXPECT: all three, newest first.
+  C2. Reload Hammerspoon, press ⇪V. EXPECT: your history is still there.
+      That read used to live in the function that was being destroyed;
+      if the history came back EMPTY, stop and tell me immediately.
+  C3. ⇪⇧V still edits and deletes rows.
+
+  D. 🔨 CRUDE OR ELEGANT.
+  D1. ⇪V always worked, so my reading is that this degraded gracefully —
+      a feature silently absent, not a Mac you could not use. One pass.
+      If you agree it is ✨ ELEGANT; if being told "watching" while it
+      was dead counts as worse than that, say so and it goes down 🔨.
+
+- 6.307.0 verify with LL — 🔎 ⌘F FINDS IT, ⏎ OPENS IT (KNOWN GROUND)
+  WHAT CHANGED: in Hamsidian, ⏎ in the ⌘F filter box now OPENS the note
+  the list is showing you instead of creating a new one with the text
+  you typed.
+  🔎 YOUR SCREENSHOT DIAGNOSED IT: the filter said "examin", the NOTES
+  section showed "09-21-26 Examining relationship", and the editor held
+  a brand-new "# examining". The filter box has three modes, and search
+  and tasks mode have ALWAYS opened the first hit. Notes mode alone sent
+  the typed text as the name — and opening a note that is not there
+  creates it, by design. One mode of three, and it was the one that
+  writes a file into the folder holding your writing.
+
+  A. THE HEADLINE.
+  A1. ⇪3. Press ⌘F and type enough of an existing note's name to narrow
+      the list — "examin" will do.
+  A2. Press ⏎ WITHOUT pressing ↓ first.
+      EXPECT: the note in the list OPENS, with its real contents.
+      **A FAIL is a new empty note called "examin"** — that is the bug,
+      unchanged.
+  A3. Look at the vault folder. EXPECT: no new file was created.
+
+  B. CREATING STILL WORKS — it has to, or this trades one bug for another.
+  B1. ⌘F and type something no note matches — "zzznothing".
+      EXPECT: the list says `no note matches — ⏎ creates "zzznothing"`.
+  B2. Press ⏎. EXPECT: it creates that note and opens it, as before.
+  B3. ⌘N still opens the naming bar and creates by name.
+
+  C. THE EDGES.
+  C1. ⌘F and type `#` plus a tag. EXPECT: it filters by tag and ⏎
+      creates nothing.
+  C2. ⌘F, narrow to a TEMPLATE (type "Meet"), press ⏎. EXPECT: the
+      template opens. It is a note in the list, so opening it is right.
+  C3. ⌘F, then ↓ to a row further down, then ⏎. EXPECT: THAT row opens —
+      the arrow keys were always right and are untouched.
+
+  D. PASTE BACK, PASS OR FAIL.
+  D1. `_G.vaultReport()` — a new "⏎ filter" line counts them apart:
+      `N opened the match · N created a new note`, with the last one
+      named. After A2 and B2 that should read 1 and 1.
+
+  E. 🔨 CRUDE OR ELEGANT — and please answer this one.
+  E1. How many of these stray notes are in your vault? They will be
+      named after whatever you typed into the filter box. If there is a
+      pile of them, say so and the next release is a command that lists
+      every note whose name matches a note you already had — I will not
+      delete anything without you seeing the list first (6.280.0).
+  E2. Hamsidian stayed usable throughout, so my reading is ✨ ELEGANT,
+      one pass. But it was writing into the one folder where a mistake
+      costs your own words, so if you call that 🔨 CRUDE I will not
+      argue — it is your tag.
+
 - 6.306.0 verify with LL — 🚪 A DRAG NO LONGER KILLS THE PANEL (KNOWN GROUND)
   WHAT CHANGED: when you drag the cheat sheet — or the pomodoro, the key
   caster, the Mac panel — the panel now always tells itself where it

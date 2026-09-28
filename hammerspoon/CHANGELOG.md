@@ -5,6 +5,157 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.310.0 — 🎯 EACH POINTER RING 10% WIDER THAN THE LAST
+  (modules/mouse_grid.lua). LL: "⇪⇧L needs to be more obvious. Can you
+  make each ring grow in size by 10% each time?" His answer, his
+  number, and it ships as asked rather than as a radius I would have
+  picked for him (6.300.0: when a design question has defensible
+  answers, the person living with the tool may have the best one).
+  🎯 `grid.locateRingR(i, r)` is PURE and steps each ring out by
+  `locateRingGrow` (1.10), so the three rings reach r, 1.1r and 1.21r
+  instead of all reaching r. The mark is 21% bigger at its edge AND
+  reads as a ripple travelling outward rather than three circles
+  walking the same path — which is the "more obvious" half.
+  📐 AND THE CANVAS GROWS WITH IT. `grid.locateSpan(r)` answers the
+  OUTERMOST ring's radius and the canvas is built from that; sized off
+  the base it would have clipped exactly the ring this release adds.
+  6.270.0's rule in a second place: when a thing gains furniture, the
+  reservation goes in the sizing first — add it first and it is either
+  cropped or on top of what was there. Every element centres on the
+  span, so the rings stay concentric on the pointer however far the
+  outermost goes.
+  🚨 A GROWTH BELOW 1 IS REFUSED. `locateRingGrowth` floors at 1 and
+  caps at 2: a typo in a settings line must never SHRINK the mark it
+  was asked to enlarge, and NaN floors the same way.
+  🧪 THE CHECK MOVES THE CONFIG (6.239.0) — it sets the growth to 1.50
+  and requires both the drawing and the canvas to follow, so asserting
+  the shipped 1.10 cannot pass by being typed in twice. And the
+  fixture that BITES is the one moment three rings are in flight at
+  the same p: with every ring on one path their radii are equal, so
+  that is the only input where the old and new drawings must differ
+  (6.230.0). Three mutations, three bites.
+  🧪 TWO OLD CHECKS ASSERTED A DERIVATION, NOT THE RULE: "the canvas is
+  centred on the pointer" was written as `x == 400 - locateRadius`,
+  which stopped meaning the same thing the moment the outermost ring
+  grew past the base. They ask the rule now — centre equals the
+  pointer — and would have gone red with nothing to say about the
+  change they exist to prove (6.248.0, fifth time).
+
+NEW IN 6.309.0 — ⏯ THE PLAY KEY IS THE CARD'S ONLY WHILE IT IS ON SCREEN
+  (modules/music_player.lua). LL, twice: "Still hold play pause when
+  not visible. The player should only do this if visible. Not while
+  hidden. Do you understand this now? You're introducing a fix that is
+  not real." He is right, and the correction is mine to own: 6.289.0
+  gated on `hasQueue`, which I chose and he never asked for. Closing
+  the card deliberately does NOT stop the sound (mp.hide says so in
+  its own comment), so a CLOSED card went on holding ⏯ for as long as
+  a queue survived it, and macOS never got the key back.
+  🔑 `mp.mayTake(onScreen, hasQueue, on)` is the ONE gate and BOTH
+  routes ask it — the NSSystemDefined media-key route and 6.291.0's
+  plain-F7/F8/F9 route. 6.231.0's rule, and 6.291.0 exists precisely
+  because those two nearly came to disagree about one physical key; a
+  check joins them over all four states and asserts the same verdict
+  AND the same reason, so a rule changed in one cannot miss the other.
+  🚨 THE QUEUE CHECK STAYS, and it is not a second rule smuggled in
+  beside his: an open card with an empty queue would otherwise EAT ⏯
+  and do nothing, which is worse than either answer. Both conditions
+  must hold, which is the NARROW direction — fewer keys taken, never
+  more. `mp.onScreen()` reads `mp.webview`, the handle show creates
+  and hide deletes, so there is no second flag to fall out of step.
+  🔎 THE REPORT SAYS WHAT THE KEY WOULD DO RIGHT NOW, in mp.mayTake's
+  own words rather than a sentence retyped beside the rule (6.276.0).
+  "⏯ did nothing" and "⏯ went to Music.app" are identical from the
+  keyboard and opposite facts; the check moves the STATE and requires
+  the line to follow.
+  🧪 DRIVEN THROUGH THE TAP, not only through the pure function
+  (6.264.0: proving a decision function is not proving that anything
+  CALLS it with the values that matter). The row that bites is a full
+  queue with no card — which is LL's report, and which returned
+  `true` on 6.289.0. Four mutations, four bites.
+
+NEW IN 6.308.0 — 🚨 A MODULE WITH TWO M.warm LOSES ONE OF THEM
+  (modules/clipboard_history.lua + menu_search.lua + task_creator.lua).
+  LL: "opt+opt seems to work · cmd+cmd does not bring up unified clip."
+  Two gestures, one engine, one of them dead — and the difference was
+  not in the engine at all.
+  🔎 clipboard_history.lua declared `function M.warm(core)` at the top
+  level (6.292.0's ⌘⌘ registration) AND assigned `M.warm = function()`
+  inside setup() (the store read, there since 6.190.0). setup runs
+  AFTER the file is loaded, so the assignment overwrote the
+  registration before init.lua ever called warm. ⌘⌘ was never
+  registered, on every boot, in silence. ⌥⌥ worked because
+  menu_search has only one M.warm.
+  🔑 THE IDIOM IS NOT THE BUG, which is what makes this a sentry
+  rather than a sweep: twelve modules assign M.warm inside setup and
+  all twelve are correct — warm usually needs setup's upvalues. Having
+  BOTH is the defect, because then load order silently picks the
+  loser. The store read is a field (`clip.warmLoad`) the one M.warm
+  calls, unconditionally and BEFORE the ⌘⌘ switch is read: behind it,
+  `cmdCmd = false` would also have stopped the history loading, which
+  is not what that switch says.
+  🚨 AND THE REPORT CALLED IT HEALTHY. Its ⌘⌘ line had three states,
+  and the third read the registry and then printed "watching · 0
+  open(s)" regardless — so a gesture that had never been registered,
+  with no reason recorded because warm never ran, reported as health.
+  6.196.1 broken inside the instrument built to keep it. A FOURTH
+  state asks the registry: WANTED but NOT REGISTERED.
+  🔬 `x and nil or y` CANNOT YIELD nil — a second real bug, found by
+  the new test rather than by reading. nil is falsy, so the `or`
+  always runs: `clip.cmdCmdWhy = ok and nil or tostring(startWhy)`
+  recorded the STRING "nil" on SUCCESS, which the report reads as a
+  fault. 6.303.0 wrote this rule down about a FALSE b; this is the
+  same trap with a NIL b, and it was written into THREE files after
+  that release by the person who wrote the rule. All three fixed here
+  (menu_search's ⌥⌥ line and task_creator's onDone reason), with a
+  source sentry closing the class — 6.305.0: when a release states a
+  principle, grep the other places that decide the same thing, in the
+  same commit.
+  🧪 NO FUNCTIONAL TEST COULD HAVE CAUGHT THE SHADOW, which is why the
+  gate sentry earns its place: the suite calls M.warm() and passes,
+  because the function it calls IS the shadow. The new section drives
+  warm and asks the REGISTRY instead — and asserts the store still
+  loads with ⌘⌘ both on and off.
+  🚨 AND THE SENTRY'S FIRST VERSION CRIED WOLF ON TWELVE HEALTHY
+  MODULES, caught by the sweep before it shipped. 6.269.0: a new
+  instrument is measured against the HEALTHY case first, or it is
+  switched off long before it ever sees the fault it was built for.
+  🧪 One mutation KILLED the suite instead of failing it — the report's
+  else-branch indexed `g` unguarded, so removing the fourth state made
+  the whole report raise. 6.282.0: an instrument that can RAISE is
+  worse than one that lies. Guarded, and the mutation fails a check.
+
+NEW IN 6.307.0 — 🔎 A MATCH BEATS A CREATION
+  (modules/vault.lua). LL, with a screenshot of the ⌘F filter reading
+  "examin" over a NOTES list showing "09-21-26 Examining
+  relationship", and an editor holding a brand-new "# examining":
+  "Search finds a title but creates a new entry when using cmd+f upon
+  hitting enter."
+  🔎 THE FILTER BOX HAS THREE MODES AND ONLY ONE BEHAVED THIS WAY.
+  Search mode and tasks mode have opened `rowsList()[0]` — the first
+  hit — since they were written. Notes mode alone sent the TYPED TEXT
+  as the name, and `v.openNote` SEEDS a file that is not there by
+  design (6.174.0: the index is asynchronous and refusing to seed
+  would lose a note). So ⏎ over a list already showing the note he
+  meant wrote a second, near-identical note into the folder holding
+  his writing. One mode of three, and it was the one that writes a
+  file.
+  🔑 `li[data-name]` IS THE WHOLE FIX: a note or a template, never a
+  TAG row, so a tag cannot steal ⏎ either. Nothing matched → it still
+  creates, which is what the empty row has SAID all along ("no note
+  matches — ⏎ creates …"). The handler agrees with the page now; the
+  page was telling the truth and the handler was not obeying it.
+  🔎 COUNTED APART (6.196.1): `_G.vaultReport()`'s new "⏎ filter" line
+  says how many presses opened the match and how many made a new note,
+  with the last one named. Only the filter box flags itself; an
+  ordinary click carries no `via` and moves neither number.
+  🧪 THE STUB HAD querySelectorAll AND NOT querySelector, so the page
+  threw where a browser answers — 6.193.0 for the ninth time, and the
+  shape here is a MISSING METHOD. It is defined in terms of the list,
+  so the two can never disagree about what a selector matches.
+  🧪 The check that BITES is the one where a note already matches:
+  asserting only `a === "open"` passes with the bug in, because the
+  bug also sent an open. It asserts the NAME. Two mutations, two bites.
+
 
 NEW IN 6.306.0 — 🚪 A DRAG ENDS WHEREVER THE BUTTON COMES UP
 (core/coexist.lua, lifted out of init.lua):

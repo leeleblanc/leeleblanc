@@ -1320,7 +1320,11 @@ function M.setup(core)
                             .. "nothing recorded why (warm() did not run?) "
                             .. "· ⇪ V still opens the history"
             else
-                L[#L + 1] = "   ⌘⌘       : watching · " .. (g.fires or 0)
+                -- 6.282.0 — an instrument that can RAISE is worse than one
+                -- that lies: `g` is non-nil on this branch today, and a
+                -- guard that costs nothing is what stops the whole report
+                -- dying if that ever stops being true.
+                L[#L + 1] = "   ⌘⌘       : watching · " .. ((g and g.fires) or 0)
                             .. " open(s) this session  ·  _G.doubleTapReport()"
             end
         end

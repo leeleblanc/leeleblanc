@@ -2728,6 +2728,43 @@ do
           #bad == 0, table.concat(bad, " · "))
 end
 
+-- =====================================================================
+-- 🔬 6.308.0 — `x and nil or y` CANNOT YIELD nil
+-- =====================================================================
+-- nil is falsy, so the `or` ALWAYS runs: `ok and nil or tostring(why)`
+-- hands back the STRING "nil" on success. Three sites had it, all
+-- written AFTER 6.303.0 wrote the same rule down about a FALSE b — and
+-- all three by the person who wrote the rule. Two of them fed a report
+-- line, so a healthy gesture read as a fault; the third handed it to a
+-- caller's onDone as its failure reason.
+--
+-- Comments stripped (6.262.0) — the blocks above quote the very
+-- expression they forbid — and the sentry asserts it still has files,
+-- because an empty haystack is a sentry that always passes.
+do
+    local files = {}
+    local p2 = io.popen('ls "' .. HS .. '"/modules/*.lua "' .. HS
+                        .. '"/core/*.lua 2>/dev/null')
+    if p2 then
+        for line in p2:lines() do files[#files + 1] = line end
+        p2:close()
+    end
+    check("\240\159\148\172 the and-nil-or sentry has files to read", #files >= 40, #files)
+    local bad = {}
+    for _, path in ipairs(files) do
+        local fh = io.open(path, "r")
+        local body = fh and fh:read("*a") or ""
+        if fh then fh:close() end
+        body = body:gsub("\n%s*%-%-[^\n]*", "\n")
+        if body:find("and%s+nil%s+or%s") then
+            bad[#bad + 1] = (path:match("([^/]+)$") or path)
+        end
+    end
+    check("\240\159\148\172 nothing writes `x and nil or y` — it can never answer "
+          .. "nil, so a success is published as the string \"nil\"",
+          #bad == 0, table.concat(bad, " \194\183 "))
+end
+
 realPrint(table.concat(printed, "\n"))
 out("\n")
 if fail > 0 then

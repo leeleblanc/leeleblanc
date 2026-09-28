@@ -1,5 +1,5 @@
 ========================================================================
-RESOLVED FEATURE REQUESTS — Hammerspoon config 6.306.0
+RESOLVED FEATURE REQUESTS — Hammerspoon config 6.310.0
 Every feature and how to use it. Generated from the modules' own
 cheat sheets (the rows ⇪/ draws), so it is never out of date.
 ⇪ = Caps Lock held (the hyper key). ⇪⇧X = Caps Lock + Shift + X.
@@ -777,6 +777,10 @@ In the Console, _G.<tool>Report() prints any tool's own report.
 
 📜 RELEASE INDEX — newest first, one line per release (the full story of each is in CHANGELOG.md)
 ------------------------------------------------------------------------
+  6.310.0  🎯 EACH POINTER RING 10% WIDER THAN THE LAST
+  6.309.0  ⏯ THE PLAY KEY IS THE CARD'S ONLY WHILE IT IS ON SCREEN
+  6.308.0  🚨 A MODULE WITH TWO M.warm LOSES ONE OF THEM
+  6.307.0  🔎 A MATCH BEATS A CREATION
   6.306.0  🚪 A DRAG ENDS WHEREVER THE BUTTON COMES UP
   6.305.0  🔁 A RETRY MUST NOT RE-SEND WHAT ALREADY LANDED
   6.304.0  🚨 A GUARD THAT ONLY A SUCCESS CAN CLEAR IS A WEDGE

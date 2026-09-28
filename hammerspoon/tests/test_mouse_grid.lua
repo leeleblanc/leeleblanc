@@ -2335,9 +2335,20 @@ do
     check("locate() reports success", G.locate() == true)
     local ring = CANVASES[#CANVASES]
     check("a ring canvas was created", #CANVASES == before + 1)
-    check("it is centred on the pointer", ring.frame.x == 400 - G.locateRadius
-          and ring.frame.y == 300 - G.locateRadius,
-          tostring(ring.frame.x) .. "," .. tostring(ring.frame.y))
+    -- 6.310.0 — THE RULE IS "CENTRED ON THE POINTER", not "one radius
+    -- back from it". This used to assert `x == 400 - locateRadius`,
+    -- which stopped being the same thing the moment the outermost ring
+    -- grew past the base radius — it would have gone red with nothing
+    -- to say about the change it exists to prove (6.248.0, fifth time).
+    check("it is centred on the pointer, whatever the outermost ring costs",
+          ring.frame.x + ring.frame.w / 2 == 400
+          and ring.frame.y + ring.frame.h / 2 == 300,
+          tostring(ring.frame.x) .. "," .. tostring(ring.frame.y)
+          .. " w=" .. tostring(ring.frame.w))
+    check("🎯 6.310.0: …and the canvas is big enough for the OUTERMOST "
+          .. "ring, so the ring this release added cannot be clipped",
+          ring.frame.w >= G.locateRingR(G.locateRings - 1, G.locateRadius) * 2,
+          tostring(ring.frame.w))
     check("it is shown", ring.visible == true)
     check("🚨 IT IS CLICK-THROUGH — without this the ring is a disc of glass "
           .. "over whatever you were about to click, for half a second",
@@ -2385,7 +2396,71 @@ do
         check("...drawn at the radius asked for, strokes growing with it (a 4K ring is a 4K ring)",
               rings(fBig)[1].radius > rings(fMid)[1].radius
               and rings(fBig)[1].strokeWidth > rings(fMid)[1].strokeWidth
-              and rings(fBig)[1].center.x == 165)
+              and rings(fBig)[1].center.x == G.locateSpan(165))
+
+        -- 🎯 6.310.0 — EACH RING 10% WIDER THAN THE ONE BEFORE IT. LL:
+        -- "⇪⇧L needs to be more obvious. Can you make each ring grow in
+        -- size by 10% each time?" His number, and these rows assert the
+        -- RULE against the config rather than the shipped constant — the
+        -- growth is MOVED below and the drawing has to follow (6.239.0).
+        check("6.310.0: locateRingR and locateSpan are pure and reachable",
+              type(G.locateRingR) == "function" and type(G.locateSpan) == "function")
+        check("6.310.0: ring 0 is the base radius",
+              math.abs(G.locateRingR(0, 100) - 100) < 1e-9, G.locateRingR(0, 100))
+        check("6.310.0: each ring is locateRingGrow times the one before it",
+              math.abs(G.locateRingR(1, 100) - 100 * G.locateRingGrow) < 1e-9
+              and math.abs(G.locateRingR(2, 100)
+                           - 100 * G.locateRingGrow * G.locateRingGrow) < 1e-9,
+              G.locateRingR(1, 100) .. "/" .. G.locateRingR(2, 100))
+        check("6.310.0: the shipped growth is the 10% he asked for",
+              math.abs(G.locateRingGrow - 1.10) < 1e-9, G.locateRingGrow)
+        check("🚨 6.310.0: the canvas holds the OUTERMOST ring — sized off "
+              .. "the base it would crop the very ring this release adds",
+              G.locateSpan(100) >= G.locateRingR(G.locateRings - 1, 100),
+              G.locateSpan(100) .. " vs " .. G.locateRingR(G.locateRings - 1, 100))
+
+        -- 🚨 THE CHECK THAT BITES, and the fixture is chosen so the two
+        -- implementations MUST differ (6.230.0): at one moment in the
+        -- pulse all three rings are in flight at the SAME p, so the only
+        -- thing that can separate them is the per-ring growth. Equal
+        -- radii here is the pre-6.310.0 drawing.
+        do
+            local was = G.locateRingGrow
+            G.locateRingGrow = 1.50          -- moved, so a literal cannot pass
+            local f = G.locateFrame(G.locateStagger * 2 + 0.05)
+            local r3 = rings(f)
+            check("🚨 6.310.0: with three in flight, the OLDER ring is further "
+                  .. "out than a same-age ring would be — the growth is real",
+                  #r3 == 3 and r3[1].radius > r3[2].radius
+                  and r3[2].radius > r3[3].radius,
+                  #r3 .. ": " .. table.concat({ r3[1] and r3[1].radius or 0,
+                      r3[2] and r3[2].radius or 0, r3[3] and r3[3].radius or 0 }, "/"))
+            local span15 = G.locateSpan(100)
+            G.locateRingGrow = 1.10
+            check("🚨 6.310.0: the canvas FOLLOWS the setting — a bigger "
+                  .. "growth is a bigger canvas, not a clipped ring",
+                  span15 > G.locateSpan(100), span15 .. " vs " .. G.locateSpan(100))
+            check("6.310.0: every element is centred on the span, so the rings "
+                  .. "stay concentric on the pointer",
+                  (function()
+                      local ff = G.locateFrame(G.locateStagger * 2 + 0.05, 100)
+                      local c = G.locateSpan(100)
+                      for _, e in ipairs(ff) do
+                          if e.center and (e.center.x ~= c or e.center.y ~= c) then
+                              return false
+                          end
+                      end
+                      return true
+                  end)())
+            -- A growth BELOW 1 would shrink the rings, which is the
+            -- opposite of the ask; a typo must degrade to "no growth".
+            G.locateRingGrow = 0.5
+            check("🚨 6.310.0: a growth below 1 is refused — a typo in a "
+                  .. "settings line must never SHRINK the mark",
+                  G.locateRingGrowth() == 1
+                  and math.abs(G.locateRingR(2, 100) - 100) < 1e-9)
+            G.locateRingGrow = was
+        end
     end
 
     -- 🚨 THE LEAK. A second press must REPLACE the first ring, not stack a
@@ -2435,18 +2510,28 @@ do
     G.locate()
     local big = CANVASES[#CANVASES]
     local r4 = math.floor(G.locateRadius * s4 + 0.5)
+    -- 6.310.0 — the canvas is the SPAN (the outermost ring), and the
+    -- rule these rows protect is unchanged: a 4K scale really does make
+    -- a bigger mark, still centred on the pointer. Written against the
+    -- span rather than the base radius, which is the same sentence once
+    -- the rings step outward (6.248.0).
+    local sp4 = G.locateSpan(r4)
     check("...the canvas is that much bigger and still centred on the pointer",
-          big.frame.w == r4 * 2 and big.frame.x == 1000 - r4 and big.frame.y == 900 - r4,
-          tostring(big.frame.w))
+          big.frame.w == sp4 * 2 and big.frame.x == 1000 - sp4
+          and big.frame.y == 900 - sp4, tostring(big.frame.w))
+    check("...and the scale really grew it — a 4K ring is bigger than a 1440 one",
+          sp4 > G.locateSpan(G.locateRadius), sp4)
     check("...its first frame is drawn at that radius",
           big.elements and big.elements[1] and big.elements[1].center
-          and big.elements[1].center.x == r4)
+          and big.elements[1].center.x == sp4)
     check("...and grid.locateLast says so for the report",
           G.locateLast and G.locateLast.radius == r4 and G.locateLast.scale == s4)
     G.locateScale = 2
     G.locate()
     check("grid.locateScale = 2 pins it (a settings override): radius 220",
-          CANVASES[#CANVASES].frame.w == 440 and G.locateScaleFor() == 2)
+          CANVASES[#CANVASES].frame.w == G.locateSpan(220) * 2
+          and G.locateScaleFor() == 2,
+          CANVASES[#CANVASES].frame.w .. " vs " .. G.locateSpan(220) * 2)
     local rep = tostring(_G.mouseGridReport() or "")
     check("the report's ring line names the version, the radius here and what the last press drew",
           rep:find("ring    : ⇪⇧L (6.167.0) · radius 220 pt here (scale 2.00, pinned by grid.locateScale)", 1, true) ~= nil

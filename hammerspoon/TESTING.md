@@ -1,4 +1,4 @@
-# TESTING — how to score release 6.306.0
+# TESTING — how to score release 6.310.0
 
 You install ONE archive and it carries several releases. Below are the
 steps for each release this archive is new for, newest first. Run the
@@ -27,357 +27,198 @@ scorer; I never mark my own.
 
 ---
 
-## 6.306.0
+## 6.310.0
 
-6.306.0 verify with LL — 🚪 A DRAG NO LONGER KILLS THE PANEL (KNOWN GROUND)
-WHAT CHANGED: when you drag the cheat sheet — or the pomodoro, the key
-caster, the Mac panel — the panel now always tells itself where it
-ended up, however the drag finished.
-🔎 YOU HAVE REPORTED THIS TWICE, and you were right both times. In
-6.138.0 your words were "Seems like a drag kills the sheet
-functionality"; this time, "just because I can launch the cheat sheet
-doesn't mean it is functional". And "we have solved this issue or a
-similar one" is what found it — we had, twice, in two other places,
-and never in the engine that drags your panels.
-🚨 THE CAUSE, in one paragraph. That engine had four ways a drag can
-end and only ONE of them told the panel: the mouse-up that our own
-watcher sees. The other three — releasing with the pointer still on
-the panel, our twenty-second safety timer, and starting a second drag
-— moved the panel and said nothing. And the thing they were not
-saying is what moves the cheat sheet's SCROLL HIT BOX and saves its
-position. So the sheet ended up somewhere new while everything that
-needed to know where it was still pointed at the old spot: the wheel
-dead over the sheet, still swallowed over the empty desk it used to
-cover, and the next ⇪/ back in the wrong place.
-🖥 AND YOUR DESKTOP JUMP IS THE CAUSE, NOT A SECOND BUG. Our watcher
-deliberately does not swallow your drag — the button is yours, and
-eating it would cost every app underneath. So macOS sees the drag too
-and reads a three-finger one as a swipe between Spaces; a Space switch
-is exactly when macOS switches watchers like ours off, so the mouse-up
-never reaches us. Both your sentences, one mechanism.
+6.310.0 verify with LL — 🎯 THE POINTER RINGS STEP OUTWARD (KNOWN GROUND)
+WHAT CHANGED: each of the three rings ⇪⇧L throws is 10% wider than the
+one before it, and the whole mark got bigger to hold the outermost.
+Your number, your answer — I have not substituted one of mine.
 
-A. THE HEADLINE — two minutes, and it is the whole test.
-A1. ⇪/ to open the cheat sheet. Drag it somewhere new and let go with
-    the pointer STILL OVER the sheet.
-A2. Two-finger scroll over the sheet where it is NOW.
-    EXPECT: it scrolls. **A FAIL here is the bug** — on every build
-    before this one that release told the sheet nothing.
-A3. Scroll over the empty desk where the sheet USED to be.
-    EXPECT: whatever is under there scrolls normally. The sheet must
-    not still be eating the wheel at its old spot.
-A4. Esc, then ⇪/ again.
-    EXPECT: the sheet opens WHERE YOU PUT IT.
-A5. Type a few letters to filter, then scroll again. EXPECT: still
-    scrolls — the sheet redraws on every keystroke, which is where a
-    stale position used to come back.
+A. THE HEADLINE — ten seconds.
+A1. Press ⇪⇧L. EXPECT: three white rings leaving the pointer, each
+    visibly larger than the last, repeating for six seconds.
+A2. Compare it to how it looked on 6.306.0 if you can. The outermost
+    ring now reaches 21% further out than it used to.
+A3. Console: `_G.mouseGridReport()` — a new "↳ growth" line reads
+    `each ring +10% on the one before it · outermost NNN pt of a NNN pt
+    canvas`. PASTE IT.
 
-B. THE DESKTOP JUMP — worth doing even though it is not fixed.
-B1. Drag the sheet with THREE FINGERS (if three-finger drag is on).
-    If you get thrown to another desktop, come back and do A2–A4.
-    EXPECT: the sheet still scrolls and still reopens where you left
-    it. The jump may still happen; it must no longer cost you the
-    panel.
-B2. Then drag it by physically clicking and holding ONE finger.
-    **Tell me whether that one jumps too.** That single answer decides
-    whether the jump is macOS's gesture (one finger will not jump) or
-    something of ours (it will), and it is the only thing I cannot
-    determine from here.
+B. MUST STILL WORK.
+B1. ⇪X: the grid draws, three letters land, the box splits by letter,
+    arrows nudge, Esc closes. Nothing about the grid changed.
+B2. On the 4K at full points the ring should still be bigger than on
+    the Air — the scale rule is untouched.
 
-C. MUST STILL WORK — three other panels use the same engine.
-C1. ⇪⇧P the pomodoro: drag it, close it, reopen. It is where you left
-    it.
-C2. ⇪⇧K the key caster (if you use it) and the Mac panel: same.
-C3. ⇪⇧pad. the music card: drag its title strip. Unchanged — it moves
-    on a different mechanism and this release must not have touched it.
-C4. A click on the cheat sheet still does not close it.
-
-D. PASTE BACK, PASS OR FAIL.
-D1. `_G.dragReport()` — new; this engine has never had one, which is
-    most of why it survived two of your reports. After a drag it should
-    read `drops : 1 delivered to the panel that moved` and a `last :`
-    line naming the panel and HOW the drag ended. That "how" is the
-    whole release: `mouseUp` is the ordinary one, `the button came up
-    elsewhere` is the new rule catching a release we never saw, and
-    `watchdog` means the mouse-up went missing entirely — which is the
-    desktop-jump case and the one I most want to see.
-D2. If it ever carries `⚠️ N drag(s) ended with a canvas that could not
-    answer its own frame`, paste it — that is a panel that moved and
-    could not be recorded, and it is a different fault.
-
-E. A JUDGEMENT ONLY YOU CAN MAKE.
-E1. I can stop the desktop jump by making the drag SWALLOW your mouse
-    events while a panel is being dragged. I have NOT done it: it would
-    mean every app underneath stops seeing that drag, and this engine
-    has deliberately never done that since 6.67.0. Say the word if you
-    want it and it is a small release — but it is your call, not a
-    default I should change quietly.
-E2. 📏 SAID RATHER THAN IMPLIED: this release moved the drag engine out
-    of init.lua into core/coexist.lua, because init.lua was one line
-    under its size limit. Nothing about it behaves differently. If
-    panels ever stop being draggable ENTIRELY, that is coexist failing
-    to load and the boot log will say so — that would be a real
-    finding.
+C. A JUDGEMENT ONLY YOU CAN MAKE — and this is the one I want.
+C1. Is 10% enough? You asked for that number and I built exactly it,
+    but "more obvious" is your eye, not mine. If it still gets lost,
+    say which of these: bigger overall (`locateRadius`), MORE rings
+    (`locateRings`), a steeper step (`locateRingGrow`), or longer
+    (`locateSecs`). One word and it is a default change, not a release.
+C2. 🔨 CRUDE OR ELEGANT: did this ever make the Mac unusable, or did it
+    just not stand out? My reading is neither — it is a feature ask,
+    not a defect — so I have logged it as a request rather than a
+    problem. Correct me if it belongs in the ledger.
 
 
 
-## 6.305.0
+## 6.309.0
 
-6.305.0 verify with LL — 🔁 A RETRY NO LONGER DUPLICATES (KNOWN GROUND)
-WHAT CHANGED: a task that reached Asana is remembered, so a retry —
-and a tab you type in again — sends only what did NOT land.
-🚨 WHY THIS JUMPED THE QUEUE, and please read this bit even if you
-skip the steps. Your 16:00 line said "1 of 122 task(s) did not reach
-Asana". The number that matters is the other one: **121 of them
-DID**. A tab with one refused task is marked ❌, a ❌ tab is retried,
-and the retry re-reads the whole tab — so tomorrow at 16:00 those
-121 would have gone to Asana a second time, and the day after a
-third, growing every day until you happened to fix the one bad line.
-I wrote the rule that forbids this four releases ago, for subtasks,
-and did not apply it to the tab two hundred lines above.
-🕒 IF YOU DO NOT INSTALL TONIGHT, one Console line stops tomorrow's
-run: `_G.scratchPad.sendTimer:stop()`. It lasts until the next
-reload, and `_G.scratchPadSend()` still sends by hand.
+6.309.0 verify with LL — ⏯ THE PLAY KEY, ONLY WHILE THE CARD IS UP (KNOWN GROUND)
+WHAT CHANGED: the Jug Player takes ⏯ ⏮ ⏭ only while its card is ON
+SCREEN. Closed, the key goes back to macOS.
+🚨 AND YOU WERE RIGHT THAT MY LAST FIX WAS NOT REAL. 6.289.0 gated on
+"has a queue" — a rule I chose, not one you asked for — and closing
+the card deliberately does not stop the sound, so a closed card went
+on holding the key for as long as a queue survived it. Visibility is
+the gate now.
 
-A. THE HEADLINE — this is the whole test and it takes two minutes.
-A1. ⇪N, a fresh tab, three lines:
-      Alpha test one
-      Bravo test two
-      Charlie test three
-A2. Console: `_G.scratchPadTasks()`. EXPECT three tasks, none marked.
-A3. Send it ("→ Asana now"). EXPECT three tasks in Asana and the tab
-    retitled ✅ Success: tasks sent.
-A4. Click into the tab and add a fourth line: `Delta test four`.
-    EXPECT the ✅ disappears (typing clears the mark — that is right
-    and unchanged).
-A5. `_G.scratchPadTasks()` again.
-    EXPECT the first three each marked **✅ already in Asana — not
-    sent again**, and only Delta shown as a task that would go.
-A6. Send again.
-    EXPECT **ONE** new task in Asana — Delta. Not four.
-    **A FAIL here is four tasks**, and it is the bug this release
-    exists to fix. Tell me at once.
-A7. The alert should read "…1 task from 1 tab · 3 already in Asana,
-    not sent again".
+A. THE HEADLINE — this is the whole test.
+A1. ⇪⇧pad., drop two tracks, something plays. Press F8/⏯ — it pauses.
+    Press again — it resumes. Unchanged.
+A2. Now CLOSE the card (⇪⇧pad. again). The music keeps playing, as it
+    always has.
+A3. Press ⏯.
+    EXPECT: the Jug Player does NOT react. The key goes to macOS — so
+    if Music.app or a YouTube tab has audio, THAT pauses instead.
+    **A FAIL here is the card reacting**, and it is the bug you
+    reported twice. Tell me at once.
+A4. ⇪⇧pad. to bring the card back. Press ⏯ — it works again.
 
-B. THE ONE THAT IS ACTUALLY YOUR CASE.
-B1. Make a tab with two good lines and one line Asana will refuse —
-    `A: notarealperson` under a `P:` task will do it.
-B2. Send. EXPECT the two good ones in Asana, the tab marked ❌.
-B3. Send again (or wait for 16:00).
-    EXPECT **only the bad one is retried**. The two that landed must
-    NOT appear in Asana a second time.
-B4. Fix the bad name and send once more. EXPECT one task, and the
-    tab goes ✅.
+B. THE ONE THAT STOPS A DEAD KEY.
+B1. Open the card with NOTHING queued. Press ⏯.
+    EXPECT: it passes through to macOS. An open card with an empty
+    queue must not eat a key it cannot act on. That check is mine, not
+    yours — say if you would rather an open card always took the key.
 
-C. IT HAS TO SURVIVE A RELOAD — the duplicate that would really have
-   bitten you is the one after Hammerspoon restarts.
-C1. After A6, reload Hammerspoon.
-C2. `_G.scratchPadTasks()`. EXPECT all four still marked ✅ already
-    in Asana.
-C3. Type a character in the tab (clearing the ✅) and send.
-    EXPECT **nothing is sent** — there is nothing new. A run that
-    posts four tasks here is the memory not reaching disk.
+C. MUST STILL WORK.
+C1. With the card open: space, ↑↓, ⏎, ⌘1–9, ← → all unchanged.
+C2. F7 and F9 step back and forward while the card is open, and pass
+    through while it is closed.
+C3. The volume keys stay macOS's — your own decision in 6.231.0.
 
 D. PASTE BACK, PASS OR FAIL.
-D1. `_G.scratchPadReport()` — there is a new `landed:` line saying
-    how many tasks across how many tabs are remembered as already in
-    Asana. On your Mac after today that number should be large.
-D2. If it ever carries "⚠️ N remembered task(s) were forgotten this
-    session", paste it — that is the 400-per-tab bound biting, and
-    past it a duplicate becomes possible again.
+D1. `_G.musicReport()` — a new "↳ right now" line says in words what ⏯
+    would do at this moment: `the card is closed — macOS keeps the
+    key` / `nothing is queued — macOS keeps the key` / `the card is
+    open and holding a queue`. Run it with the card open and again
+    with it closed; the line must CHANGE.
+D2. The "↳ by route" line still tells me whether your F8 arrives as a
+    media key or a plain function key.
 
-E. A JUDGEMENT ONLY YOU CAN MAKE — and this is the real question.
-E1. **Did you want 121 tasks on your Asana board today?** The
-    grammar reads every bare line as a task, and it sweeps every
-    open tab, so any prose you keep in Hamsidian became Asana tasks
-    at 16:00. I have NOT capped or narrowed that, deliberately — you
-    asked for one task per line and I am not going to quietly
-    un-decide it. Three answers, each a different next release:
-    · "yes, that is what I wanted" → nothing more to do.
-    · "no — only tabs I mark should send" → the send reads only tabs
-      that opt in (a marker line, or a tab title convention).
-    · "no — it should refuse a run that big and ask me first" → a
-      ceiling on the UNATTENDED 16:00 run only, with the button
-      still uncapped because you are watching it.
-E2. 📏 SAID RATHER THAN IMPLIED: the line that failed was
-    `A: <a default assignee of 'me'>`. That is prose, not a name,
-    and the guard did exactly the right thing — it refused it, kept
-    every word, and marked the tab. That part is not a bug. But it
-    does mean something in your tabs is being read as an assignee
-    when you meant it as text.
+E. 🔨 CRUDE OR ELEGANT.
+E1. Did the card holding ⏯ while hidden ever leave you unable to use
+    the Mac — stuck unable to pause something — or was it an annoyance
+    you worked around? Your answer tags the row, and it took three
+    passes (6.289.0, 6.291.0, this), so it is not elegant either way.
 
 
 
-## 6.304.0
+## 6.308.0
 
-6.304.0 verify with LL — 🚨 SECURE INPUT CAN FINALLY ANSWER (KNOWN GROUND)
-WHAT CHANGED: the probe that asks whether anything has locked your
-keyboard could stop for the whole session and never say so. It cannot
-any more.
-WHY IT MATTERS, and your own report is what named it: every
-`_G.hyperKeyReport()` you have sent reads `secure: not known —
-capabilities.lua has not answered yet`, and `_G.secureInputReport()`
-said `1 probe(s) STARTED and none finished`. One probe attempted,
-never a second — while a timer went on asking every sixty seconds and
-being turned away at the door.
-🔬 THE CAUSE, in one sentence: a flag says "a probe is already
-running" so two ioregs never stack up, and the ONLY thing that
-cleared it was a probe finishing successfully. So the first one that
-could not finish shut the feature down until the next reload.
-🚨 AND IT IS THE LAST OF 6.303.0's THREE CANDIDATES. The remap and
-the tap have both been answering you correctly since you installed
-it; Secure Input — the one that kills every shortcut on the Mac with
-no error anywhere, and lives on the lock screen a wake goes through —
-is the one that has never once been measured on your Mac. This is
-what makes it answerable. It is NOT itself a fix for the storm.
+6.308.0 verify with LL — ⌨️ ⌘⌘ OPENS THE CLIPBOARD (KNOWN GROUND)
+WHAT CHANGED: ⌘⌘ works. It had never been registered — not once, on
+any boot since 6.292.0.
+🔎 WHY ⌥⌥ WORKED AND ⌘⌘ DID NOT, because it is nothing you could have
+guessed: clipboard_history.lua had TWO functions called `M.warm` — the
+one at the bottom that registers ⌘⌘, and one written inside setup()
+that reads the clipboard store. setup runs after the file is loaded,
+so the second one overwrote the first before Hammerspoon ever called
+it. menu_search has only one, which is the whole difference.
+🚨 AND THE REPORT SAID IT WAS FINE. `_G.clipboardReport()` printed
+"⌘⌘ : watching · 0 open(s) this session" — because it inferred health
+from the absence of a recorded complaint, and there was no complaint:
+the code that would have recorded one never ran. That is exactly the
+distinction that report exists to keep, broken inside itself.
 
-A. THE HEADLINE — one command, and it is the whole test.
-A1. Install, reload, wait about ten seconds.
-A2. Console: `_G.secureInputReport()`.
-    EXPECT, and this is the line that has never appeared on your Mac:
-      state  : off — nothing is holding the keyboard
-      probes : 1 checked · 0 failed · 0 change(s) seen
-    A `state : ON — <app> holds it` is also a pass, and a much more
-    interesting one: paste it immediately, it means something really
-    is sitting on your keyboard.
-    **A FAIL is `state : UNKNOWN` still.** If you get that, the ↳
-    lines under it now say WHY, which is the part that did not exist
-    before — paste the whole block.
-A3. `_G.hyperKeyReport()`.
-    EXPECT the `secure:` row to read `Secure Input clear` instead of
-    `not known — capabilities.lua has not answered yet`.
-    That row going from "not known" to an actual answer IS the
-    release.
+A. THE HEADLINE.
+A1. Tap ⌘ twice, quickly, nothing else held.
+    EXPECT: the clipboard history opens — the same panel ⇪V gives you.
+    **This is the whole release.**
+A2. Esc, then ⇪V. EXPECT: the identical window. One function, two doors.
+A3. Left ⌘ and right ⌘ both work.
+A4. Console: `_G.doubleTapReport()`. EXPECT BOTH gestures listed now:
+    `⌘⌘ : clipboard history` AND `⌥⌥ : the front app's menus`, under
+    one `watcher : running`. PASTE IT.
+A5. `_G.clipboardReport()` — the ⌘⌘ line must read `watching · N
+    open(s)`. If it EVER reads `⚠️ WANTED but NOT REGISTERED`, that is
+    the new fourth state doing its job — paste it.
 
-B. IT MUST KEEP ANSWERING — the wedge was a thing that happened over
-   time, so one good reading is not proof.
-B1. Use the Mac for a few hours.
-B2. `_G.secureInputReport()` again.
-    EXPECT `probes :` to be a COUNT IN THE DOZENS — one a minute — not
-    1, and not stuck at whatever it said in A2. A number that has not
-    moved in an hour is the same bug in a new place.
-B3. `_G.hyperKeyReport()` — the `secure:` row should still answer.
+B. THE ONES THAT PROTECT YOUR TYPING — these matter more than A.
+B1. ⌘C, ⌘V, ⌘S, ⌘Tab, ⌘W as normal. EXPECT: nothing opens.
+B2. HOLD ⌘ for a second and release, twice. EXPECT: nothing.
+B3. Tap ⌘, type a letter, tap ⌘. EXPECT: nothing.
+B4. Hold ⌘ AND ⌥ and tap twice. EXPECT: NEITHER opens.
+B5. ⌥⌥ still opens the menus. ⌃⌃ still opens the editor picker.
+B6. Type normally for a while — no missed characters, no lag.
 
-C. IF IT EVER FAILS, IT NOW SAYS WHICH WAY (this is the new half).
-C1. If you see any of these ↳ lines, paste them — each one sends me
-    somewhere different:
-    · `↳ N × macOS REFUSED to launch ioreg` — your Mac would not run
-      the command at all. That is a permissions or a beta-OS answer.
-    · `↳ N × ioreg started and NEVER ANSWERED` — it ran and hung.
-      Different fix entirely.
-    · `⚠️ N probe(s) ran with NO belt` — this Mac would not give us a
-      timer, which would be a finding of its own.
-    Before this release all three were one silent nothing.
+C. MUST STILL WORK — the merge touched the clipboard's own load.
+C1. Copy three things, press ⇪V. EXPECT: all three, newest first.
+C2. Reload Hammerspoon, press ⇪V. EXPECT: your history is still there.
+    That read used to live in the function that was being destroyed;
+    if the history came back EMPTY, stop and tell me immediately.
+C3. ⇪⇧V still edits and deletes rows.
 
-D. MUST STILL WORK — this touched a core file that every boot runs.
-D1. Boot is normal, `All green`, and the module count is unchanged.
-D2. Use ⇪ normally for a day: ⇪T, ⇪D, ⇪N, ⇪3, ⇪X, ⇪4, ⇪space.
-D3. `_G.capabilityReport()` still prints, with its 🔒 row.
-D4. Typing does not feel heavier. The probe runs off the main thread
-    as it always has; nothing about that changed.
-D5. `_G.stormReport()`, `_G.degradeReport()` and `_G.todayReport()`
-    all still print.
-
-E. A JUDGEMENT ONLY YOU CAN MAKE.
-E1. Twenty seconds is how long a probe may go unanswered before it is
-    given up on. If you ever see the "never answered" line on an
-    ordinary day, that number is probably too short for your Mac and
-    it is a setting, not a release.
-E2. 📏 SAID RATHER THAN IMPLIED: if Secure Input now reads ON at some
-    point and your shortcuts were dead at that moment, that is an
-    ANSWER to the storm question, not a new bug. Tell me the app it
-    names.
+D. 🔨 CRUDE OR ELEGANT.
+D1. ⇪V always worked, so my reading is that this degraded gracefully —
+    a feature silently absent, not a Mac you could not use. One pass.
+    If you agree it is ✨ ELEGANT; if being told "watching" while it
+    was dead counts as worse than that, say so and it goes down 🔨.
 
 
 
-## 6.303.0
+## 6.307.0
 
-6.303.0 verify with LL — 🔬 THE KEYBOARD, AFTER A WAKE (NEW GROUND)
-WHAT CHANGED: two seconds after your Mac wakes, this config now looks
-at the three things that can make ⇪ die without saying anything, and
-writes down what it found. If the Caps Lock remap has gone, it puts
-it back.
-WHY THIS ONE AND NOT ANOTHER GUESS: 6.302.0 could not have prevented
-your storm and says so. This is the release aimed at it — and it is a
-PROBE, because everything I can offer about the cause right now is a
-story that fits. The three candidates, all invisible from here until
-today: the Caps Lock → F18 remap (set once when Hammerspoon starts
-and never checked again), the event tap that reads F18 (macOS
-switches taps off across some transitions and tells nobody), and
-macOS's Secure Input (it stops every shortcut on the Mac, system
-wide, with no error anywhere — it took your keyboard for four hours
-once, and a lock screen is exactly where it lives).
-🔕 ON A HEALTHY MAC THIS SAYS NOTHING. That is deliberate, and it
-means the test below is "go and read the numbers", not "wait for a
-message".
+6.307.0 verify with LL — 🔎 ⌘F FINDS IT, ⏎ OPENS IT (KNOWN GROUND)
+WHAT CHANGED: in Hamsidian, ⏎ in the ⌘F filter box now OPENS the note
+the list is showing you instead of creating a new one with the text
+you typed.
+🔎 YOUR SCREENSHOT DIAGNOSED IT: the filter said "examin", the NOTES
+section showed "09-21-26 Examining relationship", and the editor held
+a brand-new "# examining". The filter box has three modes, and search
+and tasks mode have ALWAYS opened the first hit. Notes mode alone sent
+the typed text as the name — and opening a note that is not there
+creates it, by design. One mode of three, and it was the one that
+writes a file into the folder holding your writing.
 
-A. THE HEADLINE — no lid-closing required.
-A1. Console: `_G.hyperWakeProbeRun("by hand")`
-    Wait two seconds, then `_G.hyperKeyReport()`.
-    EXPECT a `probe :` block with three rows, and on a healthy Mac
-    all three read plainly, with no ⚠️:
-      remap : Caps Lock → F18 still set
-      tap   : the F18 event tap is running
-      secure: Secure Input clear
-A2. **PASTE THAT BLOCK.** It is the first time this config has ever
-    been able to answer any of those three questions, and I want to
-    see what your Mac says on a good day before we look at a bad one.
-A3. Any ⚠️ on those three rows on a healthy, just-booted Mac is a
-    real finding — say so immediately.
+A. THE HEADLINE.
+A1. ⇪3. Press ⌘F and type enough of an existing note's name to narrow
+    the list — "examin" will do.
+A2. Press ⏎ WITHOUT pressing ↓ first.
+    EXPECT: the note in the list OPENS, with its real contents.
+    **A FAIL is a new empty note called "examin"** — that is the bug,
+    unchanged.
+A3. Look at the vault folder. EXPECT: no new file was created.
 
-B. THE REAL ONE — the car journey, reproduced.
-B1. Close the lid. Wait a minute or two. Open it and log back in.
-B2. Wait a few seconds, then `_G.hyperKeyReport()`.
-    EXPECT the `probe :` line to say `after systemDidWake` with a
-    time on it. If it still says "nothing looked at yet", the wake
-    never reached us and that is 6.302.0's step A3 failing — tell me.
-B3. Read the three rows. **This is the whole point of the release.**
-    · `remap : ⚠️ GONE` → THAT IS YOUR BUG, found. It will have put
-      it back, and you will have seen a Console line saying so.
-    · `tap : ⚠️ the F18 event tap was NOT running` → it is the tap,
-      and the fix is a different one line.
-    · `secure: ⚠️ Secure Input held by …` → it is macOS's lock
-      screen, and the fix is different again.
-    · all three clean → none of my three candidates, and that is
-      genuinely useful: it means the keyUp is being lost somewhere
-      else and I stop guessing in this direction.
-B4. Then press ⇪ and hold it while you press a few letters, right
-    after a wake, and see whether it storms. If it does, send me
-    `_G.stormReport()` AND `_G.hyperKeyReport()` together — the two
-    side by side is what no previous build could give.
+B. CREATING STILL WORKS — it has to, or this trades one bug for another.
+B1. ⌘F and type something no note matches — "zzznothing".
+    EXPECT: the list says `no note matches — ⏎ creates "zzznothing"`.
+B2. Press ⏎. EXPECT: it creates that note and opens it, as before.
+B3. ⌘N still opens the naming bar and creates by name.
 
-C. MUST STILL WORK — this touched the ⇪ key and added a background
-   process, so this is the half that matters more than A or B.
-C1. Use ⇪ normally for a day. No change of any kind.
-C2. Typing must not feel heavier after a wake. The probe runs off the
-    main thread on purpose (6.228.0 — a busy main thread is a mouse
-    this Mac has lost), but if the Mac stutters a couple of seconds
-    after every lid-open, that is me and I want to know at once.
-C3. Caps Lock must still behave as ⇪ and must NOT start toggling
-    capitals. If it ever does, the remap has been changed rather than
-    restored — stop and tell me, that is the worst thing here.
-C4. `_G.stormReport()` still prints. `_G.degradeReport()` and
-    `_G.todayReport()` still print.
+C. THE EDGES.
+C1. ⌘F and type `#` plus a tag. EXPECT: it filters by tag and ⏎
+    creates nothing.
+C2. ⌘F, narrow to a TEMPLATE (type "Meet"), press ⏎. EXPECT: the
+    template opens. It is a note in the list, so opening it is right.
+C3. ⌘F, then ↓ to a row further down, then ⏎. EXPECT: THAT row opens —
+    the arrow keys were always right and are untouched.
 
 D. PASTE BACK, PASS OR FAIL.
-D1. `_G.hyperKeyReport()` from A1, on a good day.
-D2. `_G.hyperKeyReport()` from B2, after a real wake.
-D3. If `counts:` ever shows a repair, that line is the answer to
-    everything we have been chasing — send it whatever else you do.
+D1. `_G.vaultReport()` — a new "⏎ filter" line counts them apart:
+    `N opened the match · N created a new note`, with the last one
+    named. After A2 and B2 that should read 1 and 1.
 
-E. THE SENTENCE I STILL WANT, and it beats all three probes.
-E1. Was ⇪ working between the storm at 10:57 and your reload that
-    evening? Dead until the reload → the remap is being lost, and
-    this release will now catch it and repair it. Working → the
-    remap survived, and the probe's other two rows are where to look.
-E2. 📏 SAID RATHER THAN HIDDEN: if the probe finds the event tap
-    switched off, it REPORTS it and does not restart it. Restarting
-    a tap is not the same kind of act as restoring a mapping — this
-    config switches that tap off itself after five consecutive
-    errors, on purpose, and re-arming it automatically would undo a
-    decision it made for a reason. If your report ever shows that
-    row, the next release decides what to do about it with evidence
-    instead of a guess.
+E. 🔨 CRUDE OR ELEGANT — and please answer this one.
+E1. How many of these stray notes are in your vault? They will be
+    named after whatever you typed into the filter box. If there is a
+    pile of them, say so and the next release is a command that lists
+    every note whose name matches a note you already had — I will not
+    delete anything without you seeing the list first (6.280.0).
+E2. Hamsidian stayed usable throughout, so my reading is ✨ ELEGANT,
+    one pass. But it was writing into the one folder where a mistake
+    costs your own words, so if you call that 🔨 CRUDE I will not
+    argue — it is your tag.
 
 
 
