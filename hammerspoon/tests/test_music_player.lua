@@ -1041,8 +1041,41 @@ check("🔎 ...and a list with NO usable door says so rather than drawing "
 check("⌨️ ⇪⇧. is bound", BOUND["shift+."] ~= nil)
 check("⌨️ ...and ⇪⇧pad. is STILL bound — a second door, not a swap",
       BOUND["shift+pad."] ~= nil)
-check("⌨️ ...and the module counted what it really registered",
-      mp.doorsBound == 2, tostring(mp.doorsBound))
+-- 🔎 COUNTED AGAINST THE REGISTRY, NOT AGAINST 2. Asserting the shipped
+-- number passes with the counter hard-coded, which is the report
+-- claiming health it never measured (6.308.0, in the line that says how
+-- many ways in there are).
+check("⌨️ ...and the module's count is what it really registered",
+      mp.doorsBound == (function()
+          local n = 0
+          for _ in pairs(BOUND) do n = n + 1 end
+          return n
+      end)(), tostring(mp.doorsBound))
+
+-- 🚨 THE BRANCH THAT MATTERS AND HAD NO CHECK: a list that opens
+-- nothing. A tool with no key is a tool he cannot open, and that is the
+-- one state that must never be silent (6.214.0). Driven through the
+-- binder-as-argument rather than by reloading the module (6.278.0).
+do
+    local before, fired = #DEGRADED, {}
+    local n = mp.openDoors({ { mods = { "shift" }, key = "]" } },
+                           function(m, k) fired[#fired + 1] = k end)
+    check("🛟 openDoors binds what it is given and counts it",
+          n == 1 and #fired == 1 and fired[1] == "]" and #DEGRADED == before,
+          tostring(n) .. " / " .. tostring(fired[1]))
+    local n2 = mp.openDoors({}, function() end)
+    check("🚨 ...and a list with NO door takes the 🔔 door rather than "
+          .. "binding nothing in silence",
+          n2 == 0 and #DEGRADED == before + 1
+          and tostring(DEGRADED[#DEGRADED]):find("no key could be bound",
+                                                 1, true) ~= nil,
+          tostring(n2) .. " / " .. tostring(DEGRADED[#DEGRADED]))
+    local n3 = mp.openDoors({ { mods = { "shift" } }, "nonsense" },
+                            function() end)
+    check("🚨 ...and a list of only MALFORMED doors is the same thing — "
+          .. "it must not read as two doors that happened to fail",
+          n3 == 0 and #DEGRADED == before + 2, tostring(n3))
+end
 do
     -- Both handlers must TOGGLE the same card: press one, press the
     -- other, and the card must close. Asserting only that each is a

@@ -2275,21 +2275,31 @@ say({a:'ready'});
     -- and a list that yields NO door at all takes the 🔔 door: a tool
     -- with no key is a tool he cannot open, which is the one state that
     -- must never be silent (6.214.0).
-    do
+    -- 🧪 THE BINDER IS AN ARGUMENT (6.230.0's shape), so the gate can
+    -- drive the no-door case without a Mac and without reloading the
+    -- module out from under every later section (6.278.0). Without
+    -- that, the one branch that matters here — a list that opens
+    -- NOTHING — is the branch no check can reach.
+    function mp.openDoors(keys, bind)
         local bound = 0
-        for _, d in ipairs(type(mp.keys) == "table" and mp.keys or {}) do
+        for _, d in ipairs(type(keys) == "table" and keys or {}) do
             local key = (type(d) == "table") and d.key or nil
             if type(key) == "string" and key ~= "" then
-                core.hyperAddShortcut((type(d.mods) == "table") and d.mods or {},
-                                      key, function() mp.toggle() end,
-                                      "jug player")
+                bind((type(d.mods) == "table") and d.mods or {}, key)
                 bound = bound + 1
             end
         end
-        mp.doorsBound = bound
-        if bound == 0 then degrade("no key could be bound — mp.keys is "
-              .. "empty or malformed, so there is no way to open the card") end
+        if bound == 0 then
+            degrade("no key could be bound — the door list is empty or "
+                    .. "malformed, so there is no way to open the card")
+        end
+        return bound
     end
+
+    mp.doorsBound = mp.openDoors(mp.keys, function(mods, key)
+        core.hyperAddShortcut(mods, key, function() mp.toggle() end,
+                              "jug player")
+    end)
 
     -- 🔑 AND THE CARD IS WRITTEN FROM THE SAME TWO FIELDS. The loader
     -- registers this group only after setup SUCCEEDS, so by the time the
