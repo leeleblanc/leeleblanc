@@ -246,9 +246,26 @@ work Mac.
      ARITY AND ITS CALLING PROTOCOL, not just its return VALUE — a
      provider that returns (iterator, state) is a different contract
      from one that returns a closure, and every pcall wrapped around
-     such a call silently truncates it. Grep this config for
-     `pcall(hs.fs.dir` and for any `local ok, x = pcall(f)` where f is
-     documented to return more than one value.
+     such a call silently truncates it.
+     🚨 AND THE GATE ALREADY HAD THE RULE — I SIMPLY DID NOT RUN IT.
+     `tools/hs-lint.lua` carries `fs-dir-loses-state`, whose own `why`
+     text states my exact error verbatim ("throws 'directory metatable
+     expected, got nil' at runtime — never at load, so nothing catches
+     it until the feature is silently dead"), and all SIX real call
+     sites in this config capture three values correctly. Run against
+     the paste I sent, it reports ERROR on the bug and clears the fix.
+     🔑 THE REASON IT GOT THROUGH IS STRUCTURAL, AND IT IS THE RULE TO
+     CARRY: **A CONSOLE PASTE IS CODE THAT SHIPS WITHOUT THE GATE.**
+     Every line handed to him to paste — a probe, an installer, a
+     stopgap, a one-off repair — bypasses run-tests.sh, the linter, the
+     mutation sweep and the sentries, while running with full
+     privileges on the Mac the whole config lives on. So any Lua
+     written for him to paste goes into a scratch `modules/paste.lua`
+     and through `lua5.4 tools/hs-lint.lua <dir>` FIRST, and its
+     harness models the provider faithfully — the same two conditions
+     every shipped line already has to meet. (The lint run will also
+     report `module-contract`; that one is expected for a paste and is
+     ignored.)
   📎 6.281.0 — AND HE NAMED THE ROUTE THAT WORKS: **INLINE, NOT GITHUB**
      (LL, on the 6.281.0 GitHub page: "Empty zip again. When you put it
      inline, it was perfect. Put it inline again and not to github.").
