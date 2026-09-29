@@ -122,6 +122,36 @@ work Mac.
      that makes a manual install step acceptable at all: A DELIVERY
      THAT ASKS THE PERSON TO PLACE A FILE OWES A CHECK THAT NAMES THE
      HALF-INSTALL, in the message and in the archive, before he runs it.
+  🔁 AND THEN THE SAME STEP FAILED A SECOND TIME — SO THE STEP IS THE
+     VARIABLE (LL, on a 6.311.0 boot: "Didn't work for Jug player",
+     with a `_G.musicReport()` still headed `🎵 JUG PLAYER — ⇪⇧pad.`
+     and still carrying no `doors :` line). The instrument worked
+     twice and named the half-install twice; what did not work twice
+     is the HUMAN PLACEMENT it was instrumenting. 🔑 THE PRINCIPLE IS
+     THE ONE 6.266.0 ALREADY WROTE ABOUT RETRIES, one layer out: when
+     a delivery fails twice at the SAME step, stop improving the
+     instructions for that step and REMOVE THE STEP. A check that
+     names a failure is not a fix for it — it is the evidence that
+     the same fix is owed a second time.
+     🚚 WHAT REPLACES IT, and it is smaller than the archive it
+     replaces: SEND THE BARE `.lua` FILE INLINE (116 KB, no .tar.gz,
+     no unpack, no folder anywhere in the chain) AND GIVE ONE
+     TERMINAL LINE THAT FINDS IT, VERIFIES IT, COPIES IT AND PRINTS
+     THE PROOF. The line greps for a token the NEW file has and the
+     old one does not (`keyLabel`: 8 occurrences vs 0), so it can
+     refuse a stale copy sitting in Downloads from an earlier
+     release, and it prints the count afterwards as the receipt.
+     A drag has no receipt; a command does.
+     🪟 THE FAILURE MODE NOBODY WARNED HIM ABOUT, and it is one click
+     wide: dragging a file onto a folder that already holds that name
+     offers **Keep Both**, which writes `music_player 2.lua` beside
+     the old one. §1.12 loads an explicit module list, so the stray
+     is ignored entirely and the ORIGINAL stays loaded — the install
+     looks done, Finder shows the new file, and nothing has changed.
+     The command lists any `music_player*` that is not the exact name
+     for exactly this reason. GENERAL: when an install step is a
+     Finder drag, the plausible-looking wrong outcome is a renamed
+     duplicate, not a missing file — look for the stray, not the gap.
   📎 6.281.0 — AND HE NAMED THE ROUTE THAT WORKS: **INLINE, NOT GITHUB**
      (LL, on the 6.281.0 GitHub page: "Empty zip again. When you put it
      inline, it was perfect. Put it inline again and not to github.").
