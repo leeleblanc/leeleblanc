@@ -74,6 +74,34 @@ work Mac.
      delivery fails three times and every fix so far changed something
      inside the SAME pipeline, the pipeline IS the variable — stop
      refining it and route around it.
+  🚨 6.311.0 — AND I BROKE THIS RULE HAVING JUST QUOTED IT (LL: "Zip is
+     empty again. Above we talked about not making the same mistakes.
+     What do you think? Are you doing that?" He is right and the answer
+     is no). SIXTH empty delivery. The measurement in ⚖️ below was in
+     hand — 2.76 MB failed twice, 94 KB installed first try — and I
+     shipped 1.64 MB anyway, because 6.305.0's "every FOLDER must be
+     COMPLETE" made me carry all 71 modules to change ONE, and I
+     rationalised the result as "40% smaller than the one that failed".
+     🔑 THE TWO RULES ARE NOT IN CONFLICT AND I READ THEM AS IF THEY
+     WERE. 6.305.0 forbids a PARTIAL FOLDER, not a small patch — the
+     third shape satisfies both and is the one to reach for first:
+     **LOOSE FILES AT THE ROOT AND NO FOLDER AT ALL.** A patch with no
+     folder in it cannot replace a folder, so it cannot delete one, and
+     it costs only the size of the files that really changed. 6.311.0
+     is four loose files, 102,736 bytes: init.lua, music_player.lua, a
+     READ-ME-FIRST naming where each goes, and the release's changelog
+     entry alone (the 1.3 MB CHANGELOG.md was most of the 1.64).
+     🚪 ITS ONE COST, NAMED AND INSTRUMENTED: a module file placed by
+     hand can go to the wrong folder, and then init.lua is new while
+     the module is old — a half-upgrade with no error anywhere. So the
+     README gives the two Console lines that tell them apart
+     (`_G.configVersion` and the tool's own report) and says which
+     answer means which half landed. A manual step is acceptable only
+     when its failure is VISIBLE in five seconds.
+     ⚖️ GENERAL, AND IT IS THE ONE TO CARRY: WHEN TWO RULES HERE SEEM
+     TO FORCE A BAD OUTCOME, THE READING IS WRONG BEFORE THE RULES ARE
+     — look for the shape that satisfies both, and never trade away a
+     MEASURED variable to satisfy a structural one.
   📎 6.281.0 — AND HE NAMED THE ROUTE THAT WORKS: **INLINE, NOT GITHUB**
      (LL, on the 6.281.0 GitHub page: "Empty zip again. When you put it
      inline, it was perfect. Put it inline again and not to github.").
