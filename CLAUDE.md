@@ -222,6 +222,33 @@ work Mac.
      nearly wrote a registry row that `_G.freeKeys()` would have
      ignored — leaving the key advertised as free while bound, which
      is 6.276.0 exactly.
+  🧪 AND THE CONSOLE INSTALLER FAILED ON HIS MAC, BECAUSE MY HARNESS
+     WAS GENTLER THAN hs.fs — 6.193.0 for the TENTH time, and the
+     first time it has cost a DELIVERY rather than a feature. His
+     Console: `bad argument #1 to 'for iterator' (directory metatable
+     expected, got nil)`.
+     🔬 `hs.fs.dir(path)` RETURNS TWO VALUES — an iterator AND a
+     directory object — and the iterator is called WITH that object as
+     its state, LuaFileSystem-style. `local ok, it = pcall(hs.fs.dir, d)`
+     keeps the iterator and THROWS THE STATE AWAY, so the first call
+     passes nil and raises. The plain `for e in hs.fs.dir(d) do` form
+     is correct precisely because a generic `for` captures all three
+     control values; wrapping it in pcall is what breaks it. The fix
+     collects the entries inside `pcall(function() for e in
+     hs.fs.dir(d) do ... end end)` — which also closes the handle
+     before recursing, rather than holding one open per level.
+     🚨 MY STUB RETURNED A SINGLE STATELESS CLOSURE, so it worked
+     either way and the bug was invisible. The rebuilt stub returns
+     two values and its iterator RAISES when called without the
+     dirobj — and it reproduced his exact message before the fix, then
+     passed all five cases after. GENERAL, and it is the sharpest
+     costume this rule has worn: A STUB MUST MODEL THE PROVIDER'S
+     ARITY AND ITS CALLING PROTOCOL, not just its return VALUE — a
+     provider that returns (iterator, state) is a different contract
+     from one that returns a closure, and every pcall wrapped around
+     such a call silently truncates it. Grep this config for
+     `pcall(hs.fs.dir` and for any `local ok, x = pcall(f)` where f is
+     documented to return more than one value.
   📎 6.281.0 — AND HE NAMED THE ROUTE THAT WORKS: **INLINE, NOT GITHUB**
      (LL, on the 6.281.0 GitHub page: "Empty zip again. When you put it
      inline, it was perfect. Put it inline again and not to github.").
