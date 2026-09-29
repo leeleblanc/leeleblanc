@@ -1,5 +1,5 @@
 ========================================================================
-RESOLVED FEATURE REQUESTS — Hammerspoon config 6.310.0
+RESOLVED FEATURE REQUESTS — Hammerspoon config 6.311.0
 Every feature and how to use it. Generated from the modules' own
 cheat sheets (the rows ⇪/ draws), so it is never out of date.
 ⇪ = Caps Lock held (the hyper key). ⇪⇧X = Caps Lock + Shift + X.
@@ -595,8 +595,8 @@ In the Console, _G.<tool>Report() prints any tool's own report.
   note      Enter/esc are NOT captured during the countdown
   check     _G.pomodoroReport() — today, this week, and the file
 
-🎵 JUG PLAYER (⇪⇧pad. — a card in the corner, mp3 · m4a · wav · aiff)   [modules/music_player.lua]
-  ⇪⇧pad. Open / close the player
+🎵 JUG PLAYER (⇪⇧. · ⇪⇧pad. — a card in the corner, mp3 · m4a · wav · aiff)   [modules/music_player.lua]
+  ⇪⇧. · ⇪⇧pad. Open / close the player
   drop      Drag files onto the card: the first plays, the rest queue under it
   ↑ ↓ · ⏎ Walk the queue · play the highlighted track
   ⌘1–⌘9 Play the Nth track in the queue
@@ -777,6 +777,7 @@ In the Console, _G.<tool>Report() prints any tool's own report.
 
 📜 RELEASE INDEX — newest first, one line per release (the full story of each is in CHANGELOG.md)
 ------------------------------------------------------------------------
+  6.311.0  ⌨️ ⇪⇧. IS A SECOND DOOR INTO THE JUG PLAYER
   6.310.0  🎯 EACH POINTER RING 10% WIDER THAN THE LAST
   6.309.0  ⏯ THE PLAY KEY IS THE CARD'S ONLY WHILE IT IS ON SCREEN
   6.308.0  🚨 A MODULE WITH TWO M.warm LOSES ONE OF THEM

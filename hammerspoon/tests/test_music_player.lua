@@ -992,11 +992,172 @@ do
           #nsrc > 1000, #nsrc)
 end
 
+-- =====================================================================
+-- ⌨️ 6.311.0 — TWO DOORS: ⇪⇧. BESIDE ⇪⇧pad.
+-- =====================================================================
+-- LL: "Jug player can only be accessible via full keyboard. I am on a
+-- mini-keyboard now, can I still use hyper+shift+period, instead of
+-- pad?" ⇪⇧pad. was shipped with NO fallback on his own 6.231.0 answer
+-- ("both macs use a full Apple Keyboard"), so the premise expired and
+-- the tool became unreachable — a decision to re-ask, not a bug.
+out("\n⌨️ 6.311.0 — ⇪⇧. IS A SECOND DOOR INTO THE JUG PLAYER\n")
+reset()
+
+-- 🔑 PURE, so the whole rule is proven with no Mac and no keyboard.
+check("🔑 keyLabel draws the doors in the order they are listed, "
+      .. "reachable key first",
+      mp.keyLabel({ { mods = { "shift" }, key = "." },
+                    { mods = { "shift" }, key = "pad." } })
+        == "⇪⇧. · ⇪⇧pad.",
+      mp.keyLabel(mp.keys))
+check("🔑 ...a door with no modifier is still a ⇪ combo",
+      mp.keyLabel({ { key = "v" } }) == "⇪v", mp.keyLabel({ { key = "v" } }))
+check("🔑 ...and a modifier it has never been asked for is RENDERED, not "
+      .. "dropped — a lost modifier is a cheat sheet telling a lie",
+      mp.keyLabel({ { mods = { "cmd", "alt" }, key = "k" } }) == "⇪⌘⌥k",
+      mp.keyLabel({ { mods = { "cmd", "alt" }, key = "k" } }))
+-- 🚨 THE FIXTURE THAT BITES is a list where the two implementations must
+-- differ (6.230.0): a malformed row BETWEEN two good ones. A version
+-- that draws every row regardless answers "⇪⇧. · ⇪ · ⇪⇧pad."; one that
+-- gives up on the first bad row answers "⇪⇧.".
+check("🚨 a malformed door is skipped and the rest still draw",
+      mp.keyLabel({ { mods = { "shift" }, key = "." },
+                    { mods = { "shift" } },            -- no key at all
+                    "nonsense",                         -- not a table
+                    { mods = { "shift" }, key = "pad." } })
+        == "⇪⇧. · ⇪⇧pad.",
+      mp.keyLabel({ { mods = { "shift" }, key = "." }, { mods = { "shift" } },
+                    "nonsense", { mods = { "shift" }, key = "pad." } }))
+check("🔎 ...and a list with NO usable door says so rather than drawing "
+      .. "an empty key column (6.196.1)",
+      mp.keyLabel({}) == "(no key bound)"
+      and mp.keyLabel(nil) == "(no key bound)"
+      and mp.keyLabel("not a list") == "(no key bound)",
+      mp.keyLabel({}))
+
+-- ⌨️ BOTH DOORS ARE REALLY BOUND, and both end in the SAME toggle —
+-- two handlers for one tool is how they come to disagree (6.231.0,
+-- and 6.291.0 exists because two routes for one key nearly did).
+check("⌨️ ⇪⇧. is bound", BOUND["shift+."] ~= nil)
+check("⌨️ ...and ⇪⇧pad. is STILL bound — a second door, not a swap",
+      BOUND["shift+pad."] ~= nil)
+check("⌨️ ...and the module counted what it really registered",
+      mp.doorsBound == 2, tostring(mp.doorsBound))
+do
+    -- Both handlers must TOGGLE the same card: press one, press the
+    -- other, and the card must close. Asserting only that each is a
+    -- function passes with one of them wired to show() (6.212.0 — a
+    -- check that counts calls of a kind something else also makes).
+    local before = mp.webview ~= nil
+    BOUND["shift+."].fn()
+    local afterDot = mp.webview ~= nil
+    BOUND["shift+pad."].fn()
+    local afterPad = mp.webview ~= nil
+    check("⌨️ ...and the two doors drive ONE card — ⇪⇧. opened it and "
+          .. "⇪⇧pad. closed the same one",
+          before == false and afterDot == true and afterPad == false,
+          tostring(before) .. " → " .. tostring(afterDot)
+          .. " → " .. tostring(afterPad))
+end
+
+-- 🔑 6.239.0 — MOVE THE CONFIG AND REQUIRE EVERY SURFACE TO FOLLOW.
+-- Asserting the shipped combo passes when the combo is typed in twice,
+-- which is exactly how 6.276.0's cheat-sheet lie survived five
+-- releases. The card is rewritten in setup(), so this reloads it.
+do
+    -- The SHIPPED card. This is the row LL reads on ⇪/ — and, because
+    -- it is built when the file LOADS rather than in setup(), the row
+    -- tools/build-feature-list.lua prints into
+    -- RESOLVED-FEATURE-REQUESTS.txt from a chunk it never sets up.
+    check("🔑 the shipped card names both doors, in order, with the "
+          .. "reachable key first",
+          M.cheatsheet.title:find("⇪⇧. · ⇪⇧pad.", 1, true) ~= nil,
+          M.cheatsheet.title)
+    local shipped
+    for _, e in ipairs(M.cheatsheet.entries) do
+        if e[2] == "Open / close the player" then shipped = e[1] end
+    end
+    check("🔑 ...and the key column is ONE row for the two doors — the "
+          .. "6.196.0 auditor reads a combo listed twice as a conflict "
+          .. "(6.243.0's rule)",
+          shipped == "⇪⇧. · ⇪⇧pad.", tostring(shipped))
+    check("📜 ...and the SUMMARY leads with the same label, because that "
+          .. "is the line ⇪space and the generated feature list show",
+          M.summary:find("^⇪⇧%. · ⇪⇧pad%. "), M.summary:sub(1, 30))
+
+    -- 🚨 THE JOIN THAT KEEPS IT HONEST. Asserting the shipped words is
+    -- what 6.276.0's two green checks did — they compared the card to
+    -- the same stale sentence the card was made of. These assert that
+    -- the card's three strings ARE what keyLabel answers for the keys
+    -- that were really bound, so a hand-typed combo creeping back in
+    -- fails here rather than quietly disagreeing with the binding.
+    local live = mp.keyLabel(mp.keys)
+    check("🚨 the title is keyLabel's answer for the keys really bound, "
+          .. "not a literal that happens to match today",
+          M.cheatsheet.title:find(live, 1, true) ~= nil
+          and live == "⇪⇧. · ⇪⇧pad.", live)
+    check("🚨 ...and so are the key column and the summary",
+          shipped == live and M.summary:sub(1, #live) == live)
+    -- 🔑 6.239.0 — AND MOVING THE LIST MOVES THE LABEL. Driven through
+    -- the published keyLabel rather than by reloading the module, which
+    -- would republish _G.musicPlayer under every later section
+    -- (6.278.0). The three surfaces all concatenate THIS, proven above.
+    check("🔑 ...and a key list this Mac has never shipped renders "
+          .. "without a trace of the old one",
+          mp.keyLabel({ { mods = { "shift" }, key = "]" } }) == "⇪⇧]",
+          mp.keyLabel({ { mods = { "shift" }, key = "]" } }))
+    check("🔒 ...and no other row was stamped with a key — a writer that "
+          .. "fills every key column destroys the card",
+          (function()
+              for _, e in ipairs(M.cheatsheet.entries) do
+                  if e[2] == "Play / pause" then return e[1] == "space" end
+              end
+              return false
+          end)())
+end
+
+-- 🔒 THE SENTRY IS ABOUT THE CLASS, not the three strings this release
+-- moved: a fourth written next month brings the hand-typed combo back
+-- and NOTHING functional would notice — the card would simply be wrong
+-- again, which is 6.276.0 word for word. COMMENTS ARE STRIPPED
+-- (6.262.0): the history above quotes the very combo this forbids.
+do
+    local f = realOpen(HS .. "/modules/music_player.lua")
+    local src = f and f:read("a") or ""
+    if f then f:close() end
+    local bare = src:gsub("%-%-%[%[.-%]%]", " "):gsub("%-%-[^\n]*", " ")
+    -- 🔎 THE NEEDLE IS THE SHAPE OF A RENDERED COMBO, "⇪⇧", not a bare
+    -- ⇪: keyLabel BUILDS its combos ("⇪" .. glyphs .. key) and the
+    -- page's own JS comment mentions ⇪'s F18 keyup, and neither is a
+    -- typed-out key. A sentry that matched ⇪ alone would go red on a
+    -- healthy tree and be switched off inside a week (6.269.0).
+    local NEEDLE = "⇪⇧"
+    local hits = {}
+    for line in bare:gmatch("[^\n]+") do
+        if line:find(NEEDLE, 1, true) then
+            hits[#hits + 1] = line:gsub("^%s+", ""):sub(1, 70)
+        end
+    end
+    check("🔒 no ⇪⇧ combo is typed into a VISIBLE string in the module — "
+          .. "every surface reads mp.keyLabel(mp.keys)",
+          #hits == 0, table.concat(hits, " | "))
+    check("...and the sentry had a file to read (6.187.0)", #src > 1000, #src)
+    -- 🚨 A SENTRY IS NOT A CHECK UNTIL SOMETHING HAS FAILED IT (6.282.0):
+    -- a needle that can never match passes for ever over a file full of
+    -- what it forbids. This is the line the mutation would add.
+    check("...and the needle really matches the thing it forbids",
+          ('        title = "🎵 X (⇪⇧pad. — a card)",'):find(NEEDLE, 1, true) ~= nil)
+end
+
 -- ---- §12 the report ----------------------------------------------------
 reset()
 local r0 = report()
-check("📋 the report opens with the tool and its key",
-      r0:find("🎵 " .. mp.brand:upper() .. " — ⇪⇧pad.", 1, true) ~= nil,
+-- 6.248.0 — ASSERT THE RULE, NOT THE SHIPPED LITERAL. This read
+-- "— ⇪⇧pad." until 6.311.0 and went red on a second door being added,
+-- with nothing to say about the change it existed to prove.
+check("📋 the report opens with the tool and its key(s)",
+      r0:find("🎵 " .. mp.brand:upper() .. " — " .. mp.keyLabel(mp.keys),
+              1, true) ~= nil,
       r0:sub(1, 60))
 check("...and an empty queue reads as EMPTY, not as a silent zero",
       r0:find("empty", 1, true) ~= nil)

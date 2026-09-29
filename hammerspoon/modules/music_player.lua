@@ -1,5 +1,5 @@
 -- =====================================================================
--- MODULE: 🎵 MINI MUSIC PLAYER (⇪⇧pad.) — a card in the corner
+-- MODULE: 🎵 MINI MUSIC PLAYER (⇪⇧. · ⇪⇧pad.) — a card in the corner
 -- =====================================================================
 -- LL, 2026-09-13: "a lightweight player in the top-right corner like the
 -- 3-month calendar. Repeat one / repeat all; history (click an item →
@@ -13,6 +13,27 @@
 -- macs use a full Apple Keyboard" — so ⇪⇧pad. needs no fallback key; and
 -- "Native volume keys work" — so there is NO volume control here, and no
 -- seek, because he did not ask for one. Both are his to add afterwards.
+--
+-- ⌨️ 6.311.0 — AND THAT PREMISE EXPIRED, WHICH IS NOT THE SAME AS BEING
+-- WRONG. LL: "Jug player can only be accessible via full keyboard. I am
+-- on a mini-keyboard now, can I still use hyper+shift+period, instead of
+-- pad?" ⇪⇧pad. was shipped with no fallback ON HIS OWN ANSWER, and a
+-- keyboard with no numpad makes the whole tool unreachable — not a bug,
+-- a decision whose premise moved. ⇪⇧. is a SECOND DOOR, not a
+-- replacement (6.292.0's ⌘⌘ beside ⇪V, 6.293.0's ⌥⌥ beside ⇪.): a door
+-- costs nothing on the Macs that still have a numpad, and taking the
+-- old key away would break the muscle memory of the two keyboards the
+-- feature was designed around. `mp.keys` is the ONE list both doors are
+-- in and `mp.keyLabel` the one string every surface prints.
+--
+-- 🆓 AND THE ANSWER TO "I can't tell if that key combo is taken" IS NOT
+-- A MEMORY. It was asked of the live registry — the gate's own collision
+-- harness, which loads the REAL config and names both sides of any
+-- double-claim: 76 combos bound and no `shift|.` among them. ⇪. WITHOUT
+-- shift is menu_search, which is the near miss worth writing down. That
+-- is 6.276.0's rule being kept rather than quoted: the release where he
+-- was handed ⇪⇧pad. as "available" is the one that says never answer
+-- this from a note.
 --
 -- 📼 WHY A WEBVIEW AND NOT A CANVAS. hs.canvas has no drop target: a
 -- canvas cannot be dragged onto. Drag-and-drop was the FIRST thing he
@@ -49,6 +70,67 @@
 -- taught this config that a file written into a watched cloud folder
 -- costs a main-thread wake-up for nothing.
 
+-- 🔑 6.311.0 — THE DOORS, AND THE ONE STRING THAT NAMES THEM. All of
+-- this is at FILE SCOPE and evaluated when the module loads, not in
+-- setup(), and that is a decision with a reason: tools/build-feature-
+-- list.lua reads `M.cheatsheet` from a chunk it never sets up, and
+-- RESOLVED-FEATURE-REQUESTS.txt ships and LL opens it. A card written
+-- in setup() is a card with a blank key column in that file — 6.268.0's
+-- rule (before changing a module, grep every reader of it) caught it in
+-- the same release that wrote it down.
+local CARD_TAIL    = "a card in the corner, mp3 · m4a · wav · aiff"
+local OPEN_CLOSE   = "Open / close the player"
+local SUMMARY_TAIL = "a small player in the top-right corner: drop files "
+                     .. "on it, ↑↓ or ⌘1–9 to pick, repeat one / repeat "
+                     .. "all, elapsed time, and a history you can click "
+                     .. "back into"
+local BRAND        = "Jug Player"
+
+-- ⌨️ BOTH DOORS, ONE LIST, REACHABLE KEY FIRST. ⇪⇧. is on every
+-- keyboard he owns; ⇪⇧pad. is the original (6.231.0) and STAYS, because
+-- taking it away would cost the two Macs it was designed for and buy
+-- nothing — one function, two doors (6.292.0's ⌘⌘ beside ⇪V, 6.293.0's
+-- ⌥⌥ beside ⇪.). The ORDER is what the card prints, so the key he can
+-- actually press leads.
+local KEYS = {
+    { mods = { "shift" }, key = "."    },   -- ⇪⇧.    6.311.0
+    { mods = { "shift" }, key = "pad." },   -- ⇪⇧pad. 6.231.0
+}
+
+-- ⌨️ How a modifier is drawn on a card. ⇧ is the only one these doors
+-- use; the rest are here so a key added later is rendered rather than
+-- silently losing its modifier, which is the shape that makes a cheat
+-- sheet lie.
+local MODGLYPH = { shift = "⇧", cmd = "⌘", command = "⌘", alt = "⌥",
+                   option = "⌥", ctrl = "⌃", control = "⌃" }
+
+-- 🔑 PURE: the doors in, the human label out, in the order they are
+-- listed ("⇪⇧. · ⇪⇧pad."). The cheat-sheet title, the card's key
+-- column, the module summary and the report all print THIS, so no
+-- combo is typed into a visible string and the sheet cannot promise a
+-- key nothing bound — 6.276.0's whole complaint, which this tool's own
+-- key caused. A malformed entry is SKIPPED rather than drawn
+-- half-rendered, and a list with nothing usable in it SAYS so: an
+-- empty key column reads as a tool with no door, which is exactly the
+-- silence 6.196.1 forbids.
+local function keyLabel(keys)
+    local out = {}
+    for _, d in ipairs(type(keys) == "table" and keys or {}) do
+        local key = (type(d) == "table") and d.key or nil
+        if type(key) == "string" and key ~= "" then
+            local g = ""
+            for _, m in ipairs((type(d) == "table"
+                                and type(d.mods) == "table") and d.mods or {}) do
+                g = g .. (MODGLYPH[tostring(m):lower()] or "")
+            end
+            out[#out + 1] = "⇪" .. g .. key
+        end
+    end
+    if #out == 0 then return "(no key bound)" end
+    return table.concat(out, " · ")
+end
+local KEYLABEL = keyLabel(KEYS)
+
 local M = {
     -- 🏷 6.296.0 — LL: "From here forward, call the music player, Jug
     -- Player and put the name to the left of now playing." Visible
@@ -60,16 +142,23 @@ local M = {
     -- ONE field carries the name (`mp.brand`), so the card, the alert,
     -- the degrade door, the reports and the cheat sheet cannot drift
     -- apart; a check moves it and requires all of them to follow.
-    name    = "Jug Player",
+    name    = BRAND,
     order   = 13.66,                -- beside the pomodoro (13.65)
     family  = "time",
-    summary = "⇪⇧pad. a small player in the top-right corner: drop files on "
-              .. "it, ↑↓ or ⌘1–9 to pick, repeat one / repeat all, elapsed "
-              .. "time, and a history you can click back into",
+    -- 🔑 6.311.0 — NO KEY AND NO NAME IS TYPED INTO THE THREE STRINGS
+    -- BELOW: they are built from KEYS and BRAND when the file loads.
+    -- That is 6.296.0's rule for the NAME, one release on, applied to
+    -- the KEY — in the module whose key caused 6.276.0.
+    summary = KEYLABEL .. " " .. SUMMARY_TAIL,
     cheatsheet = {
-        title = "🎵 JUG PLAYER (⇪⇧pad. — a card in the corner, mp3 · m4a · wav · aiff)",
+        title = "🎵 " .. BRAND:upper() .. " (" .. KEYLABEL
+                .. " — " .. CARD_TAIL .. ")",
         entries = {
-            { "⇪⇧pad.",  "Open / close the player" },
+            -- 📋 ONE ROW FOR THE TWO DOORS (6.243.0): the 6.196.0
+            -- auditor reads a combo listed twice as a conflict, and it
+            -- walks a key column token by token, so both are joined to
+            -- this module and neither can drift onto another card.
+            { KEYLABEL,  OPEN_CLOSE },
             { "drop",    "Drag files onto the card: the first plays, the rest queue under it" },
             { "↑ ↓ · ⏎", "Walk the queue · play the highlighted track" },
             { "⌘1–⌘9",   "Play the Nth track in the queue" },
@@ -94,15 +183,25 @@ local M = {
 function M.setup(core)
     local mp = {
         enabled   = true,
-        key       = "pad.",
-        mods      = { "shift" },
+        -- ⌨️ 6.311.0 — BOTH DOORS, ONE LIST, REACHABLE KEY FIRST. ⇪⇧. is
+        -- on every keyboard he owns; ⇪⇧pad. is the original and stays,
+        -- because taking it away would cost the two Macs it was designed
+        -- for and buy nothing (6.292.0: one function, two doors). The
+        -- ORDER is what the card prints, so the key he can actually
+        -- press leads. Every door ends in the same mp.toggle — two
+        -- handlers for one tool is how they come to disagree (6.231.0).
+        -- 📏 SAID RATHER THAN IMPLIED: a `settings` override of this list
+        -- is DECORATIVE, because the binding happens in setup() and
+        -- profile settings land after it (6.228.0). Changing a door is a
+        -- release, not a settings line, and the report says so.
+        keys      = KEYS,
         width     = 340,
         -- 🏷 6.296.0 — ONE NAME, MANY READERS: the card's header, the
         -- degrade door's tool name, the alert, both reports and the ⇪/
         -- card all read this. A literal typed into each is how the card
         -- comes to say one thing and the alert another (6.239.0), so a
         -- check MOVES it and requires the page and the reports to move.
-        brand     = "Jug Player",
+        brand     = BRAND,
         height    = 430,
         anchor    = "topRight",       -- "topRight" (like the calendar) or "center"
         gap       = 12,               -- points in from the screen edge
@@ -797,10 +896,27 @@ function M.setup(core)
     -- rather than trusted; an empty or non-string name falls back to
     -- the shipped one rather than drawing a nameless card.
     function mp.brandText(name)
+        return (mp.brandName(name):gsub("&", "&amp;")
+                                  :gsub("<", "&lt;"):gsub(">", "&gt;"))
+    end
+
+    -- 🏷 6.311.0 — THE SAME NAME, UNESCAPED, for the surfaces that are
+    -- not markup: the ⇪/ card's title and its summary are plain text, so
+    -- `&` must stay `&`. brandText is this plus the escaping, rather
+    -- than a second copy of the fallback (6.231.0: one function, two
+    -- callers — and the fallback is the half that must not drift, since
+    -- it is what stops a nameless card).
+    function mp.brandName(name)
         local t = tostring(name or "")
         if t:match("^%s*$") then t = "Jug Player" end
-        return (t:gsub("&", "&amp;"):gsub("<", "&lt;"):gsub(">", "&gt;"))
+        return t
     end
+
+    -- 🔑 6.311.0 — the file-scope keyLabel, published so the report and
+    -- the gate ask the SAME function the card was built with. A second
+    -- copy here is how the card and the report come to name different
+    -- keys (6.231.0).
+    mp.keyLabel = keyLabel
 
     local function buildHtml()
         local fs  = math.max(10, math.floor(tonumber(mp.fontSize) or 13))
@@ -1546,7 +1662,7 @@ say({a:'ready'});
         end
         mp.uc = nil
         -- Deliberately NOT stopping the sound: closing the card is putting
-        -- the card away, not stopping the music. ⇪⇧pad. brings it back
+        -- the card away, not stopping the music. Either door brings it back
         -- with the track still going.
         say("card closed")
     end
@@ -1964,11 +2080,24 @@ say({a:'ready'});
     -- ---- the report -------------------------------------------------------
 
     function _G.musicReport()
-        local L = { "🎵 " .. mp.brandText(mp.brand):upper() .. " — ⇪⇧pad." }
+        local L = { "🎵 " .. mp.brandName(mp.brand):upper()
+                    .. " — " .. mp.keyLabel(mp.keys) }
         local function line(t) L[#L + 1] = t end
         line("   card     : " .. (mp.webview and "open" or "closed")
              .. " · " .. tostring(mp.anchor)
              .. (mp.enabled and "" or " · OFF by settings"))
+        -- ⌨️ 6.311.0 — LISTED IS NOT BOUND (6.196.1). The heading prints
+        -- the label, which is what mp.keys SAYS; this says how many
+        -- doors setup really registered, so a list that was edited or
+        -- overridden into uselessness reads as a fault instead of as a
+        -- tool he is pressing the wrong key for.
+        do
+            local n = tonumber(mp.doorsBound) or 0
+            line("   doors    : " .. ((n > 0)
+                 and (n .. " way(s) in — " .. mp.keyLabel(mp.keys))
+                 or "⚠️ NONE bound — nothing opens this card")
+                 .. " · changing one is a release, not a settings line")
+        end
         line("   engine   : " .. (hs.sound and "hs.sound (macOS's own)"
                                           or "⚠️ NO hs.sound — nothing can play"))
         -- ⏯ 6.289.0 — THREE STATES (6.196.1): the tap is up · it is off by
@@ -2141,8 +2270,38 @@ say({a:'ready'});
 
     -- ---- the doors in -----------------------------------------------------
 
-    core.hyperAddShortcut(mp.mods, mp.key, function() mp.toggle() end,
-                          "jug player")
+    -- ⌨️ 6.311.0 — EVERY DOOR IN THE LIST, ALL ENDING IN mp.toggle. A
+    -- malformed entry is skipped rather than binding nothing quietly,
+    -- and a list that yields NO door at all takes the 🔔 door: a tool
+    -- with no key is a tool he cannot open, which is the one state that
+    -- must never be silent (6.214.0).
+    do
+        local bound = 0
+        for _, d in ipairs(type(mp.keys) == "table" and mp.keys or {}) do
+            local key = (type(d) == "table") and d.key or nil
+            if type(key) == "string" and key ~= "" then
+                core.hyperAddShortcut((type(d.mods) == "table") and d.mods or {},
+                                      key, function() mp.toggle() end,
+                                      "jug player")
+                bound = bound + 1
+            end
+        end
+        mp.doorsBound = bound
+        if bound == 0 then degrade("no key could be bound — mp.keys is "
+              .. "empty or malformed, so there is no way to open the card") end
+    end
+
+    -- 🔑 AND THE CARD IS WRITTEN FROM THE SAME TWO FIELDS. The loader
+    -- registers this group only after setup SUCCEEDS, so by the time the
+    -- sheet reads it the keys and the name are the ones really bound —
+    -- 6.276.0's fix (a row is READ, never typed) applied to the module
+    -- that caused that release.
+    -- 🔑 6.311.0 — THE CARD IS ALREADY WRITTEN, at load time, from the
+    -- same KEYS list bound above and the same BRAND `mp.brand` defaults
+    -- to. Nothing to do here — and the check that keeps it honest is a
+    -- JOIN: the shipped title must be what keyLabel answers for the
+    -- shipped keys, so a hand-typed combo creeping back in fails the
+    -- gate rather than quietly disagreeing with the binding.
 
     core.provide("music.show",   function() return mp.show() end)
     core.provide("music.hide",   function() mp.hide() return true end)

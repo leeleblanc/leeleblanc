@@ -5,6 +5,74 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.311.0 — ⌨️ ⇪⇧. IS A SECOND DOOR INTO THE JUG PLAYER
+  (modules/music_player.lua). LL: "Jug player can only be accessible
+  via full keyboard. I am on a mini-keyboard now, can I still use
+  hyper+shift+period, instead of pad? I can't tell if that key combo
+  is taken."
+  🆓 THE ANSWER CAME FROM THE REGISTRY, NOT FROM A NOTE, and that is
+  the half of this release worth keeping. ⇪⇧. is free: the gate's own
+  collision harness loads the REAL config, walks every route a key can
+  be claimed by and names both sides of any double-claim — 76 combos
+  bound before this release and no `shift|.` among them. The near miss
+  is ⇪. WITHOUT shift, which is menu_search (6.196.0), and a stale
+  comment in that very file said "⇪⇧. is the network tools" — net_tools
+  is ⇪6 and has been since it was written. Two notes, one of them
+  wrong, and neither is evidence. 6.276.0 is the release where he was
+  handed ⇪⇧pad. as "available" while this player had owned it for
+  forty-five releases; answering this one from memory was the single
+  thing not allowed.
+  ⌨️ A SECOND DOOR, NOT A SWAP. He asked for ⇪⇧. "instead of pad", and
+  the swap is the reading I did not take: ⇪⇧pad. was shipped with NO
+  fallback key on his OWN 6.231.0 answer ("Both macs, home/work, use a
+  full Apple Keyboard and Magic pad"), so the premise EXPIRED rather
+  than being wrong — and removing the key would cost the two Macs the
+  feature was designed around to buy nothing. One function, two doors
+  is this config's own precedent, twice over: ⇪V beside ⌘⌘ (6.292.0)
+  and ⇪. beside ⌥⌥ (6.293.0). Say if you would rather have the numpad
+  key gone — it is one line, and it is your call, not mine to make
+  quietly.
+  🔑 ONE LIST AND ONE STRING. `mp.keys` holds both doors, reachable key
+  first, and every one of them ends in the same `mp.toggle` — two
+  handlers for one tool is how the two come to disagree (6.231.0, and
+  6.291.0 exists because two routes for one physical key nearly did).
+  `mp.keyLabel` is PURE and renders that list as "⇪⇧. · ⇪⇧pad."; the
+  cheat-sheet title, the card's key column, the module summary and
+  `_G.musicReport()`'s heading all print it, so there is no combo typed
+  into any visible string in the module and a source sentry holds the
+  class rather than the four strings this release moved. That is
+  6.296.0's rule for the NAME, one release on, applied to the KEY — in
+  the module whose key caused 6.276.0.
+  📋 ONE CHEAT-SHEET ROW FOR THE TWO DOORS (6.243.0): the 6.196.0
+  auditor reads a combo listed twice as a conflict, and a key column
+  holding several combos is audited token by token — so both are
+  joined to this module and neither can drift onto another card.
+  🆓 AND THE FREE-KEY CARDS UPDATED THEMSELVES, which is 6.276.0 being
+  paid back rather than quoted: those rows are READ from the live
+  registry in warm(), so ⇪⇧. stopped being advertised as available the
+  moment it was claimed, with nothing to edit by hand.
+  🔎 LISTED IS NOT BOUND (6.196.1). The report gained a `doors :` line
+  saying how many ways in setup really REGISTERED, beside the label the
+  list merely claims — a list edited into uselessness now reads as a
+  fault instead of as a key he is pressing wrongly. A list that yields
+  no door at all takes the 🔔 door: a tool with no key is a tool he
+  cannot open, and that must never be silent.
+  📏 SAID RATHER THAN IMPLIED: a `settings` override of `mp.keys` is
+  DECORATIVE, because the binding happens in setup() and profile
+  settings land after it (6.228.0). That was equally true of the old
+  `mp.key` and was never written down. Changing a door is a release.
+  🧪 The check MOVES the doors to a combo this Mac has never shipped
+  and requires the title, the summary and the key column to follow
+  (6.239.0) — driven through `mp.writeCard` rather than by reloading
+  the module, because a reload republishes `_G.musicPlayer` under every
+  later section (6.278.0). The fixture that BITES the skip-a-malformed
+  -door rule is a bad entry BETWEEN two good ones: a writer that draws
+  every row and one that gives up on the first bad row agree on every
+  other input (6.230.0). And the source sentry's needle is "⇪⇧", not a
+  bare "⇪": keyLabel BUILDS its combos and the page's JS comment
+  mentions ⇪'s F18 keyup, so a wider needle would go red on a healthy
+  tree and be switched off inside a week (6.269.0).
+
 NEW IN 6.310.0 — 🎯 EACH POINTER RING 10% WIDER THAN THE LAST
   (modules/mouse_grid.lua). LL: "⇪⇧L needs to be more obvious. Can you
   make each ring grow in size by 10% each time?" His answer, his

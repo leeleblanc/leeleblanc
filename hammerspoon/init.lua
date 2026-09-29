@@ -2,10 +2,33 @@
 -- * Working VERSION *
 -- =====================================================================
 -- =====================================================================
--- 09-28-26 using Claude          ← EDITED date. Bumped with every release.
+-- 09-29-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.310.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.311.0
 -- =====================================================================
+
+-- NEW IN 6.311.0 — ⌨️ ⇪⇧. IS A SECOND DOOR INTO THE JUG PLAYER
+--   (modules/music_player.lua). LL: "Jug player can only be accessible
+--   via full keyboard. I am on a mini-keyboard now, can I still use
+--   hyper+shift+period, instead of pad? I can't tell if that key
+--   combo is taken." 🆓 IT IS NOT, AND THAT WAS ASKED OF THE REGISTRY
+--   RATHER THAN OF A NOTE: the gate's collision harness loads the REAL
+--   config and names both sides of any double-claim — 76 combos bound
+--   and no `shift|.` among them. ⇪. WITHOUT shift is menu_search,
+--   which is the near miss. 6.276.0 is the release where he was handed
+--   ⇪⇧pad. as "available", so answering this from memory was the one
+--   thing not allowed. ⌨️ A SECOND DOOR, NOT A SWAP (6.292.0's ⌘⌘
+--   beside ⇪V): ⇪⇧pad. was shipped with no fallback on his OWN 6.231.0
+--   answer ("both macs use a full Apple Keyboard"), so the premise
+--   expired rather than being wrong, and taking the key away would
+--   cost the two Macs it was designed for and buy nothing. 🔑 ONE
+--   LIST, `mp.keys`, and one string, `mp.keyLabel` (PURE) — the card's
+--   title, its key column, the module summary and the report all print
+--   it, so no combo is typed into any visible string and a sentry
+--   holds the class. That is 6.296.0's rule for the NAME, applied to
+--   the KEY, in the module whose key caused 6.276.0. ONE cheat-sheet
+--   row carries both, or the 6.196.0 auditor reads a combo listed
+--   twice as a conflict (6.243.0).
 
 -- NEW IN 6.310.0 — 🎯 EACH POINTER RING 10% WIDER THAN THE LAST
 --   (modules/mouse_grid.lua). LL: "⇪⇧L needs to be more obvious. Can
@@ -24,25 +47,11 @@
 --   follow (6.239.0), with three rings at one p in flight — the only
 --   fixture where the old and new drawings must differ (6.230.0).
 
--- NEW IN 6.309.0 — ⏯ THE PLAY KEY IS THE CARD'S ONLY WHILE IT IS ON SCREEN
---   (modules/music_player.lua). LL, twice: "Still hold play pause when
---   not visible. The player should only do this if visible. Not while
---   hidden … You're introducing a fix that is not real." He is right.
---   6.289.0 gated on `hasQueue`, which I chose, and closing the card
---   deliberately does NOT stop the sound — so a closed card went on
---   holding ⏯ for as long as a queue survived it, and macOS never got
---   the key back. 🔑 `mp.mayTake` is the ONE gate and both routes ask
---   it (6.231.0: the systemDefined and plain-F-key routes must never
---   disagree about one physical key — 6.291.0 exists because they
---   nearly did). The queue check STAYS beside it, not as a second
---   rule smuggled in: an open card with an empty queue would else EAT
---   ⏯ and do nothing. Both must hold, which is the narrow direction.
-
--- (6.308.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.309.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 cut the inline count to
 --  TWO; a gate check proves every entry here is also in CHANGELOG.md.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.310.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.311.0
 -- =====================================================================
 -- The catalogue that used to sit here moved to GUIDE.md ("What each
 -- tool does") in 6.180.0 — 259 lines of prose inside the orchestrator.
@@ -135,7 +144,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.310.0"
+_G.configVersion = "6.311.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the

@@ -148,13 +148,33 @@ work Mac.
 - Battery saver never dims the screen, never touches pmset/sudo; the hog
   caller-out never kills/pauses/renices apps.
 - ⇪⇧Z is reserved for later — do not bind it.
-- ⇪⇧Z is the ONLY unspent key left — do not bind it. ⇪⇧T and ⇪1 were
-  spent in 6.194.0 (type-the-clipboard and mouse-follows). Free combos
-  after 6.216.0: ⇪⇧[, ⇪⇧], ⇪⇧, and ⇪⇧. (⇪⇧7 → Bluetooth 6.216.0;
-  test_shortcut_hints' unmapped fixture key is ⇪⇧] now) — check `hint.groups` in
-  modules/shortcut_hints.lua, which is the authoritative map of every
-  bound combo, BEFORE promising LL a key. (⇪3 → vault 6.172.0; ⇪⇧U →
-  anchors 6.180.0.)
+- 🆓 NEVER ANSWER "IS THIS KEY FREE?" FROM THIS FILE — ASK THE REGISTRY
+  (6.276.0's rule, and 6.311.0 is the release that kept it). ⇪⇧Z is
+  reserved and must not be bound. ⇪⇧T and ⇪1 were spent in 6.194.0;
+  ⇪⇧. was spent in 6.311.0 (the Jug Player's second door); ⇪3 → vault
+  6.172.0; ⇪⇧U → anchors 6.180.0; ⇪⇧7 → Bluetooth 6.216.0.
+  🚨 AND THE LINE THAT USED TO SIT HERE SENT YOU TO A DELETED FILE: it
+  said to check `hint.groups` in modules/shortcut_hints.lua, "the
+  authoritative map of every bound combo" — that module was DELETED in
+  6.268.0, so the instruction had been unfollowable for forty-three
+  releases while still reading like the answer. It also listed ⇪⇧. as
+  free, which was true then and is not now. A hand-kept key list in a
+  memory file is the same defect 6.276.0 deleted from the cheat sheet,
+  one layer out; these names are a HINT, never the answer.
+  🔑 THE THREE LIVE AUTHORITIES, in the order to use them:
+    1. `lua5.4 tests/test_integration.lua <hs>` — the collision auditor
+       loads the REAL config; `HYPER_CLAIMS` holds every combo with the
+       module that took it, and a dump of that table is the whole
+       answer in one run (6.311.0 read 76 claims that way, and the near
+       miss it found was ⇪. WITHOUT shift → menu_search).
+    2. `_G.freeKeys()` / the `keys.free` service / `pt.freeKeyData`
+       (PURE) on his Mac — the same registry, rendered.
+    3. The gate itself: bind the key and RUN IT. A double-claim fails
+       by name, a bound key printed on no card fails (6.294.0), and a
+       🆓 row it cannot verify fails closed (6.276.0).
+  📏 A COMMENT IN A MODULE IS NOT AUTHORITY EITHER: menu_search.lua said
+  "⇪⇧. is the network tools" and net_tools is ⇪6, and has been since it
+  was written.
 - IT DEGRADES, IT NEVER BREAKS (6.177.0, LL: "build it so it degrades
   gracefully and nothing breaks — and that's the same for all our code
   going forward. It must work on my home Mac and my work Mac."). Every
@@ -1386,6 +1406,60 @@ work Mac.
   rings are in flight at the same p, because with every ring on one path
   their radii are equal and that is the only input where the old and new
   drawings must differ (6.230.0).
+
+- ⌨️ A KEY CHOSEN FOR THE HARDWARE HE HAD IS A DECISION WHOSE PREMISE
+  CAN EXPIRE (6.311.0, modules/music_player.lua — LL: "Jug player can
+  only be accessible via full keyboard. I am on a mini-keyboard now,
+  can I still use hyper+shift+period, instead of pad? I can't tell if
+  that key combo is taken"). ⇪⇧pad. shipped with NO fallback key on his
+  OWN 6.231.0 answer ("Both macs, home/work, use a full Apple Keyboard
+  and Magic pad"), so the tool being unreachable today is not a bug and
+  not a mistake — it is a decision nobody re-asked. GENERAL: when a
+  scope was set by an answer about his hardware, his habits or his
+  apps, that answer has a shelf life; re-ask it rather than defending
+  the decision it produced.
+  🚪 A SECOND DOOR, NOT A SWAP, and the swap is what he literally asked
+  for. Removing ⇪⇧pad. would cost the two Macs the feature was designed
+  around and buy nothing — one function, two doors is this config's own
+  precedent twice over (⇪V/⌘⌘ 6.292.0, ⇪./⌥⌥ 6.293.0). Both doors end
+  in ONE `mp.toggle`; two handlers for one tool is how they come to
+  disagree (6.291.0 exists because two routes for one physical key
+  nearly did). SAID TO HIM as a decision I made and he can reverse.
+  🆓 THE ANSWER TO "IS IT TAKEN" CAME FROM THE REGISTRY. See the 🆓
+  hard rule above — this is the release that wrote it, and the near
+  miss (⇪. without shift is menu_search) is the reason a note would
+  have been a coin toss.
+  🔑 ONE LIST, ONE LABEL, AT LOAD TIME. `KEYS` holds both doors and
+  `keyLabel` (PURE) renders them; the cheat-sheet title, the card's key
+  column, the module summary and `_G.musicReport()`'s heading all
+  concatenate it, and a source sentry forbids a typed "⇪⇧" anywhere
+  visible in the module. 6.296.0's rule for the NAME, applied to the
+  KEY, in the module whose key caused 6.276.0.
+  🚨 AND IT IS BUILT WHEN THE FILE LOADS, NOT IN setup() — the first
+  version wrote the card in setup and the GENERATED FEATURE LIST went
+  out with a blank key column, because tools/build-feature-list.lua
+  reads `M.cheatsheet` from a chunk it never sets up, and that file
+  ships and LL opens it. 6.268.0's rule (grep every reader before
+  changing a module) caught it inside the release that cites it.
+  GENERAL: anything a module publishes as DATA on its table must be
+  true of the table, not of the table after setup has run.
+  📋 ONE CHEAT-SHEET ROW FOR THE TWO DOORS (6.243.0): the 6.196.0
+  auditor reads a combo listed twice as a conflict, and it walks a key
+  column token by token, so several combos in ONE cell audit correctly.
+  🆓 AND THE FREE-KEY CARDS UPDATED THEMSELVES — 6.276.0 being paid
+  back rather than quoted: those rows are READ from the live registry
+  in warm(), so ⇪⇧. stopped being advertised the moment it was claimed.
+  🔎 LISTED IS NOT BOUND (6.196.1): the report's `doors :` line says how
+  many ways in setup really REGISTERED, beside the label the list
+  merely claims, and no door at all takes the 🔔 door. 📏 A `settings`
+  override of the key list is DECORATIVE (the binding is in setup,
+  settings land after — 6.228.0) and the report SAYS so; that was
+  equally true of the old `mp.key` and had never been written down.
+  🧪 The check that bites the skip-a-malformed-door rule is a bad entry
+  BETWEEN two good ones — every other input agrees (6.230.0). And the
+  sentry's needle is "⇪⇧", not a bare "⇪": keyLabel BUILDS its combos
+  and the page's JS comment mentions ⇪'s F18 keyup, so a wider needle
+  goes red on a healthy tree and gets switched off (6.269.0).
 
 - 🚪 A DRAG ENDS WHEREVER THE BUTTON COMES UP, AND EVERY EXIT OWES THE
   CALLER ITS ANSWER (6.306.0, core/coexist.lua — LL, twice, eleven
@@ -4093,6 +4167,7 @@ that must be READ before a new cause is named.
 | "cmd+cmd does not bring up unified clip" | modules/clipboard_history.lua warm | 6.308.0 | 1 | ask |
 | "still hold play pause when not visible" | modules/music_player.lua | 6.289.0 · 6.291.0 · 6.309.0 | 3 | ask |
 | "⇪⇧L needs to be more obvious" | modules/mouse_grid.lua | 6.167.0 · 6.195.0 · 6.310.0 | 3 | ask |
+| "can only be accessible via full keyboard" · "I can't tell if that key combo is taken" | modules/music_player.lua · the key registry | 6.276.0 · 6.311.0 | 1 | ask |
 
 📏 SEEDED FROM THE RECORD, NOT INVENTED: every row above is a real
 report with a real release beside it, and the pass counts are countable
@@ -4182,6 +4257,7 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
+| 6.311.0 | ⌨️ ⇪⇧. opens the Jug Player — the numpad key was unreachable on his mini keyboard, and the combo was free (asked of the registry, not of a note) | pending |
 | 6.310.0 | 🎯 each ⇪⇧L ring 10% wider than the last, and the canvas grew to hold the outermost | pending |
 | 6.309.0 | ⏯ the Jug Player holds ⏯ only while its card is ON SCREEN — 6.289.0 gated on a queue, which is a rule he never asked for | pending |
 | 6.308.0 | ⌨️ ⌘⌘ opens the clipboard at last — two functions called M.warm in one file, and setup() destroyed the one that registered it | pending |
@@ -5154,6 +5230,79 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.311.0 verify with LL — ⌨️ ⇪⇧. OPENS THE JUG PLAYER (KNOWN GROUND)
+  WHAT CHANGED: ⇪⇧. (hyper + shift + the ordinary full stop) opens and
+  closes the Jug Player. ⇪⇧pad. still does too — a second door, not a
+  swap.
+  🆓 AND YOUR QUESTION, ANSWERED PROPERLY: ⇪⇧. was NOT taken. I did not
+  answer that from my notes — my notes are exactly what was wrong in
+  6.276.0, when you were handed ⇪⇧pad. as "available" and this player
+  had owned it for forty-five releases. I ran the gate's collision
+  auditor, which loads the REAL config and names every claim: 76 combos
+  bound, no ⇪⇧. among them. The near miss is ⇪. WITHOUT shift — that is
+  menu_search, your front app's own menus — and a comment in that very
+  file claimed "⇪⇧. is the network tools", which is wrong too
+  (net_tools is ⇪6). Two notes, one of them false. The registry is the
+  only thing that can answer this and it is what answered.
+  🚪 WHY YOU KEEP BOTH KEYS, since you said "instead of pad": ⇪⇧pad.
+  was shipped with no fallback ON YOUR OWN ANSWER in 6.231.0 ("Both
+  macs, home/work, use a full Apple Keyboard and Magic pad"), so the
+  premise moved rather than the decision being wrong. Removing it would
+  cost the two Macs the feature was built for and buy nothing. Say the
+  word and the numpad key goes — it is one line.
+
+  A. THE HEADLINE — twenty seconds, on the mini keyboard.
+  A1. Press ⇪⇧. (hold Caps Lock and Shift, press the full stop).
+      EXPECT: the Jug Player card appears in the top-right corner.
+  A2. Press ⇪⇧. again. EXPECT: it closes.
+  A3. Press ⇪⇧pad. (if you are at a keyboard with a numpad).
+      EXPECT: the same card, same corner, same state. One tool, two
+      doors — not two cards.
+  A4. Open with ⇪⇧. and close with ⇪⇧pad., then the other way round.
+      EXPECT: they drive the SAME card. **A FAIL here — two windows, or
+      one key opening and the other doing nothing — is the bug this
+      release can have.**
+
+  B. THE ONE THAT MUST NOT HAVE MOVED.
+  B1. Press ⇪. (no shift). EXPECT: the front app's MENUS, as always.
+      That is menu_search and it is the key next door; if ⇪. now opens
+      the music card, stop and tell me at once.
+  B2. Type a full stop in any app. EXPECT: a full stop.
+
+  C. MUST STILL WORK — the card itself is untouched.
+  C1. Drop two tracks on it; space, ↑↓, ⏎, ⌘1–9, ← →, ⌫, the ✕ on a
+      history row, the repeat button.
+  C2. F8/⏯ drives it while the card is on screen and passes through to
+      macOS while it is closed (6.309.0).
+  C3. Drag the card by its title strip; close and reopen — it is where
+      you left it.
+
+  D. PASTE BACK, PASS OR FAIL.
+  D1. `_G.musicReport()` — the heading should now read
+      `🎵 JUG PLAYER — ⇪⇧. · ⇪⇧pad.`, and a new `doors :` line reads
+      `2 way(s) in — ⇪⇧. · ⇪⇧pad.`. If that line ever says
+      `⚠️ NONE bound`, nothing opens the card and I want it immediately.
+  D2. `_G.freeKeys()` — ⇪⇧. must NO LONGER be offered as free. Those
+      rows are read from the live registry, so this is 6.276.0 paying
+      for itself: nothing was edited by hand to make that happen.
+  D3. ⇪/ and search `jug`. EXPECT the card's title and its first row
+      both to read `⇪⇧. · ⇪⇧pad.` — one row for the two keys, on
+      purpose: the sheet's own auditor reads a combo listed twice as a
+      conflict.
+
+  E. A JUDGEMENT ONLY YOU CAN MAKE.
+  E1. Is ⇪⇧. the right key, now that you have pressed it a few times?
+      ⇪⇧, (comma), ⇪⇧[ and ⇪⇧] are also genuinely free — measured, not
+      remembered. One word and it moves.
+  E2. Do you want ⇪⇧pad. REMOVED? I kept it deliberately and you asked
+      for "instead of". Your call, one line either way.
+  E3. 🔨 CRUDE OR ELEGANT: the Jug Player was completely unreachable on
+      the keyboard you are using — the tool was not degraded, it was
+      absent. But the Mac itself was fine. My reading is that this is a
+      feature ask created by a hardware change rather than a defect, so
+      I have not logged it as a problem. Correct me if it belongs in
+      the ledger as 🔨.
+
 - 6.310.0 verify with LL — 🎯 THE POINTER RINGS STEP OUTWARD (KNOWN GROUND)
   WHAT CHANGED: each of the three rings ⇪⇧L throws is 10% wider than the
   one before it, and the whole mark got bigger to hold the outermost.

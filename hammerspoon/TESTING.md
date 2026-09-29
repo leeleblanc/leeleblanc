@@ -1,4 +1,4 @@
-# TESTING — how to score release 6.310.0
+# TESTING — how to score release 6.311.0
 
 You install ONE archive and it carries several releases. Below are the
 steps for each release this archive is new for, newest first. Run the
@@ -26,6 +26,83 @@ else is a LOSS and I fix it before building further. You are the only
 scorer; I never mark my own.
 
 ---
+
+## 6.311.0
+
+6.311.0 verify with LL — ⌨️ ⇪⇧. OPENS THE JUG PLAYER (KNOWN GROUND)
+WHAT CHANGED: ⇪⇧. (hyper + shift + the ordinary full stop) opens and
+closes the Jug Player. ⇪⇧pad. still does too — a second door, not a
+swap.
+🆓 AND YOUR QUESTION, ANSWERED PROPERLY: ⇪⇧. was NOT taken. I did not
+answer that from my notes — my notes are exactly what was wrong in
+6.276.0, when you were handed ⇪⇧pad. as "available" and this player
+had owned it for forty-five releases. I ran the gate's collision
+auditor, which loads the REAL config and names every claim: 76 combos
+bound, no ⇪⇧. among them. The near miss is ⇪. WITHOUT shift — that is
+menu_search, your front app's own menus — and a comment in that very
+file claimed "⇪⇧. is the network tools", which is wrong too
+(net_tools is ⇪6). Two notes, one of them false. The registry is the
+only thing that can answer this and it is what answered.
+🚪 WHY YOU KEEP BOTH KEYS, since you said "instead of pad": ⇪⇧pad.
+was shipped with no fallback ON YOUR OWN ANSWER in 6.231.0 ("Both
+macs, home/work, use a full Apple Keyboard and Magic pad"), so the
+premise moved rather than the decision being wrong. Removing it would
+cost the two Macs the feature was built for and buy nothing. Say the
+word and the numpad key goes — it is one line.
+
+A. THE HEADLINE — twenty seconds, on the mini keyboard.
+A1. Press ⇪⇧. (hold Caps Lock and Shift, press the full stop).
+    EXPECT: the Jug Player card appears in the top-right corner.
+A2. Press ⇪⇧. again. EXPECT: it closes.
+A3. Press ⇪⇧pad. (if you are at a keyboard with a numpad).
+    EXPECT: the same card, same corner, same state. One tool, two
+    doors — not two cards.
+A4. Open with ⇪⇧. and close with ⇪⇧pad., then the other way round.
+    EXPECT: they drive the SAME card. **A FAIL here — two windows, or
+    one key opening and the other doing nothing — is the bug this
+    release can have.**
+
+B. THE ONE THAT MUST NOT HAVE MOVED.
+B1. Press ⇪. (no shift). EXPECT: the front app's MENUS, as always.
+    That is menu_search and it is the key next door; if ⇪. now opens
+    the music card, stop and tell me at once.
+B2. Type a full stop in any app. EXPECT: a full stop.
+
+C. MUST STILL WORK — the card itself is untouched.
+C1. Drop two tracks on it; space, ↑↓, ⏎, ⌘1–9, ← →, ⌫, the ✕ on a
+    history row, the repeat button.
+C2. F8/⏯ drives it while the card is on screen and passes through to
+    macOS while it is closed (6.309.0).
+C3. Drag the card by its title strip; close and reopen — it is where
+    you left it.
+
+D. PASTE BACK, PASS OR FAIL.
+D1. `_G.musicReport()` — the heading should now read
+    `🎵 JUG PLAYER — ⇪⇧. · ⇪⇧pad.`, and a new `doors :` line reads
+    `2 way(s) in — ⇪⇧. · ⇪⇧pad.`. If that line ever says
+    `⚠️ NONE bound`, nothing opens the card and I want it immediately.
+D2. `_G.freeKeys()` — ⇪⇧. must NO LONGER be offered as free. Those
+    rows are read from the live registry, so this is 6.276.0 paying
+    for itself: nothing was edited by hand to make that happen.
+D3. ⇪/ and search `jug`. EXPECT the card's title and its first row
+    both to read `⇪⇧. · ⇪⇧pad.` — one row for the two keys, on
+    purpose: the sheet's own auditor reads a combo listed twice as a
+    conflict.
+
+E. A JUDGEMENT ONLY YOU CAN MAKE.
+E1. Is ⇪⇧. the right key, now that you have pressed it a few times?
+    ⇪⇧, (comma), ⇪⇧[ and ⇪⇧] are also genuinely free — measured, not
+    remembered. One word and it moves.
+E2. Do you want ⇪⇧pad. REMOVED? I kept it deliberately and you asked
+    for "instead of". Your call, one line either way.
+E3. 🔨 CRUDE OR ELEGANT: the Jug Player was completely unreachable on
+    the keyboard you are using — the tool was not degraded, it was
+    absent. But the Mac itself was fine. My reading is that this is a
+    feature ask created by a hardware change rather than a defect, so
+    I have not logged it as a problem. Correct me if it belongs in
+    the ledger as 🔨.
+
+
 
 ## 6.310.0
 
@@ -164,61 +241,6 @@ D1. ⇪V always worked, so my reading is that this degraded gracefully —
     a feature silently absent, not a Mac you could not use. One pass.
     If you agree it is ✨ ELEGANT; if being told "watching" while it
     was dead counts as worse than that, say so and it goes down 🔨.
-
-
-
-## 6.307.0
-
-6.307.0 verify with LL — 🔎 ⌘F FINDS IT, ⏎ OPENS IT (KNOWN GROUND)
-WHAT CHANGED: in Hamsidian, ⏎ in the ⌘F filter box now OPENS the note
-the list is showing you instead of creating a new one with the text
-you typed.
-🔎 YOUR SCREENSHOT DIAGNOSED IT: the filter said "examin", the NOTES
-section showed "09-21-26 Examining relationship", and the editor held
-a brand-new "# examining". The filter box has three modes, and search
-and tasks mode have ALWAYS opened the first hit. Notes mode alone sent
-the typed text as the name — and opening a note that is not there
-creates it, by design. One mode of three, and it was the one that
-writes a file into the folder holding your writing.
-
-A. THE HEADLINE.
-A1. ⇪3. Press ⌘F and type enough of an existing note's name to narrow
-    the list — "examin" will do.
-A2. Press ⏎ WITHOUT pressing ↓ first.
-    EXPECT: the note in the list OPENS, with its real contents.
-    **A FAIL is a new empty note called "examin"** — that is the bug,
-    unchanged.
-A3. Look at the vault folder. EXPECT: no new file was created.
-
-B. CREATING STILL WORKS — it has to, or this trades one bug for another.
-B1. ⌘F and type something no note matches — "zzznothing".
-    EXPECT: the list says `no note matches — ⏎ creates "zzznothing"`.
-B2. Press ⏎. EXPECT: it creates that note and opens it, as before.
-B3. ⌘N still opens the naming bar and creates by name.
-
-C. THE EDGES.
-C1. ⌘F and type `#` plus a tag. EXPECT: it filters by tag and ⏎
-    creates nothing.
-C2. ⌘F, narrow to a TEMPLATE (type "Meet"), press ⏎. EXPECT: the
-    template opens. It is a note in the list, so opening it is right.
-C3. ⌘F, then ↓ to a row further down, then ⏎. EXPECT: THAT row opens —
-    the arrow keys were always right and are untouched.
-
-D. PASTE BACK, PASS OR FAIL.
-D1. `_G.vaultReport()` — a new "⏎ filter" line counts them apart:
-    `N opened the match · N created a new note`, with the last one
-    named. After A2 and B2 that should read 1 and 1.
-
-E. 🔨 CRUDE OR ELEGANT — and please answer this one.
-E1. How many of these stray notes are in your vault? They will be
-    named after whatever you typed into the filter box. If there is a
-    pile of them, say so and the next release is a command that lists
-    every note whose name matches a note you already had — I will not
-    delete anything without you seeing the list first (6.280.0).
-E2. Hamsidian stayed usable throughout, so my reading is ✨ ELEGANT,
-    one pass. But it was writing into the one folder where a mistake
-    costs your own words, so if you call that 🔨 CRUDE I will not
-    argue — it is your tag.
 
 
 
