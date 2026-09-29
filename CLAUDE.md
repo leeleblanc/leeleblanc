@@ -122,6 +122,33 @@ work Mac.
      that makes a manual install step acceptable at all: A DELIVERY
      THAT ASKS THE PERSON TO PLACE A FILE OWES A CHECK THAT NAMES THE
      HALF-INSTALL, in the message and in the archive, before he runs it.
+  ⚖️ AND THE MEASUREMENT WAS RETIRED ONE WORD TOO EARLY (LL, on the
+     third identical report: "This is exactly what you said you're
+     getting right and I said are you sure"). He is right, and the
+     error is in the ✅ block above: it proved ~100 KB ARRIVES and
+     then treated the delivery question as CLOSED. Arriving is not
+     installing. 🔑 THE CHAIN HAS FOUR LINKS, NOT THREE — 6.263.0
+     wrote "BUILDING IS NOT DELIVERING AND DELIVERING IS NOT
+     ARRIVING" and stopped one link short: **AND ARRIVING IS NOT
+     INSTALLED, AND INSTALLED IS NOT LOADED.** A release is not
+     delivered until the RUNNING config reports the new behaviour;
+     every earlier link is a proxy, and retiring a question at a
+     proxy is how the same failure comes back wearing the next
+     link's name.
+  🔎 AND "WHERE ARE YOU GOING WRONG" IS A QUESTION I HAD NOT EARNED
+     THE RIGHT TO ANSWER. Twice I read "the loaded module is the old
+     one" — which is PROVEN, the old report heading is a hard-coded
+     `.. " — ⇪⇧pad."` literal and the new one cannot emit it — and
+     twice I let it imply he had mishandled the file, which is NOT
+     proven and is a different claim. 🔑 THE FACT THAT SEPARATES THEM
+     IS THE FILE'S OWN mtime, and it cost nothing to collect: recent
+     means the copy DID land and the fault is downstream (mine);
+     old means it never arrived at that path. GENERAL: when a symptom
+     has a "the person did it wrong" branch and a "the tool did it
+     wrong" branch, find the field that separates them BEFORE saying
+     either out loud — and prefer the instrument that reads from
+     inside the running config, which assumes no Finder, no folder
+     and no step he has to describe correctly.
   🔁 AND THEN THE SAME STEP FAILED A SECOND TIME — SO THE STEP IS THE
      VARIABLE (LL, on a 6.311.0 boot: "Didn't work for Jug player",
      with a `_G.musicReport()` still headed `🎵 JUG PLAYER — ⇪⇧pad.`
