@@ -102,6 +102,26 @@ work Mac.
      TO FORCE A BAD OUTCOME, THE READING IS WRONG BEFORE THE RULES ARE
      — look for the shape that satisfies both, and never trade away a
      MEASURED variable to satisfy a structural one.
+  ✅ AND THE 102 KB ONE ARRIVED — SIZE IS MEASURED TWICE NOW, NOT ONCE
+     (his boot log minutes later: `📌 init.lua ARCHITECTURE VERSION:
+     6.311.0`). Two deliveries at ~100 KB installed first try (94 KB at
+     6.303.0, 102,736 bytes at 6.311.0); two at 1.64 MB and 2.76 MB
+     never arrived at all. That is a controlled pair in each direction,
+     so the hypothesis is retired as a FINDING: every delivery from here
+     is loose files at the root, no folder, in that size class, and the
+     question is not re-opened without new evidence.
+     🚪 AND THE COST I NAMED IS THE COST THAT LANDED, on the very first
+     try: his `_G.musicReport()` read `🎵 JUG PLAYER — ⇪⇧pad.` with no
+     `doors :` line — init.lua new, modules/music_player.lua old. A
+     hand-placed module went somewhere else, exactly as the README said
+     it could, and NOTHING ELSE WOULD HAVE SAID SO: the config boots
+     green, the version stamp is right, and the feature is simply
+     absent. 🔑 THE INSTRUMENT IS WHAT MADE IT A FIVE-SECOND ANSWER
+     rather than a second "it does not work" — two Console lines whose
+     DISAGREEMENT names which half landed. GENERAL, and it is the rule
+     that makes a manual install step acceptable at all: A DELIVERY
+     THAT ASKS THE PERSON TO PLACE A FILE OWES A CHECK THAT NAMES THE
+     HALF-INSTALL, in the message and in the archive, before he runs it.
   📎 6.281.0 — AND HE NAMED THE ROUTE THAT WORKS: **INLINE, NOT GITHUB**
      (LL, on the 6.281.0 GitHub page: "Empty zip again. When you put it
      inline, it was perfect. Put it inline again and not to github.").
