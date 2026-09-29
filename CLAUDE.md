@@ -4525,6 +4525,53 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
 
 ## Open items — update as they move
 
+- 🩺 "SO I DON'T HAVE TO REMEMBER" — A HALF-INSTALL MUST BE ASKABLE
+  (2026-09-29, LL, once the Console installer had put 6.311.0's module in
+  place: "Will this be added as 'Get-Jug-Player-going.md' as part of the
+  init.lua zip file with an entry on the cheat sheet under Jug player so
+  I don't have to remember?"). YES — AND IT IS 6.271.0's RULE A SECOND
+  TIME: the recovery existed only in a chat message, which is not in the
+  package, which is exactly where the seventy-two verify blocks were.
+  🔑 BUT NOT AS A DOCUMENT ABOUT ONE TOOL, and that is the whole design
+  decision. Seventy-one modules can half-install, and a file named after
+  the Jug Player is right about one of them — 6.276.0's shape, a
+  hand-kept note true for one row and misleading about the rest. THE
+  ANSWER IS AN INSTRUMENT: `MANIFEST.txt` at the archive root,
+  GENERATED at ceremony time like TESTING.md and RESOLVED-FEATURE-
+  REQUESTS.txt (a hand-kept one is stale the first time a file changes),
+  one row per RUNTIME file — path and BYTE COUNT. `_G.installCheck()`
+  stats each and names every file that disagrees.
+  📏 SIZE, NOT A HASH, BY DEFAULT: `hs.fs.attributes(p).size` is a stat
+  and reads nothing, so it costs nothing on the main thread (6.228.0),
+  and it catches the case that actually happened — 107,414 against
+  116,595. A hash on demand (`_G.installCheck(true)`) covers a same-size
+  change, which is the rare one. 🔎 CHECK hs.hash IN THE SOURCE BEFORE
+  RELYING ON IT (6.233.0) — a platform fact that decides a design is
+  read in the extension, with the file named, never remembered.
+  🔎 FOUR STATES (6.196.1), and the fourth is the one he has TODAY:
+  matches · DIFFERENT SIZE, both numbers · MISSING · NO MANIFEST ON
+  DISK, meaning this install predates the check and nothing can be said.
+  "Cannot be checked" must never read as "all clear".
+  🔔 IT SPEAKS AT BOOT ONLY WHEN SOMETHING DISAGREES, from `M.warm` and
+  never setup (6.267.0: disk work at setup is a tax every key pays), and
+  is silent on a healthy Mac (6.269.0). That silence is the point: his
+  config booted green, the version stamp was right, and the feature was
+  simply absent.
+  📋 THE CHEAT-SHEET ROW IS A POINTER, NOT A CLAIM — the key column
+  holds the WORD "install check", so the 6.196.0 auditor reads it as a
+  pointer rather than a combo (6.294.0's ⇪T row is the precedent). And
+  INSTALL.md gains the section, carrying the Console installer
+  GENERALISED to take a module NAME, rather than one document per tool.
+  🚫 THE STOPGAP IS NOT SHIPPED, said out loud rather than quietly
+  dropped: `_G.hyperModal:bind({"shift"},".",…)` was a bridge for one
+  evening, and on a healthy config it binds a key setup has already
+  bound — two handlers for one tool, 6.291.0 — while hand-writing
+  `_G.hyperBound["shift+."]` makes the registry claim something setup
+  did not do, which is 6.276.0 from the other side.
+  🚨 AND IT WAITS ON 6.311.0 BEING CONFIRMED LOADED. Building the
+  instrument for a half-install on top of an install nobody has verified
+  is the ⚖️ error one more time — his `_G.musicReport()` comes first.
+
 - 🌅 HIS 2026-09-27 REPORT — WHAT IT SETTLES, AND THE QUESTION THAT IS
   NOW UNANSWERABLE. Four wakes, six probe reads, 15:07.
   ✅ THE WAKE WATCHER WORKS: `wake : 4 wake(s) seen, none found ⇪ held`
