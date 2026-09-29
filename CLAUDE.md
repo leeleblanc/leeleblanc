@@ -179,6 +179,49 @@ work Mac.
      for exactly this reason. GENERAL: when an install step is a
      Finder drag, the plausible-looking wrong outcome is a renamed
      duplicate, not a missing file — look for the stray, not the gap.
+  🖥 AND THE MEASUREMENT FINALLY CAME BACK: THE FILE WAS NEVER WRITTEN
+     (his Console, on a probe that reads the loader's own path:
+     `bytes : 107414` — the 6.310.0 file exactly — and
+     `written : 2026-09-28 05:30:03`, the morning BEFORE 6.311.0
+     existed, with no STRAY lines). So the Keep Both theory was WRONG
+     and is retired; nothing was renamed, nothing was duplicated, the
+     path simply never received a write. 🔑 AND THE mtime IS WHAT MADE
+     THAT A FACT RATHER THAN A THIRD ACCUSATION — it separated "he
+     mishandled it" from "it landed and broke downstream" in one
+     field, which is the rule two blocks up being paid the first time
+     it was asked.
+     🚪 SO THE INSTALL MOVES TO THE ONE CHANNEL HE HAS DEMONSTRABLY
+     USED CORRECTLY: **THE CONSOLE PASTE.** Three deliveries have now
+     failed at Finder or Terminal; zero have failed at a Console
+     paste — he has pasted a probe back perfectly twice. So the
+     installer IS a Console line: it walks ~/Downloads three deep,
+     picks the candidate containing a token only the new file has,
+     writes it to `_G.moduleDir`, re-reads it and prints the byte
+     count as the receipt. No Finder, no Terminal, no drag, no
+     unpack. GENERAL, and it is the delivery rule that generalises
+     past archives: ROUTE AN INSTALL THROUGH THE CHANNEL THE PERSON
+     HAS ALREADY PROVED THEY CAN DRIVE, not the one that is
+     conventional — and when several channels are in play, count
+     which has actually worked for THIS person rather than which
+     ought to.
+  🚨 AND THE OBVIOUS STOPGAP WOULD HAVE DONE NOTHING, caught by
+     reading rather than by shipping it: `_G.hyperAddShortcut` does
+     NOT bind — it appends to `_G.hyperPending`, which only
+     `_G.hyperFinalize()` drains, ONCE, at the end of boot. Called
+     from the Console it is a silent no-op, which on this thread
+     would have been a fourth "didn't work" with no explanation. The
+     runtime door is `_G.hyperModal:bind(mods, key, fn)`, which is
+     what hyperBind itself calls. 6.228.0's rule in a new place: a
+     registration function that is READ once at boot cannot be used
+     to register anything afterwards — check WHEN the list is
+     drained before offering a live call.
+     📏 AND THE COMBO KEY IS `mods+key`, PLUS-SEPARATED
+     (`hyperCombo`: sorted, lowered, joined with "+"), NOT the pipe
+     form `shift|.` that test_integration's HYPER_CLAIMS uses. Two
+     formats for one idea, and the memory of the test harness's one
+     nearly wrote a registry row that `_G.freeKeys()` would have
+     ignored — leaving the key advertised as free while bound, which
+     is 6.276.0 exactly.
   📎 6.281.0 — AND HE NAMED THE ROUTE THAT WORKS: **INLINE, NOT GITHUB**
      (LL, on the 6.281.0 GitHub page: "Empty zip again. When you put it
      inline, it was perfect. Put it inline again and not to github.").
