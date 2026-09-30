@@ -131,6 +131,43 @@ local function keyLabel(keys)
 end
 local KEYLABEL = keyLabel(KEYS)
 
+-- 🔎 6.312.0 — PURE: WHAT THE STORE IS, IN WORDS, AND "NOT YET" IS ONE
+-- OF THEM (6.196.1). The store is opened in M.warm, seconds after boot
+-- (6.267.0's lazy read), and mp.loadStore has THREE silent exits — no
+-- file, zero bytes, and a decode that failed. Until this release every
+-- one of them, AND the seconds before warm ran at all, printed the same
+-- two lines: "queue : empty" and "history : 0 track(s)". So a report run
+-- two seconds after a boot was indistinguishable from a store truncated
+-- to nothing, which is the alarm this release exists to stop raising.
+-- SIX answers; only two of them are health.
+local function storeVerdict(loaded, state, bytes, queued, kept)
+    if not loaded then
+        return "notread", "⏳ NOT READ YET — the store is opened a few seconds"
+            .. " after boot, so the queue and history lines above are not an"
+            .. " answer yet. Run this again in a moment."
+    elseif state == "none" then
+        return "none", "no file yet — nothing has been saved on this Mac."
+            .. " Normal on a first run; a worry only if you had a queue."
+    elseif state == "zero" then
+        return "zero", "⚠️ ZERO BYTES on disk — a write was cut off part way."
+            .. " Whatever it held is gone and the next save rewrites it."
+    elseif state == "unreadable" then
+        return "bad", "⚠️ UNREADABLE — it is on disk and could not be decoded."
+            .. " It was left alone, never overwritten."
+    elseif state == "read" then
+        local nq, nk = tonumber(queued) or 0, tonumber(kept) or 0
+        local head = "read " .. (tonumber(bytes) or 0) .. " bytes"
+        if nq == 0 and nk == 0 then
+            return "empty", head .. " — and it is GENUINELY empty: nothing"
+                .. " queued, no history rows. This is not a failure."
+        end
+        return "read", head .. " — " .. nq .. " queued · " .. nk
+            .. " history row(s)"
+    end
+    return "unknown", "⚠️ the store's state was not recorded — that is a fault"
+        .. " in this report, not in the store"
+end
+
 local M = {
     -- 🏷 6.296.0 — LL: "From here forward, call the music player, Jug
     -- Player and put the name to the left of now playing." Visible
@@ -560,15 +597,20 @@ function M.setup(core)
     function mp.loadStore()
         mp.loaded = true
         local f = io.open(mp.storeFile, "r")
-        if not f then return end
+        -- 🔎 6.312.0 — EVERY EXIT RECORDS WHAT IT FOUND. These three used to
+        -- be bare returns, so "there is no file", "the file is empty" and
+        -- "you have nothing queued" were one silence.
+        if not f then mp.storeState = "none" ; return end
         local raw = f:read("*a") ; f:close()
-        if not raw or raw == "" then return end
+        if not raw or raw == "" then mp.storeState = "zero" ; return end
+        mp.storeBytes = #raw
         local ok, data = pcall(function() return hs.json.decode(raw) end)
         -- 🗂 6.198.1's rule: "it is a table" is not "it is MY table". Every
         -- row is shape-checked at the LOADER, once, rather than guarded at
         -- each of the five readers — one of which is the report, so a bad
         -- store would otherwise also take out the diagnostic naming it.
         if not (ok and type(data) == "table") then
+            mp.storeState = "unreadable"
             say("the saved queue could not be read — starting empty")
             return
         end
@@ -604,6 +646,7 @@ function M.setup(core)
             mp.mode = data.mode
         end
         mp.sel = 1
+        mp.storeState = "read"
     end
 
     local function saveNow()
@@ -917,6 +960,7 @@ function M.setup(core)
     -- copy here is how the card and the report come to name different
     -- keys (6.231.0).
     mp.keyLabel = keyLabel
+    mp.storeVerdict = storeVerdict
 
     local function buildHtml()
         local fs  = math.max(10, math.floor(tonumber(mp.fontSize) or 13))
@@ -2037,9 +2081,14 @@ say({a:'ready'});
     -- this project has now met in four modules).
     function mp.startMediaTap()
         if mp.mediaTap or not mp.mediaKeys then return false, "not wanted" end
+        -- 🔎 6.312.0 — AN ATTEMPT IS RECORDED BEFORE ANYTHING CAN FAIL, so
+        -- the report can tell "warm has not run yet" from "macOS said no".
+        -- Both leave mediaTap nil, and both printed the same ⚠️ line.
+        mp.tapTried = true
         if not (hs.eventtap and hs.eventtap.new and hs.eventtap.event
                 and hs.eventtap.event.types) then
-            return false, "this Hammerspoon has no event taps"
+            mp.tapWhy = "this Hammerspoon has no event taps"
+            return false, mp.tapWhy
         end
         local ok = pcall(function()
             mp.mediaTap = hs.eventtap.new(
@@ -2048,7 +2097,8 @@ say({a:'ready'});
         end)
         if not ok or not mp.mediaTap then
             mp.mediaTap = nil
-            return false, "macOS refused the media-key tap"
+            mp.tapWhy = "macOS refused the media-key tap"
+            return false, mp.tapWhy
         end
         -- 6.291.0 — the second route, in its OWN slot. A failure here is
         -- reported separately: the two taps answer different System
@@ -2060,8 +2110,10 @@ say({a:'ready'});
         end)
         if not ok2 or not mp.fnTap then
             mp.fnTap = nil
+            mp.tapWhy = nil
             return true, "the function-key route could not start"
         end
+        mp.tapWhy = nil
         return true
     end
 
@@ -2107,9 +2159,17 @@ say({a:'ready'});
         if not mp.mediaKeys then
             line("   ⏯ keys   : OFF — settings = { music_player = "
                  .. "{ mediaKeys = false } }")
+        elseif not mp.tapTried then
+            -- 🔎 6.312.0 — the tap starts in warm() like the store, so before
+            -- that it has not FAILED, it has not been tried. Those are
+            -- opposite facts and they printed the same ⚠️ (6.196.1).
+            line("   ⏯ keys   : ⏳ not started yet — the tap starts a few"
+                 .. " seconds after boot, with the store. Run this again"
+                 .. " in a moment.")
         elseif not mp.mediaTap then
-            line("   ⏯ keys   : ⚠️ WANTED but not running — no event tap on this"
-                 .. " Mac, so the keyboard's ⏯ goes wherever macOS sends it")
+            line("   ⏯ keys   : ⚠️ WANTED but not running — "
+                 .. tostring(mp.tapWhy or "no event tap on this Mac")
+                 .. ", so the keyboard's ⏯ goes wherever macOS sends it")
         else
             line("   ⏯ keys   : watching ⏯ ⏮ ⏭ · " .. (md.taken or 0)
                  .. " taken · " .. (md.passed or 0) .. " passed through to macOS"
@@ -2171,7 +2231,9 @@ say({a:'ready'});
             line("              ↳ taking the keys ACTIVATES Hammerspoon, so"
                  .. " an open Console comes forward with the card")
         end
-        if #mp.queue == 0 then
+        if #mp.queue == 0 and not mp.loaded then
+            line("   queue    : ⏳ not read yet — see the store line below")
+        elseif #mp.queue == 0 then
             line("   queue    : empty — drop files on the card")
         else
             line("   queue    : " .. #mp.queue .. " track(s) · repeat " .. tostring(mp.mode))
@@ -2212,12 +2274,31 @@ say({a:'ready'});
         line("   forgot   : " .. (tonumber(mp.forgotten) or 0)
              .. " history row(s) removed with ✕ this session"
              .. " — _G.musicClearHistory() empties the list")
-        line("   history  : " .. #mp.history .. " track(s) over the last "
-             .. tostring(mp.historyDays) .. " day(s) — one row per file"
-             .. (#mp.history > 0 and (", oldest "
-                 .. os.date("%b %d", tonumber(mp.history[#mp.history].at) or 0))
-                 or ""))
-        line("   store    : " .. tostring(mp.storeFile))
+        -- 🕘 6.312.0 — THE 30 IS A WINDOW, NOT A CLAIM ABOUT WHAT IS HERE.
+        -- LL, reading "0 track(s) over the last 30 day(s)": "I don't think
+        -- we have 30-day music history yet. Did we build jug player 30 days
+        -- ago?" He was right to doubt it — the player shipped 2026-09-16 and
+        -- the sentence read as a statement about the data rather than about
+        -- the retention rule. It says which it is now.
+        if not mp.loaded then
+            line("   history  : ⏳ not read yet — see the store line below")
+        else
+            line("   history  : " .. #mp.history .. " track(s) kept"
+                 .. (#mp.history > 0 and (" · oldest "
+                     .. os.date("%b %d",
+                                tonumber(mp.history[#mp.history].at) or 0))
+                     or "")
+                 .. " — one row per file, and rows are kept for up to "
+                 .. tostring(mp.historyDays) .. " day(s) (the WINDOW, not"
+                 .. " a claim that this Mac holds that much)")
+        end
+        do
+            local _, words = mp.storeVerdict(mp.loaded, mp.storeState,
+                                             mp.storeBytes, #mp.queue,
+                                             #mp.history)
+            line("   store    : " .. words)
+            line("   ↳ " .. tostring(mp.storeFile))
+        end
         line("   ↳ LOCAL, never OneDrive — a half-played queue is not")
         line("     cross-Mac data, and a cloud write costs a wake-up")
         line("   plays    : " .. (function()

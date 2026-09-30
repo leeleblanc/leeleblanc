@@ -2785,6 +2785,146 @@ do
           (pass + fail) - n == 35, (pass + fail) - n)
 end
 
+-- =====================================================================
+-- §6.312.0 — 🔎 THE REPORT CANNOT SAY WHAT IT HAS NOT READ
+-- =====================================================================
+-- LL ran _G.musicReport() two seconds after a boot and it said
+-- "queue : empty · history : 0 track(s) · ⏯ keys : ⚠️ WANTED but not
+-- running". Every one of those was FALSE — the store is opened and the
+-- tap is started in M.warm, seconds later (6.267.0), so none of them had
+-- happened yet. Nothing was wrong and the report said three things were.
+-- That is 6.196.1 exactly, inside the instrument built to keep it.
+do
+    local n = pass + fail
+
+    -- ---- the PURE verdict: six answers, and only two are health -------
+    local k, w = mp.storeVerdict(false, nil, nil, 0, 0)
+    check("🔎 before warm has run the store is NOT READ YET — never 'empty'",
+          k == "notread" and w:find("NOT READ YET", 1, true) ~= nil, k)
+    check("…and it says so about the LINES ABOVE IT, so the reader knows "
+          .. "the queue and history counts are not an answer yet",
+          w:find("not an answer yet", 1, true) ~= nil)
+
+    k = mp.storeVerdict(true, "none", nil, 0, 0)
+    check("🔎 no file yet is its own answer — normal on a first run",
+          k == "none", k)
+    k, w = mp.storeVerdict(true, "zero", 0, 0, 0)
+    check("🔎 a ZERO-BYTE store is a FAULT and is marked one — that is a "
+          .. "write cut off, not an empty queue",
+          k == "zero" and w:find("⚠️", 1, true) ~= nil, k)
+    k, w = mp.storeVerdict(true, "unreadable", 400, 0, 0)
+    check("🔎 an UNREADABLE store says it was left alone, never overwritten",
+          k == "bad" and w:find("left alone", 1, true) ~= nil, k)
+
+    k, w = mp.storeVerdict(true, "read", 4281, 2, 3)
+    check("🔎 a store that was read names its bytes and both counts",
+          k == "read" and w:find("4281", 1, true)
+          and w:find("2 queued", 1, true) and w:find("3 history", 1, true), w)
+
+    -- 🔑 THE ONE THAT SEPARATES THE TWO ZEROS, and it is the whole point
+    -- of the release: a store READ and genuinely holding nothing must not
+    -- print what an unread store prints.
+    k, w = mp.storeVerdict(true, "read", 18, 0, 0)
+    check("🔎 read AND genuinely empty is its own answer — 'this is not a "
+          .. "failure', which an unread store may never say",
+          k == "empty" and w:find("GENUINELY empty", 1, true) ~= nil, k)
+    check("…and the two zeros do NOT print the same words (6.196.1)",
+          select(2, mp.storeVerdict(true, "read", 18, 0, 0))
+          ~= select(2, mp.storeVerdict(false, nil, nil, 0, 0)))
+
+    -- 🚨 FAIL CLOSED: a state nobody recorded is a fault in the REPORT,
+    -- and saying so is better than picking the reassuring branch.
+    k = mp.storeVerdict(true, "something new", 1, 0, 0)
+    check("🚨 an unrecognised state reads as a fault, never as health",
+          k == "unknown", k)
+
+    -- ---- loadStore records what it found, at every exit ---------------
+    local keep = { loaded = mp.loaded, state = mp.storeState,
+                   bytes = mp.storeBytes, body = READABLE[mp.storeFile],
+                   q = mp.queue, h = mp.history, sel = mp.sel }
+    -- The suite's hs.json.decode answers _G.FAKE_DECODE rather than
+    -- parsing, so the decoded shape is handed in beside the bytes.
+    local function reload(body, decoded)
+        READABLE[mp.storeFile] = body
+        _G.FAKE_DECODE = decoded
+        mp.loaded, mp.storeState, mp.storeBytes = false, nil, nil
+        mp.loadStore()
+    end
+
+    reload(nil, nil)
+    check("🗂 a MISSING store file is recorded as 'none', not as silence",
+          mp.storeState == "none", tostring(mp.storeState))
+
+    -- 🚨 THE ONE THAT MATTERS, and the one saveNow can really produce: a
+    -- file that is THERE and holds nothing. Before this release it read
+    -- exactly like a Mac you had never queued anything on.
+    reload("", nil)
+    check("🗂 a ZERO-BYTE store file is recorded as 'zero' — the shape a "
+          .. "cut-off write leaves, which used to read as 'you have nothing'",
+          mp.storeState == "zero", tostring(mp.storeState))
+
+    reload("{not json at all", nil)
+    check("🗂 a store that cannot be decoded is recorded as 'unreadable'",
+          mp.storeState == "unreadable", tostring(mp.storeState))
+
+    -- 6.203.0: the fixture is what the WRITER writes, so the check cannot
+    -- pass over a store shape this module would never produce.
+    local good = { queue = { { path = "/m/one.mp3" } },
+                   history = {}, mode = "off" }
+    reload(hs.json.encode(good), good)
+    check("🗂 a store that WAS read is recorded as 'read', with its size",
+          mp.storeState == "read" and (tonumber(mp.storeBytes) or 0) > 0,
+          tostring(mp.storeState) .. " / " .. tostring(mp.storeBytes))
+
+    -- ---- the report defers, on every line that depends on the read ----
+    mp.queue, mp.history = {}, {}
+    mp.loaded, mp.storeState = false, nil
+    local tapKeep, tapWhyKeep, tapObj = mp.tapTried, mp.tapWhy, mp.mediaTap
+    mp.tapTried, mp.tapWhy, mp.mediaTap = nil, nil, nil
+    local before = _G.musicReport()
+    check("⏳ the QUEUE line defers before the store has been read",
+          before:find("queue    : ⏳ not read yet", 1, true) ~= nil)
+    check("⏳ the HISTORY line defers too — '0 track(s)' was the sentence "
+          .. "that read as lost data",
+          before:find("history  : ⏳ not read yet", 1, true) ~= nil)
+    check("⏳ and the ⏯ line says NOT STARTED YET rather than ⚠️ — the tap "
+          .. "starts in warm(), so before that it has not failed",
+          before:find("⏯ keys   : ⏳ not started yet", 1, true) ~= nil)
+    check("⏳ ...and it does NOT carry the ⚠️ WANTED wording, which is the "
+          .. "line that raised a false alarm",
+          before:find("WANTED but not running", 1, true) == nil)
+    check("⏳ the store line names the state in words",
+          before:find("NOT READ YET", 1, true) ~= nil)
+
+    -- ...and once the read really has happened, it answers plainly.
+    mp.loaded, mp.storeState, mp.storeBytes = true, "read", 18
+    local after = _G.musicReport()
+    check("✅ after the read an empty queue says EMPTY again — the deferral "
+          .. "must not become a second silence",
+          after:find("queue    : empty", 1, true) ~= nil)
+    check("✅ ...and the history line names the 30 as a WINDOW, which is "
+          .. "what LL read as a claim about his data",
+          after:find("the WINDOW, not", 1, true) ~= nil
+          and after:find("kept for up to", 1, true) ~= nil)
+
+    -- 🔑 A TAP THAT REALLY WAS TRIED AND REALLY DID FAIL still shouts.
+    mp.tapTried, mp.tapWhy = true, "macOS refused the media-key tap"
+    local failed = _G.musicReport()
+    check("🚨 a tap that WAS tried and failed still reads as a fault, with "
+          .. "macOS's own reason — the deferral must not hide a real one",
+          failed:find("WANTED but not running", 1, true) ~= nil
+          and failed:find("macOS refused the media-key tap", 1, true) ~= nil)
+
+    mp.tapTried, mp.tapWhy, mp.mediaTap = tapKeep, tapWhyKeep, tapObj
+    mp.loaded, mp.storeState, mp.storeBytes = keep.loaded, keep.state, keep.bytes
+    mp.queue, mp.history, mp.sel = keep.q, keep.h, keep.sel
+    READABLE[mp.storeFile] = keep.body
+    _G.FAKE_DECODE = nil
+
+    check("the 6.312.0 block ran every one of its checks",
+          (pass + fail) - n == 21, (pass + fail) - n)
+end
+
 if fail > 0 then
     out("FAILURES:\n")
     for _, f in ipairs(failures) do out("   ❌ " .. f .. "\n") end
