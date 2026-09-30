@@ -266,6 +266,54 @@ work Mac.
      every shipped line already has to meet. (The lint run will also
      report `module-contract`; that one is expected for a paste and is
      ignored.)
+  ✅ AND IT LOADED — THE FOURTH LINK IS PAID, WITH TWO PROOFS
+     (2026-09-29 18:53, his boot log and report minutes after the
+     Console installer wrote 116,595 bytes to `_G.moduleDir`):
+     `🎵 JUG PLAYER — ⇪⇧. · ⇪⇧pad.` with `doors : 2 way(s) in`, which
+     the 6.310.0 file CANNOT emit — its heading is a hard-coded
+     `" — ⇪⇧pad."` literal — AND `107 ⇪ shortcuts` in the boot line,
+     up from 106, counted by a different instrument that knows nothing
+     about that heading. Two independent measurements, one conclusion.
+     NOT SCORED: he wrote "Looking good. You think?", which is a
+     question and not his win sentence.
+     🚪 SO THE CONSOLE PASTE IS THE PROVEN INSTALL CHANNEL, on evidence
+     rather than on the reading that chose it: three deliveries failed
+     at Finder or Terminal, one succeeded at a Console paste, first try.
+  🚨 AND THE LINTER COULD NOT HAVE SEEN THE BUG IN A PASTE — THE GATE I
+     HAD JUST PROMISED HIM, IN THE SAME MESSAGE. `fs-dir-loses-state`
+     scanned LINE BY LINE and a Console paste is ONE LINE: its capture
+     pattern was anchored to `[^\n]`, so on a single-line file the rhs
+     spanned from the FIRST `local` all the way to `hs.fs.dir`, the
+     gmatch matched ONCE (`names="H"`, off `local H=os.getenv("HOME")`),
+     and the real `local ok,it=pcall(hs.fs.dir,d)` was never examined.
+     MEASURED, NOT READ: the identical bug in a multi-line file fires
+     correctly, which is what names the cause.
+     🔑 GENERAL, AND IT IS THE ONE TO CARRY: **A LINE-ORIENTED SENTRY
+     GOES SILENT ON A ONE-LINE FILE, AND SAYS NOTHING WHILE IT DOES.**
+     6.263.0's scanner rule — end the window at the thing's own boundary
+     — one step on: a window anchored to the LINE is UNBOUNDED when the
+     file has one line, so it reads as a scan and is a single match. The
+     rule walks to each `hs.fs.dir` and reads BACK to its own statement
+     now (nearest preceding `local`, refused when the span crosses a
+     keyword or a newline), and searches the WHOLE source for
+     `for e in <name> do` rather than one line at a time.
+     🧪 PROVEN IN BOTH DIRECTIONS, which is the half that earns it: it
+     fires on the one-line bug, stays clean on the one-line fix, still
+     fires on the multi-line bug at the right line number, and reports
+     0 ERROR over the real tree (6.269.0 — a new instrument is measured
+     against the healthy case FIRST).
+     🚨 AND hs-lint HAS NO SUITE OF ITS OWN, which is how a rule came to
+     be silent for the very artefact class it was written for. Every
+     rule in it is a bug that cost a release, the gate runs it before
+     every suite, and NOTHING checks that any rule still bites.
+     `tests/test_lint.lua` — a fixture per rule, in both shapes, one
+     that fires and one that must not — is owed.
+  📝 AND THE SAME DELIVERY HALF-INSTALLED A SECOND FILE, which is the
+     evidence the manifest check below was queued on: his boot carries
+     `📝 Changelog: no CHANGELOG.md entry for 6.311.0 — the CSV was NOT
+     written`. 6.303.0's rule paid a second time — the guard is honest
+     and the delivery was partial. Some of that patch's four loose files
+     landed and at least one did not, and NOTHING but the guard said so.
   📎 6.281.0 — AND HE NAMED THE ROUTE THAT WORKS: **INLINE, NOT GITHUB**
      (LL, on the 6.281.0 GitHub page: "Empty zip again. When you put it
      inline, it was perfect. Put it inline again and not to github.").

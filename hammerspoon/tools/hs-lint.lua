@@ -164,28 +164,56 @@ rule{ id = "fs-dir-loses-state", sev = "ERROR", file = true,
      .. "the feature is silently dead. Capture both and iterate "
      .. "`in iter, dirObj`.",
   check = function(code)
+      -- 🚨 THIS SCAN WAS LINE-ORIENTED, AND A CONSOLE PASTE IS ONE LINE.
+      -- The old rhs pattern was anchored to [^\n], so on a single-line
+      -- file it spanned from the FIRST `local` all the way to hs.fs.dir,
+      -- the gmatch matched ONCE, and the real capture was never examined
+      -- — the rule went silent on exactly the artefact class it exists
+      -- for. Walk to each hs.fs.dir and read BACK to its own statement.
+      local KEYWORDS = { "do", "then", "end", "if", "for", "while",
+                         "return", "function", "local" }
+      local function crossesStatement(s)
+          if s:find("\n") then return true end
+          for _, k in ipairs(KEYWORDS) do
+              if s:find("%f[%w]" .. k .. "%f[%W]") then return true end
+          end
+          return false
+      end
       -- Names bound from an hs.fs.dir call, whether direct or via pcall.
       -- pcall(hs.fs.dir, …) puts `ok` first, so `local ok, iter = pcall(…)`
       -- captures TWO names and still only ONE real return value — which
       -- is exactly the shape that reads as correct and is not.
-      local single = {}
-      for names, rhs in code:gmatch("local%s+([%w_%s,]-)%s*=%s*([^\n]-hs%.fs%.dir[^\n]*)") do
-          local parts = {}
-          for id in names:gmatch("[%w_]+") do parts[#parts + 1] = id end
-          local captured = rhs:find("pcall") and (#parts - 1) or #parts
-          if captured == 1 and parts[#parts] then single[parts[#parts]] = true end
+      local single, at = {}, 1
+      while true do
+          local s = code:find("hs%.fs%.dir", at, false)
+          if not s then break end
+          at = s + 1
+          local head  = code:sub(1, s - 1)
+          local lstart = head:match(".*()%f[%w]local%f[%W]")
+          if lstart then
+              local names, rhs =
+                  head:sub(lstart):match("^local%s+([%w_%s,]-)%s*=%s*(.*)$")
+              if names and names ~= "" and not crossesStatement(rhs) then
+                  local parts = {}
+                  for id in names:gmatch("[%w_]+") do parts[#parts + 1] = id end
+                  local captured = rhs:find("pcall") and (#parts - 1) or #parts
+                  if captured == 1 and parts[#parts] then
+                      single[parts[#parts]] = true
+                  end
+              end
+          end
       end
       if not next(single) then return false end
-      local n = 0
-      for line in (code .. "\n"):gmatch("([^\n]*)\n") do
-          n = n + 1
-          for name in pairs(single) do
-              -- `for e in iter do` — the state is missing. `in iter, obj`
-              -- is the correct form and must not be flagged.
-              if line:find("for%s+[%w_%s,]+%s+in%s+" .. name .. "%s+do") then
-                  return { n, name .. " is the iterator alone — its "
-                              .. "directory object was dropped" }
-              end
+      -- `for e in iter do` — the state is missing. `in iter, obj` is the
+      -- correct form and must not be flagged. Scanned over the WHOLE
+      -- source so a one-line paste is covered, with the line number
+      -- counted from the match position rather than by walking lines.
+      for name in pairs(single) do
+          local p = code:find("for%s+[%w_%s,]+%s+in%s+" .. name .. "%s+do")
+          if p then
+              local _, nl = code:sub(1, p):gsub("\n", "")
+              return { nl + 1, name .. " is the iterator alone — its "
+                          .. "directory object was dropped" }
           end
       end
       return false
