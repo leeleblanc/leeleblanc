@@ -665,12 +665,41 @@ function M.setup(core)
             say("could not encode the queue — nothing was written")
             return false
         end
-        local f = io.open(mp.storeFile, "w")
+        -- 🔒 6.313.0 — A TEMP FILE, THEN A RENAME (6.199.0 / 6.307.0).
+        -- io.open(path, "w") TRUNCATES BEFORE IT WRITES A BYTE, so a
+        -- crash, a full disk or a refused write inside that window left
+        -- the store at ZERO BYTES — and mp.loadStore reads zero bytes as
+        -- "nothing queued", silently, after which the next save cements
+        -- it. That is the one failure in this module that costs LL
+        -- something he cannot get back, and it is the exact shape that
+        -- cost this project a whole test file in 6.307.0. os.rename is
+        -- atomic within a filesystem, so the store on disk is either the
+        -- old one or the new one and never a half-written one.
+        local tmp = mp.storeFile .. ".tmp"
+        local f = io.open(tmp, "w")
         if not f then
             say("could not write " .. mp.storeFile)
             return false
         end
-        f:write(raw) ; f:close()
+        -- The write and the close are guarded TOGETHER: a disk that fills
+        -- mid-write raises here, and a throw on the way to a keypress is
+        -- what IT DEGRADES, IT NEVER BREAKS forbids.
+        local wrote = pcall(function() f:write(raw) ; f:close() end)
+        if not wrote then
+            pcall(function() os.remove(tmp) end)
+            say("the queue could not be written — your saved queue is"
+                .. " untouched")
+            return false
+        end
+        local moved, why = os.rename(tmp, mp.storeFile)
+        if not moved then
+            -- 🔑 THE OLD STORE IS STILL THERE, which is the whole point:
+            -- a failed save must cost the SAVE, never the thing saved.
+            pcall(function() os.remove(tmp) end)
+            say("could not replace " .. mp.storeFile .. " — "
+                .. tostring(why) .. "; your saved queue is untouched")
+            return false
+        end
         return true
     end
 

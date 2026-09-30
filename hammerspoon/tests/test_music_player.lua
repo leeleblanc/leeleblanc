@@ -55,11 +55,22 @@ print = function(...)
 end
 
 -- io.open is stubbed so the store can be proven without touching disk.
+-- 🔬 6.313.0 — THE STUB TRUNCATES, BECAUSE macOS DOES (6.290.0). It used
+-- to APPEND across opens, so two saves to one path produced a store no
+-- real Mac could ever hold, and the zero-byte window this release closes
+-- was not reachable from here at all. WRITE_FAILS and RENAME_FAILS make
+-- the provider REFUSE, which is 6.265.0's rule: missing is not refusing.
+WRITE_FAILS, RENAME_FAILS = false, false
 local realOpen = io.open
 io.open = function(path, mode)
     if (mode or "r"):find("w") then
+        if WRITE_FAILS == "open" then return nil, "permission denied" end
+        WRITES[path] = ""
         return {
-            write = function(_, s) WRITES[path] = (WRITES[path] or "") .. s end,
+            write = function(_, s)
+                if WRITE_FAILS == "write" then error("disk full", 0) end
+                WRITES[path] = (WRITES[path] or "") .. s
+            end,
             close = function() READABLE[path] = WRITES[path] end,
         }
     end
@@ -70,6 +81,23 @@ io.open = function(path, mode)
         read  = function() if done then return nil end done = true return body end,
         close = function() end,
     }
+end
+
+-- 🔒 6.313.0 — os.rename and os.remove over the same virtual disk, so a
+-- temp-then-rename save is testable at all. Anything this table does not
+-- know about falls through to the real call.
+local realRename, realRemove = os.rename, os.remove
+os.rename = function(a, b)
+    if WRITES[a] == nil and READABLE[a] == nil then return realRename(a, b) end
+    if RENAME_FAILS then return nil, "cross-device link" end
+    WRITES[b], READABLE[b] = WRITES[a], READABLE[a]
+    WRITES[a], READABLE[a] = nil, nil
+    return true
+end
+os.remove = function(p)
+    if WRITES[p] == nil and READABLE[p] == nil then return realRemove(p) end
+    WRITES[p], READABLE[p] = nil, nil
+    return true
 end
 
 -- ⏯ 6.289.0 — the media-key tap. hs.eventtap.event.types.systemDefined is
@@ -406,6 +434,7 @@ local function reset()
     FILES, OPENABLE, DURATION = {}, {}, {}
     SOUNDS, TIMERS, ALERTS, PRINTED, DEGRADED, JS, WEBVIEWS = {}, {}, {}, {}, {}, {}, {}
     WRITES, READABLE = {}, {}
+    WRITE_FAILS, RENAME_FAILS = false, false
     NO_WEBVIEW, NO_SOUND = false, false
     _G.FAKE_DECODE, _G.RELEASED = nil, nil
     if mp.webview then pcall(mp.hide) end
@@ -2923,6 +2952,121 @@ do
 
     check("the 6.312.0 block ran every one of its checks",
           (pass + fail) - n == 21, (pass + fail) - n)
+end
+
+-- =====================================================================
+-- §6.313.0 — 🔒 A FAILED SAVE COSTS THE SAVE, NEVER THE THING SAVED
+-- =====================================================================
+-- saveNow opened the store with io.open(path, "w"), which TRUNCATES
+-- before it writes a byte. A crash, a full disk or a refused write in
+-- that window left the file at zero bytes — and mp.loadStore reads zero
+-- bytes as "nothing queued", in silence, after which the very next save
+-- writes the empty queue over the top for good. LL's queue and his 30
+-- days of history are the only things in this module he cannot get
+-- back. 6.199.0 applied this to his dictionary and 6.307.0 was the day
+-- the same shape ate a whole test file of ours; the store never got it.
+do
+    local n = pass + fail
+    local TMP = mp.storeFile .. ".tmp"
+    local OLD = hs.json.encode({ queue = { { path = "/m/kept.mp3" } },
+                                 history = {}, mode = "all" })
+
+    -- Set the disk up with a store worth losing, then make a change that
+    -- saves, exactly as the rest of this suite drives one.
+    local function attempt(breakage)
+        reset()
+        FILES["/m/kept.mp3"], FILES["/m/new.mp3"] = true, true
+        READABLE[mp.storeFile] = OLD
+        WRITE_FAILS, RENAME_FAILS = breakage == "open" and "open"
+                                    or breakage == "write" and "write" or false,
+                                    breakage == "rename"
+        mp.show()
+        drop("file:///m/new.mp3")
+        for _, t in ipairs(TIMERS) do if not t.every then t.fn() end end
+        WRITE_FAILS, RENAME_FAILS = false, false
+    end
+
+    -- ---- the good day -------------------------------------------------
+    attempt(nil)
+    check("💾 a save lands the whole store at the real path",
+          (READABLE[mp.storeFile] or ""):find("new.mp3", 1, true) ~= nil,
+          READABLE[mp.storeFile])
+    check("💾 ...and leaves NO .tmp behind — litter in his Application "
+          .. "Support folder is a bug of its own",
+          READABLE[TMP] == nil and WRITES[TMP] == nil)
+    check("💾 ...and the store is exactly what was encoded, not that "
+          .. "appended to what was there before (a truncating open, modelled)",
+          (READABLE[mp.storeFile] or ""):find("kept.mp3", 1, true) == nil,
+          READABLE[mp.storeFile])
+
+    -- ---- 🔑 THE RELEASE: the rename is refused ------------------------
+    attempt("rename")
+    check("🔒 a REFUSED RENAME leaves the old store byte-for-byte intact — "
+          .. "this is the whole release",
+          READABLE[mp.storeFile] == OLD, tostring(READABLE[mp.storeFile]))
+    check("🔒 ...and it is NOT zero bytes, which is the state loadStore "
+          .. "reads as 'you have nothing queued'",
+          READABLE[mp.storeFile] ~= "" and READABLE[mp.storeFile] ~= nil)
+    check("🔒 ...and the temp file is cleaned up, not left to be found",
+          READABLE[TMP] == nil and WRITES[TMP] == nil)
+    check("🔒 ...and it SAYS so rather than failing silently (6.214.0)",
+          (mp.lastWhy or ""):find("untouched", 1, true) ~= nil, mp.lastWhy)
+
+    -- END TO END, because "the bytes are still there" is not the claim —
+    -- the claim is that he gets his queue back.
+    mp.loaded, mp.storeState = false, nil
+    _G.FAKE_DECODE = { queue = { { path = "/m/kept.mp3" } },
+                       history = {}, mode = "all" }
+    mp.loadStore()
+    check("🔒 ...so the next boot reads his ORIGINAL queue back, which is "
+          .. "the thing the old code could lose",
+          #mp.queue == 1 and mp.queue[1].path == "/m/kept.mp3"
+          and mp.storeState == "read", #mp.queue)
+    _G.FAKE_DECODE = nil
+
+    -- ---- the other two ways a write dies ------------------------------
+    attempt("open")
+    check("🔒 a store that cannot be OPENED for writing costs nothing — the "
+          .. "old one is still there",
+          READABLE[mp.storeFile] == OLD, tostring(READABLE[mp.storeFile]))
+    check("🔒 ...and it says which file it could not write",
+          (mp.lastWhy or ""):find("could not write", 1, true) ~= nil, mp.lastWhy)
+
+    attempt("write")
+    check("🔒 a disk that fills MID-WRITE costs nothing either — the throw "
+          .. "is caught and the old store stands",
+          READABLE[mp.storeFile] == OLD, tostring(READABLE[mp.storeFile]))
+    check("🔒 ...and no half-written temp file is left behind",
+          READABLE[TMP] == nil and WRITES[TMP] == nil)
+    check("🔒 ...and a throw inside a save never reaches the keypress "
+          .. "that caused it (IT DEGRADES, IT NEVER BREAKS)",
+          (mp.lastWhy or ""):find("untouched", 1, true) ~= nil, mp.lastWhy)
+
+    -- 🔒 A SOURCE SENTRY, because the functional checks above all pass if
+    -- someone later adds a SECOND, direct write beside this one.
+    do
+        -- 🚨 realOpen, and ASSERTED (6.273.0): the stubbed io.open answers
+        -- nil for a path the virtual disk has never heard of, and a
+        -- sentry reading "" finds nothing and passes — green, and
+        -- measuring nothing at all. That is how the first version of
+        -- this very check passed while its twin failed beside it.
+        local f = assert(realOpen(HS .. "/modules/music_player.lua"))
+        local src = f:read("*a") ; f:close()
+        check("🔒 the sentry really read the module (a sentry over an empty "
+              .. "haystack cannot fail)",
+              #src > 50000, #src)
+        src = src:gsub("%-%-[^\n]*", "")          -- 6.262.0: comments quote it
+        check("🔒 nothing in this module opens the store itself for writing "
+              .. "— every write goes through the temp file",
+              src:find('io%.open%(mp%.storeFile,%s*"w"') == nil
+              and src:find('io%.open%(mp%.storeFile,%s*"a"') == nil)
+        check("🔒 ...and the rename really is there to be found",
+              src:find("os%.rename%(tmp, mp%.storeFile%)") ~= nil)
+    end
+
+    reset()
+    check("the 6.313.0 block ran every one of its checks",
+          (pass + fail) - n == 16, (pass + fail) - n)
 end
 
 if fail > 0 then
