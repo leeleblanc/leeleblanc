@@ -1461,6 +1461,66 @@ work Mac.
   🔕 The volume keys stay macOS's on purpose: 6.231.0 shipped without
   volume on his own answer, and taking them now would undo his decision.
 
+- 🔎 A REPORT THAT READS A LAZY STORE OWES A "NOT YET" (6.312.0,
+  modules/music_player.lua — LL's own boot, two seconds after a reload:
+  `queue : empty · history : 0 track(s) · ⏯ keys : ⚠️ WANTED but not
+  running`). All three were FALSE, and I read them as lost data and told
+  him so. 6.267.0 moved the store read into `M.warm`; 6.289.0 starts the
+  media tap there too. Two seconds after boot NEITHER had happened — and
+  every one of those lines printed the words for "it happened and there
+  is nothing". 6.196.1 inside the instrument built to keep it.
+  ⏱ THE FIELD THAT SEPARATED THEM WAS A CLOCK, and it was in his own
+  paste: the healthy report was 37 s after boot, the alarming one 2 s.
+  His log corroborated it — `sound` loaded AS the report printed and
+  `menubar`/`canvas` after. 6.302.0's rule, paid: when a story fits
+  every field, find the field that carries a clock and check the order.
+  🚨 AND I RAISED THE ALARM BEFORE READING `M.warm`. "Your queue and
+  30-day history are gone" was a diagnosis from a symptom, on the one
+  store in this config holding something he cannot get back. GENERAL,
+  and it is the half to carry: BEFORE REPORTING DATA LOSS, READ WHEN THE
+  DATA IS LOADED — a lazy read makes "not yet" and "gone" identical from
+  outside, and the cost of being wrong in that direction is his trust.
+  🔑 `mp.storeVerdict` is PURE with SIX answers — not read yet · no file
+  · ZERO BYTES · unreadable · read and genuinely empty · read with rows
+  — and it FAILS CLOSED on a state nobody recorded, because a report
+  that cannot say what it found must not pick the reassuring branch.
+  `mp.loadStore`'s three silent exits each record what they found;
+  `mp.startMediaTap` records that an ATTEMPT was made before anything
+  can fail, since "warm has not run" and "macOS said no" both leave
+  `mediaTap` nil. GENERAL: anything moved to warm for boot cost owes its
+  report a fourth state, and 6.267.0 said this about file_tracker and
+  activity_tracker without sweeping the modules that followed them.
+  🕘 AND A RETENTION WINDOW IS NOT A CLAIM ABOUT THE DATA. LL: "I don't
+  think we have 30-day music history yet. Did we build jug player 30
+  days ago?" He was right — 6.231.0 shipped 2026-09-16, thirteen days
+  before — and "0 track(s) over the last 30 day(s)" read as a statement
+  about his Mac rather than about `historyDays`. It says which it is now.
+
+- 🔒 A FAILED SAVE COSTS THE SAVE, NEVER THE THING SAVED (6.313.0,
+  modules/music_player.lua). `saveNow` opened the store with
+  `io.open(path, "w")`, which TRUNCATES BEFORE IT WRITES A BYTE — so a
+  crash, a full disk or a refused write inside that window left it at
+  ZERO BYTES, and `mp.loadStore` reads zero bytes as "nothing queued",
+  in silence, after which the next save writes the empty queue over the
+  top for good. 6.199.0 applied temp-then-rename to his dictionary and
+  6.307.0 was the day the same shape ate a whole test file of ours; the
+  store never got it, and it holds the one thing in this module he
+  cannot get back. Temp file, then `os.rename` — atomic within a
+  filesystem, so the store is the old one or the new one and never half.
+  Every failure path removes the temp and SAYS the queue is untouched.
+  🔬 AND THE HARNESS HAD TO BECOME FAITHFUL FIRST (6.290.0): its
+  `io.open` APPENDED across opens, so two saves to one path produced a
+  store no real Mac could hold and the zero-byte window was unreachable
+  from the gate. It truncates now, and `os.rename`/`os.remove` work over
+  the same virtual disk so a REFUSAL can be driven, not just an absence.
+  🚨 THE SOURCE SENTRY PASSED OVER AN EMPTY HAYSTACK — 6.273.0, and it
+  was caught only because its twin failed beside it. It read the module
+  through the STUBBED `io.open`, which answers nil for a path the
+  virtual disk has never heard of, so `src` was "" and "this file does
+  not open the store for writing" was true of nothing. It uses
+  `realOpen` and ASSERTS the size now. GENERAL, again: a sentry over a
+  haystack it did not prove it read is green and measures nothing.
+
 - 🖥 A HELPER THAT PICKS A SCREEN FOR YOU MUST NOT BE HANDED A POINT BY
   CODE THAT HAS ALREADY PICKED ONE (6.288.0, core/cheatsheet.lua — LL:
   "Appears on a different screen sometimes — and when it does it seems
@@ -4333,7 +4393,7 @@ THE METHOD, when something breaks after a stacked zip:
    6.216.0 6f06071 · 6.217.0 a475bef · 6.218.0 41b002b · 6.219.0 862c177
    · 6.220.0 ac3975e · 6.221.0 ead07d9 · 6.222.0 1842ca7 · 6.223.0
    86ac82b · 6.224.0 67957ea · 6.225.0 98434fe · 6.226.0 304f1f9 ·
-   6.227.0 14e953a · 6.228.0 2aa3dfe · 6.229.0 a1318e1 · 6.230.0 0740c07 · 6.231.0 c1921af · 6.231.1 5a5c298 · 6.232.0 1ca3f6f · 6.233.0 2328c8c · 6.234.0 57f78d0 · 6.235.0 52e5b21 · 6.236.0 34cff8b · 6.236.1 fdce771 · 6.237.0 adf9256 · 6.238.0 3adad4f · 6.239.0 3adad4f (one commit, two releases) · 6.240.0 8f44bec · 6.241.0 dce517e · 6.242.0 1a1dab0 · 6.243.0 8fba04f · 6.244.0 9320906 · 6.245.0 9c1a8b1 · 6.246.0 1400abd · 6.247.0 3b92e99 · 6.248.0 e4e3a03 · 6.249.0 e4edc3f · 6.250.0 c267c1b · 6.251.0 f7b0d57 · 6.252.0 6307253 · 6.253.0 ef20313 · 6.254.0 14493e5 · 6.255.0 d371b34 · 6.256.0 3c29888 · 6.257.0 7f55d2b · 6.258.0 10d2250 · 6.259.0 2bcda06 · 6.260.0 f16e286 · 6.261.0 8680504 · 6.262.0 595dc2e · 6.263.0 014ddf6 · 6.264.0 5e41879 · 6.265.0 f0c487c · 6.266.0 9135f7b · 6.267.0 a621a60 · 6.268.0 c2e513f · 6.269.0 f6552ea (078cece is the same release before the report was corrected) · 6.270.0 b8eda88 · 6.271.0 b8edbe1 · 6.272.0 881a91b · 6.273.0 56b0d2b · 6.274.0 c6e9b6b · 6.275.0 9cebe19 · 6.276.0 3db904e · 6.277.0 c6632a1 · 6.278.0 6c1fe75 · 6.279.0 a6241f5 · 6.280.0 893b40b · 6.281.0 5611a4a · 6.282.0 11dc992 · 6.283.0 3fa417f · 6.284.0 a8f3df4 · 6.285.0 70d118b · 6.286.0 fa93f1b · 6.287.0 39b9dba · 6.288.0 8508186 · 6.289.0 83f5296 · 6.290.0 6daee50 · 6.291.0 aec4561 · 6.292.0 c89c65f · 6.293.0 10c9410 · 6.294.0 0aeebdc · 6.295.0 641c45c (52c1b2b adds the check its own mutation sweep found missing) · 6.296.0 e82ad95 (8bd970b adds the cross-file sentry) · 6.297.0 dacb791 (1604d55 hardens the suite) · 6.298.0 f77c47e (fe109ff adds the two checks its sweep found missing) · 6.299.0 bdc6855 (c587502 the same) · 6.300.0 8ab4802 (cc8b7f9 the same) · 6.301.0 dcff776 · 6.302.0 b465418 (e287164 the mutation sweep's own two findings) · 6.303.0 f5d89e1 · 6.304.0 b8b1b51 (7cf3d9b is the release; b8b1b51 adds the mutation sweep's own four findings) · 6.305.0 b1aa974 (f478dc8 is the release; b1aa974 adds the mutation sweep's own four findings) · 6.306.0 cf14689 · 6.307.0–6.310.0 10c6a87 (one commit, four releases — the four live in four different modules, so a break still names its version by which tool it is in) · 6.311.0 82e52f8 (c7cd4de adds the mutation sweep's own two findings).
+   6.227.0 14e953a · 6.228.0 2aa3dfe · 6.229.0 a1318e1 · 6.230.0 0740c07 · 6.231.0 c1921af · 6.231.1 5a5c298 · 6.232.0 1ca3f6f · 6.233.0 2328c8c · 6.234.0 57f78d0 · 6.235.0 52e5b21 · 6.236.0 34cff8b · 6.236.1 fdce771 · 6.237.0 adf9256 · 6.238.0 3adad4f · 6.239.0 3adad4f (one commit, two releases) · 6.240.0 8f44bec · 6.241.0 dce517e · 6.242.0 1a1dab0 · 6.243.0 8fba04f · 6.244.0 9320906 · 6.245.0 9c1a8b1 · 6.246.0 1400abd · 6.247.0 3b92e99 · 6.248.0 e4e3a03 · 6.249.0 e4edc3f · 6.250.0 c267c1b · 6.251.0 f7b0d57 · 6.252.0 6307253 · 6.253.0 ef20313 · 6.254.0 14493e5 · 6.255.0 d371b34 · 6.256.0 3c29888 · 6.257.0 7f55d2b · 6.258.0 10d2250 · 6.259.0 2bcda06 · 6.260.0 f16e286 · 6.261.0 8680504 · 6.262.0 595dc2e · 6.263.0 014ddf6 · 6.264.0 5e41879 · 6.265.0 f0c487c · 6.266.0 9135f7b · 6.267.0 a621a60 · 6.268.0 c2e513f · 6.269.0 f6552ea (078cece is the same release before the report was corrected) · 6.270.0 b8eda88 · 6.271.0 b8edbe1 · 6.272.0 881a91b · 6.273.0 56b0d2b · 6.274.0 c6e9b6b · 6.275.0 9cebe19 · 6.276.0 3db904e · 6.277.0 c6632a1 · 6.278.0 6c1fe75 · 6.279.0 a6241f5 · 6.280.0 893b40b · 6.281.0 5611a4a · 6.282.0 11dc992 · 6.283.0 3fa417f · 6.284.0 a8f3df4 · 6.285.0 70d118b · 6.286.0 fa93f1b · 6.287.0 39b9dba · 6.288.0 8508186 · 6.289.0 83f5296 · 6.290.0 6daee50 · 6.291.0 aec4561 · 6.292.0 c89c65f · 6.293.0 10c9410 · 6.294.0 0aeebdc · 6.295.0 641c45c (52c1b2b adds the check its own mutation sweep found missing) · 6.296.0 e82ad95 (8bd970b adds the cross-file sentry) · 6.297.0 dacb791 (1604d55 hardens the suite) · 6.298.0 f77c47e (fe109ff adds the two checks its sweep found missing) · 6.299.0 bdc6855 (c587502 the same) · 6.300.0 8ab4802 (cc8b7f9 the same) · 6.301.0 dcff776 · 6.302.0 b465418 (e287164 the mutation sweep's own two findings) · 6.303.0 f5d89e1 · 6.304.0 b8b1b51 (7cf3d9b is the release; b8b1b51 adds the mutation sweep's own four findings) · 6.305.0 b1aa974 (f478dc8 is the release; b1aa974 adds the mutation sweep's own four findings) · 6.306.0 cf14689 · 6.307.0–6.310.0 10c6a87 (one commit, four releases — the four live in four different modules, so a break still names its version by which tool it is in) · 6.311.0 82e52f8 (c7cd4de adds the mutation sweep's own two findings) · 6.312.0 4ad18dc · 6.313.0 c09cb78 (the ceremony for both is the commit after; the code is in those two).
    Keep this list current: one line per release, appended at ceremony
    time.
 4. A BISECT IS AN OPTION, NOT THE FIRST MOVE — it costs him an install
@@ -4406,6 +4466,7 @@ that must be READ before a new cause is named.
 | "search finds a title but creates a new entry" (⌘F, ⏎) | modules/vault.lua | 6.307.0 | 1 | ask |
 | "cmd+cmd does not bring up unified clip" | modules/clipboard_history.lua warm | 6.308.0 | 1 | ask |
 | "still hold play pause when not visible" | modules/music_player.lua | 6.289.0 · 6.291.0 · 6.309.0 | 3 | ask |
+| "history : 0 track(s)" two seconds after a boot — read as lost data | modules/music_player.lua report · M.warm | 6.312.0 · 6.313.0 | 1 | ask |
 | "⇪⇧L needs to be more obvious" | modules/mouse_grid.lua | 6.167.0 · 6.195.0 · 6.310.0 | 3 | ask |
 | "can only be accessible via full keyboard" · "I can't tell if that key combo is taken" | modules/music_player.lua · the key registry | 6.276.0 · 6.311.0 | 1 | ask |
 
@@ -4497,6 +4558,8 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
+| 6.313.0 | 🔒 the Jug Player's queue survives a save that fails — the store was opened with a truncating write, so a crash mid-save left it at zero bytes and the loader read that as "nothing queued" | pending |
+| 6.312.0 | 🔎 the report can say "not read yet" — it reported an empty queue, no history and a dead ⏯ two seconds after a boot, before any of the three had been read, and I called it lost data | pending |
 | 6.311.0 | ⌨️ ⇪⇧. opens the Jug Player — the numpad key was unreachable on his mini keyboard, and the combo was free (asked of the registry, not of a note) | pending |
 | 6.310.0 | 🎯 each ⇪⇧L ring 10% wider than the last, and the canvas grew to hold the outermost | pending |
 | 6.309.0 | ⏯ the Jug Player holds ⏯ only while its card is ON SCREEN — 6.289.0 gated on a queue, which is a rule he never asked for | pending |
@@ -5517,6 +5580,101 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.313.0 verify with LL — 🔒 YOUR QUEUE SURVIVES A FAILED SAVE (KNOWN GROUND)
+  WHAT CHANGED: nothing you can press. The Jug Player writes its queue to
+  a temporary file and then renames it into place, instead of opening the
+  real file and writing over it.
+  WHY IT MATTERS: `io.open(path, "w")` empties the file BEFORE it writes
+  anything. If Hammerspoon died, the disk filled, or the write was
+  refused in that instant, your store was left at zero bytes — and the
+  loader reads zero bytes as "nothing queued", silently, after which the
+  next save makes it permanent. Your queue and your history are the only
+  things in this tool you cannot get back. A rename cannot half-happen,
+  so the file on disk is now either the old one or the new one.
+
+  A. THE HEADLINE — there is nothing to press, so this is the whole test.
+  A1. Queue some tracks, play one, close and reopen the card, reload
+      Hammerspoon. EXPECT: everything exactly as before. This release
+      must be invisible on a good day.
+  A2. Console: `_G.musicReport()` — the `store :` line should read
+      `read N bytes — N queued · N history row(s)`.
+  A3. Look in `~/Library/Application Support/Hammerspoon/music/`.
+      EXPECT: `player.json` and NO `player.json.tmp` left lying about.
+      A stray .tmp after normal use is a real finding — tell me.
+
+  B. IF A SAVE EVER FAILS.
+  B1. You would get an alert ending "your saved queue is untouched", and
+      the queue you already had would still be there next time. Paste
+      that alert if you ever see it — it names which of three ways the
+      write died.
+
+  C. 🔨 CRUDE OR ELEGANT.
+  C1. This never bit you that I know of — it is a hole closed before it
+      cost anything, so my reading is ✨ ELEGANT, one pass. Correct me if
+      you have ever opened the player to an empty queue you did not
+      empty: that would mean it DID bite, and the row is 🔨.
+
+- 6.312.0 verify with LL — 🔎 THE REPORT STOPS GUESSING (KNOWN GROUND)
+  WHAT CHANGED: `_G.musicReport()` can now say "I have not read that
+  yet" instead of reporting zero.
+  🚨 AND THIS IS THE FIX FOR A FALSE ALARM I RAISED. You sent a report
+  two seconds after a boot; it said your queue was empty, your history
+  was 0 tracks and the ⏯ tap was not running, and I told you your data
+  was gone. It was not. The store is opened and the tap is started a few
+  seconds AFTER boot, so none of those three had happened yet — and all
+  three printed the words for "it happened and there is nothing". Your
+  earlier good report was 37 seconds after its boot; the alarming one
+  was 2. That was the whole difference, and it was in your own paste.
+  🕘 AND YOUR QUESTION WAS RIGHT: no, we did not build the Jug Player 30
+  days ago — it shipped 2026-09-16, thirteen days before you asked. The
+  30 is how long a row is KEPT, not how much you have. The line says so
+  now instead of leaving you to wonder.
+
+  A. THE HEADLINE — this takes about a minute and needs a reload.
+  A1. Reload Hammerspoon and run `_G.musicReport()` IMMEDIATELY —
+      within a second or two, before it has warmed up.
+      EXPECT:
+        queue    : ⏳ not read yet — see the store line below
+        history  : ⏳ not read yet — see the store line below
+        ⏯ keys   : ⏳ not started yet — the tap starts a few seconds
+                   after boot, with the store.
+        store    : ⏳ NOT READ YET — …not an answer yet…
+      **A FAIL is seeing "empty" or "0 track(s)" or "⚠️ WANTED but not
+      running" in that first moment** — that is the old behaviour.
+  A2. Wait ten seconds and run it again.
+      EXPECT: your real queue, your real history, and the ⏯ line back to
+      `watching ⏯ ⏮ ⏭`. If your tracks are there, nothing was ever lost
+      and the alarm I raised was mine.
+  A3. Read the history line. EXPECT it to name the 30 as a window:
+      `N track(s) kept · oldest Sep 28 — one row per file, and rows are
+      kept for up to 30 day(s) (the WINDOW, not a claim that this Mac
+      holds that much)`.
+
+  B. THE STATES THAT ONLY APPEAR WHEN SOMETHING IS WRONG.
+  B1. If the store line ever says **ZERO BYTES**, paste it at once —
+      that is a write that was cut off, and it is the exact thing
+      6.313.0 exists to prevent.
+  B2. If it says **UNREADABLE**, also paste it. Your file is still on
+      disk in that case and was not overwritten.
+  B3. If the ⏯ line says `⚠️ WANTED but not running` TEN SECONDS after a
+      boot, that is a real failure now rather than a timing artefact,
+      and it names macOS's own reason.
+
+  C. MUST STILL WORK.
+  C1. ⇪⇧. and ⇪⇧pad. both open the card. Drop tracks, space, ↑↓, ⏎,
+      ⌘1–9, ← →, ⌫, the ✕ on a history row.
+  C2. F8/⏯ drives it while the card is on screen (6.309.0).
+
+  D. A JUDGEMENT ONLY YOU CAN MAKE.
+  D1. Is ⏳ the right way to say "not yet", or would you rather it said
+      nothing at all on those lines until it knows? I chose to say it
+      out loud because a missing line reads as a broken report.
+  D2. 🔨 CRUDE OR ELEGANT: the Mac was fine throughout — what broke was
+      what the REPORT told you, and it told me the wrong thing too. My
+      reading is that a diagnostic lying about your data is worse than
+      it sounds, but it degraded rather than making anything unusable.
+      Your tag.
+
 - 6.311.0 verify with LL — ⌨️ ⇪⇧. OPENS THE JUG PLAYER (KNOWN GROUND)
   WHAT CHANGED: ⇪⇧. (hyper + shift + the ordinary full stop) opens and
   closes the Jug Player. ⇪⇧pad. still does too — a second door, not a

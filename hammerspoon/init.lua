@@ -4,54 +4,64 @@
 -- =====================================================================
 -- 09-29-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.311.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.313.0
 -- =====================================================================
 
--- NEW IN 6.311.0 — ⌨️ ⇪⇧. IS A SECOND DOOR INTO THE JUG PLAYER
---   (modules/music_player.lua). LL: "Jug player can only be accessible
---   via full keyboard. I am on a mini-keyboard now, can I still use
---   hyper+shift+period, instead of pad? I can't tell if that key
---   combo is taken." 🆓 IT IS NOT, AND THAT WAS ASKED OF THE REGISTRY
---   RATHER THAN OF A NOTE: the gate's collision harness loads the REAL
---   config and names both sides of any double-claim — 76 combos bound
---   and no `shift|.` among them. ⇪. WITHOUT shift is menu_search,
---   which is the near miss. 6.276.0 is the release where he was handed
---   ⇪⇧pad. as "available", so answering this from memory was the one
---   thing not allowed. ⌨️ A SECOND DOOR, NOT A SWAP (6.292.0's ⌘⌘
---   beside ⇪V): ⇪⇧pad. was shipped with no fallback on his OWN 6.231.0
---   answer ("both macs use a full Apple Keyboard"), so the premise
---   expired rather than being wrong, and taking the key away would
---   cost the two Macs it was designed for and buy nothing. 🔑 ONE
---   LIST, `mp.keys`, and one string, `mp.keyLabel` (PURE) — the card's
---   title, its key column, the module summary and the report all print
---   it, so no combo is typed into any visible string and a sentry
---   holds the class. That is 6.296.0's rule for the NAME, applied to
---   the KEY, in the module whose key caused 6.276.0. ONE cheat-sheet
---   row carries both, or the 6.196.0 auditor reads a combo listed
---   twice as a conflict (6.243.0).
+-- NEW IN 6.313.0 — 🔒 A FAILED SAVE COSTS THE SAVE, NEVER THE THING SAVED
+--   (modules/music_player.lua). `saveNow` opened the queue store with
+--   `io.open(path, "w")`, which TRUNCATES BEFORE IT WRITES A BYTE — so
+--   a crash, a full disk or a refused write inside that window left the
+--   file at ZERO BYTES, and `mp.loadStore` reads zero bytes as "nothing
+--   queued", in silence, after which the very next save writes the
+--   empty queue over the top for good. His queue and his thirty days of
+--   history are the only things in this module he cannot get back.
+--   🔑 TEMP FILE, THEN RENAME. os.rename is atomic within a filesystem,
+--   so the store on disk is either the old one or the new one and never
+--   a half-written one. Every failure path removes the temp and SAYS
+--   the saved queue is untouched (6.214.0). 6.199.0 applied exactly
+--   this to his autocorrect dictionary and 6.307.0 was the day the same
+--   shape ate a whole test file of ours; the store never got it.
+--   🔬 AND THE HARNESS HAD TO BECOME FAITHFUL FIRST (6.290.0): its
+--   io.open APPENDED across opens, so two saves to one path produced a
+--   store no real Mac could hold and the zero-byte window was not
+--   reachable from the gate at all. It truncates now, and os.rename /
+--   os.remove work over the same virtual disk so a REFUSAL can be
+--   driven rather than only an absence (6.265.0).
+--   🚨 A SOURCE SENTRY holds the class: nothing in the module may open
+--   the store for writing itself. Its first version read through the
+--   STUBBED io.open, found an empty string, and passed — green over
+--   nothing at all (6.273.0), caught only because its twin failed
+--   beside it. It reads the real file and asserts the size now.
 
--- NEW IN 6.310.0 — 🎯 EACH POINTER RING 10% WIDER THAN THE LAST
---   (modules/mouse_grid.lua). LL: "⇪⇧L needs to be more obvious. Can
---   you make each ring grow in size by 10% each time?" His answer,
---   his number. `grid.locateRingR` is PURE and steps each ring out by
---   `locateRingGrow` (1.10), so three rings put the outermost 21%
---   past where it used to stop and the mark reads as a ripple
---   travelling outward rather than three circles on one path.
---   📐 AND THE CANVAS GROWS WITH IT (`grid.locateSpan`): sized off the
---   BASE radius it would have cropped exactly the ring this release
---   adds — 6.270.0's rule, reserve the room before you draw the
---   thing. Every element centres on the span, so the rings stay
---   concentric on the pointer. A growth below 1 is refused: a typo in
---   a settings line must never SHRINK the mark it was asked to
---   enlarge. The check MOVES the growth and requires the drawing to
---   follow (6.239.0), with three rings at one p in flight — the only
---   fixture where the old and new drawings must differ (6.230.0).
+-- NEW IN 6.312.0 — 🔎 THE REPORT CANNOT SAY WHAT IT HAS NOT READ
+--   (modules/music_player.lua). `_G.musicReport()` run two seconds
+--   after a boot said "queue : empty", "history : 0 track(s)" and
+--   "⏯ keys : ⚠️ WANTED but not running". All three were FALSE: the
+--   store is opened and the media tap is started in `M.warm`, seconds
+--   after boot (6.267.0's lazy read), so none of them had happened
+--   yet — and every one printed the words for "it happened and there
+--   is nothing". 6.196.1 inside the instrument built to keep it, and
+--   it cost an evening and a false alarm about lost data.
+--   🗂 `mp.loadStore` had THREE silent exits — no file, zero bytes, a
+--   decode that failed — and each records what it found now.
+--   `mp.startMediaTap` records that an ATTEMPT was made before
+--   anything can fail, because "warm has not run" and "macOS said no"
+--   both leave `mediaTap` nil and printed the same ⚠️.
+--   🔑 `mp.storeVerdict` is PURE with SIX answers, only two of which
+--   are health, and it FAILS CLOSED on a state nobody recorded — a
+--   report that cannot say what it found must not pick the
+--   reassuring branch. The queue, history and ⏯ lines defer to it.
+--   🕘 AND THE 30 IS NAMED AS A WINDOW. LL, reading "0 track(s) over
+--   the last 30 day(s)": "I don't think we have 30-day music history
+--   yet. Did we build jug player 30 days ago?" He was right to doubt
+--   it — the player shipped 2026-09-16 — and the sentence read as a
+--   statement about his data rather than about the retention rule.
 
--- (6.309.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.311.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 cut the inline count to
 --  TWO; a gate check proves every entry here is also in CHANGELOG.md.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.311.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.313.0
 -- =====================================================================
 -- The catalogue that used to sit here moved to GUIDE.md ("What each
 -- tool does") in 6.180.0 — 259 lines of prose inside the orchestrator.
@@ -144,7 +154,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.311.0"
+_G.configVersion = "6.313.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the

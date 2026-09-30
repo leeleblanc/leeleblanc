@@ -1,4 +1,4 @@
-# TESTING — how to score release 6.311.0
+# TESTING — how to score release 6.313.0
 
 You install ONE archive and it carries several releases. Below are the
 steps for each release this archive is new for, newest first. Run the
@@ -26,6 +26,109 @@ else is a LOSS and I fix it before building further. You are the only
 scorer; I never mark my own.
 
 ---
+
+## 6.313.0
+
+6.313.0 verify with LL — 🔒 YOUR QUEUE SURVIVES A FAILED SAVE (KNOWN GROUND)
+WHAT CHANGED: nothing you can press. The Jug Player writes its queue to
+a temporary file and then renames it into place, instead of opening the
+real file and writing over it.
+WHY IT MATTERS: `io.open(path, "w")` empties the file BEFORE it writes
+anything. If Hammerspoon died, the disk filled, or the write was
+refused in that instant, your store was left at zero bytes — and the
+loader reads zero bytes as "nothing queued", silently, after which the
+next save makes it permanent. Your queue and your history are the only
+things in this tool you cannot get back. A rename cannot half-happen,
+so the file on disk is now either the old one or the new one.
+
+A. THE HEADLINE — there is nothing to press, so this is the whole test.
+A1. Queue some tracks, play one, close and reopen the card, reload
+    Hammerspoon. EXPECT: everything exactly as before. This release
+    must be invisible on a good day.
+A2. Console: `_G.musicReport()` — the `store :` line should read
+    `read N bytes — N queued · N history row(s)`.
+A3. Look in `~/Library/Application Support/Hammerspoon/music/`.
+    EXPECT: `player.json` and NO `player.json.tmp` left lying about.
+    A stray .tmp after normal use is a real finding — tell me.
+
+B. IF A SAVE EVER FAILS.
+B1. You would get an alert ending "your saved queue is untouched", and
+    the queue you already had would still be there next time. Paste
+    that alert if you ever see it — it names which of three ways the
+    write died.
+
+C. 🔨 CRUDE OR ELEGANT.
+C1. This never bit you that I know of — it is a hole closed before it
+    cost anything, so my reading is ✨ ELEGANT, one pass. Correct me if
+    you have ever opened the player to an empty queue you did not
+    empty: that would mean it DID bite, and the row is 🔨.
+
+
+
+## 6.312.0
+
+6.312.0 verify with LL — 🔎 THE REPORT STOPS GUESSING (KNOWN GROUND)
+WHAT CHANGED: `_G.musicReport()` can now say "I have not read that
+yet" instead of reporting zero.
+🚨 AND THIS IS THE FIX FOR A FALSE ALARM I RAISED. You sent a report
+two seconds after a boot; it said your queue was empty, your history
+was 0 tracks and the ⏯ tap was not running, and I told you your data
+was gone. It was not. The store is opened and the tap is started a few
+seconds AFTER boot, so none of those three had happened yet — and all
+three printed the words for "it happened and there is nothing". Your
+earlier good report was 37 seconds after its boot; the alarming one
+was 2. That was the whole difference, and it was in your own paste.
+🕘 AND YOUR QUESTION WAS RIGHT: no, we did not build the Jug Player 30
+days ago — it shipped 2026-09-16, thirteen days before you asked. The
+30 is how long a row is KEPT, not how much you have. The line says so
+now instead of leaving you to wonder.
+
+A. THE HEADLINE — this takes about a minute and needs a reload.
+A1. Reload Hammerspoon and run `_G.musicReport()` IMMEDIATELY —
+    within a second or two, before it has warmed up.
+    EXPECT:
+      queue    : ⏳ not read yet — see the store line below
+      history  : ⏳ not read yet — see the store line below
+      ⏯ keys   : ⏳ not started yet — the tap starts a few seconds
+                 after boot, with the store.
+      store    : ⏳ NOT READ YET — …not an answer yet…
+    **A FAIL is seeing "empty" or "0 track(s)" or "⚠️ WANTED but not
+    running" in that first moment** — that is the old behaviour.
+A2. Wait ten seconds and run it again.
+    EXPECT: your real queue, your real history, and the ⏯ line back to
+    `watching ⏯ ⏮ ⏭`. If your tracks are there, nothing was ever lost
+    and the alarm I raised was mine.
+A3. Read the history line. EXPECT it to name the 30 as a window:
+    `N track(s) kept · oldest Sep 28 — one row per file, and rows are
+    kept for up to 30 day(s) (the WINDOW, not a claim that this Mac
+    holds that much)`.
+
+B. THE STATES THAT ONLY APPEAR WHEN SOMETHING IS WRONG.
+B1. If the store line ever says **ZERO BYTES**, paste it at once —
+    that is a write that was cut off, and it is the exact thing
+    6.313.0 exists to prevent.
+B2. If it says **UNREADABLE**, also paste it. Your file is still on
+    disk in that case and was not overwritten.
+B3. If the ⏯ line says `⚠️ WANTED but not running` TEN SECONDS after a
+    boot, that is a real failure now rather than a timing artefact,
+    and it names macOS's own reason.
+
+C. MUST STILL WORK.
+C1. ⇪⇧. and ⇪⇧pad. both open the card. Drop tracks, space, ↑↓, ⏎,
+    ⌘1–9, ← →, ⌫, the ✕ on a history row.
+C2. F8/⏯ drives it while the card is on screen (6.309.0).
+
+D. A JUDGEMENT ONLY YOU CAN MAKE.
+D1. Is ⏳ the right way to say "not yet", or would you rather it said
+    nothing at all on those lines until it knows? I chose to say it
+    out loud because a missing line reads as a broken report.
+D2. 🔨 CRUDE OR ELEGANT: the Mac was fine throughout — what broke was
+    what the REPORT told you, and it told me the wrong thing too. My
+    reading is that a diagnostic lying about your data is worse than
+    it sounds, but it degraded rather than making anything unusable.
+    Your tag.
+
+
 
 ## 6.311.0
 
@@ -136,111 +239,6 @@ C2. 🔨 CRUDE OR ELEGANT: did this ever make the Mac unusable, or did it
     just not stand out? My reading is neither — it is a feature ask,
     not a defect — so I have logged it as a request rather than a
     problem. Correct me if it belongs in the ledger.
-
-
-
-## 6.309.0
-
-6.309.0 verify with LL — ⏯ THE PLAY KEY, ONLY WHILE THE CARD IS UP (KNOWN GROUND)
-WHAT CHANGED: the Jug Player takes ⏯ ⏮ ⏭ only while its card is ON
-SCREEN. Closed, the key goes back to macOS.
-🚨 AND YOU WERE RIGHT THAT MY LAST FIX WAS NOT REAL. 6.289.0 gated on
-"has a queue" — a rule I chose, not one you asked for — and closing
-the card deliberately does not stop the sound, so a closed card went
-on holding the key for as long as a queue survived it. Visibility is
-the gate now.
-
-A. THE HEADLINE — this is the whole test.
-A1. ⇪⇧pad., drop two tracks, something plays. Press F8/⏯ — it pauses.
-    Press again — it resumes. Unchanged.
-A2. Now CLOSE the card (⇪⇧pad. again). The music keeps playing, as it
-    always has.
-A3. Press ⏯.
-    EXPECT: the Jug Player does NOT react. The key goes to macOS — so
-    if Music.app or a YouTube tab has audio, THAT pauses instead.
-    **A FAIL here is the card reacting**, and it is the bug you
-    reported twice. Tell me at once.
-A4. ⇪⇧pad. to bring the card back. Press ⏯ — it works again.
-
-B. THE ONE THAT STOPS A DEAD KEY.
-B1. Open the card with NOTHING queued. Press ⏯.
-    EXPECT: it passes through to macOS. An open card with an empty
-    queue must not eat a key it cannot act on. That check is mine, not
-    yours — say if you would rather an open card always took the key.
-
-C. MUST STILL WORK.
-C1. With the card open: space, ↑↓, ⏎, ⌘1–9, ← → all unchanged.
-C2. F7 and F9 step back and forward while the card is open, and pass
-    through while it is closed.
-C3. The volume keys stay macOS's — your own decision in 6.231.0.
-
-D. PASTE BACK, PASS OR FAIL.
-D1. `_G.musicReport()` — a new "↳ right now" line says in words what ⏯
-    would do at this moment: `the card is closed — macOS keeps the
-    key` / `nothing is queued — macOS keeps the key` / `the card is
-    open and holding a queue`. Run it with the card open and again
-    with it closed; the line must CHANGE.
-D2. The "↳ by route" line still tells me whether your F8 arrives as a
-    media key or a plain function key.
-
-E. 🔨 CRUDE OR ELEGANT.
-E1. Did the card holding ⏯ while hidden ever leave you unable to use
-    the Mac — stuck unable to pause something — or was it an annoyance
-    you worked around? Your answer tags the row, and it took three
-    passes (6.289.0, 6.291.0, this), so it is not elegant either way.
-
-
-
-## 6.308.0
-
-6.308.0 verify with LL — ⌨️ ⌘⌘ OPENS THE CLIPBOARD (KNOWN GROUND)
-WHAT CHANGED: ⌘⌘ works. It had never been registered — not once, on
-any boot since 6.292.0.
-🔎 WHY ⌥⌥ WORKED AND ⌘⌘ DID NOT, because it is nothing you could have
-guessed: clipboard_history.lua had TWO functions called `M.warm` — the
-one at the bottom that registers ⌘⌘, and one written inside setup()
-that reads the clipboard store. setup runs after the file is loaded,
-so the second one overwrote the first before Hammerspoon ever called
-it. menu_search has only one, which is the whole difference.
-🚨 AND THE REPORT SAID IT WAS FINE. `_G.clipboardReport()` printed
-"⌘⌘ : watching · 0 open(s) this session" — because it inferred health
-from the absence of a recorded complaint, and there was no complaint:
-the code that would have recorded one never ran. That is exactly the
-distinction that report exists to keep, broken inside itself.
-
-A. THE HEADLINE.
-A1. Tap ⌘ twice, quickly, nothing else held.
-    EXPECT: the clipboard history opens — the same panel ⇪V gives you.
-    **This is the whole release.**
-A2. Esc, then ⇪V. EXPECT: the identical window. One function, two doors.
-A3. Left ⌘ and right ⌘ both work.
-A4. Console: `_G.doubleTapReport()`. EXPECT BOTH gestures listed now:
-    `⌘⌘ : clipboard history` AND `⌥⌥ : the front app's menus`, under
-    one `watcher : running`. PASTE IT.
-A5. `_G.clipboardReport()` — the ⌘⌘ line must read `watching · N
-    open(s)`. If it EVER reads `⚠️ WANTED but NOT REGISTERED`, that is
-    the new fourth state doing its job — paste it.
-
-B. THE ONES THAT PROTECT YOUR TYPING — these matter more than A.
-B1. ⌘C, ⌘V, ⌘S, ⌘Tab, ⌘W as normal. EXPECT: nothing opens.
-B2. HOLD ⌘ for a second and release, twice. EXPECT: nothing.
-B3. Tap ⌘, type a letter, tap ⌘. EXPECT: nothing.
-B4. Hold ⌘ AND ⌥ and tap twice. EXPECT: NEITHER opens.
-B5. ⌥⌥ still opens the menus. ⌃⌃ still opens the editor picker.
-B6. Type normally for a while — no missed characters, no lag.
-
-C. MUST STILL WORK — the merge touched the clipboard's own load.
-C1. Copy three things, press ⇪V. EXPECT: all three, newest first.
-C2. Reload Hammerspoon, press ⇪V. EXPECT: your history is still there.
-    That read used to live in the function that was being destroyed;
-    if the history came back EMPTY, stop and tell me immediately.
-C3. ⇪⇧V still edits and deletes rows.
-
-D. 🔨 CRUDE OR ELEGANT.
-D1. ⇪V always worked, so my reading is that this degraded gracefully —
-    a feature silently absent, not a Mac you could not use. One pass.
-    If you agree it is ✨ ELEGANT; if being told "watching" while it
-    was dead counts as worse than that, say so and it goes down 🔨.
 
 
 
