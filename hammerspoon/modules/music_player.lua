@@ -197,13 +197,13 @@ local M = {
             -- this module and neither can drift onto another card.
             { KEYLABEL,  OPEN_CLOSE },
             { "drop",    "Drag files onto the card: the first plays, the rest queue under it" },
-            { "↑ ↓ · ⏎", "Walk the queue · play the highlighted track" },
+            { "↑ ↓ · ⏎", "Walk the queue AND the 🕘 history as one list · ⏎ plays" },
             { "⌘1–⌘9",   "Play the Nth track in the queue" },
             { "space",   "Play / pause" },
             { "⏮ ⏭",     "Previous · next — ⏭ moves on even under repeat one" },
             { "🔂 · 🔁",  "Repeat one · repeat all · off — click to cycle" },
-            { "🕘",       "History: the last tracks played, click one to play it again" },
-            { "⌫",       "Take the highlighted track out of the queue" },
+            { "🕘",       "History: the last tracks played — ↑↓ reach it, ⏎ or a click plays it" },
+            { "⌫",       "On a queue row: take it out · on a 🕘 history row: forget it" },
             { "✕",       "On a 🕘 history row: forget that track (the file is not touched)" },
             { "drag",    "Move the card: grab its title strip — or ⌘-drag anywhere on it. It reopens where you left it" },
             { "volume",  "Use the Mac's own volume keys — this player has none, by design" },
@@ -273,6 +273,7 @@ function M.setup(core)
         history   = {},               -- { path=, title=, at= }
         index     = 0,                -- the track playing / highlighted
         sel       = 1,                -- the row the keyboard is on
+        selList   = "queue",          -- 6.315.0 — WHICH list that row is in
         mode      = "off",            -- off · one · all
         playing   = false,
         startedAt = nil,
@@ -435,6 +436,70 @@ function M.setup(core)
         if n <= 0 then return nil end
         if i <= 1 then return n end
         return i - 1
+    end
+
+    -- ⌨️ 6.315.0 — THE ARROWS WALK BOTH LISTS, AND IT IS ONE CURSOR
+    -- (LL: "Can't use the arrow keys to move thru the Jug player history
+    -- list. Please make that happen."). The card draws ONE scrolling
+    -- list — the queue, then a 🕘 history heading, then the history rows
+    -- — and ↑↓ only ever walked the queue half of it, because `mp.sel`
+    -- was a queue index and nothing else. A history row could be clicked
+    -- and could be ✕'d and could not be reached from the keyboard at all.
+    --
+    -- 🔑 ONE CURSOR, NOT TWO SELECTIONS. A `selList` beside `sel` is the
+    -- whole state: the two lists are drawn as one, so a second highlight
+    -- would mean two rows lit at once and a rule about which one ⏎ meant.
+    -- This flattens them — position 1..nq is the queue, nq+1..nq+nh is
+    -- the history — moves, and converts back, so ↓ off the last track
+    -- lands on the first history row and the wrap at the bottom comes
+    -- back to the top of the queue, exactly as one list behaves.
+    --
+    -- 🚨 nh IS WHAT IS DRAWN, never #mp.history. The card draws
+    -- `historyShow` (40) rows of a store holding up to 400, so a cursor
+    -- counted off the store walks into rows that are not on screen and
+    -- the highlight simply vanishes. Its own check.
+    --
+    -- d = 0 CLAMPS rather than moves, which is the second caller: every
+    -- edit to either list (a drop, a remove, a ✕, a forget) can leave the
+    -- cursor past the end of the list it is in, and one function
+    -- answering both questions is how the two cannot disagree (6.231.0).
+    -- An empty list hands the cursor to the other one; both empty is nil,
+    -- because there is no row to be on and pretending otherwise is a
+    -- highlight drawn over nothing.
+    function mp.selMove(cur, nq, nh, d)
+        nq = math.max(0, math.floor(tonumber(nq) or 0))
+        nh = math.max(0, math.floor(tonumber(nh) or 0))
+        d  = math.floor(tonumber(d) or 0)
+        local total = nq + nh
+        if total <= 0 then return nil end
+        local list = (type(cur) == "table") and cur.list or nil
+        local i    = math.floor(tonumber(type(cur) == "table" and cur.i or 1) or 1)
+        local p
+        if list == "hist" and nh > 0 then
+            p = nq + math.min(math.max(i, 1), nh)
+        elseif list == "hist" then
+            -- 🚨 The history it was in has emptied under it — a ✕ on the
+            -- last row. The nearest REAL row is the one immediately
+            -- above, which is the LAST queue row, never the first: the
+            -- history is drawn below the queue, so jumping to the top
+            -- moves the highlight the length of the card for an edit
+            -- that happened at the bottom of it. Its own check, because
+            -- `min(i, nq)` reads perfectly well and is wrong.
+            p = nq
+        elseif nq > 0 then
+            p = math.min(math.max(i, 1), nq)
+        else
+            -- The queue has emptied under a queue cursor, so nq is 0 and
+            -- the first history row is position 1. Written `nq + 1` at
+            -- first, which READS like the general case and is the same
+            -- number — nq can only be 0 to reach here — so no mutation
+            -- could kill it. 6.199.0: a line no test can fail is a
+            -- comment pretending to be code.
+            p = 1
+        end
+        p = ((p - 1 + d) % total) + 1
+        if p <= nq then return { list = "queue", i = p } end
+        return { list = "hist", i = p - nq }
     end
 
     -- Adds paths to a queue, PURELY: returns the new queue, what was
@@ -645,7 +710,7 @@ function M.setup(core)
            and (data.mode == "off" or data.mode == "one" or data.mode == "all") then
             mp.mode = data.mode
         end
-        mp.sel = 1
+        mp.sel, mp.selList = 1, "queue"
         mp.storeState = "read"
     end
 
@@ -760,6 +825,7 @@ function M.setup(core)
         mp.sound   = snd
         mp.index   = i
         mp.sel     = i
+        mp.selList = "queue"          -- 6.315.0 — playing a track moves the cursor to it
         mp.elapsed = 0
         local okDur, d = pcall(function() return snd:duration() end)
         mp.duration = (okDur and tonumber(d)) or 0
@@ -806,7 +872,13 @@ function M.setup(core)
 
     function mp.togglePlay()
         if not mp.sound then
-            if #mp.queue > 0 then return mp.playAt(mp.sel > 0 and mp.sel or 1, "space") end
+            -- 6.315.0 — mp.sel is a HISTORY index while the cursor is
+            -- down there, and feeding that to playAt plays an unrelated
+            -- track. Space means "play what is loaded", so with nothing
+            -- loaded and the cursor in the history it starts at the top
+            -- of the queue rather than at a number that means nothing here.
+            local at = (mp.selList == "queue" and mp.sel > 0) and mp.sel or 1
+            if #mp.queue > 0 then return mp.playAt(at, "space") end
             say("nothing to play")
             return false
         end
@@ -897,7 +969,72 @@ function M.setup(core)
         mp.tickTimer = nil
     end
 
+    -- ---- the three edits, ONE DOOR EACH --------------------------------
+    -- 🔑 6.315.0 — ⌫ and the ✕ and a click now all arrive at these, so
+    -- there is one body per edit rather than a copy inside the keyboard
+    -- branch and another inside the mouse branch (6.231.0). Each ends in
+    -- mp.selFix(0): an edit can leave the cursor past the end of the list
+    -- it is in, and a highlight on a row that is gone is the same defect
+    -- as no highlight at all.
+
+    function mp.removeAt(i)
+        i = math.floor(tonumber(i) or 0)
+        if i < 1 or i > #mp.queue then return false end
+        local wasCurrent = (i == mp.index)
+        table.remove(mp.queue, i)
+        if wasCurrent then stopSound() ; mp.index = 0 ; mp.elapsed = 0 end
+        if mp.index > i then mp.index = mp.index - 1 end
+        mp.selFix(0)
+        saveSoon() ; mp.render()
+        return true
+    end
+
+    function mp.forgetPath(path)
+        local list, gone = mp.forgetHistory(mp.history, path)
+        if gone <= 0 then return false end
+        mp.history   = list
+        mp.forgotten = (tonumber(mp.forgotten) or 0) + gone
+        mp.selFix(0)
+        saveSoon() ; mp.render()
+        return true
+    end
+
+    -- h is 1-based into mp.history.
+    function mp.playHistory(h)
+        local row = mp.history[math.floor(tonumber(h) or 0)]
+        if not row then return false end
+        local q, added = mp.addPaths(mp.queue, { row.path })
+        mp.queue = q
+        local target
+        for i, t in ipairs(mp.queue) do if t.path == row.path then target = i end end
+        if target then return mp.playAt(target, "from history") end
+        if #added == 0 then say("that track has gone") end
+        return false
+    end
+
     -- ---- the page ---------------------------------------------------------
+
+    -- ⌨️ 6.315.0 — HOW MANY HISTORY ROWS ARE ON SCREEN. The cursor and
+    -- the drawing must agree about this number or ↓ walks off the bottom
+    -- into rows nobody can see, so both ask here (6.276.0: read the
+    -- truth, never retype it).
+    function mp.histShown()
+        return math.min(#mp.history, math.max(0, tonumber(mp.historyShow) or 40))
+    end
+
+    -- The ONE place mp's own cursor moves. d = 0 clamps after an edit.
+    function mp.selFix(d)
+        local c = mp.selMove({ list = mp.selList, i = mp.sel },
+                             #mp.queue, mp.histShown(), d or 0)
+        if not c then
+            -- nothing to be on: stay in the queue at 1 so the next drop
+            -- lands the cursor somewhere sensible rather than nowhere.
+            mp.selList, mp.sel = "queue", 1
+            return nil
+        end
+        mp.selList, mp.sel = c.list, c.i
+        return c
+    end
 
     function mp.rowsJson()
         local rows = {}
@@ -908,11 +1045,19 @@ function M.setup(core)
             }
         end
         local hist = {}
-        for i = 1, math.min(#mp.history, tonumber(mp.historyShow) or 40) do
+        for i = 1, mp.histShown() do
             hist[#hist + 1] = { n = mp.history[i].title, p = mp.history[i].path }
         end
+        -- ⌨️ 6.315.0 — THE CURSOR IS SPLIT HERE AND NOWHERE ELSE. Exactly
+        -- one of these is non-zero; 0 marks no row, because the page
+        -- compares a 1-based row number and 0 can never be one. Deriving
+        -- it in the page as well would be the same answer kept in two
+        -- places, which is how a highlight comes to be drawn twice.
+        local inHist = (mp.selList == "hist")
         local ok, raw = pcall(function()
-            return hs.json.encode({ rows = rows, hist = hist, sel = mp.sel,
+            return hs.json.encode({ rows = rows, hist = hist,
+                                    sel  = inHist and 0 or mp.sel,
+                                    hsel = inHist and mp.sel or 0,
                                     mode = mp.mode, playing = mp.playing,
                                     refused = mp.refused })
         end)
@@ -922,7 +1067,7 @@ function M.setup(core)
         -- still playing, and said so to nobody.
         degrade("a track name could not be turned into text the card can "
                 .. "draw — the queue is untouched and still playing")
-        return '{"rows":[],"hist":[],"sel":1,"mode":"' .. tostring(mp.mode)
+        return '{"rows":[],"hist":[],"sel":1,"hsel":0,"mode":"' .. tostring(mp.mode)
                .. '","playing":' .. tostring(mp.playing and true or false)
                .. ',"refused":[{"path":"","why":"a track name could not be '
                .. 'drawn — see the Console"}]}'
@@ -1061,11 +1206,11 @@ footer { padding:5px 10px; font-size:%dpx; color:#7d7f89;
     <button id="clr" title="Empty the queue">clear</button>
   </div>
   <div id="wrap"><div id="list"></div></div>
-  <footer id="ft">&#8593;&#8595; pick &#183; &#8592;&#8594; seek &#183; &#8629; play &#183; space pause &#183; &#8984;1-9</footer>
+  <footer id="ft">&#8593;&#8595; queue + history &#183; &#8592;&#8594; seek &#183; &#8629; play &#183; &#9003; remove &#183; space pause</footer>
 </div>
 <div id="drop">drop to add</div>
 <script>
-var S = { rows: [], hist: [], sel: 1, mode: 'off', playing: false, refused: [] };
+var S = { rows: [], hist: [], sel: 1, hsel: 0, mode: 'off', playing: false, refused: [] };
 var STEP = %d, BIGSTEP = %d;
 var dz;
 function say(m){ try { webkit.messageHandlers.musicPlayer.postMessage(m); } catch(e){} }
@@ -1083,7 +1228,8 @@ function esc(s){
 function draw(s){
   /* A payload that is missing a field must not stop the card drawing for
      the rest of the session — every list below is read by length. */
-  if (s) S = { rows: s.rows || [], hist: s.hist || [], sel: s.sel || 1,
+  if (s) S = { rows: s.rows || [], hist: s.hist || [], sel: s.sel || 0,
+               hsel: s.hsel || 0,
                mode: s.mode || 'off', playing: !!s.playing,
                refused: s.refused || [] };
   var L = [], r;
@@ -1104,7 +1250,13 @@ function draw(s){
   if ((S.hist || []).length) {
     L.push('<div class="sec">&#128336; history</div>');
     for (var h = 0; h < S.hist.length; h++) {
-      L.push('<div class="row" data-h="' + h + '"><span class="num">&#183;</span>'
+      /* ⌨️ 6.315.0 — a history row lights up exactly as a queue row
+         does, with the SAME class, so the one scrollIntoView below
+         finds it and only ever one row is lit. data-h is 0-based and
+         the cursor is 1-based: that off-by-one is the whole bug this
+         line can have, so it has its own check. */
+      L.push('<div class="row' + ((h + 1) === S.hsel ? ' sel' : '')
+             + '" data-h="' + h + '"><span class="num">&#183;</span>'
              + '<span class="nm">' + esc(S.hist[h].n) + '</span>'
              + '<span class="x" data-x="' + h + '" title="forget this track">'
              + '&#10005;</span></div>');
@@ -1208,9 +1360,14 @@ document.addEventListener('keydown', function(e){
      the list and nothing here scrolls sideways. */
   if (k === 'ArrowRight') { e.preventDefault(); say({a:'seek', d: e.shiftKey ? BIGSTEP : STEP}); return; }
   if (k === 'ArrowLeft')  { e.preventDefault(); say({a:'seek', d: -(e.shiftKey ? BIGSTEP : STEP)}); return; }
-  if (k === 'Enter') { e.preventDefault(); say({a:'pick', i: S.sel}); return; }
+  /* ⌨️ 6.315.0 — ⏎ and ⌫ carry NO index now: Lua holds the one cursor
+     and knows which of the two lists it is in, so the page cannot hand
+     back a row number a redraw has already renumbered (6.272.0, where
+     the ✕ had to send a PATH for the same reason). ⌘1-9 and clicks
+     still name a row outright, and still go through 'pick'. */
+  if (k === 'Enter') { e.preventDefault(); say({a:'enter'}); return; }
   if (k === ' ')     { e.preventDefault(); say({a:'play'}); return; }
-  if (k === 'Backspace' || k === 'Delete') { e.preventDefault(); say({a:'remove', i:S.sel}); return; }
+  if (k === 'Backspace' || k === 'Delete') { e.preventDefault(); say({a:'del'}); return; }
   if (k === 'Escape') { e.preventDefault(); say({a:'esc'}); return; }
 });
 document.addEventListener('keyup', function(e){
@@ -1310,16 +1467,20 @@ say({a:'ready'});
         if a == "clear" then
             stopSound()
             mp.queue, mp.index, mp.sel, mp.elapsed, mp.duration = {}, 0, 1, 0, 0
+            mp.selList = "queue"
             mp.refused = {}
+            mp.selFix(0)   -- 6.315.0 — the history is still there to be on
             saveSoon() ; mp.render()
             say("queue emptied")
             return
         end
         if a == "sel" then
-            local n = #mp.queue
-            if n == 0 then return end
-            local d = tonumber(b.d) or 1
-            mp.sel = ((mp.sel - 1 + d) % n) + 1
+            -- ⌨️ 6.315.0 — the arrows walk the queue AND the history, as
+            -- one list, because that is how the card draws them. The old
+            -- body wrapped inside #mp.queue alone, so ↓ off the last
+            -- track went back to the first and the history below it was
+            -- unreachable from the keyboard.
+            if not mp.selFix(tonumber(b.d) or 1) then return end
             mp.render()
             return
         end
@@ -1329,36 +1490,39 @@ say({a:'ready'});
             return
         end
         if a == "remove" then
-            local i = math.floor(tonumber(b.i) or 0)
-            if i >= 1 and i <= #mp.queue then
-                local wasCurrent = (i == mp.index)
-                table.remove(mp.queue, i)
-                if wasCurrent then stopSound() ; mp.index = 0 ; mp.elapsed = 0 end
-                if mp.index > i then mp.index = mp.index - 1 end
-                if mp.sel > #mp.queue then mp.sel = math.max(1, #mp.queue) end
-                saveSoon() ; mp.render()
-            end
+            mp.removeAt(tonumber(b.i))
             return
         end
         if a == "forget" then
-            local list, gone = mp.forgetHistory(mp.history, b.p)
-            if gone > 0 then
-                mp.history  = list
-                mp.forgotten = (tonumber(mp.forgotten) or 0) + gone
-                saveSoon() ; mp.render()
-            end
+            mp.forgetPath(b.p)
             return
         end
         if a == "hist" then
-            local h = math.floor(tonumber(b.h) or -1) + 1
-            local row = mp.history[h]
-            if not row then return end
-            local q, added = mp.addPaths(mp.queue, { row.path })
-            mp.queue = q
-            local target
-            for i, t in ipairs(mp.queue) do if t.path == row.path then target = i end end
-            if target then mp.playAt(target, "from history") end
-            if #added == 0 and not target then say("that track has gone") end
+            -- the page counts history rows from 0; the cursor and
+            -- mp.history count from 1, and the conversion lives HERE,
+            -- at the one boundary where the two meet.
+            mp.playHistory(math.floor(tonumber(b.h) or -1) + 1)
+            return
+        end
+        -- ⌨️ 6.315.0 — ⏎ AND ⌫ READ LUA'S OWN CURSOR, so one key does the
+        -- right thing in either list and the page never has to name a row
+        -- that a redraw may have renumbered under it.
+        if a == "enter" then
+            if mp.selList == "hist" then mp.playHistory(mp.sel)
+            else mp.playAt(mp.sel, "picked") end
+            return
+        end
+        if a == "del" then
+            -- 🗑 BY PATH in the history (6.272.0): mp.sel is a row NUMBER
+            -- and the row under it is renumbered by every redraw, so the
+            -- path is read out of the list here, at the moment of the
+            -- press, and the forget is asked for by name.
+            if mp.selList == "hist" then
+                local row = mp.history[mp.sel]
+                if row then mp.forgetPath(row.path) end
+            else
+                mp.removeAt(mp.sel)
+            end
             return
         end
         if a == "drop" then
@@ -2320,6 +2484,32 @@ say({a:'ready'});
                  .. " — one row per file, and rows are kept for up to "
                  .. tostring(mp.historyDays) .. " day(s) (the WINDOW, not"
                  .. " a claim that this Mac holds that much)")
+        end
+        -- ⌨️ 6.315.0 — WHERE THE ARROWS ARE, in words. The cursor is one
+        -- highlight over two lists, so "↑↓ did nothing" and "↑↓ moved
+        -- somewhere I cannot see" are different faults and read the same
+        -- from the keyboard (6.196.1). THREE answers: on a queue row · on
+        -- a history row · nowhere to be, which is the honest state when
+        -- both lists are empty and is NOT the same as row 1 of nothing.
+        do
+            local nq, nh = #mp.queue, mp.histShown()
+            if nq + nh == 0 then
+                line("   ↑↓       : nothing to walk — the queue and the"
+                     .. " history are both empty")
+            else
+                local row = (mp.selList == "hist")
+                    and (mp.history[mp.sel] and mp.history[mp.sel].title)
+                    or  (mp.queue[mp.sel] and mp.queue[mp.sel].title)
+                line("   ↑↓       : on " .. ((mp.selList == "hist")
+                     and ("🕘 history row " .. mp.sel .. " of " .. nh)
+                     or  ("queue row " .. mp.sel .. " of " .. nq))
+                     .. " — " .. (row and ("“" .. row .. "”")
+                                      or "⚠️ NO SUCH ROW, the highlight is"
+                                         .. " drawn over nothing")
+                     .. " · " .. (nq + nh) .. " row(s) in all"
+                     .. (nh < #mp.history and (", " .. #mp.history
+                         .. " kept but only " .. nh .. " drawn") or ""))
+            end
         end
         do
             local _, words = mp.storeVerdict(mp.loaded, mp.storeState,

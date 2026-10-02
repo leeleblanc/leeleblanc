@@ -1521,6 +1521,50 @@ work Mac.
   `realOpen` and ASSERTS the size now. GENERAL, again: a sentry over a
   haystack it did not prove it read is green and measures nothing.
 
+- ⌨️ A SECOND LIST DRAWN UNDER THE FIRST IS NOT A SECOND SELECTION
+  (6.315.0, modules/music_player.lua — LL: "Can't use the arrow keys to
+  move thru the Jug player history list. Please make that happen.").
+  ↑↓ walked `mp.queue` and wrapped INSIDE it, so the 🕘 history drawn
+  underneath — clickable since 6.231.0, ✕-able since 6.272.0 — could not
+  be reached from the keyboard at all. NOT a regression and not quite a
+  bug: the cursor was written when there was one list, and a second list
+  was drawn below it four releases later without anyone asking what ↓ off
+  the bottom of the first should do. 🔑 GENERAL, and it is the one to
+  carry: WHEN A PANEL GROWS A SECOND LIST, THE KEYBOARD RULE FOR THE
+  FIRST ONE IS A DECISION THAT HAS EXPIRED — re-ask it in that release,
+  because the list that works keeps working and the new one is simply
+  unreachable, which looks like nothing at all.
+  🔑 ONE CURSOR, NOT TWO. `mp.selMove(cur, nq, nh, d)` is PURE and
+  flattens queue-then-history into one run of positions — the card draws
+  them as one scrolling list, so that is what the cursor is. Two
+  highlights would mean two rows lit at once and a rule about which one
+  ⏎ meant, which is a rule he would have to remember.
+  🚨 nh IS WHAT IS DRAWN, NEVER #mp.history: the card shows `historyShow`
+  (40) of a store holding `maxHistory` (400), so a cursor counted off the
+  store walks into rows nobody can see and the highlight vanishes off the
+  bottom. `mp.histShown` answers for the cursor AND the drawing, because
+  the two disagreeing is the whole defect (6.276.0: read the truth, never
+  retype it).
+  🔁 d = 0 CLAMPS RATHER THAN MOVES — the second caller (6.231.0), since
+  every edit can leave the cursor past the end of its list. An emptied
+  list hands it to the other at the row NEAREST where it was: a ✕ on the
+  last history row lands on the LAST queue row, never the first, because
+  the history is drawn below the queue. Its own check — the wrong answer
+  there reads perfectly well.
+  🗑 ⏎ AND ⌫ CARRY NO ROW NUMBER. Lua holds the cursor and knows which
+  list it is in, so the page naming a row would be naming it in a list the
+  page has to guess, and naming a number a redraw may have renumbered —
+  6.272.0's rule one key along. ⌫ in the history reads the PATH out of the
+  row at the moment of the press. ⌘1–9 and clicks still name a row and
+  still go through `pick`.
+  🔬 THE SWEEP FOUND BOTH OF ITS OWN FINDINGS. `mp.playAt` sets `mp.sel`
+  and did not claim the LIST, so ⏎ on a history row played the right track
+  and left the cursor reading that queue number as a history row, where
+  the next ⌫ forgets something else; nothing in the play itself can see
+  it. And `p = nq + 1` was `p = 1` wearing a general look — nq can only be
+  0 to reach that branch — so no mutation could kill it (6.199.0, SIXTH
+  time). 21 mutations, 21 bites.
+
 - 🪟 A PICKER macOS REFUSES TO OPEN IS A KEYPRESS, NOT A TRACEBACK
   (6.314.0, init.lua's `showPopup` — LL's Console, 20:30:01, forty lines
   ending `init.lua:2055: NSInternalInconsistencyException` out of
@@ -4512,6 +4556,7 @@ that must be READ before a new cause is named.
 | "still hold play pause when not visible" | modules/music_player.lua | 6.289.0 · 6.291.0 · 6.309.0 | 3 | ask |
 | "history : 0 track(s)" two seconds after a boot — read as lost data | modules/music_player.lua report · M.warm | 6.312.0 · 6.313.0 | 1 | ask |
 | a picker throws `NSInternalInconsistencyException` instead of opening | init.lua `showPopup` · the AppKit remote-view family | 6.56.0 · 6.274.0 · 6.314.0 | 3 | ask |
+| "can't use the arrow keys to move thru the history list" | modules/music_player.lua · the card's cursor | 6.315.0 | 1 | ask |
 | "⇪⇧L needs to be more obvious" | modules/mouse_grid.lua | 6.167.0 · 6.195.0 · 6.310.0 | 3 | ask |
 | "can only be accessible via full keyboard" · "I can't tell if that key combo is taken" | modules/music_player.lua · the key registry | 6.276.0 · 6.311.0 | 1 | ask |
 
@@ -4603,6 +4648,7 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
+| 6.315.0 | ⌨️ ↑↓ reach the Jug Player's 🕘 history at last — the cursor was written when the card had one list, and the history was drawn under it four releases later | pending |
 | 6.314.0 | 🪟 a picker macOS refuses to open is a quiet keypress and a named line, not forty lines of traceback — his 20:30:01 NSInternalInconsistencyException, the same AppKit family as both .ips aborts | pending |
 | 6.313.0 | 🔒 the Jug Player's queue survives a save that fails — the store was opened with a truncating write, so a crash mid-save left it at zero bytes and the loader read that as "nothing queued" | pending |
 | 6.312.0 | 🔎 the report can say "not read yet" — it reported an empty queue, no history and a dead ⏯ two seconds after a boot, before any of the three had been read, and I called it lost data | pending |
@@ -5626,6 +5672,85 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.315.0 verify with LL — ⌨️ THE ARROWS REACH THE HISTORY (KNOWN GROUND)
+  WHAT CHANGED: ↑ and ↓ now walk the queue AND the 🕘 history as one
+  list, which is how the card draws them.
+  🔎 WHY IT WAS MISSING, and it is not a regression: the cursor was
+  written when the card had one list, and the history was added under it
+  four releases later. ↓ off the last track wrapped back to the first,
+  so the history below was reachable by mouse and by nothing else. The
+  rule for the first list was never re-asked when the second appeared.
+
+  A. THE HEADLINE — thirty seconds.
+  A1. ⇪⇧. (or ⇪⇧pad.) and drop two or three tracks so the queue has rows
+      and the 🕘 history below it has some too.
+  A2. Press ↓ until the highlight is on the LAST track in the queue, then
+      press ↓ once more.
+      EXPECT: the highlight moves into the 🕘 history, onto its FIRST
+      row. **A FAIL is the highlight jumping back to the top of the
+      queue** — that is the old behaviour exactly.
+  A3. Keep pressing ↓ through the history. At the last history row, ↓
+      once more.
+      EXPECT: it wraps to the top of the queue. One list, one loop.
+  A4. Press ↑ from the first history row.
+      EXPECT: back onto the LAST queue row.
+  A5. Watch the highlight the whole way: exactly ONE row is ever lit.
+      Two lit at once is a real finding — tell me.
+
+  B. WHAT THE KEYS DO DOWN THERE.
+  B1. Put the highlight on a history row and press ⏎.
+      EXPECT: that track plays, exactly as clicking it does — and the
+      highlight moves up to the queue row it just started.
+  B2. Put the highlight on a history row and press ⌫.
+      EXPECT: that row is FORGOTTEN — the same thing the ✕ does. The
+      queue is untouched and the file on disk is untouched.
+      **A FAIL is a track leaving the QUEUE instead**; that is what ⌫
+      used to mean everywhere and it is the worst thing this release
+      could get wrong.
+  B3. Do B2 on the row in the MIDDLE of three history rows and check the
+      right one went. It is forgotten by its path, not its number, for
+      the same reason the ✕ is (6.272.0).
+  B4. ⌫ on a QUEUE row still takes it out of the queue, unchanged.
+
+  C. MUST STILL WORK — the cursor touches every key on this card.
+  C1. ⌘1–⌘9 still plays the Nth track.
+  C2. space still pauses and resumes. Try it with the highlight down in
+      the history: it must pause what is PLAYING, not start a track.
+  C3. ← → still seek 5 s, ⇧← ⇧→ 30 s.
+  C4. Clicking a queue row plays it; clicking a history row plays it; the
+      ✕ on a history row forgets it without playing it.
+  C5. Drag the card by its title strip; close and reopen — unchanged.
+  C6. F8/⏯ still drives it while the card is on screen (6.309.0).
+
+  D. THE EDGE I MOST WANT TESTED.
+  D1. ✕ (or ⌫) the LAST remaining history row while the highlight is on
+      it. EXPECT: the highlight moves to the LAST queue row — the one
+      just above where it was, not the top of the card.
+  D2. Empty the queue entirely with the card open and history present.
+      EXPECT: the arrows still work, walking the history alone.
+  D3. With BOTH empty, press ↑↓.
+      EXPECT: nothing happens and nothing breaks.
+
+  E. PASTE BACK, PASS OR FAIL.
+  E1. `_G.musicReport()` — a new `↑↓` line says where the cursor is in
+      words: `on 🕘 history row 1 of 2 — "<track>"` or `on queue row 2 of
+      3 — "<track>"`, and `nothing to walk` when both lists are empty.
+      Run it with the highlight in each place; the line must CHANGE.
+  E2. If it ever says `⚠️ NO SUCH ROW, the highlight is drawn over
+      nothing`, paste it — that is the clamp failing and it is the one
+      state this release exists to make impossible.
+
+  F. A JUDGEMENT ONLY YOU CAN MAKE.
+  F1. Should ↓ off the last history row WRAP to the top of the queue, or
+      stop there? I made it wrap, because the two are drawn as one list
+      and that is how one list behaves — but a long history means a long
+      way back. "wrap is right" · "stop at the ends" decides it.
+  F2. 🔨 CRUDE OR ELEGANT: the history was unreachable by keyboard, but
+      it was always one click away and the Mac was fine. My reading is
+      that this is a feature ask created by the card growing a second
+      list, not a defect — so I have not put it in the ledger as a
+      problem. Correct me if it belongs there.
+
 - 6.314.0 verify with LL — 🪟 A PICKER THAT WILL NOT OPEN (KNOWN GROUND)
   WHAT CHANGED: when macOS refuses to put one of this config's pickers on
   screen, the key now does nothing quietly and says why, instead of

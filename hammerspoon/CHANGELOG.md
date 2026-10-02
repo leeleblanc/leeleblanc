@@ -5,6 +5,76 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.315.0 — ⌨️ THE ARROWS WALK THE 🕘 HISTORY TOO
+  (modules/music_player.lua). LL: "Can't use the arrow keys to move
+  thru the Jug player history list. Please make that happen." ↑↓
+  walked `mp.queue` and wrapped INSIDE it, so the history drawn
+  underneath — clickable since 6.231.0, ✕-able since 6.272.0 — could
+  not be reached from the keyboard at all. Not a regression and not a
+  bug exactly: the cursor was written when there was one list, and a
+  second list was drawn below it four releases later without anybody
+  asking what ↓ off the bottom of the first should do.
+
+  🔑 ONE CURSOR, NOT TWO SELECTIONS. The card draws the queue, a 🕘
+  heading, then the history, as ONE scrolling list — so that is what
+  the cursor is. `mp.selMove(cur, nq, nh, d)` is PURE: it flattens
+  queue-then-history into one run of positions, moves, and converts
+  back. ↓ off the last track lands on the first history row; ↓ off the
+  last history row wraps to the top of the queue; ↑ does the reverse.
+  A second highlight would have meant two rows lit at once and a rule
+  about which one ⏎ meant, which is a rule he would have to remember.
+
+  🚨 nh IS WHAT IS DRAWN, NEVER #mp.history. The card draws
+  `historyShow` (40) rows of a store holding up to `maxHistory` (400),
+  so a cursor counted off the store walks into rows that are not on
+  screen and the highlight simply vanishes off the bottom. One
+  function answers that question for both the cursor and the drawing
+  (`mp.histShown`), because the two disagreeing is the whole defect.
+
+  🔁 d = 0 CLAMPS RATHER THAN MOVES, and that is the second caller
+  (6.231.0). Every edit to either list — a drop, a ⌫, a ✕, a forget —
+  can leave the cursor past the end of the list it is in, and a
+  highlight on a row that is gone is the same defect as no highlight.
+  An emptied list hands the cursor to the other one, at the row
+  NEAREST where it was: a ✕ on the last history row lands on the LAST
+  queue row, not the first, because the history is drawn below the
+  queue and jumping to the top moves the eye the length of the card
+  for an edit that happened at the bottom of it. Its own check — the
+  wrong answer there reads perfectly well.
+
+  🗑 ⏎ AND ⌫ CARRY NO ROW NUMBER. Lua holds the one cursor and knows
+  which list it is in, so the page naming a row would be naming it in
+  a list the page has to guess — and naming a number a redraw may
+  already have renumbered. That is 6.272.0's rule one key along, where
+  the ✕ had to send a PATH for exactly this reason; ⌫ in the history
+  reads the path out of the row at the moment of the press and asks
+  for the forget by name. ⌘1–9 and clicks still name a row outright
+  and still go through `pick`, unchanged.
+
+  🚪 THREE EDITS, ONE DOOR EACH. ⌫, the ✕ and a click now all arrive
+  at `mp.removeAt` / `mp.forgetPath` / `mp.playHistory`, so there is
+  one body per edit rather than a copy in the keyboard branch and
+  another in the mouse branch, and each ends in the same clamp.
+
+  🔎 AND THE REPORT SAYS WHERE THE ARROWS ARE, in words, with three
+  answers (6.196.1): on a queue row · on a 🕘 history row · nothing to
+  walk, which is the honest state when both lists are empty and is NOT
+  the same as being on row 1 of nothing. "↑↓ did nothing" and "↑↓
+  moved somewhere I cannot see" are different faults and read
+  identically from the keyboard.
+
+  🔬 THE SWEEP FOUND BOTH OF ITS OWN FINDINGS, which is the half that
+  earns the release. (1) `mp.playAt` sets `mp.sel` to the queue row it
+  started and did not claim the list — so ⏎ on a history row played
+  the right track and left the cursor reading that queue number as a
+  HISTORY row, where the next ⌫ would have forgotten something else
+  entirely. Nothing in the play itself can see that. (2) The
+  empty-queue branch was written `p = nq + 1`, which READS like the
+  general case and is the same number — nq can only be 0 to reach it —
+  so no mutation could kill it: 6.199.0, a line no test can fail is a
+  comment pretending to be code. It is `p = 1` with the reason beside
+  it. 21 mutations, 21 bites after that.
+
 NEW IN 6.314.0 — 🔒 A PICKER THAT macOS REFUSES NO LONGER THROWS
   (init.lua `showPopup`). LL's Console, 20:30:01: an uncaught
   NSInternalInconsistencyException out of `-[NSRemoteView

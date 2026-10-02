@@ -1,4 +1,4 @@
-# TESTING — how to score release 6.314.0
+# TESTING — how to score release 6.315.0
 
 You install ONE archive and it carries several releases. Below are the
 steps for each release this archive is new for, newest first. Run the
@@ -26,6 +26,89 @@ else is a LOSS and I fix it before building further. You are the only
 scorer; I never mark my own.
 
 ---
+
+## 6.315.0
+
+6.315.0 verify with LL — ⌨️ THE ARROWS REACH THE HISTORY (KNOWN GROUND)
+WHAT CHANGED: ↑ and ↓ now walk the queue AND the 🕘 history as one
+list, which is how the card draws them.
+🔎 WHY IT WAS MISSING, and it is not a regression: the cursor was
+written when the card had one list, and the history was added under it
+four releases later. ↓ off the last track wrapped back to the first,
+so the history below was reachable by mouse and by nothing else. The
+rule for the first list was never re-asked when the second appeared.
+
+A. THE HEADLINE — thirty seconds.
+A1. ⇪⇧. (or ⇪⇧pad.) and drop two or three tracks so the queue has rows
+    and the 🕘 history below it has some too.
+A2. Press ↓ until the highlight is on the LAST track in the queue, then
+    press ↓ once more.
+    EXPECT: the highlight moves into the 🕘 history, onto its FIRST
+    row. **A FAIL is the highlight jumping back to the top of the
+    queue** — that is the old behaviour exactly.
+A3. Keep pressing ↓ through the history. At the last history row, ↓
+    once more.
+    EXPECT: it wraps to the top of the queue. One list, one loop.
+A4. Press ↑ from the first history row.
+    EXPECT: back onto the LAST queue row.
+A5. Watch the highlight the whole way: exactly ONE row is ever lit.
+    Two lit at once is a real finding — tell me.
+
+B. WHAT THE KEYS DO DOWN THERE.
+B1. Put the highlight on a history row and press ⏎.
+    EXPECT: that track plays, exactly as clicking it does — and the
+    highlight moves up to the queue row it just started.
+B2. Put the highlight on a history row and press ⌫.
+    EXPECT: that row is FORGOTTEN — the same thing the ✕ does. The
+    queue is untouched and the file on disk is untouched.
+    **A FAIL is a track leaving the QUEUE instead**; that is what ⌫
+    used to mean everywhere and it is the worst thing this release
+    could get wrong.
+B3. Do B2 on the row in the MIDDLE of three history rows and check the
+    right one went. It is forgotten by its path, not its number, for
+    the same reason the ✕ is (6.272.0).
+B4. ⌫ on a QUEUE row still takes it out of the queue, unchanged.
+
+C. MUST STILL WORK — the cursor touches every key on this card.
+C1. ⌘1–⌘9 still plays the Nth track.
+C2. space still pauses and resumes. Try it with the highlight down in
+    the history: it must pause what is PLAYING, not start a track.
+C3. ← → still seek 5 s, ⇧← ⇧→ 30 s.
+C4. Clicking a queue row plays it; clicking a history row plays it; the
+    ✕ on a history row forgets it without playing it.
+C5. Drag the card by its title strip; close and reopen — unchanged.
+C6. F8/⏯ still drives it while the card is on screen (6.309.0).
+
+D. THE EDGE I MOST WANT TESTED.
+D1. ✕ (or ⌫) the LAST remaining history row while the highlight is on
+    it. EXPECT: the highlight moves to the LAST queue row — the one
+    just above where it was, not the top of the card.
+D2. Empty the queue entirely with the card open and history present.
+    EXPECT: the arrows still work, walking the history alone.
+D3. With BOTH empty, press ↑↓.
+    EXPECT: nothing happens and nothing breaks.
+
+E. PASTE BACK, PASS OR FAIL.
+E1. `_G.musicReport()` — a new `↑↓` line says where the cursor is in
+    words: `on 🕘 history row 1 of 2 — "<track>"` or `on queue row 2 of
+    3 — "<track>"`, and `nothing to walk` when both lists are empty.
+    Run it with the highlight in each place; the line must CHANGE.
+E2. If it ever says `⚠️ NO SUCH ROW, the highlight is drawn over
+    nothing`, paste it — that is the clamp failing and it is the one
+    state this release exists to make impossible.
+
+F. A JUDGEMENT ONLY YOU CAN MAKE.
+F1. Should ↓ off the last history row WRAP to the top of the queue, or
+    stop there? I made it wrap, because the two are drawn as one list
+    and that is how one list behaves — but a long history means a long
+    way back. "wrap is right" · "stop at the ends" decides it.
+F2. 🔨 CRUDE OR ELEGANT: the history was unreachable by keyboard, but
+    it was always one click away and the Mac was fine. My reading is
+    that this is a feature ask created by the card growing a second
+    list, not a defect — so I have not put it in the ledger as a
+    problem. Correct me if it belongs there.
+
+
 
 ## 6.314.0
 
@@ -204,83 +287,6 @@ D2. 🔨 CRUDE OR ELEGANT: the Mac was fine throughout — what broke was
     reading is that a diagnostic lying about your data is worse than
     it sounds, but it degraded rather than making anything unusable.
     Your tag.
-
-
-
-## 6.311.0
-
-6.311.0 verify with LL — ⌨️ ⇪⇧. OPENS THE JUG PLAYER (KNOWN GROUND)
-WHAT CHANGED: ⇪⇧. (hyper + shift + the ordinary full stop) opens and
-closes the Jug Player. ⇪⇧pad. still does too — a second door, not a
-swap.
-🆓 AND YOUR QUESTION, ANSWERED PROPERLY: ⇪⇧. was NOT taken. I did not
-answer that from my notes — my notes are exactly what was wrong in
-6.276.0, when you were handed ⇪⇧pad. as "available" and this player
-had owned it for forty-five releases. I ran the gate's collision
-auditor, which loads the REAL config and names every claim: 76 combos
-bound, no ⇪⇧. among them. The near miss is ⇪. WITHOUT shift — that is
-menu_search, your front app's own menus — and a comment in that very
-file claimed "⇪⇧. is the network tools", which is wrong too
-(net_tools is ⇪6). Two notes, one of them false. The registry is the
-only thing that can answer this and it is what answered.
-🚪 WHY YOU KEEP BOTH KEYS, since you said "instead of pad": ⇪⇧pad.
-was shipped with no fallback ON YOUR OWN ANSWER in 6.231.0 ("Both
-macs, home/work, use a full Apple Keyboard and Magic pad"), so the
-premise moved rather than the decision being wrong. Removing it would
-cost the two Macs the feature was built for and buy nothing. Say the
-word and the numpad key goes — it is one line.
-
-A. THE HEADLINE — twenty seconds, on the mini keyboard.
-A1. Press ⇪⇧. (hold Caps Lock and Shift, press the full stop).
-    EXPECT: the Jug Player card appears in the top-right corner.
-A2. Press ⇪⇧. again. EXPECT: it closes.
-A3. Press ⇪⇧pad. (if you are at a keyboard with a numpad).
-    EXPECT: the same card, same corner, same state. One tool, two
-    doors — not two cards.
-A4. Open with ⇪⇧. and close with ⇪⇧pad., then the other way round.
-    EXPECT: they drive the SAME card. **A FAIL here — two windows, or
-    one key opening and the other doing nothing — is the bug this
-    release can have.**
-
-B. THE ONE THAT MUST NOT HAVE MOVED.
-B1. Press ⇪. (no shift). EXPECT: the front app's MENUS, as always.
-    That is menu_search and it is the key next door; if ⇪. now opens
-    the music card, stop and tell me at once.
-B2. Type a full stop in any app. EXPECT: a full stop.
-
-C. MUST STILL WORK — the card itself is untouched.
-C1. Drop two tracks on it; space, ↑↓, ⏎, ⌘1–9, ← →, ⌫, the ✕ on a
-    history row, the repeat button.
-C2. F8/⏯ drives it while the card is on screen and passes through to
-    macOS while it is closed (6.309.0).
-C3. Drag the card by its title strip; close and reopen — it is where
-    you left it.
-
-D. PASTE BACK, PASS OR FAIL.
-D1. `_G.musicReport()` — the heading should now read
-    `🎵 JUG PLAYER — ⇪⇧. · ⇪⇧pad.`, and a new `doors :` line reads
-    `2 way(s) in — ⇪⇧. · ⇪⇧pad.`. If that line ever says
-    `⚠️ NONE bound`, nothing opens the card and I want it immediately.
-D2. `_G.freeKeys()` — ⇪⇧. must NO LONGER be offered as free. Those
-    rows are read from the live registry, so this is 6.276.0 paying
-    for itself: nothing was edited by hand to make that happen.
-D3. ⇪/ and search `jug`. EXPECT the card's title and its first row
-    both to read `⇪⇧. · ⇪⇧pad.` — one row for the two keys, on
-    purpose: the sheet's own auditor reads a combo listed twice as a
-    conflict.
-
-E. A JUDGEMENT ONLY YOU CAN MAKE.
-E1. Is ⇪⇧. the right key, now that you have pressed it a few times?
-    ⇪⇧, (comma), ⇪⇧[ and ⇪⇧] are also genuinely free — measured, not
-    remembered. One word and it moves.
-E2. Do you want ⇪⇧pad. REMOVED? I kept it deliberately and you asked
-    for "instead of". Your call, one line either way.
-E3. 🔨 CRUDE OR ELEGANT: the Jug Player was completely unreachable on
-    the keyboard you are using — the tool was not degraded, it was
-    absent. But the Mac itself was fine. My reading is that this is a
-    feature ask created by a hardware change rather than a defect, so
-    I have not logged it as a problem. Correct me if it belongs in
-    the ledger as 🔨.
 
 
 

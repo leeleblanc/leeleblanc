@@ -266,16 +266,23 @@ console.log("── Music player: page JavaScript, executed ──");
   check("↓ walks the queue down", at(env, 1).a === "sel" && at(env, 1).d === 1);
   env.key("ArrowUp", { altKey: true });
   check("⌥↑ walks it up too", at(env, 2).a === "sel" && at(env, 2).d === -1);
+  // ⌨️ 6.315.0 — ⏎ AND ⌫ CARRY NO ROW NUMBER ANY MORE. The cursor walks
+  // two lists now and Lua holds it, so the page naming a row would be
+  // naming it in a list the page has to guess — and naming a number a
+  // redraw has already renumbered (6.272.0's trap, one key along).
+  // ⌘1-9 and clicks still name a row outright, and still send 'pick'.
   env.key("Enter");
-  check("⏎ plays the HIGHLIGHTED row, which is the one Lua sent",
-        at(env, 3).a === "pick" && at(env, 3).i === 2, JSON.stringify(env.sent[3]));
+  check("⏎ asks Lua to act on ITS cursor, with no row number",
+        at(env, 3).a === "enter" && at(env, 3).i === undefined,
+        JSON.stringify(env.sent[3]));
   env.key(" ");
   check("space is play / pause", at(env, 4).a === "play");
   env.key("Backspace");
-  check("⌫ takes the highlighted track out",
-        at(env, 5).a === "remove" && at(env, 5).i === 2);
+  check("⌫ asks Lua to delete at ITS cursor, with no row number",
+        at(env, 5).a === "del" && at(env, 5).i === undefined,
+        JSON.stringify(env.sent[5]));
   env.key("Delete");
-  check("…and so does Delete", at(env, 6).a === "remove");
+  check("…and so does Delete", at(env, 6).a === "del");
   env.key("Escape");
   check("Esc closes the card", at(env, 7).a === "esc");
   const n = env.sent.length;
@@ -492,6 +499,89 @@ console.log("── Music player: page JavaScript, executed ──");
   check("🚨 ↓ still walks the list — it did not become a seek",
         at(env, n).a === "sel" && at(env, n).d === 1,
         JSON.stringify(env.sent[n]));
+}
+
+// =====================================================================
+// 11. 6.315.0 — the history row lights up under the arrows
+// =====================================================================
+// LL: "Can't use the arrow keys to move thru the Jug player history
+// list." Lua now sends TWO numbers — sel for the queue, hsel for the
+// history — and exactly one of them is non-zero. The page must light
+// the right row, and the off-by-one is the whole bug it can have:
+// data-h counts from 0 and the cursor counts from 1.
+{
+  const payload = (sel, hsel) => JSON.stringify({
+    rows: [{ i: 1, n: "one" }, { i: 2, n: "two" }],
+    hist: [{ n: "h1", p: "/m/h1.mp3" }, { n: "h2", p: "/m/h2.mp3" }],
+    sel: sel, hsel: hsel, mode: "off", playing: false, refused: [],
+  });
+
+  {
+    const env = load();
+    env.draw(payload(0, 2));
+    const L = env.byId.list.innerHTML;
+    // 🚨 THE OFF-BY-ONE: hsel 2 is the SECOND history row, data-h="1".
+    check("🚨 hsel 2 lights the second history row, data-h=\"1\"",
+          L.indexOf('class="row sel" data-h="1"') !== -1, L);
+    check("🚨 ...and NOT data-h=\"2\", which does not exist, nor "
+          + "data-h=\"0\", which is the row above",
+          L.indexOf('row sel" data-h="0"') === -1
+          && L.indexOf('row sel" data-h="2"') === -1, L);
+    // 🔑 ONE CURSOR, ONE HIGHLIGHT. Two rows lit is the defect a second
+    // selection would have had, and it is invisible from Lua.
+    check("🔑 exactly one row is lit in the whole card",
+          (L.match(/row sel/g) || []).length === 1, L);
+    check("...and no QUEUE row is lit while the cursor is in the history",
+          L.indexOf('row sel" data-i=') === -1, L);
+  }
+
+  {
+    const env = load();
+    env.draw(payload(2, 0));
+    const L = env.byId.list.innerHTML;
+    check("the other way round: sel 2 lights queue row 2 and nothing "
+          + "in the history",
+          L.indexOf('data-i="2"') !== -1
+          && L.indexOf('row sel" data-h=') === -1
+          && (L.match(/row sel/g) || []).length === 1, L);
+  }
+
+  {
+    // 🔎 A payload from an OLDER build carries no hsel at all. It must
+    // draw as it always did rather than throwing or lighting row 0.
+    const env = load();
+    env.draw(JSON.stringify({
+      rows: [{ i: 1, n: "one" }],
+      hist: [{ n: "h1", p: "/m/h1.mp3" }],
+      sel: 1, mode: "off", playing: false, refused: [],
+    }));
+    const L = env.byId.list.innerHTML;
+    check("🔎 a payload with no hsel still draws, with the queue row lit",
+          L.indexOf('data-i="1"') !== -1
+          && (L.match(/row sel/g) || []).length === 1, L);
+  }
+
+  {
+    // 🗑 The ✕ still wins over the row it sits inside (6.272.0), and the
+    // highlight must not have changed that: the ✕ is INSIDE a lit row now.
+    const env = load();
+    env.draw(payload(0, 1));
+    const L = env.byId.list.innerHTML;
+    check("🗑 the ✕ is still drawn on a history row that is lit",
+          L.indexOf('class="row sel" data-h="0"') !== -1
+          && L.indexOf('data-x="0"') !== -1, L);
+  }
+
+  {
+    // 📋 The footer is where he reads what the keys do (6.203.0), and a
+    // hint that still says "pick" after the keys changed is 6.181.0.
+    // Read out of the PAGE SOURCE: the footer is markup the page never
+    // fetches by id, so the stub DOM has no element for it.
+    const ft = (html.match(/<footer id="ft">([\s\S]*?)<\/footer>/) || [])[1] || "";
+    check("📋 the footer really was found in the page", ft.length > 10, ft);
+    check("📋 ...and it says the arrows reach the history",
+          /history/i.test(ft), ft);
+  }
 }
 
 // =====================================================================

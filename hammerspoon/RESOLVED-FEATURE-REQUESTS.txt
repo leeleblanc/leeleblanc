@@ -1,5 +1,5 @@
 ========================================================================
-RESOLVED FEATURE REQUESTS — Hammerspoon config 6.314.0
+RESOLVED FEATURE REQUESTS — Hammerspoon config 6.315.0
 Every feature and how to use it. Generated from the modules' own
 cheat sheets (the rows ⇪/ draws), so it is never out of date.
 ⇪ = Caps Lock held (the hyper key). ⇪⇧X = Caps Lock + Shift + X.
@@ -598,13 +598,13 @@ In the Console, _G.<tool>Report() prints any tool's own report.
 🎵 JUG PLAYER (⇪⇧. · ⇪⇧pad. — a card in the corner, mp3 · m4a · wav · aiff)   [modules/music_player.lua]
   ⇪⇧. · ⇪⇧pad. Open / close the player
   drop      Drag files onto the card: the first plays, the rest queue under it
-  ↑ ↓ · ⏎ Walk the queue · play the highlighted track
+  ↑ ↓ · ⏎ Walk the queue AND the 🕘 history as one list · ⏎ plays
   ⌘1–⌘9 Play the Nth track in the queue
   space     Play / pause
   ⏮ ⏭   Previous · next — ⏭ moves on even under repeat one
   🔂 · 🔁 Repeat one · repeat all · off — click to cycle
-  🕘      History: the last tracks played, click one to play it again
-  ⌫       Take the highlighted track out of the queue
+  🕘      History: the last tracks played — ↑↓ reach it, ⏎ or a click plays it
+  ⌫       On a queue row: take it out · on a 🕘 history row: forget it
   ✕       On a 🕘 history row: forget that track (the file is not touched)
   drag      Move the card: grab its title strip — or ⌘-drag anywhere on it. It reopens where you left it
   volume    Use the Mac's own volume keys — this player has none, by design
@@ -777,6 +777,7 @@ In the Console, _G.<tool>Report() prints any tool's own report.
 
 📜 RELEASE INDEX — newest first, one line per release (the full story of each is in CHANGELOG.md)
 ------------------------------------------------------------------------
+  6.315.0  ⌨️ THE ARROWS WALK THE 🕘 HISTORY TOO
   6.314.0  🔒 A PICKER THAT macOS REFUSES NO LONGER THROWS
   6.313.0  🔒 A FAILED SAVE COSTS THE SAVE, NEVER THE THING SAVED
   6.312.0  🔎 THE REPORT CANNOT SAY WHAT IT HAS NOT READ

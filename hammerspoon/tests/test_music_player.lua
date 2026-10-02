@@ -440,6 +440,7 @@ local function reset()
     if mp.webview then pcall(mp.hide) end
     mp.queue, mp.history, mp.refused = {}, {}, {}
     mp.index, mp.sel, mp.mode = 0, 1, "off"
+    mp.selList = "queue"   -- 6.315.0
     mp.playing, mp.sound, mp.elapsed, mp.duration = false, nil, 0, 0
     mp.advances = { callback = 0, belt = 0, manual = 0 }
     mp.loaded, mp.enabled = true, true
@@ -3067,6 +3068,266 @@ do
     reset()
     check("the 6.313.0 block ran every one of its checks",
           (pass + fail) - n == 16, (pass + fail) - n)
+end
+
+
+-- =====================================================================
+-- §6.315.0 — ⌨️ THE ARROWS WALK BOTH LISTS
+-- =====================================================================
+-- LL: "Can't use the arrow keys to move thru the Jug player history
+-- list. Please make that happen." ↑↓ walked mp.queue and wrapped inside
+-- it, so the 🕘 history drawn underneath — clickable, ✕-able — could not
+-- be reached from the keyboard at all. The card draws the two as ONE
+-- scrolling list, so the cursor is one cursor over both.
+do
+    local n = pass + fail
+
+    -- ---- the rule, PURE -----------------------------------------------
+    local Q = function(i) return { list = "queue", i = i } end
+    local H = function(i) return { list = "hist",  i = i } end
+    local function at(c) return c and (c.list .. ":" .. c.i) or "nil" end
+
+    check("↓ inside the queue is an ordinary step",
+          at(mp.selMove(Q(1), 3, 2, 1)) == "queue:2", at(mp.selMove(Q(1), 3, 2, 1)))
+    -- 🚨 THE CHECK THAT BITES: the old body wrapped at #queue, so this
+    -- one answered queue:1 and the history was unreachable for ever.
+    check("🚨 ↓ off the LAST queue row lands on the FIRST history row",
+          at(mp.selMove(Q(3), 3, 2, 1)) == "hist:1", at(mp.selMove(Q(3), 3, 2, 1)))
+    check("↓ walks on down the history",
+          at(mp.selMove(H(1), 3, 2, 1)) == "hist:2", at(mp.selMove(H(1), 3, 2, 1)))
+    check("↓ off the LAST history row wraps to the top of the queue",
+          at(mp.selMove(H(2), 3, 2, 1)) == "queue:1", at(mp.selMove(H(2), 3, 2, 1)))
+    check("↑ off the FIRST history row goes back into the queue",
+          at(mp.selMove(H(1), 3, 2, -1)) == "queue:3", at(mp.selMove(H(1), 3, 2, -1)))
+    check("↑ off the first queue row wraps to the last history row",
+          at(mp.selMove(Q(1), 3, 2, -1)) == "hist:2", at(mp.selMove(Q(1), 3, 2, -1)))
+    check("with NO history it behaves exactly as it always did — "
+          .. "↓ off the end wraps inside the queue",
+          at(mp.selMove(Q(3), 3, 0, 1)) == "queue:1", at(mp.selMove(Q(3), 3, 0, 1)))
+    check("with an EMPTY queue the arrows walk the history alone",
+          at(mp.selMove(H(2), 0, 2, 1)) == "hist:1", at(mp.selMove(H(2), 0, 2, 1)))
+    check("🔎 both lists empty answers NIL, never row 1 of nothing — "
+          .. "a highlight drawn over no row is 6.196.1",
+          mp.selMove(Q(1), 0, 0, 1) == nil, at(mp.selMove(Q(1), 0, 0, 1)))
+
+    -- ---- d = 0 is the clamp, the second caller -------------------------
+    check("d = 0 leaves a valid cursor exactly where it is",
+          at(mp.selMove(H(2), 3, 4, 0)) == "hist:2", at(mp.selMove(H(2), 3, 4, 0)))
+    check("a cursor PAST the end of its list is pulled to the last row",
+          at(mp.selMove(Q(9), 3, 2, 0)) == "queue:3", at(mp.selMove(Q(9), 3, 2, 0)))
+    check("...and so is one past the end of the history",
+          at(mp.selMove(H(9), 3, 2, 0)) == "hist:2", at(mp.selMove(H(9), 3, 2, 0)))
+    -- 🚨 The branch a ✕ on the last history row takes: the list it was
+    -- in has emptied, and nil here would lose the highlight entirely.
+    check("🚨 a history cursor whose history has emptied moves into "
+          .. "the queue at its LAST row — the one just above it",
+          at(mp.selMove(H(1), 3, 0, 0)) == "queue:3", at(mp.selMove(H(1), 3, 0, 0)))
+    check("🚨 ...and a queue cursor whose queue has emptied moves into "
+          .. "the history",
+          at(mp.selMove(Q(2), 0, 2, 0)) == "hist:1", at(mp.selMove(Q(2), 0, 2, 0)))
+    check("a cursor below 1 is pulled up to row 1",
+          at(mp.selMove(Q(0), 3, 2, 0)) == "queue:1", at(mp.selMove(Q(0), 3, 2, 0)))
+    check("no cursor at all starts at the first row",
+          at(mp.selMove(nil, 3, 2, 0)) == "queue:1", at(mp.selMove(nil, 3, 2, 0)))
+    check("a big delta still lands inside the two lists",
+          at(mp.selMove(Q(1), 3, 2, 7)) == "queue:3", at(mp.selMove(Q(1), 3, 2, 7)))
+
+    -- ---- the cursor counts what is DRAWN, not what is stored -----------
+    -- 🚨 The card draws historyShow (40) rows of a store holding up to
+    -- 400. A cursor counted off #mp.history walks into rows nobody can
+    -- see and the highlight simply vanishes off the bottom.
+    do
+        reset()
+        for i = 1, 5 do
+            mp.history[i] = { path = "/m/h" .. i .. ".mp3",
+                              title = "h" .. i, at = 1000 - i }
+        end
+        local keep = mp.historyShow
+        mp.historyShow = 2
+        check("🚨 the cursor counts the history rows the card DRAWS",
+              mp.histShown() == 2, mp.histShown())
+        mp.selList, mp.sel = "hist", 2
+        mp.selFix(1)
+        check("🚨 ...so ↓ off the last DRAWN row wraps, it does not walk "
+              .. "into rows that are not on screen",
+              mp.selList == "queue" or mp.sel <= 2,
+              mp.selList .. ":" .. mp.sel)
+        mp.historyShow = keep
+    end
+
+    -- ---- driving the real page messages --------------------------------
+    local function setup3and2()
+        reset()
+        FILES["/m/a.mp3"], FILES["/m/b.mp3"], FILES["/m/c.mp3"] = true, true, true
+        OPENABLE["/m/a.mp3"], OPENABLE["/m/b.mp3"], OPENABLE["/m/c.mp3"] =
+            true, true, true
+        mp.show()
+        drop("file:///m/a.mp3\nfile:///m/b.mp3\nfile:///m/c.mp3")
+        mp.history = { { path = "/m/h1.mp3", title = "h1", at = 1000 },
+                       { path = "/m/h2.mp3", title = "h2", at = 999 } }
+        mp.selList, mp.sel = "queue", 3
+        mp.render()
+    end
+
+    setup3and2()
+    post({ a = "sel", d = 1 })
+    check("🎹 ↓ from the last track reaches the history through the "
+          .. "real page message",
+          mp.selList == "hist" and mp.sel == 1, mp.selList .. ":" .. mp.sel)
+
+    -- 🔎 AND THE PAGE IS TOLD, which is the half a pure check cannot see:
+    -- the cursor can be right in Lua and drawn nowhere.
+    -- 🔬 the clock is pushed after every draw, so JS[#JS] is the CLOCK
+    -- and a check reading it measures the wrong message entirely.
+    local function lastDraw()
+        for i = #JS, 1, -1 do
+            if tostring(JS[i]):sub(1, 5) == "draw(" then return JS[i] end
+        end
+        return ""
+    end
+    do
+        local last = lastDraw()
+        check("🔎 the card is sent hsel, so the history row can light up",
+              last:find('"hsel":1') ~= nil, last:sub(1, 300))
+        check("🚨 ...and sel is 0, so NO queue row is lit at the same "
+              .. "time — one cursor, one highlight",
+              last:find('"sel":0') ~= nil, last:sub(1, 300))
+    end
+
+    post({ a = "sel", d = -1 })
+    check("↑ comes back out of the history into the queue",
+          mp.selList == "queue" and mp.sel == 3, mp.selList .. ":" .. mp.sel)
+    do
+        local last = lastDraw()
+        check("...and then hsel is 0 while sel names the queue row",
+              last:find('"hsel":0') ~= nil and last:find('"sel":3') ~= nil,
+              last:sub(1, 300))
+    end
+
+    -- ---- ⏎ plays whichever list the cursor is in ------------------------
+    setup3and2()
+    FILES["/m/h2.mp3"], OPENABLE["/m/h2.mp3"] = true, true
+    mp.selList, mp.sel = "hist", 2
+    post({ a = "enter" })
+    check("🎵 ⏎ on a history row plays THAT track",
+          mp.queue[mp.index] and mp.queue[mp.index].path == "/m/h2.mp3",
+          mp.index .. " " .. tostring(mp.queue[mp.index]
+                                      and mp.queue[mp.index].path))
+    -- 🚨 AND THE CURSOR FOLLOWS IT INTO THE QUEUE. Found by the sweep:
+    -- playAt sets mp.sel to the queue row it started, so leaving
+    -- selList on "hist" makes that number a HISTORY row number — the
+    -- highlight lands on an unrelated track and the next ⌫ forgets it.
+    -- Nothing in the play itself can see that, which is why it survived.
+    check("🚨 ...and the cursor moves to the queue row it started, not "
+          .. "left reading that number as a history row",
+          mp.selList == "queue" and mp.sel == mp.index,
+          mp.selList .. ":" .. mp.sel .. " index " .. mp.index)
+
+    setup3and2()
+    mp.selList, mp.sel = "queue", 2
+    post({ a = "enter" })
+    check("🎵 ⏎ on a queue row still plays that track, unchanged",
+          mp.index == 2, mp.index)
+
+    -- ---- ⌫ removes from the queue, forgets in the history ---------------
+    setup3and2()
+    mp.selList, mp.sel = "queue", 2
+    post({ a = "del" })
+    check("⌫ on a queue row takes it out of the queue",
+          #mp.queue == 2 and mp.queue[2].path == "/m/c.mp3",
+          #mp.queue .. " " .. tostring(mp.queue[2] and mp.queue[2].path))
+    check("...and the history is untouched", #mp.history == 2, #mp.history)
+
+    setup3and2()
+    local before = #mp.queue
+    mp.selList, mp.sel = "hist", 1
+    post({ a = "del" })
+    check("🗑 ⌫ on a history row FORGETS it — the same thing the ✕ does",
+          #mp.history == 1 and mp.history[1].path == "/m/h2.mp3",
+          #mp.history .. " " .. tostring(mp.history[1] and mp.history[1].path))
+    check("🚨 ...and it does NOT touch the queue, which is what ⌫ used "
+          .. "to mean everywhere",
+          #mp.queue == before, #mp.queue .. "/" .. before)
+    check("🚨 ...and the cursor is still on a row that exists",
+          (mp.selList == "hist" and mp.sel <= #mp.history)
+          or (mp.selList == "queue" and mp.sel <= #mp.queue),
+          mp.selList .. ":" .. mp.sel)
+
+    -- 🗑 BY PATH, NEVER BY INDEX (6.272.0, and this is the same trap one
+    -- key along): the row number is renumbered by every redraw, so a
+    -- forget asked for by number forgets a different track than the one
+    -- the highlight was on. The fixture that bites is two rows whose
+    -- numbers and paths disagree about which is which.
+    do
+        setup3and2()
+        mp.history = { { path = "/m/x.mp3", title = "x", at = 1000 },
+                       { path = "/m/y.mp3", title = "y", at = 999 },
+                       { path = "/m/z.mp3", title = "z", at = 998 } }
+        mp.selList, mp.sel = "hist", 2
+        post({ a = "del" })
+        check("🗑 the row FORGOTTEN is the one the highlight was on, by "
+              .. "its path",
+              #mp.history == 2 and mp.history[1].path == "/m/x.mp3"
+              and mp.history[2].path == "/m/z.mp3",
+              (mp.history[1] and mp.history[1].path or "?") .. " "
+              .. (mp.history[2] and mp.history[2].path or "?"))
+    end
+
+    -- ---- the cursor survives an edit ------------------------------------
+    setup3and2()
+    mp.selList, mp.sel = "queue", 3
+    post({ a = "remove", i = 3 })
+    check("🔎 removing the row under the cursor leaves it on a row that "
+          .. "exists, never past the end",
+          mp.selList == "queue" and mp.sel == 2,
+          mp.selList .. ":" .. mp.sel)
+
+    setup3and2()
+    mp.history = { { path = "/m/h1.mp3", title = "h1", at = 1000 } }
+    mp.selList, mp.sel = "hist", 1
+    post({ a = "forget", p = "/m/h1.mp3" })
+    check("🔎 the ✕ emptying the history hands the cursor back to the "
+          .. "queue rather than leaving it over nothing",
+          mp.selList == "queue" and mp.sel >= 1 and mp.sel <= #mp.queue,
+          mp.selList .. ":" .. mp.sel)
+
+    -- ---- space must not read a history index as a queue index ------------
+    -- 🚨 mp.sel is a HISTORY row number while the cursor is down there,
+    -- and togglePlay fed it straight to playAt. With three tracks queued
+    -- and the cursor on history row 2 that played track 2, which is not
+    -- what space means and not a track he pointed at.
+    do
+        setup3and2()
+        mp.sound, mp.playing = nil, false
+        mp.selList, mp.sel = "hist", 2
+        mp.togglePlay()
+        check("🚨 space with the cursor in the history starts at the TOP "
+              .. "of the queue, not at history row 2 read as track 2",
+              mp.index == 1, mp.index)
+    end
+
+    -- ---- the report says where the arrows are ----------------------------
+    do
+        setup3and2()
+        mp.selList, mp.sel = "hist", 1
+        local said = report()
+        check("🔎 the report names which list the cursor is in",
+              said:find("🕘 history row 1 of 2") ~= nil, said:sub(1, 80))
+        setup3and2()
+        mp.selList, mp.sel = "queue", 2
+        said = report()
+        check("...and names the queue row when it is up there",
+              said:find("queue row 2 of 3") ~= nil, said:sub(1, 80))
+        reset()
+        said = report()
+        check("🔎 ...and with both lists empty it says there is nothing "
+              .. "to walk, which is not the same as being on row 1",
+              said:find("nothing to walk") ~= nil, said:sub(1, 80))
+    end
+
+    reset()
+    check("the 6.315.0 block ran every one of its checks",
+          (pass + fail) - n == 39, (pass + fail) - n)
 end
 
 if fail > 0 then

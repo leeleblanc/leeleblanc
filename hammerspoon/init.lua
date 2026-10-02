@@ -4,8 +4,25 @@
 -- =====================================================================
 -- 09-29-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.314.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.315.0
 -- =====================================================================
+
+-- NEW IN 6.315.0 — ⌨️ THE ARROWS WALK THE 🕘 HISTORY TOO
+--   (modules/music_player.lua). LL: "Can't use the arrow keys to move
+--   thru the Jug player history list." ↑↓ walked `mp.queue` and wrapped
+--   INSIDE it, so the history drawn below — clickable, ✕-able — could
+--   not be reached from the keyboard at all — and the card draws the
+--   two as ONE scrolling list, which is how he reads it.
+--   🔑 ONE CURSOR: `mp.selMove` is PURE and flattens queue-then-history
+--   into one run of positions, so ↓ off the last track lands on the
+--   first history row and the wrap comes back to the top. d = 0 CLAMPS
+--   — its second caller: an edit can leave it past the list's end.
+--   🚨 nh IS WHAT IS DRAWN, never #mp.history — the card shows 40 of a
+--   store holding 400. ⏎ and ⌫ carry NO row number: Lua holds the
+--   cursor, so the page cannot name a row a redraw renumbered, and ⌫
+--   in the history forgets BY PATH (6.272.0). 🔬 Two sweep survivors —
+--   playAt moved mp.sel without claiming the list, and `p = nq + 1`
+--   was `p = 1` no mutation could kill (6.199.0). 21/21 bite.
 
 -- NEW IN 6.314.0 — 🔒 A PICKER THAT macOS REFUSES NO LONGER THROWS
 --   (init.lua `showPopup`). LL's Console, 20:30:01: an uncaught
@@ -24,28 +41,11 @@
 --   torn down, not left holding its Esc claim (6.265.0); and
 --   `_G.popupShowReport()` counts asked against refused (6.274.0).
 
--- NEW IN 6.313.0 — 🔒 A FAILED SAVE COSTS THE SAVE, NEVER THE THING SAVED
---   (modules/music_player.lua). `saveNow` opened the queue store with
---   `io.open(path, "w")`, which TRUNCATES BEFORE IT WRITES A BYTE — so
---   a crash or a refused write in that window left it at ZERO BYTES,
---   which `mp.loadStore` reads as "nothing queued", in silence, after
---   which the next save makes it permanent — and his queue and history
---   are the only things here he cannot get back.
---   🔑 TEMP FILE, THEN RENAME — atomic within a filesystem, so the
---   store is the old one or the new one and never half. Every failure
---   path removes the temp and SAYS the queue is untouched (6.214.0);
---   6.199.0 gave his dictionary this and the store never got it.
---   🔬 THE HARNESS HAD TO BECOME FAITHFUL FIRST (6.290.0): its io.open
---   APPENDED across opens, so the zero-byte window was unreachable from
---   the gate. It truncates now, and os.rename/os.remove share a disk.
---   🚨 Its sentry first read the STUBBED io.open, found "" and passed
---   green over nothing (6.273.0); it asserts the size now.
-
--- (6.312.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.313.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 cut the inline count to
 --  TWO; a gate check proves every entry here is also in CHANGELOG.md.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.314.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.315.0
 -- =====================================================================
 -- The catalogue that used to sit here moved to GUIDE.md ("What each
 -- tool does") in 6.180.0 — 259 lines of prose inside the orchestrator.
@@ -138,7 +138,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.314.0"
+_G.configVersion = "6.315.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the
