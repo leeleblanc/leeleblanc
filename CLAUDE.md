@@ -1521,6 +1521,50 @@ work Mac.
   `realOpen` and ASSERTS the size now. GENERAL, again: a sentry over a
   haystack it did not prove it read is green and measures nothing.
 
+- 🪟 A PICKER macOS REFUSES TO OPEN IS A KEYPRESS, NOT A TRACEBACK
+  (6.314.0, init.lua's `showPopup` — LL's Console, 20:30:01, forty lines
+  ending `init.lua:2055: NSInternalInconsistencyException` out of
+  `HSChooser showWithHints:` → `-[NSRemoteView
+  containingWindowWillOrderOnScreen:]`). Another app's REMOTE VIEW
+  (Safari's URL-completion helper, Spotlight) was mid-transition and
+  AppKit refused the order-on-screen; `hs.chooser:show()` raised, and
+  nineteen modules' pickers were bare.
+  🔎 THE SAME FAMILY AS BOTH .ips ABORTS (6.262.0) AND AS 6.274.0's
+  REFUSED ALERTS — `containingWindowWillOrderOnScreen:` is the exact
+  callout in the 15:08 crash. `_G.showCanvasSafely` has guarded canvases
+  since 6.56.0 and `hs.alert` since 6.274.0; the CHOOSER, the surface
+  nineteen tools open on a keypress, had nothing. A class is not closed
+  because the two surfaces that happened to cost a release are.
+  🚨 AND init.lua:2055 IS NOT THE BUG, which is the half worth saying:
+  it is hyperBind's `error(r, 0)` re-raise, and 6.179.0 put it there on
+  purpose — a throw must still throw. Reading a traceback's last frame
+  as its cause would have deleted the one line that makes a broken
+  shortcut visible at all.
+  🚪 ONE DOOR, so the class closes in one function rather than nineteen
+  modules (6.266.0's shape): `showPopup` is the single placement path
+  and a source sentry has required every picker to use it since
+  6.160.1. A refusal now answers FALSE, is COUNTED
+  (`_G.popupShowReport()` — asked vs refused, which picker, macOS's own
+  words), NAMES itself once per five minutes, and CLEARS
+  `_G.lastPopupPlacement` (6.306.0 — a record that outlives its picker
+  hands window_move and the preview pane a box that never opened) and
+  TEARS THE CHOOSER DOWN (6.265.0 — an abandoned picker keeps its Esc
+  claim).
+  🧪 THE SWEEP FOUND THE UNDRIVEN HALF, which is why it is run: the
+  no-point branch — taken when `resolveBaseScreen` cannot name a screen
+  — survived its mutation, so its pcall could have been deleted and the
+  gate stayed green. 6.273.0, and the branch matters more than the
+  other one: no screen to answer about usually means the display set is
+  mid-change, which is exactly when AppKit refuses. Driven both ways
+  now; 7 mutations, 7 bites.
+  📏 THE LIFTED BLOCK CONSTRAINS THE FIX, and it is a real constraint
+  rather than a note: test_integration extracts `showPopup` from
+  init.lua by pattern and runs it in a bare env holding only
+  resolveBaseScreen, chooserTopLeft, `_G`, pcall and type — so added
+  code may use nothing else and may introduce no column-0 `end`. That
+  is the price of testing the SHIPPED text instead of a copy of it, and
+  it is worth paying.
+
 - 🖥 A HELPER THAT PICKS A SCREEN FOR YOU MUST NOT BE HANDED A POINT BY
   CODE THAT HAS ALREADY PICKED ONE (6.288.0, core/cheatsheet.lua — LL:
   "Appears on a different screen sometimes — and when it does it seems
@@ -4467,6 +4511,7 @@ that must be READ before a new cause is named.
 | "cmd+cmd does not bring up unified clip" | modules/clipboard_history.lua warm | 6.308.0 | 1 | ask |
 | "still hold play pause when not visible" | modules/music_player.lua | 6.289.0 · 6.291.0 · 6.309.0 | 3 | ask |
 | "history : 0 track(s)" two seconds after a boot — read as lost data | modules/music_player.lua report · M.warm | 6.312.0 · 6.313.0 | 1 | ask |
+| a picker throws `NSInternalInconsistencyException` instead of opening | init.lua `showPopup` · the AppKit remote-view family | 6.56.0 · 6.274.0 · 6.314.0 | 3 | ask |
 | "⇪⇧L needs to be more obvious" | modules/mouse_grid.lua | 6.167.0 · 6.195.0 · 6.310.0 | 3 | ask |
 | "can only be accessible via full keyboard" · "I can't tell if that key combo is taken" | modules/music_player.lua · the key registry | 6.276.0 · 6.311.0 | 1 | ask |
 
@@ -4558,6 +4603,7 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
+| 6.314.0 | 🪟 a picker macOS refuses to open is a quiet keypress and a named line, not forty lines of traceback — his 20:30:01 NSInternalInconsistencyException, the same AppKit family as both .ips aborts | pending |
 | 6.313.0 | 🔒 the Jug Player's queue survives a save that fails — the store was opened with a truncating write, so a crash mid-save left it at zero bytes and the loader read that as "nothing queued" | pending |
 | 6.312.0 | 🔎 the report can say "not read yet" — it reported an empty queue, no history and a dead ⏯ two seconds after a boot, before any of the three had been read, and I called it lost data | pending |
 | 6.311.0 | ⌨️ ⇪⇧. opens the Jug Player — the numpad key was unreachable on his mini keyboard, and the combo was free (asked of the registry, not of a note) | pending |
@@ -5580,6 +5626,79 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.314.0 verify with LL — 🪟 A PICKER THAT WILL NOT OPEN (KNOWN GROUND)
+  WHAT CHANGED: when macOS refuses to put one of this config's pickers on
+  screen, the key now does nothing quietly and says why, instead of
+  throwing forty lines of traceback into the Console.
+  🔎 YOUR OWN LOG IS THE WHOLE RELEASE, 20:30:01:
+      ⛔ LuaSkin: hs.chooser:show() ... NSInternalInconsistencyException
+         -[NSRemoteView containingWindowWillOrderOnScreen:]
+         ... init.lua:2055: ...
+  That is ANOTHER APP's popup — Safari's URL-completion helper or
+  Spotlight — being half-open at the moment you pressed the key. AppKit
+  refused, hs.chooser raised, and nothing in this config was catching it.
+  Canvases have been protected since 6.56.0 and alerts since 6.274.0; the
+  PICKERS — nineteen of them, the thing you press a key to get — were
+  bare.
+  🚨 AND init.lua:2055 IS NOT THE FAULT, in case the traceback made it
+  look like one: that line is the config deliberately re-raising a
+  shortcut's error so you SEE it. Deleting it would have hidden this and
+  everything like it. It is unchanged.
+
+  A. THE HEADLINE — and the honest part is that you cannot easily force
+     it. So this is mostly "use the Mac and see what does NOT happen".
+  A1. Use ⇪V, ⇪D, ⇪space, ⇪Y, ⇪⇧V, ⇪T for a few days as normal.
+      EXPECT: no change at all. Every picker opens as it did.
+  A2. If a picker ever does nothing, look at the Console.
+      EXPECT a single readable line:
+        ⚠️ picker: macOS refused to open the picker — usually another
+           app's popup (Safari's URL completion, Spotlight) was
+           mid-transition. Press the key again.
+      and NOT a traceback. Press the key again — it opens.
+  A3. Console: `_G.popupShowReport()` — new.
+      EXPECT on a healthy day:
+        asked   : <N> picker(s) opened this session
+        refused : none — macOS put every picker on screen
+      PASTE IT. If "refused" is a number, that is the bug happening to
+      you and the line under it names which picker and when.
+
+  B. IF YOU WANT TO TRY TO PROVOKE IT (optional, and it may not work —
+     the timing window is small).
+  B1. Click into Safari's address bar so its completion list is dropping
+      down, and press ⇪V in the same instant.
+  B2. EXPECT: either the picker opens normally, or it does not and you
+      get the one line from A2. What must NOT happen is a traceback, and
+      what must not happen next is the key being dead afterwards.
+
+  C. MUST STILL WORK — this touched the one function every picker in the
+     config opens through, so this is the regression sweep and it matters
+     more than A.
+  C1. ⇪V the clipboard · ⇪D unified search · ⇪space the launcher ·
+      ⇪Y Chrome history · ⇪. the menus · ⇪⇧S snippets · ⇪T the task form.
+      EXPECT: all open, all in the right place on the right monitor.
+  C2. ⌘-drag a picker to a new spot, close it, open it again.
+      EXPECT: it reopens where you put it. (That memory is the record
+      this release clears on a REFUSAL — it must be untouched on a
+      success.)
+  C3. Esc closes a picker, and Esc again does whatever it did before.
+  C4. ⌘⌘ still opens the clipboard, ⌥⌥ still opens the menus.
+
+  D. PASTE BACK, PASS OR FAIL.
+  D1. `_G.popupShowReport()` after a few days.
+  D2. If you ever get a traceback out of a picker again, paste the whole
+      thing — the frame ABOVE init.lua:2055 is what names the surface,
+      and that is the fact I could not have guessed.
+
+  E. 🔨 CRUDE OR ELEGANT.
+  E1. When this bit you at 20:30, what actually happened? Did the key do
+      nothing and you moved on, or was the Mac unusable for a moment?
+      I cannot tell from the log, and the answer is the tag.
+  E2. 📏 SAID RATHER THAN IMPLIED: this is the THIRD surface in this
+      family — canvases (6.56.0), alerts (6.274.0), now pickers. If
+      anything else of mine ever dies with
+      `containingWindowWillOrderOnScreen:` in it, that is a fourth
+      surface and the same fix, and the traceback is all I need.
+
 - 6.313.0 verify with LL — 🔒 YOUR QUEUE SURVIVES A FAILED SAVE (KNOWN GROUND)
   WHAT CHANGED: nothing you can press. The Jug Player writes its queue to
   a temporary file and then renames it into place, instead of opening the

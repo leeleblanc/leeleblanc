@@ -1,4 +1,4 @@
-# TESTING — how to score release 6.313.0
+# TESTING — how to score release 6.314.0
 
 You install ONE archive and it carries several releases. Below are the
 steps for each release this archive is new for, newest first. Run the
@@ -26,6 +26,83 @@ else is a LOSS and I fix it before building further. You are the only
 scorer; I never mark my own.
 
 ---
+
+## 6.314.0
+
+6.314.0 verify with LL — 🪟 A PICKER THAT WILL NOT OPEN (KNOWN GROUND)
+WHAT CHANGED: when macOS refuses to put one of this config's pickers on
+screen, the key now does nothing quietly and says why, instead of
+throwing forty lines of traceback into the Console.
+🔎 YOUR OWN LOG IS THE WHOLE RELEASE, 20:30:01:
+    ⛔ LuaSkin: hs.chooser:show() ... NSInternalInconsistencyException
+       -[NSRemoteView containingWindowWillOrderOnScreen:]
+       ... init.lua:2055: ...
+That is ANOTHER APP's popup — Safari's URL-completion helper or
+Spotlight — being half-open at the moment you pressed the key. AppKit
+refused, hs.chooser raised, and nothing in this config was catching it.
+Canvases have been protected since 6.56.0 and alerts since 6.274.0; the
+PICKERS — nineteen of them, the thing you press a key to get — were
+bare.
+🚨 AND init.lua:2055 IS NOT THE FAULT, in case the traceback made it
+look like one: that line is the config deliberately re-raising a
+shortcut's error so you SEE it. Deleting it would have hidden this and
+everything like it. It is unchanged.
+
+A. THE HEADLINE — and the honest part is that you cannot easily force
+   it. So this is mostly "use the Mac and see what does NOT happen".
+A1. Use ⇪V, ⇪D, ⇪space, ⇪Y, ⇪⇧V, ⇪T for a few days as normal.
+    EXPECT: no change at all. Every picker opens as it did.
+A2. If a picker ever does nothing, look at the Console.
+    EXPECT a single readable line:
+      ⚠️ picker: macOS refused to open the picker — usually another
+         app's popup (Safari's URL completion, Spotlight) was
+         mid-transition. Press the key again.
+    and NOT a traceback. Press the key again — it opens.
+A3. Console: `_G.popupShowReport()` — new.
+    EXPECT on a healthy day:
+      asked   : <N> picker(s) opened this session
+      refused : none — macOS put every picker on screen
+    PASTE IT. If "refused" is a number, that is the bug happening to
+    you and the line under it names which picker and when.
+
+B. IF YOU WANT TO TRY TO PROVOKE IT (optional, and it may not work —
+   the timing window is small).
+B1. Click into Safari's address bar so its completion list is dropping
+    down, and press ⇪V in the same instant.
+B2. EXPECT: either the picker opens normally, or it does not and you
+    get the one line from A2. What must NOT happen is a traceback, and
+    what must not happen next is the key being dead afterwards.
+
+C. MUST STILL WORK — this touched the one function every picker in the
+   config opens through, so this is the regression sweep and it matters
+   more than A.
+C1. ⇪V the clipboard · ⇪D unified search · ⇪space the launcher ·
+    ⇪Y Chrome history · ⇪. the menus · ⇪⇧S snippets · ⇪T the task form.
+    EXPECT: all open, all in the right place on the right monitor.
+C2. ⌘-drag a picker to a new spot, close it, open it again.
+    EXPECT: it reopens where you put it. (That memory is the record
+    this release clears on a REFUSAL — it must be untouched on a
+    success.)
+C3. Esc closes a picker, and Esc again does whatever it did before.
+C4. ⌘⌘ still opens the clipboard, ⌥⌥ still opens the menus.
+
+D. PASTE BACK, PASS OR FAIL.
+D1. `_G.popupShowReport()` after a few days.
+D2. If you ever get a traceback out of a picker again, paste the whole
+    thing — the frame ABOVE init.lua:2055 is what names the surface,
+    and that is the fact I could not have guessed.
+
+E. 🔨 CRUDE OR ELEGANT.
+E1. When this bit you at 20:30, what actually happened? Did the key do
+    nothing and you moved on, or was the Mac unusable for a moment?
+    I cannot tell from the log, and the answer is the tag.
+E2. 📏 SAID RATHER THAN IMPLIED: this is the THIRD surface in this
+    family — canvases (6.56.0), alerts (6.274.0), now pickers. If
+    anything else of mine ever dies with
+    `containingWindowWillOrderOnScreen:` in it, that is a fourth
+    surface and the same fix, and the traceback is all I need.
+
+
 
 ## 6.313.0
 
@@ -204,41 +281,6 @@ E3. 🔨 CRUDE OR ELEGANT: the Jug Player was completely unreachable on
     feature ask created by a hardware change rather than a defect, so
     I have not logged it as a problem. Correct me if it belongs in
     the ledger as 🔨.
-
-
-
-## 6.310.0
-
-6.310.0 verify with LL — 🎯 THE POINTER RINGS STEP OUTWARD (KNOWN GROUND)
-WHAT CHANGED: each of the three rings ⇪⇧L throws is 10% wider than the
-one before it, and the whole mark got bigger to hold the outermost.
-Your number, your answer — I have not substituted one of mine.
-
-A. THE HEADLINE — ten seconds.
-A1. Press ⇪⇧L. EXPECT: three white rings leaving the pointer, each
-    visibly larger than the last, repeating for six seconds.
-A2. Compare it to how it looked on 6.306.0 if you can. The outermost
-    ring now reaches 21% further out than it used to.
-A3. Console: `_G.mouseGridReport()` — a new "↳ growth" line reads
-    `each ring +10% on the one before it · outermost NNN pt of a NNN pt
-    canvas`. PASTE IT.
-
-B. MUST STILL WORK.
-B1. ⇪X: the grid draws, three letters land, the box splits by letter,
-    arrows nudge, Esc closes. Nothing about the grid changed.
-B2. On the 4K at full points the ring should still be bigger than on
-    the Air — the scale rule is untouched.
-
-C. A JUDGEMENT ONLY YOU CAN MAKE — and this is the one I want.
-C1. Is 10% enough? You asked for that number and I built exactly it,
-    but "more obvious" is your eye, not mine. If it still gets lost,
-    say which of these: bigger overall (`locateRadius`), MORE rings
-    (`locateRings`), a steeper step (`locateRingGrow`), or longer
-    (`locateSecs`). One word and it is a default change, not a release.
-C2. 🔨 CRUDE OR ELEGANT: did this ever make the Mac unusable, or did it
-    just not stand out? My reading is neither — it is a feature ask,
-    not a defect — so I have logged it as a request rather than a
-    problem. Correct me if it belongs in the ledger.
 
 
 

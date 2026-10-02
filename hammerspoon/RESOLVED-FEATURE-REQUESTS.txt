@@ -1,5 +1,5 @@
 ========================================================================
-RESOLVED FEATURE REQUESTS — Hammerspoon config 6.313.0
+RESOLVED FEATURE REQUESTS — Hammerspoon config 6.314.0
 Every feature and how to use it. Generated from the modules' own
 cheat sheets (the rows ⇪/ draws), so it is never out of date.
 ⇪ = Caps Lock held (the hyper key). ⇪⇧X = Caps Lock + Shift + X.
@@ -777,6 +777,7 @@ In the Console, _G.<tool>Report() prints any tool's own report.
 
 📜 RELEASE INDEX — newest first, one line per release (the full story of each is in CHANGELOG.md)
 ------------------------------------------------------------------------
+  6.314.0  🔒 A PICKER THAT macOS REFUSES NO LONGER THROWS
   6.313.0  🔒 A FAILED SAVE COSTS THE SAVE, NEVER THE THING SAVED
   6.312.0  🔎 THE REPORT CANNOT SAY WHAT IT HAS NOT READ
   6.311.0  ⌨️ ⇪⇧. IS A SECOND DOOR INTO THE JUG PLAYER

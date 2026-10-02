@@ -602,6 +602,36 @@ do
                       .. "intermittent is a COUNT, not a sample (6.274.0)",
                       type(_G.popupShow) == "table" and (_G.popupShow.asked or 0) >= 2,
                       _G.popupShow and _G.popupShow.asked)
+
+                -- 🚨 AND THE NO-POINT BRANCH IS DRIVEN TOO (6.273.0). The
+                -- sweep found the second show() surviving its mutation: a
+                -- Mac that cannot name a screen takes the OTHER branch, and
+                -- nothing reached it — so the pcall there could have been
+                -- deleted and the gate would have stayed green. That is the
+                -- branch a refusal is MOST likely on: no screen to answer
+                -- about usually means the display set is mid-change, which
+                -- is exactly when AppKit refuses to order a window on.
+                local keepScreen = env.resolveBaseScreen
+                env.resolveBaseScreen = function() return nil end
+                _G.lastPopupPlacement = { chooser = "stale" }
+                hidden, noted = 0, 0
+                local okBare, bare = pcall(showPopup, refuses)
+                check("🚨 a REFUSED picker with no screen to place on does "
+                      .. "not throw either — the branch a display change "
+                      .. "lands on", okBare, tostring(bare))
+                check("...and answers FALSE from that branch too",
+                      okBare and bare == false, tostring(bare))
+                check("...and is torn down and counted there as well",
+                      hidden == 1 and noted == 1, hidden .. "/" .. noted)
+                check("...and leaves no placement record behind",
+                      _G.lastPopupPlacement == nil)
+                local okNone, none = pcall(showPopup, fine)
+                check("✅ ...and an UNPLACED picker that opens still answers "
+                      .. "true, with no record (there is no point to record)",
+                      okNone and none == true
+                      and _G.lastPopupPlacement == nil, tostring(none))
+                env.resolveBaseScreen = keepScreen
+
                 _G.notePopupRefusal = nil
                 _G.lastPopupPlacement = nil
                 _G.popupShow = nil
