@@ -4,64 +4,48 @@
 -- =====================================================================
 -- 09-29-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.313.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.314.0
 -- =====================================================================
+
+-- NEW IN 6.314.0 — 🔒 A PICKER THAT macOS REFUSES NO LONGER THROWS
+--   (init.lua `showPopup`). LL's Console, 20:30:01: an uncaught
+--   NSInternalInconsistencyException out of `-[NSRemoteView
+--   containingWindowWillOrderOnScreen:]` — Safari's URL-completion
+--   helper was mid-transition and AppKit would not order
+--   HSChooserWindow in. It came up through hyperBind's re-raise
+--   (6.179.0, correct and unchanged) as forty lines of traceback with
+--   the key having done nothing. SAME AppKit family as the two .ips
+--   aborts; canvases have been guarded since 6.56.0, pickers never.
+--   🚪 ONE DOOR: a sentry already requires every chooser to be placed
+--   through showPopup, so the class closes in one function rather than
+--   nineteen modules (6.266.0). The show is pcall'd; CLEARED on a
+--   refusal, because window_move and the preview pane read
+--   `lastPopupPlacement` to find a live box (6.306.0); the chooser is
+--   torn down, not left holding its Esc claim (6.265.0); and
+--   `_G.popupShowReport()` counts asked against refused (6.274.0).
 
 -- NEW IN 6.313.0 — 🔒 A FAILED SAVE COSTS THE SAVE, NEVER THE THING SAVED
 --   (modules/music_player.lua). `saveNow` opened the queue store with
 --   `io.open(path, "w")`, which TRUNCATES BEFORE IT WRITES A BYTE — so
---   a crash, a full disk or a refused write inside that window left the
---   file at ZERO BYTES, and `mp.loadStore` reads zero bytes as "nothing
---   queued", in silence, after which the very next save writes the
---   empty queue over the top for good. His queue and his thirty days of
---   history are the only things in this module he cannot get back.
---   🔑 TEMP FILE, THEN RENAME. os.rename is atomic within a filesystem,
---   so the store on disk is either the old one or the new one and never
---   a half-written one. Every failure path removes the temp and SAYS
---   the saved queue is untouched (6.214.0). 6.199.0 applied exactly
---   this to his autocorrect dictionary and 6.307.0 was the day the same
---   shape ate a whole test file of ours; the store never got it.
---   🔬 AND THE HARNESS HAD TO BECOME FAITHFUL FIRST (6.290.0): its
---   io.open APPENDED across opens, so two saves to one path produced a
---   store no real Mac could hold and the zero-byte window was not
---   reachable from the gate at all. It truncates now, and os.rename /
---   os.remove work over the same virtual disk so a REFUSAL can be
---   driven rather than only an absence (6.265.0).
---   🚨 A SOURCE SENTRY holds the class: nothing in the module may open
---   the store for writing itself. Its first version read through the
---   STUBBED io.open, found an empty string, and passed — green over
---   nothing at all (6.273.0), caught only because its twin failed
---   beside it. It reads the real file and asserts the size now.
+--   a crash or a refused write in that window left it at ZERO BYTES,
+--   which `mp.loadStore` reads as "nothing queued", in silence, after
+--   which the next save makes it permanent — and his queue and history
+--   are the only things here he cannot get back.
+--   🔑 TEMP FILE, THEN RENAME — atomic within a filesystem, so the
+--   store is the old one or the new one and never half. Every failure
+--   path removes the temp and SAYS the queue is untouched (6.214.0);
+--   6.199.0 gave his dictionary this and the store never got it.
+--   🔬 THE HARNESS HAD TO BECOME FAITHFUL FIRST (6.290.0): its io.open
+--   APPENDED across opens, so the zero-byte window was unreachable from
+--   the gate. It truncates now, and os.rename/os.remove share a disk.
+--   🚨 Its sentry first read the STUBBED io.open, found "" and passed
+--   green over nothing (6.273.0); it asserts the size now.
 
--- NEW IN 6.312.0 — 🔎 THE REPORT CANNOT SAY WHAT IT HAS NOT READ
---   (modules/music_player.lua). `_G.musicReport()` run two seconds
---   after a boot said "queue : empty", "history : 0 track(s)" and
---   "⏯ keys : ⚠️ WANTED but not running". All three were FALSE: the
---   store is opened and the media tap is started in `M.warm`, seconds
---   after boot (6.267.0's lazy read), so none of them had happened
---   yet — and every one printed the words for "it happened and there
---   is nothing". 6.196.1 inside the instrument built to keep it, and
---   it cost an evening and a false alarm about lost data.
---   🗂 `mp.loadStore` had THREE silent exits — no file, zero bytes, a
---   decode that failed — and each records what it found now.
---   `mp.startMediaTap` records that an ATTEMPT was made before
---   anything can fail, because "warm has not run" and "macOS said no"
---   both leave `mediaTap` nil and printed the same ⚠️.
---   🔑 `mp.storeVerdict` is PURE with SIX answers, only two of which
---   are health, and it FAILS CLOSED on a state nobody recorded — a
---   report that cannot say what it found must not pick the
---   reassuring branch. The queue, history and ⏯ lines defer to it.
---   🕘 AND THE 30 IS NAMED AS A WINDOW. LL, reading "0 track(s) over
---   the last 30 day(s)": "I don't think we have 30-day music history
---   yet. Did we build jug player 30 days ago?" He was right to doubt
---   it — the player shipped 2026-09-16 — and the sentence read as a
---   statement about his data rather than about the retention rule.
-
--- (6.311.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.312.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 cut the inline count to
 --  TWO; a gate check proves every entry here is also in CHANGELOG.md.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.313.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.314.0
 -- =====================================================================
 -- The catalogue that used to sit here moved to GUIDE.md ("What each
 -- tool does") in 6.180.0 — 259 lines of prose inside the orchestrator.
@@ -154,7 +138,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.313.0"
+_G.configVersion = "6.314.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the
@@ -1102,6 +1086,60 @@ end
 -- getter), and a record that does not match the open picker reads as
 -- NO record. atPoint is for panels that place themselves deliberately;
 -- they still get a record.
+-- 🔒 6.314.0 — A CHOOSER'S :show() CAN THROW, AND NOTHING CAUGHT IT.
+-- LL's Console, 2026-09-29 20:30:01: NSInternalInconsistencyException
+-- out of `-[NSRemoteView containingWindowWillOrderOnScreen:]` — Safari's
+-- URL-completion helper was mid-transition and AppKit refused to order
+-- HSChooserWindow in. It travelled up through hyperBind's re-raise
+-- (6.179.0, correct, unchanged) and reached him as forty lines of
+-- traceback with the key having done nothing. SAME AppKit family as the
+-- two .ips aborts, and `showCanvasSafely` has guarded canvases against
+-- it since 6.56.0 while every picker here was bare. ONE DOOR: a source
+-- sentry already requires every chooser to be placed through showPopup,
+-- so the class closes here, not in nineteen modules (6.266.0's shape).
+_G.popupShow = _G.popupShow
+    or { asked = 0, refused = 0, last = nil, lastAt = nil, lastWhy = nil }
+
+-- Kept OUT of showPopup: the gate LIFTS that function and runs it in a
+-- bare env holding only pcall, type and _G, so anything reaching for
+-- print or os lives behind a global the lift can simply fail to find.
+function _G.notePopupRefusal(label, why)
+    local p = _G.popupShow
+    p.refused = p.refused + 1
+    p.last    = tostring(label or "picker")
+    p.lastWhy = tostring(why or "AppKit refused to order the window on screen")
+    pcall(function() p.lastAt = os.date("%H:%M:%S") end)
+    print("⚠️ " .. p.last .. ": macOS refused to open the picker — usually "
+          .. "another app's popup (Safari's URL completion, Spotlight) was "
+          .. "mid-transition. Press the key again.")
+    if _G.notices then
+        pcall(_G.notices.record, "runtime", p.last, p.lastWhy)
+        pcall(_G.notices.tell, "A picker would not open",
+              p.last .. " — press the key again",
+              { key = "popup:" .. p.last, every = 300 })
+    end
+end
+
+-- 🔎 "asked" beside "refused" is 6.274.0's rule: an intermittent failure
+-- is a COUNT, never a sample, and a picker never opened must not read
+-- the same as one macOS has never refused.
+function _G.popupShowReport()
+    local p = _G.popupShow or {}
+    local L = { "🗂 PICKER SHOW" }
+    L[#L + 1] = "   asked   : " .. tostring(p.asked or 0) .. " this session"
+    if (p.refused or 0) == 0 then
+        L[#L + 1] = "   refused : none — macOS opened every picker asked for"
+    else
+        L[#L + 1] = "   refused : ⚠️ " .. tostring(p.refused)
+            .. " — the key did nothing and SAID so"
+        L[#L + 1] = "   last    : " .. tostring(p.last)
+            .. (p.lastAt and (" at " .. tostring(p.lastAt)) or "")
+        L[#L + 1] = "   ↳ " .. tostring(p.lastWhy)
+    end
+    print(table.concat(L, "\n"))
+    return table.concat(L, "\n")
+end
+
 local function showPopup(chooser, atPoint)
     local screen = resolveBaseScreen()
     local pt = atPoint
@@ -1154,14 +1192,33 @@ local function showPopup(chooser, atPoint)
             end
         end
     end
+    -- 🔒 6.314.0 — GUARDED. Only pcall/type/_G below: the gate lifts this
+    -- function and runs it in a bare environment.
+    if type(_G.popupShow) == "table" then
+        _G.popupShow.asked = (_G.popupShow.asked or 0) + 1
+    end
+    local shown
     if pt then
         _G.lastPopupPlacement = { screen = screen, point = pt,
                                   chooser = chooser }
-        chooser:show(pt)
+        shown = pcall(function() chooser:show(pt) end)
     else
         _G.lastPopupPlacement = nil
-        chooser:show()
+        shown = pcall(function() chooser:show() end)
     end
+    if shown then return true end
+    -- 🚨 THE RECORD MUST NOT OUTLIVE THE PICKER (6.306.0): window_move's
+    -- ⌘-drag and the preview pane read lastPopupPlacement to find a live
+    -- box, so a refused show that left it set hands them one that never
+    -- opened — the stale-frame bug this field exists to end.
+    _G.lastPopupPlacement = nil
+    -- 🧊 And a refused picker is TORN DOWN, not left half-alive (6.265.0):
+    -- an abandoned chooser keeps its Esc claim.
+    pcall(function() chooser:hide() end)
+    if type(_G.notePopupRefusal) == "function" then
+        pcall(_G.notePopupRefusal, "picker")
+    end
+    return false
 end
 
 -- Repositions any currently-visible popup at its (possibly new) spot.

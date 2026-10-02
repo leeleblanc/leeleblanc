@@ -5,6 +5,25 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.314.0 — 🔒 A PICKER THAT macOS REFUSES NO LONGER THROWS
+  (init.lua `showPopup`). LL's Console, 20:30:01: an uncaught
+  NSInternalInconsistencyException out of `-[NSRemoteView
+  containingWindowWillOrderOnScreen:]` — Safari's URL-completion
+  helper was mid-transition and AppKit refused to order
+  HSChooserWindow in. It came up through hyperBind's re-raise
+  (6.179.0, correct and unchanged) and reached him as forty lines of
+  traceback with the key having done nothing. It is the SAME AppKit
+  family as the two .ips aborts, and `showCanvasSafely` has guarded
+  canvases against it since 6.56.0 while every picker was bare.
+  🚪 ONE DOOR: a source sentry already requires every chooser to be
+  placed through showPopup, so the class closes in one function
+  rather than nineteen modules (6.266.0's shape). The show is
+  pcall'd; `lastPopupPlacement` is CLEARED on a refusal, because
+  window_move and the preview pane read it to find a live box
+  (6.306.0); the chooser is torn down rather than left holding its
+  Esc claim (6.265.0); and `_G.popupShowReport()` counts asked
+  against refused, since intermittent is a count (6.274.0).
+
 NEW IN 6.313.0 — 🔒 A FAILED SAVE COSTS THE SAVE, NEVER THE THING SAVED
   (modules/music_player.lua). `saveNow` opened the queue store with
   `io.open(path, "w")`, which TRUNCATES BEFORE IT WRITES A BYTE — so

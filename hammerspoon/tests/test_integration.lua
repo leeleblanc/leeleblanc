@@ -560,6 +560,51 @@ do
                       and SHOWN[#SHOWN].y == 200 and _G.popupOffset.x == 0)
                 _G.lastPopupPlacement = nil
                 _G.popupOffset = nil
+
+                -- 🔒 6.314.0 — A CHOOSER THAT macOS REFUSES MUST NOT THROW.
+                -- LL's Console, 20:30:01: an NSInternalInconsistencyException
+                -- out of -[NSRemoteView containingWindowWillOrderOnScreen:]
+                -- came up through hyperBind's re-raise as forty lines of
+                -- traceback with the key having done nothing. Canvases have
+                -- been guarded since 6.56.0; every picker here was bare.
+                local hidden, noted = 0, 0
+                _G.notePopupRefusal = function() noted = noted + 1 end
+                -- init.lua defines this table immediately above showPopup;
+                -- the lifted env has no init, so the suite supplies it —
+                -- which is also what proves the counting is real.
+                _G.popupShow = { asked = 0, refused = 0 }
+                local refuses = {
+                    show = function() error("NSInternalInconsistencyException", 0) end,
+                    hide = function() hidden = hidden + 1 end,
+                }
+                _G.lastPopupPlacement = nil
+                local okCall, answer = pcall(showPopup, refuses)
+                check("🚨 a picker macOS REFUSES does not throw out of "
+                      .. "showPopup — it is the key doing nothing, not a "
+                      .. "traceback", okCall, tostring(answer))
+                check("...and it answers FALSE, so a caller CAN know (6.265.0 "
+                      .. "— a helper that always says true is the bug)",
+                      okCall and answer == false, tostring(answer))
+                check("🚨 ...and the placement record is CLEARED, or window_move "
+                      .. "and the preview pane aim at a picker that never "
+                      .. "opened (6.306.0)", _G.lastPopupPlacement == nil)
+                check("🧊 ...and the refused picker is TORN DOWN, never left "
+                      .. "holding its Esc claim (6.265.0)", hidden == 1, hidden)
+                check("...and the refusal is COUNTED, never swallowed (6.214.0)",
+                      noted == 1, noted)
+
+                -- ...and the healthy path is unchanged and says so.
+                local fine = { show = function() end }
+                local okOK, yes = pcall(showPopup, fine)
+                check("✅ a picker that opens answers TRUE", okOK and yes == true,
+                      tostring(yes))
+                check("...and asking is counted apart from refusing — "
+                      .. "intermittent is a COUNT, not a sample (6.274.0)",
+                      type(_G.popupShow) == "table" and (_G.popupShow.asked or 0) >= 2,
+                      _G.popupShow and _G.popupShow.asked)
+                _G.notePopupRefusal = nil
+                _G.lastPopupPlacement = nil
+                _G.popupShow = nil
             end
         end
     end
