@@ -5,6 +5,90 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.317.0 — 💾 WHERE YOUR WRITING IS, AND WHEN IT LAST LANDED
+  (modules/write_ledger.lua). LL: "Each init.lua should give me a
+  readout of where the files are that clipboard history go and give the
+  last date anything was written into any log/store/file so I know that
+  history is still being saved. Add to this anything you think that is
+  worth adding. I don't want to find out when I need it most, something
+  hasn't been saving. Since we are using OneDrive and I have both a work
+  macbook and home macbook, I need to know if the files I am using to
+  store data cannot be used."
+
+  🔎 AND MOST OF IT ALREADY EXISTED. `_G.saved()` has printed every
+  store with its size, its row count, when it was last written and how
+  much it has grown since boot — since 6.115.0, which is three hundred
+  releases ago. It even writes a probe file into the Logs folder and
+  reads it back, because "the folder exists" and "the folder will take a
+  write right now" are different claims and the second is the one that
+  fails when OneDrive goes offline. He had never seen any of it.
+
+  🔑 SO THIS IS 6.271.0'S LESSON A SECOND TIME, and it is worth saying
+  plainly because it is the recurring shape of this project's failures:
+  THE INSTRUMENT WAS NOT THE GAP, THE DOOR WAS. Seventy-two test plans
+  were written and filed somewhere he could not read them; every number
+  he asked for here was one Console command away and nothing had ever
+  told him the command existed. A diagnostic nobody knows to run is a
+  diagnostic that does not exist, and the fix is never a better
+  diagnostic — it is printing it where he already looks.
+
+  🚨 AND THE LINE THAT MATTERS MOST IS THE ONE ABOUT THE NOTES. init.lua
+  works OneDrive out at boot inside a pcall, so when that comes back nil
+  it fails SILENTLY; vault.lua then sets `v.dir` to a LOCAL folder, and
+  `v.scan`'s mkdirp CREATES it. The result is a Hamsidian that opens an
+  empty folder, reports "no notes yet" — which is true of that folder —
+  and leaves every note sitting untouched in OneDrive. That is the exact
+  shape of the morning he wrote "How do I restore my Hamsidian notes?
+  They are gone. But I did not delete them", and there was no line
+  anywhere in this config that would have said so. There is now, in
+  capitals, on a readout he reads every boot, and it says the three
+  things that matter: which folder, that the notes are NOT lost, and
+  what to do (start OneDrive and reload).
+
+  📋 A STORE HE NAMED THAT IS NOT THERE IS THE FACT HE WANTS.
+  `wl.watchFor` lists the stores he has asked about by name — the
+  clipboard, the Hamsidian tabs, the OCR text, the file history, the app
+  sessions. A hand-kept list is usually the defect in this config
+  (6.276.0 deleted one for lying about free keys), and the thing that
+  makes this one safe is that its FAILURE MODE IS INVERTED: a name that
+  matches no file on disk prints "⚠️ NO FILE MATCHING … nothing is being
+  saved for it", never nothing. Forgetting to add a store costs a
+  missing line; forgetting to remove one costs a loud wrong line. Both
+  are visible, which is the opposite of a list that quietly certifies
+  health.
+
+  🗂 AND THE HAMSIDIAN TABS WERE NOT IN THE LEDGER AT ALL. scratch.json
+  lives in `<Logs>/scratch`, one folder down, and `wl.dirs()` named the
+  Logs folder and `<Logs>/Terminal+Ghostty` and stopped. So the store
+  holding every scratch tab he has ever typed was invisible to the
+  module whose entire job is proving his stores are saving — found not
+  by reading the module but by asking his own question of it: name the
+  folder each store is in, then check that it is scanned.
+
+  🕸 THE NOTES FOLDER IS READ FROM THE VAULT MODULE, NEVER RECOMPUTED.
+  `wl.vaultFacts()` takes `_G.vault.dir` when the module is loaded,
+  because that is the folder it is ACTUALLY using; working it out from
+  core again would be a second copy of a decision, and the two
+  disagreeing is precisely the defect being reported on (6.276.0: read
+  the truth, never retype it). Only when the module is absent does it
+  compute one, and it says which.
+
+  ⏱ ON A HELD TIMER, TEN SECONDS AFTER WARM, and the delay is a rule
+  rather than a round number: the notes index is built by /usr/bin/find
+  in a task, so at warm() it has usually not answered, and a readout
+  that says "the index has not finished yet" every single morning is a
+  line he learns to scroll past — which is the one thing a readout must
+  never become. 🚨 A MAC THAT CANNOT ARM A TIMER STILL GETS IT, printed
+  at once and possibly early: saying nothing is not one of the options
+  in the release whose entire subject is not being told.
+
+  📏 SAID RATHER THAN IMPLIED: this release is deliberately NOT silent
+  on a healthy Mac, which is the opposite of 6.269.0's rule that a new
+  instrument's first duty is to be quiet. He asked for the healthy case
+  in writing, and the whole value is knowing the stores ARE saving on
+  the three hundred days before the one when they are not.
+  `settings = { write_ledger = { sayStores = false } }`.
+
 NEW IN 6.316.0 — 🚨 A HAMSIDIAN SAVE THAT FAILS IS IMPOSSIBLE TO MISS
   (core/notices.lua + modules/vault.lua + modules/scratch_pad.lua).
   LL, in capitals and in the middle of a list of features: "!!CRITICAL:

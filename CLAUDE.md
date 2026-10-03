@@ -3066,6 +3066,51 @@ work Mac.
   them passed this bug for 208 releases. The storm reached Chrome as
   Vimium keys: a stray "t" is a new tab, "o" the omnibar.
 
+- 🚪 A DIAGNOSTIC NOBODY KNOWS TO RUN DOES NOT EXIST (6.317.0,
+  modules/write_ledger.lua — LL: "Each init.lua should give me a readout
+  of where the files are that clipboard history go and give the last
+  date anything was written into any log/store/file … I don't want to
+  find out when I need it most, something hasn't been saving").
+  🔎 AND EVERY NUMBER HE ASKED FOR ALREADY EXISTED. `_G.saved()` has
+  printed each store's path, size, rows, last write and growth since
+  boot since 6.115.0, and writes a probe file into the Logs folder and
+  reads it back because "the folder exists" and "the folder will take a
+  write now" are different claims. Three hundred releases, and he had
+  never seen one line of it.
+  🔑 THE RULE, and it is 6.271.0's with the serial number filed off:
+  **THE INSTRUMENT IS NOT THE GAP, THE DOOR IS.** When he asks for
+  something this config can already answer, the work is never a better
+  report — it is printing the one that exists where he already looks.
+  Check for the existing instrument FIRST and say plainly that it
+  existed; shipping a second report beside a working one is how a
+  config grows two answers to one question.
+  🚨 AND THE LINE THAT EARNED THE RELEASE IS ABOUT THE NOTES. init.lua
+  resolves OneDrive inside a pcall, so a failure is SILENT; vault.lua
+  then points `v.dir` at a LOCAL folder and `v.scan`'s mkdirp creates
+  it, so Hamsidian opens an empty folder and honestly says "no notes
+  yet" about the wrong place. That is the whole shape of "my notes are
+  gone. But I did not delete them", and nothing said so. The readout
+  says it in capitals, says the notes are NOT lost, and says what to do.
+  GENERAL: when a resolution step can fail silently and a DEFAULT takes
+  over, the default must announce itself — a fallback nobody is told
+  about is indistinguishable from the thing it replaced.
+  📋 A HAND-KEPT LIST IS SAFE ONLY WHEN ITS FAILURE IS LOUD. `watchFor`
+  names the stores he has asked about, which is exactly the shape
+  6.276.0 deleted for lying about free keys — the difference is the
+  inverted failure mode: a name matching no file prints "⚠️ NO FILE
+  MATCHING", never nothing. Forgetting to add costs a missing line;
+  forgetting to remove costs a loud wrong one. Both are visible, which
+  is the opposite of a list that quietly certifies health.
+  🗂 AND IT FOUND A REAL HOLE BY ASKING ITS OWN QUESTION: `<Logs>/scratch`
+  was never scanned, so scratch.json — every Hamsidian tab he has ever
+  typed — was invisible to the module that proves stores are saving.
+  ⏱ A held timer ten seconds after warm, because the notes index is a
+  find in a task and a readout saying "not finished yet" every morning
+  is a line he scrolls past. A Mac that cannot arm one prints at once
+  and early — silence is not an option in a release about not being
+  told. 📏 It is deliberately NOT silent when healthy (the opposite of
+  6.269.0) because he asked for the healthy case in writing.
+
 - 🚨 A TOOL THAT WARNS THROUGH ONE CHANNEL WARNS THROUGH NONE
   (6.316.0, core/notices.lua + modules/vault.lua + scratch_pad.lua —
   LL, in capitals: "!!CRITICAL: HAMSIDIAN MUST THROW VISIBLE ERRORS IF
@@ -4693,6 +4738,7 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
+| 6.317.0 | 💾 every boot says where your stores are and when each last saved — and SHOUTS when the notes folder is a local one OneDrive was not found for | pending |
 | 6.316.0 | 🚨 a Hamsidian save that fails is impossible to miss — it warned through the one channel macOS is measured to refuse, behind a per-session switch, and never reached the 4 PM log | pending |
 | 6.315.0 | ⌨️ ↑↓ reach the Jug Player's 🕘 history at last — the cursor was written when the card had one list, and the history was drawn under it four releases later | pending |
 | 6.314.0 | 🪟 a picker macOS refuses to open is a quiet keypress and a named line, not forty lines of traceback — his 20:30:01 NSInternalInconsistencyException, the same AppKit family as both .ips aborts | pending |
@@ -5718,6 +5764,83 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.317.0 verify with LL — 💾 WHERE YOUR WRITING IS (KNOWN GROUND)
+  WHAT CHANGED: every boot now prints a block saying where your stores
+  are and when each last saved — without you asking for it.
+  🔎 AND MOST OF IT ALREADY EXISTED, which is the honest part.
+  `_G.saved()` has listed every store with its size, rows, last write
+  and growth since boot since 6.115.0 — three hundred releases — and has
+  written a probe file into the Logs folder and read it back to prove
+  the folder still takes writes. You had never seen any of it. That is
+  the same failure as the test plans: the instrument was not the gap,
+  the DOOR was. So it prints where you already look.
+
+  A. THE HEADLINE — reload and read the Console. Ten seconds later:
+        💾 STORES — 24 files in /Users/…/OneDrive-Personal/Logs
+           last write : clipboard_history-….json — just now  ·  quietest: …
+           📋 clipboard      : /Users/…/clipboard_history-….json  ·  just now
+           📝 Hamsidian tabs : /Users/…/Logs/scratch/scratch.json  ·  4 minutes ago
+           🔤 OCR text       : …
+           📂 file history   : …
+           ⏱ app sessions   : …
+           🕸 Hamsidian notes : /Users/…/OneDrive-Personal/Vault  ·  412 notes
+           ↳ _G.saved() lists every file…
+  A1. Read the 📋 clipboard line. That is the answer to "where does the
+      clipboard history go" and it is now in front of you every morning.
+  A2. Read the 🕸 line. That is the folder Hamsidian is really using —
+      read out of the notes module itself, not worked out again here.
+  A3. Any line reading **⚠️ NO FILE MATCHING** means a store you have
+      asked me about has NO file at all. Paste it. That is the whole
+      point of the list and the one thing it must never be silent about.
+  A4. `_G.stores()` prints the same block whenever you want it.
+
+  B. THE LINE THAT MATTERS MOST, and it is the one that would have
+     answered last week. If OneDrive is not running when Hammerspoon
+     boots, the notes folder silently becomes a LOCAL one and Hamsidian
+     creates it empty — so it says "no notes yet" and is telling the
+     truth about the wrong folder.
+  B1. To see it on purpose: quit OneDrive, reload Hammerspoon, wait ten
+      seconds.
+      EXPECT:
+        🚨 THE NOTES FOLDER IS LOCAL ONLY — /Users/…/.hammerspoon/vault
+           OneDrive was not found when this config booted, so Hamsidian is
+           reading an EMPTY LOCAL FOLDER and will say "no notes yet".
+           Your notes are not lost — they are in OneDrive, which this Mac
+           could not see. Start OneDrive and reload (⌘⌃R).
+  B2. Start OneDrive, reload, wait ten seconds.
+      EXPECT: the 🚨 is gone and the 🕸 line names your OneDrive Vault
+      with a real note count.
+      **If the 🚨 ever appears when OneDrive IS running, stop and paste
+      it** — that is the real bug and it is the one you hit.
+
+  C. MUST STILL WORK.
+  C1. `_G.saved()` still prints the full table, and it now carries the
+      same block at its top — one source, two surfaces.
+  C2. ⇪⇧D still carries the write-ledger section.
+  C3. Boot is not slower: the block is on a held timer ten seconds after
+      everything else. If you ever see it BEFORE the boot summary, that
+      Mac could not arm a timer and it printed early on purpose.
+
+  D. PASTE BACK, PASS OR FAIL.
+  D1. The block itself, from an ordinary morning. The two numbers I want
+      are the note count and the "last write" line.
+  D2. From the WORK MAC too. That is the Mac where the OneDrive answer
+      is most likely to differ, and this is the first build that can say
+      so in one line.
+
+  E. A JUDGEMENT ONLY YOU CAN MAKE.
+  E1. Six lines at every boot. Too much? Too little? I deliberately
+      broke the rule that a new instrument should be silent when
+      healthy, because you asked for the healthy case in writing — the
+      value is knowing it IS saving on the three hundred days before the
+      one when it is not. `settings = { write_ledger = { sayStores =
+      false } }` turns it off; say the word and I will change the
+      default instead.
+  E2. Which stores should be named by name? Right now: clipboard,
+      Hamsidian tabs, OCR text, file history, app sessions. Name any
+      others and they go on the list — and a named store with no file
+      shouts, so the list can only fail loudly.
+
 - 6.316.0 verify with LL — 🚨 A FAILED SAVE IS IMPOSSIBLE TO MISS (KNOWN GROUND)
   WHAT CHANGED: when Hamsidian cannot write — a note or a scratch tab —
   it now says so through FOUR channels instead of one, and the warning

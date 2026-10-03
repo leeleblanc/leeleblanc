@@ -68,6 +68,8 @@ local M = {
             { "shrunk",   "An append-only log that shrank is called out; a store" },
             { "",         "rewritten whole (⇪I cache, .json) may shrink — that is normal" },
             { "quiet",    "Checks itself every 30 min and says NOTHING unless wrong" },
+            { "_G.stores()", "WHERE every store is and when each last saved — printed at boot" },
+            { "",         "🚨 and it SHOUTS when the notes folder is local instead of OneDrive" },
         },
     },
 }
@@ -78,6 +80,13 @@ function M.setup(core)
     -- ✏️ EDIT HERE ---------------------------------------------------------
     wl.enabled      = true
     wl.checkEvery   = 1800      -- seconds between quiet background checks
+    -- 💾 6.317.0 — the boot readout. ON by default and said out loud,
+    -- which is deliberately NOT 6.269.0's "a new instrument is silent
+    -- when healthy": he asked for the healthy case in writing, because
+    -- the whole point is knowing his stores ARE saving before a day
+    -- when they are not.
+    wl.sayStores     = true
+    wl.storeSayAfter = 10       -- seconds after warm, so the notes index has answered
     wl.rowCountMax  = 4 * 1024 * 1024   -- don't count rows in files bigger than this
     wl.staleDays    = 7         -- a same-named twin untouched this long is called out
     wl.exts         = { csv = true, json = true, log = true, txt = true }
@@ -131,6 +140,13 @@ function M.setup(core)
         if core.logsDir then
             d[#d + 1] = core.logsDir
             d[#d + 1] = core.logsDir .. "/Terminal+Ghostty"
+            -- 💾 6.317.0 — AND THE HAMSIDIAN TABS. scratch.json lives one
+            -- folder down (`<Logs>/scratch`), so the store holding every
+            -- scratch tab he has ever typed was invisible to the module
+            -- whose whole job is proving his stores are saving. Found by
+            -- asking his own question of this file: name the folder each
+            -- store is in, and check that it is scanned.
+            d[#d + 1] = core.logsDir .. "/scratch"
         end
         d[#d + 1] = hs.configdir
         return d
@@ -413,11 +429,165 @@ function M.setup(core)
     end
 
     -- ---- 💾 the report ------------------------------------------------------
+    -- =====================================================================
+    -- 💾 6.317.0 — WHERE YOUR WRITING IS, AND WHEN IT LAST LANDED
+    -- =====================================================================
+    -- LL: "Each init.lua should give me a readout of where the files are
+    -- that clipboard history go and give the last date anything was
+    -- written into any log/store/file so I know that history is still
+    -- being saved … I don't want to find out when I need it most,
+    -- something hasn't been saving."
+    --
+    -- 🔎 MOST OF IT EXISTED AND HE HAD NEVER SEEN IT. `_G.saved()` has
+    -- listed every store with its size, rows and last write since
+    -- 6.115.0. That is 6.271.0's lesson a second time — the test plans
+    -- were written for months and never shipped where he could find
+    -- them — and the answer is the same: the instrument was not the
+    -- gap, the DOOR was. So this block is printed at every boot,
+    -- unasked, and `_G.saved()` carries the identical lines.
+    --
+    -- 🚨 AND THE LINE THAT MATTERS MOST IS THE ONE ABOUT THE NOTES.
+    -- init.lua works OneDrive out at boot inside a pcall; if that comes
+    -- back nil, vault.lua's `v.dir` silently becomes a LOCAL folder and
+    -- `v.scan`'s mkdirp MAKES it — so Hamsidian opens an empty folder,
+    -- honestly reports "no notes yet", and is telling the truth about
+    -- the wrong place while every note sits untouched in OneDrive. That
+    -- is the shape of the morning he thought he had lost his notes, and
+    -- nothing in this config said so out loud. It does now, in capitals,
+    -- on a line he reads every boot, with what to do about it.
+
+    -- Stores he has asked about BY NAME. A hand-kept list is usually the
+    -- defect (6.276.0) — the failure mode is inverted here on purpose: a
+    -- name on this list matching NOTHING on disk is a ⚠️, never a
+    -- silence, so forgetting to add a store costs a missing line and
+    -- forgetting to remove one costs a loud wrong one. The patterns are
+    -- matched against what the scan really found, never assumed.
+    wl.watchFor = {
+        { label = "📋 clipboard",      pat = "clipboard_history" },
+        { label = "📝 Hamsidian tabs", pat = "scratch%.json$"    },
+        { label = "🔤 OCR text",       pat = "image_text"        },
+        { label = "📂 file history",   pat = "file_history"      },
+        { label = "⏱ app sessions",   pat = "activity_history"  },
+    }
+
+    -- 🕸 WHERE THE NOTES REALLY ARE. Read from the vault module when it
+    -- is loaded — that is the folder it is ACTUALLY using, not the one
+    -- this file would compute — and worked out from core only when it is
+    -- not. 6.276.0's rule: read the truth, never retype it.
+    function wl.vaultFacts()
+        local v     = _G.vault
+        local cloud = core.cloudDir
+        local dir   = (type(v) == "table" and type(v.dir) == "string" and v.dir)
+                      or (cloud and (cloud .. "/Vault"))
+                      or ((core.logsDir or core.homeDir or ".") .. "/vault")
+        local onCloud = (cloud ~= nil) and dir:sub(1, #cloud) == cloud
+        local f = { dir = dir, onCloud = onCloud, cloudDir = cloud }
+        local a
+        pcall(function() a = hs.fs.attributes(dir) end)
+        f.exists = (a ~= nil and a.mode == "directory")
+        if type(v) == "table" then
+            f.notes   = type(v.notes) == "table" and #v.notes or nil
+            f.scanned = v.lastScan
+            f.loaded  = true
+        end
+        return f
+    end
+
+    -- The block, as LINES, from facts handed in — so the gate can move
+    -- the world under it and require the words to follow (6.239.0).
+    function wl.storeLines(files, vf, now, failures)
+        files, now = files or {}, now or os.time()
+        local L = {}
+        local newest, oldest, n = nil, nil, 0
+        for _, f in ipairs(files) do
+            if not f.retired then
+                n = n + 1
+                if not newest or f.mtime > newest.mtime then newest = f end
+                if not oldest or f.mtime < oldest.mtime then oldest = f end
+            end
+        end
+        L[#L + 1] = "💾 STORES — " .. n .. " file" .. (n == 1 and "" or "s")
+                    .. " in " .. tostring(core.logsDir or "nowhere: no Logs folder is configured")
+        if n == 0 then
+            L[#L + 1] = "   🚨 NOTHING IS IN THAT FOLDER. Every store this config keeps lives"
+            L[#L + 1] = "      there, so either it is the wrong folder or nothing has saved."
+        else
+            L[#L + 1] = "   last write : " .. newest.name .. " — " .. ago(newest.mtime, now)
+                        .. "  ·  quietest: " .. oldest.name .. " — " .. ago(oldest.mtime, now)
+        end
+        for _, w in ipairs(wl.watchFor or {}) do
+            local hit
+            for _, f in ipairs(files) do
+                if (not f.retired) and f.name:find(w.pat) then
+                    if not hit or f.mtime > hit.mtime then hit = f end
+                end
+            end
+            if hit then
+                L[#L + 1] = "   " .. w.label .. " : " .. hit.path
+                            .. "  ·  " .. ago(hit.mtime, now)
+            else
+                L[#L + 1] = "   " .. w.label .. " : ⚠️ NO FILE MATCHING \"" .. w.pat
+                            .. "\" IS IN THAT FOLDER — nothing is being saved for it"
+            end
+        end
+        if vf then
+            if not vf.onCloud then
+                L[#L + 1] = "   🚨 THE NOTES FOLDER IS LOCAL ONLY — " .. tostring(vf.dir)
+                L[#L + 1] = "      OneDrive was not found when this config booted, so Hamsidian is"
+                L[#L + 1] = "      reading an EMPTY LOCAL FOLDER and will say \"no notes yet\"."
+                L[#L + 1] = "      Your notes are not lost — they are in OneDrive, which this Mac"
+                L[#L + 1] = "      could not see. Start OneDrive and reload (⌘⌃R)."
+            else
+                local cnt = vf.notes and (vf.notes .. " note" .. (vf.notes == 1 and "" or "s"))
+                            or (vf.loaded and "the index has not finished yet"
+                                or "the notes module is not loaded")
+                L[#L + 1] = "   🕸 Hamsidian notes : " .. tostring(vf.dir)
+                            .. "  ·  " .. cnt
+                            .. (vf.exists and "" or "  ⚠️ THAT FOLDER IS NOT THERE")
+            end
+            if vf.onCloud and vf.exists and vf.notes == 0 then
+                L[#L + 1] = "      ⚠️ THE FOLDER IS THERE AND HOLDS NO NOTES. Look at it in Finder"
+                L[#L + 1] = "         before writing anything new — and see _G.vaultReport()."
+            end
+        end
+        local fl = {}
+        for label, cnt in pairs(failures or {}) do fl[#fl + 1] = label .. " ×" .. cnt end
+        if #fl > 0 then
+            table.sort(fl)
+            L[#L + 1] = "   🚨 WRITES THAT FAILED THIS SESSION: " .. table.concat(fl, ", ")
+        end
+        L[#L + 1] = "   ↳ _G.saved() lists every file with its size, rows and last write;"
+                    .. " _G.stores() prints this block again."
+        return L
+    end
+
+    function wl.storeBlock()
+        return table.concat(wl.storeLines(wl.scan(), wl.vaultFacts(),
+                                          os.time(), _G.writeFailures), "\n")
+    end
+
+    function _G.stores()
+        local ok, text = pcall(wl.storeBlock)
+        if not ok then
+            print("💾 Store readout failed: " .. tostring(text))
+            return nil
+        end
+        print(text)
+        return text
+    end
+
     function wl.report()
         local now   = os.time()
         local files = wl.scan()
         local L = { string.format("💾 WHAT IS ACTUALLY SAVING — %s",
                                   tostring(core.hostTag)) }
+        -- 💾 6.317.0 — the boot block rides in here too, so ⇪⇧D and
+        -- _G.saved() cannot come to say a different thing about the same
+        -- folders than the line he reads every morning (6.231.0).
+        for _, line in ipairs(wl.storeLines(files, wl.vaultFacts(), now, _G.writeFailures)) do
+            L[#L + 1] = "   " .. line
+        end
+        L[#L + 1] = ""
         L[#L + 1] = "   Logs folder : " .. tostring(core.logsDir or "not configured")
         local okProbe, note = wl.probe()
         L[#L + 1] = "   round trip  : " .. (okProbe
@@ -559,6 +729,32 @@ M.warm = function()
     local wl = _G.writeLedger
     if not (wl and wl.enabled) then return end
     wl.takeBaseline()
+    -- 💾 6.317.0 — AND IT SAYS SO, UNASKED, EVERY BOOT. LL: "I don't
+    -- want to find out when I need it most, something hasn't been
+    -- saving." Every number below has been askable since 6.115.0 and he
+    -- had never seen one, which is 6.271.0's lesson again: the
+    -- instrument was not the gap, the door was.
+    -- ⏱ ON A HELD TIMER, AND LATE ON PURPOSE (6.196.1 owns the slot).
+    -- The notes index is built by /usr/bin/find in a task, so at warm()
+    -- it has usually not answered — and a boot line reading "the index
+    -- has not finished yet" every single morning is a line he learns to
+    -- scroll past, which is the one thing a readout must never become.
+    if wl.sayStores then
+        local okT, t = pcall(hs.timer.doAfter, wl.storeSayAfter or 10, function()
+            wl.storeTimer = nil
+            local ok, text = pcall(wl.storeBlock)
+            if ok then pcall(print, text)
+            else pcall(print, "💾 STORES — the readout failed: " .. tostring(text)) end
+        end)
+        wl.storeTimer = okT and t or nil     -- HELD
+        if not okT then
+            -- 🚨 a Mac that cannot arm a timer still gets the readout.
+            -- It is simply early, so the notes count may read "not
+            -- finished yet" — saying NOTHING is not one of the options
+            -- in the release whose whole subject is not being told.
+            pcall(function() print(wl.storeBlock()) end)
+        end
+    end
     -- The first check is deliberately NOT run here: at warm() nothing has
     -- changed since the baseline it just took, so it could only ever
     -- report on a twin — and it will, half an hour from now, by which

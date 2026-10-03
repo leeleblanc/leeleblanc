@@ -4,8 +4,24 @@
 -- =====================================================================
 -- 10-03-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.316.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.317.0
 -- =====================================================================
+
+-- NEW IN 6.317.0 — 💾 WHERE YOUR WRITING IS, AND WHEN IT LAST LANDED
+--   (modules/write_ledger.lua). LL: "a readout of where the files are
+--   that clipboard history go … the last date anything was written
+--   into any log/store/file … I don't want to find out when I need it
+--   most, something hasn't been saving." 🔎 MOST OF IT EXISTED AND HE
+--   HAD NEVER SEEN IT: `_G.saved()` has listed every store with its
+--   size, rows and last write since 6.115.0. 6.271.0 again — the
+--   instrument was not the gap, the DOOR was. It prints every boot.
+--   🚨 THE LINE THAT MATTERS MOST IS ABOUT THE NOTES. With no OneDrive
+--   at boot, vault.lua's `v.dir` silently becomes LOCAL and the scan
+--   MAKES it — so Hamsidian honestly reports "no notes yet" about the
+--   wrong place while every note sits untouched in OneDrive. It says
+--   THE NOTES FOLDER IS LOCAL ONLY now, that they are not lost, and
+--   what to do. 📋 A named store matching no file reads ⚠️, never
+--   silence. And `<Logs>/scratch` is scanned at last.
 
 -- NEW IN 6.316.0 — 🚨 A HAMSIDIAN SAVE THAT FAILS IS IMPOSSIBLE TO MISS
 --   (core/notices.lua + modules/vault.lua + scratch_pad.lua). LL, in
@@ -22,30 +38,14 @@
 --   notification notices.tell holds through Focus. 🚨 THE STICKY ONE
 --   IS THE POINT: `notices.unsaved` is cleared by a REAL WRITE alone
 --   and printed FIRST in _G.degradeReport() and both Hamsidian
---   reports — an alert is gone in ten seconds and a Console line
---   scrolls; that block still answers "is my writing on disk?" an
---   hour later. The fallback gate is per CAUSE, not a boolean.
+--   reports — an alert goes in ten seconds, that block answers "is
+--   my writing on disk?" an hour later. Fallback gate: per CAUSE.
 
--- NEW IN 6.315.0 — ⌨️ THE ARROWS WALK THE 🕘 HISTORY TOO
---   (modules/music_player.lua). LL: "Can't use the arrow keys to move
---   thru the Jug player history list." ↑↓ walked `mp.queue` and wrapped
---   INSIDE it, so the history drawn below — clickable, ✕-able — could
---   not be reached from the keyboard at all — and the card draws the
---   two as ONE scrolling list, which is how he reads it.
---   🔑 ONE CURSOR: `mp.selMove` is PURE and flattens queue-then-history
---   into one run of positions, so ↓ off the last track lands on the
---   first history row and the wrap comes back to the top. d = 0 CLAMPS
---   — its second caller: an edit can leave it past the list's end.
---   🚨 nh IS WHAT IS DRAWN, never #mp.history — the card shows 40 of a
---   store holding 400. ⏎ and ⌫ carry NO row number: Lua holds the
---   cursor, so the page cannot name a row a redraw renumbered, and ⌫
---   in the history forgets BY PATH (6.272.0). 🔬 2 survivors; 21/21.
-
--- (6.314.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.315.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 cut the inline count to
 --  TWO; a gate check proves every entry here is also in CHANGELOG.md.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.316.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.317.0
 -- =====================================================================
 -- The catalogue that used to sit here moved to GUIDE.md ("What each
 -- tool does") in 6.180.0 — 259 lines of prose inside the orchestrator.
@@ -138,7 +138,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.316.0"
+_G.configVersion = "6.317.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the

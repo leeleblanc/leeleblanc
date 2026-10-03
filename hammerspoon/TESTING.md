@@ -1,4 +1,4 @@
-# TESTING — how to score release 6.316.0
+# TESTING — how to score release 6.317.0
 
 You install ONE archive and it carries several releases. Below are the
 steps for each release this archive is new for, newest first. Run the
@@ -26,6 +26,87 @@ else is a LOSS and I fix it before building further. You are the only
 scorer; I never mark my own.
 
 ---
+
+## 6.317.0
+
+6.317.0 verify with LL — 💾 WHERE YOUR WRITING IS (KNOWN GROUND)
+WHAT CHANGED: every boot now prints a block saying where your stores
+are and when each last saved — without you asking for it.
+🔎 AND MOST OF IT ALREADY EXISTED, which is the honest part.
+`_G.saved()` has listed every store with its size, rows, last write
+and growth since boot since 6.115.0 — three hundred releases — and has
+written a probe file into the Logs folder and read it back to prove
+the folder still takes writes. You had never seen any of it. That is
+the same failure as the test plans: the instrument was not the gap,
+the DOOR was. So it prints where you already look.
+
+A. THE HEADLINE — reload and read the Console. Ten seconds later:
+      💾 STORES — 24 files in /Users/…/OneDrive-Personal/Logs
+         last write : clipboard_history-….json — just now  ·  quietest: …
+         📋 clipboard      : /Users/…/clipboard_history-….json  ·  just now
+         📝 Hamsidian tabs : /Users/…/Logs/scratch/scratch.json  ·  4 minutes ago
+         🔤 OCR text       : …
+         📂 file history   : …
+         ⏱ app sessions   : …
+         🕸 Hamsidian notes : /Users/…/OneDrive-Personal/Vault  ·  412 notes
+         ↳ _G.saved() lists every file…
+A1. Read the 📋 clipboard line. That is the answer to "where does the
+    clipboard history go" and it is now in front of you every morning.
+A2. Read the 🕸 line. That is the folder Hamsidian is really using —
+    read out of the notes module itself, not worked out again here.
+A3. Any line reading **⚠️ NO FILE MATCHING** means a store you have
+    asked me about has NO file at all. Paste it. That is the whole
+    point of the list and the one thing it must never be silent about.
+A4. `_G.stores()` prints the same block whenever you want it.
+
+B. THE LINE THAT MATTERS MOST, and it is the one that would have
+   answered last week. If OneDrive is not running when Hammerspoon
+   boots, the notes folder silently becomes a LOCAL one and Hamsidian
+   creates it empty — so it says "no notes yet" and is telling the
+   truth about the wrong folder.
+B1. To see it on purpose: quit OneDrive, reload Hammerspoon, wait ten
+    seconds.
+    EXPECT:
+      🚨 THE NOTES FOLDER IS LOCAL ONLY — /Users/…/.hammerspoon/vault
+         OneDrive was not found when this config booted, so Hamsidian is
+         reading an EMPTY LOCAL FOLDER and will say "no notes yet".
+         Your notes are not lost — they are in OneDrive, which this Mac
+         could not see. Start OneDrive and reload (⌘⌃R).
+B2. Start OneDrive, reload, wait ten seconds.
+    EXPECT: the 🚨 is gone and the 🕸 line names your OneDrive Vault
+    with a real note count.
+    **If the 🚨 ever appears when OneDrive IS running, stop and paste
+    it** — that is the real bug and it is the one you hit.
+
+C. MUST STILL WORK.
+C1. `_G.saved()` still prints the full table, and it now carries the
+    same block at its top — one source, two surfaces.
+C2. ⇪⇧D still carries the write-ledger section.
+C3. Boot is not slower: the block is on a held timer ten seconds after
+    everything else. If you ever see it BEFORE the boot summary, that
+    Mac could not arm a timer and it printed early on purpose.
+
+D. PASTE BACK, PASS OR FAIL.
+D1. The block itself, from an ordinary morning. The two numbers I want
+    are the note count and the "last write" line.
+D2. From the WORK MAC too. That is the Mac where the OneDrive answer
+    is most likely to differ, and this is the first build that can say
+    so in one line.
+
+E. A JUDGEMENT ONLY YOU CAN MAKE.
+E1. Six lines at every boot. Too much? Too little? I deliberately
+    broke the rule that a new instrument should be silent when
+    healthy, because you asked for the healthy case in writing — the
+    value is knowing it IS saving on the three hundred days before the
+    one when it is not. `settings = { write_ledger = { sayStores =
+    false } }` turns it off; say the word and I will change the
+    default instead.
+E2. Which stores should be named by name? Right now: clipboard,
+    Hamsidian tabs, OCR text, file history, app sessions. Name any
+    others and they go on the list — and a named store with no file
+    shouts, so the list can only fail loudly.
+
+
 
 ## 6.316.0
 
@@ -268,44 +349,6 @@ E2. 📏 SAID RATHER THAN IMPLIED: this is the THIRD surface in this
     anything else of mine ever dies with
     `containingWindowWillOrderOnScreen:` in it, that is a fourth
     surface and the same fix, and the traceback is all I need.
-
-
-
-## 6.313.0
-
-6.313.0 verify with LL — 🔒 YOUR QUEUE SURVIVES A FAILED SAVE (KNOWN GROUND)
-WHAT CHANGED: nothing you can press. The Jug Player writes its queue to
-a temporary file and then renames it into place, instead of opening the
-real file and writing over it.
-WHY IT MATTERS: `io.open(path, "w")` empties the file BEFORE it writes
-anything. If Hammerspoon died, the disk filled, or the write was
-refused in that instant, your store was left at zero bytes — and the
-loader reads zero bytes as "nothing queued", silently, after which the
-next save makes it permanent. Your queue and your history are the only
-things in this tool you cannot get back. A rename cannot half-happen,
-so the file on disk is now either the old one or the new one.
-
-A. THE HEADLINE — there is nothing to press, so this is the whole test.
-A1. Queue some tracks, play one, close and reopen the card, reload
-    Hammerspoon. EXPECT: everything exactly as before. This release
-    must be invisible on a good day.
-A2. Console: `_G.musicReport()` — the `store :` line should read
-    `read N bytes — N queued · N history row(s)`.
-A3. Look in `~/Library/Application Support/Hammerspoon/music/`.
-    EXPECT: `player.json` and NO `player.json.tmp` left lying about.
-    A stray .tmp after normal use is a real finding — tell me.
-
-B. IF A SAVE EVER FAILS.
-B1. You would get an alert ending "your saved queue is untouched", and
-    the queue you already had would still be there next time. Paste
-    that alert if you ever see it — it names which of three ways the
-    write died.
-
-C. 🔨 CRUDE OR ELEGANT.
-C1. This never bit you that I know of — it is a hole closed before it
-    cost anything, so my reading is ✨ ELEGANT, one pass. Correct me if
-    you have ever opened the player to an empty queue you did not
-    empty: that would mean it DID bite, and the row is 🔨.
 
 
 

@@ -462,6 +462,134 @@ check("…and says the round trip failed rather than claiming success",
       okRep and text:find("❌", 1, true) ~= nil)
 CORE.logsDir = LOGS
 
+out("\n=== 10. 6.317.0 — 💾 WHERE YOUR WRITING IS, AND WHEN IT LAST LANDED ===\n")
+-- LL: "Each init.lua should give me a readout of where the files are
+-- that clipboard history go and give the last date anything was written
+-- into any log/store/file … I don't want to find out when I need it
+-- most, something hasn't been saving."
+do
+    local before = pass + fail
+    -- the Hamsidian tabs live one folder down and were invisible to the
+    -- module whose whole job is proving his stores save
+    os.execute("mkdir -p '" .. LOGS .. "/scratch'")
+    put(LOGS .. "/scratch/scratch.json", '{"tabs":[]}')
+    put(LOGS .. "/clipboard_history-TestMac.json", '{"items":[1,2,3]}')
+    local dirs = {}
+    for _, d in ipairs(wl.dirs()) do dirs[d] = true end
+    check("🚨 the Hamsidian tabs' own folder is scanned at all", dirs[LOGS .. "/scratch"] == true,
+          table.concat((function() local t = {} for _, d in ipairs(wl.dirs()) do t[#t+1] = d end return t end)(), " · "))
+    local nowFiles, seen = wl.scan(), {}
+    for _, f in ipairs(nowFiles) do seen[f.name] = f end
+    check("…so scratch.json is in the ledger", seen["scratch.json"] ~= nil)
+
+    -- 🕸 the one that matters most: a LOCAL notes folder is the shape of
+    -- the morning he lost his notes, and nothing said so out loud.
+    _G.vault = nil
+    CORE.cloudDir = nil
+    local vfLocal = wl.vaultFacts()
+    check("with no OneDrive the notes folder is worked out as LOCAL",
+          vfLocal.onCloud == false, tostring(vfLocal.dir))
+    local localBlock = table.concat(wl.storeLines(nowFiles, vfLocal, os.time(), nil), "\n")
+    check("🚨 and the readout SHOUTS it, in capitals, with what to do",
+          localBlock:find("LOCAL ONLY", 1, true) ~= nil
+          and localBlock:find("no notes yet", 1, true) ~= nil
+          and localBlock:find("reload", 1, true) ~= nil, localBlock)
+    check("…and it says the notes are NOT lost, because they are not",
+          localBlock:find("not lost", 1, true) ~= nil)
+
+    -- the healthy case must read as health (6.269.0 — an instrument that
+    -- warns on a good day is one he switches off)
+    CORE.cloudDir = ROOT .. "/Cloud"
+    os.execute("mkdir -p '" .. ROOT .. "/Cloud/Vault'")
+    _G.vault = { dir = ROOT .. "/Cloud/Vault", notes = { "a", "b", "c" }, lastScan = os.time() }
+    local vfCloud = wl.vaultFacts()
+    check("with OneDrive found it reads the vault module's OWN folder, not a guess",
+          vfCloud.onCloud == true and vfCloud.dir == ROOT .. "/Cloud/Vault"
+          and vfCloud.notes == 3 and vfCloud.exists == true, tostring(vfCloud.dir))
+    local goodBlock = table.concat(wl.storeLines(nowFiles, vfCloud, os.time(), nil), "\n")
+    check("🚨 a healthy Mac is told plainly and is NOT shouted at",
+          goodBlock:find("LOCAL ONLY", 1, true) == nil
+          and goodBlock:find("3 notes", 1, true) ~= nil
+          and goodBlock:find(ROOT .. "/Cloud/Vault", 1, true) ~= nil, goodBlock)
+    check("…and it names the Logs folder and the last thing written into it",
+          goodBlock:find(LOGS, 1, true) ~= nil
+          and goodBlock:find("last write", 1, true) ~= nil)
+    check("…and the clipboard store he asked about BY NAME, with its path",
+          goodBlock:find("📋 clipboard", 1, true) ~= nil
+          and goodBlock:find("clipboard_history-TestMac.json", 1, true) ~= nil, goodBlock)
+
+    -- 🚨 A STORE HE NAMED THAT IS NOT THERE IS THE FACT HE WANTS. A
+    -- hand-kept list is usually the defect (6.276.0); here the failure
+    -- mode is inverted on purpose, so forgetting costs a loud line and
+    -- never a silence.
+    os.remove(LOGS .. "/clipboard_history-TestMac.json")
+    os.remove(CFG .. "/clipboard_history.json")
+    local goneBlock = table.concat(wl.storeLines(wl.scan(), vfCloud, os.time(), nil), "\n")
+    check("🚨 a named store with NO file reads ⚠️, never silence",
+          goneBlock:find("📋 clipboard", 1, true) ~= nil
+          and goneBlock:find("NO FILE MATCHING", 1, true) ~= nil, goneBlock)
+    put(LOGS .. "/clipboard_history-TestMac.json", '{"items":[1,2,3]}')
+
+    -- an empty but PRESENT vault is a third state, and it is the one he
+    -- was looking at: the folder is right and holds nothing.
+    _G.vault = { dir = ROOT .. "/Cloud/Vault", notes = {}, lastScan = os.time() }
+    local emptyBlock = table.concat(wl.storeLines(wl.scan(), wl.vaultFacts(), os.time(), nil), "\n")
+    check("an EMPTY but present notes folder warns too — and differently",
+          emptyBlock:find("LOCAL ONLY", 1, true) == nil
+          and emptyBlock:find("HOLDS NO NOTES", 1, true) ~= nil, emptyBlock)
+
+    -- a write that failed this session rides in it
+    local failBlock = table.concat(wl.storeLines(wl.scan(), vfCloud, os.time(),
+                                                 { ["the vault note Alpha"] = 4 }), "\n")
+    check("writes that failed this session are named in the same block",
+          failBlock:find("WRITES THAT FAILED", 1, true) ~= nil
+          and failBlock:find("the vault note Alpha ×4", 1, true) ~= nil)
+
+    -- one source, two surfaces (6.231.0)
+    _G.vault = { dir = ROOT .. "/Cloud/Vault", notes = { "a" }, lastScan = os.time() }
+    printed = {}
+    local shown = _G.stores()
+    check("_G.stores() prints it as ONE string and returns it (6.179.1)",
+          #printed == 1 and printed[1] == shown and shown:find("💾 STORES", 1, true) == 1)
+    check("…and _G.saved() carries the very same block, so the two cannot drift",
+          wl.report():find("🕸 Hamsidian notes", 1, true) ~= nil)
+
+    -- ⏱ the boot readout: a HELD timer in its own slot (6.196.1), and a
+    -- Mac that cannot arm one still gets the readout rather than silence.
+    local keptDoAfter = hs.timer.doAfter
+    local armed = nil
+    hs.timer.doAfter = function(secs, fn)
+        armed = { secs = secs, fn = fn }
+        local t = { stopped = false } ; function t:stop() self.stopped = true end
+        return t
+    end
+    printed = {}
+    M.warm()
+    check("warm arms ONE held timer for the readout, late enough for the index",
+          armed ~= nil and armed.secs == wl.storeSayAfter and wl.storeSayAfter >= 5
+          and wl.storeTimer ~= nil, tostring(armed and armed.secs))
+    check("…and says nothing until it fires", #printed == 0)
+    armed.fn()
+    check("…then prints the block and lets the slot go",
+          #printed == 1 and printed[1]:find("💾 STORES", 1, true) == 1
+          and wl.storeTimer == nil)
+    hs.timer.doAfter = function() error("this Mac will not arm a timer") end
+    printed = {}
+    M.warm()
+    check("🚨 a Mac that cannot arm a timer still gets the readout — silence is not an option",
+          #printed >= 1 and (function()
+              for _, l in ipairs(printed) do
+                  if l:find("💾 STORES", 1, true) == 1 then return true end
+              end
+          end)(), table.concat(printed, " | "))
+    hs.timer.doAfter = keptDoAfter
+    wl.storeTimer = nil
+    _G.vault = nil
+
+    local ran = (pass + fail) - before
+    check("§6.317.0 ran all of its checks (" .. ran .. " of 17)", ran >= 17, ran)
+end
+
 -- ---- clean up ----------------------------------------------------------
 os.execute("rm -rf '" .. ROOT .. "'")
 
