@@ -58,6 +58,7 @@ local HOME  = "/home/test"
 local DIR   = HOME .. "/Library/CloudStorage/OneDrive-Personal/2026 Screenshots"
 local FILES = {}       -- path -> { size=, modification= }
 local DIRS  = { [HOME .. "/Library/CloudStorage/OneDrive-Personal"] = true }
+MOUSE_AT = { x = 700, y = 400 }   -- 6.318.0: the pointer, movable by the checks
 local ALERTS, TASKS, CHOICES_SET = {}, {}, nil
 local DEGRADES = {}
 local DEFER_TIMERS = false   -- §12 turns this on to hold the debounce
@@ -214,7 +215,11 @@ hs = {
         getCurrentScreen = function()
             return { frame = function() return { x = 0, y = 0, w = 1440, h = 900 } end }
         end,
-        absolutePosition = function() end,
+        -- 🔬 6.318.0 — IT ANSWERS A POINT, as the real one always does.
+        -- A stub returning nil is gentler than macOS in exactly the
+        -- direction that would hide the arm-time draw (6.290.0): the
+        -- selector would look untested and behave untested.
+        absolutePosition = function() return MOUSE_AT end,
     },
     window = {
         frontmostWindow = function()
@@ -2078,17 +2083,43 @@ do
     local got = {}
     S.captureAreaTo(function(p2, w2) got[#got + 1] = { p = p2, why = w2 } end)
     local cv = _G.__lastCanvas
-    ck("the selector's canvas carries the scrim, the band, the box and the digits",
-       #cv.elements == 4, #cv.elements)
+    -- 6.248.0 — ASSERT THE RULE, NOT THE NUMBER. This read `== 4` and
+    -- went red the day the crosshair was added, with nothing to say
+    -- about the change it existed to prove. It counts what the two
+    -- switches ask for now, so moving either moves the check with it.
+    local wantEls = 2 + (S.sizeReadout and 2 or 0) + (S.crosshair and 2 or 0)
+    ck("the selector's canvas carries the scrim, the band, and two elements "
+       .. "for each of the readout and the crosshair",
+       #cv.elements == wantEls, #cv.elements .. " vs " .. wantEls)
     ck("🚨 the box is BLACK at the alpha he asked for — 90%-opaque, "
        .. "which is the same number as '10% translucent'",
        cv.elements[3].fillColor.black == 1 and cv.elements[3].fillColor.alpha == 0.9,
        tostring(cv.elements[3].fillColor.alpha))
     ck("…and the digits are SOLID WHITE on it",
        cv.elements[4].textColor.white == 1 and cv.elements[4].textColor.alpha == 1)
-    ck("before the mouse is pressed the readout has no size at all — a "
-       .. "selector nobody dragged looks exactly as it did before",
-       cv.elements[3].frame.w == 0 and cv.elements[4].text == "")
+    -- 📐 6.318.0 — AND THIS RULE IS DELIBERATELY REVERSED. It used to
+    -- read "before the mouse is pressed the readout has no size at all",
+    -- which was the whole of LL's complaint: ⇪⇧4 is macOS's own HUD and
+    -- shows crosshairs and numbers the instant the key is pressed, and
+    -- ours drew a dim wash and nothing else until the button went down.
+    -- The numbers are the POINTER'S POSITION until there is a rectangle
+    -- to measure, and they are there at once.
+    ck("🚨 the numbers are there BEFORE anything is pressed, and they are "
+       .. "where the pointer is",
+       cv.elements[4].text == "700, 400" and cv.elements[3].frame.w > 0,
+       cv.elements[4].text)
+    ck("…and the crosshair is drawn at the pointer, full width and full height",
+       cv.elements[5].frame.h == 900 and cv.elements[6].frame.w == 1440
+       and math.abs(cv.elements[5].frame.x - 700) <= 1
+       and math.abs(cv.elements[6].frame.y - 400) <= 1,
+       cv.elements[5].frame.x .. "/" .. cv.elements[6].frame.y)
+    cv.cb(cv, "mouseMove", "_canvas_", 120, 640)
+    ck("…and it FOLLOWS the pointer with nothing held down",
+       math.abs(cv.elements[5].frame.x - 120) <= 1
+       and math.abs(cv.elements[6].frame.y - 640) <= 1
+       and cv.elements[4].text == "120, 640", cv.elements[4].text)
+    ck("…and no band is drawn while nothing is pressed",
+       cv.elements[2].frame.w == 0 and cv.elements[2].frame.h == 0)
     cv.cb(cv, "mouseDown", "_canvas_", 200, 300)
     ck("🚨 it is live from the PRESS: 0 × 0 is the honest answer for a "
        .. "drag that has not started, and a late number is one you distrust",
@@ -2165,12 +2196,13 @@ do
     S.sizeReadout = false
     S.captureAreaTo(function() end)
     local cv4 = _G.__lastCanvas
-    ck("sizeReadout = false: the selector is the two elements it always was",
-       #cv4.elements == 2, #cv4.elements)
+    ck("sizeReadout = false: the readout's two elements are simply not there",
+       #cv4.elements == 2 + (S.crosshair and 2 or 0), #cv4.elements)
     cv4.cb(cv4, "mouseDown", "_canvas_", 10, 10)
     cv4.cb(cv4, "mouseMove", "_canvas_", 110, 110)
     ck("…and dragging with it off draws nothing and throws nothing",
-       cv4.elements[2].frame.w == 100 and #cv4.elements == 2)
+       cv4.elements[2].frame.w == 100
+       and #cv4.elements == 2 + (S.crosshair and 2 or 0))
     local rOff = RPT()
     ck("the report says OFF, and names the one line that puts it back",
        rOff:find("size    : OFF", 1, true) ~= nil
@@ -2239,7 +2271,7 @@ do
        RPT():match("area    :[^\n]*"))
     S.areaLast, S.areaNative = keptLastArea, keptNative
 
-    check("the 6.260.0 block ran every one of its checks", n14 == 44, n14)
+    check("the 6.260.0 block ran every one of its checks", n14 >= 44, n14)
 end
 
 -- =====================================================================
@@ -2410,6 +2442,118 @@ do
 
     check("the 6.282.0 block ran every one of its checks", (pass + fail) - n16 == 14,
           (pass + fail) - n16)
+end
+
+-- =====================================================================
+out("\n17. 📐 6.318.0 — ⇪4 HAS CROSSHAIRS, AND THE NUMBERS COME FIRST\n")
+-- =====================================================================
+-- LL: "The hyper+shift+4 has pixel crosshairs, hyper+4 does not … and
+-- it was working before." Both halves are true: ⇪⇧4 is screencapture
+-- -i and keeps macOS's HUD, and 6.264.0 moved ⇪4 onto our selector,
+-- which drew a dim wash and nothing else until the button went down.
+do
+    local n17 = pass + fail
+
+    -- ✏️ PURE: the two lines, and the clamp that keeps them on screen
+    local v, h = S.crossPlan(700, 400, { w = 1440, h = 900 }, 1)
+    check("the vertical line is full height at the pointer's x",
+          v.h == 900 and v.y == 0 and v.w == 1 and math.abs(v.x - 700) <= 1,
+          v.x .. "," .. v.y .. " " .. v.w .. "x" .. v.h)
+    check("…and the horizontal one is full width at its y",
+          h.w == 1440 and h.x == 0 and h.h == 1 and math.abs(h.y - 400) <= 1)
+    -- 🚨 the input where a clamp and no clamp must differ (6.230.0): a
+    -- pointer on the very last pixel would draw a line half outside.
+    local ve, he = S.crossPlan(1440, 900, { w = 1440, h = 900 }, 4)
+    check("🚨 a pointer at the far corner keeps both lines ON the screen",
+          ve.x + ve.w <= 1440 and he.y + he.h <= 900 and ve.x >= 0 and he.y >= 0,
+          ve.x .. "/" .. he.y)
+    local vn = S.crossPlan(-50, -50, { w = 1440, h = 900 }, 1)
+    check("…and so does one off the top-left", vn.x >= 0)
+    check("a thickness below one point is refused — an invisible crosshair "
+          .. "is the bug this release exists to fix",
+          select(1, S.crossPlan(10, 10, { w = 100, h = 100 }, 0)).w >= 1)
+
+    -- ✏️ PURE: what the box says before there is a rectangle
+    check("the pointer readout is the position, floored",
+          S.pointText(700.7, 400.2) == "700, 400", S.pointText(700.7, 400.2))
+    check("…and it never throws on nothing", S.pointText(nil, nil) == "0, 0")
+
+    -- 🔌 THE SWITCH IS REAL IN BOTH DIRECTIONS (6.259.0's rule)
+    local keptCross = S.crosshair
+    S.crosshair = false
+    S.captureAreaTo(function() end)
+    local cvOff = _G.__lastCanvas
+    check("crosshair = false: the two line elements are simply not there",
+          #cvOff.elements == 2 + (S.sizeReadout and 2 or 0), #cvOff.elements)
+    cvOff.cb(cvOff, "mouseDown", "_canvas_", 10, 10)
+    cvOff.cb(cvOff, "mouseMove", "_canvas_", 110, 110)
+    check("…and the drag still works perfectly without them",
+          cvOff.elements[2].frame.w == 100)
+    check("…and the report says OFF and names the line that puts it back",
+          RPT():find("cross   : OFF", 1, true) ~= nil
+          and RPT():find("crosshair = false", 1, true) ~= nil,
+          RPT():match("cross   :[^\n]*"))
+    cvOff.cb(cvOff, "mouseUp", "_canvas_", 110, 110)
+    S.crosshair = keptCross
+
+    -- 🔒 IT IS DECORATION ON A LOAD-BEARING DRAG, so a crosshair that
+    -- throws costs the crosshair and never the selection (6.260.0's
+    -- rule, which this release had to pay a second time).
+    local realCross, nDeg = S.drawCross, #DEGRADES
+    S.drawCross = function() error("the crosshair blew up") end
+    S.captureAreaTo(function() end)
+    local cvBad = _G.__lastCanvas
+    cvBad.cb(cvBad, "mouseDown", "_canvas_", 20, 30)
+    cvBad.cb(cvBad, "mouseMove", "_canvas_", 220, 180)
+    check("🚨 a crosshair that throws does NOT cancel the selection",
+          cvBad.elements[2].frame.w == 200 and cvBad.elements[2].frame.h == 150,
+          cvBad.elements[2].frame.w)
+    check("…it takes the 🔔 door once and names itself",
+          #DEGRADES > nDeg and DEGRADES[#DEGRADES].tool:find("crosshair", 1, true) ~= nil,
+          tostring(DEGRADES[#DEGRADES] and DEGRADES[#DEGRADES].tool))
+    local afterOne = #DEGRADES
+    for i = 1, 12 do cvBad.cb(cvBad, "mouseMove", "_canvas_", 220 + i, 180 + i) end
+    check("…and then goes quiet for the rest of the drag rather than "
+          .. "shouting once per mouse event",
+          #DEGRADES == afterOne, #DEGRADES - afterOne)
+    check("…and the report's ⚠️ outranks a healthy-looking last position",
+          RPT():find("⚠️ the crosshair threw", 1, true) ~= nil,
+          RPT():match("cross   :[^\n]*"))
+    cvBad.cb(cvBad, "mouseUp", "_canvas_", 232, 192)
+    S.drawCross, S.crossFailed = realCross, nil
+
+    -- 🔎 THREE STATES ON THE REPORT LINE (6.196.1)
+    local keptLastC = S.crossLast
+    S.crossLast = nil
+    check("🚨 on but never opened is NOT the same line as off, and NOT the "
+          .. "same as drawn",
+          RPT():find("has not been opened yet", 1, true) ~= nil
+          and RPT():find("cross   : OFF", 1, true) == nil,
+          RPT():match("cross   :[^\n]*"))
+    S.crossLast = { x = 700, y = 400, at = os.time() }
+    check("…and once it has been drawn it names where",
+          RPT():find("last at 700, 400", 1, true) ~= nil,
+          RPT():match("cross   :[^\n]*"))
+    S.crossLast = keptLastC
+
+    -- 🖥 a Mac that will not say where the pointer is still gets a
+    -- selector: the crosshair simply waits for the first movement.
+    local keptAt = MOUSE_AT
+    MOUSE_AT = nil
+    S.captureAreaTo(function() end)
+    local cvNoMouse = _G.__lastCanvas
+    check("🚨 a Mac that cannot name the pointer still draws the selector",
+          #cvNoMouse.elements == 2 + (S.sizeReadout and 2 or 0) + (S.crosshair and 2 or 0))
+    cvNoMouse.cb(cvNoMouse, "mouseMove", "_canvas_", 300, 300)
+    check("…and the crosshair arrives on the first movement",
+          math.abs(cvNoMouse.elements[5].frame.x - 300) <= 1,
+          cvNoMouse.elements[5].frame.x)
+    cvNoMouse.cb(cvNoMouse, "mouseDown", "_canvas_", 300, 300)
+    cvNoMouse.cb(cvNoMouse, "mouseUp", "_canvas_", 400, 400)
+    MOUSE_AT = keptAt
+
+    check("the 6.318.0 block ran every one of its checks",
+          (pass + fail) - n17 >= 17, (pass + fail) - n17)
 end
 
 -- =====================================================================

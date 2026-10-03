@@ -5,6 +5,90 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.318.0 — 📐 ⇪4 HAS CROSSHAIRS, AND THE NUMBERS COME FIRST
+  (modules/screenshots.lua). LL: "The hyper+shift+4 has pixel
+  crosshairs, hyper+4 does not so that is an easy fix and something
+  I've asked for numerous times. Along with that it was working before.
+  This is what I am talking about: don't break as we build.
+  Build+use=success."
+
+  🔎 HE IS RIGHT ON EVERY COUNT, AND THE LAST ONE IS MINE. ⇪⇧4 runs
+  `screencapture -i`, so it keeps macOS's OWN heads-up display:
+  full-screen crosshairs with live coordinates, drawn the instant the
+  key is pressed. ⇪4 was that too — until 6.264.0 moved it onto OUR
+  selector on his own ask for a better pixel readout. And our selector,
+  from the day it was written, drew a dashed band and a dim wash and
+  NOTHING ELSE until the mouse button went down: no crosshair at any
+  point, and no numbers at all until a drag had started. So the two
+  keys really did differ, the difference really did arrive in a release
+  of mine, and "it was working before" is the plain truth about the
+  thing he is describing.
+
+  📏 AND 6.264.0 IS NOT REVERSED, which is the judgement in this
+  release. Putting ⇪4 back on `screencapture -i` would hand him macOS's
+  crosshairs and take away the live 1280 × 720 he asked for twice
+  (6.260.0 built it, 6.264.0 put it on this key at his word). What was
+  actually missing is the OTHER half — the half macOS had been giving
+  him for free and nobody noticed was gone — and it is ours to draw.
+
+  ✏️ `shots.crossPlan(x, y, screen, thick)` is PURE and answers the two
+  line frames: full height at the pointer's x, full width at its y.
+  CLAMPED, and the clamp is the fixture that bites — a pointer on the
+  last pixel of the display would otherwise draw a line half outside
+  the screen, and every other input agrees with an unclamped version
+  (6.230.0). A thickness below one point is refused: an invisible
+  crosshair is the exact bug being fixed.
+
+  ✏️ `shots.pointText(x, y)` is the numbers BEFORE there is a rectangle
+  — where the pointer is, floored, which is what macOS's HUD shows. It
+  goes through the same `sizeBox` and `sizePlan` the size does, so the
+  box cannot sit in one place before a drag and somewhere else during
+  it (6.231.0: one function, two callers).
+
+  🚨 AND IT IS DRAWN THE MOMENT THE SELECTOR ARMS, at the pointer,
+  before any event has arrived. Waiting for the first mouseMove would
+  mean a selector that looks exactly like the old one until you jiggle
+  the mouse — which is "it still does not work" for anyone who presses
+  ⇪4 and drags straight away. 6.238.0's rule in a new place: a number
+  that appears late is a number you do not trust.
+
+  🏃 ELEMENTS 5 AND 6 OF THE SAME CANVAS, MOVED AND NEVER REBUILT. A
+  second window would be a second thing to place, level, show and tear
+  down, and a drag is not a place to own two of anything (6.260.0);
+  rebuilding per mouse event is the cadence 6.247.0 priced. They are
+  appended LAST so `drawSize`'s elements stay at 3 and 4 and nothing
+  above them had to move.
+
+  🔒 ITS OWN SWITCH, ITS OWN DOOR, ITS OWN REPORT LINE. "⇪4 has no
+  crosshairs" and "⇪4 has no numbers" were one sentence from him and
+  are two different failures here, with two different causes and two
+  different fixes — so `crosshair` and `sizeReadout` are separate
+  flags, the report counts them apart, and each has three states that
+  must not read alike (6.196.1): off by his own line · on and never
+  opened · drawn, with where. A crosshair that THROWS outranks a
+  healthy-looking last position.
+
+  🧪 AND THE SWEEP FOUND THE ONE THAT MATTERED. The arm-time draw used
+  a bare pcall, so on a Mac where the crosshair throws it switched
+  itself off SILENTLY before the first mouse event and the 🔔 door was
+  never taken — a failure invisible to the report built to answer "why
+  has ⇪4 no crosshairs?". 6.196.1 inside the instrument. There is one
+  `showCross` door now, taken by the arm-time draw and the callback
+  alike, and the same for the position readout.
+
+  🔬 THE STUB WAS GENTLER THAN macOS, AGAIN (6.290.0): the suite's
+  `hs.mouse.absolutePosition` returned nil, which the real one never
+  does, so the arm-time draw could not run and the whole feature would
+  have looked tested while being untested. It answers a point now, and
+  the checks move it.
+
+  📏 AND TWO OLD CHECKS ASSERTED LITERALS (6.248.0, sixth time): the
+  selector's element count was `== 4`, and "before the mouse is pressed
+  the readout has no size at all" was asserting the DEFECT — it is
+  exactly what he reported. The count is computed from the two switches
+  now, and that check asserts the new rule with the old one quoted
+  beside it.
+
 NEW IN 6.317.0 — 💾 WHERE YOUR WRITING IS, AND WHEN IT LAST LANDED
   (modules/write_ledger.lua). LL: "Each init.lua should give me a
   readout of where the files are that clipboard history go and give the

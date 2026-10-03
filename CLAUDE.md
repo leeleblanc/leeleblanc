@@ -3066,6 +3066,50 @@ work Mac.
   them passed this bug for 208 releases. The storm reached Chrome as
   Vimium keys: a stray "t" is a new tab, "o" the omnibar.
 
+- 📐 WHEN YOU TAKE A SURFACE OVER FROM macOS, YOU INHERIT EVERYTHING
+  IT WAS DOING — INCLUDING WHAT NOBODY NAMED (6.318.0,
+  modules/screenshots.lua — LL: "hyper+shift+4 has pixel crosshairs,
+  hyper+4 does not … and it was working before. Don't break as we
+  build").
+  🔎 HE IS RIGHT ON EVERY COUNT. ⇪⇧4 is `screencapture -i` and keeps
+  macOS's own HUD: crosshairs and live coordinates from the instant the
+  key is pressed. 6.264.0 moved ⇪4 onto OUR selector — on his own ask
+  for a better pixel readout — and our selector had drawn a dashed band
+  and a dim wash and NOTHING ELSE since the day it was written: no
+  crosshair at any point, no numbers until a drag had started. The
+  release gave him the thing he asked for and silently took away a
+  thing he had never had to ask for, because nobody had written down
+  that macOS was providing it.
+  🔑 THE RULE: a swap is only faithful if you enumerate what the OLD
+  surface did, not what it was FOR. 6.264.0's own note listed what it
+  cost — the native magnifier, SPACE-to-shoot-a-window — and missed
+  the crosshair, because the crosshair is not a feature anybody names;
+  it is what the thing LOOKS like. The same shape as 6.264.0's
+  `withSound` (a swap must not quietly also remove a sound), one level
+  up: before replacing a system surface, LIST WHAT IT DRAWS, not only
+  what it does.
+  📏 AND THE ANSWER IS NOT TO REVERSE IT. Putting ⇪4 back on `-i` would
+  return the crosshairs and remove the live W × H he asked for twice.
+  The missing half was ours to draw, so it is drawn: `crossPlan` PURE
+  and clamped (a pointer on the last pixel would put a line half off
+  the screen — and that is the only input where clamped and unclamped
+  differ, 6.230.0), on elements 5 and 6 of the SAME canvas, MOVED never
+  rebuilt (6.247.0), with the box showing the POINTER'S POSITION until
+  there is a rectangle to measure — and drawn the moment the selector
+  ARMS, because a number that appears late is one you do not trust
+  (6.238.0) and a feature that waits for a jiggle reads as not built.
+  🔒 TWO SWITCHES FOR ONE SENTENCE. "No crosshairs" and "no numbers"
+  came to me as one complaint and are two failures with two causes, so
+  `crosshair` and `sizeReadout` are separate, the report counts them
+  apart, and each has three states (6.196.1).
+  🧪 THE SWEEP FOUND THE ARM-TIME DRAW GOING SILENT: a bare pcall, so a
+  Mac where the crosshair throws switched it off before the first mouse
+  event and the 🔔 door was never taken — 6.196.1 inside the feature
+  built to answer "why has ⇪4 no crosshairs?". One `showCross` door
+  now, taken by both callers. 🔬 And the suite's
+  `hs.mouse.absolutePosition` returned nil, which the real one never
+  does (6.290.0), so the arm-time draw was unreachable from the gate.
+
 - 🚪 A DIAGNOSTIC NOBODY KNOWS TO RUN DOES NOT EXIST (6.317.0,
   modules/write_ledger.lua — LL: "Each init.lua should give me a readout
   of where the files are that clipboard history go and give the last
@@ -4630,6 +4674,7 @@ that must be READ before a new cause is named.
 | "empty zip" / the archive will not open | delivery, not code | 6.263.0 → 6.303.0 | 6 | 🔨 crude |
 | "a drag kills the sheet functionality" · wheel dead over ⇪/ · desktop jump | core/coexist.lua drag engine | 6.138.0 · 6.306.0 | 2 | ask |
 | "hyper+4 no longer works" / "intermittently working" | modules/screenshots.lua | 6.264.0 · 6.265.0 · 6.274.0 · 6.282.0 | 4 | ask |
+| "hyper+4 does not have pixel crosshairs" · "it was working before" | modules/screenshots.lua · the selector | 6.264.0 · 6.318.0 | 1 | ask |
 | "frozen grid again" — a yellow box only a reload clears | modules/mouse_grid.lua · `_G.showCanvasSafely` | 6.266.0 | 1 | ask |
 | "can't move files in drag and drop" · Hammerspoon locked up | modules/file_tracker.lua | 6.228.0 · 6.229.0 · 6.230.0 · 6.241.0 | 4 | ask |
 | "can't drop a file on the music player" | modules/music_player.lua | 6.231.0 · 6.233.0 · 6.235.0 · 6.237.0 | 4 | ✨ WIN |
@@ -4738,6 +4783,7 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
+| 6.318.0 | 📐 ⇪4 draws crosshairs again and the numbers are there before you press — 6.264.0 moved it onto our selector and silently dropped the HUD macOS had been drawing | pending |
 | 6.317.0 | 💾 every boot says where your stores are and when each last saved — and SHOUTS when the notes folder is a local one OneDrive was not found for | pending |
 | 6.316.0 | 🚨 a Hamsidian save that fails is impossible to miss — it warned through the one channel macOS is measured to refuse, behind a per-session switch, and never reached the 4 PM log | pending |
 | 6.315.0 | ⌨️ ↑↓ reach the Jug Player's 🕘 history at last — the cursor was written when the card had one list, and the history was drawn under it four releases later | pending |
@@ -5764,6 +5810,77 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.318.0 verify with LL — 📐 ⇪4 HAS CROSSHAIRS (KNOWN GROUND)
+  WHAT CHANGED: ⇪4 now draws full-screen crosshairs that follow the
+  pointer, and the numbers are on screen BEFORE you press anything.
+  🔎 YOU WERE RIGHT ON EVERY COUNT, INCLUDING THE LAST ONE. ⇪⇧4 is
+  macOS's own `screencapture -i` and keeps its HUD — crosshairs and
+  live coordinates from the instant the key is pressed. ⇪4 was that too
+  until 6.264.0 moved it onto OUR selector, on your ask for a better
+  pixel readout. And our selector drew a dashed band and a dim wash and
+  nothing else until the button went down: no crosshair at any point,
+  no numbers until a drag. So the keys really did differ, the
+  difference really did arrive with a release of mine, and "it was
+  working before" is the plain truth.
+  📏 I did NOT put ⇪4 back on macOS's crosshair, and that is a decision
+  you can reverse: it would hand back the crosshairs and take away the
+  live 1280 × 720 you asked for twice. What was missing is the half
+  macOS was giving you for free, and it is ours to draw.
+
+  A. THE HEADLINE — ten seconds.
+  A1. Press ⇪4 and DO NOT MOVE OR CLICK.
+      EXPECT, at once: a thin white vertical line and a thin horizontal
+      line crossing at the pointer, and a black box with the pointer's
+      position in it — e.g. `1182, 640`.
+      **A FAIL is the old behaviour: a dim screen and nothing else.**
+  A2. Move the mouse without pressing.
+      EXPECT: both lines follow, and the numbers change with them.
+  A3. Now press and drag.
+      EXPECT: the dashed band appears, the crosshair keeps following,
+      and the box switches to the SIZE — `1280 × 720` — exactly as
+      before.
+  A4. Let go. The shot lands and is copied, unchanged.
+  A5. Press Esc instead of dragging: it cancels, unchanged.
+
+  B. THE OTHER DOORS — the same selector, so the same crosshairs.
+  B1. ⇪5 scrolling capture: crosshairs and numbers before the drag.
+  B2. In the editor (⇪⇧1), ⌘A add-capture: the same.
+  B3. ⇪⇧4 is UNCHANGED — still macOS's crosshair and macOS's HUD. That
+      is deliberate: it needs `-i` for the OCR path.
+
+  C. MUST STILL WORK — this is the drag every capture goes through.
+  C1. ⇪4 at the very edge of a screen. The lines must stay ON the
+      screen, never half off it.
+  C2. ⇪4 on the OTHER monitor: crosshairs on that one, numbers right.
+  C3. ⇪4, then ⇪⇧5 and ⌘5 ("repeat area") — same rectangle again.
+  C4. The shutter still sounds on ⇪4 and not on a repeat.
+
+  D. PASTE BACK, PASS OR FAIL.
+  D1. `_G.screenshotsReport()` — there is a new `cross :` line beside
+      the `size :` one. Healthy reads `drawn · last at 1182, 640 ·
+      <time>`. If it reads `⚠️ the crosshair threw`, paste it: the
+      selection still works, the lines went quiet, and that line is the
+      evidence.
+  D2. If the crosshairs appear but the NUMBERS do not, that is the
+      other half failing and the `size :` line names it. They are two
+      switches and two failures on purpose — one sentence from you,
+      two different fixes here.
+
+  E. A JUDGEMENT ONLY YOU CAN MAKE.
+  E1. A one-point white hairline at 55% — too faint on a light
+      background, too loud on a dark one? Both are numbers, not a
+      release: `settings = { screenshots = { crossThick = 2,
+      crossAlpha = 0.8 } }`. Tell me how it reads and I will move the
+      default rather than leave you a line to type.
+  E2. Do you want the lines off and just the numbers? `crosshair =
+      false`. Or macOS's crosshair back on ⇪4 at the cost of the live
+      size? `areaNative = true`. Both are one word from you.
+  E3. 🔨 CRUDE OR ELEGANT: ⇪4 captured correctly the whole time — what
+      was missing was the aiming aid. My reading is that this is a
+      REGRESSION I introduced in 6.264.0 and did not notice for
+      fifty-four releases, which makes it mine however gracefully it
+      degraded. Your tag.
+
 - 6.317.0 verify with LL — 💾 WHERE YOUR WRITING IS (KNOWN GROUND)
   WHAT CHANGED: every boot now prints a block saying where your stores
   are and when each last saved — without you asking for it.

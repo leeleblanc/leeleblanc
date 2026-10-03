@@ -4,8 +4,27 @@
 -- =====================================================================
 -- 10-03-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.317.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.318.0
 -- =====================================================================
+
+-- NEW IN 6.318.0 — 📐 ⇪4 HAS CROSSHAIRS, AND THE NUMBERS COME FIRST
+--   (modules/screenshots.lua). LL: "hyper+shift+4 has pixel
+--   crosshairs, hyper+4 does not … and it was working before. Don't
+--   break as we build." Both halves are true. ⇪⇧4 is `screencapture
+--   -i` and keeps macOS's own HUD — crosshairs and live coordinates
+--   from the instant the key is pressed. 6.264.0 moved ⇪4 onto OUR
+--   selector, which drew a dim wash and nothing else until the button
+--   went down: no crosshair at all, no numbers until a drag.
+--   📏 6.264.0 IS NOT REVERSED — that would cost the live W × H he
+--   asked for twice. What was missing is the half macOS gave for free
+--   and it is ours to draw: `crossPlan` (PURE, clamped so a pointer on
+--   the last pixel keeps both lines on screen) rides elements 5 and 6
+--   of the SAME canvas, MOVED never rebuilt (6.247.0), and the box
+--   shows the POINTER'S POSITION until there is a rectangle. Drawn
+--   the moment it arms: a late number is one you distrust (6.238.0).
+--   🔒 Its own switch, 🔔 door and report line with three states: "no
+--   crosshairs" and "no numbers" were one complaint and are two
+--   failures. 🧪 The sweep caught the arm-time draw going silent.
 
 -- NEW IN 6.317.0 — 💾 WHERE YOUR WRITING IS, AND WHEN IT LAST LANDED
 --   (modules/write_ledger.lua). LL: "a readout of where the files are
@@ -13,39 +32,20 @@
 --   into any log/store/file … I don't want to find out when I need it
 --   most, something hasn't been saving." 🔎 MOST OF IT EXISTED AND HE
 --   HAD NEVER SEEN IT: `_G.saved()` has listed every store with its
---   size, rows and last write since 6.115.0. 6.271.0 again — the
---   instrument was not the gap, the DOOR was. It prints every boot.
+--   size, rows and last write since 6.115.0. 6.271.0 again: the
+--   instrument was not the gap, the DOOR was — it prints every boot.
 --   🚨 THE LINE THAT MATTERS MOST IS ABOUT THE NOTES. With no OneDrive
 --   at boot, vault.lua's `v.dir` silently becomes LOCAL and the scan
 --   MAKES it — so Hamsidian honestly reports "no notes yet" about the
 --   wrong place while every note sits untouched in OneDrive. It says
 --   THE NOTES FOLDER IS LOCAL ONLY now, that they are not lost, and
---   what to do. 📋 A named store matching no file reads ⚠️, never
---   silence. And `<Logs>/scratch` is scanned at last.
+--   what to do. 📋 A named store with no file reads ⚠️, never silence.
 
--- NEW IN 6.316.0 — 🚨 A HAMSIDIAN SAVE THAT FAILS IS IMPOSSIBLE TO MISS
---   (core/notices.lua + modules/vault.lua + scratch_pad.lua). LL, in
---   capitals: "HAMSIDIAN MUST THROW VISIBLE ERRORS IF IT DOES NOT
---   SAVE." Both halves DID alert — through the one channel 6.274.0
---   measured macOS refusing three times in eight hours, behind a
---   per-SESSION boolean, so a refusal was the whole warning and a
---   SECOND, different cause never spoke again that day. Neither took
---   the 🔔 door, so the failure that costs him his writing reached
---   neither _G.degradeReport(), the ledger, nor the 4 PM report.
---   🔑 FOUR CHANNELS, ONE FUNCTION, TWO CALLERS (6.231.0):
---   `notices.notSaved` takes the door (Console every time · ledger ·
---   the CSV that outlives a reload · an alert per cause) AND a
---   notification notices.tell holds through Focus. 🚨 THE STICKY ONE
---   IS THE POINT: `notices.unsaved` is cleared by a REAL WRITE alone
---   and printed FIRST in _G.degradeReport() and both Hamsidian
---   reports — an alert goes in ten seconds, that block answers "is
---   my writing on disk?" an hour later. Fallback gate: per CAUSE.
-
--- (6.315.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.316.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 cut the inline count to
 --  TWO; a gate check proves every entry here is also in CHANGELOG.md.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.317.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.318.0
 -- =====================================================================
 -- The catalogue that used to sit here moved to GUIDE.md ("What each
 -- tool does") in 6.180.0 — 259 lines of prose inside the orchestrator.
@@ -138,7 +138,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.317.0"
+_G.configVersion = "6.318.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the

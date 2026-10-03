@@ -144,6 +144,8 @@ local M = {
             { "⇪5",   "🧻 Scrolling capture (experimental) — best in browsers · the result is saved AND on the clipboard" },
             { "📐 size", "⇪4 / ⇪5 / “repeat area” / the editor's ⌘A show a LIVE 1280 × 720" },
             { "",        "white on 90%-opaque black · areaNative = true for macOS's" },
+            { "",        "crosshairs follow the pointer and the numbers are there before" },
+            { "",        "you press — crosshair = false turns the lines off" },
             { "check", "_G.screenshotsReport() — the folder, the watcher, and the last scrolling run slice by slice" },
             { "⇪⇧5",  "Panel: 9 actions (⌘1–⌘9) + history below · ⌘8 = BIG thumbnails" },
             { "🏷 names", "Every capture — ⇪4's AND other tools' SCR- files — gets" },
@@ -256,6 +258,14 @@ function M.setup(core)
     -- in "native", and they are opposite facts.
     shots.areaRuns = { ours = 0, native = 0, refused = 0 }
     shots.dirFails = 0
+    -- 📐 6.318.0 — the crosshair ⇪⇧4 has had all along (it is macOS's,
+    -- on `screencapture -i`) and ⇪4 lost in 6.264.0 when it moved onto
+    -- our own selector. Its own switch, independent of the readout:
+    -- they are two different things he can want apart.
+    shots.crosshair    = true
+    shots.crossThick   = 1       -- points; a hairline, like macOS's
+    shots.crossAlpha   = 0.55
+    shots.crossLast    = nil     -- { x, y, at } — the report's evidence
     shots.sizeReadout  = true    -- the live W × H while you drag
     shots.sizeAlpha    = 0.9     -- the black box: "90 %-opaque" == "10% translucent"
     shots.sizeFontSize = 15
@@ -850,6 +860,83 @@ function M.setup(core)
                  w = boxW, h = boxH }, why
     end
 
+    -- =====================================================================
+    -- 📐 6.318.0 — ⇪4 HAS CROSSHAIRS, AND THE NUMBERS ARE THERE BEFORE
+    --              YOU PRESS ANYTHING
+    -- =====================================================================
+    -- LL: "The hyper+shift+4 has pixel crosshairs, hyper+4 does not, so
+    -- that is an easy fix and something I've asked for numerous times.
+    -- Along with that it was working before. This is what I am talking
+    -- about: don't break as we build."
+    --
+    -- 🔎 AND HE IS RIGHT TWICE OVER. ⇪⇧4 is `screencapture -i` and keeps
+    -- macOS's own HUD — full-screen crosshairs with live coordinates,
+    -- drawn the instant the key is pressed. ⇪4 was that too until
+    -- 6.264.0 moved it onto OUR selector, which until this release drew
+    -- a dim wash and NOTHING ELSE until the button went down: no
+    -- crosshair ever, and no numbers until a drag had started. So the
+    -- two keys really did differ, the difference really did arrive with
+    -- a release of mine, and "it was working before" is the plain truth.
+    --
+    -- 📏 THE CHOICE 6.264.0 MADE IS NOT REVERSED, because reversing it
+    -- costs him the live W × H he asked for twice. What was missing is
+    -- the half macOS was giving him for free, and it is ours to draw:
+    -- the crosshair follows the pointer from the moment the selector
+    -- arms, and the box shows the POINTER'S POSITION until there is a
+    -- rectangle to measure. 6.238.0's rule in a new place — a number
+    -- that appears late is a number you do not trust.
+
+    -- PURE: the two lines of the crosshair, as frames on the selector's
+    -- own canvas. Clamped into the screen, because a pointer parked on
+    -- the last pixel would otherwise draw a line half outside it.
+    function shots.crossPlan(x, y, screen, thick)
+        screen = screen or {}
+        local sw, sh = tonumber(screen.w) or 0, tonumber(screen.h) or 0
+        local t = tonumber(thick) or 1
+        if t < 1 then t = 1 end
+        x = math.max(0, math.min(tonumber(x) or 0, sw))
+        y = math.max(0, math.min(tonumber(y) or 0, sh))
+        local function band(a, span) return math.max(0, math.min(a - t / 2, span - t)) end
+        return { x = math.floor(band(x, sw) + 0.5), y = 0, w = t, h = sh },
+               { x = 0, y = math.floor(band(y, sh) + 0.5), w = sw, h = t }
+    end
+
+    -- PURE: what the box says BEFORE a drag — where the pointer is, in
+    -- the screen's own pixels, which is what macOS's HUD shows. Floored,
+    -- for the same reason sizeText floors: a fractional pixel is not
+    -- something you can act on.
+    function shots.pointText(x, y)
+        return string.format("%d, %d", math.floor(tonumber(x) or 0),
+                                       math.floor(tonumber(y) or 0))
+    end
+
+    -- The crosshair's own draw. Elements 5 and 6, MOVED and never
+    -- rebuilt — this runs per mouse event and 6.247.0 priced a rebuild
+    -- on a path like that.
+    function shots.drawCross(canvas, x, y, sf)
+        local v, h = shots.crossPlan(x, y, { w = sf.w, h = sf.h }, shots.crossThick)
+        canvas[5].frame = v
+        canvas[6].frame = h
+        shots.crossLast = { x = math.floor(tonumber(x) or 0),
+                            y = math.floor(tonumber(y) or 0), at = os.time() }
+    end
+
+    -- The box, showing a POSITION rather than a size. It goes through
+    -- sizeBox and sizePlan exactly as the size does — one placement
+    -- rule, so the box cannot sit in one place before a drag and
+    -- another during it (6.231.0: one function, two callers).
+    function shots.drawPoint(canvas, x, y, sf)
+        local text = shots.pointText(x, y)
+        local boxW, boxH = shots.sizeBox(text, shots.sizeFontSize,
+                                         shots.sizePad, shots.sizeCharW)
+        local frame = shots.sizePlan({ x = x, y = y, w = 0, h = 0 },
+                                     { w = sf.w, h = sf.h }, boxW, boxH, shots.sizeGap)
+        canvas[3].frame = frame
+        canvas[4].frame = { x = frame.x, y = frame.y + shots.sizePad - 2,
+                            w = frame.w, h = shots.sizeFontSize + 6 }
+        canvas[4].text  = text
+    end
+
     -- The ONE place the readout is written to the canvas. Element 3 is
     -- the box, element 4 the digits, and both are MOVED — never deleted
     -- and rebuilt. This runs per mouse event and 6.247.0 priced a
@@ -934,6 +1021,35 @@ function M.setup(core)
                 end
             end
         end
+        -- 📐 6.318.0 — the crosshair, elements 5 and 6. It rides the SAME
+        -- canvas as the band and the box, for the reason 6.260.0 gave:
+        -- a drag is not a place to own two windows. It is appended last
+        -- so drawSize's elements stay at 3 and 4 and nothing above this
+        -- line has to move.
+        -- 🚨 AND IT NEEDS THE READOUT'S SLOTS. Without them there is
+        -- nothing to write a position into, so the crosshair is drawn
+        -- and the numbers are simply absent — which is honest, and the
+        -- report says which of the two this Mac has.
+        local cross = false
+        if shots.crosshair then
+            local okC = pcall(function()
+                canvas:appendElements(
+                    { type = "rectangle", action = "fill",
+                      fillColor = { white = 1, alpha = shots.crossAlpha },
+                      frame = { x = 0, y = 0, w = 0, h = 0 } },
+                    { type = "rectangle", action = "fill",
+                      fillColor = { white = 1, alpha = shots.crossAlpha },
+                      frame = { x = 0, y = 0, w = 0, h = 0 } })
+            end)
+            cross = okC and true or false
+            if not okC then
+                shots.crossFailed = "this Mac refused the crosshair elements — "
+                                    .. "the selector still works, there are just no crosshairs"
+                if type(core.degrade) == "function" then
+                    pcall(core.degrade, "Screenshot crosshair", shots.crossFailed)
+                end
+            end
+        end
         pcall(function() canvas:level(hs.canvas.windowLevels.overlay) end)
         pcall(function()
             canvas:behaviorAsLabels({ "canJoinAllSpaces", "fullScreenAuxiliary" })
@@ -949,6 +1065,30 @@ function M.setup(core)
         -- throws must cost the readout and never the selection. It goes
         -- quiet for the rest of the drag, takes the 🔔 door once, and
         -- the report says so afterwards.
+        -- 📐 6.318.0 — ONE DOOR FOR THE CROSSHAIR TOO, and the sweep is
+        -- what said so: the arm-time draw used a bare pcall, so a Mac
+        -- where the crosshair throws switched it off SILENTLY before
+        -- the first mouse event and the 🔔 door was never taken. A
+        -- failure the report cannot see is 6.196.1 inside the feature
+        -- built to answer "why has ⇪4 no crosshairs?".
+        local function showCross(x, y)
+            if pcall(shots.drawCross, canvas, x, y, sf) then return true end
+            shots.crossFailed = "the crosshair threw mid-drag — the selection itself is unaffected"
+            if type(core.degrade) == "function" then
+                pcall(core.degrade, "Screenshot crosshair", shots.crossFailed)
+            end
+            return false
+        end
+
+        local function showPoint(x, y)
+            if pcall(shots.drawPoint, canvas, x, y, sf) then return true end
+            shots.sizeFailed = "the readout threw mid-drag — the selection itself is unaffected"
+            if type(core.degrade) == "function" then
+                pcall(core.degrade, "Screenshot size readout", shots.sizeFailed)
+            end
+            return false
+        end
+
         local function showSize(band)
             local okD = pcall(shots.drawSize, canvas, band, sf)
             if okD then return true end
@@ -965,6 +1105,19 @@ function M.setup(core)
                 -- mouseCallback runs per event — same rule as an eventtap:
                 -- an error here repeats forever, so the body is guarded
                 local ok = pcall(function()
+                    -- 📐 6.318.0 — THE CROSSHAIR FOLLOWS WHATEVER THE
+                    -- EVENT IS, before a press as much as during a drag.
+                    -- That is the whole difference he reported: ⇪⇧4's
+                    -- macOS HUD is there the instant the key is pressed
+                    -- and ours drew nothing until the button went down.
+                    if cross then cross = showCross(mx, my) end
+                    if msg == "mouseMove" and not startPt then
+                        -- nothing pressed yet: the box shows WHERE the
+                        -- pointer is, which is what macOS's HUD shows,
+                        -- so the numbers are never late (6.238.0)
+                        if readout then readout = showPoint(mx, my) end
+                        return
+                    end
                     if msg == "mouseDown" then
                         startPt = { x = mx, y = my }
                         -- the readout is live from the press, not from
@@ -1041,6 +1194,22 @@ function M.setup(core)
         end
         shots.selCanvas = canvas   -- HELD
         shots.selStarted = true
+
+        -- 📐 6.318.0 — DRAWN AT ONCE, AT THE POINTER, BEFORE ANY EVENT.
+        -- Waiting for the first mouseMove would mean a selector that
+        -- looks exactly like the old one until you jiggle the mouse,
+        -- which is "it did not work" for anybody who presses ⇪4 and
+        -- drags straight away. macOS's HUD is there the instant the key
+        -- is pressed and so is this.
+        if cross or readout then
+            local mp
+            pcall(function() mp = hs.mouse.absolutePosition() end)
+            if mp then
+                local lx, ly = (mp.x or 0) - (sf.x or 0), (mp.y or 0) - (sf.y or 0)
+                if cross   then cross   = showCross(lx, ly) end
+                if readout then readout = showPoint(lx, ly) end
+            end
+        end
 
         -- Esc = never mind. keyDown 53 is Escape; the callback is
         -- pcall'd and answers true (swallow) only for that one key.
@@ -1408,10 +1577,24 @@ function M.setup(core)
                         shots.clockText(shots.sizeLast.at))
                 or ("white on black at alpha " .. tostring(shots.sizeAlpha)
                     .. " · nothing dragged yet this session")))
+        -- 📐 6.318.0 — THE CROSSHAIR, and it is counted apart from the
+        -- readout on purpose: "⇪4 has no crosshairs" and "⇪4 has no
+        -- numbers" were ONE complaint from him and are two different
+        -- failures here, with two different switches (6.196.1).
+        L[#L + 1] = "   cross   : " .. (
+            (not shots.crosshair)
+                and "OFF — settings = { screenshots = { crosshair = false } }"
+            or shots.crossFailed and ("⚠️ " .. tostring(shots.crossFailed))
+            or (shots.crossLast
+                and ("drawn · last at %d, %d · %s"):format(
+                        shots.crossLast.x, shots.crossLast.y,
+                        shots.clockText(shots.crossLast.at))
+                or ("hairline at alpha " .. tostring(shots.crossAlpha)
+                    .. " · the selector has not been opened yet this session")))
         -- 📐 6.264.0 — the line under it used to end "⇪4 is macOS's own
         -- crosshair and keeps its HUD". It is not, by default, any more.
         L[#L + 1] = "             ↳ ⇪4, ⇪5, the editor's ⌘A and 'repeat area' all "
-                    .. "drag on OUR selector now"
+                    .. "drag on OUR selector now, with crosshairs and a live size"
         -- 🔎 THREE STATES (6.196.1): ⇪4 looking unchanged is either his
         -- own settings line or a Mac that could not draw ours, and those
         -- are opposite facts. Never asked is a third.

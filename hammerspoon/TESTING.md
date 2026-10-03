@@ -1,4 +1,4 @@
-# TESTING — how to score release 6.317.0
+# TESTING — how to score release 6.318.0
 
 You install ONE archive and it carries several releases. Below are the
 steps for each release this archive is new for, newest first. Run the
@@ -26,6 +26,81 @@ else is a LOSS and I fix it before building further. You are the only
 scorer; I never mark my own.
 
 ---
+
+## 6.318.0
+
+6.318.0 verify with LL — 📐 ⇪4 HAS CROSSHAIRS (KNOWN GROUND)
+WHAT CHANGED: ⇪4 now draws full-screen crosshairs that follow the
+pointer, and the numbers are on screen BEFORE you press anything.
+🔎 YOU WERE RIGHT ON EVERY COUNT, INCLUDING THE LAST ONE. ⇪⇧4 is
+macOS's own `screencapture -i` and keeps its HUD — crosshairs and
+live coordinates from the instant the key is pressed. ⇪4 was that too
+until 6.264.0 moved it onto OUR selector, on your ask for a better
+pixel readout. And our selector drew a dashed band and a dim wash and
+nothing else until the button went down: no crosshair at any point,
+no numbers until a drag. So the keys really did differ, the
+difference really did arrive with a release of mine, and "it was
+working before" is the plain truth.
+📏 I did NOT put ⇪4 back on macOS's crosshair, and that is a decision
+you can reverse: it would hand back the crosshairs and take away the
+live 1280 × 720 you asked for twice. What was missing is the half
+macOS was giving you for free, and it is ours to draw.
+
+A. THE HEADLINE — ten seconds.
+A1. Press ⇪4 and DO NOT MOVE OR CLICK.
+    EXPECT, at once: a thin white vertical line and a thin horizontal
+    line crossing at the pointer, and a black box with the pointer's
+    position in it — e.g. `1182, 640`.
+    **A FAIL is the old behaviour: a dim screen and nothing else.**
+A2. Move the mouse without pressing.
+    EXPECT: both lines follow, and the numbers change with them.
+A3. Now press and drag.
+    EXPECT: the dashed band appears, the crosshair keeps following,
+    and the box switches to the SIZE — `1280 × 720` — exactly as
+    before.
+A4. Let go. The shot lands and is copied, unchanged.
+A5. Press Esc instead of dragging: it cancels, unchanged.
+
+B. THE OTHER DOORS — the same selector, so the same crosshairs.
+B1. ⇪5 scrolling capture: crosshairs and numbers before the drag.
+B2. In the editor (⇪⇧1), ⌘A add-capture: the same.
+B3. ⇪⇧4 is UNCHANGED — still macOS's crosshair and macOS's HUD. That
+    is deliberate: it needs `-i` for the OCR path.
+
+C. MUST STILL WORK — this is the drag every capture goes through.
+C1. ⇪4 at the very edge of a screen. The lines must stay ON the
+    screen, never half off it.
+C2. ⇪4 on the OTHER monitor: crosshairs on that one, numbers right.
+C3. ⇪4, then ⇪⇧5 and ⌘5 ("repeat area") — same rectangle again.
+C4. The shutter still sounds on ⇪4 and not on a repeat.
+
+D. PASTE BACK, PASS OR FAIL.
+D1. `_G.screenshotsReport()` — there is a new `cross :` line beside
+    the `size :` one. Healthy reads `drawn · last at 1182, 640 ·
+    <time>`. If it reads `⚠️ the crosshair threw`, paste it: the
+    selection still works, the lines went quiet, and that line is the
+    evidence.
+D2. If the crosshairs appear but the NUMBERS do not, that is the
+    other half failing and the `size :` line names it. They are two
+    switches and two failures on purpose — one sentence from you,
+    two different fixes here.
+
+E. A JUDGEMENT ONLY YOU CAN MAKE.
+E1. A one-point white hairline at 55% — too faint on a light
+    background, too loud on a dark one? Both are numbers, not a
+    release: `settings = { screenshots = { crossThick = 2,
+    crossAlpha = 0.8 } }`. Tell me how it reads and I will move the
+    default rather than leave you a line to type.
+E2. Do you want the lines off and just the numbers? `crosshair =
+    false`. Or macOS's crosshair back on ⇪4 at the cost of the live
+    size? `areaNative = true`. Both are one word from you.
+E3. 🔨 CRUDE OR ELEGANT: ⇪4 captured correctly the whole time — what
+    was missing was the aiming aid. My reading is that this is a
+    REGRESSION I introduced in 6.264.0 and did not notice for
+    fifty-four releases, which makes it mine however gracefully it
+    degraded. Your tag.
+
+
 
 ## 6.317.0
 
@@ -272,83 +347,6 @@ F2. 🔨 CRUDE OR ELEGANT: the history was unreachable by keyboard, but
     that this is a feature ask created by the card growing a second
     list, not a defect — so I have not put it in the ledger as a
     problem. Correct me if it belongs there.
-
-
-
-## 6.314.0
-
-6.314.0 verify with LL — 🪟 A PICKER THAT WILL NOT OPEN (KNOWN GROUND)
-WHAT CHANGED: when macOS refuses to put one of this config's pickers on
-screen, the key now does nothing quietly and says why, instead of
-throwing forty lines of traceback into the Console.
-🔎 YOUR OWN LOG IS THE WHOLE RELEASE, 20:30:01:
-    ⛔ LuaSkin: hs.chooser:show() ... NSInternalInconsistencyException
-       -[NSRemoteView containingWindowWillOrderOnScreen:]
-       ... init.lua:2055: ...
-That is ANOTHER APP's popup — Safari's URL-completion helper or
-Spotlight — being half-open at the moment you pressed the key. AppKit
-refused, hs.chooser raised, and nothing in this config was catching it.
-Canvases have been protected since 6.56.0 and alerts since 6.274.0; the
-PICKERS — nineteen of them, the thing you press a key to get — were
-bare.
-🚨 AND init.lua:2055 IS NOT THE FAULT, in case the traceback made it
-look like one: that line is the config deliberately re-raising a
-shortcut's error so you SEE it. Deleting it would have hidden this and
-everything like it. It is unchanged.
-
-A. THE HEADLINE — and the honest part is that you cannot easily force
-   it. So this is mostly "use the Mac and see what does NOT happen".
-A1. Use ⇪V, ⇪D, ⇪space, ⇪Y, ⇪⇧V, ⇪T for a few days as normal.
-    EXPECT: no change at all. Every picker opens as it did.
-A2. If a picker ever does nothing, look at the Console.
-    EXPECT a single readable line:
-      ⚠️ picker: macOS refused to open the picker — usually another
-         app's popup (Safari's URL completion, Spotlight) was
-         mid-transition. Press the key again.
-    and NOT a traceback. Press the key again — it opens.
-A3. Console: `_G.popupShowReport()` — new.
-    EXPECT on a healthy day:
-      asked   : <N> picker(s) opened this session
-      refused : none — macOS put every picker on screen
-    PASTE IT. If "refused" is a number, that is the bug happening to
-    you and the line under it names which picker and when.
-
-B. IF YOU WANT TO TRY TO PROVOKE IT (optional, and it may not work —
-   the timing window is small).
-B1. Click into Safari's address bar so its completion list is dropping
-    down, and press ⇪V in the same instant.
-B2. EXPECT: either the picker opens normally, or it does not and you
-    get the one line from A2. What must NOT happen is a traceback, and
-    what must not happen next is the key being dead afterwards.
-
-C. MUST STILL WORK — this touched the one function every picker in the
-   config opens through, so this is the regression sweep and it matters
-   more than A.
-C1. ⇪V the clipboard · ⇪D unified search · ⇪space the launcher ·
-    ⇪Y Chrome history · ⇪. the menus · ⇪⇧S snippets · ⇪T the task form.
-    EXPECT: all open, all in the right place on the right monitor.
-C2. ⌘-drag a picker to a new spot, close it, open it again.
-    EXPECT: it reopens where you put it. (That memory is the record
-    this release clears on a REFUSAL — it must be untouched on a
-    success.)
-C3. Esc closes a picker, and Esc again does whatever it did before.
-C4. ⌘⌘ still opens the clipboard, ⌥⌥ still opens the menus.
-
-D. PASTE BACK, PASS OR FAIL.
-D1. `_G.popupShowReport()` after a few days.
-D2. If you ever get a traceback out of a picker again, paste the whole
-    thing — the frame ABOVE init.lua:2055 is what names the surface,
-    and that is the fact I could not have guessed.
-
-E. 🔨 CRUDE OR ELEGANT.
-E1. When this bit you at 20:30, what actually happened? Did the key do
-    nothing and you moved on, or was the Mac unusable for a moment?
-    I cannot tell from the log, and the answer is the tag.
-E2. 📏 SAID RATHER THAN IMPLIED: this is the THIRD surface in this
-    family — canvases (6.56.0), alerts (6.274.0), now pickers. If
-    anything else of mine ever dies with
-    `containingWindowWillOrderOnScreen:` in it, that is a fourth
-    surface and the same fix, and the traceback is all I need.
 
 
 
