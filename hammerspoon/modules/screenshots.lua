@@ -910,13 +910,23 @@ function M.setup(core)
                                        math.floor(tonumber(y) or 0))
     end
 
-    -- The crosshair's own draw. Elements 5 and 6, MOVED and never
-    -- rebuilt — this runs per mouse event and 6.247.0 priced a rebuild
-    -- on a path like that.
-    function shots.drawCross(canvas, x, y, sf)
+    -- The crosshair's own draw. MOVED and never rebuilt — this runs per
+    -- mouse event and 6.247.0 priced a rebuild on a path like that.
+    -- 🚨 THE INDICES ARE RECORDED, NEVER ASSUMED, and the mutation
+    -- sweep is what said so. The first version hard-coded elements 5
+    -- and 6 — right only while the READOUT's two elements sit at 3 and
+    -- 4. With `sizeReadout = false` they are not appended at all, the
+    -- crosshair lands at 3 and 4, and writing to 5 threw into the
+    -- guard: the crosshair was SILENTLY DEAD for anyone who had turned
+    -- the numbers off. One switch's state deciding where another
+    -- switch's elements live is exactly the coupling a literal index
+    -- hides. `shots.crossIdx` is set where they are appended; the 5/6
+    -- default is only for a caller driving this function directly.
+    function shots.drawCross(canvas, x, y, sf, idx)
+        idx = idx or shots.crossIdx or { 5, 6 }
         local v, h = shots.crossPlan(x, y, { w = sf.w, h = sf.h }, shots.crossThick)
-        canvas[5].frame = v
-        canvas[6].frame = h
+        canvas[idx[1]].frame = v
+        canvas[idx[2]].frame = h
         shots.crossLast = { x = math.floor(tonumber(x) or 0),
                             y = math.floor(tonumber(y) or 0), at = os.time() }
     end
@@ -1031,7 +1041,9 @@ function M.setup(core)
         -- and the numbers are simply absent — which is honest, and the
         -- report says which of the two this Mac has.
         local cross = false
+        shots.crossIdx = nil
         if shots.crosshair then
+            local base = (readout and 4 or 2)
             local okC = pcall(function()
                 canvas:appendElements(
                     { type = "rectangle", action = "fill",
@@ -1042,6 +1054,7 @@ function M.setup(core)
                       frame = { x = 0, y = 0, w = 0, h = 0 } })
             end)
             cross = okC and true or false
+            if cross then shots.crossIdx = { base + 1, base + 2 } end
             if not okC then
                 shots.crossFailed = "this Mac refused the crosshair elements — "
                                     .. "the selector still works, there are just no crosshairs"

@@ -2496,21 +2496,64 @@ do
     cvOff.cb(cvOff, "mouseUp", "_canvas_", 110, 110)
     S.crosshair = keptCross
 
+    -- 🚨 AND THE OTHER SWITCH MUST NOT KILL THIS ONE. Found by the
+    -- mutation sweep: the crosshair wrote to elements 5 and 6, which is
+    -- right only while the READOUT occupies 3 and 4. With the numbers
+    -- switched off they are not appended at all, the lines land at 3
+    -- and 4, and writing to 5 threw into the guard — so the crosshair
+    -- was SILENTLY DEAD for anyone who had turned the numbers off. One
+    -- switch's state deciding where another switch's elements live is
+    -- exactly what a literal index hides.
+    local keptRead = S.sizeReadout
+    S.sizeReadout = false
+    S.crossFailed = nil
+    S.captureAreaTo(function() end)
+    local cvNoNum = _G.__lastCanvas
+    check("🚨 with the NUMBERS off the crosshair still draws — the two "
+          .. "switches are independent",
+          #cvNoNum.elements == 4
+          and math.abs(cvNoNum.elements[3].frame.x - 700) <= 1
+          and cvNoNum.elements[3].frame.h == 900
+          and cvNoNum.elements[4].frame.w == 1440
+          and S.crossFailed == nil,
+          tostring(S.crossFailed) .. " · " .. tostring(cvNoNum.elements[3].frame.x))
+    cvNoNum.cb(cvNoNum, "mouseMove", "_canvas_", 500, 250)
+    check("…and it follows the pointer there too",
+          math.abs(cvNoNum.elements[3].frame.x - 500) <= 1
+          and math.abs(cvNoNum.elements[4].frame.y - 250) <= 1,
+          cvNoNum.elements[3].frame.x)
+    cvNoNum.cb(cvNoNum, "mouseDown", "_canvas_", 500, 250)
+    cvNoNum.cb(cvNoNum, "mouseUp", "_canvas_", 600, 350)
+    S.sizeReadout = keptRead
+
     -- 🔒 IT IS DECORATION ON A LOAD-BEARING DRAG, so a crosshair that
     -- throws costs the crosshair and never the selection (6.260.0's
     -- rule, which this release had to pay a second time).
+    -- 🚨 IT BREAKS MID-DRAG, NOT AT ARM TIME, and the sweep is what said
+    -- so: a crosshair already dead when the selector opened proves only
+    -- the arm-time guard, and the callback's own "remember it went
+    -- down" was unkillable under that fixture (6.273.0). The selector
+    -- here arms HEALTHY and the draw starts throwing afterwards, which
+    -- is the only input that separates the two guards.
     local realCross, nDeg = S.drawCross, #DEGRADES
-    S.drawCross = function() error("the crosshair blew up") end
     S.captureAreaTo(function() end)
     local cvBad = _G.__lastCanvas
+    S.drawCross = function() error("the crosshair blew up") end
     cvBad.cb(cvBad, "mouseDown", "_canvas_", 20, 30)
     cvBad.cb(cvBad, "mouseMove", "_canvas_", 220, 180)
+    -- the helper answers falsely rather than indexing a nil: a mutation
+    -- that lets the throw cancel the drag must FAIL this, not end the
+    -- run with "0 failed" never printed (6.186.0)
+    local function bandOf(k)
+        local e = cvBad.elements and cvBad.elements[2]
+        return (e and e.frame and e.frame[k]) or -1
+    end
     check("🚨 a crosshair that throws does NOT cancel the selection",
-          cvBad.elements[2].frame.w == 200 and cvBad.elements[2].frame.h == 150,
-          cvBad.elements[2].frame.w)
+          bandOf("w") == 200 and bandOf("h") == 150, bandOf("w"))
     check("…it takes the 🔔 door once and names itself",
-          #DEGRADES > nDeg and DEGRADES[#DEGRADES].tool:find("crosshair", 1, true) ~= nil,
-          tostring(DEGRADES[#DEGRADES] and DEGRADES[#DEGRADES].tool))
+          #DEGRADES > nDeg
+          and tostring((DEGRADES[#DEGRADES] or {}).tool):find("crosshair", 1, true) ~= nil,
+          tostring((DEGRADES[#DEGRADES] or {}).tool))
     local afterOne = #DEGRADES
     for i = 1, 12 do cvBad.cb(cvBad, "mouseMove", "_canvas_", 220 + i, 180 + i) end
     check("…and then goes quiet for the rest of the drag rather than "
@@ -2553,7 +2596,7 @@ do
     MOUSE_AT = keptAt
 
     check("the 6.318.0 block ran every one of its checks",
-          (pass + fail) - n17 >= 17, (pass + fail) - n17)
+          (pass + fail) - n17 >= 19, (pass + fail) - n17)
 end
 
 -- =====================================================================
