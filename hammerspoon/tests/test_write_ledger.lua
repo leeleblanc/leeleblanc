@@ -499,21 +499,52 @@ do
 
     -- the healthy case must read as health (6.269.0 — an instrument that
     -- warns on a good day is one he switches off)
+    -- 🚨 THE FIXTURE MUST SEPARATE THEM (6.230.0). The first version of
+    -- this check put the vault at <cloud>/Vault — which is exactly what
+    -- a module computing the path ITSELF would guess, so a mutation
+    -- replacing the read with the guess passed. The module's own folder
+    -- is somewhere else here, so only reading it can be right.
     CORE.cloudDir = ROOT .. "/Cloud"
-    os.execute("mkdir -p '" .. ROOT .. "/Cloud/Vault'")
-    _G.vault = { dir = ROOT .. "/Cloud/Vault", notes = { "a", "b", "c" }, lastScan = os.time() }
+    os.execute("mkdir -p '" .. ROOT .. "/Cloud/Notes Elsewhere'")
+    _G.vault = { dir = ROOT .. "/Cloud/Notes Elsewhere", notes = { "a", "b", "c" }, lastScan = os.time() }
     local vfCloud = wl.vaultFacts()
-    check("with OneDrive found it reads the vault module's OWN folder, not a guess",
-          vfCloud.onCloud == true and vfCloud.dir == ROOT .. "/Cloud/Vault"
+    check("with OneDrive found it reads the vault module's OWN folder, never a guess",
+          vfCloud.onCloud == true and vfCloud.dir == ROOT .. "/Cloud/Notes Elsewhere"
           and vfCloud.notes == 3 and vfCloud.exists == true, tostring(vfCloud.dir))
     local goodBlock = table.concat(wl.storeLines(nowFiles, vfCloud, os.time(), nil), "\n")
     check("🚨 a healthy Mac is told plainly and is NOT shouted at",
           goodBlock:find("LOCAL ONLY", 1, true) == nil
           and goodBlock:find("3 notes", 1, true) ~= nil
-          and goodBlock:find(ROOT .. "/Cloud/Vault", 1, true) ~= nil, goodBlock)
+          and goodBlock:find(ROOT .. "/Cloud/Notes Elsewhere", 1, true) ~= nil, goodBlock)
+    -- 🚨 ASSERT THE LINE, NOT THE WORDS — the first version searched the
+    -- whole block for "last write" and was satisfied by the FOOTER,
+    -- which names _G.saved() and says "last write" in passing. A
+    -- mutation renaming the real line passed (6.236.0: a sentry matched
+    -- by its neighbour). It reads the line's own text now, and requires
+    -- the newest file to be NAMED on it.
     check("…and it names the Logs folder and the last thing written into it",
           goodBlock:find(LOGS, 1, true) ~= nil
-          and goodBlock:find("last write", 1, true) ~= nil)
+          and (function()
+              -- the newest is computed from the SAME scan the block was
+              -- built from, never named by hand: two fixtures written in
+              -- the same second tie, and which one wins then depends on
+              -- the sort — that is a check that passes alone and fails
+              -- under the gate, which is no check at all (6.239.0).
+              local want
+              for _, f in ipairs(nowFiles) do
+                  if not f.retired then
+                      if not want or f.mtime > want.mtime then want = f end
+                  end
+              end
+              for line in goodBlock:gmatch("[^\n]+") do
+                  if line:find("^%s*last write : ") then
+                      return want ~= nil
+                             and line:find(want.name, 1, true) ~= nil
+                             and line:find("quietest", 1, true) ~= nil
+                  end
+              end
+              return false
+          end)(), goodBlock)
     check("…and the clipboard store he asked about BY NAME, with its path",
           goodBlock:find("📋 clipboard", 1, true) ~= nil
           and goodBlock:find("clipboard_history-TestMac.json", 1, true) ~= nil, goodBlock)
@@ -532,7 +563,7 @@ do
 
     -- an empty but PRESENT vault is a third state, and it is the one he
     -- was looking at: the folder is right and holds nothing.
-    _G.vault = { dir = ROOT .. "/Cloud/Vault", notes = {}, lastScan = os.time() }
+    _G.vault = { dir = ROOT .. "/Cloud/Notes Elsewhere", notes = {}, lastScan = os.time() }
     local emptyBlock = table.concat(wl.storeLines(wl.scan(), wl.vaultFacts(), os.time(), nil), "\n")
     check("an EMPTY but present notes folder warns too — and differently",
           emptyBlock:find("LOCAL ONLY", 1, true) == nil
@@ -546,7 +577,7 @@ do
           and failBlock:find("the vault note Alpha ×4", 1, true) ~= nil)
 
     -- one source, two surfaces (6.231.0)
-    _G.vault = { dir = ROOT .. "/Cloud/Vault", notes = { "a" }, lastScan = os.time() }
+    _G.vault = { dir = ROOT .. "/Cloud/Notes Elsewhere", notes = { "a" }, lastScan = os.time() }
     printed = {}
     local shown = _G.stores()
     check("_G.stores() prints it as ONE string and returns it (6.179.1)",
@@ -569,7 +600,11 @@ do
           armed ~= nil and armed.secs == wl.storeSayAfter and wl.storeSayAfter >= 5
           and wl.storeTimer ~= nil, tostring(armed and armed.secs))
     check("…and says nothing until it fires", #printed == 0)
-    armed.fn()
+    -- 🚨 the helper answers FALSELY rather than indexing a nil: a
+    -- mutation that stops warm arming anything must FAIL these checks,
+    -- not end the run with "0 failed" never printed (6.186.0).
+    local function fire() if armed then armed.fn() else printed[#printed + 1] = "NOTHING ARMED" end end
+    fire()
     check("…then prints the block and lets the slot go",
           #printed == 1 and printed[1]:find("💾 STORES", 1, true) == 1
           and wl.storeTimer == nil)
