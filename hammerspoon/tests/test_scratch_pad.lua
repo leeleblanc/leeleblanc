@@ -2378,5 +2378,54 @@ do
     check("§6.305.0 ran all of its checks (" .. ran .. " of 32+)", ran >= 32, ran)
 end
 
+-- =======================================================================
+out("\n6.316.0 — 🚨 A FAILED SAVE GOES THROUGH EVERY CHANNEL, AND STAYS SAID\n")
+-- =======================================================================
+-- §7 above drives the FALLBACK — the stub `_G.notices` here carries only
+-- tell and record, which is the Mac where notices did not load. The path
+-- that runs on HIS Mac is the other one, and a stub without notSaved is
+-- gentler than the provider in exactly the direction that hides it
+-- (6.290.0).
+do
+    local before = pass + fail
+    local NS, OK = {}, {}
+    local keptNS, keptOK, keptUL = _G.notices.notSaved, _G.notices.saveOK, _G.notices.unsavedLines
+    _G.notices.notSaved = function(tool, what, path, why)
+        NS[#NS + 1] = { tool = tool, what = what, path = path, why = why }
+        return false, why
+    end
+    _G.notices.saveOK = function(tool) OK[#OK + 1] = tool ; return true end
+    _G.notices.unsavedLines = function()
+        return #NS > #OK and { "🚨 NOT SAVED — Hamsidian tabs: your scratch tabs", "   do something" } or {}
+    end
+    sp.setText(sp.active, "through the door")
+    WRITE_FAILS = true
+    local nAl316 = #ALERTS
+    local okD = sp.saveNow()
+    check("with notices loaded the tabs go through the ONE door, not their own alert",
+          okD == false and #NS == 1 and (NS[1] or {}).tool == "Hamsidian tabs"
+          and (NS[1] or {}).path == sp.file and #ALERTS == nAl316,
+          tostring(#NS) .. "/" .. tostring(#ALERTS - nAl316))
+    -- 🚨 answers FALSELY rather than indexing a nil (6.186.0).
+    local function nsWhat() return (NS[1] and NS[1].what) or "" end
+    check("…and it names the tabs, so the block says WHICH writing is at risk",
+          nsWhat():find("scratch tabs", 1, true) ~= nil, nsWhat())
+    local rep316 = _G.scratchPadReport()
+    check("🚨 _G.scratchPadReport() puts the live NOT SAVED block FIRST, above the store line",
+          (function()
+              local at   = rep316:find("NOT SAVED", 1, true)
+              local head = rep316:find("📝 Hamsidian tabs", 1, true)
+              return at ~= nil and head ~= nil and at < head
+          end)(), rep316:sub(1, 80))
+    WRITE_FAILS = false
+    sp.saveNow()
+    check("a real write clears it through the same door — never by the module itself",
+          #OK == 1 and OK[1] == "Hamsidian tabs"
+          and _G.scratchPadReport():find("NOT SAVED", 1, true) == nil)
+    _G.notices.notSaved, _G.notices.saveOK, _G.notices.unsavedLines = keptNS, keptOK, keptUL
+    local ran = (pass + fail) - before
+    check("§6.316.0 ran all of its checks (" .. ran .. " of 4)", ran >= 4, ran)
+end
+
 out(string.format("\n%d passed, %d failed\n", pass, fail))
 os.exit(fail == 0 and 0 or 1)

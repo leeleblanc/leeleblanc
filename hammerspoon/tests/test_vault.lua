@@ -2007,5 +2007,65 @@ do
     check("§6.280.0 ran all of its checks (" .. ran .. " of 18+)", ran >= 18, ran)
 end
 
+-- =======================================================================
+out("\n6.316.0 — 🚨 A FAILED SAVE GOES THROUGH EVERY CHANNEL, AND STAYS SAID\n")
+-- =======================================================================
+-- Everything above drives the FALLBACK — this suite has no `_G.notices`,
+-- which is the Mac where notices did not load and the module speaks for
+-- itself. The path that actually runs on his Mac is the OTHER one, and a
+-- stub that does not carry notSaved is gentler than the provider in
+-- exactly the direction that would hide it (6.290.0).
+do
+    local before = pass + fail
+    local NS, OK = {}, {}
+    local keptNotices = _G.notices
+    _G.notices = {
+        notSaved = function(tool, what, path, why)
+            NS[#NS + 1] = { tool = tool, what = what, path = path, why = why }
+            return false, why
+        end,
+        saveOK      = function(tool) OK[#OK + 1] = tool ; return true end,
+        unsavedLines = function()
+            return #NS > #OK and { "🚨 NOT SAVED — Hamsidian: a note", "   do something" } or {}
+        end,
+        record = function() return true end,
+    }
+    v.openNote("Alpha")
+    v.setText("# Alpha\n\nchannelled\n")
+    WRITE_FAILS = true
+    local nAlertsBefore = #ALERTS
+    v.saveNow()
+    check("with notices loaded the module goes through the ONE door, not its own alert",
+          #NS == 1 and NS[1].tool == "Hamsidian" and (NS[1] or {}).why ~= nil
+          and (NS[1].path or ""):find("Alpha.md", 1, true) ~= nil
+          and #ALERTS == nAlertsBefore,
+          tostring(#NS) .. "/" .. tostring(#ALERTS - nAlertsBefore))
+    -- 🚨 the helper answers FALSELY rather than indexing a nil: a
+    -- mutation that stops notSaved being called must FAIL this check,
+    -- not end the run with "0 failed" never printed (6.186.0).
+    local function nsWhat() return (NS[1] and NS[1].what) or "" end
+    check("…and it names the NOTE, so the report says which writing is at risk",
+          nsWhat():find("Alpha", 1, true) ~= nil, nsWhat())
+    -- 🚨 THE BLOCK IS FIRST, found by the mutation sweep: a report that
+    -- buries "your writing is not on disk" under twenty lines of tag
+    -- counts is a report he reads the top of and closes.
+    local rep = _G.vaultReport()
+    check("🚨 _G.vaultReport() puts the live NOT SAVED block FIRST, above the folder line",
+          (function()
+              local at   = rep:find("NOT SAVED", 1, true)
+              local head = rep:find("🕸 Hamsidian", 1, true)
+              return at ~= nil and head ~= nil and at < head
+          end)(), rep:sub(1, 80))
+    WRITE_FAILS = false
+    v.setText("# Alpha\n\nchannelled twice\n")
+    v.saveNow()
+    check("a real write clears it through the same door — never by the module itself",
+          #OK == 1 and OK[1] == "Hamsidian"
+          and _G.vaultReport():find("NOT SAVED", 1, true) == nil)
+    _G.notices = keptNotices
+    local ran = (pass + fail) - before
+    check("§6.316.0 ran all of its checks (" .. ran .. " of 4)", ran >= 4, ran)
+end
+
 out(string.format("\n%d passed, %d failed\n", pass, fail))
 os.exit(fail == 0 and 0 or 1)

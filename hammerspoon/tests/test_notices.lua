@@ -598,6 +598,21 @@ check("…and a DIFFERENT cause speaks again — the per-session boolean was the
 check("saveOK clears the sticky state and says the tool is saving again",
       N.saveOK("Hamsidian") == true and N.unsaved["Hamsidian"] == nil
       and #N.unsavedLines() == 0 and printedHas("saving again"))
+-- 🚨 A SECOND STREAK IS A NEW EMERGENCY, EVEN WITH THE SAME CAUSE.
+-- Found by the sweep, not by reading: the line that clears the stored
+-- key was unkillable, because every check above starts from a fresh
+-- notices where the key is nil anyway. The input that separates them is
+-- a tool that failed, RECOVERED, and failed the same way again inside
+-- the 300 s window — without the clear, the second streak is silent
+-- (6.273.0: a line no mutation can kill means the CHECK is missing).
+do
+    local nN2, nA2 = #NOTIFIES, #ALERTS
+    N.notSaved("Hamsidian", "the note Alpha", "/Vault/Alpha.md", "rename failed")
+    check("a SECOND streak with the SAME cause speaks again, inside the window",
+          #NOTIFIES == nN2 + 1 and #ALERTS > nA2,
+          ("%d→%d / %d→%d"):format(nN2, #NOTIFIES, nA2, #ALERTS))
+    N.saveOK("Hamsidian")
+end
 check("…and saveOK on a tool that was never in trouble says nothing at all",
       (function() local before = #ALERTS; local r = N.saveOK("Pomodoro")
        return r == false and #ALERTS == before end)())
@@ -619,10 +634,16 @@ local function src(rel)
     local t = f:read("*a"); f:close(); return t
 end
 for _, rel in ipairs({ "modules/vault.lua", "modules/scratch_pad.lua" }) do
+    -- 🚨 THE NEEDLE IS THE CALL, NOT THE NAME. The first version of this
+    -- sentry matched "_G.notices.notSaved" and survived a mutation that
+    -- deleted the call outright — because the `type(_G.notices.notSaved)
+    -- == "function"` guard one line above still carries the name
+    -- (6.236.0: a name sentry matches the thing, never one sentence it
+    -- once appeared in). It matches the pcall's own comma now.
     check("SOURCE: " .. rel .. " reports a failed save through notices.notSaved",
-          src(rel):find("_G.notices.notSaved", 1, true) ~= nil)
+          src(rel):find("pcall(_G.notices.notSaved,", 1, true) ~= nil)
     check("SOURCE: " .. rel .. " clears it through notices.saveOK, never by itself",
-          src(rel):find("_G.notices.saveOK", 1, true) ~= nil)
+          src(rel):find("pcall(_G.notices.saveOK,", 1, true) ~= nil)
     check("SOURCE: " .. rel .. "'s own fallback gate is per CAUSE, not a boolean",
           src(rel):find("saveErrSaid ~= why", 1, true) ~= nil)
 end
