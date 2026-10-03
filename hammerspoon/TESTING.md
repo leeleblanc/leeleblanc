@@ -1,4 +1,4 @@
-# TESTING — how to score release 6.315.0
+# TESTING — how to score release 6.316.0
 
 You install ONE archive and it carries several releases. Below are the
 steps for each release this archive is new for, newest first. Run the
@@ -26,6 +26,90 @@ else is a LOSS and I fix it before building further. You are the only
 scorer; I never mark my own.
 
 ---
+
+## 6.316.0
+
+6.316.0 verify with LL — 🚨 A FAILED SAVE IS IMPOSSIBLE TO MISS (KNOWN GROUND)
+WHAT CHANGED: when Hamsidian cannot write — a note or a scratch tab —
+it now says so through FOUR channels instead of one, and the warning
+STAYS said until a real write clears it.
+🔎 AND IT ALREADY WARNED, which is the part worth reading. Both halves
+called hs.alert on a failed write. Four things made that not enough,
+and all four are now closed:
+  · 6.274.0 counted THREE `an alert could not draw` lines in eight
+    hours of your own Console. A refused alert was the whole warning.
+  · the gate was one per-SESSION switch, so a SECOND failure with a
+    DIFFERENT cause never spoke again that day.
+  · it never took the 🔔 door, so it reached no ledger row, no ⇪⇧D,
+    no `_G.degradeReport()` and — the expensive one — no row in the
+    on-disk log, which made `_G.todayReport()`, your own 4 PM
+    double-check, blind to the one failure that costs you writing.
+  · nothing survived the moment. Ten seconds later there was a count
+    in a report and no sentence saying your text was still unwritten.
+
+A. THE HEADLINE — two minutes, and it needs you to break a write on
+   purpose. The safe way: in Finder, RENAME your `<OneDrive>/Vault`
+   folder (add an x). Hamsidian keeps every word in memory.
+A1. Open a note (⇪3), type a word, wait a second.
+    EXPECT: an alert "⚠️ Hamsidian save — the note <name> was NOT
+    written — …" naming the cause, AND a macOS notification, AND a
+    Console line beginning ⚠️.
+    **A FAIL is silence.** That is the whole release.
+A2. Keep typing for a minute.
+    EXPECT: it does NOT alert again for the same cause — once per ten
+    minutes. If your screen fills with alerts, tell me at once; that
+    is the opposite failure and it is the one that makes you switch a
+    warning off.
+A3. Console: `_G.degradeReport()`.
+    EXPECT the FIRST lines, above everything else:
+      🚨 NOT SAVED — Hamsidian: the note <name> — <cause>
+         since HH:MM:SS · N failed writes · /path/to/the/note.md
+         Your text is still in the window. Do not close it — copy it
+         out, or fix the folder … and type a character.
+A4. `_G.vaultReport()` — the same block, first, before the folder line.
+A5. Put the folder name back. Type a character in the note.
+    EXPECT: "✅ Hamsidian is saving again" and the file on disk now
+    holds your word. Run `_G.degradeReport()` again: the 🚨 block is
+    GONE. **Only a real write clears it** — not a timer, not a reload.
+
+B. THE SAME FOR THE TABS, because they are the other half of the one
+   window and they had the identical hole.
+B1. Rename the Logs folder (or just trust A). Type in a ⇪N scratch tab.
+    EXPECT the same four channels, naming "Hamsidian tabs" and
+    "your scratch tabs".
+B2. `_G.scratchPadReport()` carries the same 🚨 block at the top.
+
+C. THE 4 PM CHECK, which is the reason this is more than an alert.
+C1. After doing A, run `_G.todayReport()`.
+    EXPECT the failure listed with its time and cause — read back off
+    DISK, so it survives a reload. Before this release a failed
+    Hamsidian save never appeared there at all.
+C2. Reload Hammerspoon and run `_G.todayReport()` again.
+    EXPECT: still there. The sticky 🚨 block is gone (that one is
+    about right now), but the LOG row remains. Those are two different
+    facts on purpose.
+
+D. MUST STILL WORK — this touched the save path of the tool that holds
+   your writing, so this half matters more than A.
+D1. Type in a note, wait, close Hamsidian, reopen: the word is there.
+D2. ⌘N, ⌘F, ⌘⇧S export, the ✕ delete, ⌘Z — all unchanged.
+D3. Type in a scratch tab, ⌘T a new tab, reload: both survive.
+D4. On a HEALTHY Mac this release must be completely invisible. No new
+    alert, no new Console line, nothing. If you see anything at all on
+    a day when nothing failed, that is a finding and I want it
+    (6.269.0 — a new instrument's first duty is to be silent).
+
+E. A JUDGEMENT ONLY YOU CAN MAKE.
+E1. Is the notification right, or is it one channel too many? It holds
+    through Focus and lands after a meeting, which is why it is there
+    — but you are the one who gets it. "keep it" · "alert and log only".
+E2. 🔨 CRUDE OR ELEGANT: has a Hamsidian save ever actually failed on
+    you? If your notes have ever been short a paragraph you were sure
+    you typed, that is this, and the row is 🔨. If not, it is a hole
+    closed before it cost anything and my reading is ✨ ELEGANT, one
+    pass — your tag either way.
+
+
 
 ## 6.315.0
 
@@ -222,71 +306,6 @@ C1. This never bit you that I know of — it is a hole closed before it
     cost anything, so my reading is ✨ ELEGANT, one pass. Correct me if
     you have ever opened the player to an empty queue you did not
     empty: that would mean it DID bite, and the row is 🔨.
-
-
-
-## 6.312.0
-
-6.312.0 verify with LL — 🔎 THE REPORT STOPS GUESSING (KNOWN GROUND)
-WHAT CHANGED: `_G.musicReport()` can now say "I have not read that
-yet" instead of reporting zero.
-🚨 AND THIS IS THE FIX FOR A FALSE ALARM I RAISED. You sent a report
-two seconds after a boot; it said your queue was empty, your history
-was 0 tracks and the ⏯ tap was not running, and I told you your data
-was gone. It was not. The store is opened and the tap is started a few
-seconds AFTER boot, so none of those three had happened yet — and all
-three printed the words for "it happened and there is nothing". Your
-earlier good report was 37 seconds after its boot; the alarming one
-was 2. That was the whole difference, and it was in your own paste.
-🕘 AND YOUR QUESTION WAS RIGHT: no, we did not build the Jug Player 30
-days ago — it shipped 2026-09-16, thirteen days before you asked. The
-30 is how long a row is KEPT, not how much you have. The line says so
-now instead of leaving you to wonder.
-
-A. THE HEADLINE — this takes about a minute and needs a reload.
-A1. Reload Hammerspoon and run `_G.musicReport()` IMMEDIATELY —
-    within a second or two, before it has warmed up.
-    EXPECT:
-      queue    : ⏳ not read yet — see the store line below
-      history  : ⏳ not read yet — see the store line below
-      ⏯ keys   : ⏳ not started yet — the tap starts a few seconds
-                 after boot, with the store.
-      store    : ⏳ NOT READ YET — …not an answer yet…
-    **A FAIL is seeing "empty" or "0 track(s)" or "⚠️ WANTED but not
-    running" in that first moment** — that is the old behaviour.
-A2. Wait ten seconds and run it again.
-    EXPECT: your real queue, your real history, and the ⏯ line back to
-    `watching ⏯ ⏮ ⏭`. If your tracks are there, nothing was ever lost
-    and the alarm I raised was mine.
-A3. Read the history line. EXPECT it to name the 30 as a window:
-    `N track(s) kept · oldest Sep 28 — one row per file, and rows are
-    kept for up to 30 day(s) (the WINDOW, not a claim that this Mac
-    holds that much)`.
-
-B. THE STATES THAT ONLY APPEAR WHEN SOMETHING IS WRONG.
-B1. If the store line ever says **ZERO BYTES**, paste it at once —
-    that is a write that was cut off, and it is the exact thing
-    6.313.0 exists to prevent.
-B2. If it says **UNREADABLE**, also paste it. Your file is still on
-    disk in that case and was not overwritten.
-B3. If the ⏯ line says `⚠️ WANTED but not running` TEN SECONDS after a
-    boot, that is a real failure now rather than a timing artefact,
-    and it names macOS's own reason.
-
-C. MUST STILL WORK.
-C1. ⇪⇧. and ⇪⇧pad. both open the card. Drop tracks, space, ↑↓, ⏎,
-    ⌘1–9, ← →, ⌫, the ✕ on a history row.
-C2. F8/⏯ drives it while the card is on screen (6.309.0).
-
-D. A JUDGEMENT ONLY YOU CAN MAKE.
-D1. Is ⏳ the right way to say "not yet", or would you rather it said
-    nothing at all on those lines until it knows? I chose to say it
-    out loud because a missing line reads as a broken report.
-D2. 🔨 CRUDE OR ELEGANT: the Mac was fine throughout — what broke was
-    what the REPORT told you, and it told me the wrong thing too. My
-    reading is that a diagnostic lying about your data is worse than
-    it sounds, but it degraded rather than making anything unusable.
-    Your tag.
 
 
 

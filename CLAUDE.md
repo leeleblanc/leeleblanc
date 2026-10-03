@@ -3066,6 +3066,51 @@ work Mac.
   them passed this bug for 208 releases. The storm reached Chrome as
   Vimium keys: a stray "t" is a new tab, "o" the omnibar.
 
+- 🚨 A TOOL THAT WARNS THROUGH ONE CHANNEL WARNS THROUGH NONE
+  (6.316.0, core/notices.lua + modules/vault.lua + scratch_pad.lua —
+  LL, in capitals: "!!CRITICAL: HAMSIDIAN MUST THROW VISIBLE ERRORS IF
+  IT DOES NOT SAVE.!!").
+  🔎 AND IT ALREADY DID, which is why the reading mattered more than
+  the build: both halves called hs.alert on a failed write, in two
+  copies of the same five lines. Four separate things made that not
+  enough, and every one of them is a rule already in this file —
+  6.274.0 measured macOS REFUSING that exact channel three times in
+  eight hours; the gate was a per-SESSION boolean so a second,
+  DIFFERENT cause was silent all day; it never took the 🔔 door, so it
+  reached no ledger row, no `_G.degradeReport()` and no CSV row, which
+  made `_G.todayReport()` — the 4 PM check built from his own words in
+  6.279.0 — structurally blind to the one failure that costs him his
+  writing; and nothing outlived the ten seconds the alert was on screen.
+  🔑 GENERAL, AND IT IS THE ONE TO CARRY: **"DOES IT WARN?" AND "WOULD
+  HE FIND OUT?" ARE DIFFERENT QUESTIONS, AND ONLY THE SECOND MATTERS.**
+  When a report asks whether a failure is visible, do not grep for an
+  alert — walk the channels: can it be refused · is it gated per
+  session or per cause · does it reach the ledger that outlives a
+  reload · and is anything still TRUE an hour later. A single channel
+  answers yes to the first question and no to all four.
+  📌 THE STICKY ONE IS THE POINT. `notices.unsaved[tool]` is cleared by
+  a REAL WRITE and by nothing else — not a timer, not a reload, not a
+  quieter minute, because "it stopped complaining" and "it saved" are
+  opposite facts (6.196.1). It prints FIRST in `_G.degradeReport()` and
+  in both Hamsidian reports, above the history, because it is the only
+  line in any of them still true rather than a record.
+  🔕 AND IT IS BOUNDED, or it is a warning he learns to dismiss: the
+  vault retries every keystroke, so the alert rides the door's own
+  per-cause window and the notification is keyed with its own
+  (`notSavedEvery`, 300 s). 🚨 THE FIRST FAILURE OF A STREAK ALWAYS
+  SPEAKS — and it CLEARS the stored key rather than passing no key,
+  because a keyless `notices.tell` records nothing, so the NEXT failure
+  speaks too and "once per streak" quietly means twice. That was real,
+  in the first version, and it is its own check.
+  🔒 ONE FUNCTION, TWO CALLERS (6.231.0): the notes side and the tabs
+  side are one tool and had two copies of the warning, which is exactly
+  how they came to be identically wrong. The fallback for a Mac where
+  notices did not load gates on the CAUSE STRING, never a boolean.
+  🧪 THE FIXTURE THAT BITES IS A SECOND FAILURE WITH A DIFFERENT REASON
+  (6.230.0) — every other input agrees with the old code. And the check
+  that read "the second failure in the streak is silent" was asserting
+  the BUG; it asserts the rule now (6.248.0, fifth time).
+
 ## Module contract
 
 Each module: `M = {name, order, family, cheatsheet}` plus `M.setup(core)`.
@@ -4648,6 +4693,7 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
+| 6.316.0 | 🚨 a Hamsidian save that fails is impossible to miss — it warned through the one channel macOS is measured to refuse, behind a per-session switch, and never reached the 4 PM log | pending |
 | 6.315.0 | ⌨️ ↑↓ reach the Jug Player's 🕘 history at last — the cursor was written when the card had one list, and the history was drawn under it four releases later | pending |
 | 6.314.0 | 🪟 a picker macOS refuses to open is a quiet keypress and a named line, not forty lines of traceback — his 20:30:01 NSInternalInconsistencyException, the same AppKit family as both .ips aborts | pending |
 | 6.313.0 | 🔒 the Jug Player's queue survives a save that fails — the store was opened with a truncating write, so a crash mid-save left it at zero bytes and the loader read that as "nothing queued" | pending |
@@ -5672,6 +5718,86 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.316.0 verify with LL — 🚨 A FAILED SAVE IS IMPOSSIBLE TO MISS (KNOWN GROUND)
+  WHAT CHANGED: when Hamsidian cannot write — a note or a scratch tab —
+  it now says so through FOUR channels instead of one, and the warning
+  STAYS said until a real write clears it.
+  🔎 AND IT ALREADY WARNED, which is the part worth reading. Both halves
+  called hs.alert on a failed write. Four things made that not enough,
+  and all four are now closed:
+    · 6.274.0 counted THREE `an alert could not draw` lines in eight
+      hours of your own Console. A refused alert was the whole warning.
+    · the gate was one per-SESSION switch, so a SECOND failure with a
+      DIFFERENT cause never spoke again that day.
+    · it never took the 🔔 door, so it reached no ledger row, no ⇪⇧D,
+      no `_G.degradeReport()` and — the expensive one — no row in the
+      on-disk log, which made `_G.todayReport()`, your own 4 PM
+      double-check, blind to the one failure that costs you writing.
+    · nothing survived the moment. Ten seconds later there was a count
+      in a report and no sentence saying your text was still unwritten.
+
+  A. THE HEADLINE — two minutes, and it needs you to break a write on
+     purpose. The safe way: in Finder, RENAME your `<OneDrive>/Vault`
+     folder (add an x). Hamsidian keeps every word in memory.
+  A1. Open a note (⇪3), type a word, wait a second.
+      EXPECT: an alert "⚠️ Hamsidian save — the note <name> was NOT
+      written — …" naming the cause, AND a macOS notification, AND a
+      Console line beginning ⚠️.
+      **A FAIL is silence.** That is the whole release.
+  A2. Keep typing for a minute.
+      EXPECT: it does NOT alert again for the same cause — once per ten
+      minutes. If your screen fills with alerts, tell me at once; that
+      is the opposite failure and it is the one that makes you switch a
+      warning off.
+  A3. Console: `_G.degradeReport()`.
+      EXPECT the FIRST lines, above everything else:
+        🚨 NOT SAVED — Hamsidian: the note <name> — <cause>
+           since HH:MM:SS · N failed writes · /path/to/the/note.md
+           Your text is still in the window. Do not close it — copy it
+           out, or fix the folder … and type a character.
+  A4. `_G.vaultReport()` — the same block, first, before the folder line.
+  A5. Put the folder name back. Type a character in the note.
+      EXPECT: "✅ Hamsidian is saving again" and the file on disk now
+      holds your word. Run `_G.degradeReport()` again: the 🚨 block is
+      GONE. **Only a real write clears it** — not a timer, not a reload.
+
+  B. THE SAME FOR THE TABS, because they are the other half of the one
+     window and they had the identical hole.
+  B1. Rename the Logs folder (or just trust A). Type in a ⇪N scratch tab.
+      EXPECT the same four channels, naming "Hamsidian tabs" and
+      "your scratch tabs".
+  B2. `_G.scratchPadReport()` carries the same 🚨 block at the top.
+
+  C. THE 4 PM CHECK, which is the reason this is more than an alert.
+  C1. After doing A, run `_G.todayReport()`.
+      EXPECT the failure listed with its time and cause — read back off
+      DISK, so it survives a reload. Before this release a failed
+      Hamsidian save never appeared there at all.
+  C2. Reload Hammerspoon and run `_G.todayReport()` again.
+      EXPECT: still there. The sticky 🚨 block is gone (that one is
+      about right now), but the LOG row remains. Those are two different
+      facts on purpose.
+
+  D. MUST STILL WORK — this touched the save path of the tool that holds
+     your writing, so this half matters more than A.
+  D1. Type in a note, wait, close Hamsidian, reopen: the word is there.
+  D2. ⌘N, ⌘F, ⌘⇧S export, the ✕ delete, ⌘Z — all unchanged.
+  D3. Type in a scratch tab, ⌘T a new tab, reload: both survive.
+  D4. On a HEALTHY Mac this release must be completely invisible. No new
+      alert, no new Console line, nothing. If you see anything at all on
+      a day when nothing failed, that is a finding and I want it
+      (6.269.0 — a new instrument's first duty is to be silent).
+
+  E. A JUDGEMENT ONLY YOU CAN MAKE.
+  E1. Is the notification right, or is it one channel too many? It holds
+      through Focus and lands after a meeting, which is why it is there
+      — but you are the one who gets it. "keep it" · "alert and log only".
+  E2. 🔨 CRUDE OR ELEGANT: has a Hamsidian save ever actually failed on
+      you? If your notes have ever been short a paragraph you were sure
+      you typed, that is this, and the row is 🔨. If not, it is a hole
+      closed before it cost anything and my reading is ✨ ELEGANT, one
+      pass — your tag either way.
+
 - 6.315.0 verify with LL — ⌨️ THE ARROWS REACH THE HISTORY (KNOWN GROUND)
   WHAT CHANGED: ↑ and ↓ now walk the queue AND the 🕘 history as one
   list, which is how the card draws them.

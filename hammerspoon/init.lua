@@ -2,10 +2,29 @@
 -- * Working VERSION *
 -- =====================================================================
 -- =====================================================================
--- 09-29-26 using Claude          ← EDITED date. Bumped with every release.
+-- 10-03-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.315.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.316.0
 -- =====================================================================
+
+-- NEW IN 6.316.0 — 🚨 A HAMSIDIAN SAVE THAT FAILS IS IMPOSSIBLE TO MISS
+--   (core/notices.lua + modules/vault.lua + scratch_pad.lua). LL, in
+--   capitals: "HAMSIDIAN MUST THROW VISIBLE ERRORS IF IT DOES NOT
+--   SAVE." Both halves DID alert — through the one channel 6.274.0
+--   measured macOS refusing three times in eight hours, behind a
+--   per-SESSION boolean, so a refusal was the whole warning and a
+--   SECOND, different cause never spoke again that day. Neither took
+--   the 🔔 door, so the failure that costs him his writing reached
+--   neither _G.degradeReport(), the ledger, nor the 4 PM report.
+--   🔑 FOUR CHANNELS, ONE FUNCTION, TWO CALLERS (6.231.0):
+--   `notices.notSaved` takes the door (Console every time · ledger ·
+--   the CSV that outlives a reload · an alert per cause) AND a
+--   notification notices.tell holds through Focus. 🚨 THE STICKY ONE
+--   IS THE POINT: `notices.unsaved` is cleared by a REAL WRITE alone
+--   and printed FIRST in _G.degradeReport() and both Hamsidian
+--   reports — an alert is gone in ten seconds and a Console line
+--   scrolls; that block still answers "is my writing on disk?" an
+--   hour later. The fallback gate is per CAUSE, not a boolean.
 
 -- NEW IN 6.315.0 — ⌨️ THE ARROWS WALK THE 🕘 HISTORY TOO
 --   (modules/music_player.lua). LL: "Can't use the arrow keys to move
@@ -20,32 +39,13 @@
 --   🚨 nh IS WHAT IS DRAWN, never #mp.history — the card shows 40 of a
 --   store holding 400. ⏎ and ⌫ carry NO row number: Lua holds the
 --   cursor, so the page cannot name a row a redraw renumbered, and ⌫
---   in the history forgets BY PATH (6.272.0). 🔬 Two sweep survivors —
---   playAt moved mp.sel without claiming the list, and `p = nq + 1`
---   was `p = 1` no mutation could kill (6.199.0). 21/21 bite.
+--   in the history forgets BY PATH (6.272.0). 🔬 2 survivors; 21/21.
 
--- NEW IN 6.314.0 — 🔒 A PICKER THAT macOS REFUSES NO LONGER THROWS
---   (init.lua `showPopup`). LL's Console, 20:30:01: an uncaught
---   NSInternalInconsistencyException out of `-[NSRemoteView
---   containingWindowWillOrderOnScreen:]` — Safari's URL-completion
---   helper was mid-transition and AppKit would not order
---   HSChooserWindow in. It came up through hyperBind's re-raise
---   (6.179.0, correct and unchanged) as forty lines of traceback with
---   the key having done nothing. SAME AppKit family as the two .ips
---   aborts; canvases have been guarded since 6.56.0, pickers never.
---   🚪 ONE DOOR: a sentry already requires every chooser to be placed
---   through showPopup, so the class closes in one function rather than
---   nineteen modules (6.266.0). The show is pcall'd; CLEARED on a
---   refusal, because window_move and the preview pane read
---   `lastPopupPlacement` to find a live box (6.306.0); the chooser is
---   torn down, not left holding its Esc claim (6.265.0); and
---   `_G.popupShowReport()` counts asked against refused (6.274.0).
-
--- (6.313.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.314.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 cut the inline count to
 --  TWO; a gate check proves every entry here is also in CHANGELOG.md.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.315.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.316.0
 -- =====================================================================
 -- The catalogue that used to sit here moved to GUIDE.md ("What each
 -- tool does") in 6.180.0 — 259 lines of prose inside the orchestrator.
@@ -138,7 +138,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.315.0"
+_G.configVersion = "6.316.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the

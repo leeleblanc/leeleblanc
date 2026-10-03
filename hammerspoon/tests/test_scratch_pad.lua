@@ -568,7 +568,22 @@ check("a failed write is reported once through core.warnWriteFailed", okS == fal
 check("...and SAID on screen, once per streak", ALERTS[#ALERTS]:find("NOT SAVED", 1, true) ~= nil)
 local nAl = #ALERTS
 sp.saveNow()
-check("...the second failure in the streak is silent", #ALERTS == nAl)
+check("...the SAME cause does not alert twice in the streak", #ALERTS == nAl)
+-- 🚨 6.316.0 — AND A DIFFERENT CAUSE SPEAKS AGAIN. The gate was one
+-- per-session boolean, so the SECOND kind of failure was silent for the
+-- rest of the day, on the one store that holds his writing. The fixture
+-- that bites is a second failure with a DIFFERENT reason — every other
+-- input agrees with the old code (6.230.0).
+WRITE_FAILS = false
+local keptRename = os.rename
+os.rename = function() return nil, "refused" end
+local okS2 = sp.saveNow()
+os.rename = keptRename
+WRITE_FAILS = true
+check("...but a DIFFERENT cause alerts again (the per-session boolean was the bug)",
+      okS2 == false and #ALERTS > nAl
+      and ALERTS[#ALERTS]:find("rename failed", 1, true) ~= nil,
+      tostring(ALERTS[#ALERTS]))
 check("...and the header wears the ⚠ badge on the next render", (function() sp.show(); local h = WEBVIEWS[#WEBVIEWS].htmlSet; sp.hide(); return h:find("⚠ not saved", 1, true) ~= nil end)())
 check("…and the text is still in Lua", sp.tabs[1].text == "kept in memory")
 check("…and the report shows the error", _G.scratchPadReport():find("⚠️", 1, true) ~= nil)

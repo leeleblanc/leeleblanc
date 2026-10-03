@@ -595,11 +595,112 @@ return function(core)
     _G.degrade = notices.degrade
     if type(core) == "table" then core.degrade = notices.degrade end
 
+    -- 🚨 6.316.0 — A SAVE THAT FAILED IS NOT A LINE IN A REPORT (LL, in
+    -- capitals: "HAMSIDIAN MUST THROW VISIBLE ERRORS IF IT DOES NOT
+    -- SAVE"). Both halves of Hamsidian already alerted — and both did it
+    -- through the ONE channel 6.274.0 measured macOS refusing three
+    -- times in eight hours, gated by a single per-session boolean, so a
+    -- refused alert was the whole warning and a SECOND, different cause
+    -- was silent for the rest of the day. Neither reached the 🔔 door,
+    -- so neither reached _G.degradeReport(), the on-disk ledger or
+    -- _G.todayReport() — the 4 PM double-check he built 6.279.0 for was
+    -- structurally blind to the one failure that costs him his writing.
+    --
+    -- 🔑 FOUR CHANNELS, AND THE STICKY ONE IS THE POINT. An alert is
+    -- gone in six seconds and a Console line scrolls; what survives is
+    -- `notices.unsaved`, which is cleared by a REAL WRITE and by nothing
+    -- else — so the report still says so an hour later, which is when he
+    -- actually looks. The other three ride the door that already exists
+    -- rather than a second copy of it (6.231.0): degrade() prints every
+    -- time, records in the ledger, appends the CSV row that outlives a
+    -- reload, and alerts once per tool+cause.
+    --
+    -- 📣 AND THE NOTIFICATION IS THE ONE THAT SURVIVES A MEETING
+    -- (6.278.0's shape): notices.tell holds it through Focus and
+    -- delivers it after. Keyed and windowed, because the vault retries
+    -- every keystroke — an ungated notification would be a storm, and a
+    -- storm is how a warning stops being read.
+    notices.notSavedEvery = 300   -- seconds between notifications for one cause
+    notices.unsaved   = {}        -- tool -> { what, path, why, at, n } while it is failing
+    notices.unsavedN  = 0         -- failures this session, across every tool
+
+    function notices.notSaved(tool, what, path, why)
+        tool = tostring(tool or "Hamsidian")
+        what = tostring(what or "your text")
+        why  = tostring(why or "no reason given")
+        path = tostring(path or "")
+        local prev = notices.unsaved[tool]
+        notices.unsavedN = notices.unsavedN + 1
+        notices.unsaved[tool] = {
+            what = what, path = path, why = why, at = now(),
+            clock = os.date("%H:%M:%S"), n = ((prev and prev.n) or 0) + 1,
+        }
+        -- the door: Console line every time, ledger row, the CSV that
+        -- outlives a reload, and an alert once per cause
+        notices.degrade(tool .. " save", what .. " was NOT written — " .. why
+                        .. ". Your text is still in the window and every keystroke retries."
+                        .. (path ~= "" and ("  (" .. path .. ")") or ""),
+                        { seconds = 10 })
+        -- 🚨 THE FIRST FAILURE OF A STREAK ALWAYS SPEAKS, whatever the
+        -- window says. `prev == nil` means this tool was saving cleanly a
+        -- moment ago, and that transition is the one he has to catch;
+        -- after it the window keeps a retry loop from painting the screen.
+        local key = "notSaved:" .. tool .. ":" .. why
+        -- the window is cleared, never bypassed: a keyless tell would
+        -- record nothing, so the NEXT failure would speak as well and
+        -- "once per streak" would quietly mean twice.
+        if not prev then notices.shown[key] = nil end
+        pcall(notices.tell, "🚨 " .. tool .. " did not save",
+              what .. " — " .. why .. ". The text is still in the window; nothing is lost yet.",
+              { key = key, every = notices.notSavedEvery })
+        return false, why
+    end
+
+    -- A REAL WRITE IS THE ONLY THING THAT CLEARS IT. Called from the
+    -- success path of every save this covers; silent unless the tool was
+    -- actually in trouble, so a healthy Mac never hears from it.
+    function notices.saveOK(tool)
+        tool = tostring(tool or "Hamsidian")
+        local u = notices.unsaved[tool]
+        if not u then return false end
+        notices.unsaved[tool] = nil
+        pcall(print, "✅ " .. tool .. ": saving again (" .. u.n .. " failed write"
+              .. (u.n == 1 and "" or "s") .. " — the last said: " .. u.why .. ")")
+        pcall(function() hs.alert.show("✅ " .. tool .. " is saving again", 3) end)
+        return true
+    end
+
+    -- 🔎 THE LINES A REPORT PRINTS ABOUT IT, so vault.lua, scratch_pad.lua
+    -- and _G.degradeReport() cannot drift about what "not saved" looks
+    -- like. Empty table = nothing is in trouble, which is NOT the same
+    -- sentence as "this tool has never failed" and is said by the caller.
+    function notices.unsavedLines(tool)
+        local L = {}
+        for name, u in pairs(notices.unsaved) do
+            if (not tool) or name == tool then
+                L[#L + 1] = "🚨 NOT SAVED — " .. name .. ": " .. u.what .. " — " .. u.why
+                L[#L + 1] = "   since " .. tostring(u.clock) .. " · " .. u.n .. " failed write"
+                            .. (u.n == 1 and "" or "s")
+                            .. (u.path ~= "" and (" · " .. u.path) or "")
+                L[#L + 1] = "   Your text is still in the window. Do not close it — copy it out,"
+                L[#L + 1] = "   or fix the folder (OneDrive quit? the folder online-only?) and type a character."
+            end
+        end
+        return L
+    end
+
     function _G.degradeReport()
         local tools = #notices.degradeOrder
-        local L = { string.format("🔔 DEGRADED — %d time(s) across %d tool(s) this session · "
+        local L = {}
+        -- 🚨 6.316.0 — WHAT IS NOT SAVED RIGHT NOW GOES FIRST, above the
+        -- history, because it is the only line here that is still TRUE
+        -- rather than a record of something that happened. An alert he
+        -- missed and a Console line that scrolled both end here.
+        for _, line in ipairs(notices.unsavedLines()) do L[#L + 1] = line end
+        if #L > 0 then L[#L + 1] = "" end
+        L[#L + 1] = string.format("🔔 DEGRADED — %d time(s) across %d tool(s) this session · "
                                   .. "the same cause alerts once per %d min",
-                                  notices.degradeTotal, tools, math.floor(notices.degradeEvery / 60)) }
+                                  notices.degradeTotal, tools, math.floor(notices.degradeEvery / 60))
         if tools == 0 then
             L[#L + 1] = "   nothing has degraded this session — every tool that took the door had what it needed."
         else

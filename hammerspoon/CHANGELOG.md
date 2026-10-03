@@ -5,6 +5,89 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.316.0 — 🚨 A HAMSIDIAN SAVE THAT FAILS IS IMPOSSIBLE TO MISS
+  (core/notices.lua + modules/vault.lua + modules/scratch_pad.lua).
+  LL, in capitals and in the middle of a list of features: "!!CRITICAL:
+  HAMSIDIAN MUST THROW VISIBLE ERRORS IF IT DOES NOT SAVE.!!"
+
+  🔎 AND IT ALREADY DID — WHICH IS WHY THE READING MATTERED MORE THAN
+  THE BUILD. Both halves of Hamsidian (the notes in vault.lua, the
+  scratch tabs in scratch_pad.lua) called hs.alert on a failed write,
+  with the same five lines of code, written at different times. So the
+  honest answer to "does it warn me?" was yes. The honest answer to
+  "would I find out?" was no, for four separate reasons, and every one
+  of them is a rule this file already carries:
+
+    · THE ONE CHANNEL IS THE ONE macOS REFUSES. 6.274.0 counted three
+      `⚠️ an alert could not draw` lines in eight hours of his own
+      Console. A refused alert was the entire warning.
+    · THE GATE WAS A PER-SESSION BOOLEAN. `saveErrSaid` was set true on
+      the first failure and never consulted again, so a SECOND failure
+      with a DIFFERENT cause — the folder gone rather than the rename
+      refused — was silent for the rest of the day.
+    · IT NEVER TOOK THE 🔔 DOOR (6.215.0). So it reached no ledger row,
+      no ⇪⇧D, no `_G.degradeReport()`, and — the expensive one — no row
+      in the on-disk CSV, which means `_G.todayReport()`, the 4 PM
+      double-check built from his own words in 6.279.0, was
+      structurally blind to the one failure that costs him writing.
+    · NOTHING SURVIVED THE MOMENT. Ten seconds later there was a count
+      in a report and no sentence saying his text was still unwritten.
+
+  🔑 ONE FUNCTION, TWO CALLERS (6.231.0). `notices.notSaved(tool, what,
+  path, why)` is the single door both halves take, so the notes side
+  and the tabs side cannot drift about what "not saved" means — which
+  is exactly how they came to have two copies of the same five lines.
+  It answers `false, why` like every other refusal here.
+
+  📣 FOUR CHANNELS, and three of them are the door's rather than a
+  second copy of it: `notices.degrade` prints a Console line EVERY
+  time, records a ledger row, appends the CSV row that outlives a
+  reload, and alerts once per tool+cause per ten minutes. The fourth
+  is `notices.tell`, which HOLDS the notification through Focus and
+  delivers it when Focus ends — 6.278.0's shape, because a save
+  failing at 10:40 lands while he is in a meeting.
+
+  🚨 AND THE STICKY ONE IS THE POINT. `notices.unsaved[tool]` is set on
+  every failure and cleared by a REAL WRITE and by nothing else — not
+  a timer, not a reload, not a quieter minute, because "it stopped
+  complaining" and "it saved" are opposite facts (6.196.1). It is
+  printed FIRST, above the history, in `_G.degradeReport()` and in
+  both Hamsidian reports, because it is the only line in any of them
+  that is still TRUE rather than a record of something that happened.
+  An alert is gone in ten seconds and a Console line scrolls; an hour
+  later that block is the only thing that can answer "is my writing on
+  disk?", which is when he actually looks.
+
+  🔕 BOUNDED, BECAUSE THE VAULT RETRIES EVERY KEYSTROKE. An ungated
+  notification would paint the screen, and a warning that paints the
+  screen is a warning he learns to dismiss. The alert rides the door's
+  own per-cause window; the notification is keyed per tool+cause with
+  its own (`notSavedEvery`, 300 s). 🚨 THE FIRST FAILURE OF A STREAK
+  ALWAYS SPEAKS, whatever the window says — a tool that was saving
+  cleanly a moment ago and is not now is the transition he has to
+  catch — and it CLEARS the stored key rather than passing no key at
+  all, because a keyless tell records nothing and the NEXT failure
+  would speak as well, making "once per streak" quietly mean twice.
+  That was a real defect in the first version and its own check.
+
+  🔒 THE FALLBACK GATE IS PER CAUSE, NOT A BOOLEAN. When notices did
+  not load each module still speaks for itself (6.214.0 — a break is
+  SEEN), and the gate there is now the cause string rather than
+  `true`: the same failure does not alert twice in a streak, and a
+  different one always does. 🧪 THE FIXTURE THAT BITES IS A SECOND
+  FAILURE WITH A DIFFERENT REASON — every other input agrees with the
+  old code, which is 6.230.0's rule about picking the input where the
+  right and wrong implementations must differ. Both module suites got
+  that fixture; the old check asserting "the second failure in the
+  streak is silent" was asserting the bug and now asserts the rule
+  (6.248.0).
+
+  📏 NAMED, NOT SWEPT: `core.warnWriteFailed` still fires for both, and
+  it still has the per-LABEL once-only alert it has had since 6.10.0.
+  That is a different instrument — it is about the FOLDER, counts into
+  `_G.writeFailures` and is read by `_G.saved()` — and widening it
+  would be a second sweep inside a release about one tool.
+
 NEW IN 6.315.0 — ⌨️ THE ARROWS WALK THE 🕘 HISTORY TOO
   (modules/music_player.lua). LL: "Can't use the arrow keys to move
   thru the Jug player history list. Please make that happen." ↑↓

@@ -304,6 +304,23 @@ do
     lastTimer("after"):fire()
     check("a failed write is said once, counted, and the text stays in Lua",
           v.saveFails == 1 and v.lastSaveErr and #WRITE_WARNS == 1 and #ALERTS >= 1 and ALERTS[#ALERTS]:find("NOT SAVED") and v.doc.text:find("changed"))
+    -- 🚨 6.316.0 — AND A DIFFERENT CAUSE SPEAKS AGAIN. The gate was one
+    -- per-session boolean, so the SECOND kind of failure went unsaid for
+    -- the rest of the day — on the folder that holds his writing. Every
+    -- other input agrees with the old code; the one that separates them
+    -- is a second failure with a DIFFERENT reason (6.230.0).
+    local nAlV = #ALERTS
+    v.saveNow()
+    check("...the SAME cause does not alert twice in the streak", #ALERTS == nAlV)
+    WRITE_FAILS = false
+    local keptRenameV = os.rename
+    os.rename = function() return nil, "refused" end
+    local okV = v.saveNow()
+    os.rename = keptRenameV
+    check("...but a DIFFERENT cause alerts again (the per-session boolean was the bug)",
+          okV == false and #ALERTS > nAlV
+          and ALERTS[#ALERTS]:find("rename failed", 1, true) ~= nil,
+          tostring(ALERTS[#ALERTS]))
     WRITE_FAILS = false
     msg({ a = "edit", rel = "Alpha.md", text = "# Alpha\n\nchanged twice\n", sel = 3 })
     lastTimer("after"):fire()

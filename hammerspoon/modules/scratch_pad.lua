@@ -354,18 +354,29 @@ function M.setup(core)
         end
         -- A failed write is SAID, once per streak, on screen and in the
         -- Console — the text is safe in Lua and the next keystroke retries.
+        -- 🚨 6.316.0 — THE SAME DOOR THE NOTES SIDE TAKES. This half
+        -- held every scratch TAB he has ever typed and warned about a
+        -- failure exactly once per session, through an alert macOS is
+        -- measured to refuse. See vault.lua's saveNow for the whole
+        -- note; the two must not drift, which is why there is one
+        -- function and not two copies of it (6.231.0).
         local function failed(why)
             sp.lastSaveErr = why
             sp.saveFails = (sp.saveFails or 0) + 1
             if core.warnWriteFailed then core.warnWriteFailed("scratch pad store") end
-            if not sp.saveErrSaid then
-                sp.saveErrSaid = true
+            if _G.notices and type(_G.notices.notSaved) == "function" then
+                pcall(_G.notices.notSaved, "Hamsidian tabs",
+                      "your scratch tabs", sp.file, why)
+            elseif sp.saveErrSaid ~= why then
+                -- 🔕 the gate is per CAUSE, never per session — see
+                -- vault.lua's saveNow for why the boolean was the bug.
                 pcall(function()
                     hs.alert.show("📝 NOT SAVED — " .. why .. "\nYour text is safe in memory; "
-                                  .. "every keystroke retries the write.", 5)
+                                  .. "every keystroke retries the write.", 10)
                 end)
-                print("📝 Hamsidian: store not written — " .. why .. " (" .. sp.file .. ")")
+                pcall(print, "🚨 Hamsidian tabs NOT SAVED — " .. why .. " (" .. sp.file .. ")")
             end
+            sp.saveErrSaid = why
             return false
         end
         local tmp = sp.file .. ".tmp"
@@ -378,7 +389,11 @@ function M.setup(core)
         if not okR then return failed("rename failed") end
         if sp.saveErrSaid then
             sp.saveErrSaid = false
-            pcall(function() hs.alert.show("📝 Saving again", 2) end)
+            if _G.notices and type(_G.notices.saveOK) == "function" then
+                pcall(_G.notices.saveOK, "Hamsidian tabs")
+            else
+                pcall(function() hs.alert.show("📝 Saving again", 2) end)
+            end
         end
         sp.dirty, sp.lastSaveErr = false, nil
         sp.saves = sp.saves + 1
@@ -2224,6 +2239,14 @@ t.focus(); try { t.setSelectionRange(CARET, CARET); } catch(e){}
 
     function _G.scratchPadReport()
         local L = {}
+        -- 🚨 6.316.0 — WHAT IS NOT SAVED RIGHT NOW GOES FIRST. Every
+        -- other line here is history; this one is still true, and it is
+        -- cleared by a real write and by nothing else — so an alert he
+        -- missed and a Console line that scrolled both end up here.
+        if _G.notices and type(_G.notices.unsavedLines) == "function" then
+            for _, line in ipairs(_G.notices.unsavedLines()) do L[#L + 1] = line end
+            if #L > 0 then L[#L + 1] = "" end
+        end
         L[#L + 1] = "📝 Hamsidian tabs — ⇪" .. sp.key .. (sp.enabled and "" or " (disabled)")
         L[#L + 1] = "   store: " .. sp.file .. (sp.lastSaveErr and ("  ⚠️ " .. sp.lastSaveErr) or "")
         L[#L + 1] = "   tabs: " .. #sp.tabs .. " · history: " .. #sp.history

@@ -1192,15 +1192,34 @@ function M.setup(core)
         local d = v.doc
         if not d then return true end
         if d.scratch then v.dirty = false; return true end     -- the pad's store, on the pad's timer
+        -- 🚨 6.316.0 — EVERY CHANNEL, NOT ONE, AND IT STAYS SAID.
+        -- This used to be an hs.alert behind a per-SESSION boolean: a
+        -- refusal (6.274.0 counted three in eight hours) was the whole
+        -- warning, a second different cause never spoke again, and
+        -- nothing reached the 🔔 door — so the one failure that costs
+        -- him his writing was invisible to _G.degradeReport(), to the
+        -- on-disk ledger and to _G.todayReport(). notices.notSaved is
+        -- one function, two callers (the pad's store is the other), so
+        -- the two halves of Hamsidian cannot come to say different
+        -- things about the same kind of failure.
         local function failed(why)
             v.lastSaveErr = why
             v.saveFails = v.saveFails + 1
             if core.warnWriteFailed then core.warnWriteFailed("vault note " .. d.name) end
-            if not v.saveErrSaid then
-                v.saveErrSaid = true
-                pcall(function() hs.alert.show("🕸 NOT SAVED — " .. why .. "\nYour text is safe in memory; every keystroke retries.", 5) end)
-                print("🕸 Hamsidian: note not written — " .. why .. " (" .. d.path .. ")")
+            if _G.notices and type(_G.notices.notSaved) == "function" then
+                pcall(_G.notices.notSaved, "Hamsidian", "the note " .. tostring(d.name),
+                      d.path, why)
+            elseif v.saveErrSaid ~= why then
+                -- 🔕 notices did not load, so this file owns the gate —
+                -- and it is per CAUSE, never per session. The boolean it
+                -- replaces is the whole bug: one refused alert, and a
+                -- SECOND, different failure never spoke again all day.
+                pcall(function() hs.alert.show("🕸 NOT SAVED — " .. why
+                      .. "\nYour text is safe in memory; every keystroke retries.", 10) end)
+                pcall(print, "🚨 Hamsidian NOT SAVED — the note " .. tostring(d.name)
+                      .. " — " .. why .. " (" .. d.path .. ")")
             end
+            v.saveErrSaid = why
             return false
         end
         mkdirp(d.path:match("^(.*)/[^/]*$") or v.dir)
@@ -1211,7 +1230,14 @@ function M.setup(core)
         f:close()
         if not okW then return failed("write failed") end
         if not os.rename(tmp, d.path) then return failed("rename failed") end
-        if v.saveErrSaid then v.saveErrSaid = false; pcall(function() hs.alert.show("🕸 Saving again", 2) end) end
+        if v.saveErrSaid then
+            v.saveErrSaid = false
+            if _G.notices and type(_G.notices.saveOK) == "function" then
+                pcall(_G.notices.saveOK, "Hamsidian")
+            else
+                pcall(function() hs.alert.show("🕸 Saving again", 2) end)
+            end
+        end
         v.dirty, v.lastSaveErr = false, nil
         v.saves = v.saves + 1
         -- a note that did not exist until now joins the index
@@ -4332,6 +4358,14 @@ else {
     function _G.vaultRescan() return v.scan("console") end
     function _G.vaultReport()
         local L = {}
+        -- 🚨 6.316.0 — WHAT IS NOT SAVED RIGHT NOW GOES FIRST. Every
+        -- other line here is history; this one is still true, and it is
+        -- cleared by a real write and by nothing else — so an alert he
+        -- missed and a Console line that scrolled both end up here.
+        if _G.notices and type(_G.notices.unsavedLines) == "function" then
+            for _, line in ipairs(_G.notices.unsavedLines()) do L[#L + 1] = line end
+            if #L > 0 then L[#L + 1] = "" end
+        end
         L[#L + 1] = "🕸 Hamsidian — ⇪" .. v.key .. (v.enabled and "" or " (disabled)")
         L[#L + 1] = "   folder : " .. v.dir .. (v.cloudDir and "" or "  (no OneDrive found — local only)")
         L[#L + 1] = "   notes  : " .. #v.notes .. " · link lines: " .. v.linkLines .. (v.partial and " (PARTIAL — over the cap)" or "")

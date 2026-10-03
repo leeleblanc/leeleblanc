@@ -532,6 +532,101 @@ check("SOURCE: init.lua's degrade falls back to its own ⚠️ print + hs.alert 
       and initSrc:find('hs.alert.show("⚠️ " .. tostring(tool or "?") .. " — " .. why, 6)', 1, true) ~= nil)
 
 
+out("\n=== 12. 6.316.0 — 🚨 A SAVE THAT FAILED IS NOT A LINE IN A REPORT ===\n")
+-- LL, in capitals: "HAMSIDIAN MUST THROW VISIBLE ERRORS IF IT DOES NOT
+-- SAVE." Both halves of Hamsidian alerted through the ONE channel
+-- 6.274.0 measured macOS refusing, behind a per-SESSION boolean, and
+-- neither took the 🔔 door — so the failure that costs him his writing
+-- never reached _G.degradeReport(), the on-disk ledger, or the 4 PM
+-- _G.todayReport(). Four channels now, and the sticky one is the point.
+boot()
+check("a healthy session has nothing unsaved and says nothing about it",
+      next(N.unsaved) == nil and #N.unsavedLines() == 0
+      and _G.degradeReport():find("NOT SAVED", 1, true) == nil)
+
+boot()
+local okNS, whyNS = N.notSaved("Hamsidian", "the note Alpha",
+                               "/Vault/Alpha.md", "rename failed")
+check("notSaved answers false, why — a caller reads it like every other refusal",
+      okNS == false and whyNS == "rename failed")
+check("…it takes the 🔔 door, so the Console, the ledger and the CSV all carry it",
+      printedHas("Hamsidian save") and printedHas("rename failed")
+      and N.degrades["Hamsidian save"] ~= nil)
+check("…it alerts on screen AT THE MOMENT, naming the tool and the cause",
+      #ALERTS >= 1 and ALERTS[#ALERTS]:find("rename failed", 1, true) ~= nil, ALERTS[#ALERTS])
+check("…and it sends a notification, which is the half that survives a meeting",
+      #NOTIFIES == 1 and NOTIFIES[1]:find("did not save", 1, true) ~= nil,
+      tostring(NOTIFIES[1]))
+
+-- 🚨 THE STICKY HALF. An alert is gone in ten seconds and a Console line
+-- scrolls; an hour later the only thing that can still answer "is my
+-- writing on disk?" is this, and it is cleared by a real write alone.
+local lines = N.unsavedLines()
+check("the report block names the tool, what, why, when and the path",
+      #lines == 4 and lines[1]:find("Hamsidian", 1, true) and lines[1]:find("the note Alpha", 1, true)
+      and lines[1]:find("rename failed", 1, true) and lines[2]:find("/Vault/Alpha.md", 1, true),
+      table.concat(lines, " | "))
+check("…and it is told what to DO, not only that something broke",
+      table.concat(lines, " "):find("still in the window", 1, true) ~= nil
+      and table.concat(lines, " "):find("OneDrive", 1, true) ~= nil)
+check("🚨 _G.degradeReport() puts it FIRST, above the history — it is the one line still true",
+      (function()
+          local r = _G.degradeReport()
+          local at = r:find("NOT SAVED", 1, true)
+          local hist = r:find("🔔 DEGRADED", 1, true)
+          return at ~= nil and hist ~= nil and at < hist
+      end)(), _G.degradeReport():sub(1, 90))
+
+-- 🔕 BOUNDED. The vault retries every keystroke, so an ungated
+-- notification is a storm — and a storm is how a warning stops being
+-- read. The ALERT is the door's own per-cause window; the NOTIFICATION
+-- is keyed, and the FIRST failure of a streak always speaks regardless.
+local nN, nA = #NOTIFIES, #ALERTS
+N.notSaved("Hamsidian", "the note Alpha", "/Vault/Alpha.md", "rename failed")
+N.notSaved("Hamsidian", "the note Alpha", "/Vault/Alpha.md", "rename failed")
+check("the same cause does not notify or alert again inside the window",
+      #NOTIFIES == nN and #ALERTS == nA, ("%d/%d"):format(#NOTIFIES, #ALERTS))
+check("…but every failure is still COUNTED and the Console still carries it",
+      N.unsaved["Hamsidian"].n == 3 and N.unsavedN == 3)
+N.notSaved("Hamsidian", "the note Alpha", "/Vault/Alpha.md", "cannot open the folder")
+check("…and a DIFFERENT cause speaks again — the per-session boolean was the whole bug",
+      #ALERTS > nA and ALERTS[#ALERTS]:find("cannot open the folder", 1, true) ~= nil,
+      ALERTS[#ALERTS])
+
+-- 🚨 ONLY A REAL WRITE CLEARS IT. A timer, a reload or a quieter minute
+-- must not: "it stopped complaining" and "it saved" are opposite facts.
+check("saveOK clears the sticky state and says the tool is saving again",
+      N.saveOK("Hamsidian") == true and N.unsaved["Hamsidian"] == nil
+      and #N.unsavedLines() == 0 and printedHas("saving again"))
+check("…and saveOK on a tool that was never in trouble says nothing at all",
+      (function() local before = #ALERTS; local r = N.saveOK("Pomodoro")
+       return r == false and #ALERTS == before end)())
+check("…so the report is clean again",
+      _G.degradeReport():find("NOT SAVED", 1, true) == nil)
+
+-- two tools can be in trouble at once — one window, two stores
+boot()
+N.notSaved("Hamsidian", "the note Alpha", "/Vault/Alpha.md", "rename failed")
+N.notSaved("Hamsidian tabs", "your scratch tabs", "/Logs/scratch.json", "cannot open")
+check("both halves of Hamsidian are listed, and each can be cleared on its own",
+      #N.unsavedLines() == 8 and #N.unsavedLines("Hamsidian tabs") == 4
+      and N.saveOK("Hamsidian") and #N.unsavedLines() == 4)
+
+-- SOURCE: the two callers go through the one function (6.231.0), and
+-- neither keeps a second copy of what "not saved" means.
+local function src(rel)
+    local f = realIoOpen(HS .. "/" .. rel, "r"); if not f then return "" end
+    local t = f:read("*a"); f:close(); return t
+end
+for _, rel in ipairs({ "modules/vault.lua", "modules/scratch_pad.lua" }) do
+    check("SOURCE: " .. rel .. " reports a failed save through notices.notSaved",
+          src(rel):find("_G.notices.notSaved", 1, true) ~= nil)
+    check("SOURCE: " .. rel .. " clears it through notices.saveOK, never by itself",
+          src(rel):find("_G.notices.saveOK", 1, true) ~= nil)
+    check("SOURCE: " .. rel .. "'s own fallback gate is per CAUSE, not a boolean",
+          src(rel):find("saveErrSaid ~= why", 1, true) ~= nil)
+end
+
 out("\n=== 10. 6.274.0 — 🔔 THE CHANNEL EVERY OTHER TOOL REPORTS THROUGH ===\n")
 -- LL: "hyper+4 is intermittently working", with eight hours of Console
 -- carrying THREE "⚠️ an alert could not draw" lines. A refused alert is
