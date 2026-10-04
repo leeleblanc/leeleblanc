@@ -1,4 +1,4 @@
-# TESTING — how to score release 6.318.0
+# TESTING — how to score release 6.319.0
 
 You install ONE archive and it carries several releases. Below are the
 steps for each release this archive is new for, newest first. Run the
@@ -26,6 +26,94 @@ else is a LOSS and I fix it before building further. You are the only
 scorer; I never mark my own.
 
 ---
+
+## 6.319.0
+
+6.319.0 verify with LL — 📋 THE WORDS LAND ON THE CLIPBOARD (KNOWN GROUND)
+WHAT CHANGED: after a ⇪4 whose words this config reads, those words go
+on your clipboard — replacing the picture it had just put there, and
+nothing else, ever.
+🔎 AND HALF OF WHAT YOU ASKED FOR ALREADY WORKED, which is the first
+thing to say. ⇪⇧4 has copied its text since 6.173.1 — you reported the
+same thing then and it was wired that day. What has NEVER copied is the
+shot ⇪4 takes: it hands you the picture, and the words it reads to NAME
+the file went into the file's Finder comment and ⇪O's log and nowhere
+else. So the gap was a door, not the feature.
+
+A. THE HEADLINE — thirty seconds.
+A1. Press ⇪4 and drag over a paragraph of text — an email, a web page,
+    anything with real words in it.
+A2. Let go. The shutter sounds and the shot lands, as always.
+A3. Wait two or three seconds, then press ⌘V somewhere you can type.
+    EXPECT: the WORDS, as text you can edit.
+    **A FAIL is pasting the picture** — that is the old behaviour.
+A4. You should have seen an alert as it happened: "🔤 The words are on
+    the clipboard — ⌘V pastes them · ⇪⇧5 then ⏎ puts the picture back".
+    If the clipboard changed and NOTHING said so, tell me — that is the
+    one thing here I most want to get right.
+A5. Now do exactly that: ⇪⇧5, then ⏎ on the top row.
+    EXPECT: the picture is back on the clipboard. Nothing was lost.
+
+B. THE ONES THAT PROTECT YOUR OWN CLIPBOARD — these matter more than A.
+B1. Press ⇪4 over some text. Then, IMMEDIATELY, copy something else —
+    ⌘C on a word in any app — before the words come back.
+    EXPECT: your own copy survives. ⌘V pastes what YOU copied.
+    A FAIL here is the serious one; say so at once and
+    `settings = { screenshots = { textToClipboard = false } }` stops it.
+B2. Press ⇪4 over a PICTURE with no words in it — a photo, a diagram.
+    EXPECT: the picture stays on the clipboard. No words were read, so
+    nothing swaps.
+B3. Take a screenshot on the OTHER Mac and let OneDrive bring it over.
+    EXPECT: your clipboard is untouched. An arrival this config did not
+    just capture never swaps, whatever words are in it.
+B4. Press ⇪4, wait a full minute doing something else, and let the
+    naming finish late.
+    EXPECT: no swap — the window is 25 seconds. A shot from a minute ago
+    does not speak for what is on your clipboard now.
+
+C. MUST STILL WORK — this touched every text this module copies.
+C1. ⇪⇧4 over some text: "📝 Text copied: …" and ⌘V pastes it. Unchanged.
+C2. ⇪⇧4 over a QR code: "🔳 Code copied: …". Unchanged.
+C3. ⇪4's crosshairs and the live 1280 × 720 (6.318.0): unchanged.
+C4. ⇪⇧5, then ⌘⏎ on a row: the PATH is copied, not the picture.
+C5. ⇪O still finds everything ever OCR'd, and ⏎ copies the full text.
+C6. The screenshot is still RENAMED after its words, as always.
+
+D. PASTE BACK, PASS OR FAIL.
+D1. `_G.screenshotsReport()` — there is a new `clip :` line. Healthy
+    after a day reads something like "3 text(s) copied · 2 of them
+    replaced the shot they were read from · 4 arrival(s) left your own
+    copy alone". That third number is the guard doing its job, not a
+    fault.
+D2. If it ever reads **⚠️ N clipboard write(s) REFUSED by macOS**,
+    paste it. That is a write that did not happen — and on every build
+    before this one it would have told you "📝 Text copied" anyway,
+    because the code never read macOS's answer.
+
+E. A JUDGEMENT ONLY YOU CAN MAKE.
+E1. Is swapping the picture for the words the right default? It is what
+    your sentence asks for and the picture is one keypress away (⇪⇧5 ⏎)
+    — but it IS a change to what ⇪4 leaves behind, and you are the one
+    who will meet it. "keep it" · "only on ⇪⇧4, leave ⇪4 alone" ·
+    "never, I will press ⇪⇧4 when I want words" decides it, and the
+    middle one is `textToClipboard = false`.
+E2. 25 seconds is the window. Too short if your Mac is slow to OCR, too
+    long if you copy quickly. It is a number, not a release.
+E3. 📏 NAMED, NOT BUILT, so it is not a surprise: ⌘C on image FILES in
+    Finder still writes the words into the Finder comment and leaves
+    your FILE copy alone — replacing a file copy with text would break
+    pasting the file into Mail or Finder. And the raw clipboard-image
+    OCR (⌘C on pixels) is still OFF on both Macs since 6.170.2. Say if
+    either should change.
+E4. 🔨 CRUDE OR ELEGANT: nothing was broken here — ⇪4 did exactly what
+    it always did. My reading is that this is a feature ask created by
+    a door nobody had asked about, not a defect, so I have not put it
+    in the ledger as a problem. The ONE thing in it that IS a defect is
+    silent and old: three places in this module claimed "Text copied"
+    over a write macOS may have refused, since they were written. Your
+    tag.
+
+
 
 ## 6.318.0
 
@@ -264,89 +352,6 @@ E2. 🔨 CRUDE OR ELEGANT: has a Hamsidian save ever actually failed on
     you typed, that is this, and the row is 🔨. If not, it is a hole
     closed before it cost anything and my reading is ✨ ELEGANT, one
     pass — your tag either way.
-
-
-
-## 6.315.0
-
-6.315.0 verify with LL — ⌨️ THE ARROWS REACH THE HISTORY (KNOWN GROUND)
-WHAT CHANGED: ↑ and ↓ now walk the queue AND the 🕘 history as one
-list, which is how the card draws them.
-🔎 WHY IT WAS MISSING, and it is not a regression: the cursor was
-written when the card had one list, and the history was added under it
-four releases later. ↓ off the last track wrapped back to the first,
-so the history below was reachable by mouse and by nothing else. The
-rule for the first list was never re-asked when the second appeared.
-
-A. THE HEADLINE — thirty seconds.
-A1. ⇪⇧. (or ⇪⇧pad.) and drop two or three tracks so the queue has rows
-    and the 🕘 history below it has some too.
-A2. Press ↓ until the highlight is on the LAST track in the queue, then
-    press ↓ once more.
-    EXPECT: the highlight moves into the 🕘 history, onto its FIRST
-    row. **A FAIL is the highlight jumping back to the top of the
-    queue** — that is the old behaviour exactly.
-A3. Keep pressing ↓ through the history. At the last history row, ↓
-    once more.
-    EXPECT: it wraps to the top of the queue. One list, one loop.
-A4. Press ↑ from the first history row.
-    EXPECT: back onto the LAST queue row.
-A5. Watch the highlight the whole way: exactly ONE row is ever lit.
-    Two lit at once is a real finding — tell me.
-
-B. WHAT THE KEYS DO DOWN THERE.
-B1. Put the highlight on a history row and press ⏎.
-    EXPECT: that track plays, exactly as clicking it does — and the
-    highlight moves up to the queue row it just started.
-B2. Put the highlight on a history row and press ⌫.
-    EXPECT: that row is FORGOTTEN — the same thing the ✕ does. The
-    queue is untouched and the file on disk is untouched.
-    **A FAIL is a track leaving the QUEUE instead**; that is what ⌫
-    used to mean everywhere and it is the worst thing this release
-    could get wrong.
-B3. Do B2 on the row in the MIDDLE of three history rows and check the
-    right one went. It is forgotten by its path, not its number, for
-    the same reason the ✕ is (6.272.0).
-B4. ⌫ on a QUEUE row still takes it out of the queue, unchanged.
-
-C. MUST STILL WORK — the cursor touches every key on this card.
-C1. ⌘1–⌘9 still plays the Nth track.
-C2. space still pauses and resumes. Try it with the highlight down in
-    the history: it must pause what is PLAYING, not start a track.
-C3. ← → still seek 5 s, ⇧← ⇧→ 30 s.
-C4. Clicking a queue row plays it; clicking a history row plays it; the
-    ✕ on a history row forgets it without playing it.
-C5. Drag the card by its title strip; close and reopen — unchanged.
-C6. F8/⏯ still drives it while the card is on screen (6.309.0).
-
-D. THE EDGE I MOST WANT TESTED.
-D1. ✕ (or ⌫) the LAST remaining history row while the highlight is on
-    it. EXPECT: the highlight moves to the LAST queue row — the one
-    just above where it was, not the top of the card.
-D2. Empty the queue entirely with the card open and history present.
-    EXPECT: the arrows still work, walking the history alone.
-D3. With BOTH empty, press ↑↓.
-    EXPECT: nothing happens and nothing breaks.
-
-E. PASTE BACK, PASS OR FAIL.
-E1. `_G.musicReport()` — a new `↑↓` line says where the cursor is in
-    words: `on 🕘 history row 1 of 2 — "<track>"` or `on queue row 2 of
-    3 — "<track>"`, and `nothing to walk` when both lists are empty.
-    Run it with the highlight in each place; the line must CHANGE.
-E2. If it ever says `⚠️ NO SUCH ROW, the highlight is drawn over
-    nothing`, paste it — that is the clamp failing and it is the one
-    state this release exists to make impossible.
-
-F. A JUDGEMENT ONLY YOU CAN MAKE.
-F1. Should ↓ off the last history row WRAP to the top of the queue, or
-    stop there? I made it wrap, because the two are drawn as one list
-    and that is how one list behaves — but a long history means a long
-    way back. "wrap is right" · "stop at the ends" decides it.
-F2. 🔨 CRUDE OR ELEGANT: the history was unreachable by keyboard, but
-    it was always one click away and the Mac was fine. My reading is
-    that this is a feature ask created by the card growing a second
-    list, not a defect — so I have not put it in the ledger as a
-    problem. Correct me if it belongs there.
 
 
 

@@ -64,6 +64,15 @@ local DEGRADES = {}
 local DEFER_TIMERS = false   -- §12 turns this on to hold the debounce
 local PENDING       = {}     -- timers queued while DEFER_TIMERS is true
 local CLIP  = { kind = "empty" }
+-- 🔬 6.319.0 — THE STUB WAS GENTLER THAN macOS IN TWO WAYS THAT DECIDE
+-- a release (6.290.0). It had NO changeCount at all, so the one fact the
+-- swap rule turns on could not exist in the gate and the whole path read
+-- as "macOS would not say"; and setContents ALWAYS answered true, while
+-- the real one REFUSES BY RETURNING FALSE (6.198.0). Both are modelled
+-- now: the counter is monotonic and steps once per WRITE, exactly as
+-- macOS's does, and a refusal is drivable.
+local CLIPCOUNT   = 100
+local CLIP_REFUSE = false
 local COPIES, HYPERREL = {}, {}
 _G.hyperExpectRelease = function(secs, who) HYPERREL[#HYPERREL + 1] = { secs = secs, who = who } end
 local MODS  = {}       -- what checkKeyboardModifiers answers
@@ -122,6 +131,7 @@ hs = {
                 local t = { cmd = cmd, cb = cb, args = args }
                 function t:start()
                     COPIES[#COPIES + 1] = args[2]
+                    CLIPCOUNT = CLIPCOUNT + 1   -- a write is a write (6.319.0)
                     CLIP = { kind = "image", v = { __path = args[2]:match('POSIX file "(.-)"') } }
                     cb(0, "", "")
                     return true
@@ -148,8 +158,17 @@ hs = {
         end,
     },
     pasteboard = {
-        writeObjects = function(o) CLIP = { kind = "image", v = o }; return true end,
-        setContents  = function(s) CLIP = { kind = "text",  v = s }; return true end,
+        changeCount  = function() return CLIPCOUNT end,
+        writeObjects = function(o)
+            if CLIP_REFUSE then return false end
+            CLIPCOUNT = CLIPCOUNT + 1
+            CLIP = { kind = "image", v = o }; return true
+        end,
+        setContents  = function(s)
+            if CLIP_REFUSE then return false end
+            CLIPCOUNT = CLIPCOUNT + 1
+            CLIP = { kind = "text",  v = s }; return true
+        end,
     },
     eventtap = { checkKeyboardModifiers = function() return MODS end,
                  new = function(types, fn)
@@ -2597,6 +2616,244 @@ do
 
     check("the 6.318.0 block ran every one of its checks",
           (pass + fail) - n17 >= 19, (pass + fail) - n17)
+end
+
+-- =====================================================================
+out("\n18. 📋 6.319.0 — THE WORDS OF THE SHOT LAND ON THE CLIPBOARD\n")
+-- =====================================================================
+-- LL: "Once I OCR some text, that text should immediately go onto the
+-- clipboard so I can paste it." ⇪⇧4 already did. The shot ⇪4 takes did
+-- not: the watcher OCR'd it to NAME it and dropped the words into a CSV.
+do
+    local n18 = pass + fail
+    local function ck(l, c, e) check("   " .. l, c, e) end
+
+    -- ✏️ PURE: six answers and only one writes (6.196.1).
+    local own = { path = "/s/a.png", count = 7, at = 1000 }
+    local ok1, w1 = S.swapVerdict(own, "/s/a.png", 7, 1005, 25)
+    ck("the shot we put there, counter unmoved, seconds ago → YES",
+       ok1 == true and w1:find("still holds the shot", 1, true) ~= nil, w1)
+    local ok2, w2 = S.swapVerdict(own, "/s/b.png", 7, 1005, 25)
+    ck("🚨 a DIFFERENT shot's words never touch it",
+       ok2 == false and w2:find("different shot", 1, true) ~= nil, w2)
+    local ok3, w3 = S.swapVerdict(own, "/s/a.png", 8, 1005, 25)
+    ck("🚨 the counter MOVED — you copied something, and it is left alone",
+       ok3 == false and w3:find("copied something else", 1, true) ~= nil, w3)
+    local ok4, w4 = S.swapVerdict(own, "/s/a.png", nil, 1005, 25)
+    ck("🚨 macOS would not say → REFUSE, the opposite default to "
+       .. "pt.borrowIntact and for the opposite reason",
+       ok4 == false and w4:find("would not say", 1, true) ~= nil, w4)
+    ck("…and an own.count that was never recorded refuses the same way",
+       select(1, S.swapVerdict({ path = "/s/a.png", at = 1000 },
+                               "/s/a.png", 7, 1005, 25)) == false)
+    local ok5, w5 = S.swapVerdict(own, "/s/a.png", 7, 1026, 25)
+    ck("🚨 one second PAST the window refuses — and one second inside it "
+       .. "does not: the only pair where a window and no window differ "
+       .. "(6.230.0)",
+       ok5 == false and w5:find("past the", 1, true) ~= nil
+       and S.swapVerdict(own, "/s/a.png", 7, 1024, 25) == true, w5)
+    ck("…a clock that went backwards is refused, never read as fresh",
+       select(1, S.swapVerdict(own, "/s/a.png", 7, 900, 25)) == false)
+    ck("nothing of ours on the clipboard at all → no",
+       select(1, S.swapVerdict(nil, "/s/a.png", 7, 1005, 25)) == false)
+    ck("no file to speak for → no",
+       select(1, S.swapVerdict(own, "", 7, 1005, 25)) == false)
+
+    -- ---- the real path, end to end -----------------------------------
+    S.clipStats = { wrote = 0, failed = 0, empty = 0, swapped = 0,
+                    held = 0, off = 0 }
+    S.clipLast, S.swapWhy, S.ownClip = nil, nil, nil
+    S.textToClipboard = true
+    S.areaNative = false
+    local keptNow = NOWF
+
+    -- a real ⇪4: screencapture writes the file, finish() copies it
+    local tBefore = #TASKS
+    HYPER["|4"]()
+    local cv = _G.__lastCanvas
+    if cv then
+        cv.cb(cv, "mouseDown", "_canvas_", 10, 10)
+        cv.cb(cv, "mouseUp", "_canvas_", 210, 160)
+    end
+    ck("…there IS a capture task to read (6.186.0 — a helper answers "
+       .. "falsely rather than indexing a nil)", #TASKS > tBefore
+       and TASKS[#TASKS].args ~= nil)
+    local shotA = (TASKS[#TASKS] and TASKS[#TASKS].args
+                   and TASKS[#TASKS].args[#TASKS[#TASKS].args]) or "<none>"
+    FILES[shotA] = { size = 9000, modification = 1000, w = 200, h = 150 }
+    if TASKS[#TASKS] then TASKS[#TASKS].cb(0, "", "") end
+    ck("⇪4 leaves the PICTURE on the clipboard, as it always has",
+       CLIP.kind == "image", CLIP.kind)
+    ck("🔑 …and this config RECORDS that it is ours: the path, the "
+       .. "counter macOS answered after the write, and when",
+       type(S.ownClip) == "table" and S.ownClip.path == shotA
+       and S.ownClip.count == CLIPCOUNT and type(S.ownClip.at) == "number",
+       S.ownClip and (tostring(S.ownClip.path) .. " c=" ..
+                      tostring(S.ownClip.count)) or "nothing recorded")
+
+    -- the watcher OCRs that very file a moment later
+    NOWF = (S.ownClip and S.ownClip.at or NOWF) + 3
+    local nBefore = #TASKS
+    S.nameByText(shotA)
+    ck("…an OCR process really started", #TASKS == nBefore + 1
+       and TASKS[#TASKS].cmd == "/usr/bin/shortcuts",
+       TASKS[#TASKS] and TASKS[#TASKS].cmd)
+    if #TASKS > nBefore then TASKS[#TASKS].cb(0, "Invoice 4471 due Friday", "") end
+    ck("🎯 THE HEADLINE: the words are on the clipboard now",
+       CLIP.kind == "text" and CLIP.v == "Invoice 4471 due Friday",
+       CLIP.kind .. " / " .. tostring(CLIP.v))
+    ck("…counted as a swap, not merely as a copy", (S.clipStats.swapped or 0) == 1
+       and (S.clipStats.wrote or 0) == 1, S.clipStats.swapped)
+    ck("…and it SAYS so, naming the way back to the picture — a clipboard "
+       .. "that changed with nothing said is the surprise this would be",
+       (ALERTS[#ALERTS] or ""):find("clipboard", 1, true) ~= nil
+       and (ALERTS[#ALERTS] or ""):find("⇪⇧5", 1, true) ~= nil, ALERTS[#ALERTS])
+    ck("🚨 …and the clipboard is no longer OURS to swap, so a second "
+       .. "arrival cannot write over the words", S.ownClip == nil)
+
+    -- 🚨 HIS OWN COPY, MID-FLIGHT. The fixture that bites: everything
+    -- else about this arrival qualifies.
+    S.ownClip = nil
+    local tB2 = #TASKS
+    HYPER["|4"]()
+    local cv2 = _G.__lastCanvas
+    if cv2 then
+        cv2.cb(cv2, "mouseDown", "_canvas_", 10, 10)
+        cv2.cb(cv2, "mouseUp", "_canvas_", 210, 160)
+    end
+    local shotB = (TASKS[#TASKS] and TASKS[#TASKS].args
+                   and TASKS[#TASKS].args[#TASKS[#TASKS].args]) or "<none>"
+    FILES[shotB] = { size = 9000, modification = 1000, w = 200, h = 150 }
+    if TASKS[#TASKS] and #TASKS > tB2 then TASKS[#TASKS].cb(0, "", "") end
+    hs.pasteboard.setContents("something LL copied himself")
+    local heldBefore = S.clipStats.held or 0
+    NOWF = NOWF + 2
+    local nB2 = #TASKS
+    S.nameByText(shotB)
+    if #TASKS > nB2 then TASKS[#TASKS].cb(0, "words from the shot", "") end
+    ck("🚨 HIS OWN COPY SURVIVES: the words do not replace it",
+       CLIP.kind == "text" and CLIP.v == "something LL copied himself",
+       tostring(CLIP.v))
+    ck("…counted as held, and the report can say WHY",
+       (S.clipStats.held or 0) == heldBefore + 1
+       and tostring(S.swapWhy):find("copied something else", 1, true) ~= nil,
+       tostring(S.swapWhy))
+
+    -- 🚨 macOS REFUSING the write — setContents answers FALSE, it does
+    -- not throw, and the three sites this release replaced each wrapped
+    -- it in a bare pcall that is true either way (6.198.0).
+    local degBefore = #DEGRADES
+    CLIP_REFUSE = true
+    local okWrite, whyWrite = S.copyOut("these words cannot land")
+    CLIP_REFUSE = false
+    ck("🚨 a REFUSED write answers false — a bare pcall around setContents "
+       .. "would have said it worked", okWrite == false and whyWrite == "failed",
+       tostring(okWrite) .. "/" .. tostring(whyWrite))
+    ck("…it is counted", (S.clipStats.failed or 0) == 1, S.clipStats.failed)
+    ck("…and it takes the 🔔 door, naming where the words still are",
+       #DEGRADES > degBefore
+       and tostring(DEGRADES[#DEGRADES].why):find("⇪O", 1, true) ~= nil,
+       DEGRADES[#DEGRADES] and DEGRADES[#DEGRADES].why)
+
+    -- ⇪⇧4 — the door that always copied — must still copy, and must
+    -- stop claiming it did when it did not.
+    local nB3 = #TASKS
+    S.recognizeFile("/shots/ocr-me.png")
+    if #TASKS > nB3 and TASKS[#TASKS].cmd == "/usr/bin/shortcuts" then
+        TASKS[#TASKS].cb(0, "  the text of the shot  ", "")
+    end
+    ck("⇪⇧4's OCR still puts its text on the clipboard (6.173.1 is "
+       .. "unchanged)", CLIP.kind == "text" and CLIP.v == "the text of the shot",
+       tostring(CLIP.v))
+    ck("…and the alert says copied", (ALERTS[#ALERTS] or ""):find("Text copied",
+       1, true) ~= nil, ALERTS[#ALERTS])
+    CLIP_REFUSE = true
+    local nB4 = #TASKS
+    S.recognizeFile("/shots/ocr-me2.png")
+    if #TASKS > nB4 and TASKS[#TASKS].cmd == "/usr/bin/shortcuts" then
+        TASKS[#TASKS].cb(0, "unreachable words", "")
+    end
+    CLIP_REFUSE = false
+    ck("🚨 …and when macOS refuses, the alert no longer SAYS 'Text copied' "
+       .. "over a write that did not happen",
+       (ALERTS[#ALERTS] or ""):find("Text copied", 1, true) == nil
+       and (ALERTS[#ALERTS] or ""):find("refused", 1, true) ~= nil,
+       ALERTS[#ALERTS])
+
+    -- 🔌 the switch is real in both directions (6.228.0 / 6.259.0)
+    S.textToClipboard = false
+    S.ownClip = nil
+    local tB5 = #TASKS
+    HYPER["|4"]()
+    local cv3 = _G.__lastCanvas
+    if cv3 then
+        cv3.cb(cv3, "mouseDown", "_canvas_", 10, 10)
+        cv3.cb(cv3, "mouseUp", "_canvas_", 210, 160)
+    end
+    local shotC = (TASKS[#TASKS] and TASKS[#TASKS].args
+                   and TASKS[#TASKS].args[#TASKS[#TASKS].args]) or "<none>"
+    FILES[shotC] = { size = 9000, modification = 1000, w = 200, h = 150 }
+    if TASKS[#TASKS] and #TASKS > tB5 then TASKS[#TASKS].cb(0, "", "") end
+    NOWF = NOWF + 2
+    local nB5 = #TASKS
+    S.nameByText(shotC)
+    if #TASKS > nB5 then TASKS[#TASKS].cb(0, "switched off words", "") end
+    ck("🔌 OFF really is off: the picture stays on the clipboard",
+       CLIP.kind == "image", CLIP.kind)
+    local rOff = RPT()
+    ck("…and the report SAYS off rather than reading as 'nothing qualified'",
+       (rOff:match("clip    :[^\n]*") or ""):find("OFF", 1, true) ~= nil,
+       rOff:match("clip    :[^\n]*"))
+    S.textToClipboard = true
+
+    -- 🔎 THE REPORT'S STATES (6.196.1) — and ⚠️ outranks a count
+    local r = RPT()
+    ck("⚠️ a refused write outranks the counts — '0 swapped' over a dead "
+       .. "door is the reassuring lie 6.260.0 forbids",
+       (r:match("clip    :[^\n]*") or ""):find("REFUSED", 1, true) ~= nil,
+       r:match("clip    :[^\n]*"))
+    S.clipStats = { wrote = 0, failed = 0, empty = 0, swapped = 0,
+                    held = 0, off = 0 }
+    S.clipLast = nil
+    local rFresh = RPT()
+    ck("…and with nothing yet it says so, never '0 copied' as if it had "
+       .. "tried", (rFresh:match("clip    :[^\n]*") or "")
+       :find("no OCR text has reached", 1, true) ~= nil,
+       rFresh:match("clip    :[^\n]*"))
+    ck("…the window is READ from the config, not retyped into the line "
+       .. "(6.239.0)", (rFresh:match("clip    :[^\n]*") or "")
+       :find(tostring(S.clipSwapSecs) .. "s", 1, true) ~= nil,
+       rFresh:match("clip    :[^\n]*"))
+
+    -- 🔒 ONE DOOR: nothing in this module writes text to the pasteboard
+    -- around it. A fourth site added in six months is a copy nothing
+    -- counts and no refusal is ever seen on (6.231.0 + 6.273.0).
+    do
+        local src = io.open(HS .. "/modules/screenshots.lua"):read("a")
+        local bare = src:gsub("%-%-[^\n]*", "")
+        ck("🔒 the source really was read (a sentry over an empty haystack "
+           .. "is green and measures nothing — 6.313.0)", #bare > 40000, #bare)
+        local n, inDoor = 0, 0
+        for line in bare:gmatch("[^\n]+") do
+            if line:find("hs.pasteboard.setContents", 1, true) then
+                n = n + 1
+                if line:find("wrote = hs.pasteboard.setContents", 1, true) then
+                    inDoor = inDoor + 1
+                end
+            end
+        end
+        -- the panel's ⌘⏎ copies a PATH, not OCR text; it keeps its own
+        -- call and is named here rather than swept in silently.
+        ck("🔒 every OCR text goes through shots.copyOut — exactly one "
+           .. "setContents is the door, and the only other is ⌘⏎'s path copy",
+           inDoor == 1 and n == 2, n .. " call(s), " .. inDoor .. " in the door")
+        ck("…and the door the sentry protects is really there",
+           bare:find("function shots.copyOut", 1, true) ~= nil)
+    end
+
+    NOWF = keptNow
+    check("the 6.319.0 block ran every one of its checks",
+          (pass + fail) - n18 == 33, (pass + fail) - n18)
 end
 
 -- =====================================================================

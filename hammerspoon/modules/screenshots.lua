@@ -517,6 +517,20 @@ function M.setup(core)
     -- the file. writeObjects stays only as the fallback when no task
     -- can be made.
     function shots.copyToPasteboard(path, done)
+        -- 📋 6.319.0 — RECORD WHAT WE PUT THERE. A shot's own words may
+        -- later replace it on the clipboard, and the ONLY thing that
+        -- entitles them to is this: we put this very file there, the
+        -- counter has not moved since, and it was seconds ago.
+        local function finish(ok)
+            if ok then
+                local c, n
+                pcall(function() c = hs.pasteboard.changeCount() end)
+                pcall(function() n = hs.timer.secondsSinceEpoch() end)
+                shots.ownClip = { path = path, at = n or os.time(),
+                                  count = (type(c) == "number") and c or nil }
+            end
+            done(ok)
+        end
         local script = ('set the clipboard to (read (POSIX file "%s") as «class PNGf»)')
                        :format(path:gsub('"', '\\"'))
         local t
@@ -526,7 +540,7 @@ function M.setup(core)
                 local now = 0
                 pcall(function() now = hs.timer.secondsSinceEpoch() end)
                 _G.pasteboardSuppressUntil = now + 1
-                done(exitCode == 0)
+                finish(exitCode == 0)
             end, { "-e", script })
         end)
         local started = false
@@ -546,7 +560,7 @@ function M.setup(core)
             local img = hs.image.imageFromPath(path)
             if img then copied = hs.pasteboard.writeObjects(img) and true end
         end)
-        done(copied)
+        finish(copied)
         return false
     end
 
@@ -1512,6 +1526,118 @@ function M.setup(core)
         end)
     end
 
+    -- 📋 6.319.0 — THE WORDS LAND ON THE CLIPBOARD (LL: "Once I OCR some
+    -- text, that text should immediately go onto the clipboard so I can
+    -- paste it").
+    -- 🔎 AND ⇪⇧4 ALREADY DID, which is the half to say first: 6.173.1
+    -- wired recognizeFile to setContents and it has copied ever since.
+    -- What never copied is the OTHER door — the shot ⇪4 takes, which the
+    -- watcher OCRs to NAME it and then throws the words away into a CSV.
+    -- 6.317.0's rule, one module along: when he asks for something this
+    -- config can nearly do, find which DOOR is missing rather than
+    -- building a second instrument beside the one that works.
+    --
+    -- 🚨 AND A SWAP MUST NEVER COST HIM A COPY HE MADE. The only thing
+    -- these words are allowed to replace is THE SHOT THEY WERE READ
+    -- FROM, still sitting on the clipboard where this config put it
+    -- seconds ago — never a copy of his, never a shot that arrived from
+    -- the other Mac over OneDrive, never one he took five minutes back.
+    -- 6.198.0 paid for this in power_tools and the lesson is the same:
+    -- ask macOS's CHANGE COUNTER, which sees the two writes a text
+    -- comparison never can (the same thing copied twice, and anything
+    -- that is not text).
+    -- 📏 COST, NAMED, because it is a real one: after a ⇪4 whose words
+    -- were read, ⌘V pastes the WORDS and no longer the picture. The
+    -- picture is not lost — it is in the folder, under a name made of
+    -- those same words, and ⇪⇧5 then ⏎ puts it back on the clipboard.
+    -- The alert says so at the moment it happens, because a clipboard
+    -- that changed under him with nothing said is the surprise this
+    -- release would otherwise be.
+    --     settings = { screenshots = { textToClipboard = false } }
+    shots.textToClipboard = true
+    shots.clipSwapSecs    = 25     -- a shot older than this speaks for nobody
+    shots.ownClip         = nil    -- { path, count, at } — what WE last put there
+    shots.clipStats       = { wrote = 0, failed = 0, empty = 0,
+                              swapped = 0, held = 0, off = 0 }
+    shots.clipLast        = nil    -- { ok, why, chars, at }
+    shots.swapWhy         = nil    -- why the last arrival did not swap
+
+    -- PURE: may the words of `path` replace what is on the clipboard?
+    -- SIX answers and only one of them writes (6.196.1) — "we never put
+    -- anything there", "that is a different shot", "macOS would not say",
+    -- "you copied since", "too long ago", and yes.
+    function shots.swapVerdict(own, path, nowCount, now, secs)
+        if type(path) ~= "string" or path == "" then
+            return false, "there is no file for the words to speak for"
+        end
+        if type(own) ~= "table" then
+            return false, "this config has not put a shot on the clipboard"
+        end
+        if own.path ~= path then
+            return false, "the clipboard holds a different shot"
+        end
+        -- 🚨 UNKNOWN REFUSES, and that is the opposite of pt.borrowIntact
+        -- on purpose: a default is chosen against the damage its own
+        -- feature can do. The damage here is destroying something he
+        -- copied; the cost of refusing is that he fetches the words from
+        -- ⇪O. Those are not the same size.
+        if type(own.count) ~= "number" or type(nowCount) ~= "number" then
+            return false, "macOS would not say whether the clipboard had changed"
+        end
+        if own.count ~= nowCount then
+            return false, "you copied something else after the shot"
+        end
+        local age = (tonumber(now) or 0) - (tonumber(own.at) or 0)
+        local lim = tonumber(secs) or 0
+        if age < 0 or age > lim then
+            return false, ("the shot was %ds ago, past the %ds window")
+                          :format(math.floor(age < 0 and 0 or age), math.floor(lim))
+        end
+        return true, "the clipboard still holds the shot these words came from"
+    end
+
+    -- 📋 ONE DOOR for every text this module puts on the clipboard
+    -- (6.231.0). It exists because of what the three sites it replaces
+    -- had in common: `pcall(function() hs.pasteboard.setContents(t) end)`
+    -- — and setContents REFUSES BY RETURNING FALSE, never by throwing, so
+    -- that pcall is true either way and "📝 Text copied" was printed over
+    -- a write that had not happened. 6.198.0 wrote this rule down and
+    -- named two files still carrying the shape; this module was a third.
+    function shots.copyOut(text)
+        local st = shots.clipStats
+        text = (type(text) == "string") and text or ""
+        local function record(ok, why)
+            local k = ok and "wrote" or why
+            st[k] = (st[k] or 0) + 1
+            -- 🕒 the EPOCH, never a formatted string: every report line
+            -- in this module reads a stored clock through shots.clockText,
+            -- and a source sentry holds the class (6.282.0). macOS hands
+            -- back a float here, which is the whole reason that exists.
+            local at
+            pcall(function() at = hs.timer.secondsSinceEpoch() end)
+            shots.clipLast = { ok = ok, why = why, chars = #text,
+                               at = (type(at) == "number") and at or os.time() }
+            return ok, why
+        end
+        if text == "" then return record(false, "empty") end
+        local wrote = false
+        pcall(function() wrote = hs.pasteboard.setContents(text) ~= false end)
+        if not wrote then
+            -- 🔔 A BREAK IS SEEN, NEVER ONLY LOGGED (6.214.0). The words
+            -- are not lost — ⇪O has them — and that is what the door says.
+            if type(core.degrade) == "function" then
+                pcall(core.degrade, "OCR clipboard",
+                      "the words were read but macOS refused to put them on "
+                      .. "the clipboard — they are in the log, press ⇪O")
+            end
+            return record(false, "failed")
+        end
+        -- the clipboard holds TEXT now, so no later arrival may "swap"
+        -- against a shot that is no longer there.
+        shots.ownClip = nil
+        return record(true, "wrote")
+    end
+
     -- 🔎 6.206.0 — THE REPORT this module never had. The folder, the
     -- watcher, the last capture's exit, and the last scrolling run with
     -- every slice's receipt — "no slices decoded" is a question this
@@ -1604,6 +1730,42 @@ function M.setup(core)
                         shots.clockText(shots.crossLast.at))
                 or ("hairline at alpha " .. tostring(shots.crossAlpha)
                     .. " · the selector has not been opened yet this session")))
+        -- 📋 6.319.0 — WHO GOT THE CLIPBOARD. Three states that must not
+        -- read alike (6.196.1): switched off ≠ on and nothing has
+        -- qualified ≠ on and it swapped. A REFUSED write outranks all
+        -- three, because "0 swapped" over a dead door is the reassuring
+        -- lie 6.260.0's size line exists to forbid.
+        do
+            local cs = shots.clipStats or {}
+            local line
+            if not shots.textToClipboard then
+                line = "OFF — settings = { screenshots = { textToClipboard = false } }"
+                       .. " · ⇪⇧4 still copies what it reads"
+            elseif (cs.failed or 0) > 0 then
+                line = ("⚠️ %d clipboard write(s) REFUSED by macOS — the words "
+                        .. "are in ⇪O"):format(cs.failed)
+            elseif (cs.wrote or 0) == 0 then
+                line = ("on — no OCR text has reached the clipboard yet this "
+                        .. "session (a shot's words replace it for %ds)")
+                       :format(shots.clipSwapSecs or 0)
+            else
+                line = ("%d text(s) copied · %d of them replaced the shot they "
+                        .. "were read from · %d arrival(s) left your own copy alone")
+                       :format(cs.wrote or 0, cs.swapped or 0, cs.held or 0)
+            end
+            L[#L + 1] = "   clip    : " .. line
+            if shots.clipLast then
+                L[#L + 1] = ("             ↳ last: %s · %d character(s) at %s")
+                            :format(shots.clipLast.ok and "copied"
+                                    or ("NOT copied — " .. tostring(shots.clipLast.why)),
+                                    shots.clipLast.chars or 0,
+                                    shots.clockText(shots.clipLast.at))
+            end
+            if shots.swapWhy and (cs.held or 0) > 0 then
+                L[#L + 1] = "             ↳ last arrival did not swap: "
+                            .. tostring(shots.swapWhy)
+            end
+        end
         -- 📐 6.264.0 — the line under it used to end "⇪4 is macOS's own
         -- crosshair and keeps its HUD". It is not, by default, any more.
         L[#L + 1] = "             ↳ ⇪4, ⇪5, the editor's ⌘A and 'repeat area' all "
@@ -1719,11 +1881,17 @@ function M.setup(core)
                     shots.ocrTask = nil
                     local text = tostring(sout or ""):match("^%s*(.-)%s*$") or ""
                     if code == 0 and text ~= "" then
-                        pcall(function() hs.pasteboard.setContents(text) end)
+                        -- 6.319.0 — through the one door, which READS the
+                        -- return: this alert claimed a copy that had not
+                        -- happened whenever macOS refused the write.
+                        local put = shots.copyOut(text)
                         shots.recordText(text, path)
                         pcall(function()
-                            hs.alert.show("📝 Text copied: "
-                                          .. text:gsub("%s+", " "):sub(1, 60), 3)
+                            hs.alert.show(put
+                                and ("📝 Text copied: "
+                                     .. text:gsub("%s+", " "):sub(1, 60))
+                                or ("⚠️ Read the text, but macOS refused the "
+                                    .. "clipboard — ⇪O has it"), 3)
                         end)
                     else
                         pcall(function() hs.alert.show("📝 No text found", 2.5) end)
@@ -1742,10 +1910,13 @@ function M.setup(core)
                 shots.qrTask = nil
                 local payload = tostring(sout or ""):match("^%s*(.-)%s*$") or ""
                 if code == 0 and payload ~= "" then
-                    pcall(function() hs.pasteboard.setContents(payload) end)
+                    local put = shots.copyOut(payload)
                     shots.recordText(payload, path)
                     pcall(function()
-                        hs.alert.show("🔳 Code copied: " .. payload:sub(1, 60), 3)
+                        hs.alert.show(put
+                            and ("🔳 Code copied: " .. payload:sub(1, 60))
+                            or ("⚠️ Read the code, but macOS refused the "
+                                .. "clipboard — ⇪O has it"), 3)
                     end)
                 else
                     ocr()   -- no code in the image — fall through to text
@@ -1964,6 +2135,36 @@ function M.setup(core)
                     -- match its contents, so recording the old name would
                     -- file every arrival against a file that is already gone.
                     shots.recordText(text, newPath or path)
+                    -- 📋 6.319.0 — AND THE WORDS GO ON THE CLIPBOARD, but
+                    -- ONLY when the thing they would replace is the shot
+                    -- they were read from, still there, put there by this
+                    -- config, seconds ago. Everything else — a copy of
+                    -- his, an arrival from the other Mac, a shot from
+                    -- five minutes back — is refused and SAID.
+                    if shots.textToClipboard then
+                        local c, n
+                        pcall(function() c = hs.pasteboard.changeCount() end)
+                        pcall(function() n = hs.timer.secondsSinceEpoch() end)
+                        local may, swapWhy = shots.swapVerdict(
+                            shots.ownClip, path, c, n or os.time(),
+                            shots.clipSwapSecs)
+                        shots.swapWhy = swapWhy
+                        if may and shots.copyOut(text) then
+                            shots.clipStats.swapped =
+                                (shots.clipStats.swapped or 0) + 1
+                            pcall(function()
+                                hs.alert.show("🔤 The words are on the clipboard "
+                                    .. "— ⌘V pastes them · ⇪⇧5 then ⏎ puts the "
+                                    .. "picture back", 3)
+                            end)
+                        elseif not may then
+                            shots.clipStats.held = (shots.clipStats.held or 0) + 1
+                        end
+                    else
+                        shots.clipStats.off = (shots.clipStats.off or 0) + 1
+                        shots.swapWhy = "settings = { screenshots = "
+                                        .. "{ textToClipboard = false } }"
+                    end
                     -- words were read, but a slug may be empty and a rename
                     -- may fail — neither is "no text", and only one is a name
                     if newPath then

@@ -4,8 +4,23 @@
 -- =====================================================================
 -- 10-03-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.318.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.319.0
 -- =====================================================================
+
+-- NEW IN 6.319.0 — 📋 THE WORDS OF THE SHOT LAND ON THE CLIPBOARD
+--   (modules/screenshots.lua). LL: "Once I OCR some text, that text
+--   should immediately go onto the clipboard so I can paste it."
+--   🔎 ⇪⇧4 ALREADY DID — 6.173.1 wired it and it has copied since.
+--   What never did is the shot ⇪4 takes: the watcher OCR'd it to NAME
+--   it and dropped the words into a CSV. 6.317.0's rule again — find
+--   the missing DOOR, not a second instrument. 🚨 A SWAP MAY REPLACE
+--   ONLY THE SHOT IT WAS READ FROM, still there, put there by this
+--   config, seconds ago; a copy of his, an arrival from the other Mac
+--   or a five-minute-old shot is refused and SAID (`swapVerdict`,
+--   PURE, six answers; unknown REFUSES — 6.198.0's counter, the
+--   opposite default for the opposite damage). 🔒 One door reads
+--   setContents' RETURN: three sites here wrapped it in a bare pcall,
+--   so "📝 Text copied" was printed over writes that never happened.
 
 -- NEW IN 6.318.0 — 📐 ⇪4 HAS CROSSHAIRS, AND THE NUMBERS COME FIRST
 --   (modules/screenshots.lua). LL: "hyper+shift+4 has pixel
@@ -26,26 +41,11 @@
 --   crosshairs" and "no numbers" were one complaint and are two
 --   failures. 🧪 The sweep caught the arm-time draw going silent.
 
--- NEW IN 6.317.0 — 💾 WHERE YOUR WRITING IS, AND WHEN IT LAST LANDED
---   (modules/write_ledger.lua). LL: "a readout of where the files are
---   that clipboard history go … the last date anything was written
---   into any log/store/file … I don't want to find out when I need it
---   most, something hasn't been saving." 🔎 MOST OF IT EXISTED AND HE
---   HAD NEVER SEEN IT: `_G.saved()` has listed every store with its
---   size, rows and last write since 6.115.0. 6.271.0 again: the
---   instrument was not the gap, the DOOR was — it prints every boot.
---   🚨 THE LINE THAT MATTERS MOST IS ABOUT THE NOTES. With no OneDrive
---   at boot, vault.lua's `v.dir` silently becomes LOCAL and the scan
---   MAKES it — so Hamsidian honestly reports "no notes yet" about the
---   wrong place while every note sits untouched in OneDrive. It says
---   THE NOTES FOLDER IS LOCAL ONLY now, that they are not lost, and
---   what to do. 📋 A named store with no file reads ⚠️, never silence.
-
--- (6.316.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.317.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 cut the inline count to
 --  TWO; a gate check proves every entry here is also in CHANGELOG.md.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.318.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.319.0
 -- =====================================================================
 -- The catalogue that used to sit here moved to GUIDE.md ("What each
 -- tool does") in 6.180.0 — 259 lines of prose inside the orchestrator.
@@ -138,7 +138,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.318.0"
+_G.configVersion = "6.319.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the

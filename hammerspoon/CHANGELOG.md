@@ -5,6 +5,101 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.319.0 — 📋 THE WORDS OF THE SHOT LAND ON THE CLIPBOARD
+  (modules/screenshots.lua). LL: "Once I OCR some text, that text
+  should immediately go onto the clipboard so I can paste it."
+
+  🔎 AND ⇪⇧4 ALREADY DID, WHICH IS THE HALF TO SAY FIRST. 6.173.1
+  wired `shots.recognizeFile` to hs.pasteboard.setContents — on his
+  own report that the OCR log and the clipboard disagreed — and it
+  has copied every text and every QR payload since. So the honest
+  answer to his sentence is not "here is a new feature"; it is "one
+  door of yours already does this and the other one never has".
+
+  🚪 THE DOOR THAT NEVER DID is the shot ⇪4 takes. ⇪4 captures an
+  area, puts the PICTURE on the clipboard and writes the file; the
+  folder watcher then OCRs that file to NAME it, writes the words
+  into a Finder comment and into ⇪O's log, and throws them away as
+  far as the clipboard is concerned. He takes a shot of a paragraph
+  and gets a picture of a paragraph. 6.317.0's rule one module
+  along: when he asks for something this config nearly does, find
+  which DOOR is missing rather than building a second instrument
+  beside the one that works.
+
+  🚨 AND A SWAP MUST NEVER COST HIM A COPY HE MADE, which is the
+  whole engineering of the release. The Shortcut runs in a task, so
+  seconds pass between the capture and the words, and in those
+  seconds he may have copied anything. The ONLY thing these words
+  are allowed to replace is THE SHOT THEY WERE READ FROM, still on
+  the clipboard, put there by this config, seconds ago — never a
+  copy of his, never a screenshot that arrived from the other Mac
+  over OneDrive, never a shot from five minutes back.
+  `shots.swapVerdict` is PURE and answers SIX ways (6.196.1): no
+  file · we put nothing there · that is a different shot · macOS
+  would not say · you copied since · too long ago. Only the sixth
+  writes, and `shots.ownClip` — path, counter, clock — is recorded
+  by `copyToPasteboard` itself, the one function every capture's
+  clipboard write goes through.
+
+  🔑 THE COUNTER IS THE INSTRUMENT, not a text comparison. 6.198.0
+  paid for this in power_tools: macOS's changeCount sees the two
+  writes a comparison never can — the same thing copied twice, and
+  anything that is not text. And the UNKNOWN REFUSES here, which is
+  deliberately the opposite of `pt.borrowIntact` and the same as
+  `sp.collectContinues`: a default is chosen against the damage its
+  own feature can do. The damage here is destroying something he
+  copied; the cost of refusing is that he fetches the words from
+  ⇪O. Those are not the same size.
+
+  🔒 ONE DOOR, AND IT READS THE RETURN. `shots.copyOut` is now the
+  only place this module puts text on the clipboard, and the reason
+  it had to exist is what the three sites it replaces had in common:
+  `pcall(function() hs.pasteboard.setContents(t) end)`. setContents
+  REFUSES BY RETURNING FALSE and never throws, so that pcall is true
+  either way — "📝 Text copied: …" was printed over writes that had
+  not happened, nothing counted them, and no report could see them.
+  CLAUDE.md has carried that rule since 6.198.0 and named two files
+  still holding the shape; this module was a third. A refusal is
+  counted, takes the 🔔 door naming where the words still are (⇪O),
+  and the alert says so instead of claiming success.
+
+  📏 COST, NAMED, because it is real: after a ⇪4 whose words were
+  read, ⌘V pastes the WORDS and no longer the picture. The picture
+  is not lost — it is in the folder under a name made of those same
+  words, and ⇪⇧5 then ⏎ puts it back on the clipboard. The alert
+  says that at the moment it happens, because a clipboard that
+  changed under him with nothing said is the surprise this release
+  would otherwise be. `settings = { screenshots = { textToClipboard
+  = false } }`, and `clipSwapSecs` (25) is the window.
+
+  🔎 THE REPORT'S "clip :" LINE has four states and a ⚠️ that
+  outranks them: switched off ≠ nothing has qualified ≠ N copied,
+  and a REFUSED write outranks all three, because "0 swapped" over a
+  dead door is the reassuring lie 6.260.0's size line exists to
+  forbid. The window in that line is read off `clipSwapSecs`, so
+  moving the config moves the sentence (6.239.0).
+
+  🔬 AND THE STUB WAS GENTLER THAN macOS IN THE TWO WAYS THAT
+  DECIDE THIS RELEASE (6.290.0). test_screenshots' pasteboard had no
+  `changeCount` AT ALL — so the one fact the whole rule turns on
+  could not exist in the gate, and every path would have read "macOS
+  would not say" — and its `setContents` always answered true, so a
+  refusal was unreachable. Both are modelled now: the counter is
+  monotonic and steps once per WRITE, exactly as macOS's does, and a
+  refusal is drivable. 34 checks.
+
+  🔒 A SOURCE SENTRY HOLDS THE CLASS, not the instance: exactly one
+  `setContents` in this module is the door, and the only other is
+  ⇪⇧5's ⌘⏎ path copy, which is named rather than swept in. A fourth
+  site added in six months would be a copy nothing counts and a
+  refusal nobody ever sees.
+
+  🧪 AND THE 6.282.0 CLOCK SENTRY BIT THIS RELEASE AS IT WAS
+  WRITTEN: the first `clipLast` stored a formatted `os.date` string,
+  which is exactly what that sentry forbids. It stores the epoch and
+  the report asks `shots.clockText` — the rule working on the
+  release after the one that wrote it.
+
 NEW IN 6.318.0 — 📐 ⇪4 HAS CROSSHAIRS, AND THE NUMBERS COME FIRST
   (modules/screenshots.lua). LL: "The hyper+shift+4 has pixel
   crosshairs, hyper+4 does not so that is an easy fix and something

@@ -3066,6 +3066,66 @@ work Mac.
   them passed this bug for 208 releases. The storm reached Chrome as
   Vimium keys: a stray "t" is a new tab, "o" the omnibar.
 
+- 📋 "IT ALREADY DOES THAT" AND "IT ALREADY DOES THAT HERE" ARE
+  DIFFERENT SENTENCES (6.319.0, modules/screenshots.lua — LL: "Once I
+  OCR some text, that text should immediately go onto the clipboard so
+  I can paste it").
+  🔎 ⇪⇧4 ALREADY DID, and that is the half to say first: 6.173.1 wired
+  `shots.recognizeFile` to `hs.pasteboard.setContents` on his own report
+  that the OCR log and the clipboard disagreed, and it has copied every
+  text and every QR payload since. So the honest answer is not "here is
+  a new feature" — it is "one of your doors already does this and the
+  other never has".
+  🚪 THE DOOR THAT NEVER DID is the shot ⇪4 takes: it puts the PICTURE
+  on the clipboard, the folder watcher OCRs the file to NAME it, writes
+  the words into a Finder comment and ⇪O's log, and drops them as far
+  as the clipboard is concerned. He photographs a paragraph and gets a
+  picture of a paragraph. 6.317.0's rule one module along, and the
+  general form: WHEN A FEATURE HAS SEVERAL DOORS, "does this config do
+  X?" is the wrong question — ask which DOORS do X, and the gap is
+  usually one of them rather than the feature.
+  🚨 A SWAP MAY REPLACE ONLY THE THING IT WAS MADE FROM. `swapVerdict`
+  is PURE with SIX answers (6.196.1) and only one writes: the words may
+  replace THE SHOT THEY WERE READ FROM, still on the clipboard, put
+  there by this config, seconds ago. A copy of his, an arrival from the
+  other Mac over OneDrive, a shot from five minutes back — refused, and
+  SAID. `shots.ownClip` (path · counter · clock) is recorded by
+  `copyToPasteboard`, the one function every capture's clipboard write
+  already goes through, so there is no second place to keep in step.
+  🔑 THE COUNTER, NEVER A TEXT COMPARISON (6.198.0): macOS's changeCount
+  sees the two writes a comparison cannot — the same thing copied twice,
+  and anything that is not text. And THE UNKNOWN REFUSES, deliberately
+  the opposite of `pt.borrowIntact` and the same as `sp.collectContinues`
+  — a default is chosen against the damage its own feature can do. The
+  damage here is destroying something he copied; the cost of refusing is
+  that he fetches the words from ⇪O.
+  🔒 ONE DOOR THAT READS THE RETURN, and the reason it had to exist is
+  what the three sites it replaces had in common:
+  `pcall(function() hs.pasteboard.setContents(t) end)`. setContents
+  REFUSES BY RETURNING FALSE and never throws, so that pcall is true
+  either way — "📝 Text copied" was printed over writes that had not
+  happened, nothing counted them, no report could see them. This file
+  has carried that rule since 6.198.0 and named text_expander and
+  url_cleaner as the survivors; screenshots.lua was a third nobody had
+  grepped for. GENERAL: when a rule names the files still carrying a
+  shape, the list is a SAMPLE unless someone grepped — re-grep before
+  trusting it.
+  📏 COST, NAMED: after a ⇪4 whose words were read, ⌘V pastes the WORDS
+  and not the picture. The picture is in the folder under a name made of
+  those same words and ⇪⇧5 ⏎ puts it back, and the alert says so at the
+  moment it happens — a clipboard that changed with nothing said is the
+  surprise the release would otherwise be.
+  🔬 THE STUB WAS GENTLER THAN macOS IN BOTH WAYS THAT DECIDE IT
+  (6.290.0): no `changeCount` AT ALL, so the one fact the rule turns on
+  could not exist in the gate and every path would have read "macOS
+  would not say"; and `setContents` always answered true, so a refusal
+  was unreachable. The counter is monotonic and steps once per WRITE now,
+  and a refusal is drivable.
+  🧪 AND 6.282.0'S CLOCK SENTRY BIT THIS RELEASE AS IT WAS WRITTEN — the
+  first `clipLast` stored a formatted `os.date` string, which is exactly
+  what that sentry forbids. The rule working on the release after the one
+  that wrote it is the argument for source sentries in one line.
+
 - 📐 WHEN YOU TAKE A SURFACE OVER FROM macOS, YOU INHERIT EVERYTHING
   IT WAS DOING — INCLUDING WHAT NOBODY NAMED (6.318.0,
   modules/screenshots.lua — LL: "hyper+shift+4 has pixel crosshairs,
@@ -4675,6 +4735,7 @@ that must be READ before a new cause is named.
 | "a drag kills the sheet functionality" · wheel dead over ⇪/ · desktop jump | core/coexist.lua drag engine | 6.138.0 · 6.306.0 | 2 | ask |
 | "hyper+4 no longer works" / "intermittently working" | modules/screenshots.lua | 6.264.0 · 6.265.0 · 6.274.0 · 6.282.0 | 4 | ask |
 | "hyper+4 does not have pixel crosshairs" · "it was working before" | modules/screenshots.lua · the selector | 6.264.0 · 6.318.0 | 1 | ask |
+| "once I OCR some text, that text should immediately go onto the clipboard" | modules/screenshots.lua · the OCR doors | 6.173.1 · 6.319.0 | 1 | ask |
 | "frozen grid again" — a yellow box only a reload clears | modules/mouse_grid.lua · `_G.showCanvasSafely` | 6.266.0 | 1 | ask |
 | "can't move files in drag and drop" · Hammerspoon locked up | modules/file_tracker.lua | 6.228.0 · 6.229.0 · 6.230.0 · 6.241.0 | 4 | ask |
 | "can't drop a file on the music player" | modules/music_player.lua | 6.231.0 · 6.233.0 · 6.235.0 · 6.237.0 | 4 | ✨ WIN |
@@ -4783,6 +4844,7 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
+| 6.319.0 | 📋 the words of a shot you just took land on the clipboard — ⇪⇧4 has copied since 6.173.1 and the shot ⇪4 takes never did | pending |
 | 6.318.0 | 📐 ⇪4 draws crosshairs again and the numbers are there before you press — 6.264.0 moved it onto our selector and silently dropped the HUD macOS had been drawing | pending |
 | 6.317.0 | 💾 every boot says where your stores are and when each last saved — and SHOUTS when the notes folder is a local one OneDrive was not found for | pending |
 | 6.316.0 | 🚨 a Hamsidian save that fails is impossible to miss — it warned through the one channel macOS is measured to refuse, behind a per-session switch, and never reached the 4 PM log | pending |
@@ -5810,6 +5872,90 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.319.0 verify with LL — 📋 THE WORDS LAND ON THE CLIPBOARD (KNOWN GROUND)
+  WHAT CHANGED: after a ⇪4 whose words this config reads, those words go
+  on your clipboard — replacing the picture it had just put there, and
+  nothing else, ever.
+  🔎 AND HALF OF WHAT YOU ASKED FOR ALREADY WORKED, which is the first
+  thing to say. ⇪⇧4 has copied its text since 6.173.1 — you reported the
+  same thing then and it was wired that day. What has NEVER copied is the
+  shot ⇪4 takes: it hands you the picture, and the words it reads to NAME
+  the file went into the file's Finder comment and ⇪O's log and nowhere
+  else. So the gap was a door, not the feature.
+
+  A. THE HEADLINE — thirty seconds.
+  A1. Press ⇪4 and drag over a paragraph of text — an email, a web page,
+      anything with real words in it.
+  A2. Let go. The shutter sounds and the shot lands, as always.
+  A3. Wait two or three seconds, then press ⌘V somewhere you can type.
+      EXPECT: the WORDS, as text you can edit.
+      **A FAIL is pasting the picture** — that is the old behaviour.
+  A4. You should have seen an alert as it happened: "🔤 The words are on
+      the clipboard — ⌘V pastes them · ⇪⇧5 then ⏎ puts the picture back".
+      If the clipboard changed and NOTHING said so, tell me — that is the
+      one thing here I most want to get right.
+  A5. Now do exactly that: ⇪⇧5, then ⏎ on the top row.
+      EXPECT: the picture is back on the clipboard. Nothing was lost.
+
+  B. THE ONES THAT PROTECT YOUR OWN CLIPBOARD — these matter more than A.
+  B1. Press ⇪4 over some text. Then, IMMEDIATELY, copy something else —
+      ⌘C on a word in any app — before the words come back.
+      EXPECT: your own copy survives. ⌘V pastes what YOU copied.
+      A FAIL here is the serious one; say so at once and
+      `settings = { screenshots = { textToClipboard = false } }` stops it.
+  B2. Press ⇪4 over a PICTURE with no words in it — a photo, a diagram.
+      EXPECT: the picture stays on the clipboard. No words were read, so
+      nothing swaps.
+  B3. Take a screenshot on the OTHER Mac and let OneDrive bring it over.
+      EXPECT: your clipboard is untouched. An arrival this config did not
+      just capture never swaps, whatever words are in it.
+  B4. Press ⇪4, wait a full minute doing something else, and let the
+      naming finish late.
+      EXPECT: no swap — the window is 25 seconds. A shot from a minute ago
+      does not speak for what is on your clipboard now.
+
+  C. MUST STILL WORK — this touched every text this module copies.
+  C1. ⇪⇧4 over some text: "📝 Text copied: …" and ⌘V pastes it. Unchanged.
+  C2. ⇪⇧4 over a QR code: "🔳 Code copied: …". Unchanged.
+  C3. ⇪4's crosshairs and the live 1280 × 720 (6.318.0): unchanged.
+  C4. ⇪⇧5, then ⌘⏎ on a row: the PATH is copied, not the picture.
+  C5. ⇪O still finds everything ever OCR'd, and ⏎ copies the full text.
+  C6. The screenshot is still RENAMED after its words, as always.
+
+  D. PASTE BACK, PASS OR FAIL.
+  D1. `_G.screenshotsReport()` — there is a new `clip :` line. Healthy
+      after a day reads something like "3 text(s) copied · 2 of them
+      replaced the shot they were read from · 4 arrival(s) left your own
+      copy alone". That third number is the guard doing its job, not a
+      fault.
+  D2. If it ever reads **⚠️ N clipboard write(s) REFUSED by macOS**,
+      paste it. That is a write that did not happen — and on every build
+      before this one it would have told you "📝 Text copied" anyway,
+      because the code never read macOS's answer.
+
+  E. A JUDGEMENT ONLY YOU CAN MAKE.
+  E1. Is swapping the picture for the words the right default? It is what
+      your sentence asks for and the picture is one keypress away (⇪⇧5 ⏎)
+      — but it IS a change to what ⇪4 leaves behind, and you are the one
+      who will meet it. "keep it" · "only on ⇪⇧4, leave ⇪4 alone" ·
+      "never, I will press ⇪⇧4 when I want words" decides it, and the
+      middle one is `textToClipboard = false`.
+  E2. 25 seconds is the window. Too short if your Mac is slow to OCR, too
+      long if you copy quickly. It is a number, not a release.
+  E3. 📏 NAMED, NOT BUILT, so it is not a surprise: ⌘C on image FILES in
+      Finder still writes the words into the Finder comment and leaves
+      your FILE copy alone — replacing a file copy with text would break
+      pasting the file into Mail or Finder. And the raw clipboard-image
+      OCR (⌘C on pixels) is still OFF on both Macs since 6.170.2. Say if
+      either should change.
+  E4. 🔨 CRUDE OR ELEGANT: nothing was broken here — ⇪4 did exactly what
+      it always did. My reading is that this is a feature ask created by
+      a door nobody had asked about, not a defect, so I have not put it
+      in the ledger as a problem. The ONE thing in it that IS a defect is
+      silent and old: three places in this module claimed "Text copied"
+      over a write macOS may have refused, since they were written. Your
+      tag.
+
 - 6.318.0 verify with LL — 📐 ⇪4 HAS CROSSHAIRS (KNOWN GROUND)
   WHAT CHANGED: ⇪4 now draws full-screen crosshairs that follow the
   pointer, and the numbers are on screen BEFORE you press anything.
