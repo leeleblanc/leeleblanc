@@ -2628,36 +2628,52 @@ do
     local n18 = pass + fail
     local function ck(l, c, e) check("   " .. l, c, e) end
 
+    -- 🧪 6.186.0, NINTH time in this project: a test HELPER answers
+    -- falsely rather than indexing a nil, so a mutation that renames the
+    -- thing under test FAILS a check instead of ending the run with
+    -- "0 failed" never printed — which a gate reading the tail calls a
+    -- pass. Renaming shots.copyOut killed this suite until these existed.
+    ck("…there IS a pure verdict to drive", type(S.swapVerdict) == "function")
+    ck("…and a door to drive", type(S.copyOut) == "function")
+    local function VERDICT(...)
+        if type(S.swapVerdict) ~= "function" then return nil, "no swapVerdict" end
+        return S.swapVerdict(...)
+    end
+    local function DOOR(...)
+        if type(S.copyOut) ~= "function" then return nil, "no copyOut" end
+        return S.copyOut(...)
+    end
+
     -- ✏️ PURE: six answers and only one writes (6.196.1).
     local own = { path = "/s/a.png", count = 7, at = 1000 }
-    local ok1, w1 = S.swapVerdict(own, "/s/a.png", 7, 1005, 25)
+    local ok1, w1 = VERDICT(own, "/s/a.png", 7, 1005, 25)
     ck("the shot we put there, counter unmoved, seconds ago → YES",
        ok1 == true and w1:find("still holds the shot", 1, true) ~= nil, w1)
-    local ok2, w2 = S.swapVerdict(own, "/s/b.png", 7, 1005, 25)
+    local ok2, w2 = VERDICT(own, "/s/b.png", 7, 1005, 25)
     ck("🚨 a DIFFERENT shot's words never touch it",
        ok2 == false and w2:find("different shot", 1, true) ~= nil, w2)
-    local ok3, w3 = S.swapVerdict(own, "/s/a.png", 8, 1005, 25)
+    local ok3, w3 = VERDICT(own, "/s/a.png", 8, 1005, 25)
     ck("🚨 the counter MOVED — you copied something, and it is left alone",
        ok3 == false and w3:find("copied something else", 1, true) ~= nil, w3)
-    local ok4, w4 = S.swapVerdict(own, "/s/a.png", nil, 1005, 25)
+    local ok4, w4 = VERDICT(own, "/s/a.png", nil, 1005, 25)
     ck("🚨 macOS would not say → REFUSE, the opposite default to "
        .. "pt.borrowIntact and for the opposite reason",
        ok4 == false and w4:find("would not say", 1, true) ~= nil, w4)
     ck("…and an own.count that was never recorded refuses the same way",
-       select(1, S.swapVerdict({ path = "/s/a.png", at = 1000 },
+       select(1, VERDICT({ path = "/s/a.png", at = 1000 },
                                "/s/a.png", 7, 1005, 25)) == false)
-    local ok5, w5 = S.swapVerdict(own, "/s/a.png", 7, 1026, 25)
+    local ok5, w5 = VERDICT(own, "/s/a.png", 7, 1026, 25)
     ck("🚨 one second PAST the window refuses — and one second inside it "
        .. "does not: the only pair where a window and no window differ "
        .. "(6.230.0)",
        ok5 == false and w5:find("past the", 1, true) ~= nil
-       and S.swapVerdict(own, "/s/a.png", 7, 1024, 25) == true, w5)
+       and VERDICT(own, "/s/a.png", 7, 1024, 25) == true, w5)
     ck("…a clock that went backwards is refused, never read as fresh",
-       select(1, S.swapVerdict(own, "/s/a.png", 7, 900, 25)) == false)
+       select(1, VERDICT(own, "/s/a.png", 7, 900, 25)) == false)
     ck("nothing of ours on the clipboard at all → no",
-       select(1, S.swapVerdict(nil, "/s/a.png", 7, 1005, 25)) == false)
+       select(1, VERDICT(nil, "/s/a.png", 7, 1005, 25)) == false)
     ck("no file to speak for → no",
-       select(1, S.swapVerdict(own, "", 7, 1005, 25)) == false)
+       select(1, VERDICT(own, "", 7, 1005, 25)) == false)
 
     -- ---- the real path, end to end -----------------------------------
     S.clipStats = { wrote = 0, failed = 0, empty = 0, swapped = 0,
@@ -2744,7 +2760,7 @@ do
     -- it in a bare pcall that is true either way (6.198.0).
     local degBefore = #DEGRADES
     CLIP_REFUSE = true
-    local okWrite, whyWrite = S.copyOut("these words cannot land")
+    local okWrite, whyWrite = DOOR("these words cannot land")
     CLIP_REFUSE = false
     ck("🚨 a REFUSED write answers false — a bare pcall around setContents "
        .. "would have said it worked", okWrite == false and whyWrite == "failed",
@@ -2754,6 +2770,18 @@ do
        #DEGRADES > degBefore
        and tostring(DEGRADES[#DEGRADES].why):find("⇪O", 1, true) ~= nil,
        DEGRADES[#DEGRADES] and DEGRADES[#DEGRADES].why)
+
+    -- 🚨 AND AN EMPTY TEXT NEVER REACHES THE CLIPBOARD. A read that
+    -- produced nothing must not wipe what is there — that is the damage
+    -- this whole release is built to avoid, arriving by the front door.
+    do
+        hs.pasteboard.setContents("something worth keeping")
+        local okE, whyE = DOOR("")
+        ck("🚨 an empty reading is refused, not written over his clipboard",
+           okE == false and whyE == "empty"
+           and CLIP.v == "something worth keeping",
+           tostring(whyE) .. " / " .. tostring(CLIP.v))
+    end
 
     -- ⇪⇧4 — the door that always copied — must still copy, and must
     -- stop claiming it did when it did not.
@@ -2864,7 +2892,7 @@ do
     S.clipSwapSecs = 0
     ck("…and the swap itself asks the same number: a zero window refuses "
        .. "a shot taken this very second",
-       select(1, S.swapVerdict({ path = "/s/a.png", count = 3, at = 1000 },
+       select(1, VERDICT({ path = "/s/a.png", count = 3, at = 1000 },
                                "/s/a.png", 3, 1001, S.clipSwapSecs)) == false)
     S.clipSwapSecs = keptSecs
 
@@ -2896,7 +2924,7 @@ do
 
     NOWF = keptNow
     check("the 6.319.0 block ran every one of its checks",
-          (pass + fail) - n18 == 35, (pass + fail) - n18)
+          (pass + fail) - n18 == 38, (pass + fail) - n18)
 end
 
 -- =====================================================================
