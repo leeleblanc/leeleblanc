@@ -428,5 +428,77 @@ do
         not icode:find("function _G.makeCanvasDraggable", 1, true))
 end
 
+-- =====================================================================
+-- 📋 6.325.0 — THE CLIPBOARD DOOR LIVES HERE TOO
+-- =====================================================================
+-- This file answers "two features want the same resource, who gets
+-- it?", and the PASTEBOARD is one of them — the borrow guard and the
+-- suppress window are about the same object. 6.325.0 put the one
+-- clipboard WRITE here for that reason, and because init.lua is at its
+-- 3,800-line ceiling.
+--
+-- 🔎 THE RULE IT EXISTS FOR: hs.pasteboard.setContents REFUSES BY
+-- RETURNING FALSE and never throws, so
+-- `pcall(function() setContents(x) end)` is true either way. Three
+-- callers announced "📋 Copied" under exactly that shape.
+--
+-- 🚨 AND THE SWEEP IS WHY THIS SECTION EXISTS: the mutation that makes
+-- the door stop READING the return — `pcall(function()
+-- setContents(t) ; wrote = true end)` — survived everything, because
+-- every other suite drives a STUB of the door rather than the door
+-- (6.273.0: the line is not the finding, the missing check is).
+do
+  local SAID = {}
+  local REFUSE, GOT = false, nil
+  hs.pasteboard = { setContents = function(t)
+      if REFUSE then return false end
+      GOT = t ; return true
+  end }
+  hs.alert = hs.alert or {}
+  local keptAlert = hs.alert.show
+  hs.alert.show = function(m) SAID[#SAID + 1] = tostring(m) end
+  local keptDeg = _G.degrade
+  local DEGRADED = {}
+  _G.degrade = function(tool, why) DEGRADED[#DEGRADED + 1] = { tool, why } return false, why end
+
+  check("📋 the door is published", type(_G.clipWrite) == "function")
+
+  GOT = nil
+  local ok1 = _G.clipWrite("hello", "a test")
+  check("📋 a write macOS takes answers TRUE and really lands",
+        ok1 == true and GOT == "hello", tostring(ok1) .. " / " .. tostring(GOT))
+
+  -- 🚨 THE ONE THE SWEEP FOUND UNDRIVEN
+  REFUSE, GOT = true, nil
+  local ok2, why2 = _G.clipWrite("nope", "a test")
+  REFUSE = false
+  check("🚨 a write macOS REFUSES answers FALSE — setContents returns a "
+        .. "boolean and never throws, so a pcall alone calls it success",
+        ok2 == false and why2 ~= nil, tostring(ok2) .. " / " .. tostring(why2))
+  check("🔔 …and it takes the degrade door, so the ledger and "
+        .. "_G.todayReport() can see it",
+        #DEGRADED >= 1 and tostring(DEGRADED[#DEGRADED][2]):find("refused", 1, true) ~= nil,
+        DEGRADED[#DEGRADED] and DEGRADED[#DEGRADED][2] or "none")
+  check("🔎 …and it is COUNTED, because \"intermittent\" is a count and "
+        .. "not a sample (6.229.0)",
+        _G.clipWrites.refused >= 1, _G.clipWrites.refused)
+
+  local ok3, why3 = _G.clipWrite("", "a test")
+  check("📏 nothing to copy is its OWN answer, not a refusal by macOS",
+        ok3 == false and why3 ~= why2 and _G.clipWrites.empty >= 1,
+        tostring(why3))
+  local ok4 = _G.clipWrite(nil, "a test")
+  check("🛟 a nil is refused rather than thrown at", ok4 == false)
+
+  -- 🔎 three states in the report, and the ⚠️ is not forgotten
+  local rep = _G.clipboardWriteReport()
+  check("🔎 the report names the refusals rather than only the successes",
+        rep:find("REFUSED", 1, true) ~= nil and rep:find("last   :", 1, true) ~= nil,
+        rep:match("[^\n]*REFUSED[^\n]*") or rep)
+
+  hs.alert.show = keptAlert
+  _G.degrade = keptDeg
+end
+
 print(("\n%s  %d passed, %d failed"):format(FAIL == 0 and "✅" or "❌", PASS, FAIL))
 os.exit(FAIL == 0 and 0 or 1)
