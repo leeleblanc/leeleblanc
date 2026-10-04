@@ -100,6 +100,33 @@ NEW IN 6.319.0 — 📋 THE WORDS OF THE SHOT LAND ON THE CLIPBOARD
   the report asks `shots.clockText` — the rule working on the
   release after the one that wrote it.
 
+  🔬 AND THE MUTATION SWEEP FOUND THE ONE THING THAT COULD HAVE COST
+  A FEATURE. The swap sat UN-GUARDED in the middle of nameByText's
+  task callback — and the later half of that callback runs the
+  rename's verdict and `onDone`, which drainQueue waits on (6.155.0).
+  A throw there is a silence that strands the naming queue for the
+  rest of the session, and the symptom would have been "screenshots
+  stopped being named", a mile from anything about a clipboard. Its
+  own pcall now (6.235.0 and 6.260.0: a convenience never shares the
+  load-bearing path's guard), counted in `shots.clipThrew`, through
+  the 🔔 door, with the report's ⚠️ outranking every count — and
+  DRIVEN, by making the verdict raise and requiring onDone to answer.
+
+  📓 THE SWEEP ALSO REORDERED TWO LINES. `recognizeFile` called the
+  clipboard step BEFORE `shots.recordText`, so a throw in the
+  clipboard half skipped the OCR log — the very place the refusal
+  message points at ("⇪O has it"). The log goes first on both the
+  OCR and the QR route, and the checks assert the ORDER rather than
+  that both happened (6.220.0), by making the clipboard step throw.
+
+  🔬 AND THE HARNESS WAS GENTLER THAN LuaSkin, which is what hid all
+  of it: the suite called `task.cb(...)` bare, so a raise inside a
+  callback ENDED THE RUN with "0 failed" never printed — a pass, to
+  a gate that reads the tail. One `FIRE` helper pcalls as LuaSkin
+  does and hands the throw back as a value. Four mutations that had
+  been reported as "DIED" became ordinary failed checks, and one of
+  them was the real bug above. 28 mutations, 28 bites.
+
 NEW IN 6.318.0 — 📐 ⇪4 HAS CROSSHAIRS, AND THE NUMBERS COME FIRST
   (modules/screenshots.lua). LL: "The hyper+shift+4 has pixel
   crosshairs, hyper+4 does not so that is an easy fix and something
