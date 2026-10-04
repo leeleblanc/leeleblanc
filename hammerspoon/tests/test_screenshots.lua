@@ -2780,6 +2780,35 @@ do
        and (ALERTS[#ALERTS] or ""):find("refused", 1, true) ~= nil,
        ALERTS[#ALERTS])
 
+    -- 🚨 6.264.0 — AND THE WINDOW HAS TO BE PROVEN AT THE CALL SITE, not
+    -- only in the pure function: hard-coding 25 inside nameByText passed
+    -- every check until this one, because nothing drove the real path
+    -- with the config moved.
+    do
+        local keptW = S.clipSwapSecs
+        S.clipSwapSecs = 0
+        S.ownClip = nil
+        local tB4b = #TASKS
+        HYPER["|4"]()
+        local cvW = _G.__lastCanvas
+        if cvW then
+            cvW.cb(cvW, "mouseDown", "_canvas_", 10, 10)
+            cvW.cb(cvW, "mouseUp", "_canvas_", 210, 160)
+        end
+        local shotW = (TASKS[#TASKS] and TASKS[#TASKS].args
+                       and TASKS[#TASKS].args[#TASKS[#TASKS].args]) or "<none>"
+        FILES[shotW] = { size = 9000, modification = 1000, w = 200, h = 150 }
+        if TASKS[#TASKS] and #TASKS > tB4b then TASKS[#TASKS].cb(0, "", "") end
+        NOWF = NOWF + 1
+        local nB4b = #TASKS
+        S.nameByText(shotW)
+        if #TASKS > nB4b then TASKS[#TASKS].cb(0, "words inside the window", "") end
+        ck("🔑 nameByText asks the CONFIG for its window: at 0 seconds even "
+           .. "a shot taken a moment ago does not swap",
+           CLIP.kind == "image", CLIP.kind .. " / " .. tostring(CLIP.v))
+        S.clipSwapSecs = keptW
+    end
+
     -- 🔌 the switch is real in both directions (6.228.0 / 6.259.0)
     S.textToClipboard = false
     S.ownClip = nil
@@ -2867,7 +2896,7 @@ do
 
     NOWF = keptNow
     check("the 6.319.0 block ran every one of its checks",
-          (pass + fail) - n18 == 34, (pass + fail) - n18)
+          (pass + fail) - n18 == 35, (pass + fail) - n18)
 end
 
 -- =====================================================================
