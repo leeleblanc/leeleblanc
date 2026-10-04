@@ -1559,7 +1559,8 @@ do
     local real = rf and rf:read("a") or ""
     if rf then rf:close() end
     local _, taskNews = real:gsub("pcall%(hs%.task%.new", "")
-    check("exactly five task births: find, link grep, tag grep, front-matter grep, startTask", taskNews == 5, taskNews)
+    check("exactly SIX task births: find, link grep, tag grep, front-matter "
+          .. "grep, heading grep (6.328.0), startTask", taskNews == 6, taskNews)
     check("no hs.json, no eventtap, no hs.window, every timer held", not real:find("hs%.json") and not real:find("hs%.eventtap%.new")
           and not real:find("hs%.window%.") and not real:find("\n%s*hs%.timer%.do"))
     check("templates are read by /bin/cat in a task, never io.open", real:find('CAT             = "/bin/cat"', 1, true) and not real:find("io%.open%(rec"))
@@ -2944,6 +2945,109 @@ do
 
     local ran = (pass + fail) - before
     check("§6.327.0 ran all of its checks (" .. ran .. " of 12)", ran >= 12, ran)
+end
+
+-- =======================================================================
+out("\n6.328.0 — 🏷 THE LEFT COLUMN SHOWS THE NOTE'S OWN TITLE\n")
+-- =======================================================================
+-- LL: "Changing a title like # Add recycle bin does not change the title
+-- in the lefthand column. I think it should." The column has always
+-- shown the FILE NAME — which is what every link is keyed by, and not
+-- what he calls the title.
+do
+    local before = pass + fail
+
+    -- ---- PURE: the heading in a note's text -------------------------------
+    check("🏷 the first `# ` heading is the title",
+          v.headIn("# Add recycle bin\n\nsome words\n") == "Add recycle bin")
+    check("🏷 …after front matter, not inside it",
+          v.headIn("---\ntitle: x\n---\n\n# The Real One\n\nbody\n") == "The Real One")
+    check("🚨 a `#tag` is not a heading — it has no space after the hash, "
+          .. "and this vault is full of them",
+          v.headIn("#scorp-pad some words\n") == nil)
+    check("🚨 a `#` further down, after body text, is a SECTION not the "
+          .. "note's title",
+          v.headIn("just some words\n\n# Later Section\n") == nil)
+    check("🛟 a note with no heading answers nil, never \"\"",
+          v.headIn("plain words\n") == nil and v.headIn("") == nil
+          and v.headIn(nil) == nil)
+    check("✂️ it is trimmed", v.headIn("#    Spaced   \n") == "Spaced")
+
+    -- ---- PURE: which of the three wins ------------------------------------
+    v.fmOf, v.headOf = {}, {}
+    check("📏 with nothing else, the FILE NAME",
+          select(1, v.titleOf("A.md", "A")) == "A"
+          and select(2, v.titleOf("A.md", "A")) == "file name")
+    v.headOf["A.md"] = "A Heading"
+    check("📏 a heading beats the file name",
+          select(1, v.titleOf("A.md", "A")) == "A Heading"
+          and select(2, v.titleOf("A.md", "A")) == "heading")
+    v.fmOf["A.md"] = { title = "A Stated Title" }
+    check("📏 …and a stated `title:` beats the heading — the note SAYING "
+          .. "what it is called outranks a guess from its body",
+          select(1, v.titleOf("A.md", "A")) == "A Stated Title"
+          and select(2, v.titleOf("A.md", "A")) == "front matter")
+    v.fmOf["A.md"] = { title = "   " }
+    check("🛟 a blank `title:` is not a title",
+          select(1, v.titleOf("A.md", "A")) == "A Heading")
+    v.fmOf, v.headOf = {}, {}
+
+    -- ---- the grep's answer -------------------------------------------------
+    v.setHeadLines(VAULT .. "/One.md:1:# First One\n"
+                   .. VAULT .. "/sub/Two.md:3:# Second\n"
+                   .. VAULT .. "/One.md:9:# A later section\n")
+    check("🏷 one row per note, and the FIRST heading wins",
+          v.headOf["One.md"] == "First One" and v.headOf["sub/Two.md"] == "Second",
+          tostring(v.headOf["One.md"]))
+
+    -- ---- it rides into the page --------------------------------------------
+    FILES[VAULT .. "/Renamed.md"] = "# Add recycle bin\n\nwords\n"
+    v.setNotes({ "Renamed.md" })
+    v.headOf = { ["Renamed.md"] = "Add recycle bin" }
+    local j = v.notesJson()
+    check("🏷 the row carries t: — what it is CALLED",
+          j:find('t:"Add recycle bin"', 1, true) ~= nil, j)
+    check("🚨 …and n: is STILL the file name, because that is what ⏎ opens "
+          .. "and what every [[link]] resolves against",
+          j:find('n:"Renamed"', 1, true) ~= nil, j)
+    v.headOf = {}
+    check("📏 a vault with no headings sends exactly the bytes it sent "
+          .. "before — t: is only there when it differs",
+          v.notesJson():find("t:", 1, true) == nil, v.notesJson())
+
+    -- ---- and the open note follows him as he types -------------------------
+    v.openNote("Renamed")
+    v.open()
+    local W = WEBVIEWS[#WEBVIEWS]
+    local htmlBefore, evalsBefore = W.htmlSets or 0, #EVALS
+    v.setText("# Something Else\n\nwords\n")
+    check("🏷 typing a new heading updates the column AT ONCE — a scan is "
+          .. "seconds away and he is typing now",
+          v.headOf["Renamed.md"] == "Something Else", tostring(v.headOf["Renamed.md"]))
+    check("↩️ …by eval, never a rebuild, so his ⌘Z survives it (6.323.0)",
+          (W.htmlSets or 0) == htmlBefore
+          and (function()
+                   for i = #EVALS, evalsBefore + 1, -1 do
+                       if EVALS[i]:find("^setIndex%(") then return true end
+                   end
+                   return false
+               end)(), (W.htmlSets or 0) .. " vs " .. htmlBefore)
+    local pushes = 0
+    for i = evalsBefore + 1, #EVALS do
+        if EVALS[i]:find("^setIndex%(") then pushes = pushes + 1 end
+    end
+    v.setText("# Something Else\n\nmore words\n")
+    local pushes2 = 0
+    for i = evalsBefore + 1, #EVALS do
+        if EVALS[i]:find("^setIndex%(") then pushes2 = pushes2 + 1 end
+    end
+    check("🔕 …and typing that does NOT change the heading pushes nothing — "
+          .. "this runs on every keystroke",
+          pushes2 == pushes, pushes .. " → " .. pushes2)
+    v.hide()
+
+    local ran = (pass + fail) - before
+    check("§6.328.0 ran all of its checks (" .. ran .. " of 16)", ran >= 16, ran)
 end
 
 out(string.format("\n%d passed, %d failed\n", pass, fail))

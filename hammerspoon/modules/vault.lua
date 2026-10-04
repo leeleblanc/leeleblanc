@@ -1204,6 +1204,7 @@ function M.setup(core)
             v.scanning = false
             v.hop("scan-release", function()
                 v.findTask, v.grepTask, v.tagTask, v.fmTask = nil, nil, nil, nil
+                v.headTask = nil
             end)
             v.scanErr, v.lastScan, v.scans = err, os.time(), v.scans + 1
             if err then warn("scan: " .. err)
@@ -1243,7 +1244,50 @@ function M.setup(core)
                     v.setFrontmatterLines(fout, inline)
                     assignTags(inline, v.fmPending)
                     v.fmPending = nil
+                    -- 🏷 6.328.0 — and the headings, which is what the left
+                    -- column shows. OPTIONAL, exactly like the tags: any
+                    -- failure here keeps what exists and finishes the scan
+                    -- with the links and fields intact, because a row that
+                    -- falls back to its file name is the behaviour this
+                    -- vault had for three hundred releases.
+                    -- 🔑 AND THE SCAN FINISHES FIRST. The index — notes,
+                    -- links, tags, fields — is complete at this line, and
+                    -- the headings only change what a row is CALLED. Making
+                    -- finish() wait on a fifth grep would hold v.scanning
+                    -- true for longer, delay every redraw behind it, and
+                    -- put the whole index behind an embellishment that is
+                    -- allowed to fail. It arrives late and refreshes the
+                    -- rows in place (6.323.0), which is exactly the shape
+                    -- the tags already use.
                     finish(nil)
+                    -- 🪜 Started on a hop — this is inside the front-matter
+                    -- grep's own callback (6.196.1 / 6.324.0).
+                    v.hop("scan-head", function()
+                        local hArgs = grepBase("-rHnIE")
+                        for _, a in ipairs({ "-m", "1", "-e", "^#[[:space:]]", v.dir }) do
+                            hArgs[#hArgs + 1] = a
+                        end
+                        local okH, ht = pcall(hs.task.new, v.GREP, function(hcode, hout, herr)
+                            if hcode ~= 0 and hcode ~= 1 then
+                                v.headErr = "grep exited " .. tostring(hcode) .. ": " .. trim(herr or "")
+                            else
+                                v.headErr = nil
+                                v.setHeadLines(hout)
+                            end
+                            v.headTask = nil
+                            -- the rows go in by eval, never a rebuild: he
+                            -- may be typing by now (6.323.0)
+                            if v.webview then pcall(v.refreshIndex) end
+                        end, hArgs)
+                        if not (okH and ht) then
+                            v.headErr = "grep task: " .. tostring(ht) ; return
+                        end
+                        v.headTask = ht     -- HELD
+                        local okHS, startedH = pcall(function() return ht:start() end)
+                        if not okHS or startedH == false then
+                            v.headTask, v.headErr = nil, "heading grep would not start"
+                        end
+                    end)
                 end, fmArgs)
                 if not (okF2 and ft2) then tagsFailed("frontmatter grep task: " .. tostring(ft2), inline) return end
                 -- 🪜 6.324.0 — HELD first, then started on a hop: this is
@@ -1514,6 +1558,15 @@ function M.setup(core)
             v.links[v.doc.rel] = v.linksIn(text)
             v.tagsOf[v.doc.rel] = v.tagsIn(text)     -- 6.174.0 — the open note's tags are live too
             v.fmOf[v.doc.rel]   = v.fmIn(text)       -- 6.185.0 — and its fields, per key
+            -- 🏷 6.328.0 — and its TITLE. A scan is seconds away and he is
+            -- typing NOW: the note he is editing is the one he expects the
+            -- column to follow, and it is the only one whose text this
+            -- module holds.
+            local wasTitle = v.headOf[v.doc.rel]
+            v.headOf[v.doc.rel] = v.headIn(text)
+            if v.headOf[v.doc.rel] ~= wasTitle and v.webview then
+                pcall(v.refreshIndex)
+            end
             v.scheduleSave()
         end
     end
@@ -2254,6 +2307,81 @@ function M.setup(core)
     end
 
     -- ---- the page ------------------------------------------------------------------
+    -- ---- 6.328.0 — 🏷 THE LEFT COLUMN SHOWS THE NOTE'S OWN TITLE ------------
+    --
+    -- LL: "Changing a title like # Add recycle bin does not change the
+    -- title in the lefthand column. I think it should."
+    --
+    -- 🔎 THE COLUMN HAS ALWAYS SHOWN THE FILE NAME, and that is not a
+    -- bug — it is what every link, every [[…]] and every index in this
+    -- module is keyed by. What it is NOT is what he calls the title: he
+    -- writes `# Something` at the top and expects the list to follow.
+    --
+    -- 🔑 DISPLAY, NEVER RENAME, and that is the whole safety of this
+    -- release. Renaming the FILE as he types would rewrite a path on
+    -- every keystroke, break every [[link]] pointing at it, and do all
+    -- of that in the folder holding his writing — 6.280.0's rule says
+    -- the one failure here with no way back is destroying that. So the
+    -- file keeps its name, the links keep working, Obsidian opens the
+    -- same folder, and the ROW shows the title.
+    --
+    -- 📏 THREE SOURCES, IN ORDER, and the order is the point: a `title:`
+    -- the note states in its front matter beats a heading, a heading
+    -- beats the file name, and the file name is always there. PURE, so
+    -- the gate proves the whole rule with no vault.
+    v.headOf   = {}      -- rel → the note's first `# ` heading
+    v.headErr  = nil
+    v.headSeen = 0
+
+    function v.titleOf(rel, name)
+        rel = tostring(rel or "")
+        local fm = v.fmOf[rel]
+        local t  = fm and fm.title
+        if type(t) == "string" and trim(t) ~= "" then return trim(t), "front matter" end
+        local h = v.headOf[rel]
+        if type(h) == "string" and trim(h) ~= "" then return trim(h), "heading" end
+        return tostring(name or rel:match("([^/]+)%.md$") or rel), "file name"
+    end
+
+    -- PURE: the first `# ` heading in a note's text, or nil. Used for the
+    -- OPEN note, which is the one he is editing and the one he expects to
+    -- follow him immediately — a scan is seconds away and he is typing now.
+    function v.headIn(text)
+        local body = tostring(text or "")
+        -- front matter first: a `# ` inside it is not the note's heading
+        local fmEnd = body:match("^%-%-%-[^\n]*\n.-\n%-%-%-[^\n]*\n()")
+        if fmEnd then body = body:sub(fmEnd) end
+        for line in body:gmatch("[^\n]*") do
+            local h = line:match("^#%s+(.+)$")
+            if h then
+                h = trim(h)
+                if h ~= "" then return h end
+            end
+            -- only the FIRST heading counts, and only before any body text
+            if trim(line) ~= "" and not line:match("^#") then return nil end
+        end
+        return nil
+    end
+
+    -- grep -rHnIE '^# ' answers "<path>:<line>:# <text>"; -m 1 stops at
+    -- the first per file, so this is one line per note at most.
+    function v.setHeadLines(out)
+        local seen = {}
+        for line in tostring(out or ""):gmatch("[^\n]+") do
+            local path, text = line:match("^(.-):%d+:#%s+(.*)$")
+            if path and text then
+                local rel = path:sub(#v.dir + 2)
+                if rel ~= "" and not seen[rel] then
+                    local t = trim(text)
+                    if t ~= "" then seen[rel] = t end
+                end
+            end
+        end
+        v.headOf, v.headSeen = seen, 0
+        for _ in pairs(seen) do v.headSeen = v.headSeen + 1 end
+        return v.headSeen
+    end
+
     function v.notesJson()
         local rows = {}
         for _, n in ipairs(v.notes) do
@@ -2272,7 +2400,13 @@ function M.setup(core)
             table.sort(keys)
             local f = {}
             for _, k in ipairs(keys) do f[#f + 1] = jstr(k) .. ":" .. jstr(v.fmOf[n.rel][k]) end
-            rows[#rows + 1] = "{n:" .. jstr(n.name) .. ",r:" .. jstr(n.rel) .. ",g:[" .. table.concat(g, ",") .. "]"
+            -- 🏷 6.328.0 — t: what the row is CALLED. Sent only when it
+            -- differs from the file name, so a vault with no headings
+            -- sends exactly the bytes it sent before.
+            local title = v.titleOf(n.rel, n.name)
+            rows[#rows + 1] = "{n:" .. jstr(n.name) .. ",r:" .. jstr(n.rel)
+                .. ((title ~= n.name) and (",t:" .. jstr(title)) or "")
+                .. ",g:[" .. table.concat(g, ",") .. "]"
                 .. ",l:[" .. table.concat(l, ",") .. "]"
                 .. (#f > 0 and (",f:{" .. table.concat(f, ",") .. "}") or "")
                 .. (isTemplateRel(n.rel) and ",tpl:1" or "") .. "}"
@@ -2711,13 +2845,25 @@ function drawRows(){
     var x = NOTES[i];
     if (x.tpl) continue;                                   // 6.174.0 — templates sit in their own section below
     if (tag !== null) { if (!noteHasTag(x, tag, exact)) continue; }
-    else if (f && x.n.toLowerCase().indexOf(f) < 0 && x.r.toLowerCase().indexOf(f) < 0) continue;
+    // 🏷 6.328.0 — the FILTER asks the title too, or a note he renamed in
+    // its heading becomes unfindable by the name he can see.
+    else if (f && x.n.toLowerCase().indexOf(f) < 0 && x.r.toLowerCase().indexOf(f) < 0
+             && !(x.t && x.t.toLowerCase().indexOf(f) >= 0)) continue;
     // 🗑 6.280.0 — the ✕ rides in the row, exactly as the scratch tabs'
     // does, and carries the note's REL rather than its position: the list
     // renumbers under your hand on every filter and redraw, so an index
     // would delete a different note than the one clicked (6.272.0, the
     // same rule that decided the music history's ✕).
-    h.push('<li class="note' + (x.r === CUR ? ' cur' : '') + '" data-name="' + esc(x.n) + '" data-del="' + esc(x.r) + '" title="' + esc(x.r) + '">' + esc(x.n) + '<span class="x" title="delete">\u2715</span></li>');
+    // 🏷 6.328.0 — WHAT IT IS CALLED, not what the file is called. x.t is
+    // the note's own title (its `title:` front matter, else its first
+    // `# ` heading) and is sent only when it differs from the file name.
+    // 🚨 data-name STAYS THE FILE NAME: it is what ⏎ opens, what the row
+    // walker matches and what every [[link]] resolves against. Changing
+    // it to the title would make clicking a renamed note open nothing —
+    // or, worse, SEED a new note under the heading's text (6.174.0).
+    // The file name rides in the tooltip so it is never hidden.
+    var shown = x.t || x.n;
+    h.push('<li class="note' + (x.r === CUR ? ' cur' : '') + '" data-name="' + esc(x.n) + '" data-del="' + esc(x.r) + '" title="' + esc(x.r) + (x.t ? ' — the file is ' + esc(x.n) + '.md' : '') + '">' + esc(shown) + '<span class="x" title="delete">\u2715</span></li>');
     if (++n >= 400) break;
   }
   if (!h.length) h.push('<li style="opacity:.4;cursor:default">' + (tag !== null ? 'no note carries #' + esc(tag) : (f ? 'no note matches — ⏎ creates &quot;' + esc(q.value.trim()) + '&quot;' : 'no notes yet — ⌘N')) + '</li>');
