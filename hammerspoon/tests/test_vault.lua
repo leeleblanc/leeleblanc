@@ -106,7 +106,12 @@ local function newWebviewStub(rect)
     function v:level(l) return self end
     function v:behaviorAsLabels(b) return self end
     function v:windowStyle(x) if x ~= nil then self._style = x end return self._style end
-    function v:html(h) self.htmlSet = h return self end
+    -- 🔬 6.323.0 — :html() REPLACES THE DOCUMENT, and that is the whole
+    -- fact this module now turns on: a new document means a new
+    -- <textarea>, and a new element has an EMPTY undo stack. A stub that
+    -- quietly overwrites a string models the VALUE and not the EVENT, so
+    -- "did this rebuild the page?" was unaskable from the gate (6.290.0).
+    function v:html(h) self.htmlSet = h; self.htmlSets = (self.htmlSets or 0) + 1 return self end
     function v:show() self.shown = self.shown + 1 return self end
     function v:hide() return self end
     function v:bringToFront() return self end
@@ -2568,6 +2573,94 @@ do
 
     local ran = (pass + fail) - before
     check("§6.322.0 ran all of its checks (" .. ran .. " of 16)", ran >= 16, ran)
+end
+
+-- =======================================================================
+out("\n6.323.0 — ↩️ ⌘Z SURVIVES A SCAN\n")
+-- =======================================================================
+-- ⌘Z was never missing: the page lets it through and WebKit has always
+-- undone a textarea. v.render() hands WebKit a NEW document, so the box
+-- is a different element with an empty history — and every background
+-- scan called it. His report: `scan : running · 65 so far`.
+do
+    local before = pass + fail
+
+    -- ---- PURE: may a scan update in place? --------------------------------
+    check("↩️ a scan with a note open and the editor showing updates the ROWS",
+          select(1, v.scanRedraw(true, "edit", { rel = "A.md" })) == "rows")
+    check("🚨 …and the graph and the board still REBUILD — they are drawn from "
+          .. "the document, so a rows-only push would leave them stale",
+          select(1, v.scanRedraw(true, "graph", { rel = "A.md" })) == "rebuild"
+          and select(1, v.scanRedraw(true, "board", { rel = "A.md" })) == "rebuild")
+    check("↩️ with no note open there is no undo to keep, so it rebuilds",
+          select(1, v.scanRedraw(true, "edit", nil)) == "rebuild")
+    check("↩️ with no window it does neither",
+          select(1, v.scanRedraw(false, "edit", { rel = "A.md" })) == "none")
+    local _, wR = v.scanRedraw(true, "graph", {})
+    local _, wN = v.scanRedraw(false, "edit", {})
+    check("🔎 each verdict says WHY, and the reasons differ", wR ~= wN and wR:find("graph", 1, true))
+
+    -- ---- end to end: the scan must not replace the document ---------------
+    FILES[VAULT .. "/Draft.md"] = "# Draft\n\nwords he is typing\n"
+    v.setNotes({ "Draft.md" })
+    v.openNote("Draft")
+    v.open()                                  -- a window
+    local W = WEBVIEWS[#WEBVIEWS]
+    local htmlBefore = W.htmlSets or 0
+    local evalsBefore = #EVALS
+    v.rowRefresh, v.rebuilds = 0, 0
+
+    v.scan("test")
+    local ft = lastTask("find")
+    ft.cb(0, "/Users/ll/OneDrive/Vault/Draft.md\n", "")
+    local gt = lastTask("grep")
+    if gt then gt.cb(1, "", "") end
+    for _ = 1, 4 do
+        local t = lastTask("grep")
+        if t and not t.done then t.cb(1, "", "") end
+    end
+
+    check("🚨 the scan did NOT hand WebKit a new document — the <textarea> he "
+          .. "is typing in is the SAME element, so its undo stack lives",
+          (W.htmlSets or 0) == htmlBefore, htmlBefore .. " → " .. tostring(W.htmlSets))
+    check("↩️ …it pushed the rows in by eval instead",
+          v.rowRefresh >= 1 and v.rebuilds == 0
+          and (function()
+                   for i = #EVALS, evalsBefore + 1, -1 do
+                       if EVALS[i]:find("^setIndex%(") then return true end
+                   end
+                   return false
+               end)(), v.rowRefresh .. " / " .. v.rebuilds)
+
+    -- and the graph still rebuilds, which is the half that keeps it honest
+    v.view = "graph"
+    v.rowRefresh, v.rebuilds = 0, 0
+    local W2 = WEBVIEWS[#WEBVIEWS]
+    local htmlBefore2 = W2.htmlSets or 0
+    v.scan("test2")
+    local ft2 = lastTask("find")
+    ft2.cb(0, "/Users/ll/OneDrive/Vault/Draft.md\n", "")
+    for _ = 1, 5 do
+        local t = lastTask("grep")
+        if t and not t.done then t.cb(1, "", "") end
+    end
+    check("🚨 in the graph view a scan DOES rebuild — the rows-only push would "
+          .. "leave the drawing stale",
+          v.rebuilds >= 1 and (W2.htmlSets or 0) > htmlBefore2,
+          v.rebuilds .. " / " .. htmlBefore2 .. " → " .. tostring(W2.htmlSets))
+    v.view = "edit"
+
+    -- ---- the report proves it on his Mac -----------------------------------
+    local rep = _G.vaultReport()
+    check("🔎 the report counts the two kinds of redraw APART — a release that "
+          .. "claims it stopped rebuilding has to prove it",
+          rep:find("⌘Z     : %d+ scan%(s%) updated the rows in place") ~= nil,
+          rep:match("⌘Z[^\n]*"))
+    check("📏 …and it NAMES the trade rather than leaving it to be found",
+          rep:find("waits for the next full", 1, true) ~= nil)
+
+    local ran = (pass + fail) - before
+    check("§6.323.0 ran all of its checks (" .. ran .. " of 10)", ran >= 10, ran)
 end
 
 out(string.format("\n%d passed, %d failed\n", pass, fail))

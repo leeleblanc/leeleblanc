@@ -1160,7 +1160,15 @@ function M.setup(core)
             v.scanErr, v.lastScan, v.scans = err, os.time(), v.scans + 1
             if err then warn("scan: " .. err)
             else say("scan: " .. #v.notes .. " notes, " .. v.linkLines .. " link lines, " .. #v.tagList .. " tags (" .. tostring(reason) .. ")") end
-            if v.webview then v.render() end
+            -- ↩️ 6.323.0 — a BACKGROUND redraw must not take his ⌘Z with it
+            local how, whyHow = v.scanRedraw(v.webview ~= nil, v.view, v.doc)
+            v.scanRedrawWhy = whyHow
+            if how == "rows" then
+                if not v.refreshIndex() then v.rebuilds = v.rebuilds + 1; v.render() end
+            elseif how == "rebuild" then
+                v.rebuilds = v.rebuilds + 1
+                v.render()
+            end
         end
         -- 6.174.0 — the tag half of the chain. OPTIONAL: any failure here
         -- warns, keeps what exists and finishes the scan with the links
@@ -2771,6 +2779,18 @@ function setMode(m, quiet){
   q.focus();
 }
 // ---- Lua → page, without a rebuild (v.eval) ----
+// ↩️ 6.323.0 — THE INDEX CHANGES WITHOUT THE PAGE BEING REBUILT.
+// A rebuild replaces the <textarea> with a brand-new element, and a new
+// element has an EMPTY undo stack — so every background scan threw away
+// his ⌘Z. This assigns the three things a scan can change and redraws
+// the left column, leaving the box he is typing in exactly where it was,
+// with its history and its caret.
+function setIndex(notes, tags, graph){
+  if (notes) NOTES = notes;
+  if (tags)  TAGS  = tags;
+  if (graph) GRAPH = graph;
+  drawRows();
+}
 function setRows(kind, rows, more, qq){
   if (kind === 'search') { if (MODE !== 'search' || qq !== SEARCH.q) return; SEARCH.rows = rows || []; SEARCH.more = !!more; SEARCH.busy = false; drawRows(); }
   else if (kind === 'tasks') { TASKS.rows = rows || []; TASKS.more = !!more; TASKS.listed = true; if (MODE === 'tasks') drawRows(); }
@@ -3849,6 +3869,61 @@ else {
                     :gsub("FSLABEL", tostring(fs2)):gsub("FSNUM", tostring(math.floor(fs)))
                     :gsub("FS1px", fs1 .. "px")
                     :gsub("FS2px", fs2 .. "px"):gsub("FSpx", math.floor(fs) .. "px"))
+    end
+
+    -- ---- 6.323.0 — ↩️ ⌘Z SURVIVES A SCAN ------------------------------------
+    --
+    -- LL: "I also need a command+z feature because I highlighted the text
+    -- in a note and accidentally deleted it all and then I couldn't get
+    -- any of that text back while the note remained blank."
+    --
+    -- 🔎 ⌘Z WAS NEVER MISSING. The page does not claim it — the keydown
+    -- handler lets it straight through to WebKit, which has undone text
+    -- in a <textarea> since there were textareas. What took it away is
+    -- this module: v.render() hands WebKit a whole new document, so the
+    -- box he was typing in is a DIFFERENT ELEMENT with an empty undo
+    -- history, and every background scan called it. His own report says
+    -- `scan : running · 65 so far` — sixty-five rebuilds in one session,
+    -- each one silently emptying the one thing that could have given his
+    -- paragraph back.
+    --
+    -- 🔑 SO THE SCAN STOPS REBUILDING. A scan changes the LEFT COLUMN —
+    -- the note list, the tags, the graph — and nothing about the text
+    -- he is in. Those three go in by eval and the page redraws its own
+    -- rows, which is what this file's own comment has said the eval path
+    -- is for since 6.174.0: "a full render would wipe what LL is typing."
+    -- It was right, and the scan was the one caller not obeying it.
+    --
+    -- 📏 COST, NAMED: the RIGHT pane (backlinks, outline) is drawn in the
+    -- rebuilt document, so a scan that discovers a new backlink to the
+    -- open note no longer shows it until the next real render — opening
+    -- any note, or switching view. A stale list on the right is worth a
+    -- working ⌘Z on the left, and it is a trade rather than a fix, so it
+    -- is said here and in the report rather than left to be found.
+    v.rowRefresh = 0     -- scans that updated the rows in place
+    v.rebuilds   = 0     -- …and the ones that had to rebuild the document
+
+    function v.refreshIndex()
+        if not v.webview then return false, "no window" end
+        local ok = pcall(function()
+            v.eval("setIndex(" .. v.notesJson() .. ", " .. v.tagsJson()
+                   .. ", " .. v.graphJson() .. ")")
+        end)
+        if not ok then return false, "the push threw" end
+        v.rowRefresh = v.rowRefresh + 1
+        return true
+    end
+
+    -- PURE: may a scan update in place, or must it rebuild? Answers the
+    -- verdict AND why, because "there was no window" and "he is in the
+    -- graph" are different facts and the report has to tell them apart.
+    function v.scanRedraw(hasWindow, view, doc)
+        if not hasWindow then return "none", "no window is open" end
+        if view == "graph" or view == "board" then
+            return "rebuild", "the " .. tostring(view) .. " view is drawn from the document"
+        end
+        if not doc then return "rebuild", "no note is open, so there is no undo to keep" end
+        return "rows", "the rows go in by eval — the text box, its caret and its ⌘Z stay"
     end
 
     function v.render()
@@ -5029,6 +5104,19 @@ else {
             L[#L + 1] = "      ⚠️ ⇪3 could not put you back — it opened on the notes"
             L[#L + 1] = "         list instead. Nothing was created and nothing was lost."
         end
+        -- ↩️ 6.323.0 — the two kinds of redraw, counted apart, because a
+        -- release that claims it stopped rebuilding must PROVE it on his
+        -- Mac: rows climbing while rebuilds stay flat is the claim.
+        L[#L + 1] = "   ⌘Z     : " .. v.rowRefresh .. " scan(s) updated the rows in place (your undo "
+                    .. "stack survives those) · " .. v.rebuilds .. " rebuilt the page"
+        if v.scanRedrawWhy then
+            L[#L + 1] = "      ↳ last scan: " .. tostring(v.scanRedrawWhy)
+        end
+        if v.rebuilds > 0 and v.rowRefresh == 0 then
+            L[#L + 1] = "      ⚠️ EVERY scan rebuilt the page — ⌘Z is being emptied each time."
+        end
+        L[#L + 1] = "      ↳ the right-hand pane (backlinks, outline) waits for the next full "
+                    .. "render; that is the trade"
         L[#L + 1] = "   help   : format bar " .. (v.formatBar == false and "off (formatBar)" or "on")
                     .. " · \"/\" on an empty line lists every block · ⌘B ⌘I ⌘E "
                     .. "· the footer names the line you are on"
