@@ -46,6 +46,19 @@ local function check(label, cond, extra)
 end
 local function out(s) io.write(s) end
 
+-- 🔬 6.290.0 — LuaSkin pcalls every hs.task callback, so a raise inside
+-- one costs the FEATURE and never the process. A harness that calls `cb`
+-- bare is gentler in the one direction that matters: it turns a fault
+-- into a dead run with "0 failed" never printed, which a gate reading
+-- the tail calls a pass. FIRE models macOS and hands the throw back.
+local THREW = nil
+local function FIRE(t, ...)
+    THREW = nil
+    if not t or type(t.cb) ~= "function" then THREW = "no task to fire"; return end
+    local ok, err = pcall(t.cb, ...)
+    if not ok then THREW = tostring(err) end
+end
+
 local printed = {}
 print = function(...)
     local p = {}
@@ -1240,7 +1253,7 @@ S.recognizeFile(rp)
 check("with zbar present the QR decode runs FIRST", #TASKS == tBefore + 1
       and TASKS[#TASKS].cmd == "/opt/homebrew/bin/zbarimg",
       TASKS[#TASKS].cmd)
-TASKS[#TASKS].cb(0, "https://example.com/qr-payload\n")
+FIRE(TASKS[#TASKS], 0, "https://example.com/qr-payload\n")
 check("a decoded code lands on the clipboard, verbatim",
       CLIP.kind == "text" and CLIP.v == "https://example.com/qr-payload",
       tostring(CLIP.v))
@@ -1250,18 +1263,36 @@ check("6.187.0: …WITH the image it was read from, so @images can show it",
 
 tBefore = #TASKS
 S.recognizeFile(rp)
-TASKS[#TASKS].cb(1, "")   -- no code in the image
+FIRE(TASKS[#TASKS], 1, "")   -- no code in the image
 check("no code → falls through to the HS OCR Shortcut",
       #TASKS == tBefore + 2 and TASKS[#TASKS].cmd == "/usr/bin/shortcuts"
       and TASKS[#TASKS].args[1] == "run" and TASKS[#TASKS].args[2] == "HS OCR",
       TASKS[#TASKS].cmd)
-TASKS[#TASKS].cb(0, "  Hello from OCR  ")
+FIRE(TASKS[#TASKS], 0, "  Hello from OCR  ")
 check("…whose text is trimmed onto the clipboard",
       CLIP.kind == "text" and CLIP.v == "Hello from OCR", tostring(CLIP.v))
 check("6.173.1: ⇪4's recognized text reaches ocr.record — ⇪O has what ⇪V has",
       REC[2] == "Hello from OCR", REC[2])
 check("6.187.0: …and so does the file, on the OCR route as well as the QR one",
       RECPATH[2] == rp, tostring(RECPATH[2]))
+check("…and no callback on either route RAISED (6.290.0 — a bare `cb` "
+      .. "turns a fault into a dead run)", THREW == nil, THREW)
+
+-- 📓 6.319.0 — THE LOG IS WRITTEN BEFORE THE CLIPBOARD on the QR route
+-- too, and the ORDER is what is asserted rather than that both happened
+-- (6.220.0). The refusal message tells him "⇪O has it", so the log must
+-- never sit behind the step that can fail.
+do
+    local keptDoor = S.copyOut
+    S.copyOut = function() error("the clipboard step blew up", 0) end
+    local nQ = #TASKS
+    S.recognizeFile(rp)
+    if #TASKS > nQ then FIRE(TASKS[#TASKS], 0, "qr://logged-first\n") end
+    S.copyOut = keptDoor
+    check("📓 a QR payload reaches ⇪O's log even when the clipboard throws",
+          REC[#REC] == "qr://logged-first", REC[#REC] or "nothing logged")
+end
+
 _G.service = savedSvc11
 FILES["/opt/homebrew/bin/zbarimg"] = nil
 S._zbar = nil
@@ -2642,18 +2673,6 @@ do
     local function DOOR(...)
         if type(S.copyOut) ~= "function" then return nil, "no copyOut" end
         return S.copyOut(...)
-    end
-    -- 🔬 6.290.0 — LuaSkin pcalls every hs.task callback, so a raise in
-    -- one costs the FEATURE and never the process. A harness that calls
-    -- `cb` bare is gentler in the one direction that matters here: it
-    -- turns a fault into a dead run with "0 failed" never printed. FIRE
-    -- models macOS and hands the throw back as a value.
-    local THREW = nil
-    local function FIRE(t, ...)
-        THREW = nil
-        if not t or type(t.cb) ~= "function" then THREW = "no task"; return end
-        local ok, err = pcall(t.cb, ...)
-        if not ok then THREW = tostring(err) end
     end
 
     -- ✏️ PURE: six answers and only one writes (6.196.1).
