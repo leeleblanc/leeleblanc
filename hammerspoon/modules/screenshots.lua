@@ -1560,6 +1560,7 @@ function M.setup(core)
     shots.clipStats       = { wrote = 0, failed = 0, empty = 0,
                               swapped = 0, held = 0, off = 0 }
     shots.clipLast        = nil    -- { ok, why, chars, at }
+    shots.clipThrew       = 0      -- the swap raised inside the callback
     shots.swapWhy         = nil    -- why the last arrival did not swap
 
     -- PURE: may the words of `path` replace what is on the clipboard?
@@ -1741,6 +1742,9 @@ function M.setup(core)
             if not shots.textToClipboard then
                 line = "OFF — settings = { screenshots = { textToClipboard = false } }"
                        .. " · ⇪⇧4 still copies what it reads"
+            elseif (shots.clipThrew or 0) > 0 then
+                line = ("⚠️ %d swap(s) THREW — the words are in ⇪O and the "
+                        .. "naming was unaffected"):format(shots.clipThrew)
             elseif (cs.failed or 0) > 0 then
                 line = ("⚠️ %d clipboard write(s) REFUSED by macOS — the words "
                         .. "are in ⇪O"):format(cs.failed)
@@ -2142,23 +2146,48 @@ function M.setup(core)
                     -- his, an arrival from the other Mac, a shot from
                     -- five minutes back — is refused and SAID.
                     if shots.textToClipboard then
-                        local c, n
-                        pcall(function() c = hs.pasteboard.changeCount() end)
-                        pcall(function() n = hs.timer.secondsSinceEpoch() end)
-                        local may, swapWhy = shots.swapVerdict(
-                            shots.ownClip, path, c, n or os.time(),
-                            shots.clipSwapSecs)
-                        shots.swapWhy = swapWhy
-                        if may and shots.copyOut(text) then
-                            shots.clipStats.swapped =
-                                (shots.clipStats.swapped or 0) + 1
-                            pcall(function()
-                                hs.alert.show("🔤 The words are on the clipboard "
-                                    .. "— ⌘V pastes them · ⇪⇧5 then ⏎ puts the "
-                                    .. "picture back", 3)
-                            end)
-                        elseif not may then
-                            shots.clipStats.held = (shots.clipStats.held or 0) + 1
+                        -- 🔒 ITS OWN GUARD, and the sweep is what asked for
+                        -- it: this sits in the MIDDLE of a task callback
+                        -- whose later half still has to run — the rename's
+                        -- verdict and `onDone`, which drainQueue waits on
+                        -- (6.155.0). A throw here is a silence that strands
+                        -- the naming queue, so the convenience never shares
+                        -- the load-bearing path's guard (6.235.0, 6.260.0).
+                        local okSwap = pcall(function()
+                            local c, n
+                            pcall(function() c = hs.pasteboard.changeCount() end)
+                            pcall(function() n = hs.timer.secondsSinceEpoch() end)
+                            local may, swapWhy = shots.swapVerdict(
+                                shots.ownClip, path, c, n or os.time(),
+                                shots.clipSwapSecs)
+                            shots.swapWhy = swapWhy
+                            if may and shots.copyOut(text) then
+                                shots.clipStats.swapped =
+                                    (shots.clipStats.swapped or 0) + 1
+                                pcall(function()
+                                    hs.alert.show("🔤 The words are on the clipboard "
+                                        .. "— ⌘V pastes them · ⇪⇧5 then ⏎ puts the "
+                                        .. "picture back", 3)
+                                end)
+                            elseif not may then
+                                shots.clipStats.held =
+                                    (shots.clipStats.held or 0) + 1
+                            end
+                        end)
+                        if not okSwap then
+                            -- 🔔 and it is SEEN, not swallowed: a swap that
+                            -- went quiet on its own is 6.196.1's failure
+                            -- inside the feature built to answer "why did
+                            -- my words not land?"
+                            shots.clipThrew = (shots.clipThrew or 0) + 1
+                            shots.swapWhy = "the swap THREW — the naming and "
+                                            .. "the log were not affected"
+                            if type(core.degrade) == "function" then
+                                pcall(core.degrade, "OCR clipboard",
+                                      "the words were read and logged, but "
+                                      .. "putting them on the clipboard threw "
+                                      .. "— ⇪O has them")
+                            end
                         end
                     else
                         shots.clipStats.off = (shots.clipStats.off or 0) + 1

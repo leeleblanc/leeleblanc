@@ -2837,6 +2837,53 @@ do
         S.clipSwapSecs = keptW
     end
 
+    -- 🔒 A THROW IN HERE MUST NOT COST THE NAMING. The swap sits in the
+    -- middle of a task callback whose later half runs the rename verdict
+    -- and `onDone` — and drainQueue waits on that callback (6.155.0). The
+    -- sweep asked for this: with the verdict renamed away the suite DIED
+    -- instead of failing, which is the same raise a real fault would make.
+    do
+        local keptV, keptThrew = S.swapVerdict, S.clipThrew
+        local degB = #DEGRADES
+        S.swapVerdict = function() error("boom", 0) end
+        S.clipThrew, S.ownClip = 0, nil
+        local tB6 = #TASKS
+        HYPER["|4"]()
+        local cvT = _G.__lastCanvas
+        if cvT then
+            cvT.cb(cvT, "mouseDown", "_canvas_", 10, 10)
+            cvT.cb(cvT, "mouseUp", "_canvas_", 210, 160)
+        end
+        local shotT = (TASKS[#TASKS] and TASKS[#TASKS].args
+                       and TASKS[#TASKS].args[#TASKS[#TASKS].args]) or "<none>"
+        FILES[shotT] = { size = 9000, modification = 1000, w = 200, h = 150 }
+        if TASKS[#TASKS] and #TASKS > tB6 then TASKS[#TASKS].cb(0, "", "") end
+        NOWF = NOWF + 1
+        local gotWhy, gotNew
+        local nB6 = #TASKS
+        S.nameByText(shotT, function(np, w) gotNew, gotWhy = np, w end)
+        local okDrive = true
+        if #TASKS > nB6 then
+            okDrive = pcall(function()
+                TASKS[#TASKS].cb(0, "a throwing arrival", "")
+            end)
+        end
+        ck("🚨 a throw in the swap does NOT escape the callback — the "
+           .. "naming queue would wait for ever on a callback that raised",
+           okDrive == true, "the callback raised")
+        -- the `why` verdict and onDone are BOTH written after the swap
+        -- block, so an answer at all proves the callback ran past it.
+        ck("…the callback ran on to its end — onDone answered",
+           gotWhy ~= nil, tostring(gotWhy) .. " / " .. tostring(gotNew))
+        ck("…and it is SEEN, not swallowed: counted and through the 🔔 door",
+           (S.clipThrew or 0) == 1 and #DEGRADES > degB, S.clipThrew)
+        local rThrew = RPT()
+        ck("…and the report's ⚠️ outranks every count (6.260.0)",
+           (rThrew:match("clip    :[^\n]*") or ""):find("THREW", 1, true) ~= nil,
+           rThrew:match("clip    :[^\n]*"))
+        S.swapVerdict, S.clipThrew = keptV, keptThrew
+    end
+
     -- 🔌 the switch is real in both directions (6.228.0 / 6.259.0)
     S.textToClipboard = false
     S.ownClip = nil
@@ -2924,7 +2971,7 @@ do
 
     NOWF = keptNow
     check("the 6.319.0 block ran every one of its checks",
-          (pass + fail) - n18 == 38, (pass + fail) - n18)
+          (pass + fail) - n18 == 42, (pass + fail) - n18)
 end
 
 -- =====================================================================
