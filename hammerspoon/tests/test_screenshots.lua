@@ -2820,10 +2820,24 @@ do
        .. "tried", (rFresh:match("clip    :[^\n]*") or "")
        :find("no OCR text has reached", 1, true) ~= nil,
        rFresh:match("clip    :[^\n]*"))
+    -- 🚨 6.239.0 — AND THE FIRST VERSION OF THIS CHECK SURVIVED ITS OWN
+    -- MUTATION: it asserted the shipped 25, which a hard-coded 25 in the
+    -- report satisfies exactly. It MOVES the config to a number this
+    -- config has never shipped and requires the sentence to follow.
+    local keptSecs = S.clipSwapSecs
+    S.clipSwapSecs = 41
+    local rMoved = RPT()
     ck("…the window is READ from the config, not retyped into the line "
-       .. "(6.239.0)", (rFresh:match("clip    :[^\n]*") or "")
-       :find(tostring(S.clipSwapSecs) .. "s", 1, true) ~= nil,
-       rFresh:match("clip    :[^\n]*"))
+       .. "(6.239.0)", (rMoved:match("clip    :[^\n]*") or "")
+       :find("41s", 1, true) ~= nil,
+       rMoved:match("clip    :[^\n]*"))
+    -- …and the RULE follows it too, not only the sentence.
+    S.clipSwapSecs = 0
+    ck("…and the swap itself asks the same number: a zero window refuses "
+       .. "a shot taken this very second",
+       select(1, S.swapVerdict({ path = "/s/a.png", count = 3, at = 1000 },
+                               "/s/a.png", 3, 1001, S.clipSwapSecs)) == false)
+    S.clipSwapSecs = keptSecs
 
     -- 🔒 ONE DOOR: nothing in this module writes text to the pasteboard
     -- around it. A fourth site added in six months is a copy nothing
@@ -2853,7 +2867,7 @@ do
 
     NOWF = keptNow
     check("the 6.319.0 block ran every one of its checks",
-          (pass + fail) - n18 == 33, (pass + fail) - n18)
+          (pass + fail) - n18 == 34, (pass + fail) - n18)
 end
 
 -- =====================================================================
