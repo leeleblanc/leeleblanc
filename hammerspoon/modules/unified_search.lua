@@ -1359,8 +1359,11 @@ if (q.focus) q.focus();
             -- Being handed the key is the fallback, not a failure: plenty of
             -- entries are descriptions of behaviour, not commands.
             if keys ~= "" then
-                pcall(function() hs.pasteboard.setContents(keys) end)
-                hs.alert.show("🔧 " .. keys .. "  (copied — press it)", 1.5)
+                -- 📋 6.325.0 — the one door, and the sentence is
+                -- CONDITIONAL on the write it describes.
+                if core.copyText(keys, "⇪D (a shortcut)") then
+                    hs.alert.show("🔧 " .. keys .. "  (copied — press it)", 1.5)
+                end
             end
             return false
         end
@@ -1498,8 +1501,9 @@ if (q.focus) q.focus();
             return
         end
         if a == "path" and row.path then
-            pcall(function() hs.pasteboard.setContents(row.path) end)
-            hs.alert.show("📋 Path copied — " .. (row.path:match("[^/]+$") or row.path))
+            if core.copyText(row.path, "⇪D (a path)") then
+                hs.alert.show("📋 Path copied — " .. (row.path:match("[^/]+$") or row.path))
+            end
             uni.hide()
             return
         end
@@ -1517,10 +1521,13 @@ if (q.focus) q.focus();
                 hs.alert.show(copied and "📋 Screenshot on the clipboard"
                               or "⚠️ Could not read that screenshot", 3)
             else
-                pcall(function()
-                    hs.pasteboard.setContents(row.full or row.text or "")
-                end)
-                hs.alert.show("📋 Copied — " .. (row.src or "text"))
+                -- 🚨 6.325.0 — this said "📋 Copied" whatever happened.
+                -- hs.pasteboard.setContents refuses by RETURNING FALSE and
+                -- never throws, so the pcall was true either way and a
+                -- refused write was announced as a copy (6.198.0).
+                if core.copyText(row.full or row.text or "", "⇪D") then
+                    hs.alert.show("📋 Copied — " .. (row.src or "text"))
+                end
             end
             uni.hide()
         end

@@ -865,8 +865,11 @@ function M.setup(core)
     _G.choosers = _G.choosers or {}
     _G.choosers.ocr = hs.chooser.new(function(c)
         if c and c.rawText then
-            hs.pasteboard.setContents(c.rawText)
-            hs.alert.show("📋 Copied")
+            -- 📋 6.325.0 — a BARE setContents, whose answer nobody read,
+            -- under an unconditional "📋 Copied". One door now.
+            if core.copyText(c.rawText, "⇪⇧O") then
+                hs.alert.show("📋 Copied")
+            end
         end
     end):placeholderText("Search OCR Logs...")
 

@@ -252,6 +252,109 @@ function _G.pasteboardSuppress(secs)
 end
 
 -- =====================================================================
+-- 📋 WRITING TO THE PASTEBOARD (6.325.0)
+-- =====================================================================
+-- 🔎 hs.pasteboard.setContents REFUSES BY RETURNING FALSE AND NEVER
+-- THROWS. 6.198.0 wrote that down and named text_expander and
+-- url_cleaner as the files still carrying the shape it forbids:
+--
+--     pcall(function() hs.pasteboard.setContents(x) end)   -- true either way
+--
+-- 6.319.0 found a THIRD in screenshots.lua and added the rule that a
+-- list of files named in a note is a SAMPLE unless somebody has
+-- grepped. Somebody has now: of the setContents call sites in this
+-- config, a handful read the return and the rest do not. THREE of them
+-- announce "📋 Copied" unconditionally — ⇪D's unified search, ⇪V's
+-- clipboard history and ⇪O's OCR log — so on a Mac where macOS refuses
+-- the write (his own Console counted three refused ALERTS in eight
+-- hours, and the pasteboard is refused by the same class of
+-- transition) he is told his text was copied, presses ⌘V, and gets
+-- whatever was there before. A message that is false at the moment it
+-- is acted on is the worst shape a message can have (6.198.0).
+--
+-- 🔑 LIFTED FROM shots.copyOut, never written beside it: that function
+-- has been right since 6.319.0, and a second copy of "did the
+-- clipboard take it?" is a second copy to keep in step (6.231.0).
+--
+-- 🏠 IT LIVES HERE ON ITS MERITS, not because init.lua is full (it is —
+-- 3,798 of its 3,800 lines). This file answers "two features want the
+-- same resource, who gets it?", and the PASTEBOARD is one of them: the
+-- borrow guard and the suppress window directly above are about the
+-- same object.
+--
+-- 📏 It deliberately does NOT alert on success. A caller that wants to
+-- say "📋 Copied" says it when this answers true — which is the whole
+-- point: the sentence becomes conditional on the thing it describes.
+_G.clipWrites = { asked = 0, wrote = 0, refused = 0, empty = 0, last = nil }
+
+function _G.clipWrite(text, who)
+    local st = _G.clipWrites
+    who  = tostring(who or "a tool")
+    text = (type(text) == "string") and text or ""
+    st.asked = st.asked + 1
+    local function record(ok, why)
+        -- 🕒 the EPOCH, never a formatted string (6.282.0): macOS hands
+        -- back a float here and os.date REFUSES one, which took a whole
+        -- report down for eighteen releases.
+        local at
+        pcall(function() at = hs.timer.secondsSinceEpoch() end)
+        st.last = { ok = ok, why = why, who = who, chars = #text,
+                    at = (type(at) == "number") and at or os.time() }
+        return ok, why
+    end
+    if text == "" then
+        st.empty = st.empty + 1
+        return record(false, "there was nothing to copy")
+    end
+    -- 🚨 `~= false`, not a bare truthiness test: a Hammerspoon whose
+    -- setContents answers nil rather than a boolean must not read as a
+    -- refusal, and one that answers false must not read as success.
+    local wrote = false
+    pcall(function() wrote = hs.pasteboard.setContents(text) ~= false end)
+    if not wrote then
+        st.refused = st.refused + 1
+        -- 🔔 A BREAK IS SEEN, NEVER ONLY LOGGED (6.214.0), and it reaches
+        -- the ledger and _G.todayReport() through the one door.
+        if _G.degrade then
+            pcall(_G.degrade, who, "macOS refused to put it on the clipboard — "
+                  .. "nothing was copied, and whatever you had before is still there")
+        elseif _G.notices and _G.notices.degrade then
+            pcall(_G.notices.degrade, who, "macOS refused to put it on the clipboard")
+        else
+            pcall(function() hs.alert.show("⚠️ " .. who
+                  .. " — macOS refused to put it on the clipboard", 6) end)
+        end
+        return record(false, "macOS refused the write")
+    end
+    st.wrote = st.wrote + 1
+    return record(true)
+end
+
+function _G.clipboardWriteReport()
+    local st = _G.clipWrites
+    local L = { "📋 CLIPBOARD WRITES — this config putting text on the clipboard" }
+    L[#L + 1] = "   asked  : " .. st.asked .. " · wrote " .. st.wrote
+                .. " · nothing to copy " .. st.empty
+    if st.refused > 0 then
+        L[#L + 1] = "   ⚠️ REFUSED: " .. st.refused .. " write(s) macOS would not take."
+        L[#L + 1] = "      Before 6.325.0 each of those said \"📋 Copied\" anyway."
+    else
+        L[#L + 1] = "   refused: none — macOS took every write it was asked for"
+    end
+    if st.last then
+        L[#L + 1] = "   last   : " .. (st.last.ok and "✅ " or "❌ ") .. st.last.who
+                    .. " · " .. st.last.chars .. " character(s) · "
+                    .. os.date("%H:%M:%S", math.floor(tonumber(st.last.at) or 0))
+                    .. (st.last.why and (" — " .. st.last.why) or "")
+    else
+        L[#L + 1] = "   last   : nothing has been copied through this door yet"
+    end
+    local out = table.concat(L, "\n")
+    print(out)
+    return out
+end
+
+-- =====================================================================
 -- ⎋ WHO GETS ESCAPE (6.68.0)
 -- =====================================================================
 -- LL: "Everytime I hit escape the shortcut windows disappear. And, the

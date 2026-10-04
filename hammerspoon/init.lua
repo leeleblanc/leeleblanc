@@ -12,34 +12,28 @@
 --   should immediately go onto the clipboard so I can paste it."
 --   🔎 ⇪⇧4 ALREADY DID — 6.173.1 wired it and it has copied since.
 --   What never did is the shot ⇪4 takes: the watcher OCR'd it to NAME
---   it and dropped the words into a CSV. 6.317.0's rule again — find
---   the missing DOOR, not a second instrument. 🚨 A SWAP MAY REPLACE
---   ONLY THE SHOT IT WAS READ FROM, still there, put there by this
---   config, seconds ago; a copy of his, an arrival from the other Mac
---   or a five-minute-old shot is refused and SAID (`swapVerdict`,
---   PURE, six answers; unknown REFUSES — 6.198.0's counter, the
---   opposite default for the opposite damage). 🔒 One door reads
---   setContents' RETURN: three sites here wrapped it in a bare pcall,
---   so "📝 Text copied" was printed over writes that never happened.
+--   it and dropped the words into a CSV. 6.317.0's rule — find the
+--   missing DOOR. 🚨 A SWAP MAY REPLACE ONLY THE SHOT IT WAS READ
+--   FROM, seconds ago, by this config; anything else is refused and
+--   SAID (`swapVerdict`,
+--   PURE, six answers; unknown REFUSES). 🔒 One door reads
+--   setContents' RETURN: three sites wrapped it in a bare pcall, so
+--   "📝 Text copied" was printed over writes that never happened.
 
 -- NEW IN 6.318.0 — 📐 ⇪4 HAS CROSSHAIRS, AND THE NUMBERS COME FIRST
 --   (modules/screenshots.lua). LL: "hyper+shift+4 has pixel
---   crosshairs, hyper+4 does not … and it was working before. Don't
---   break as we build." Both halves are true. ⇪⇧4 is `screencapture
---   -i` and keeps macOS's own HUD — crosshairs and live coordinates
---   from the instant the key is pressed. 6.264.0 moved ⇪4 onto OUR
---   selector, which drew a dim wash and nothing else until the button
---   went down: no crosshair at all, no numbers until a drag.
+--   crosshairs, hyper+4 does not … and it was working before." Both
+--   halves are true: ⇪⇧4 is `screencapture -i` and keeps macOS's own
+--   HUD, while 6.264.0 moved ⇪4 onto OUR selector, which drew a dim
+--   wash and nothing else until the button went down.
 --   📏 6.264.0 IS NOT REVERSED — that would cost the live W × H he
---   asked for twice. What was missing is the half macOS gave for free
---   and it is ours to draw: `crossPlan` (PURE, clamped so a pointer on
---   the last pixel keeps both lines on screen) rides elements 5 and 6
---   of the SAME canvas, MOVED never rebuilt (6.247.0), and the box
---   shows the POINTER'S POSITION until there is a rectangle. Drawn
---   the moment it arms: a late number is one you distrust (6.238.0).
---   🔒 Its own switch, 🔔 door and report line with three states: "no
---   crosshairs" and "no numbers" were one complaint and are two
---   failures. 🧪 The sweep caught the arm-time draw going silent.
+--   asked for twice. The missing half was ours to draw: `crossPlan`
+--   (PURE, clamped) rides elements 5 and 6 of the SAME canvas, MOVED
+--   never rebuilt (6.247.0), and the box shows the POINTER'S POSITION
+--   until there is a rectangle — drawn the moment it arms, because a
+--   late number is one you distrust (6.238.0). 🔒 Its own switch, 🔔
+--   door and three-state report line: "no crosshairs" and "no
+--   numbers" were one complaint and are two failures.
 
 -- (6.317.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 cut the inline count to
@@ -3299,6 +3293,11 @@ local core = {
     degrade         = degrade,        -- 6.215.0: the one door a degraded state goes through
     adoptLegacyFile = adoptLegacyFile,
     csvQuote        = csvQuote,
+    copyText = function(t, who)   -- 6.325.0 — body in core/coexist.lua
+        if _G.clipWrite then return _G.clipWrite(t, who) end
+        local w = false ; pcall(function() w = hs.pasteboard.setContents(t) ~= false end)
+        if w then return true end ; return false, "macOS refused the write"
+    end,
     splitCSVLine    = splitCSVLine,
     formatDuration  = formatDuration,
     -- popups & screens (§1.5)

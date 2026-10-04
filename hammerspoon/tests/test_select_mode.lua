@@ -171,6 +171,19 @@ local CORE = {
         table.sort(ms)
         HYPER[table.concat(ms, "+") .. "|" .. key] = fn
     end,
+    -- 📋 6.325.0 — THE ONE CLIPBOARD DOOR, in the stub too. The three
+    -- callers that used to announce "📋 Copied" over a write macOS may
+    -- have refused now ask core.copyText, so a core stub without it
+    -- throws rather than silently taking a different path — and a stub
+    -- that always SUCCEEDS could never drive the refusal (6.290.0).
+    copyText = function(text, who)
+        _G.COPIES = _G.COPIES or {}
+        _G.COPIES[#_G.COPIES + 1] = { text = text, who = who }
+        if _G.COPY_REFUSES then return false, "macOS refused the write" end
+        if type(text) ~= "string" or text == "" then return false, "there was nothing to copy" end
+        pcall(function() hs.pasteboard.setContents(text) end)
+        return true
+    end,
     provide = function() end,
 }
 

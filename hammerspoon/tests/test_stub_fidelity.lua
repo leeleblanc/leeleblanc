@@ -417,6 +417,51 @@ do
 end
 
 -- =====================================================================
+out("\n=== 6b. 📋 A CORE STUB THAT CANNOT COPY (6.325.0) ===\n")
+-- =====================================================================
+-- 6.325.0 lifted "put this text on the clipboard, and read the answer"
+-- into ONE door (core.copyText → _G.clipWrite in core/coexist.lua),
+-- because three callers — ⇪D, ⇪V and ⇪O — announced "📋 Copied" over a
+-- write macOS may have refused. hs.pasteboard.setContents refuses by
+-- RETURNING FALSE and never throws, so their `pcall(function() … end)`
+-- was true either way (6.198.0, §2 above).
+--
+-- 🔬 THE STUB CAN BE GENTLER IN TWO DIRECTIONS NOW, not one. A core
+-- stub with no copyText makes the module throw — loud, and fine. A core
+-- stub whose copyText ALWAYS SUCCEEDS is the dangerous one: the refusal
+-- path is then unreachable from the gate and the "say it only if it
+-- happened" rule is certified by a provider that cannot say no. §2
+-- holds hs.pasteboard to that; this holds OUR OWN core to it, which is
+-- 6.278.0's hole (a core stub with no `degrade`) in a second place.
+local function coreStubsThatCannotRefuse(list)
+    local out = {}
+    for _, f in ipairs(list) do
+        for _, st in ipairs(stubsOf(f.code, "copyText")) do
+            if not throws(st.body) and not st.body:find("return false", 1, true) then
+                out[#out + 1] = f.name
+            end
+        end
+    end
+    return out
+end
+local alwaysYes = coreStubsThatCannotRefuse(files)
+check("every core copyText stub can REFUSE, as macOS can",
+      #alwaysYes == 0, table.concat(alwaysYes, " · "))
+
+do
+    local sick = { { name = "sick.lua", code = stripComments(
+        "copyText = function(t, w) PB = t return true end,") } }
+    check("§6b BITES: a copyText stub that always succeeds is found",
+          #coreStubsThatCannotRefuse(sick) == 1,
+          #coreStubsThatCannotRefuse(sick))
+    local fine = { { name = "ok.lua", code = stripComments(
+        "copyText = function(t, w) if _G.COPY_REFUSES then return false, 'no' end "
+        .. "PB = t return true end,") } }
+    check("§6b IS SILENT on a stub that can say no",
+          #coreStubsThatCannotRefuse(fine) == 0)
+end
+
+-- =====================================================================
 out("\n=== 7. 📏 NAMED, NOT AUTOMATED — the gap, written down ===\n")
 -- =====================================================================
 -- 🚨 A COMMENT CLAIMING A GUARD THAT DOES NOT EXIST is worse than no

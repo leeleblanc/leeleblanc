@@ -36,6 +36,7 @@ end
 -- object supports exactly that.
 local FILES = {}
 local realOpen = io.open
+local REAL_OPEN = io.open
 io.open = function(path, mode)
     local body = FILES[path]
     if body == nil then return nil end
@@ -272,6 +273,19 @@ publish("mouseGrid.show", function() RAN[#RAN + 1] = "grid" return true end)
 local PROVIDED, HYPER = {}, {}
 local CORE = {
     logsDir = "/logs", hostTag = "TestMac",
+    -- 📋 6.325.0 — THE ONE CLIPBOARD DOOR, in the stub too. The three
+    -- callers that used to announce "📋 Copied" over a write macOS may
+    -- have refused now ask core.copyText, so a core stub without it
+    -- throws rather than silently taking a different path — and a stub
+    -- that always SUCCEEDS could never drive the refusal (6.290.0).
+    copyText = function(text, who)
+        _G.COPIES = _G.COPIES or {}
+        _G.COPIES[#_G.COPIES + 1] = { text = text, who = who }
+        if _G.COPY_REFUSES then return false, "macOS refused the write" end
+        if type(text) ~= "string" or text == "" then return false, "there was nothing to copy" end
+        pcall(function() hs.pasteboard.setContents(text) end)
+        return true
+    end,
     provide = function(n, f) PROVIDED[n] = f end,
     call    = function(n, ...)
         if n == "commands.entries" then
@@ -1398,6 +1412,68 @@ do
         end
     end
     check("📋 the ⇪/ card names the @ door", said)
+end
+
+-- =======================================================================
+io.write("\n6.325.0 — 📋 \"COPIED\" IS SAID ONLY IF IT HAPPENED\n")
+-- =======================================================================
+-- hs.pasteboard.setContents REFUSES BY RETURNING FALSE and never throws,
+-- so `pcall(function() setContents(x) end)` is true either way. This
+-- panel announced "📋 Copied" under exactly that shape: on a Mac where
+-- macOS refuses the write he is told his text was copied, presses ⌘V,
+-- and gets whatever was there before (6.198.0).
+do
+    local before = pass + fail
+    U.show()
+    if U.gather then pcall(U.gather) end
+    local row
+    for _, r in ipairs(U.rows or {}) do
+        if (r.full or r.text) and (r.full or r.text) ~= "" and r.kind ~= "image" then
+            row = r break
+        end
+    end
+    check("🧪 the section has a row with text to copy (without one it "
+          .. "proves nothing)", row ~= nil, #(U.rows or {}))
+    if not row then row = { id = "none", full = "" } end
+
+    PB, ALERTS = nil, {}
+    BRIDGE({ body = { a = "pick", id = row.id } })
+    check("📋 a write macOS TAKES is announced, as ever",
+          PB == row.full and (ALERTS[#ALERTS] or ""):find("Copied", 1, true) ~= nil,
+          tostring(PB))
+
+    -- 🚨 and the refusal is the whole release
+    U.show()
+    PB, ALERTS = nil, {}
+    _G.COPY_REFUSES = true
+    BRIDGE({ body = { a = "pick", id = row.id } })
+    _G.COPY_REFUSES = false
+    check("🚨 a write macOS REFUSES is NOT announced as a copy — the "
+          .. "sentence is conditional on the thing it describes",
+          (ALERTS[#ALERTS] or ""):find("Copied", 1, true) == nil,
+          ALERTS[#ALERTS] or "(no alert)")
+    check("…and nothing reached the clipboard", PB == nil, tostring(PB))
+
+    -- 🔒 THE CLASS, NOT THE INSTANCE
+    local src = (function()
+        local f = REAL_OPEN(HS .. "/modules/unified_search.lua", "r")
+        local t = f and f:read("*a") or "" ; if f then f:close() end
+        return t
+    end)()
+    check("🔒 SOURCE: the sentry read something", #src > 1000, #src)
+    local code = src:gsub("[^\n]*", function(l)
+        return l:match("^%s*%-%-") and "" or l
+    end)
+    check("🔒 SOURCE: nothing here calls hs.pasteboard.setContents any more "
+          .. "— every text copy goes through core.copyText, which READS "
+          .. "the answer",
+          code:find("hs%.pasteboard%.setContents") == nil)
+    check("…and the comment explaining the rule survives, so the sentry "
+          .. "cannot be satisfied by deleting the reason (6.280.0)",
+          src:find("refuses by RETURNING FALSE", 1, true) ~= nil)
+
+    local ran = (pass + fail) - before
+    check("§6.325.0 ran all of its checks (" .. ran .. " of 7)", ran >= 7, ran)
 end
 
 io.write(("\n%d passed, %d failed\n"):format(pass, fail))

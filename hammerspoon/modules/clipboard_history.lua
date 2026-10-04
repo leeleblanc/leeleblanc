@@ -841,7 +841,7 @@ function M.setup(core)
         if #parts > 0 then
             -- One pasteboard write; the shared watcher files the joined
             -- text as a NEW top entry, which is what a copy means here.
-            pcall(function() hs.pasteboard.setContents(table.concat(parts, "\n")) end)
+            core.copyText(table.concat(parts, "\n"), "⇪⇧V (joined rows)")   -- 6.325.0
         end
         clip.selectMode, clip.tagged = false, {}
         return #parts
@@ -983,8 +983,10 @@ function M.setup(core)
     if clip.enabled then
         clip.chooser = hs.chooser.new(function(c)
             if c and c.rawText then
-                pcall(function() hs.pasteboard.setContents(c.rawText) end)
-                hs.alert.show("📋 Copied")
+                -- 📋 6.325.0 — say it only if it happened
+                if core.copyText(c.rawText, "⇪⇧V") then
+                    hs.alert.show("📋 Copied")
+                end
             end
         end)
         -- ⎋ 6.93.0: filed in _G.choosers so Esc closes ⇪V before the cheat sheet
