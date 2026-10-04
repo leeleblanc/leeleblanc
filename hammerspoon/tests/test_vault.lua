@@ -2875,7 +2875,20 @@ do
                return l[1] == "Three.md" and l[2] == "Two.md" and l[3] == "One.md"
            end)(), table.concat(v.recentList(), " · "))
 
-    -- he deletes the one he is in — fifty-five times, that session
+    -- ✕ on a row that is NOT the open note: nothing walks the list here,
+    -- so this is the only input the delete-time forget is load-bearing for
+    v.openNote("Three")
+    v.deleteNote("One.md")
+    check("🗑 a ✕ on a row he is NOT in takes that note out of the memory "
+          .. "too — nothing else walks the list on this path",
+          (function()
+               for _, r in ipairs(v.recentList()) do
+                   if r == "One.md" then return false end
+               end
+               return true
+           end)(), table.concat(v.recentList(), " · "))
+
+    -- and the one he IS in
     v.deleteNote("Three.md")
     check("🗑 the delete takes it OUT of the memory, rather than leaving ⇪3 "
           .. "to discover the grave one press at a time",
@@ -2930,7 +2943,7 @@ do
           rep:match("back to:[^\n]*"))
 
     local ran = (pass + fail) - before
-    check("§6.327.0 ran all of its checks (" .. ran .. " of 11)", ran >= 11, ran)
+    check("§6.327.0 ran all of its checks (" .. ran .. " of 12)", ran >= 12, ran)
 end
 
 out(string.format("\n%d passed, %d failed\n", pass, fail))
