@@ -1888,8 +1888,13 @@ function M.setup(core)
                         -- 6.319.0 — through the one door, which READS the
                         -- return: this alert claimed a copy that had not
                         -- happened whenever macOS refused the write.
-                        local put = shots.copyOut(text)
+                        -- 📓 THE LOG FIRST, THE CLIPBOARD SECOND, and the
+                        -- order is load-bearing: a refused write tells him
+                        -- "⇪O has it", so the log must not sit behind the
+                        -- step that can fail (6.246.0's ordering rule, in
+                        -- the one place the fallback is named out loud).
                         shots.recordText(text, path)
+                        local put = shots.copyOut(text)
                         pcall(function()
                             hs.alert.show(put
                                 and ("📝 Text copied: "
@@ -1914,8 +1919,8 @@ function M.setup(core)
                 shots.qrTask = nil
                 local payload = tostring(sout or ""):match("^%s*(.-)%s*$") or ""
                 if code == 0 and payload ~= "" then
-                    local put = shots.copyOut(payload)
                     shots.recordText(payload, path)
+                    local put = shots.copyOut(payload)
                     pcall(function()
                         hs.alert.show(put
                             and ("🔳 Code copied: " .. payload:sub(1, 60))

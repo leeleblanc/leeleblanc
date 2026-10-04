@@ -2643,6 +2643,18 @@ do
         if type(S.copyOut) ~= "function" then return nil, "no copyOut" end
         return S.copyOut(...)
     end
+    -- 🔬 6.290.0 — LuaSkin pcalls every hs.task callback, so a raise in
+    -- one costs the FEATURE and never the process. A harness that calls
+    -- `cb` bare is gentler in the one direction that matters here: it
+    -- turns a fault into a dead run with "0 failed" never printed. FIRE
+    -- models macOS and hands the throw back as a value.
+    local THREW = nil
+    local function FIRE(t, ...)
+        THREW = nil
+        if not t or type(t.cb) ~= "function" then THREW = "no task"; return end
+        local ok, err = pcall(t.cb, ...)
+        if not ok then THREW = tostring(err) end
+    end
 
     -- ✏️ PURE: six answers and only one writes (6.196.1).
     local own = { path = "/s/a.png", count = 7, at = 1000 }
@@ -2697,7 +2709,7 @@ do
     local shotA = (TASKS[#TASKS] and TASKS[#TASKS].args
                    and TASKS[#TASKS].args[#TASKS[#TASKS].args]) or "<none>"
     FILES[shotA] = { size = 9000, modification = 1000, w = 200, h = 150 }
-    if TASKS[#TASKS] then TASKS[#TASKS].cb(0, "", "") end
+    if TASKS[#TASKS] then FIRE(TASKS[#TASKS], 0, "", "") end
     ck("⇪4 leaves the PICTURE on the clipboard, as it always has",
        CLIP.kind == "image", CLIP.kind)
     ck("🔑 …and this config RECORDS that it is ours: the path, the "
@@ -2714,7 +2726,9 @@ do
     ck("…an OCR process really started", #TASKS == nBefore + 1
        and TASKS[#TASKS].cmd == "/usr/bin/shortcuts",
        TASKS[#TASKS] and TASKS[#TASKS].cmd)
-    if #TASKS > nBefore then TASKS[#TASKS].cb(0, "Invoice 4471 due Friday", "") end
+    if #TASKS > nBefore then FIRE(TASKS[#TASKS], 0, "Invoice 4471 due Friday", "") end
+    ck("…and the callback did not raise on the way (6.290.0 — a bare `cb`"
+       .. " turns a fault into a dead run)", THREW == nil, THREW)
     ck("🎯 THE HEADLINE: the words are on the clipboard now",
        CLIP.kind == "text" and CLIP.v == "Invoice 4471 due Friday",
        CLIP.kind .. " / " .. tostring(CLIP.v))
@@ -2740,13 +2754,13 @@ do
     local shotB = (TASKS[#TASKS] and TASKS[#TASKS].args
                    and TASKS[#TASKS].args[#TASKS[#TASKS].args]) or "<none>"
     FILES[shotB] = { size = 9000, modification = 1000, w = 200, h = 150 }
-    if TASKS[#TASKS] and #TASKS > tB2 then TASKS[#TASKS].cb(0, "", "") end
+    if TASKS[#TASKS] and #TASKS > tB2 then FIRE(TASKS[#TASKS], 0, "", "") end
     hs.pasteboard.setContents("something LL copied himself")
     local heldBefore = S.clipStats.held or 0
     NOWF = NOWF + 2
     local nB2 = #TASKS
     S.nameByText(shotB)
-    if #TASKS > nB2 then TASKS[#TASKS].cb(0, "words from the shot", "") end
+    if #TASKS > nB2 then FIRE(TASKS[#TASKS], 0, "words from the shot", "") end
     ck("🚨 HIS OWN COPY SURVIVES: the words do not replace it",
        CLIP.kind == "text" and CLIP.v == "something LL copied himself",
        tostring(CLIP.v))
@@ -2783,12 +2797,33 @@ do
            tostring(whyE) .. " / " .. tostring(CLIP.v))
     end
 
+    -- 📓 THE LOG IS WRITTEN BEFORE THE CLIPBOARD, and the ORDER is what
+    -- is asserted, not that both happened (6.220.0): the refusal message
+    -- tells him "⇪O has it", so the log must not sit behind the step that
+    -- can fail.
+    do
+        local svB, seen = _G.service, {}
+        _G.service = { has = function(n) return n == "ocr.record" end,
+                       call = function(_, t) seen[#seen + 1] = tostring(t) end }
+        local keptDoor = S.copyOut
+        S.copyOut = function() error("the clipboard step blew up", 0) end
+        local nB7 = #TASKS
+        S.recognizeFile("/shots/order.png")
+        if #TASKS > nB7 and TASKS[#TASKS].cmd == "/usr/bin/shortcuts" then
+            FIRE(TASKS[#TASKS], 0, "words that must be logged", "")
+        end
+        S.copyOut = keptDoor
+        ck("📓 the words reach ⇪O's log even when the clipboard step throws",
+           seen[1] == "words that must be logged", seen[1] or "nothing logged")
+        _G.service = svB
+    end
+
     -- ⇪⇧4 — the door that always copied — must still copy, and must
     -- stop claiming it did when it did not.
     local nB3 = #TASKS
     S.recognizeFile("/shots/ocr-me.png")
     if #TASKS > nB3 and TASKS[#TASKS].cmd == "/usr/bin/shortcuts" then
-        TASKS[#TASKS].cb(0, "  the text of the shot  ", "")
+        FIRE(TASKS[#TASKS], 0, "  the text of the shot  ", "")
     end
     ck("⇪⇧4's OCR still puts its text on the clipboard (6.173.1 is "
        .. "unchanged)", CLIP.kind == "text" and CLIP.v == "the text of the shot",
@@ -2799,7 +2834,7 @@ do
     local nB4 = #TASKS
     S.recognizeFile("/shots/ocr-me2.png")
     if #TASKS > nB4 and TASKS[#TASKS].cmd == "/usr/bin/shortcuts" then
-        TASKS[#TASKS].cb(0, "unreachable words", "")
+        FIRE(TASKS[#TASKS], 0, "unreachable words", "")
     end
     CLIP_REFUSE = false
     ck("🚨 …and when macOS refuses, the alert no longer SAYS 'Text copied' "
@@ -2826,11 +2861,11 @@ do
         local shotW = (TASKS[#TASKS] and TASKS[#TASKS].args
                        and TASKS[#TASKS].args[#TASKS[#TASKS].args]) or "<none>"
         FILES[shotW] = { size = 9000, modification = 1000, w = 200, h = 150 }
-        if TASKS[#TASKS] and #TASKS > tB4b then TASKS[#TASKS].cb(0, "", "") end
+        if TASKS[#TASKS] and #TASKS > tB4b then FIRE(TASKS[#TASKS], 0, "", "") end
         NOWF = NOWF + 1
         local nB4b = #TASKS
         S.nameByText(shotW)
-        if #TASKS > nB4b then TASKS[#TASKS].cb(0, "words inside the window", "") end
+        if #TASKS > nB4b then FIRE(TASKS[#TASKS], 0, "words inside the window", "") end
         ck("🔑 nameByText asks the CONFIG for its window: at 0 seconds even "
            .. "a shot taken a moment ago does not swap",
            CLIP.kind == "image", CLIP.kind .. " / " .. tostring(CLIP.v))
@@ -2857,16 +2892,15 @@ do
         local shotT = (TASKS[#TASKS] and TASKS[#TASKS].args
                        and TASKS[#TASKS].args[#TASKS[#TASKS].args]) or "<none>"
         FILES[shotT] = { size = 9000, modification = 1000, w = 200, h = 150 }
-        if TASKS[#TASKS] and #TASKS > tB6 then TASKS[#TASKS].cb(0, "", "") end
+        if TASKS[#TASKS] and #TASKS > tB6 then FIRE(TASKS[#TASKS], 0, "", "") end
         NOWF = NOWF + 1
         local gotWhy, gotNew
         local nB6 = #TASKS
         S.nameByText(shotT, function(np, w) gotNew, gotWhy = np, w end)
         local okDrive = true
         if #TASKS > nB6 then
-            okDrive = pcall(function()
-                TASKS[#TASKS].cb(0, "a throwing arrival", "")
-            end)
+            FIRE(TASKS[#TASKS], 0, "a throwing arrival", "")
+            okDrive = (THREW == nil)
         end
         ck("🚨 a throw in the swap does NOT escape the callback — the "
            .. "naming queue would wait for ever on a callback that raised",
@@ -2897,11 +2931,11 @@ do
     local shotC = (TASKS[#TASKS] and TASKS[#TASKS].args
                    and TASKS[#TASKS].args[#TASKS[#TASKS].args]) or "<none>"
     FILES[shotC] = { size = 9000, modification = 1000, w = 200, h = 150 }
-    if TASKS[#TASKS] and #TASKS > tB5 then TASKS[#TASKS].cb(0, "", "") end
+    if TASKS[#TASKS] and #TASKS > tB5 then FIRE(TASKS[#TASKS], 0, "", "") end
     NOWF = NOWF + 2
     local nB5 = #TASKS
     S.nameByText(shotC)
-    if #TASKS > nB5 then TASKS[#TASKS].cb(0, "switched off words", "") end
+    if #TASKS > nB5 then FIRE(TASKS[#TASKS], 0, "switched off words", "") end
     ck("🔌 OFF really is off: the picture stays on the clipboard",
        CLIP.kind == "image", CLIP.kind)
     local rOff = RPT()
@@ -2971,7 +3005,7 @@ do
 
     NOWF = keptNow
     check("the 6.319.0 block ran every one of its checks",
-          (pass + fail) - n18 == 42, (pass + fail) - n18)
+          (pass + fail) - n18 == 44, (pass + fail) - n18)
 end
 
 -- =====================================================================
