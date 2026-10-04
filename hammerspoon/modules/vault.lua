@@ -1692,6 +1692,9 @@ function M.setup(core)
         v.caretLine, v.caretHead = nil, nil    -- callers set them AFTER a successful open
         if v.dirty then v.saveNow() end
         pcall(function() hs.settings.set("vault.lastNote", n.rel) end)
+        -- 🔖 6.327.0 — and onto the RECENT list, so deleting the note he
+        -- was last in does not strand ⇪3 on a grave.
+        pcall(v.noteRecent, n.rel)
         say("opened " .. n.rel)
         v.findMentions()                       -- 6.174.0 — ≈ notes that say this name without linking it
         return true
@@ -4466,8 +4469,10 @@ else {
             v.trashIndexFails = (v.trashIndexFails or 0) + 1
         end
 
-        -- it leaves every index this module keeps, at once
+        -- it leaves every index this module keeps, at once — 🔖 6.327.0
+        -- includes the "where was I" memory, or ⇪3 points at the grave
         v.links[rel], v.tagsOf[rel], v.fmOf[rel] = nil, nil, nil
+        pcall(v.forgetRecent, rel)
         rebuildBacklinks()
         if v.doc and v.doc.rel == rel then
             v.doc, v.dirty = nil, false
@@ -4859,33 +4864,117 @@ else {
     -- a note this vault no longer holds.
     v.lastPlaceState = "nothing remembered yet"
 
-    function v.goToLastNote()
-        local okL, last = pcall(function() return hs.settings.get("vault.lastNote") end)
-        if not (okL and type(last) == "string" and last ~= "") then
-            v.lastPlaceState = "nothing remembered yet"
-            return false, "nothing remembered yet"
+    -- 🔖 6.327.0 — ⇪3 PUTS YOU BACK EVEN AFTER YOU DELETE THE NOTE YOU
+    -- WERE IN.
+    --
+    -- 🔎 HIS REPORT, and the code was doing exactly what it says:
+    --     back to: remembered yooooooooooooo.md — this vault no longer
+    --              holds it
+    --     ⚠️ ⇪3 could not put you back — it opened on the notes list
+    -- `vault.lastNote` is ONE slot. He deleted the note he was last in —
+    -- fifty-five of them that session — and from that moment ⇪3 pointed
+    -- at a file that is not there, every time, for ever, until he
+    -- happened to open another note. 6.277.0 built the memory and never
+    -- asked what should happen when the remembered thing is REMOVED,
+    -- which is 6.315.0's rule in a second place: a decision made when
+    -- there was one note is a decision that expires the day there can
+    -- be none.
+    --
+    -- 🔑 A SHORT LIST, NOT A SLOT. The first entry that still exists
+    -- wins, and the dead ones are PRUNED as they are passed, so the
+    -- answer gets faster rather than slower. It is still never created
+    -- (6.174.0) — refusing to write a deleted note back is the whole
+    -- reason this function exists in the shape it does.
+    v.recentMax = 12
+
+    function v.recentList()
+        local okR, got = pcall(function() return hs.settings.get("vault.recentNotes") end)
+        if not (okR and type(got) == "table") then return {} end
+        local out = {}
+        for _, r in ipairs(got) do
+            if type(r) == "string" and r ~= "" then out[#out + 1] = r end
         end
-        local name = last:match("([^/]+)%.md$")
-        local sub  = last:match("^(.*)/[^/]*$")
-        if not name then
-            v.lastPlaceState = "remembered '" .. last .. "', which is not a note name"
+        return out
+    end
+
+    -- PURE: the list after this note was opened. Newest first, no
+    -- duplicates, bounded. Kept apart from the storing so the gate
+    -- proves the rule with no settings and no Mac.
+    function v.recentPush(list, rel, max)
+        max = tonumber(max) or 12
+        local out = { tostring(rel or "") }
+        if out[1] == "" then return list or {} end
+        for _, r in ipairs(list or {}) do
+            if r ~= out[1] and #out < max then out[#out + 1] = r end
+        end
+        return out
+    end
+
+    function v.noteRecent(rel)
+        local next_ = v.recentPush(v.recentList(), rel, v.recentMax)
+        pcall(function() hs.settings.set("vault.recentNotes", next_) end)
+        return next_
+    end
+
+    -- …and a delete takes the note OUT of it, rather than leaving ⇪3 to
+    -- discover the grave one press at a time.
+    function v.forgetRecent(rel)
+        rel = tostring(rel or "")
+        local out = {}
+        for _, r in ipairs(v.recentList()) do
+            if r ~= rel then out[#out + 1] = r end
+        end
+        pcall(function() hs.settings.set("vault.recentNotes", out) end)
+        local okL, last = pcall(function() return hs.settings.get("vault.lastNote") end)
+        if okL and last == rel then
+            pcall(function() hs.settings.set("vault.lastNote", out[1] or "") end)
+        end
+        return out
+    end
+
+    function v.goToLastNote()
+        -- the one slot first, then the list behind it — so an install
+        -- that predates 6.327.0 behaves exactly as it did
+        local tries, seen = {}, {}
+        local okL, last = pcall(function() return hs.settings.get("vault.lastNote") end)
+        if okL and type(last) == "string" and last ~= "" then
+            tries[1], seen[last] = last, true
+        end
+        for _, r in ipairs(v.recentList()) do
+            if not seen[r] then tries[#tries + 1] = r; seen[r] = true end
+        end
+        if #tries == 0 then
+            v.lastPlaceState = "nothing remembered yet"
             return false, v.lastPlaceState
         end
-        if readFile(v.dir .. "/" .. last) == nil then
+
+        local gone = 0
+        for _, rel in ipairs(tries) do
+            local name = rel:match("([^/]+)%.md$")
+            local sub  = rel:match("^(.*)/[^/]*$")
             -- 🚨 NEVER CREATE ONE. openNote seeds a new note when the file
             -- is missing, and doing that here would answer "you deleted
             -- that note" by writing it back — 6.174.0's data-loss rule in
-            -- the other direction.
-            v.lastPlaceState = "remembered " .. last .. " — this vault no longer holds it"
-            return false, v.lastPlaceState
+            -- the other direction. The stat is what keeps it honest.
+            if name and readFile(v.dir .. "/" .. rel) ~= nil then
+                local okO, whyO = v.openNote(name, sub)
+                if okO then
+                    v.lastPlaceState = "reopened " .. rel
+                        .. ((gone > 0) and (" — the " .. gone .. " note(s) you were in "
+                                            .. "before it are no longer here") or "")
+                    return true
+                end
+                v.lastPlaceState = "could not reopen " .. rel .. " — " .. tostring(whyO)
+                return false, v.lastPlaceState
+            end
+            -- 🧹 PRUNED AS IT IS PASSED, so the answer gets faster rather
+            -- than slower and the ⚠️ does not come back tomorrow.
+            gone = gone + 1
+            pcall(v.forgetRecent, rel)
         end
-        local okO, whyO = v.openNote(name, sub)
-        if not okO then
-            v.lastPlaceState = "could not reopen " .. last .. " — " .. tostring(whyO)
-            return false, v.lastPlaceState
-        end
-        v.lastPlaceState = "reopened " .. last
-        return true
+        v.lastPlaceState = "every note it remembered (" .. gone
+                           .. ") has been deleted — opening on the list"
+        return false, v.lastPlaceState
     end
 
     function v.show()
@@ -5175,11 +5264,15 @@ else {
         L[#L + 1] = "   deleted: " .. v.deletes .. " this session → " .. v.trashDir()
                     .. (v.trashed and ("  ↳ last: " .. tostring(v.trashed.name)
                         .. " · _G.vaultUndelete()") or "")
-        if tostring(v.lastPlaceState):find("no longer holds", 1, true)
-           or tostring(v.lastPlaceState):find("could not reopen", 1, true) then
+        local lps = tostring(v.lastPlaceState)
+        if lps:find("has been deleted", 1, true) or lps:find("could not reopen", 1, true) then
             L[#L + 1] = "      ⚠️ ⇪3 could not put you back — it opened on the notes"
             L[#L + 1] = "         list instead. Nothing was created and nothing was lost."
+        elseif lps:find("no longer here", 1, true) then
+            L[#L + 1] = "      ↳ it skipped the notes you deleted and opened the one"
+            L[#L + 1] = "        before them — those are forgotten now, not re-asked."
         end
+        L[#L + 1] = "   recent : " .. #v.recentList() .. " note(s) remembered, newest first"
         -- ↩️ 6.323.0 — the two kinds of redraw, counted apart, because a
         -- release that claims it stopped rebuilding must PROVE it on his
         -- Mac: rows climbing while rebuilds stay flat is the claim.

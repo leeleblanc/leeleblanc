@@ -1930,6 +1930,7 @@ do
     -- "you deleted that note" by writing it back out — a silent
     -- resurrection in the one folder that holds his writing.
     SETTINGS["vault.lastNote"] = "Vanished.md"
+    SETTINGS["vault.recentNotes"] = nil        -- 6.327.0: nothing behind it
     v.doc = nil
     local before = FILES[VAULT .. "/Vanished.md"]
     local okG, whyG = v.goToLastNote()
@@ -1939,7 +1940,7 @@ do
           and FILES[VAULT .. "/Vanished.md"] == nil, tostring(whyG))
     check("...and the state names it rather than reading like a fresh "
           .. "vault — 'gone' and 'never had one' are different facts",
-          tostring(v.lastPlaceState):find("no longer holds", 1, true) ~= nil,
+          tostring(v.lastPlaceState):find("deleted", 1, true) ~= nil,
           tostring(v.lastPlaceState))
     check("...and the report prints the ⚠️ for it", (function()
         local r = _G.vaultReport()
@@ -2837,6 +2838,99 @@ do
 
     local ran = (pass + fail) - before
     check("§6.324.0 ran all of its checks (" .. ran .. " of 13)", ran >= 13, ran)
+end
+
+-- =======================================================================
+out("\n6.327.0 — 🔖 ⇪3 PUTS YOU BACK EVEN AFTER YOU DELETE THAT NOTE\n")
+-- =======================================================================
+-- His report: `back to: remembered yooooooooooooo.md — this vault no
+-- longer holds it` with the ⚠️ under it. vault.lastNote is ONE slot; he
+-- deleted the note he was last in and ⇪3 pointed at a grave from then
+-- on, every press, until he happened to open another note.
+do
+    local before = pass + fail
+
+    -- ---- PURE: the list after an open -------------------------------------
+    check("🔖 newest first", v.recentPush({ "b.md" }, "a.md", 12)[1] == "a.md")
+    check("🔖 no duplicates — re-opening a note MOVES it, never doubles it",
+          (function()
+               local l = v.recentPush({ "a.md", "b.md" }, "b.md", 12)
+               return #l == 2 and l[1] == "b.md" and l[2] == "a.md"
+           end)())
+    check("📏 bounded, and the bound bites",
+          #v.recentPush({ "a.md", "b.md", "c.md" }, "d.md", 2) == 2)
+    check("🛟 an empty name changes nothing",
+          #v.recentPush({ "a.md" }, "", 12) == 1)
+
+    -- ---- end to end: his own sequence -------------------------------------
+    FILES[VAULT .. "/One.md"]   = "# One\n"
+    FILES[VAULT .. "/Two.md"]   = "# Two\n"
+    FILES[VAULT .. "/Three.md"] = "# Three\n"
+    v.setNotes({ "One.md", "Two.md", "Three.md" })
+    SETTINGS["vault.recentNotes"], SETTINGS["vault.lastNote"] = nil, nil
+    v.openNote("One") ; v.openNote("Two") ; v.openNote("Three")
+    check("🔖 working through three notes remembers all three, newest first",
+          (function()
+               local l = v.recentList()
+               return l[1] == "Three.md" and l[2] == "Two.md" and l[3] == "One.md"
+           end)(), table.concat(v.recentList(), " · "))
+
+    -- he deletes the one he is in — fifty-five times, that session
+    v.deleteNote("Three.md")
+    check("🗑 the delete takes it OUT of the memory, rather than leaving ⇪3 "
+          .. "to discover the grave one press at a time",
+          (function()
+               for _, r in ipairs(v.recentList()) do
+                   if r == "Three.md" then return false end
+               end
+               return true
+           end)(), table.concat(v.recentList(), " · "))
+
+    v.hide() ; v.doc = nil
+    local okB = v.goToLastNote()
+    check("🔖 ⇪3 lands on TWO — the note before the one he deleted — "
+          .. "instead of the notes list",
+          okB == true and v.doc and v.doc.rel == "Two.md",
+          v.doc and tostring(v.doc.rel) or "nil")
+
+    -- 🚨 AND IT STILL NEVER WRITES ONE BACK. The whole reason 6.277.0 is
+    -- shaped this way: openNote SEEDS a missing file, so walking a list
+    -- of remembered notes through it would resurrect every one he had
+    -- deleted, silently, in the folder holding his writing.
+    SETTINGS["vault.lastNote"] = "Ghost.md"
+    SETTINGS["vault.recentNotes"] = { "Ghost2.md", "Ghost3.md" }
+    v.doc = nil
+    local okG = v.goToLastNote()
+    check("🚨 a memory of nothing but deleted notes creates NONE of them",
+          okG == false
+          and FILES[VAULT .. "/Ghost.md"] == nil
+          and FILES[VAULT .. "/Ghost2.md"] == nil
+          and FILES[VAULT .. "/Ghost3.md"] == nil, tostring(v.lastPlaceState))
+    check("🧹 …and they are pruned as they are passed, so the answer gets "
+          .. "faster rather than slower and the ⚠️ does not return tomorrow",
+          #v.recentList() == 0, table.concat(v.recentList(), " · "))
+    check("🔎 …and the state says every one of them is gone, which is a "
+          .. "different fact from 'nothing remembered yet'",
+          tostring(v.lastPlaceState):find("has been deleted", 1, true) ~= nil,
+          tostring(v.lastPlaceState))
+
+    -- 🔕 and the ⚠️ is for a real failure only
+    FILES[VAULT .. "/Four.md"] = "# Four\n"
+    v.setNotes({ "One.md", "Two.md", "Four.md" })
+    SETTINGS["vault.lastNote"] = nil
+    SETTINGS["vault.recentNotes"] = { "Gone.md", "Four.md" }
+    v.doc = nil
+    v.goToLastNote()
+    local rep = _G.vaultReport()
+    check("🔕 skipping a deleted note and landing on the next is a SUCCESS "
+          .. "and must not wear the warning — a ⚠️ he sees every day is a "
+          .. "⚠️ he stops reading (6.269.0)",
+          rep:find("could not put you back", 1, true) == nil
+          and rep:find("it skipped the notes you deleted", 1, true) ~= nil,
+          rep:match("back to:[^\n]*"))
+
+    local ran = (pass + fail) - before
+    check("§6.327.0 ran all of its checks (" .. ran .. " of 11)", ran >= 11, ran)
 end
 
 out(string.format("\n%d passed, %d failed\n", pass, fail))
