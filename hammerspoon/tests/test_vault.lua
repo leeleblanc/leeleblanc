@@ -2632,6 +2632,34 @@ do
                    return false
                end)(), v.rowRefresh .. " / " .. v.rebuilds)
 
+    -- 🚨 THE SWEEP'S OWN FINDING: the fallback when the push THROWS was
+    -- undriven, so it could have been deleted and the gate stayed green
+    -- (6.273.0). It is the branch that matters most on a beta OS —
+    -- without it a Mac whose evaluateJavaScript refuses shows a left
+    -- column that silently stops updating, for ever, with no error.
+    -- 6.265.0: driving a path with the dependency MISSING is not the
+    -- same as driving it with the dependency REFUSING.
+    do
+        local W3 = WEBVIEWS[#WEBVIEWS]
+        local kept = W3.evaluateJavaScript
+        W3.evaluateJavaScript = function() error("WebKit said no", 0) end
+        local hb = W3.htmlSets or 0
+        v.rowRefresh, v.rebuilds = 0, 0
+        v.scan("throws")
+        local ftx = lastTask("find")
+        ftx.cb(0, "/Users/ll/OneDrive/Vault/Draft.md\n", "")
+        for _ = 1, 5 do
+            local t = lastTask("grep")
+            if t and not t.done then t.cb(1, "", "") end
+        end
+        W3.evaluateJavaScript = kept
+        check("🚨 a push that THROWS falls back to a full rebuild — a left "
+              .. "column that silently stops updating is worse than a lost "
+              .. "undo stack",
+              v.rebuilds >= 1 and (W3.htmlSets or 0) > hb,
+              v.rebuilds .. " / " .. hb .. " → " .. tostring(W3.htmlSets))
+    end
+
     -- and the graph still rebuilds, which is the half that keeps it honest
     v.view = "graph"
     v.rowRefresh, v.rebuilds = 0, 0
@@ -2660,7 +2688,7 @@ do
           rep:find("waits for the next full", 1, true) ~= nil)
 
     local ran = (pass + fail) - before
-    check("§6.323.0 ran all of its checks (" .. ran .. " of 10)", ran >= 10, ran)
+    check("§6.323.0 ran all of its checks (" .. ran .. " of 11)", ran >= 11, ran)
 end
 
 out(string.format("\n%d passed, %d failed\n", pass, fail))

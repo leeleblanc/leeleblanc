@@ -3905,9 +3905,16 @@ else {
 
     function v.refreshIndex()
         if not v.webview then return false, "no window" end
+        -- 🚨 THE WEBVIEW DIRECTLY, NOT v.eval — and the sweep is what said
+        -- so. v.eval pcalls the call ITSELF, so a pcall wrapped around it
+        -- can never be false and the rebuild fallback below was dead code
+        -- with a comment on it (6.199.0). Asking the webview is what makes
+        -- the answer mean anything: a Mac whose evaluateJavaScript refuses
+        -- gets a rebuilt page with a correct left column, instead of one
+        -- that quietly stops updating for the rest of the session.
         local ok = pcall(function()
-            v.eval("setIndex(" .. v.notesJson() .. ", " .. v.tagsJson()
-                   .. ", " .. v.graphJson() .. ")")
+            v.webview:evaluateJavaScript("setIndex(" .. v.notesJson() .. ", "
+                   .. v.tagsJson() .. ", " .. v.graphJson() .. ")")
         end)
         if not ok then return false, "the push threw" end
         v.rowRefresh = v.rowRefresh + 1
