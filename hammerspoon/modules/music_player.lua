@@ -1988,7 +1988,10 @@ say({a:'ready'});
             mp.uc = nil
             return degrade("could not open the player window")
         end
-        mp.webview = view
+        -- 🪟 6.326.0 — THE HANDLE IS RECORDED WHEN THE WINDOW IS REALLY
+        -- UP, never before. See the block under `view:show()` below:
+        -- this line used to sit here, and a refused show left
+        -- mp.webview pointing at a window that is not on screen.
         pcall(function() view:windowTitle("Music") end)
         -- Without allowTextEntry the card draws perfectly and swallows
         -- every keystroke — ↑↓, space and ⌘1–9 would all be dead.
@@ -2003,7 +2006,38 @@ say({a:'ready'});
         mp.pageReady = false
         mp.draws = { landed = 0, early = 0 }
         pcall(function() view:html(buildHtml()) end)
-        pcall(function() view:show() end)
+        -- 🪟 6.326.0 — AND ITS ANSWER IS READ. macOS refuses to order a
+        -- window on screen when another process's remote view is
+        -- mid-transition — the AppKit family that cost 6.265.0 (the
+        -- canvas), 6.266.0 (the frozen grid box), 6.274.0 (three refused
+        -- alerts in eight hours of his own Console) and 6.314.0 (the
+        -- chooser). This module set mp.webview BEFORE the show and threw
+        -- the show's outcome away, so a refusal left a handle pointing
+        -- at a window that is not on screen — and THAT handle is what
+        -- mp.onScreen() reads, which is what 6.309.0's ⏯ gate asks, and
+        -- what the Esc claim asks. The card would hold the play/pause
+        -- key for a window nobody can see, and only mp.hide() clears it.
+        -- MISSING is not REFUSING (6.265.0): the create succeeded.
+        --
+        -- 📏 HIS PROBE SAYS THIS IS NOT WHAT BIT HIM, and that is said
+        -- rather than implied: `handle : false · window : false · gate :
+        -- the card is closed — macOS keeps the key` is a healthy card
+        -- answering correctly. This is a latent defect closed on
+        -- reading, not the explanation for a symptom.
+        local shown = false
+        pcall(function() shown = view:show() ~= false end)
+        if not shown then
+            -- 🪟 TORN DOWN, not abandoned (6.265.0/6.266.0): a window
+            -- left behind keeps its page, its bridge and its Esc claim,
+            -- and nothing holds a reference that could close it.
+            pcall(function() view:delete() end)
+            mp.uc, mp.webview = nil, nil
+            mp.showRefused = (mp.showRefused or 0) + 1
+            return degrade("macOS would not put the player on screen — "
+                           .. "press the key again")
+        end
+        mp.webview = view        -- HELD, and only now
+        mp.shows = (mp.shows or 0) + 1
         pcall(function() view:bringToFront(true) end)
         -- ⇪ HANDSHAKE (6.165.1): this card takes the keyboard, so the hold
         -- must be allowed to end while it is up.
@@ -2331,6 +2365,15 @@ say({a:'ready'});
         line("   card     : " .. (mp.webview and "open" or "closed")
              .. " · " .. tostring(mp.anchor)
              .. (mp.enabled and "" or " · OFF by settings"))
+        -- 🪟 6.326.0 — a window macOS REFUSED to order on screen is a
+        -- fact, not a silence. Counted apart from the opens, because
+        -- "it never opened" and "it opened and was refused" send me to
+        -- two different places (6.196.1).
+        line("   opens    : " .. (mp.shows or 0) .. " this session"
+             .. (((mp.showRefused or 0) > 0)
+                 and ("  ⚠️ " .. mp.showRefused
+                      .. " REFUSED by macOS — press the key again")
+                 or ""))
         -- ⌨️ 6.311.0 — LISTED IS NOT BOUND (6.196.1). The heading prints
         -- the label, which is what mp.keys SAYS; this says how many
         -- doors setup really registered, so a list that was edited or

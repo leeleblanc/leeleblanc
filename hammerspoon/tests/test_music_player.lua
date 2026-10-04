@@ -354,7 +354,16 @@ hs.webview = {
         function v:behaviorAsLabels() return self end
         function v:alpha() return self end
         function v:html(h) self.htmlText = h ; return self end
-        function v:show() self.shown = true ; return self end
+        -- 🪟 6.326.0 — A WINDOW macOS REFUSES TO ORDER ON SCREEN. The
+        -- create succeeds, the wiring succeeds, and :show() answers
+        -- FALSE — the AppKit shape that cost 6.265.0, 6.266.0, 6.274.0
+        -- and 6.314.0. A stub that always succeeds makes that branch
+        -- unreachable from the gate (6.290.0), and MISSING is not
+        -- REFUSING (6.265.0).
+        function v:show()
+            if SHOW_REFUSES then return false end
+            self.shown = true ; return self
+        end
         function v:bringToFront() return self end
         function v:delete() self.deleted = true ; return self end
         -- 🧪 A REAL GETTER *AND* SETTER, because hs.webview's frame() is
@@ -3330,8 +3339,68 @@ do
           (pass + fail) - n == 39, (pass + fail) - n)
 end
 
+-- =======================================================================
+out("\n6.326.0 — 🪟 THE HANDLE IS RECORDED WHEN THE WINDOW IS REALLY UP\n")
+-- =======================================================================
+-- 📏 HIS PROBE SAYS THIS IS NOT WHAT BIT HIM, and that goes first:
+--     handle : false · window : false · queue : 1
+--     gate   : the card is closed — macOS keeps the key
+-- is a healthy card answering correctly. This is a latent defect found
+-- by reading, not the explanation for the media keys.
+--
+-- 🔎 WHAT IT IS: mp.webview was assigned BEFORE view:show(), and show's
+-- outcome was discarded. macOS refuses to order a window on screen when
+-- another process's remote view is mid-transition — the AppKit family
+-- that cost 6.265.0 (the canvas), 6.266.0 (the frozen grid box),
+-- 6.274.0 (three refused alerts in eight hours of his own Console) and
+-- 6.314.0 (the chooser). On a refusal the handle pointed at a window
+-- that is not on screen, and THAT handle is what mp.onScreen() reads —
+-- which is what 6.309.0's ⏯ gate asks, and what the Esc claim asks.
+do
+    local before = pass + fail
+
+    mp.hide()
+    mp.showRefused, mp.shows = 0, 0
+
+    -- 🚨 MISSING is not REFUSING (6.265.0): the window is CREATED and
+    -- WIRED, and then macOS says no.
+    _G.SHOW_REFUSES = true
+    mp.show()
+    _G.SHOW_REFUSES = false
+
+    check("🚨 a window macOS refused to show leaves NO handle behind — the "
+          .. "orphan is what ⏯ and Esc would both read as 'the card is up'",
+          mp.webview == nil, tostring(mp.webview))
+    check("🔒 …and the page bridge goes with it, rather than being left "
+          .. "holding a window nothing can close",
+          mp.uc == nil, tostring(mp.uc))
+    check("🔎 …and it is COUNTED, because a refusal that leaves no number "
+          .. "is indistinguishable from a key never pressed (6.196.1)",
+          (mp.showRefused or 0) == 1, tostring(mp.showRefused))
+    check("⏯ …so the media-key gate correctly says the card is CLOSED and "
+          .. "macOS keeps the key",
+          mp.onScreen() == false
+          and select(1, mp.mayTake(mp.onScreen(), true, true)) == "pass"
+          and select(2, mp.mayTake(mp.onScreen(), true, true)):find("card is closed", 1, true) ~= nil)
+
+    -- and the ordinary path is untouched
+    mp.show()
+    check("🪟 a window macOS DOES show is recorded, and counted",
+          mp.webview ~= nil and (mp.shows or 0) == 1, tostring(mp.shows))
+    check("⏯ …and the gate says the card is open",
+          mp.onScreen() == true)
+    local rep = _G.musicReport()
+    check("🔎 the report names the opens, and the refusals apart from them",
+          rep:find("opens    : 1 this session", 1, true) ~= nil, rep:match("opens[^\n]*"))
+    mp.hide()
+
+    local ran = (pass + fail) - before
+    check("§6.326.0 ran all of its checks (" .. ran .. " of 7)", ran >= 7, ran)
+end
+
 if fail > 0 then
     out("FAILURES:\n")
+
     for _, f in ipairs(failures) do out("   ❌ " .. f .. "\n") end
 end
 out(("\n%d passed, %d failed\n\n"):format(pass, fail))
