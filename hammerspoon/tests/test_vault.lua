@@ -34,6 +34,7 @@ local function out(s) io.write(s) end
 -- tests/service_registry.lua can still lift init.lua's own registry.
 local REAL_OPEN = io.open
 local FILES, WRITE_FAILS, READS = {}, false, {}
+local WRITE_VANISHES = false
 io.open = function(path, mode)
     mode = mode or "r"
     -- 🔬 6.321.0 — THE HARNESS MODELS "a" BEFORE THE FEATURE USES IT
@@ -57,7 +58,13 @@ io.open = function(path, mode)
         if WRITE_FAILS then return nil end
         local buf = {}
         return { write = function(_, ...) for _, x in ipairs({ ... }) do buf[#buf + 1] = x end return true end,
-                 close = function() FILES[path] = table.concat(buf) end }
+                 close = function()
+                     -- 🔬 a write that REPORTS SUCCESS and lands nothing:
+                     -- a full disk, a refused rename. 6.265.0's
+                     -- distinction — MISSING is not REFUSING — and this
+                     -- is the third shape, SILENTLY DOING NOTHING.
+                     if not WRITE_VANISHES then FILES[path] = table.concat(buf) end
+                 end }
     end
     READS[#READS + 1] = path
     if FILES[path] == nil then return nil end
@@ -2539,13 +2546,28 @@ do
                end
                return false
            end)(), DEGRADES[#DEGRADES] and DEGRADES[#DEGRADES].why or "none")
+    -- 🚨 THE SWEEP'S OWN FINDING: the belt that re-reads the keep after
+    -- writing it survived its mutation, so it could have been deleted and
+    -- the gate stayed green (6.273.0 — the line is not the finding, the
+    -- missing check is). It is there for the shape io cannot report: the
+    -- open succeeds, the write succeeds, and nothing lands.
+    FILES[VAULT .. "/Essay4.md"] = long
+    v.setNotes({ "Essay4.md" }); v.openNote("Essay4")
+    v.shrinkLast, v.shrinkFails, v.shrinkKept = nil, 0, 0
+    WRITE_VANISHES = true
+    v.setText("")
+    WRITE_VANISHES = false
+    check("🚨 a keep whose write SAID it worked and landed nothing is caught "
+          .. "by re-reading it — never counted as kept",
+          v.shrinkFails == 1 and v.shrinkKept == 0, v.shrinkFails .. " / " .. v.shrinkKept)
+
     local rep3 = _G.vaultReport()
     check("🔎 …and the report says so in capitals, above the count of keeps "
           .. "that worked",
           rep3:find("could NOT be kept", 1, true) ~= nil, rep3:match("🚨[^\n]*"))
 
     local ran = (pass + fail) - before
-    check("§6.322.0 ran all of its checks (" .. ran .. " of 15)", ran >= 15, ran)
+    check("§6.322.0 ran all of its checks (" .. ran .. " of 16)", ran >= 16, ran)
 end
 
 out(string.format("\n%d passed, %d failed\n", pass, fail))
