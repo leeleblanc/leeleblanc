@@ -1308,6 +1308,107 @@ function M.setup(core)
         return true
     end
 
+
+    -- ---- 6.322.0 — 🔒 A NOTE THAT COLLAPSES KEEPS ITS OLD TEXT ---------------
+    --
+    -- LL: "I highlighted the text in a note and accidentally deleted it
+    -- all and then I couldn't get any of that text back while the note
+    -- remained blank."
+    --
+    -- 🔎 EVERY LINK IN THE CHAIN WORKED AS WRITTEN. The page posts the
+    -- whole textarea on each keystroke; v.setText takes it; a 0.3 s
+    -- timer calls v.saveNow; and 6.313.0's temp-then-rename puts the new
+    -- text on disk atomically. Three thousand three hundred and
+    -- sixty-three characters replaced by nothing, correctly, in under a
+    -- second — and the ONE thing that could have given them back was
+    -- WebKit's own undo stack, which this module destroys on every
+    -- render (6.323.0 is that half).
+    --
+    -- 🔑 SO THE GUARD GOES WHERE THE OLD TEXT STILL EXISTS. By saveNow
+    -- the previous text is already gone from memory; in setText it is
+    -- sitting in v.doc.text, free, with no disk read. A collapse keeps
+    -- it in the SAME bin a delete uses — one store, one listing, one
+    -- restore (6.231.0), and the bin's 180-day purge already bounds it.
+    --
+    -- 🚨 IT IS NOT AN UNDO AND MUST NOT BE SOLD AS ONE. It is the floor
+    -- under the undo: whatever happens to the window, the page, the
+    -- keyboard or the config, those words are a file on his disk and
+    -- _G.vaultTrash() lists them. 6.280.0's rule — the one failure here
+    -- with no way back is destroying his writing — in the one path that
+    -- could still do it after 6.280.0 closed the ✕.
+    v.shrinkMin  = 80      -- a note has to have been this long to be worth keeping
+    v.shrinkTo   = 0.25    -- …and shrink to under this share of itself in one go
+    v.shrinkEvery = 60     -- at most one keep per note per this many seconds
+    v.shrinkKept = 0
+    v.shrinkLast = nil     -- { rel, at, was }
+    v.shrinkFails = 0
+
+    -- PURE: should the old text be kept before this new one replaces it?
+    -- Answers the verdict AND why, because "it was too short to bother
+    -- with" and "it did not shrink enough" are different facts and the
+    -- report has to be able to say which (6.196.1).
+    function v.shrinkGuard(oldText, newText, minChars, keepBelow)
+        local was  = #tostring(oldText or "")
+        local now  = #tostring(newText or "")
+        minChars   = tonumber(minChars) or 80
+        keepBelow  = tonumber(keepBelow) or 0.25
+        if was < minChars then
+            return false, "the note was only " .. was .. " characters"
+        end
+        if now >= was then return false, "it did not shrink" end
+        if now > math.floor(was * keepBelow) then
+            return false, "it shrank, but not by enough to look like a mistake"
+        end
+        if now == 0 then return true, "every character went at once" end
+        return true, was .. " characters became " .. now
+    end
+
+    -- The keep itself. Never throws — this is on the keystroke path, and
+    -- a throw here would cost him the keystroke as well as the text.
+    function v.keepBeforeEdit(rel, oldText, why)
+        local at = os.time()
+        -- 🔕 ONE PER NOTE PER WINDOW, or holding ⌫ through a paragraph
+        -- writes a file per keystroke into a folder that syncs.
+        if v.shrinkLast and v.shrinkLast.rel == rel
+           and (at - (v.shrinkLast.at or 0)) < v.shrinkEvery then
+            return false, "one was kept for this note a moment ago"
+        end
+        local ok = pcall(function()
+            local dir = v.trashDir()
+            mkdirp(dir)
+            local file = v.trashNameFor(rel, at)
+            local to   = dir .. "/" .. file
+            if readFile(to) ~= nil then
+                for n = 2, 99 do
+                    local alt = v.trashNameFor(rel, at):gsub("%.md$", " (" .. n .. ").md")
+                    if readFile(dir .. "/" .. alt) == nil then file, to = alt, dir .. "/" .. alt break end
+                end
+            end
+            local fh = assert(io.open(to, "w"))
+            fh:write(oldText or "")
+            fh:close()
+            assert(readFile(to) ~= nil, "the keep did not land")
+            v.trashNote(file, rel, at, "edit")
+        end)
+        if not ok then
+            v.shrinkFails = v.shrinkFails + 1
+            -- 🔔 A BREAK IS SEEN (6.214.0). He is about to lose text and
+            -- the one thing that would have kept it did not happen.
+            if type(core.degrade) == "function" then
+                pcall(core.degrade, "Hamsidian",
+                      "could not keep a copy of " .. tostring(rel)
+                      .. " before it was emptied — the old text is NOT recoverable")
+            end
+            return false, "the keep failed"
+        end
+        v.shrinkKept = v.shrinkKept + 1
+        v.shrinkLast = { rel = rel, at = at, was = #tostring(oldText or ""), why = why }
+        alert("🔒 " .. (rel:match("([^/]+)%.md$") or rel)
+              .. " lost most of its text — the old copy is in the bin"
+              .. "\n_G.vaultTrash() lists it", 6)
+        return true
+    end
+
     function v.scheduleSave()
         if v.saveTimer then pcall(function() v.saveTimer:stop() end) end
         local ok, t = pcall(hs.timer.doAfter, v.saveDelay, function() v.saveTimer = nil; v.saveNow() end)
@@ -1325,6 +1426,12 @@ function M.setup(core)
             return
         end
         if text ~= v.doc.text then
+            -- 🔒 6.322.0 — BEFORE the old text stops existing. This is the
+            -- last moment it is in memory; by saveNow it is gone.
+            local keep, whyKeep = v.shrinkGuard(v.doc.text, text, v.shrinkMin, v.shrinkTo)
+            if keep then
+                pcall(v.keepBeforeEdit, v.doc.rel, v.doc.text, whyKeep)
+            end
             v.doc.text = text
             v.dirty = true
             v.links[v.doc.rel] = v.linksIn(text)
@@ -4897,6 +5004,18 @@ else {
             if v.trashPurged > 0 then
                 L[#L + 1] = "      🧹 " .. v.trashPurged .. " purged this session (over "
                             .. v.trashDays .. " days old)"
+            end
+            -- 🔒 6.322.0 — three states, because "it has not happened"
+            -- and "it happened and could not be written" are opposite
+            -- facts and only one of them means his text is gone.
+            if v.shrinkFails > 0 then
+                L[#L + 1] = "      🚨 " .. v.shrinkFails .. " note(s) collapsed and the old text"
+                L[#L + 1] = "         could NOT be kept — that writing is not recoverable."
+            end
+            if v.shrinkKept > 0 then
+                L[#L + 1] = "      🔒 " .. v.shrinkKept .. " note(s) kept a copy before losing most of"
+                L[#L + 1] = "         their text" .. (v.shrinkLast and (" · last: "
+                            .. tostring(v.shrinkLast.rel) .. " — " .. tostring(v.shrinkLast.why)) or "")
             end
             if v.trashPurgeErr then
                 L[#L + 1] = "      ⚠️ the automatic purge could not read the bin — " .. tostring(v.trashPurgeErr)

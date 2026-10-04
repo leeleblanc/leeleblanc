@@ -81,6 +81,7 @@ os.remove = function(path)
 end
 
 local ALERTS, PROVIDED, WEBVIEWS, PROMPTS, TIMERS, PRINTED, TASKS, OPENED, SETTINGS = {}, {}, {}, {}, {}, {}, {}, {}, {}
+local DEGRADES = {}
 local PROMPT_ANSWERS = {}
 local UC_CALLBACK, EVALS = nil, {}
 print = function(...)
@@ -203,6 +204,16 @@ local CORE = {
         HYPER[table.concat(mods or {}, "+") .. "|" .. tostring(key)] = { fn = fn, src = src }
     end,
     warnWriteFailed = function(what) WRITE_WARNS[#WRITE_WARNS + 1] = what end,
+    -- 🔬 6.322.0 — THE DOOR EXISTS IN THE STUB NOW. This core table had no
+    -- `degrade`, so every `if type(core.degrade) == "function"` in the
+    -- module took its no-door fallback and the 🔔 door was never once
+    -- exercised from this suite — 6.278.0's hole, third time (6.301.0
+    -- found the same one in test_task_creator). A stub that is quieter
+    -- than our own core hides every failure path that reports through it.
+    degrade = function(tool, why)
+        DEGRADES[#DEGRADES + 1] = { tool = tool, why = why }
+        return false, why
+    end,
 }
 
 local mod = dofile(HS .. "/modules/vault.lua")
@@ -2363,15 +2374,47 @@ do
 
     -- ---- it fails safe ----------------------------------------------------
     local keptDir = hs.fs.dir
+    -- (a) no lister on this Mac at all
     hs.fs.dir = nil
     local badRows, badWhy = v.trashList()
-    check("🔎 a Mac that cannot list a folder answers nil AND a reason — never "
+    check("🔎 a Mac with no folder lister answers nil AND a reason — never "
           .. "an empty bin, which reads as 'nothing to restore'",
           badRows == nil and tostring(badWhy):find("list", 1, true) ~= nil, tostring(badWhy))
     local okPB = _G.vaultPurgeTrash(true)
     check("🚨 …and a purge over a bin it could not read deletes NOTHING",
           okPB == false)
+
+    -- (b) 🚨 THE BRANCH THE SWEEP FOUND UNDRIVEN, and it is the worst one
+    -- in this release: a folder that EXISTS and REFUSES TO LIST. 6.265.0's
+    -- distinction — driving a path with the dependency MISSING is not the
+    -- same as driving it with the dependency REFUSING — and here the two
+    -- have opposite consequences. Reading as "{}" would print "bin: empty"
+    -- over fifty-five recoverable notes AND hand an empty due-list to a
+    -- purge, which is the exact sentence this whole release exists to stop
+    -- him seeing. A mutation returning {} survived until this check.
+    local howManyBefore = 0
     hs.fs.dir = keptDir
+    for _ in ipairs(v.trashList()) do howManyBefore = howManyBefore + 1 end
+    hs.fs.dir = function() return function() error("Operation not permitted", 0) end, {} end
+    local refRows, refWhy = v.trashList()
+    check("🚨 a .trash folder that REFUSES to list is not an empty bin — nil "
+          .. "and a reason, never {}",
+          refRows == nil and refWhy ~= nil, tostring(refRows) .. " / " .. tostring(refWhy))
+    local repRef = _G.vaultReport()
+    check("🔎 …and the report says COULD NOT BE READ rather than 'empty'",
+          repRef:find("bin    : ⚠️ COULD NOT BE READ", 1, true) ~= nil,
+          repRef:match("bin    :[^\n]*"))
+    local okRef = _G.vaultPurgeTrash(true)
+    check("🚨 …and the purge over it takes nothing",
+          okRef == false)
+    local okAuto = v.purgeTrashOnce()
+    check("🚨 …and so does the automatic one, which runs unattended",
+          okAuto == false)
+    hs.fs.dir = keptDir
+    local howManyAfter = 0
+    for _ in ipairs(v.trashList()) do howManyAfter = howManyAfter + 1 end
+    check("🔒 …and every note is still in the bin afterwards",
+          howManyAfter == howManyBefore, howManyBefore .. " → " .. howManyAfter)
 
     -- ---- the report --------------------------------------------------------
     local rep = _G.vaultReport()
@@ -2393,7 +2436,116 @@ do
           okA == true and goneA == 1, tostring(goneA))
 
     local ran = (pass + fail) - before
-    check("§6.321.0 ran all of its checks (" .. ran .. " of 24)", ran >= 24, ran)
+    check("§6.321.0 ran all of its checks (" .. ran .. " of 29)", ran >= 29, ran)
+end
+
+-- =======================================================================
+out("\n6.322.0 — 🔒 A NOTE THAT COLLAPSES KEEPS ITS OLD TEXT\n")
+-- =======================================================================
+-- LL: "I highlighted the text in a note and accidentally deleted it all
+-- and then I couldn't get any of that text back while the note remained
+-- blank." Every link in the chain worked as written; nothing kept a copy.
+do
+    local before = pass + fail
+    local long = string.rep("the quick brown fox. ", 20)   -- 420 chars
+
+    -- ---- PURE: when is a shrink a mistake? ---------------------------------
+    check("🔒 everything going at once is kept",
+          select(1, v.shrinkGuard(long, "", 80, 0.25)) == true)
+    check("🔒 …and so is a collapse to a handful of characters",
+          select(1, v.shrinkGuard(long, "oops", 80, 0.25)) == true)
+    check("🔕 an ordinary edit is NOT kept — a file per keystroke in a folder "
+          .. "that syncs is the bug this would otherwise become",
+          select(1, v.shrinkGuard(long, long .. "more", 80, 0.25)) == false
+          and select(1, v.shrinkGuard(long, long:sub(1, 400), 80, 0.25)) == false)
+    check("🔕 a note too short to matter is not kept",
+          select(1, v.shrinkGuard("tiny", "", 80, 0.25)) == false)
+    -- 🧪 THE FIXTURE THAT BITES the boundary: exactly at the share, and one
+    -- character under it. Every other input agrees (6.230.0).
+    local w = string.rep("x", 400)
+    check("🔒 the boundary is a boundary: a quarter of 400 is a collapse, "
+          .. "one character more is not",
+          select(1, v.shrinkGuard(w, string.rep("x", 100), 80, 0.25)) == true
+          and select(1, v.shrinkGuard(w, string.rep("x", 101), 80, 0.25)) == false)
+    -- 🔎 and each refusal says WHICH, or the report cannot tell them apart
+    local _, wA = v.shrinkGuard("tiny", "", 80, 0.25)
+    local _, wB = v.shrinkGuard(long, long:sub(1, 400), 80, 0.25)
+    local _, wC = v.shrinkGuard(long, long, 80, 0.25)
+    check("🔎 the three refusals name three different causes",
+          wA ~= wB and wB ~= wC and wA ~= wC, table.concat({ wA, wB, wC }, " / "))
+
+    -- ---- end to end: his own keystroke ------------------------------------
+    FILES[VAULT .. "/Essay.md"] = long
+    v.setNotes({ "Essay.md" })
+    v.openNote("Essay")
+    v.shrinkLast, v.shrinkKept = nil, 0
+    local keptBin = {}
+    for _, row in ipairs(v.trashList()) do keptBin[row.file] = true end
+
+    v.setText("")            -- select all, delete
+    v.saveNow()
+
+    check("🚨 the note really is empty on disk — this release does not stop "
+          .. "that, it stops it being the END of the text",
+          FILES[VAULT .. "/Essay.md"] == "", tostring(FILES[VAULT .. "/Essay.md"]))
+    local fresh
+    for _, row in ipairs(v.trashList()) do
+        if not keptBin[row.file] and row.name == "Essay" then fresh = row end
+    end
+    check("🔒 …and the 420 characters are a file in the bin",
+          fresh ~= nil and FILES[VAULT .. "/.trash/" .. fresh.file] == long,
+          fresh and fresh.file or "no new row")
+    check("🏷 …listed as a KEEP, not as a delete, so the bin can say which",
+          fresh ~= nil and fresh.kind == "edit" and fresh.rel == "Essay.md",
+          fresh and (tostring(fresh.kind) .. " / " .. tostring(fresh.rel)) or "nil")
+    check("🔔 …and he is TOLD at the moment it happens, not a week later",
+          ALERTS[#ALERTS]:find("lost most of its text", 1, true) ~= nil, ALERTS[#ALERTS])
+
+    -- ↩️ and it comes back through the door he already has
+    local okBack, whereBack = _G.vaultRestore("Essay")
+    check("↩️ _G.vaultRestore brings the old text back BESIDE the emptied "
+          .. "note, never over it",
+          okBack == true and whereBack ~= "Essay.md"
+          and FILES[VAULT .. "/" .. whereBack] == long
+          and FILES[VAULT .. "/Essay.md"] == "", tostring(whereBack))
+
+    -- ---- it must not flood the bin ----------------------------------------
+    FILES[VAULT .. "/Essay2.md"] = long
+    v.setNotes({ "Essay2.md" }); v.openNote("Essay2")
+    v.shrinkLast = nil
+    local n0 = #v.trashList()
+    v.setText("")
+    v.setText(long)          -- he retypes
+    v.setText("")            -- and does it again, same minute
+    local n1 = #v.trashList()
+    check("🔕 one keep per note per window — holding ⌫ through a paragraph "
+          .. "must not write a file per keystroke into a folder that syncs",
+          n1 - n0 == 1, (n1 - n0))
+
+    -- ---- a keep that FAILS is the one thing it must shout about -----------
+    FILES[VAULT .. "/Essay3.md"] = long
+    v.setNotes({ "Essay3.md" }); v.openNote("Essay3")
+    v.shrinkLast, v.shrinkFails = nil, 0
+    WRITE_FAILS = true
+    v.setText("")
+    WRITE_FAILS = false
+    check("🚨 a keep that could not be written is COUNTED, not swallowed",
+          v.shrinkFails == 1, v.shrinkFails)
+    check("🔔 …and it takes the degrade door, naming that the text is NOT "
+          .. "recoverable — the one sentence he needs at that moment",
+          (function()
+               for i = #DEGRADES, 1, -1 do
+                   if tostring(DEGRADES[i].why):find("NOT recoverable", 1, true) then return true end
+               end
+               return false
+           end)(), DEGRADES[#DEGRADES] and DEGRADES[#DEGRADES].why or "none")
+    local rep3 = _G.vaultReport()
+    check("🔎 …and the report says so in capitals, above the count of keeps "
+          .. "that worked",
+          rep3:find("could NOT be kept", 1, true) ~= nil, rep3:match("🚨[^\n]*"))
+
+    local ran = (pass + fail) - before
+    check("§6.322.0 ran all of its checks (" .. ran .. " of 15)", ran >= 15, ran)
 end
 
 out(string.format("\n%d passed, %d failed\n", pass, fail))
