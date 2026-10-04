@@ -221,7 +221,10 @@ local M = {
             { "📌",          "Pin: the window stays up beside the app; Esc only hands the keys back" },
             { "Obsidian",   "Open the same folder as a vault in Obsidian — plug-ins and all" },
             { "✕",          "On a note row — deletes it to <Vault>/.trash (never erased)" },
-            { "undo that",  "_G.vaultUndelete() puts the last deleted note back" },
+            { "undo that",  "_G.vaultUndelete() puts the LAST deleted note back" },
+            { "the bin",    "_G.vaultTrash() lists every note in .trash — nothing is ever erased" },
+            { "restore",    "_G.vaultRestore(\"<name>\") brings any of them back to its own folder" },
+            { "purge",      "_G.vaultPurgeTrash() is a DRY RUN · (true) empties what is over 180 days" },
             { "Console",    "_G.vaultReport() · _G.vaultRescan()" },
         },
     },
@@ -367,6 +370,54 @@ function M.setup(core)
     end
     local function keyOf(name) return trim(name):lower() end
     local function alert(m, secs) pcall(function() hs.alert.show(m, secs or 2) end) end
+
+    -- 🗂 6.320.0 — A NAME WITH AN ELLIPSIS IN IT IS NOT A PATH ESCAPE
+    -- (LL: "I have no idea what this means and why I can't delete an
+    -- item from the left column: 'Not deleted - that path leaves the
+    -- vault'"). He was right not to understand it, because it was not
+    -- true of his note.
+    --
+    -- 🔎 THE GUARD WAS A SUBSTRING TEST. `rel:find("%.%.")` asks whether
+    -- the name holds two dots ANYWHERE, so every note whose title
+    -- carries an ellipsis — "Hmm... ok.md", anything dictated, anything
+    -- whose first line trailed off — was refused as a directory escape
+    -- and could not be deleted, by any means, ever. The answer was
+    -- CORRECT about the characters and WRONG about the question, which
+    -- is why it read as nonsense: he was being told his note was outside
+    -- a folder it was plainly inside.
+    --
+    -- 🔑 `..` IS A PATH STEP, AND A PATH STEP IS A WHOLE COMPONENT.
+    -- `v.relInside` splits on "/" and refuses a component that IS "..",
+    -- which is the only thing that can climb out of the vault. A dot
+    -- inside a name is a character in a name. PURE, so the gate proves
+    -- the whole rule with no Mac and no folder — and the fixture that
+    -- bites is the one where the two implementations must disagree
+    -- (6.230.0): "Notes/Hmm... ok.md" is refused by a substring and
+    -- allowed by a component walk, while "a/../b.md" is refused by both.
+    --
+    -- 🚨 TWO CALLERS, ONE RULE (6.231.0), and the second is why this is
+    -- a release rather than a line: v.setField — the board's drag, the
+    -- ONE view in Hamsidian that writes — carried the identical test,
+    -- so dragging a card for such a note snapped it back with the card
+    -- saying nothing. 6.305.0's rule paid on the day it was written: a
+    -- principle stated in one place is grepped for in the others, in
+    -- the same commit.
+    function v.relInside(rel)
+        rel = tostring(rel or "")
+        if rel == "" then return false, "no note was named" end
+        if rel:find("^/") then
+            return false, "it is an absolute path, not a note inside the vault"
+        end
+        if rel:find("\\") then
+            return false, "it carries a backslash, which is not a vault path"
+        end
+        for part in (rel .. "/"):gmatch("([^/]*)/") do
+            if part == ".." then
+                return false, "it steps out of the vault with a .. folder"
+            end
+        end
+        return true
+    end
 
     -- ---- 6.174.0 — the small shared pieces ------------------------------------
     -- Everything Lua says to the page without a rebuild goes through here
@@ -1362,7 +1413,12 @@ function M.setup(core)
         key = tostring(key or ""):lower()
         if rel == "" or not key:find("^[%w_][%w_%-%.]*$") then return false, "no note or no field" end
         if key == "tag" or key == "tags" then return false, "tags are written in the note, not here" end
-        if rel:find("%.%.") or rel:sub(1, 1) == "/" or not rel:find("%.md$") then return false, "not a note in the vault" end
+        -- 🗂 6.320.0 — one rule, two callers. The substring test this
+        -- replaces refused every note whose NAME held an ellipsis,
+        -- so the board silently snapped such a card back.
+        local inside, whyOut = v.relInside(rel)
+        if not inside then return false, "not a note in the vault — " .. tostring(whyOut) end
+        if not rel:find("%.md$") then return false, "not a note in the vault" end
         local function fail(why)
             v.moveFails, v.moveErr = v.moveFails + 1, why
             return false, why
@@ -4063,6 +4119,8 @@ else {
     -- is the fact that would have changed his mind.
     v.trashed = nil        -- { rel, from, to, name, at } — the last one
     v.deletes = 0
+    v.restores = 0          -- 6.321.0 — brought back out of the bin
+    v.trashIndexFails = 0   -- …and the index rows that would not write
 
     function v.trashDir() return v.dir .. "/.trash" end
 
@@ -4082,18 +4140,35 @@ else {
         -- 🔒 THE SAME BOUNDS THE BOARD'S WRITE USES (6.186.0): never
         -- outside the vault, never a file that is not a note, never an
         -- empty name. A delete is the one place these have to hold.
-        if rel == "" then return false, "no note named" end
-        if rel:find("%.%.") or rel:find("^/") then
-            return false, "that path leaves the vault"
-        end
-        if not rel:match("%.md$") then return false, "that is not a note" end
+        -- 🗂 6.320.0 — the same PURE rule the board uses, and the
+        -- refusal SAYS what it found rather than naming a folder
+        -- he is not in. A message he cannot act on is a message
+        -- that costs him the feature.
+        local inside, whyOut = v.relInside(rel)
+        if not inside then return false, whyOut end
+        if not rel:match("%.md$") then return false, "that is not a note (no .md on the end)" end
         local from = v.dir .. "/" .. rel
         if readFile(from) == nil then return false, "no such note: " .. rel end
 
         local at = os.time()
         local dir = v.trashDir()
         mkdirp(dir)
+        -- 🚨 6.321.0 — AND THE SECOND IS NOT FINE ENOUGH. trashNameFor's
+        -- own comment promises the timestamp "stops a second Ideas.md
+        -- overwriting the first one in the trash" — true across seconds
+        -- and FALSE inside one. Delete a note, write it again, delete it
+        -- again within the same second and os.rename put the second
+        -- straight over the first: one of the two was gone for good, in
+        -- the folder whose whole job is that nothing is. Found by the
+        -- gate, not on his Mac, because a fixture does both deletes in
+        -- the same tick and a person usually does not.
         local to = dir .. "/" .. v.trashNameFor(rel, at)
+        if readFile(to) ~= nil then
+            for n = 2, 99 do
+                local alt = dir .. "/" .. v.trashNameFor(rel, at):gsub("%.md$", " (" .. n .. ").md")
+                if readFile(alt) == nil then to = alt break end
+            end
+        end
         local okM, errM = os.rename(from, to)
         if not okM then
             -- 🔔 A DELETE THAT DID NOT HAPPEN MUST NOT LOOK LIKE ONE
@@ -4124,6 +4199,14 @@ else {
         v.trashed = { rel = rel, from = from, to = to, at = at,
                       name = (rel:match("([^/]+)%.md$")) or rel, links = links }
         v.deletes = v.deletes + 1
+        -- 🗑 6.321.0 — where it came FROM, so the bin can put it back in
+        -- its folder rather than at the root. The move has already
+        -- happened; an index row that fails to write costs the folder,
+        -- never the note, so it is not a reason to report a failed
+        -- delete (it is counted on the report's bin line instead).
+        if not v.trashNote(to:match("([^/]+)$") or "", rel, at, "delete") then
+            v.trashIndexFails = (v.trashIndexFails or 0) + 1
+        end
 
         -- it leaves every index this module keeps, at once
         v.links[rel], v.tagsOf[rel], v.fmOf[rel] = nil, nil, nil
@@ -4157,6 +4240,338 @@ else {
         alert("🕸 " .. t.name .. " is back", 4)
         if v.webview then v.render() end
         return true
+    end
+
+    -- ---- 6.321.0 — 🗑 THE RECYCLE BIN ----------------------------------------
+    --
+    -- LL, after deleting fifty-five notes in one session: "This is
+    -- horrible not having an undeleted or recycled bin or trash that I
+    -- can restore from." And his Console is the proof —
+    --     > _G.vaultUndelete()
+    --     true
+    --     > _G.vaultUndelete()
+    --     false   nothing to undelete
+    --
+    -- 🔎 EVERY ONE OF THOSE FIFTY-FIVE NOTES WAS STILL ON DISK. 6.280.0
+    -- never erased anything: each went to <Vault>/.trash with a
+    -- timestamp on it, and his own report says so. What was missing is
+    -- not the data, it is the DOOR — `v.trashed` is ONE slot, the last
+    -- delete, cleared the moment it is used. So the second press of a
+    -- command named "undelete" told him, truthfully and uselessly, that
+    -- there was nothing to undelete, over a folder holding fifty-five
+    -- recoverable files. 6.317.0's rule in the costliest place it can
+    -- land: the instrument was not the gap, the door was.
+    --
+    -- 🔑 THE NAME IS NOT ENOUGH TO PUT IT BACK, which is why this is a
+    -- release and not a listing. `v.trashNameFor` FLATTENS folders with
+    -- "-", so <Vault>/Notes/Ideas.md arrives as "Notes-Ideas  <when>.md"
+    -- and is indistinguishable from a note really called "Notes-Ideas".
+    -- Restoring from the filename alone would quietly put half his notes
+    -- back in the wrong place. So a delete now also APPENDS one line to
+    -- <Vault>/.trash/.index, naming where the file came from.
+    --
+    -- 📎 APPEND-ONLY, and that is a rule rather than a convenience
+    -- (6.279.0): an append cannot shrink a file, so there is no rewrite
+    -- that can lose yesterday's rows while saving today's. The index is
+    -- never the authority on WHAT is in the bin — the folder is. A file
+    -- with no index row still lists and still restores; it just lands at
+    -- the vault root under its flattened name, and the listing SAYS so
+    -- rather than pretending it knows better.
+    --
+    -- 📏 COST, NAMED: the index is tab-separated and a tab or a newline
+    -- in a note's name is stripped from the row. Nothing this module
+    -- creates can hold either (trashNameFor flattens the only separator
+    -- that matters), and a note hand-named with a tab restores to the
+    -- root rather than its folder — the no-index-row path, which is a
+    -- state the listing already has words for.
+    v.trashDays  = 180     -- a row older than this is purged, on his word
+    v.trashPurge = true    -- …unless this is false
+    v.trashPurgeMax = 200  -- bounded: never more than this in one sweep
+    v.trashPurged = 0
+    v.trashPurgeErr = nil
+
+    function v.trashIndexPath() return v.trashDir() .. "/.index" end
+
+    -- one line per delete, appended. Never read for the LIST of files —
+    -- only for where a file came from.
+    local function trashNote(file, rel, at, kind)
+        local function flat(s) return (tostring(s or ""):gsub("[\t\r\n]", " ")) end
+        local okA, fh = pcall(io.open, v.trashIndexPath(), "a")
+        if not okA or not fh then return false end
+        local okW = pcall(function()
+            fh:write(table.concat({ tostring(math.floor(tonumber(at) or os.time())),
+                                    flat(kind or "delete"), flat(file), flat(rel) }, "\t"), "\n")
+        end)
+        pcall(function() fh:close() end)
+        return okW and true or false
+    end
+    v.trashNote = trashNote
+
+    -- PURE: the index text in, { [trashfile] = { rel, at, kind } } out.
+    -- A malformed line is SKIPPED, never fatal — this file is read on a
+    -- path that must still answer when it is half-written.
+    function v.trashIndexOf(text)
+        local out = {}
+        for line in tostring(text or ""):gmatch("[^\n]+") do
+            local at, kind, file, rel = line:match("^(%d+)\t([^\t]*)\t([^\t]*)\t(.*)$")
+            if file and file ~= "" then
+                out[file] = { rel = rel, at = tonumber(at), kind = (kind ~= "" and kind or "delete") }
+            end
+        end
+        return out
+    end
+
+    -- PURE: a trash filename back into the note's name and when it went.
+    -- The clock is in the NAME, never the file's mtime — OneDrive
+    -- rewrites mtimes on sync and a purge keyed to one would delete by
+    -- the wrong date on the Mac that did not do the deleting.
+    function v.trashRowOf(fname)
+        fname = tostring(fname or "")
+        -- the " (2)" is the same-second tie-break the delete appends; a
+        -- row that cannot parse is never listed and never purged, so
+        -- forgetting it here would make a collided note invisible in the
+        -- bin AND safe from the purge — half right, and the wrong half
+        -- is the one he would notice.
+        local flat, y, mo, d, hh, mm, ss =
+            fname:match("^(.*)  (%d%d%d%d)%-(%d%d)%-(%d%d) (%d%d)(%d%d)(%d%d)%.md$")
+        if not flat then
+            flat, y, mo, d, hh, mm, ss =
+                fname:match("^(.*)  (%d%d%d%d)%-(%d%d)%-(%d%d) (%d%d)(%d%d)(%d%d) %(%d+%)%.md$")
+        end
+        if not flat then return nil end
+        local at = os.time({ year = tonumber(y), month = tonumber(mo), day = tonumber(d),
+                             hour = tonumber(hh), min = tonumber(mm), sec = tonumber(ss) })
+        return { file = fname, name = flat, at = at }
+    end
+
+    -- The folder is the authority. `lister` is an ARGUMENT (6.230.0) so
+    -- the gate drives this with no disk.
+    -- 🚨 hs.fs.dir RETURNS TWO VALUES and the iterator is called WITH the
+    -- directory object as its state. `pcall(hs.fs.dir, d)` keeps the
+    -- iterator and throws the state away, which raises on the first call
+    -- — the exact bug that cost a delivery, and hs-lint's own rule.
+    function v.trashList(lister, reader)
+        lister = lister or (hs.fs and hs.fs.dir)
+        reader = reader or readFile
+        if type(lister) ~= "function" then
+            return nil, "this Mac would not list a folder"
+        end
+        local idx = v.trashIndexOf(reader(v.trashIndexPath()) or "")
+        local names, okL = {}, false
+        okL = pcall(function()
+            for e in lister(v.trashDir()) do
+                if e ~= "." and e ~= ".." then names[#names + 1] = e end
+            end
+        end)
+        if not okL then return nil, "the .trash folder could not be read" end
+        local rows = {}
+        for _, n in ipairs(names) do
+            local r = v.trashRowOf(n)
+            if r then
+                local hit = idx[n]
+                r.rel  = hit and hit.rel or nil
+                r.kind = hit and hit.kind or "delete"
+                r.known = hit ~= nil
+                rows[#rows + 1] = r
+            end
+        end
+        table.sort(rows, function(a, b)
+            if a.at ~= b.at then return a.at > b.at end
+            return a.file < b.file
+        end)
+        return rows
+    end
+
+    -- PURE: which rows a purge is due to take, given a clock. Separated
+    -- from the removing on purpose — this is the only function in this
+    -- module that decides a file is to be destroyed, and it is proven
+    -- against a clock the gate moves rather than against today.
+    function v.trashDue(rows, now, days, max)
+        now  = tonumber(now) or os.time()
+        days = tonumber(days) or 180
+        max  = tonumber(max) or 200
+        local out, cut = {}, now - days * 86400
+        for _, r in ipairs(rows or {}) do
+            -- a row with no readable clock is NEVER purged: fail closed,
+            -- because the cost of being wrong here is his writing
+            if type(r.at) == "number" and r.at <= cut and #out < max then
+                out[#out + 1] = r
+            end
+        end
+        return out
+    end
+
+    -- 🗑 _G.vaultTrash() — what is in the bin. The listing he did not have.
+    _G.vaultTrash = function(limit)
+        limit = tonumber(limit) or 60
+        local rows, why = v.trashList()
+        local L = { "🗑 HAMSIDIAN RECYCLE BIN — " .. v.trashDir() }
+        if not rows then
+            L[#L + 1] = "   ⚠️ " .. tostring(why or "could not read it")
+            L[#L + 1] = "   Nothing has been purged. Open the folder in Finder"
+                        .. " (⌘⇧. shows hidden files) — every note is still a file."
+            print(table.concat(L, "\n"))
+            return false, why
+        end
+        if #rows == 0 then
+            L[#L + 1] = "   empty — nothing has been deleted into it"
+            print(table.concat(L, "\n"))
+            return true, 0
+        end
+        local shown = math.min(#rows, limit)
+        L[#L + 1] = "   " .. #rows .. " note(s) · kept for " .. v.trashDays
+                    .. " day(s)" .. (v.trashPurge and "" or " · AUTOMATIC PURGE IS OFF")
+        for i = 1, shown do
+            local r = rows[i]
+            L[#L + 1] = string.format("   %2d. %s", i, r.name)
+            L[#L + 1] = "       " .. os.date("%Y-%m-%d %H:%M", r.at)
+                        .. (r.kind == "edit" and "  · kept before a big edit" or "  · deleted")
+                        .. (r.known and ("  → " .. tostring(r.rel))
+                            or "  → no index row; it would come back at the vault root")
+            L[#L + 1] = '       _G.vaultRestore("' .. r.name .. '")'
+        end
+        if #rows > shown then
+            L[#L + 1] = "   … and " .. (#rows - shown) .. " more — _G.vaultTrash(" .. (#rows) .. ")"
+        end
+        L[#L + 1] = "   ↳ _G.vaultRestore(\"<name>\") puts one back · "
+                    .. "_G.vaultPurgeTrash() empties what is over " .. v.trashDays .. " days"
+        print(table.concat(L, "\n"))
+        return true, #rows
+    end
+
+    -- ↩️ BY NAME, NEVER BY NUMBER (6.272.0/6.186.0). The listing is
+    -- re-read on every call and a delete between two of them renumbers
+    -- every row under his hand, so an index restores a DIFFERENT note
+    -- than the one he read — silently, in the one tool whose whole job
+    -- is getting a particular note back. A number is accepted only as a
+    -- convenience when it is the ONLY thing that matches, and the alert
+    -- always names what really came back.
+    _G.vaultRestore = function(which)
+        local rows, why = v.trashList()
+        if not rows then
+            alert("🗑 Could not read the bin — " .. tostring(why), 6)
+            return false, why
+        end
+        local want = tostring(which or "")
+        local hits = {}
+        for _, r in ipairs(rows) do
+            if r.file == want or r.name == want then hits[#hits + 1] = r end
+        end
+        if #hits == 0 then
+            -- a number, only when he gave one and nothing matched by name
+            local n = tonumber(which)
+            if n and rows[n] then hits[1] = rows[n] end
+        end
+        if #hits == 0 then
+            alert("🗑 Nothing in the bin called \"" .. want .. "\" — _G.vaultTrash() lists it", 6)
+            return false, "no such row"
+        end
+        if #hits > 1 then
+            -- 🚨 TWO NOTES OF ONE NAME IS A QUESTION, NOT A GUESS. Picking
+            -- the newest reads tidier and restores the wrong draft.
+            local L = { "🗑 " .. #hits .. " notes in the bin are called \"" .. want .. "\"."
+                        .. " Restore one by its full file name:" }
+            for _, r in ipairs(hits) do
+                L[#L + 1] = '   _G.vaultRestore("' .. r.file .. '")   — '
+                            .. os.date("%Y-%m-%d %H:%M", r.at)
+            end
+            print(table.concat(L, "\n"))
+            alert("🗑 " .. #hits .. " notes have that name — the Console lists them by date", 6)
+            return false, "ambiguous"
+        end
+
+        local r = hits[1]
+        local rel = r.rel
+        if not rel or rel == "" or not select(1, v.relInside(rel)) then
+            rel = r.name .. ".md"     -- no index row: the root, and it is said
+        end
+        local to   = v.dir .. "/" .. rel
+        local from = v.trashDir() .. "/" .. r.file
+        -- 🚨 IT NEVER OVERWRITES. A note of that name written since the
+        -- delete is his newer work, and a restore that replaces it is
+        -- the same loss wearing the fix's name.
+        if readFile(to) ~= nil then
+            local alt = rel:gsub("%.md$", "") .. " (restored "
+                        .. os.date("%Y-%m-%d %H%M%S") .. ").md"
+            to, rel = v.dir .. "/" .. alt, alt
+        end
+        mkdirp(to:match("^(.*)/[^/]*$") or v.dir)
+        local okR, errR = os.rename(from, to)
+        if not okR then
+            if type(core.degrade) == "function" then
+                pcall(core.degrade, "Hamsidian restore",
+                      "could not bring " .. r.name .. " back — " .. tostring(errR))
+            end
+            return false, tostring(errR)
+        end
+        if v.trashed and v.trashed.to == from then v.trashed = nil end
+        v.restores = (v.restores or 0) + 1
+        v.scan("restore")
+        alert("🗑 " .. r.name .. " is back → " .. rel, 5)
+        if v.webview then v.render() end
+        return true, rel
+    end
+
+    -- 🧹 THE PURGE. It is the only thing in this module that destroys a
+    -- file, so every bound is stated: rows the FOLDER listed, a clock
+    -- read out of the NAME, nothing younger than v.trashDays, nothing
+    -- whose date could not be read at all, and never more than
+    -- v.trashPurgeMax in one go. `ask` false is a DRY RUN by default
+    -- (6.226.0's shape) — he sees the list before anything goes.
+    _G.vaultPurgeTrash = function(reallyDoIt, days)
+        local rows, why = v.trashList()
+        if not rows then
+            print("🧹 Could not read the bin — " .. tostring(why) .. ". Nothing was purged.")
+            return false, why
+        end
+        local d   = tonumber(days) or v.trashDays
+        local due = v.trashDue(rows, os.time(), d, v.trashPurgeMax)
+        if #due == 0 then
+            print("🧹 Nothing in the bin is over " .. d .. " days old ("
+                  .. #rows .. " note(s) kept).")
+            return true, 0
+        end
+        if reallyDoIt ~= true then
+            local L = { "🧹 DRY RUN — " .. #due .. " of " .. #rows
+                        .. " note(s) are over " .. d .. " days old:" }
+            for i = 1, math.min(#due, 40) do
+                L[#L + 1] = "   " .. os.date("%Y-%m-%d", due[i].at) .. "  " .. due[i].name
+            end
+            if #due > 40 then L[#L + 1] = "   … and " .. (#due - 40) .. " more" end
+            L[#L + 1] = "   ↳ nothing has been deleted. _G.vaultPurgeTrash(true) does it."
+            print(table.concat(L, "\n"))
+            return true, 0, #due
+        end
+        local gone, failed = 0, 0
+        for _, r in ipairs(due) do
+            if os.remove(v.trashDir() .. "/" .. r.file) then gone = gone + 1
+            else failed = failed + 1 end
+        end
+        v.trashPurged = v.trashPurged + gone
+        print("🧹 " .. gone .. " note(s) purged from the bin"
+              .. (failed > 0 and (" · ⚠️ " .. failed .. " would not go") or ""))
+        return true, gone, failed
+    end
+
+    -- The automatic half of his ask — "that only I can purge or that
+    -- purges at 180 days". It runs ONCE, in warm, never at setup
+    -- (6.267.0: disk work at setup is a tax every key pays), and it is
+    -- silent when it takes nothing (6.269.0).
+    function v.purgeTrashOnce()
+        if not v.trashPurge then return false, "off" end
+        local rows, why = v.trashList()
+        if not rows then v.trashPurgeErr = why; return false, why end
+        local due = v.trashDue(rows, os.time(), v.trashDays, v.trashPurgeMax)
+        local gone = 0
+        for _, r in ipairs(due) do
+            if os.remove(v.trashDir() .. "/" .. r.file) then gone = gone + 1 end
+        end
+        v.trashPurged = v.trashPurged + gone
+        if gone > 0 then
+            print("🧹 Hamsidian bin: " .. gone .. " note(s) over " .. v.trashDays
+                  .. " days old were purged")
+        end
+        return true, gone
     end
 
     -- 🔖 6.277.0 — WHERE YOU WERE, AND ONE PLACE THAT ANSWERS IT.
@@ -4453,6 +4868,40 @@ else {
                 .. (v.enterLast and ("  ↳ last: " .. tostring(v.enterLast)) or "")))
         -- 🗑 6.280.0 — NOTHING IS EVER ERASED, so the report says where it
         -- went. A count with no path is a delete he cannot undo by hand.
+        -- 🗑 6.321.0 — THE BIN IS COUNTED OFF THE FOLDER, never off
+        -- v.deletes: that number is this SESSION's deletes and it read
+        -- as the whole bin, which is how fifty-five recoverable notes
+        -- looked like "nothing to undelete". Four states (6.196.1):
+        -- could not be read · empty · N waiting · and whether the
+        -- automatic purge is even on.
+        do
+            local rows, whyBin = v.trashList()
+            if not rows then
+                L[#L + 1] = "   bin    : ⚠️ COULD NOT BE READ — " .. tostring(whyBin)
+                            .. " (nothing has been purged; the files are still there)"
+            elseif #rows == 0 then
+                L[#L + 1] = "   bin    : empty · _G.vaultTrash() lists it"
+            else
+                local oldest = rows[#rows]
+                L[#L + 1] = "   bin    : " .. #rows .. " note(s) recoverable · oldest "
+                            .. os.date("%Y-%m-%d", oldest.at or os.time())
+                            .. " · kept " .. v.trashDays .. " day(s)"
+                            .. (v.trashPurge and "" or " · ⚠️ AUTOMATIC PURGE IS OFF")
+                L[#L + 1] = "      ↳ _G.vaultTrash() lists · _G.vaultRestore(\"<name>\") puts one back"
+                            .. " · " .. v.restores .. " restored this session"
+            end
+            if (v.trashIndexFails or 0) > 0 then
+                L[#L + 1] = "      ⚠️ " .. v.trashIndexFails .. " delete(s) could not record where the"
+                L[#L + 1] = "         note came from — those restore to the vault root, not their folder."
+            end
+            if v.trashPurged > 0 then
+                L[#L + 1] = "      🧹 " .. v.trashPurged .. " purged this session (over "
+                            .. v.trashDays .. " days old)"
+            end
+            if v.trashPurgeErr then
+                L[#L + 1] = "      ⚠️ the automatic purge could not read the bin — " .. tostring(v.trashPurgeErr)
+            end
+        end
         L[#L + 1] = "   deleted: " .. v.deletes .. " this session → " .. v.trashDir()
                     .. (v.trashed and ("  ↳ last: " .. tostring(v.trashed.name)
                         .. " · _G.vaultUndelete()") or "")
@@ -4479,6 +4928,23 @@ else {
         local out = table.concat(L, "\n")
         print(out)
         return out
+    end
+end
+
+-- 🧹 6.321.0 — THE AUTOMATIC PURGE, in warm and nowhere else.
+-- This module had no M.warm at all, so there is no shadow to create
+-- (6.308.0: a file with TWO loses one, silently, and no functional
+-- test can see it). It runs once, seconds after boot, never at setup —
+-- reading a folder in OneDrive is disk work and 6.267.0 priced that on
+-- the boot path. Silent when it takes nothing.
+function M.warm(core)
+    local ok, err = pcall(function()
+        if _G.vault and type(_G.vault.purgeTrashOnce) == "function" then
+            _G.vault.purgeTrashOnce()
+        end
+    end)
+    if not ok then
+        pcall(print, "⚠️ Hamsidian: the bin purge threw — " .. tostring(err))
     end
 end
 

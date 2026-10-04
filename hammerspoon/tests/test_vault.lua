@@ -35,10 +35,28 @@ local function out(s) io.write(s) end
 local REAL_OPEN = io.open
 local FILES, WRITE_FAILS, READS = {}, false, {}
 io.open = function(path, mode)
-    if (mode or "r"):find("w") then
+    mode = mode or "r"
+    -- 🔬 6.321.0 — THE HARNESS MODELS "a" BEFORE THE FEATURE USES IT
+    -- (6.290.0, and 6.313.0 learned the same thing about "w"). Until
+    -- now an append fell through to the READ branch and answered nil
+    -- for a path the virtual disk had never heard of, so the bin's
+    -- index could not be written AT ALL from the gate and every check
+    -- about it would have been green over a feature that does nothing.
+    -- "a" appends and creates; "w" truncates. Both can be refused.
+    if mode:find("a") then
         if WRITE_FAILS then return nil end
         local buf = {}
-        return { write = function(_, s) buf[#buf + 1] = s return true end,
+        -- 🔬 VARARGS, as io's own write takes them. A stub that keeps only
+        -- the first argument silently drops every separator a caller
+        -- passes alongside its payload — here, the newline that makes the
+        -- index one row per delete instead of one long line (6.290.0).
+        return { write = function(_, ...) for _, x in ipairs({ ... }) do buf[#buf + 1] = x end return true end,
+                 close = function() FILES[path] = (FILES[path] or "") .. table.concat(buf) end }
+    end
+    if mode:find("w") then
+        if WRITE_FAILS then return nil end
+        local buf = {}
+        return { write = function(_, ...) for _, x in ipairs({ ... }) do buf[#buf + 1] = x end return true end,
                  close = function() FILES[path] = table.concat(buf) end }
     end
     READS[#READS + 1] = path
@@ -50,6 +68,15 @@ end
 os.rename = function(a, b)
     if FILES[a] == nil then return nil, "no such file" end
     FILES[b] = FILES[a]; FILES[a] = nil
+    return true
+end
+-- 🔬 os.remove over the SAME virtual disk, so a purge can be DRIVEN
+-- rather than grepped for, and a refusal can be driven too.
+local REMOVE_FAILS = false
+os.remove = function(path)
+    if REMOVE_FAILS then return nil, "refused" end
+    if FILES[path] == nil then return nil, "no such file" end
+    FILES[path] = nil
     return true
 end
 
@@ -113,7 +140,34 @@ hs = {
         doAfter = function(d, fn) return mkTimer("after", d, fn) end,
         doEvery = function(d, fn) return mkTimer("every", d, fn) end,
     },
-    fs = { mkdir = function() return true end },
+    fs = {
+        mkdir = function() return true end,
+        -- 🚨 TWO VALUES, AND THE ITERATOR NEEDS ITS STATE (6.311.0's
+        -- tenth payment of 6.193.0): hs.fs.dir answers (iterator,
+        -- dirobj) and the iterator RAISES when called without the
+        -- dirobj. A stub returning one stateless closure works either
+        -- way and hides a whole class of caller bug.
+        dir = function(d)
+            local names = { ".", ".." }
+            local prefix = d .. "/"
+            for path in pairs(FILES) do
+                local rest = path:sub(#prefix + 1)
+                if path:sub(1, #prefix) == prefix and not rest:find("/") then
+                    names[#names + 1] = rest
+                end
+            end
+            table.sort(names)
+            local obj, i = { __dir = d }, 0
+            return function(state)
+                if state ~= obj then
+                    error("bad argument #1 to 'for iterator' "
+                          .. "(directory metatable expected, got nil)", 0)
+                end
+                i = i + 1
+                return names[i]
+            end, obj
+        end,
+    },
     mouse = { absolutePosition = function() return { x = 300, y = 300 } end },
     eventtap = { checkMouseButtons = function() return { left = false } end },
     settings = { get = function(k) return SETTINGS[k] end, set = function(k, x) SETTINGS[k] = x end },
@@ -1911,7 +1965,7 @@ do
     check("🔒 a path that leaves the vault is refused EVEN WHEN the file "
           .. "is really there — the bound is what refuses it, not the "
           .. "absence of the file",
-          okEsc == false and tostring(whyEsc):find("leaves the vault", 1, true) ~= nil
+          okEsc == false and tostring(whyEsc):find("out of the vault", 1, true) ~= nil
           and FILES[VAULT .. "/../Outside.md"] ~= nil, tostring(whyEsc))
     check("🔒 a file that is not a note is refused",
           select(1, v.deleteNote("Doomed.txt")) == false)
@@ -1995,10 +2049,35 @@ do
     -- healthy tree — and a sentry that is red when nothing is wrong is one
     -- that gets deleted within a week (6.269.0).
     local code280 = src280:gsub("%-%-%[%[.-%]%]", " "):gsub("%-%-[^\n]*", " ")
-    check("🚨 SOURCE: nothing in this module ever CALLS os.remove — an "
-          .. "unrecoverable delete of his writing is the one failure here "
-          .. "with no way back",
-          code280:find("os%.remove") == nil)
+    -- 🚨 6.321.0 — THE SENTRY NAMES THE RULE, NOT THE WORD, and that
+    -- distinction is the whole of this edit. What 6.280.0 promised is
+    -- that A NOTE IS NEVER ERASED: the ✕ moves it to .trash and the
+    -- only way back out is a restore. The bin's 180-day purge DOES call
+    -- os.remove — on a file that was deleted half a year ago and has
+    -- been recoverable every day since, which is the opposite of the
+    -- failure this sentry exists to prevent. Forbidding the WORD would
+    -- have meant either no purge at all or a sentry switched off
+    -- (6.269.0), so it forbids the THING: every os.remove in this file
+    -- must take a path built from v.trashDir(), and nothing else.
+    local removes = {}
+    for call in code280:gmatch("os%.remove%b()") do removes[#removes + 1] = call end
+    check("🚨 SOURCE: every os.remove in this module takes a path inside "
+          .. ".trash — a note is never erased, only moved there and, after "
+          .. "180 days, purged from there",
+          #removes > 0 and (function()
+              for _, c in ipairs(removes) do
+                  if not c:find("v.trashDir()", 1, true) then return false, c end
+              end
+              return true
+          end)(), table.concat(removes, " | "))
+    check("🚨 ...and the vault's own folder is never handed to one: no "
+          .. "os.remove is built from v.dir",
+          (function()
+              for _, c in ipairs(removes) do
+                  if c:find("v%.dir") then return false end
+              end
+              return true
+          end)(), table.concat(removes, " | "))
     check("...and the check reads code, not comments: the rule's own "
           .. "comment names os.remove and must not trip it",
           src280:find("os.remove", 1, true) ~= nil)
@@ -2065,6 +2144,256 @@ do
     _G.notices = keptNotices
     local ran = (pass + fail) - before
     check("§6.316.0 ran all of its checks (" .. ran .. " of 4)", ran >= 4, ran)
+end
+
+-- ---------------------------------------------------------------------------
+-- §6.320.0 — A NAME WITH AN ELLIPSIS IN IT IS NOT A PATH ESCAPE
+--
+-- LL could not delete a note and was told "that path leaves the vault",
+-- which was not true of his note. The guard was a SUBSTRING test for two
+-- dots, so every title carrying an ellipsis was refused as a directory
+-- escape — by the ✕ and, silently, by the board's drag.
+-- ---------------------------------------------------------------------------
+do
+    local before = pass + fail
+
+    -- 🧪 THE FIXTURE THAT BITES is the one where a substring test and a
+    -- component walk must DISAGREE (6.230.0). Every ordinary name agrees.
+    check("🗂 a name holding an ellipsis is INSIDE the vault "
+          .. "(the substring test refused it; the component walk does not)",
+          v.relInside("Notes/Hmm... ok.md") == true)
+    check("🗂 …and so is a name that is nothing but dots in the middle",
+          v.relInside("a..b.md") == true and v.relInside("....md") == true)
+
+    -- and the thing the guard is actually for still cannot get through
+    check("🔒 a .. folder step is refused", select(1, v.relInside("../Outside.md")) == false)
+    check("🔒 …in the middle of a path too", select(1, v.relInside("Notes/../../x.md")) == false)
+    check("🔒 …and a bare .. on its own", select(1, v.relInside("..")) == false)
+    check("🔒 an absolute path is refused", select(1, v.relInside("/etc/passwd")) == false)
+    check("🔒 a backslash is refused", select(1, v.relInside("Notes\\x.md")) == false)
+    check("🔒 an empty name is refused", select(1, v.relInside("")) == false)
+    check("🔒 nil is refused rather than thrown at", select(1, v.relInside(nil)) == false)
+
+    -- 🚨 EVERY REFUSAL SAYS WHICH, or the message is the one he could not
+    -- act on. Three causes, three different sentences.
+    local _, w1 = v.relInside("../x.md")
+    local _, w2 = v.relInside("/x.md")
+    local _, w3 = v.relInside("")
+    check("🔎 the three refusals name three different causes",
+          w1 ~= w2 and w2 ~= w3 and w1 ~= w3
+          and tostring(w1):find("..", 1, true) ~= nil
+          and tostring(w2):find("absolute", 1, true) ~= nil,
+          tostring(w1) .. " / " .. tostring(w2) .. " / " .. tostring(w3))
+
+    -- 🚨 TWO CALLERS, ONE RULE (6.231.0). The board's write carried the
+    -- identical substring test, so a card for such a note snapped back.
+    local relDots = "Hmm... ok.md"
+    FILES[VAULT .. "/" .. relDots] = "---\nstatus: todo\n---\n\n# Hmm... ok\n"
+    v.setNotes({ relDots })
+    local okF, whyF = v.setField(relDots, "status", "done")
+    check("🗂 the BOARD can move a card whose note name holds an ellipsis",
+          okF == true, tostring(whyF))
+    check("…and the field really changed on disk",
+          FILES[VAULT .. "/" .. relDots]:find("status: done", 1, true) ~= nil,
+          FILES[VAULT .. "/" .. relDots])
+    check("🔒 the board still refuses a .. step",
+          select(1, v.setField("../Outside.md", "status", "done")) == false)
+
+    -- and the ✕ itself, end to end
+    local okD, whereD = v.deleteNote(relDots)
+    check("🗑 the ✕ can delete a note whose name holds an ellipsis",
+          okD == true, tostring(whereD))
+
+    local ran = (pass + fail) - before
+    check("§6.320.0 ran all of its checks (" .. ran .. " of 14)", ran >= 14, ran)
+end
+
+-- =======================================================================
+out("\n6.321.0 — 🗑 THE RECYCLE BIN: FIFTY-FIVE NOTES THAT WERE ALWAYS THERE\n")
+-- =======================================================================
+-- LL: "This is horrible not having an undeleted or recycled bin or trash
+-- that I can restore from" — after _G.vaultUndelete() answered true once
+-- and "nothing to undelete" every time after, over a .trash folder
+-- holding fifty-five recoverable notes. The data was never the gap.
+do
+    local before = pass + fail
+    local TRASH = VAULT .. "/.trash"
+
+    -- ---- PURE: the name carries the clock ---------------------------------
+    local r = v.trashRowOf("Notes-Ideas  2026-10-04 152233.md")
+    check("🕰 a trash filename parses back into its name and when it went",
+          r ~= nil and r.name == "Notes-Ideas"
+          and os.date("%Y-%m-%d %H:%M:%S", r.at) == "2026-10-04 15:22:33",
+          r and (r.name .. " @ " .. os.date("%Y-%m-%d %H:%M:%S", r.at)) or "nil")
+    check("🔒 a file that is not one of ours parses to nothing — and is "
+          .. "therefore never listed and never purged",
+          v.trashRowOf("just-a-note.md") == nil
+          and v.trashRowOf(".index") == nil
+          and v.trashRowOf("Ideas  2026-13-99 999999.md") ~= nil)
+
+    -- ---- PURE: the index --------------------------------------------------
+    local idx = v.trashIndexOf("1700000000\tdelete\tA  2026-01-01 000000.md\tNotes/A.md\n"
+                               .. "garbage line with no tabs\n"
+                               .. "1700000001\tedit\tB  2026-01-01 000001.md\tB.md\n")
+    check("📎 the index maps a trash file to where it came FROM",
+          idx["A  2026-01-01 000000.md"].rel == "Notes/A.md"
+          and idx["B  2026-01-01 000001.md"].kind == "edit")
+    check("📎 …and a malformed line is skipped, never fatal — this file is "
+          .. "read on a path that must answer while it is half-written",
+          idx["A  2026-01-01 000000.md"] ~= nil and idx["B  2026-01-01 000001.md"] ~= nil)
+
+    -- ---- PURE: what a purge is due to take --------------------------------
+    local now  = os.time()
+    local rows = {
+        { file = "Old.md",    name = "Old",    at = now - 200 * 86400 },
+        { file = "Fresh.md",  name = "Fresh",  at = now - 10 * 86400 },
+        { file = "Edge.md",   name = "Edge",   at = now - 180 * 86400 },
+        { file = "NoClock.md",name = "NoClock",at = nil },
+    }
+    local due = v.trashDue(rows, now, 180, 200)
+    check("🧹 a row over the window is due, one inside it is not",
+          #due == 2 and due[1].name == "Old" and due[2].name == "Edge", #due)
+    check("🚨 a row whose clock could not be read is NEVER purged — it fails "
+          .. "closed, because the cost of being wrong here is his writing",
+          (function() for _, d in ipairs(due) do if d.name == "NoClock" then return false end end
+           return true end)())
+    check("📏 the sweep is BOUNDED and the bound bites",
+          #v.trashDue(rows, now, 1, 2) == 2, #v.trashDue(rows, now, 1, 2))
+
+    -- ---- end to end: delete three, list three, restore the middle one -----
+    FILES[VAULT .. "/Keep.md"]        = "# Keep\n"
+    FILES[VAULT .. "/Notes/Deep.md"]  = "# Deep\n\nin a folder\n"
+    FILES[VAULT .. "/Flat.md"]        = "# Flat\n"
+    FILES[VAULT .. "/Third.md"]       = "# Third\n"
+    v.setNotes({ "Keep.md", "Notes/Deep.md", "Flat.md", "Third.md" })
+    v.deleteNote("Notes/Deep.md")
+    v.deleteNote("Flat.md")
+    v.deleteNote("Third.md")
+
+    local list = v.trashList()
+    check("🗑 the bin lists every note in it — not just the last one, which "
+          .. "is the whole defect: v.trashed is ONE slot",
+          list ~= nil and #list >= 3, list and #list or "nil")
+    check("🗑 …newest first", list[1].at >= list[#list].at)
+
+    -- 🚨 THE FIXTURE THAT BITES the index is a note in a FOLDER: its trash
+    -- name is flattened to "Notes-Deep", which is indistinguishable from a
+    -- note really called that, so restoring off the filename alone would
+    -- put it back in the wrong place — silently (6.230.0: pick the input
+    -- where the two implementations must differ).
+    local deep
+    for _, row in ipairs(list) do if row.name == "Notes-Deep" then deep = row end end
+    check("📎 the row for a note that lived in a folder knows its real path",
+          deep ~= nil and deep.known == true and deep.rel == "Notes/Deep.md",
+          deep and tostring(deep.rel) or "no row")
+
+    local okR, whereR = _G.vaultRestore("Notes-Deep")
+    check("↩️ it comes back to ITS OWN FOLDER, not the vault root",
+          okR == true and whereR == "Notes/Deep.md"
+          and FILES[VAULT .. "/Notes/Deep.md"] == "# Deep\n\nin a folder\n",
+          tostring(whereR))
+    check("↩️ …and it is out of the bin",
+          (function() for _, row in ipairs(v.trashList()) do
+               if row.name == "Notes-Deep" then return false end end return true end)())
+
+    -- 🚨 A RESTORE NEVER OVERWRITES. A note written since the delete is his
+    -- newer work, and replacing it is the same loss wearing the fix's name.
+    FILES[VAULT .. "/Flat.md"] = "# Flat\n\nI wrote this AFTER deleting the old one\n"
+    local okO, whereO = _G.vaultRestore("Flat")
+    check("🔒 a restore over a note that exists again lands BESIDE it, never on it",
+          okO == true and whereO ~= "Flat.md"
+          and FILES[VAULT .. "/Flat.md"]:find("AFTER deleting", 1, true) ~= nil
+          and FILES[VAULT .. "/" .. whereO] == "# Flat\n", tostring(whereO))
+
+    -- 🚨 BY NAME, NEVER BY NUMBER, and two of a name is a QUESTION
+    FILES[VAULT .. "/Twin.md"] = "# Twin one\n"
+    v.setNotes({ "Twin.md" }); v.deleteNote("Twin.md")
+    FILES[VAULT .. "/Twin.md"] = "# Twin two\n"
+    v.setNotes({ "Twin.md" }); v.deleteNote("Twin.md")
+    -- 🚨 THE SWEEP'S OWN FINDING, and it is a real one: both deletes land
+    -- in the SAME SECOND, which is the only input where the old naming
+    -- and the new one must differ. trashNameFor's comment promised the
+    -- timestamp stopped a second copy overwriting the first — true across
+    -- seconds and false inside one, so one of the two was gone for good
+    -- in the folder whose whole job is that nothing is.
+    check("🚨 two deletes of one note in the SAME SECOND are two files in "
+          .. "the bin — the second must not land on the first",
+          (function()
+               local n = 0
+               for _, row in ipairs(v.trashList()) do if row.name == "Twin" then n = n + 1 end end
+               return n == 2, n
+           end)())
+    check("🕰 …and the tie-break name still parses, or the collided note "
+          .. "would be invisible in the bin and immune to the purge",
+          v.trashRowOf("Twin  2026-10-04 205724 (2).md") ~= nil)
+
+    local okT, whyT = _G.vaultRestore("Twin")
+    local twins = 0
+    for _, row in ipairs(v.trashList()) do if row.name == "Twin" then twins = twins + 1 end end
+    check("🚨 two notes of one name in the bin is a question, not a guess — "
+          .. "nothing is restored and both are still there",
+          okT == false and whyT == "ambiguous" and twins == 2, tostring(whyT) .. " / " .. twins)
+    check("…and the Console names them by date so he can pick one",
+          PRINTED[#PRINTED]:find("2 notes in the bin are called", 1, true) ~= nil,
+          PRINTED[#PRINTED])
+
+    local okN = _G.vaultRestore("NothingLikeThis")
+    check("🗑 a name the bin does not hold is refused, and says so", okN == false)
+
+    -- ---- the purge --------------------------------------------------------
+    -- a note deleted 200 days ago, written straight into the bin
+    FILES[TRASH .. "/Ancient  " .. os.date("%Y-%m-%d %H%M%S", now - 200 * 86400) .. ".md"] = "# Ancient\n"
+    local okDry, goneDry, dueDry = _G.vaultPurgeTrash()
+    check("🧹 a plain call is a DRY RUN — it names what would go and takes nothing",
+          okDry == true and goneDry == 0 and dueDry == 1
+          and PRINTED[#PRINTED]:find("DRY RUN", 1, true) ~= nil, tostring(dueDry))
+    check("…and the old note is still in the bin after it",
+          (function() for _, row in ipairs(v.trashList()) do
+               if row.name == "Ancient" then return true end end return false end)())
+
+    local okP, goneP = _G.vaultPurgeTrash(true)
+    check("🧹 (true) really purges, and only what is over the window",
+          okP == true and goneP == 1, tostring(goneP))
+    check("🚨 …and the notes deleted THIS SESSION are untouched by it",
+          (function()
+               local n = 0
+               for _, row in ipairs(v.trashList()) do n = n + 1 end
+               return n >= 2
+           end)())
+
+    -- ---- it fails safe ----------------------------------------------------
+    local keptDir = hs.fs.dir
+    hs.fs.dir = nil
+    local badRows, badWhy = v.trashList()
+    check("🔎 a Mac that cannot list a folder answers nil AND a reason — never "
+          .. "an empty bin, which reads as 'nothing to restore'",
+          badRows == nil and tostring(badWhy):find("list", 1, true) ~= nil, tostring(badWhy))
+    local okPB = _G.vaultPurgeTrash(true)
+    check("🚨 …and a purge over a bin it could not read deletes NOTHING",
+          okPB == false)
+    hs.fs.dir = keptDir
+
+    -- ---- the report --------------------------------------------------------
+    local rep = _G.vaultReport()
+    check("🔎 the report counts the bin off the FOLDER, not off this session's "
+          .. "deletes — the number that made 55 recoverable notes invisible",
+          rep:find("bin    : %d+ note%(s%) recoverable") ~= nil, rep:match("bin    :[^\n]*"))
+    check("…and it names the door", rep:find("_G.vaultTrash()", 1, true) ~= nil)
+
+    -- ---- the automatic half -------------------------------------------------
+    FILES[TRASH .. "/Ancient2  " .. os.date("%Y-%m-%d %H%M%S", now - 400 * 86400) .. ".md"] = "# A2\n"
+    v.trashPurge = false
+    v.purgeTrashOnce()
+    check("🔌 the automatic purge is a REAL switch: off means nothing goes",
+          (function() for _, row in ipairs(v.trashList()) do
+               if row.name == "Ancient2" then return true end end return false end)())
+    v.trashPurge = true
+    local okA, goneA = v.purgeTrashOnce()
+    check("🧹 on, it takes the over-age row once",
+          okA == true and goneA == 1, tostring(goneA))
+
+    local ran = (pass + fail) - before
+    check("§6.321.0 ran all of its checks (" .. ran .. " of 24)", ran >= 24, ran)
 end
 
 out(string.format("\n%d passed, %d failed\n", pass, fail))
