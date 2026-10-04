@@ -2647,6 +2647,20 @@ do
         local f = io.open(path, "r")
         local src = f and f:read("*a") or ""
         if f then f:close() end
+        -- 🚨 6.324.0 — WITH COMMENT LINES STRIPPED (6.262.0, and this
+        -- sentry had not been paid it). It reads RAW source, so a comment
+        -- that explains the rule by naming the tag it is about trips the
+        -- check — which went red on a healthy tree the first time a
+        -- release wrote "<textarea>" in prose, and a sentry that is red
+        -- when nothing is wrong is one that gets switched off (6.269.0).
+        -- Only WHOLE comment lines go: a real tag is built by Lua
+        -- concatenation and never sits on a line that is nothing but a
+        -- comment, while a `//` inside a URL or a `--` inside a shell
+        -- argument does (6.303.0 — a naive stripper ate an argv).
+        src = src:gsub("[^\n]*", function(line)
+            if line:match("^%s*%-%-") or line:match("^%s*//") then return "" end
+            return line
+        end)
         for _, tag in ipairs({ "<textarea", "<input" }) do
             local i = 1
             while true do
@@ -2663,6 +2677,24 @@ do
 
     check("✏️ the sentry really found the text boxes — if this is zero it "
           .. "is passing over an empty set", seen >= 20, seen)
+    -- 🚨 AND THE STRIPPER MUST NOT EAT THE PAGE. A sentry over a haystack
+    -- it did not prove it read is green and measures nothing (6.313.0) —
+    -- so the comment strip is checked in both directions: it removes a
+    -- comment line that names the tag, and it leaves a real one alone.
+    do
+        local function strip(x)
+            return (x:gsub("[^\n]*", function(line)
+                if line:match("^%s*%-%-") or line:match("^%s*//") then return "" end
+                return line
+            end))
+        end
+        check("✏️ the strip removes a COMMENT line that names the tag",
+              #offenders(strip('    -- a <textarea> with no attributes\n')) == 0)
+        check("🚨 …and leaves a real bare tag standing, on its own line or "
+              .. "after code on the same line",
+              #offenders(strip('<textarea id="t">\n')) == 1
+              and #offenders(strip('x = "<textarea id=\'t\'>"  -- a note\n')) == 1)
+    end
     check("🚨 ✏️ NO <textarea> OR <input> IN ANY PAGE THIS CONFIG DRAWS IS "
           .. "LEFT FOR macOS TO SPELL-CHECK — its correction panel threw "
           .. "an uncaught exception in one of these boxes and killed "

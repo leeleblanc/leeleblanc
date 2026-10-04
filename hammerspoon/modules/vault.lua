@@ -1139,6 +1139,45 @@ function M.setup(core)
     -- Four hs.tasks, held, one after the other (6.174.0: the two tag greps
     -- joined find and the link grep). Nothing on the main thread touches
     -- a note file here — that is the whole point (see the header).
+    -- ---- 6.324.0 — 🪜 NOTHING CLEARS ITS OWN SLOT FROM INSIDE ITS CALLBACK --
+    --
+    -- 6.196.1 killed this process natively, twice, with no Lua error and
+    -- nothing in the Console: assigning over the global that holds a
+    -- RUNNING hs.task drops the last reference to it, hs.task's finaliser
+    -- tears the NSTask and the callback block down underneath the live
+    -- frame, and whether it crashes depends on when a GC lands. 6.262.0
+    -- found the same two shapes in anchors.lua and named vault.lua's
+    -- scan chain as carrying it, unfixed, in the release that wrote the
+    -- rule down. This is that debt.
+    --
+    -- 🔎 AND IT IS THE ORDINARY PATH, which is what makes it worth a
+    -- release rather than a note. The front-matter grep's callback ends
+    -- in finish(nil) — the SUCCESS branch of every scan, on every boot,
+    -- on both Macs — and finish's first line nil'd all four slots,
+    -- including v.fmTask, which IS the task whose callback is running.
+    -- Three more starts sit inside other callbacks: the links grep from
+    -- the find's, the tags grep from the links', the front-matter grep
+    -- from the tags'.
+    --
+    -- 🪜 anchors.lua's shape, because it is proven: separate slots (these
+    -- already exist) plus a HELD doAfter(0) per slot, so the callback has
+    -- RETURNED before the next task starts or any slot is let go. A Mac
+    -- that cannot arm a timer still scans, on the old path, and the
+    -- report SAYS the hop was missed rather than reading as health.
+    v.hops, v.hopped, v.hopsMissed = {}, 0, 0
+
+    function v.hop(slot, fn)
+        local ok, t = pcall(hs.timer.doAfter, 0, function()
+            v.hops[slot] = nil
+            v.hopped = v.hopped + 1
+            pcall(fn)
+        end)
+        if ok and t then v.hops[slot] = t; return true end
+        v.hopsMissed = v.hopsMissed + 1
+        pcall(fn)
+        return false
+    end
+
     function v.scan(reason)
         if v.scanning then return false, "already scanning" end
         if not (hs.task and hs.task.new) then v.scanErr = "no hs.task"; return false, v.scanErr end
@@ -1156,7 +1195,16 @@ function M.setup(core)
             findArgs[#findArgs + 1] = a
         end
         local function finish(err)
-            v.scanning, v.findTask, v.grepTask, v.tagTask, v.fmTask = false, nil, nil, nil, nil
+            -- 🪜 6.324.0 — THE SLOTS GO ON A HOP. This line used to nil all
+            -- four of them inline, and it is reached from inside the
+            -- front-matter grep's own callback on every successful scan,
+            -- so it dropped the last reference to the task it was running
+            -- inside (6.196.1). v.scanning is a plain boolean and is safe
+            -- to clear here; the task handles are not.
+            v.scanning = false
+            v.hop("scan-release", function()
+                v.findTask, v.grepTask, v.tagTask, v.fmTask = nil, nil, nil, nil
+            end)
             v.scanErr, v.lastScan, v.scans = err, os.time(), v.scans + 1
             if err then warn("scan: " .. err)
             else say("scan: " .. #v.notes .. " notes, " .. v.linkLines .. " link lines, " .. #v.tagList .. " tags (" .. tostring(reason) .. ")") end
@@ -1198,9 +1246,17 @@ function M.setup(core)
                     finish(nil)
                 end, fmArgs)
                 if not (okF2 and ft2) then tagsFailed("frontmatter grep task: " .. tostring(ft2), inline) return end
+                -- 🪜 6.324.0 — HELD first, then started on a hop: this is
+                -- inside the tags grep's own callback, and the slot it
+                -- would clear on a refusal is not the running one, so only
+                -- the START has to wait for the frame to unwind.
                 v.fmTask = ft2     -- HELD
-                local okS2, started2 = pcall(function() return ft2:start() end)
-                if not okS2 or started2 == false then v.fmTask = nil; tagsFailed("frontmatter grep would not start", inline) end
+                v.hop("scan-fm", function()
+                    local okS2, started2 = pcall(function() return ft2:start() end)
+                    if not okS2 or started2 == false then
+                        v.fmTask = nil; tagsFailed("frontmatter grep would not start", inline)
+                    end
+                end)
             end, tagArgs)
             if not (okT and tt) then tagsFailed("grep task: " .. tostring(tt)) return end
             v.tagTask = tt     -- HELD
@@ -1223,12 +1279,25 @@ function M.setup(core)
                 -- grep exits 1 when nothing matched: a vault with no links yet
                 if gcode ~= 0 and gcode ~= 1 then finish("grep exited " .. tostring(gcode) .. ": " .. trim(gerr or "")) return end
                 v.setLinkLines(gout)
-                scanTags()     -- 6.174.0 — the links are in; the tags follow, optional
+                -- 🪜 6.324.0 — the tags grep starts from inside THIS
+                -- callback. Step off it first (6.196.1).
+                v.hop("scan-tags", scanTags)     -- 6.174.0 — the links are in; the tags follow, optional
             end, grepArgs)
             if not (okG and gt) then finish("grep task: " .. tostring(gt)) return end
             v.grepTask = gt     -- HELD
-            local okS = pcall(function() return gt:start() end)
-            if not okS then finish("grep would not start") end
+            -- 🪜 6.324.0 — started from inside the find's callback, so it
+            -- steps off first. 🚨 AND ITS ANSWER IS READ: hs.task:start()
+            -- REFUSES BY RETURNING FALSE (extensions/task/libtask.m,
+            -- task_launch — the success path pushes the task, the @catch
+            -- pushes a boolean), so this pcall SUCCEEDED on a refusal and
+            -- the scan was left with v.scanning true for the rest of the
+            -- session: the index silently stopped updating and every
+            -- later v.scan() short-circuited. 6.304.0's finding, in the
+            -- one site of four here that was not reading it.
+            v.hop("scan-grep", function()
+                local okS, started = pcall(function() return gt:start() end)
+                if not okS or started == false then finish("grep would not start") end
+            end)
         end, findArgs)
         if not (okF and ft) then v.scanning = false; v.scanErr = "find task: " .. tostring(ft); return false, v.scanErr end
         v.findTask = ft         -- HELD
@@ -5124,6 +5193,15 @@ else {
         end
         L[#L + 1] = "      ↳ the right-hand pane (backlinks, outline) waits for the next full "
                     .. "render; that is the trade"
+        -- 🪜 6.324.0 — a missed hop is a Mac running the shape that killed
+        -- this process twice. It is NOT forgotten the moment the next one
+        -- works (6.262.0): the ⚠️ outranks the count and stays.
+        L[#L + 1] = "   hops   : " .. v.hopped .. " task callback(s) stepped off a held timer "
+                    .. "before the next task started"
+        if v.hopsMissed > 0 then
+            L[#L + 1] = "      ⚠️ " .. v.hopsMissed .. " could NOT step off — this Mac would not arm a"
+            L[#L + 1] = "         timer, so the scan is running the pre-6.324.0 shape."
+        end
         L[#L + 1] = "   help   : format bar " .. (v.formatBar == false and "off (formatBar)" or "on")
                     .. " · \"/\" on an empty line lists every block · ⌘B ⌘I ⌘E "
                     .. "· the footer names the line you are on"

@@ -120,6 +120,26 @@ local function newWebviewStub(rect)
     function v:evaluateJavaScript(js) EVALS[#EVALS + 1] = js return self end
     return v
 end
+-- 🪜 6.324.0 — the hop drain (test_anchors' shape). A hop is a
+-- doAfter(0): the turn a task callback steps off onto before it starts
+-- the next task or releases a slot.
+local DRAIN_HOPS = true
+local function drainHops()
+    for _ = 1, 8 do                      -- a chain of hops, bounded
+        local fired = 0
+        local snapshot = {}
+        for i = 1, #TIMERS do snapshot[i] = TIMERS[i] end
+        for _, t in ipairs(snapshot) do
+            if t.kind == "after" and t.delay == 0 and not t.stopped and not t.fired then
+                t.fired = true
+                fired = fired + 1
+                pcall(t.fn)
+            end
+        end
+        if fired == 0 then break end
+    end
+end
+
 local function mkTimer(kind, delay, fn)
     local t = { kind = kind, delay = delay, fn = fn, stopped = false }
     function t:stop() self.stopped = true end
@@ -185,7 +205,22 @@ hs = {
     eventtap = { checkMouseButtons = function() return { left = false } end },
     settings = { get = function(k) return SETTINGS[k] end, set = function(k, x) SETTINGS[k] = x end },
     task = { new = function(bin, cb, args)
-        local t = { bin = bin, cb = cb, args = args, started = false, terminated = false }
+        -- 🪜 6.324.0 — A CALLBACK'S FRAME UNWINDS, AND THEN THE RUN LOOP
+        -- FIRES WHAT IT ARMED. The module now steps off a task callback
+        -- with a doAfter(0) before starting the next task or letting a
+        -- slot go (6.196.1), so a harness that never fires those timers
+        -- would stop the scan chain dead after one step. This wrapper
+        -- delivers the callback and THEN drains the zero-delay timers —
+        -- the same order macOS uses, and the thing being tested (that
+        -- nothing is cleared INSIDE the frame) stays observable, because
+        -- DRAIN_HOPS can be switched off to look.
+        local t = { bin = bin, cb = nil, args = args, started = false, terminated = false }
+        t.cb = function(...)
+            local r = { pcall(cb, ...) }
+            if DRAIN_HOPS then drainHops() end
+            if not r[1] then error(r[2], 0) end
+            return table.unpack(r, 2)
+        end
         function t:start() self.started = true return true end
         -- 6.174.0 — A KILLED RUN EXITS TOO (chrome_history's 6.148.0
         -- lesson): terminate() still delivers the callback, with the
@@ -2689,6 +2724,119 @@ do
 
     local ran = (pass + fail) - before
     check("§6.323.0 ran all of its checks (" .. ran .. " of 11)", ran >= 11, ran)
+end
+
+-- =======================================================================
+out("\n6.324.0 — 🪜 THE SCAN NEVER CLEARS ITS OWN SLOT FROM INSIDE A CALLBACK\n")
+-- =======================================================================
+-- 6.196.1 killed this process natively, twice, with no Lua error and
+-- nothing in the Console. 6.262.0 found the same two shapes in anchors
+-- and NAMED vault.lua's scan chain as still carrying them. It did: the
+-- front-matter grep's callback ends in finish(nil), whose first line
+-- nil'd v.fmTask — the task whose callback was running — on the ORDINARY
+-- SUCCESS PATH of every scan.
+do
+    local before = pass + fail
+
+    -- 🔬 THE DRAIN GOES OFF, so the frame can be looked at from outside.
+    DRAIN_HOPS = false
+    FILES[VAULT .. "/Hop.md"] = "# Hop\n"
+    v.scan("hoptest")
+    local ft = lastTask("find")
+    local heldFind = v.findTask
+    ft.cb(0, VAULT .. "/Hop.md\n", "")
+    check("🪜 the links grep is NOT started inside the find's callback — a "
+          .. "hop is armed instead, and it is a HELD timer in its own slot",
+          v.hops["scan-grep"] ~= nil
+          and (lastTask("grep") == nil or lastTask("grep").started == false),
+          tostring(v.hops["scan-grep"]))
+    check("🔒 …and the find's own handle is still held while its callback runs",
+          v.findTask == heldFind)
+    drainHops()
+    local gt = lastTask("grep")
+    check("🪜 …and after the hop it really started",
+          gt ~= nil and gt.started == true)
+
+    gt.cb(0, "", "")
+    check("🪜 the tags grep waits for a hop too",
+          v.hops["scan-tags"] ~= nil)
+    drainHops()
+    local tt = lastTask("grep")
+    tt.cb(1, "", "")
+    check("🪜 …and so does the front-matter grep, while its handle is HELD",
+          v.hops["scan-fm"] ~= nil and v.fmTask ~= nil)
+    drainHops()
+
+    -- 🚨 THE ONE THAT KILLED THE PROCESS: the last callback ends the scan,
+    -- and ending the scan used to drop the reference to the task that
+    -- callback is running inside.
+    local fm = lastTask("grep")
+    local heldFm = v.fmTask
+    fm.cb(1, "", "")
+    check("🚨 finish() does NOT nil the running task's slot inside its own "
+          .. "callback — that is the native kill, with no Lua error and "
+          .. "nothing in the Console",
+          v.fmTask == heldFm and v.hops["scan-release"] ~= nil,
+          tostring(v.fmTask) .. " / " .. tostring(v.hops["scan-release"]))
+    check("…and the scan is over regardless — v.scanning is a plain boolean "
+          .. "and is safe to clear in the frame",
+          v.scanning == false)
+    drainHops()
+    check("🪜 …the slots are released one turn later",
+          v.findTask == nil and v.grepTask == nil and v.tagTask == nil and v.fmTask == nil)
+    DRAIN_HOPS = true
+
+    -- 🚨 6.304.0 — hs.task:start() REFUSES BY RETURNING FALSE, and the
+    -- links grep was the one site of four here not reading it. A pcall
+    -- around it SUCCEEDS on a refusal, so the scan was left with
+    -- v.scanning true for the rest of the session: the index silently
+    -- stopped updating and every later v.scan() short-circuited.
+    do
+        local keptNew = hs.task.new
+        local refuseNext = false
+        hs.task.new = function(bin, cb, args)
+            local t = keptNew(bin, cb, args)
+            if refuseNext and bin:match("grep") then
+                function t:start() self.started = false return false end
+            end
+            return t
+        end
+        v.scanning = false
+        v.scan("refusal")
+        refuseNext = true
+        lastTask("find").cb(0, VAULT .. "/Hop.md\n", "")
+        hs.task.new = keptNew
+        check("🚨 a links grep that REFUSES to start ends the scan instead of "
+              .. "wedging it — v.scanning must not be left true",
+              v.scanning == false, tostring(v.scanning))
+        check("…and the reason is recorded, not swallowed",
+              tostring(v.scanErr):find("would not start", 1, true) ~= nil,
+              tostring(v.scanErr))
+    end
+
+    -- 🛠 A MAC THAT CANNOT ARM A TIMER STILL SCANS. The hop is the safe
+    -- path, not the feature — and the report SAYS the hop was missed
+    -- rather than reading as health.
+    do
+        local keptAfter = hs.timer.doAfter
+        hs.timer.doAfter = function() error("no timers on this Mac", 0) end
+        v.hopsMissed = 0
+        v.scanning = false
+        v.scan("notimers")
+        local ftn = lastTask("find")
+        ftn.cb(0, VAULT .. "/Hop.md\n", "")
+        hs.timer.doAfter = keptAfter
+        check("🛠 with no timer the work still happens, on the old path",
+              lastTask("grep") ~= nil and lastTask("grep").started == true)
+        check("🔎 …and it is COUNTED as a missed hop, never reported as health",
+              v.hopsMissed >= 1, v.hopsMissed)
+        local rep = _G.vaultReport()
+        check("🔎 …and the report carries the ⚠️",
+              rep:find("could NOT step off", 1, true) ~= nil, rep:match("hops[^\n]*"))
+    end
+
+    local ran = (pass + fail) - before
+    check("§6.324.0 ran all of its checks (" .. ran .. " of 13)", ran >= 13, ran)
 end
 
 out(string.format("\n%d passed, %d failed\n", pass, fail))
