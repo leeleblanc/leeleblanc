@@ -391,10 +391,17 @@ do
           .. "keyboard every five minutes on a guess is worse than not "
           .. "refreshing (the activate stub above would have thrown)",
           mod.refreshStats.ok == 1)
-    local saidBefore = mod.refreshStats.saidNoMenu
-    mod.refreshNow()
-    check("🔕 …and it says so ONCE, not every five minutes (6.269.0)",
-          saidBefore == true and mod.refreshStats.noMenu == 2)
+    local SAID, realPrint = 0, print
+    print = function(...)
+        if tostring((...)):find("no Reload item", 1, true) then SAID = SAID + 1 end
+    end
+    mod.refreshStats.saidNoMenu = false
+    mod.refreshNow() ; mod.refreshNow() ; mod.refreshNow()
+    print = realPrint
+    check("🔕 …and it says so ONCE across three attempts, not every five "
+          .. "minutes — a line he sees all day is a line he stops reading "
+          .. "(6.269.0)",
+          SAID == 1, SAID)
 
     -- ---- Asana not running is not a fault ----------------------------------
     _G.hs.application = { get = function() return nil end }
@@ -415,12 +422,26 @@ do
 
     -- ---- the switch ---------------------------------------------------------
     local keptMins = mod.refreshMins
+    local MADE = 0
+    _G.hs.timer = {
+        doEvery = function() MADE = MADE + 1 return { stop = function() end } end,
+        doAfter = function() MADE = MADE + 1 return { stop = function() end } end,
+    }
+    _G.asanaRefreshTimer, _G.asanaRefreshFirst = nil, nil
     mod.refreshMins = 0
-    check("🔌 off means off — warm starts no timer", mod.warm({}) == false)
+    local offAns = mod.warm({})
+    check("🔌 off means off — NO timer is created at all, which is the thing "
+          .. "the switch is about (the return value alone passed with the "
+          .. "switch deleted)",
+          offAns == false and MADE == 0 and _G.asanaRefreshTimer == nil, MADE)
     mod.refreshMins = keptMins
+    mod.warm({})
+    check("🔌 …and on, it really arms two HELD timers in their own slots",
+          MADE == 2 and _G.asanaRefreshTimer ~= nil and _G.asanaRefreshFirst ~= nil,
+          MADE)
 
     local ran = (pass + fail) - before
-    check("§6.332.0 ran all of its checks (" .. ran .. " of 11)", ran >= 11, ran)
+    check("§6.332.0 ran all of its checks (" .. ran .. " of 12)", ran >= 12, ran)
 end
 
 out(string.format("\n%d passed, %d failed\n", pass, fail))
