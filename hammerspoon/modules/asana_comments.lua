@@ -363,4 +363,148 @@ function M.setup(core)
     core.provide("asana.addComment", addCommentToTask)
 end
 
+-- ---- 6.332.0 — 🔄 ASANA REFRESHES ITSELF, WITHOUT TAKING THE SCREEN ------
+--
+-- LL asked for this with a draft of his own: a timer that activates
+-- Asana, posts ⌘R and activates the previous app back. The feature is
+-- his; four things about that shape are not, and each is a rule this
+-- config already has:
+--
+--   1. 🔁 hs.eventtap.keyStroke POSTS, so that ⌘R comes back through our
+--      own taps as TYPING (6.218.0 — the "banshee"). Anything posting
+--      keys has to drain an injection guard.
+--   2. ⌨️ It steals focus twice every interval, with a window in which
+--      nobody owns the keyboard — so a ⌘R can land in whatever he
+--      clicked into mid-flight.
+--   3. 🪜 Nested unheld doAfters are 6.196.1's shape in hs.timer.
+--   4. 🔎 No switch, no report, and nothing said when Asana is not
+--      running.
+--
+-- 🔑 SO IT DOES NOT POST A KEY AT ALL. `app:selectMenuItem` drives the
+-- app's own menu WITHOUT activating it: no focus theft, no posted
+-- keystroke, no injection guard, nothing to put back. His draft and
+-- this do the same thing to Asana and differ entirely in what they do
+-- to everything else.
+--
+-- 🚨 AND IT NEVER FALLS BACK TO STEALING FOCUS. If Asana has no such
+-- menu item, this says so once and does NOTHING — because the
+-- alternative is the activate-and-⌘R shape above, and taking his
+-- keyboard every five minutes is not a thing to do on a guess
+-- (6.201.0: ask for the artefact rather than theorise). The report
+-- names exactly which menu path worked, or that none did, so the next
+-- release is aimed instead of guessed.
+M.refreshApp   = "Asana"
+M.refreshMins  = 5        -- 0 disables it
+M.refreshFirst = 90       -- seconds after boot before the first one
+-- Several plausible paths, tried in order: Asana's Electron menu has
+-- changed names before and a single hard-coded path is 6.284.0's
+-- "a fresh answer to a stale question" all over again.
+M.refreshPaths = {
+    { "View", "Reload" },
+    { "View", "Refresh" },
+    { "View", "Force Reload" },
+}
+M.refreshStats = { tried = 0, ok = 0, notRunning = 0, noMenu = 0,
+                   last = nil, path = nil, saidNoMenu = false }
+
+-- PURE: given what the app answered for each path, which one to use and
+-- why. Separated from the driving so the gate proves the whole decision
+-- with no Asana and no Mac.
+function M.refreshPick(paths, works)
+    for _, p in ipairs(paths or {}) do
+        if works(p) then return p, table.concat(p, " → ") end
+    end
+    return nil, "no reload item in Asana's menus"
+end
+
+function M.refreshNow()
+    local st = M.refreshStats
+    st.tried = st.tried + 1
+    local app
+    pcall(function() app = hs.application.get(M.refreshApp) end)
+    if not app then
+        st.notRunning = st.notRunning + 1
+        st.last = { at = os.time(), ok = false, why = M.refreshApp .. " is not running" }
+        return false, st.last.why
+    end
+    -- 🚨 selectMenuItem ANSWERS whether it found the item, and that
+    -- answer is READ: a pcall alone is true whether or not the menu
+    -- path exists (6.179.0 / 6.304.0), which would make a dead refresh
+    -- report as a working one for ever.
+    local function works(path)
+        local ok, found = pcall(function() return app:selectMenuItem(path) end)
+        return ok and found == true
+    end
+    local path, why = M.refreshPick(M.refreshPaths, works)
+    if not path then
+        st.noMenu = st.noMenu + 1
+        st.last = { at = os.time(), ok = false, why = why }
+        -- 🔕 ONCE PER SESSION for this one: it is a fact about his Asana
+        -- build, not an event, and a line every five minutes is a line
+        -- he stops reading (6.269.0).
+        if not st.saidNoMenu then
+            st.saidNoMenu = true
+            pcall(print, "🔄 Asana refresh: no Reload item in Asana's menus — "
+                  .. "nothing is being refreshed, and nothing will steal your "
+                  .. "keyboard to try. _G.asanaRefreshReport() has the detail.")
+        end
+        return false, why
+    end
+    st.ok = st.ok + 1
+    st.path = table.concat(path, " → ")
+    st.last = { at = os.time(), ok = true, why = st.path }
+    return true, st.path
+end
+
+function _G.asanaRefreshReport()
+    local st = M.refreshStats
+    local L = { "🔄 ASANA AUTO-REFRESH" }
+    if (tonumber(M.refreshMins) or 0) <= 0 then
+        L[#L + 1] = "   off (asana_comments = { refreshMins = 5 } turns it on)"
+    else
+        L[#L + 1] = "   every " .. M.refreshMins .. " min · "
+                    .. st.tried .. " attempt(s) · " .. st.ok .. " refreshed"
+        L[#L + 1] = "   how    : the app's own menu, never a posted ⌘R — it does "
+                    .. "not activate Asana and never takes your keyboard"
+        if st.path then
+            L[#L + 1] = "   path   : " .. st.path
+        end
+        if st.noMenu > 0 then
+            L[#L + 1] = "   ⚠️ NO RELOAD ITEM found in Asana's menus (" .. st.noMenu
+                        .. " attempt(s)). Nothing is refreshed."
+            L[#L + 1] = "      ↳ hs.inspect(hs.application.get(\"Asana\"):getMenuItems())"
+            L[#L + 1] = "        in the Console names the real path; send it and this"
+            L[#L + 1] = "        becomes one line."
+        end
+        if st.notRunning > 0 then
+            L[#L + 1] = "   asleep : " .. st.notRunning
+                        .. " attempt(s) found Asana not running — not a fault"
+        end
+        if st.last then
+            L[#L + 1] = "   last   : " .. (st.last.ok and "✅ " or "· ")
+                        .. os.date("%H:%M:%S", st.last.at) .. " — " .. tostring(st.last.why)
+        else
+            L[#L + 1] = "   last   : nothing tried yet (the first one waits "
+                        .. M.refreshFirst .. " s after boot)"
+        end
+    end
+    local out = table.concat(L, "\n")
+    print(out)
+    return out
+end
+
+-- 🪜 In warm, never setup (6.267.0), and HELD in their own slots
+-- (6.196.1). This module had no M.warm, so there is no shadow to create
+-- — 6.308.0's defect is having TWO, and the gate's sentry checks it.
+function M.warm(core)
+    if (tonumber(M.refreshMins) or 0) <= 0 then return false, "off" end
+    local ok = pcall(function()
+        _G.asanaRefreshTimer = hs.timer.doEvery(M.refreshMins * 60,
+                                                function() pcall(M.refreshNow) end)
+        _G.asanaRefreshFirst = hs.timer.doAfter(M.refreshFirst,
+                                                function() pcall(M.refreshNow) end)
+    end)
+    return ok
+end
+
 return M

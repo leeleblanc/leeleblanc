@@ -331,5 +331,97 @@ do
           or code:find('Bearer " %.%. core%.asanaToken') ~= nil)
 end
 
+-- =====================================================================
+out("\n🔄 6.332.0 — ASANA REFRESHES ITSELF, WITHOUT TAKING THE SCREEN\n")
+-- =====================================================================
+-- LL asked for this with a draft of his own: activate Asana, post ⌘R,
+-- activate the previous app back. The FEATURE is his; the shape is not —
+-- a posted ⌘R comes back through our own taps as typing (6.218.0), and
+-- stealing focus twice every five minutes means a window in which
+-- nobody owns the keyboard.
+do
+    local before = pass + fail
+
+    -- ---- PURE: which menu path, and why -----------------------------------
+    local paths = { { "View", "Reload" }, { "View", "Refresh" } }
+    local p1 = mod.refreshPick(paths, function(p) return p[2] == "Refresh" end)
+    check("🔄 it tries each path in order and takes the first that EXISTS — "
+          .. "Asana's Electron menu has been renamed before, and one "
+          .. "hard-coded path is a fresh answer to a stale question (6.284.0)",
+          p1 and p1[2] == "Refresh", p1 and p1[2])
+    local pNone, whyNone = mod.refreshPick(paths, function() return false end)
+    check("🚨 …and when NONE exists it answers nil and a reason, never a "
+          .. "path it has not checked",
+          pNone == nil and tostring(whyNone):find("no reload item", 1, true) ~= nil,
+          tostring(whyNone))
+
+    -- ---- it drives the app's own menu, never the keyboard -----------------
+    local CALLS, APP = {}, nil
+    APP = { selectMenuItem = function(_, path)
+                CALLS[#CALLS + 1] = table.concat(path, " → ")
+                return path[2] == "Reload"
+            end,
+            activate = function() error("it must NEVER activate Asana", 0) end }
+    _G.hs.application = { get = function(n) return (n == "Asana") and APP or nil end }
+    _G.hs.eventtap = { keyStroke = function()
+        error("it must NEVER post a keystroke (6.218.0)", 0)
+    end }
+
+    mod.refreshStats = { tried = 0, ok = 0, notRunning = 0, noMenu = 0,
+                         last = nil, path = nil, saidNoMenu = false }
+    local okR, whyR = mod.refreshNow()
+    check("🔄 it refreshes through the app's OWN MENU",
+          okR == true and CALLS[1] == "View → Reload", tostring(whyR))
+    check("🚨 …and it never activates Asana and never posts a key — the two "
+          -- these stubs THROW, so a shape that reaches for either fails
+          -- here rather than on his Mac at five-minute intervals
+          .. "things his draft did that this will not",
+          mod.refreshStats.ok == 1)
+
+    -- 🚨 selectMenuItem ANSWERS whether it found the item, and a pcall
+    -- alone is true either way (6.179.0 / 6.304.0) — which would make a
+    -- dead refresh report as a working one for ever.
+    APP.selectMenuItem = function() return false end
+    mod.refreshStats.saidNoMenu = false
+    local okN, whyN = mod.refreshNow()
+    check("🚨 an app with NO reload item is a refusal, not a success — the "
+          .. "answer is read, never assumed",
+          okN == false and mod.refreshStats.noMenu == 1, tostring(whyN))
+    check("🚨 …and it does NOT fall back to stealing focus. Taking his "
+          .. "keyboard every five minutes on a guess is worse than not "
+          .. "refreshing (the activate stub above would have thrown)",
+          mod.refreshStats.ok == 1)
+    local saidBefore = mod.refreshStats.saidNoMenu
+    mod.refreshNow()
+    check("🔕 …and it says so ONCE, not every five minutes (6.269.0)",
+          saidBefore == true and mod.refreshStats.noMenu == 2)
+
+    -- ---- Asana not running is not a fault ----------------------------------
+    _G.hs.application = { get = function() return nil end }
+    local okA, whyA = mod.refreshNow()
+    check("😴 Asana not running is counted apart from a failure — it is not "
+          .. "a fault and must not read like one",
+          okA == false and mod.refreshStats.notRunning == 1
+          and tostring(whyA):find("not running", 1, true) ~= nil, tostring(whyA))
+
+    -- ---- the report ---------------------------------------------------------
+    local rep = _G.asanaRefreshReport()
+    check("🔎 the report says HOW it refreshes, so the one thing he worried "
+          .. "about is answered without him asking",
+          rep:find("never a posted ⌘R", 1, true) ~= nil, rep:match("how[^\n]*"))
+    check("🔎 …and when no menu item was found it names the one Console "
+          .. "line that would settle it",
+          rep:find("getMenuItems", 1, true) ~= nil)
+
+    -- ---- the switch ---------------------------------------------------------
+    local keptMins = mod.refreshMins
+    mod.refreshMins = 0
+    check("🔌 off means off — warm starts no timer", mod.warm({}) == false)
+    mod.refreshMins = keptMins
+
+    local ran = (pass + fail) - before
+    check("§6.332.0 ran all of its checks (" .. ran .. " of 11)", ran >= 11, ran)
+end
+
 out(string.format("\n%d passed, %d failed\n", pass, fail))
 if fail > 0 then os.exit(1) end
