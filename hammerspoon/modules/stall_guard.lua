@@ -125,6 +125,13 @@ function M.setup(core)
     }
     M.config = sg
     _G.stallGuard = sg
+    -- 🔖 6.330.0 — the one door anything on the MAIN THREAD uses to say
+    -- "I am in the middle of this". Nil-guarded at every call site, like
+    -- _G.keyTrailRecord beside it, so a config without this module is
+    -- unchanged. It must never throw and never be expensive: it runs
+    -- before every ⇪ shortcut, and a mark that costs anything is a mark
+    -- that makes the thing it measures worse (6.228.0).
+    _G.inFlightMark = function(what, who) return sg.mark(what, who) end
 
     -- ---- the folder --------------------------------------------------------
     function sg.ensureDir()
@@ -141,6 +148,59 @@ function M.setup(core)
     end
 
     -- ---- the pulse ---------------------------------------------------------
+    -- ---- 6.330.0 — 🔖 THE HANG LEAVES A NAME BEHIND -------------------------
+    --
+    -- LL: "Hammerspoon Locks … after a few hours period. I was lucky
+    -- that I could get it unlocked … There seemed to be a significant
+    -- lag and then I was finally able to click on something and even
+    -- when I was able to click on Hammerspoon nothing worked. And then,
+    -- Hammerspoon crashed."
+    --
+    -- 🔎 HIS CONSOLE SAYS THE GUARD DID ITS JOB: `🧊 Hammerspoon HUNG
+    -- for 73 s at 2026-10-04 17:16:59 and was relaunched`. 6.208.0
+    -- working, field-proven a second time. What it does NOT say is what
+    -- Hammerspoon was DOING for those 73 seconds — and without that,
+    -- every release aimed at this is a guess (6.198.0).
+    --
+    -- 🔑 THE BREADCRUMB. The pulse is already written from the MAIN
+    -- THREAD every two seconds — that is the whole design, because a
+    -- stalled thread stops beating. So the pulse is exactly the right
+    -- place to carry "and here is what I was in the middle of": it is
+    -- written by the thread that hangs, immediately before it hangs,
+    -- and it costs one extra string per beat.
+    --
+    -- 📏 IT IS A NAME, NOT A STACK. Lua cannot see its own main thread
+    -- from outside, and anything that could would itself be main-thread
+    -- work (6.228.0). What this answers is "⇪Y was in flight" versus
+    -- "nothing was — it hung outside a shortcut", which are opposite
+    -- places to look and is the whole question his report leaves open.
+    sg.inFlight = nil        -- { what, who, at }
+    sg.marks    = 0
+
+    function sg.mark(what, who)
+        if what == nil then sg.inFlight = nil; return true end
+        sg.marks = sg.marks + 1
+        sg.inFlight = { what = tostring(what), who = tostring(who or ""),
+                        at = os.time() }
+        return true
+    end
+
+    -- PURE: the line the pulse carries. Separated from the writing so
+    -- the gate proves the shape with no disk, and so the script's
+    -- parser and this can be checked against one string.
+    function sg.beatLine(now, flight)
+        local base = tostring(math.floor(tonumber(now) or 0))
+        if type(flight) ~= "table" or not flight.what then return base end
+        -- one line, tab-separated, and every field flattened: the script
+        -- reads this with `cat` and a case statement, and a newline in
+        -- it would make the epoch unparseable — which would switch the
+        -- whole guard off rather than lose a label (fail safe, not
+        -- fail useful).
+        local function flat(x) return (tostring(x or ""):gsub("[\t\r\n]", " ")) end
+        return base .. "\t" .. flat(flight.what) .. "\t" .. flat(flight.who)
+               .. "\t" .. tostring(math.floor(tonumber(flight.at) or 0))
+    end
+
     function sg.beat()
         if not sg.on or not sg.dir then return false, "off" end
         local f = io.open(sg.dir .. "/heartbeat", "w")
@@ -149,7 +209,7 @@ function M.setup(core)
             sg.lastBeatWhy = "cannot write " .. sg.dir .. "/heartbeat"
             return false, sg.lastBeatWhy
         end
-        local okW = f:write(tostring(os.time()))
+        local okW = f:write(sg.beatLine(os.time(), sg.inFlight))
         f:close()
         if not okW then
             sg.beatFails = sg.beatFails + 1
@@ -345,6 +405,15 @@ function M.setup(core)
                 b = b .. string.format(" · ⚠️ %d failed — %s", sg.beatFails, tostring(sg.lastBeatWhy))
             end
             L[#L + 1] = "   beat   : " .. b
+            -- 🔖 6.330.0 — what the pulse is carrying RIGHT NOW. On a
+            -- healthy Mac this reads "nothing in flight", because the
+            -- report itself runs between shortcuts; its value is in the
+            -- LOG, where a relaunch now names what was running.
+            local fl = sg.inFlight
+            L[#L + 1] = "   in flt : " .. (fl
+                        and (tostring(fl.what) .. " (" .. tostring(fl.who) .. ") since "
+                             .. os.date("%H:%M:%S", fl.at))
+                        or "nothing in flight — " .. sg.marks .. " marked this session")
         else
             L[#L + 1] = "   beat   : off — settings = { stall_guard = { on = false } }"
         end

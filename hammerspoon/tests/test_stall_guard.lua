@@ -590,6 +590,97 @@ do
 end
 
 -- =====================================================================
+out("\n🔖 6.330.0 — THE HANG LEAVES A NAME BEHIND\n")
+-- =====================================================================
+-- LL: "Hammerspoon Locks … after a few hours period… There seemed to be
+-- a significant lag and then I was finally able to click on something
+-- and even when I was able to click on Hammerspoon nothing worked."
+-- His Console: `🧊 Hammerspoon HUNG for 73 s … and was relaunched`.
+-- The guard did its job. What nobody could say is what it was DOING.
+do
+    local before = pass + fail
+    local dir = ROOT .. "/flight"
+    os.execute('mkdir -p "' .. dir .. '"')
+    local sg = boot(dir, { noWarm = true })
+
+    -- ---- PURE: the line the pulse carries ---------------------------------
+    check("🔖 with nothing in flight the pulse is a bare epoch, exactly as "
+          .. "it was — an older guard script reads this unchanged",
+          sg.beatLine(1700000000, nil) == "1700000000",
+          sg.beatLine(1700000000, nil))
+    check("🔖 with something in flight it carries the name after a tab",
+          sg.beatLine(1700000000, { what = "shift+y", who = "chromeHistory", at = 1699999990 })
+          == "1700000000\tshift+y\tchromeHistory\t1699999990",
+          sg.beatLine(1700000000, { what = "shift+y", who = "chromeHistory", at = 1699999990 }))
+    -- 🚨 THE EPOCH MUST SURVIVE ANYTHING IN THE LABEL. The script reads
+    -- this file with `cat` and refuses a beat that is not a number, so a
+    -- newline in a label would not lose a label — it would switch the
+    -- WHOLE GUARD OFF, silently, for as long as that label was set.
+    -- Fail safe, not fail useful.
+    local dirty = sg.beatLine(1700000000, { what = "a\nb\tc\r", who = "x\ny", at = 1 })
+    check("🚨 a tab or a newline in a label cannot break the epoch the "
+          .. "script parses — the guard going quiet is worse than a lost name",
+          dirty:match("^(%d+)") == "1700000000"
+          and dirty:find("\n") == nil
+          and select(2, dirty:gsub("\t", "")) == 3, dirty)
+
+    -- ---- the mark itself ---------------------------------------------------
+    sg.inFlight, sg.marks = nil, 0
+    sg.mark("shift+y", "chromeHistory")
+    check("🔖 a mark is held with its clock",
+          sg.inFlight and sg.inFlight.what == "shift+y"
+          and sg.inFlight.who == "chromeHistory"
+          and type(sg.inFlight.at) == "number")
+    check("🔢 …and counted", sg.marks == 1)
+    sg.mark(nil)
+    check("🔖 nil clears it — the work finished and nothing is in flight",
+          sg.inFlight == nil)
+    check("🛟 clearing twice is harmless", sg.mark(nil) == true and sg.inFlight == nil)
+
+    -- ---- it really rides on the pulse --------------------------------------
+    sg.mark("shift+4", "screenshots")
+    sg.beat()
+    local written = readAll(dir .. "/.stall-guard/heartbeat")
+    check("🔖 the PULSE carries it — written by the main thread, immediately "
+          .. "before the work that might hang it",
+          written and written:find("shift+4", 1, true) ~= nil, tostring(written))
+    check("🚨 …and the EPOCH is still the first field, which is all the "
+          .. "shell script parses",
+          written and tonumber((written:match("^([^\t]+)"))) ~= nil, tostring(written))
+    sg.mark(nil)
+    sg.beat()
+    local written2 = readAll(dir .. "/.stall-guard/heartbeat")
+    check("🔖 …and stops carrying it once the work is done",
+          written2 and written2:find("shift+4", 1, true) == nil, tostring(written2))
+
+    -- ---- the door anything can use -----------------------------------------
+    check("🚪 _G.inFlightMark is published, so a caller needs no handle",
+          type(_G.inFlightMark) == "function")
+    _G.inFlightMark("a thing", "a module")
+    check("🚪 …and it reaches the same state", sg.inFlight.what == "a thing")
+    _G.inFlightMark(nil)
+
+    -- ---- the report ---------------------------------------------------------
+    _G.stallGuardReport()
+    local rep = PRINTED[#PRINTED] or ""
+    check("🔎 the report says what is in flight right now, and on a healthy "
+          .. "Mac that is nothing — the VALUE is in the log",
+          rep:find("in flt :", 1, true) ~= nil, rep:match("in flt[^\n]*"))
+
+    -- 🔒 SOURCE: every ⇪ press is marked, at the one place every ⇪ press
+    -- goes through. A breadcrumb nobody drops is a breadcrumb.
+    local ini = readAll(HS .. "/init.lua") or ""
+    check("🔒 SOURCE: the sentry read init.lua", #ini > 10000, #ini)
+    check("🔒 SOURCE: hyperBind MARKS before the shortcut and CLEARS after "
+          .. "— the one place every ⇪ press passes through",
+          ini:find("_G.inFlightMark(combo, source)", 1, true) ~= nil
+          and ini:find("_G.inFlightMark(nil)", 1, true) ~= nil)
+
+    local ran = (pass + fail) - before
+    check("§6.330.0 ran all of its checks (" .. ran .. " of 14)", ran >= 14, ran)
+end
+
+-- =====================================================================
 print = realPrint
 out(string.format("\n%d passed, %d failed\n", pass, fail))
 for _, f in ipairs(failures) do out("  ❌ " .. f .. "\n") end

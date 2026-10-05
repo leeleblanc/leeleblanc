@@ -2085,6 +2085,7 @@ local function hyperBind(mods, key, pressedFn, releasedFn, repeatFn, source)
         local ranFn = pressedFn
         pressedFn = function(...)
             local t0 = hs.timer.secondsSinceEpoch()
+            if _G.inFlightMark then _G.inFlightMark(combo, source) end   -- 6.330.0
             -- xpcall + debug.traceback, not a bare pcall: pcall unwinds
             -- the stack before the re-raise, so the Console would have
             -- shown a traceback that stopped at THIS wrapper and lost the
@@ -2096,6 +2097,7 @@ local function hyperBind(mods, key, pressedFn, releasedFn, repeatFn, source)
             else
                 ok, r = pcall(ranFn, ...)
             end
+            if _G.inFlightMark then _G.inFlightMark(nil) end             -- 6.330.0
             local ms = (hs.timer.secondsSinceEpoch() - t0) * 1000
             if _G.keyTrailRecord then
                 pcall(_G.keyTrailRecord, combo, source, ms, (not ok) and "threw" or nil)

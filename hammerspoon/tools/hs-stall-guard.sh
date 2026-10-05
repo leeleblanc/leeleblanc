@@ -119,7 +119,16 @@ while :; do
     fi
     notRunning=0
 
-    beat=$(cat "$BEAT" 2>/dev/null)
+    raw=$(cat "$BEAT" 2>/dev/null)
+    # 🔖 6.330.0 — the pulse may carry a BREADCRUMB after the epoch:
+    #     <epoch>\t<what>\t<who>\t<since>
+    # Hammerspoon writes it from the main thread, immediately before the
+    # work that might hang it, so when this script kills the process the
+    # log can say what it was in the middle of — which is the one thing
+    # LL's "it locks after a few hours" report has never been able to
+    # answer. An OLD Hammerspoon writes a bare epoch and is unchanged.
+    beat=${raw%%	*}
+    if [ "$beat" = "$raw" ]; then flight=""; else flight=${raw#*	}; fi
     case "$beat" in
         ''|*[!0-9]*) stale=0; continue ;;   # no beat yet, or not a number
     esac
@@ -141,7 +150,7 @@ while :; do
         # and the guard relaunches, failing a check about not relaunching.
         # A line here is the state, so the test can wait for it instead of
         # timing it (6.263.0's rule, in the section that never got it).
-        log "stale 1 of 2 (${age}s old, pid=$pid) — one more and it is a relaunch"
+        log "stale 1 of 2 (${age}s old, pid=$pid) — one more and it is a relaunch${flight:+, in flight: $flight}"
         continue
     fi
 
@@ -151,7 +160,11 @@ while :; do
         log "gave up: $recent relaunches in the last $((WINDOW / 60)) min — not relaunching pid=$pid (stalled ${age}s)"
         exit 0
     fi
-    log "relaunched: stalled ${age}s, killed pid=$pid"
+    if [ -n "$flight" ]; then
+        log "relaunched: stalled ${age}s, killed pid=$pid, in flight: $flight"
+    else
+        log "relaunched: stalled ${age}s, killed pid=$pid, in flight: nothing was marked"
+    fi
     "$KILL" -9 "$pid" 2>/dev/null
     sleep 1
     "$HIDUTIL" property --set '{"UserKeyMapping":[]}' >/dev/null 2>&1
