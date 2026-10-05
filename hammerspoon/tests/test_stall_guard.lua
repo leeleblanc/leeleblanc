@@ -604,20 +604,24 @@ do
     local sg = boot(dir, { noWarm = true })
 
     -- ---- PURE: the line the pulse carries ---------------------------------
+    local function line(now, fl)
+        local ok, r = pcall(sg.beatLine, now, fl)
+        return ok and r or ("THREW: " .. tostring(r))
+    end
     check("🔖 with nothing in flight the pulse is a bare epoch, exactly as "
           .. "it was — an older guard script reads this unchanged",
-          sg.beatLine(1700000000, nil) == "1700000000",
-          sg.beatLine(1700000000, nil))
+          line(1700000000, nil) == "1700000000",
+          line(1700000000, nil))
     check("🔖 with something in flight it carries the name after a tab",
-          sg.beatLine(1700000000, { what = "shift+y", who = "chromeHistory", at = 1699999990 })
+          line(1700000000, { what = "shift+y", who = "chromeHistory", at = 1699999990 })
           == "1700000000\tshift+y\tchromeHistory\t1699999990",
-          sg.beatLine(1700000000, { what = "shift+y", who = "chromeHistory", at = 1699999990 }))
+          line(1700000000, { what = "shift+y", who = "chromeHistory", at = 1699999990 }))
     -- 🚨 THE EPOCH MUST SURVIVE ANYTHING IN THE LABEL. The script reads
     -- this file with `cat` and refuses a beat that is not a number, so a
     -- newline in a label would not lose a label — it would switch the
     -- WHOLE GUARD OFF, silently, for as long as that label was set.
     -- Fail safe, not fail useful.
-    local dirty = sg.beatLine(1700000000, { what = "a\nb\tc\r", who = "x\ny", at = 1 })
+    local dirty = line(1700000000, { what = "a\nb\tc\r", who = "x\ny", at = 1 })
     check("🚨 a tab or a newline in a label cannot break the epoch the "
           .. "script parses — the guard going quiet is worse than a lost name",
           dirty:match("^(%d+)") == "1700000000"

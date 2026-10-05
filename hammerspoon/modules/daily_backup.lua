@@ -110,6 +110,33 @@ function M.setup(core)
     -- localFirst switch: local for speed, OneDrive for safety and for the
     -- other Mac.
     bk.mirrorMins  = 30      -- 0 disables the half-hourly store mirror
+    -- 💾 6.331.0 — THE NOTES GET A COPY THAT IS NOT IN THE CLOUD.
+    --
+    -- 🔎 EVERY OTHER STORE IN THIS CONFIG IS BACKED UP AND THE ONE
+    -- HOLDING HIS WRITING IS NOT. The Logs folder is mirrored every
+    -- half hour (above). The Vault — <OneDrive>/Vault, the .md files
+    -- Hamsidian and Obsidian both open — has no copy anywhere, by
+    -- design: 6.172.0 made the FOLDER the database so Obsidian opens
+    -- the same files on either Mac, and that decision quietly also
+    -- meant OneDrive is the only thing standing between him and
+    -- losing them.
+    --
+    -- 🔑 IT GOES THE OTHER WAY. The store mirror copies LOCAL → cloud;
+    -- this copies CLOUD → local, because the risk it answers is
+    -- OneDrive itself — 6.317.0 exists because OneDrive failing to
+    -- resolve silently points Hamsidian at an empty local folder, and
+    -- a sync that deletes or conflicts is the same loss with more
+    -- steps. The destination is ~/Library/Application Support, which
+    -- nothing syncs.
+    --
+    -- 📏 COST, NAMED: rsync READS each note, so on a Mac with OneDrive
+    -- Files-On-Demand this hydrates placeholders — 19 notes of a few
+    -- kilobytes, hourly, which is the cheapest thing in this module;
+    -- but it IS a download, and it is said rather than discovered.
+    bk.vaultMirror     = true    -- a local copy of the notes
+    bk.vaultMirrorMins = 60      -- 0 disables it
+    bk.vaultMirrorFirst = 180    -- seconds after boot before the first one
+    bk.vaultMirrorLast = nil     -- { at, ok, why }
     bk.mirrorFirst = 120     -- seconds after boot before the first one
     bk.mirrorLast  = nil     -- { at, ok, why } — for the report
     bk.docs        = true    -- Documents in the kit (both Macs)
@@ -987,6 +1014,32 @@ function M.setup(core)
             L[#L + 1] = "             in OneDrive (localFirst is off)"
         end
         if (tonumber(bk.mirrorMins) or 0) > 0 then
+        -- 💾 6.331.0 — the notes' own copy, counted apart from the stores'
+        -- mirror because they go in OPPOSITE directions and a failure in
+        -- one says nothing about the other.
+        do
+            local src = select(1, bk.vaultSrc())
+            if (tonumber(bk.vaultMirrorMins) or 0) > 0 and bk.vaultMirror then
+                L[#L + 1] = "   notes   : every " .. bk.vaultMirrorMins .. " min  "
+                            .. tostring(src or "⚠️ nowhere — Hamsidian is not loaded")
+                            .. "  →  " .. tostring(bk.vaultDest())
+                local m = bk.vaultMirrorLast
+                if not m then
+                    L[#L + 1] = "      ↳ no copy made yet this session (the first one waits "
+                                .. bk.vaultMirrorFirst .. " s after boot)"
+                elseif m.ok then
+                    L[#L + 1] = "      ↳ last " .. tostring(m.at) .. " ✅ ("
+                                .. tostring(m.how) .. ")"
+                else
+                    L[#L + 1] = "      ⚠️ last attempt FAILED — " .. tostring(m.why)
+                end
+                L[#L + 1] = "      ↳ LOCAL on purpose: this is the copy that survives "
+                            .. "OneDrive itself. Nothing is ever deleted from it."
+            else
+                L[#L + 1] = "   notes   : NOT copied locally "
+                            .. "(daily_backup = { vaultMirror = true } turns it on)"
+            end
+        end
         -- 🗑 6.329.0 — and the copy that is ALREADY in OneDrive is NAMED,
         -- never swept. No rsync here carries --delete (that is deliberate
         -- — a store that failed to load must not erase its own backup),
@@ -1119,6 +1172,81 @@ function M.setup(core)
     -- reports "nowhere to mirror to" and everything else still works.
     bk.mirrorDest = core.backupDir and (core.backupDir .. "/Logs") or nil
 
+    -- 💾 6.331.0 — WHERE THE NOTES ARE, asked of the module that owns
+    -- them rather than worked out again here (6.257.0: when one module
+    -- already knows a fact, the second module asks for it). A copy of
+    -- that path in this file is a path that drifts the day his vault
+    -- moves, and it would drift SILENTLY — backing up an empty folder
+    -- reads exactly like backing up a vault with nothing in it.
+    function bk.vaultSrc()
+        if _G.vault and type(_G.vault.dir) == "string" and _G.vault.dir ~= "" then
+            return _G.vault.dir, "asked Hamsidian"
+        end
+        if core.cloudDir and core.cloudDir ~= "" then
+            return core.cloudDir .. "/Vault", "worked out from OneDrive"
+        end
+        return nil, "Hamsidian is not loaded and there is no OneDrive"
+    end
+
+    function bk.vaultDest()
+        local base = core.configDir and (core.configDir):match("^(.*)/[^/]*$")
+        -- the same local home every other local store uses
+        local home = core.homeDir or base or ""
+        if home == "" then return nil end
+        return home .. "/Library/Application Support/Hammerspoon/VaultBackup"
+    end
+
+    function bk.mirrorVault(done)
+        done = type(done) == "function" and done or function() end
+        if not bk.vaultMirror then
+            bk.vaultMirrorLast = { ok = false, why = "off" }
+            return done(false, "off")
+        end
+        local src, how = bk.vaultSrc()
+        if not src then
+            bk.vaultMirrorLast = { ok = false, why = how }
+            return done(false, how)
+        end
+        local dest = bk.vaultDest()
+        if not dest then
+            bk.vaultMirrorLast = { ok = false, why = "no home folder to copy into" }
+            return done(false, bk.vaultMirrorLast.why)
+        end
+        -- 🚨 NEVER ONTO ITSELF. If OneDrive did not resolve, vaultSrc can
+        -- answer a LOCAL path, and rsyncing a folder into a folder under
+        -- itself is a copy that grows for ever.
+        if src == dest or dest:sub(1, #src + 1) == (src .. "/") then
+            bk.vaultMirrorLast = { ok = false, why = "the backup would sit inside the vault" }
+            return done(false, bk.vaultMirrorLast.why)
+        end
+        mkpath(dest)
+        -- 🚨 NO --delete, EVER, and this is the one place it matters most:
+        -- a vault that failed to resolve is an EMPTY folder, and a
+        -- deleting mirror would answer that by emptying the backup too —
+        -- the 6.190.0 rule ("a store that failed to load must not erase
+        -- its own backup") in the folder that holds his writing.
+        local args = { "-a", "--exclude", ".trash/", src .. "/", dest .. "/" }
+        local okT = pcall(function()
+            local t = hs.task.new("/usr/bin/rsync", function(code, _, se)
+                bk.vaultTask = nil
+                local ok = (code == 0)
+                bk.vaultMirrorLast = { at = os.date("%Y-%m-%d %H:%M"), ok = ok,
+                                       how = how,
+                                       why = ok and "" or ("rsync exit " .. tostring(code)
+                                             .. ": " .. tostring(se or ""):sub(1, 120)) }
+                if not ok then warn("vault mirror failed — " .. bk.vaultMirrorLast.why) end
+                done(ok, bk.vaultMirrorLast.why)
+            end, args)
+            bk.vaultTask = t          -- HELD, its own slot (6.196.1)
+            t:start()
+        end)
+        if not okT then
+            bk.vaultMirrorLast = { ok = false, why = "could not start rsync" }
+            return done(false, bk.vaultMirrorLast.why)
+        end
+        return true
+    end
+
     function bk.mirrorStores(done)
         done = type(done) == "function" and done or function() end
         local src = core.logsDir
@@ -1242,6 +1370,16 @@ function M.setup(core)
                                                function() bk.mirrorStores() end)
         say("stores mirror every " .. bk.mirrorMins .. " min → "
             .. tostring(bk.mirrorDest))
+    end
+    -- 💾 6.331.0 — HELD in _G, like every other timer here, and its OWN
+    -- slot so starting one never releases the other (6.196.1).
+    if (tonumber(bk.vaultMirrorMins) or 0) > 0 and bk.vaultMirror then
+        _G.vaultMirrorTimer = hs.timer.doEvery(bk.vaultMirrorMins * 60,
+                                               function() bk.mirrorVault() end)
+        _G.vaultMirrorFirst = hs.timer.doAfter(bk.vaultMirrorFirst,
+                                               function() bk.mirrorVault() end)
+        say("notes copied locally every " .. bk.vaultMirrorMins .. " min → "
+            .. tostring(bk.vaultDest()))
     end
     if _G.localFirstState == "seeding" then
         print("🏠 Local stores are switched ON but nothing is there yet — "
