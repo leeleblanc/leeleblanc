@@ -1195,6 +1195,113 @@ os.execute("rm -rf '" .. TMP .. "'")
 
 -- =====================================================================
 out("\n──\n")
+-- =====================================================================
+out("\n💾 6.331.0 — THE NOTES GET A COPY THAT IS NOT IN THE CLOUD\n")
+-- =====================================================================
+-- Every other store in this config is backed up and the one holding his
+-- WRITING is not. 6.172.0 made the vault FOLDER the database so Obsidian
+-- opens the same files on either Mac, and that quietly also made
+-- OneDrive the only thing between him and losing them.
+do
+    local before = pass + fail
+
+    -- ---- where the notes are ----------------------------------------------
+    _G.vault = { dir = "/Users/ll/OneDrive/Vault" }
+    local src, how = bk.vaultSrc()
+    check("💾 it ASKS Hamsidian where the notes are, rather than working the "
+          .. "path out again here — a second copy drifts the day his vault "
+          .. "moves, and it drifts SILENTLY",
+          src == "/Users/ll/OneDrive/Vault" and how:find("asked", 1, true) ~= nil,
+          tostring(src) .. " / " .. tostring(how))
+    _G.vault = nil
+    local src2, how2 = bk.vaultSrc()
+    check("🛟 …and falls back to OneDrive/Vault when Hamsidian is not loaded, "
+          .. "SAYING which it did",
+          src2 ~= nil and src2:match("/Vault$") ~= nil and how2 ~= how,
+          tostring(src2) .. " / " .. tostring(how2))
+
+    check("🏠 the destination is LOCAL — this is the copy that survives "
+          .. "OneDrive itself, so it must not be inside OneDrive",
+          bk.vaultDest():find("Library/Application Support/Hammerspoon", 1, true) ~= nil
+          and bk.vaultDest():find("OneDrive", 1, true) == nil, bk.vaultDest())
+
+    -- ---- the copy itself ----------------------------------------------------
+    _G.vault = { dir = "/Users/ll/OneDrive/Vault" }
+    local nBefore = #TASKS
+    bk.mirrorVault()
+    local t = TASKS[#TASKS]
+    check("💾 it runs rsync, off the main thread",
+          #TASKS == nBefore + 1 and t.bin == "/usr/bin/rsync", t and t.bin)
+    local a = table.concat(t.args, " ")
+    check("🚨 NO --delete, EVER — a vault that failed to resolve is an EMPTY "
+          .. "folder, and a deleting mirror would answer that by emptying "
+          .. "the backup too (6.190.0, in the folder holding his writing)",
+          a:find("--delete", 1, true) == nil, a)
+    check("💾 …it is an archive copy, cloud → local",
+          a:find("-a", 1, true) ~= nil
+          and a:find("/Users/ll/OneDrive/Vault/", 1, true) ~= nil
+          and a:find(bk.vaultDest() .. "/", 1, true) ~= nil, a)
+    check("🗑 …and it leaves the recycle bin behind — .trash is already a "
+          .. "copy of deleted notes and backing it up doubles it",
+          a:find(".trash/", 1, true) ~= nil, a)
+    check("🪜 the task is HELD in its own slot", bk.vaultTask ~= nil)
+    t.cb(0, "", "")
+    check("✅ a clean run is recorded with its clock",
+          bk.vaultMirrorLast and bk.vaultMirrorLast.ok == true
+          and bk.vaultMirrorLast.at ~= nil and bk.vaultTask == nil)
+
+    bk.mirrorVault()
+    TASKS[#TASKS].cb(23, "", "rsync: some error")
+    check("⚠️ …and a failure is recorded with rsync's own words, never "
+          .. "swallowed",
+          bk.vaultMirrorLast.ok == false
+          and bk.vaultMirrorLast.why:find("rsync exit 23", 1, true) ~= nil,
+          bk.vaultMirrorLast.why)
+
+    -- ---- it cannot eat itself ------------------------------------------------
+    -- 🚨 If OneDrive did not resolve, vaultSrc can answer a LOCAL path —
+    -- and rsyncing a folder into a folder UNDER itself is a copy that
+    -- grows for ever. 6.317.0 exists because that resolution can fail
+    -- silently, so this is not a hypothetical.
+    local keptDest = bk.vaultDest
+    bk.vaultDest = function() return "/Users/ll/OneDrive/Vault/Backup" end
+    local nB2 = #TASKS
+    local okSelf, whySelf = bk.mirrorVault()
+    bk.vaultDest = keptDest
+    check("🚨 a destination INSIDE the vault is refused, and no rsync starts",
+          okSelf == false and #TASKS == nB2
+          and tostring(whySelf):find("inside the vault", 1, true) ~= nil,
+          tostring(whySelf))
+
+    -- ---- the switch is real --------------------------------------------------
+    bk.vaultMirror = false
+    local nB3 = #TASKS
+    local okOff = bk.mirrorVault()
+    bk.vaultMirror = true
+    check("🔌 off means OFF — no rsync at all", okOff == false and #TASKS == nB3)
+
+    -- ---- the report ----------------------------------------------------------
+    local rep = (function()
+        local got, realp = {}, print
+        print = function(...) got[#got + 1] = table.concat({ ... }, " ") end
+        pcall(_G.backupReport)
+        print = realp
+        return table.concat(got, "\n")
+    end)()
+    check("🔎 the report names the two directions apart — the stores go "
+          .. "local → cloud and the notes go cloud → local, and a failure "
+          .. "in one says nothing about the other",
+          rep:find("notes   :", 1, true) ~= nil and rep:find("mirror  :", 1, true) ~= nil,
+          rep:match("notes[^\n]*"))
+    check("📏 …and it says the copy is LOCAL on purpose",
+          rep:find("survives OneDrive itself", 1, true) ~= nil)
+    _G.vault = nil
+
+    local ran = (pass + fail) - before
+    check("§6.331.0 ran all of its checks (" .. ran .. " of 13)", ran >= 13, ran)
+end
+
+
 if fail == 0 then
     out(string.format("%d passed, 0 failed\n", pass))
 else

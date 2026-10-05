@@ -1200,24 +1200,28 @@ function M.setup(core)
         done = type(done) == "function" and done or function() end
         if not bk.vaultMirror then
             bk.vaultMirrorLast = { ok = false, why = "off" }
-            return done(false, "off")
+            done(false, "off")
+            return false, "off"
         end
         local src, how = bk.vaultSrc()
         if not src then
             bk.vaultMirrorLast = { ok = false, why = how }
-            return done(false, how)
+            done(false, how)
+            return false, how
         end
         local dest = bk.vaultDest()
         if not dest then
             bk.vaultMirrorLast = { ok = false, why = "no home folder to copy into" }
-            return done(false, bk.vaultMirrorLast.why)
+            done(false, bk.vaultMirrorLast.why)
+            return false, bk.vaultMirrorLast.why
         end
         -- 🚨 NEVER ONTO ITSELF. If OneDrive did not resolve, vaultSrc can
         -- answer a LOCAL path, and rsyncing a folder into a folder under
         -- itself is a copy that grows for ever.
         if src == dest or dest:sub(1, #src + 1) == (src .. "/") then
             bk.vaultMirrorLast = { ok = false, why = "the backup would sit inside the vault" }
-            return done(false, bk.vaultMirrorLast.why)
+            done(false, bk.vaultMirrorLast.why)
+            return false, bk.vaultMirrorLast.why
         end
         mkpath(dest)
         -- 🚨 NO --delete, EVER, and this is the one place it matters most:
@@ -1242,7 +1246,8 @@ function M.setup(core)
         end)
         if not okT then
             bk.vaultMirrorLast = { ok = false, why = "could not start rsync" }
-            return done(false, bk.vaultMirrorLast.why)
+            done(false, bk.vaultMirrorLast.why)
+            return false, bk.vaultMirrorLast.why
         end
         return true
     end
