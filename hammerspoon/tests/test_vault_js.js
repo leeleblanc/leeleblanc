@@ -323,9 +323,16 @@ else {
   const bare = load();
   check("without a pad the plain page draws no SCRATCH section", !bare.rows.innerHTML.includes("SCRATCH") && html.includes("HASPAD = false") && html.includes("TABS = []"));
   check("two tabs reached the pad page, the first open", env.call("TABS.length") === 2 && env.call("CUR") === "scratch:t1" && env.call("HASPAD") === true);
-  check("the list: SCRATCH header, the open tab marked, a Capture row with its badge, + new tab, NOTES header, then the notes",
-        env.rows.innerHTML.includes("📝 SCRATCH") && env.rows.innerHTML.includes('class="tab cur" data-tab="t1"') && env.rows.innerHTML.includes('class="tab capture" data-tab="t2"')
-        && env.rows.innerHTML.includes("🗒 Capture") && env.rows.innerHTML.includes('data-tab="+"') && env.rows.innerHTML.indexOf("🕸 NOTES") < env.rows.innerHTML.indexOf('data-name="Alpha"'));
+  check("📝 6.333.0 — ONE section: the open tab marked, a Capture row with its badge, + new tab, and the notes, all under one heading",
+        env.rows.innerHTML.includes("🕸 HAMSIDIAN")
+        && !env.rows.innerHTML.includes("📝 SCRATCH")
+        && !env.rows.innerHTML.includes("🕸 NOTES</li>")
+        && env.rows.innerHTML.includes('class="tab cur" data-tab="t1"') && env.rows.innerHTML.includes('class="tab capture" data-tab="t2"')
+        && env.rows.innerHTML.includes("🗒 Capture") && env.rows.innerHTML.includes('data-tab="+"')
+        && env.rows.innerHTML.indexOf('data-tab="t1"') < env.rows.innerHTML.indexOf('data-name="Alpha"'));
+  check("📝 …and the ICON is what tells a tab from a note now that they share one list",
+        env.rows.innerHTML.includes("\u{1F4DD} groceries") && env.rows.innerHTML.includes("\u{1F578} Alpha"),
+        env.rows.innerHTML.slice(0, 300));
   env.q.value = "gro"; env.q.listeners.input({});
   check("the filter narrows the tabs too and drops the + row", env.rows.innerHTML.includes('data-tab="t1"') && !env.rows.innerHTML.includes('data-tab="t2"') && !env.rows.innerHTML.includes('data-tab="+"') && env.rows.innerHTML.includes("no note matches"));
   env.q.value = ""; env.q.listeners.input({});

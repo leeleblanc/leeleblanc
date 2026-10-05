@@ -632,9 +632,14 @@ do
     check("⇪1 (toggleScratch) with the window closed opens it on the active tab",
           v.toggleScratch() and v.webview ~= nil and v.doc and v.doc.scratch == "t1" and v.doc.rel == "scratch:t1")
     local h = v.webview.htmlSet
-    check("the list carries a 📝 SCRATCH section, the tab rows, + new tab, then 🕸 NOTES",
-          h:find("📝 SCRATCH", 1, true) and h:find('TABS = [{id:"t1",t:"groceries"', 1, true) and h:find("HASPAD = true", 1, true)
-          and h:find("🕸 NOTES", 1, true) and h:find("new tab ⌘T", 1, true))
+    check("📝 6.333.0 — ONE section heading, with the tab rows and the "
+          .. "notes both under it: he asked twice to stop seeing two lists",
+          h:find("🕸 HAMSIDIAN", 1, true) ~= nil
+          and h:find("📝 SCRATCH", 1, true) == nil
+          and h:find("🕸 NOTES</li>", 1, true) == nil
+          and h:find('TABS = [{id:"t1",t:"groceries"', 1, true) ~= nil
+          and h:find("HASPAD = true", 1, true) ~= nil
+          and h:find("new tab ⌘T", 1, true) ~= nil)
     check("a Capture tab row carries its badge and kind", h:find('{id:"t2",t:"Capture",b:"🗒",k:"capture"}', 1, true) ~= nil)
     -- 🗑 6.254.0 — LL: "I don't need capture or append." The two + rows
     -- are hidden by default and the PAD owns the switch, so this window
@@ -696,7 +701,9 @@ do
     msg({ a = "open", name = "Gamma", rel = v.doc.rel, text = v.doc.text, sel = 0 })
     check("a note row from a tab opens the note; the header is the Vault's again",
           v.doc.rel == "Gamma.md" and v.webview.htmlSet:find("🕸 Hamsidian", 1, true) and v.webview.htmlSet:find("BACKLINKS", 1, true))
-    check("…and the SCRATCH section is still listed", v.webview.htmlSet:find("📝 SCRATCH", 1, true) ~= nil)
+    check("…and the tabs are still listed in the one section (6.333.0)",
+          v.webview.htmlSet:find("🕸 HAMSIDIAN", 1, true) ~= nil
+          and v.webview.htmlSet:find("HASPAD = true", 1, true) ~= nil)
     check("⇪1 with a note open jumps to the tabs (no close)", v.toggleScratch() and v.webview ~= nil and v.doc.scratch ~= nil)
     check("⇪1 with a tab open closes the window and lets the pad file its kind tabs",
           v.toggleScratch() and v.webview == nil and PAD.closedHost == 1)

@@ -2821,7 +2821,10 @@ function drawRows(){
     for (var j = 0; j < TABS.length; j++) {
       var tb = TABS[j];
       if (f && tb.t.toLowerCase().indexOf(f) < 0) continue;
-      s.push('<li class="tab' + (tb.k ? ' ' + esc(tb.k) : '') + ('scratch:' + tb.id === CUR ? ' cur' : '') + '" data-tab="' + esc(tb.id) + '"><span class="tt">' + (tb.b ? esc(tb.b) + ' ' : '') + esc(tb.t) + '</span><span class="x" title="Close ⌘W">×</span></li>');
+      // 📝 6.333.0 — the icon is what tells a tab from a note now that
+      // they share one list. tb.b is the kind badge (🗒 / ➕) where there
+      // is one, and it is kept: it says MORE than 📝 does.
+      s.push('<li class="tab' + (tb.k ? ' ' + esc(tb.k) : '') + ('scratch:' + tb.id === CUR ? ' cur' : '') + '" data-tab="' + esc(tb.id) + '"><span class="tt">' + (tb.b ? esc(tb.b) + ' ' : '\u{1F4DD} ') + esc(tb.t) + '</span><span class="x" title="Close ⌘W">×</span></li>');
     }
     // 6.182.0 — ONE section, and the two old doors are rows in it. LL:
     // "can we remove Scratch and Capture, and have a combined section
@@ -2829,7 +2832,24 @@ function drawRows(){
     // made them feel separate was that 🗒 Capture and ➕ Append each had
     // their own hyper key. These rows call the same openKind those keys
     // called, so both pads keep their brains and neither keeps a key.
-    s.unshift('<li class="sec">📝 SCRATCH NOTES</li>');
+    // 📝 6.333.0 — ONE LIST, AND THE ICON TELLS THEM APART. LL asked
+    // twice: "I still want to remove the scratch note and consider any
+    // entry as an entry into Hamsidian", and chose this shape of the
+    // three I put to him.
+    //
+    // 🔑 WHAT IS MERGED IS THE LIST, NOT THE DATA, and that distinction
+    // is the whole safety of the release. A tab lives in scratch.json
+    // and becomes a .md only on ⌘⇧S; a note IS a .md. Making every tab
+    // a file the moment it is typed — the other shape — writes into
+    // OneDrive on every keystroke, needs a filename for an untitled
+    // thought, and leaves a file behind when he ⌘W's a throwaway. None
+    // of that is visible in the left column, which is what he was
+    // objecting to. So the two sections become one and everything
+    // underneath is untouched: same stores, same keys, same ⌘⇧S.
+    //
+    // 📝 is a tab, 🕸 is a note — the same two icons the window title
+    // has used since 6.253.0, where he has already learnt them.
+    s.unshift('<li class="sec">🕸 HAMSIDIAN</li>');
     if (!f) { s.push('<li class="add" data-tab="+">+ new tab ⌘T</li>');
               // 🗑 6.254.0 — LL: "I don't need capture or append. I think
               // those features are redundant." The rows are hidden; the
@@ -2837,8 +2857,7 @@ function drawRows(){
               if (KINDROWS) {
                 s.push('<li class="add" data-tab="+capture">+ 🗒 Capture — ⌘W files it</li>');
                 s.push('<li class="add" data-tab="+append">+ ➕ Append — * idea · + log · ! task · ? note</li>'); } }
-    s.push('<li class="sec">🕸 NOTES</li>');
-  } else if (HASPAD) s.push('<li class="sec">🕸 NOTES</li>');
+  } else if (HASPAD) s.push('<li class="sec">🕸 HAMSIDIAN</li>');
   var exact = false;
   if (tag !== null) for (var e2 = 0; e2 < TAGS.length; e2++) if (TAGS[e2].k === tag) { exact = true; break; }
   for (var i = 0; i < NOTES.length; i++) {
@@ -2862,7 +2881,7 @@ function drawRows(){
     // it to the title would make clicking a renamed note open nothing —
     // or, worse, SEED a new note under the heading's text (6.174.0).
     // The file name rides in the tooltip so it is never hidden.
-    var shown = x.t || x.n;
+    var shown = '\u{1F578} ' + (x.t || x.n);
     h.push('<li class="note' + (x.r === CUR ? ' cur' : '') + '" data-name="' + esc(x.n) + '" data-del="' + esc(x.r) + '" title="' + esc(x.r) + (x.t ? ' — the file is ' + esc(x.n) + '.md' : '') + '">' + esc(shown) + '<span class="x" title="delete">\u2715</span></li>');
     if (++n >= 400) break;
   }
