@@ -2,44 +2,37 @@
 -- * Working VERSION *
 -- =====================================================================
 -- =====================================================================
--- 10-03-26 using Claude          ← EDITED date. Bumped with every release.
+-- 10-05-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.319.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.333.0
 -- =====================================================================
 
--- NEW IN 6.319.0 — 📋 THE WORDS OF THE SHOT LAND ON THE CLIPBOARD
---   (modules/screenshots.lua). LL: "Once I OCR some text, that text
---   should immediately go onto the clipboard so I can paste it."
---   🔎 ⇪⇧4 ALREADY DID — 6.173.1 wired it and it has copied since.
---   What never did is the shot ⇪4 takes: the watcher OCR'd it to NAME
---   it and dropped the words into a CSV. 6.317.0's rule — find the
---   missing DOOR. 🚨 A SWAP MAY REPLACE ONLY THE SHOT IT WAS READ
---   FROM, seconds ago, by this config; anything else is refused and
---   SAID (`swapVerdict`,
---   PURE, six answers; unknown REFUSES). 🔒 One door reads
---   setContents' RETURN: three sites wrapped it in a bare pcall, so
---   "📝 Text copied" was printed over writes that never happened.
+-- NEW IN 6.333.0 — 🕸 ONE HAMSIDIAN LIST, THE ICON TELLS THEM APART
+--   (modules/vault.lua). LL: "The one-list Hamsidian." The left
+--   column drew 📝 SCRATCH NOTES and 🕸 NOTES as two sections, so a
+--   thing he had written was in one of two places depending on how he
+--   made it. ONE list now, newest first, 📝 on a tab and 🕸 on a note
+--   — 6.253.0's rule (the icon is what tells them apart) applied to
+--   the list itself. Nothing moved on disk: a tab is still
+--   scratch.json, a note is still a .md file, and ⌘F, ↑↓, ⏎ and the
+--   ✕ are unchanged on both.
 
--- NEW IN 6.318.0 — 📐 ⇪4 HAS CROSSHAIRS, AND THE NUMBERS COME FIRST
---   (modules/screenshots.lua). LL: "hyper+shift+4 has pixel
---   crosshairs, hyper+4 does not … and it was working before." Both
---   halves are true: ⇪⇧4 is `screencapture -i` and keeps macOS's own
---   HUD, while 6.264.0 moved ⇪4 onto OUR selector, which drew a dim
---   wash and nothing else until the button went down.
---   📏 6.264.0 IS NOT REVERSED — that would cost the live W × H he
---   asked for twice. The missing half was ours to draw: `crossPlan`
---   (PURE, clamped) rides elements 5 and 6 of the SAME canvas, MOVED
---   never rebuilt (6.247.0), and the box shows the POINTER'S POSITION
---   until there is a rectangle — drawn the moment it arms, because a
---   late number is one you distrust (6.238.0). 🔒 Its own switch, 🔔
---   door and three-state report line: "no crosshairs" and "no
---   numbers" were one complaint and are two failures.
+-- NEW IN 6.332.0 — 🔄 ASANA REFRESHES ITSELF
+--   (modules/asana_comments.lua). LL: "Asana auto-refresh every
+--   5 min." 🔑 NOT the keystroke he drafted: `selectMenuItem` reaches
+--   the app WITHOUT activating it, so no focus is stolen, no ⌘R is
+--   posted back through our own taps (6.218.0) and nothing has to be
+--   put back. `M.refreshPick` is PURE and walks the menu paths in
+--   order, so a renamed menu is a miss that SAYS so rather than a
+--   silent no-op. Asana not running is not a failure. One held timer
+--   in its own slot (6.196.1), `_G.asanaRefreshReport()`, and
+--   `settings = { asana_comments = { refreshMins = 0 } }` stops it.
 
--- (6.317.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.331.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 cut the inline count to
 --  TWO; a gate check proves every entry here is also in CHANGELOG.md.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.319.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.333.0
 -- =====================================================================
 -- The catalogue that used to sit here moved to GUIDE.md ("What each
 -- tool does") in 6.180.0 — 259 lines of prose inside the orchestrator.
@@ -132,7 +125,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.319.0"
+_G.configVersion = "6.333.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the

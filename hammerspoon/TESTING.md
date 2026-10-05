@@ -1,4 +1,4 @@
-# TESTING — how to score release 6.319.0
+# TESTING — how to score release 6.333.0
 
 You install ONE archive and it carries several releases. Below are the
 steps for each release this archive is new for, newest first. Run the
@@ -27,331 +27,200 @@ scorer; I never mark my own.
 
 ---
 
-## 6.319.0
+## 6.333.0
 
-6.319.0 verify with LL — 📋 THE WORDS LAND ON THE CLIPBOARD (KNOWN GROUND)
-WHAT CHANGED: after a ⇪4 whose words this config reads, those words go
-on your clipboard — replacing the picture it had just put there, and
-nothing else, ever.
-🔎 AND HALF OF WHAT YOU ASKED FOR ALREADY WORKED, which is the first
-thing to say. ⇪⇧4 has copied its text since 6.173.1 — you reported the
-same thing then and it was wired that day. What has NEVER copied is the
-shot ⇪4 takes: it hands you the picture, and the words it reads to NAME
-the file went into the file's Finder comment and ⇪O's log and nowhere
-else. So the gap was a door, not the feature.
+6.333.0 verify with LL — 🕸 ONE HAMSIDIAN LIST (KNOWN GROUND)
+WHAT CHANGED: the left column is ONE list now. A scratch tab and a
+note sit side by side, newest first, and the ICON tells them apart —
+📝 is a tab, 🕸 is a note.
+WHY: you asked for "the one-list Hamsidian", and you were right that
+two sections was the odd part. 6.253.0 gave both sides one name and
+made the icon the difference; the list had never caught up.
 
-A. THE HEADLINE — thirty seconds.
-A1. Press ⇪4 and drag over a paragraph of text — an email, a web page,
-    anything with real words in it.
-A2. Let go. The shutter sounds and the shot lands, as always.
-A3. Wait two or three seconds, then press ⌘V somewhere you can type.
-    EXPECT: the WORDS, as text you can edit.
-    **A FAIL is pasting the picture** — that is the old behaviour.
-A4. You should have seen an alert as it happened: "🔤 The words are on
-    the clipboard — ⌘V pastes them · ⇪⇧5 then ⏎ puts the picture back".
-    If the clipboard changed and NOTHING said so, tell me — that is the
-    one thing here I most want to get right.
-A5. Now do exactly that: ⇪⇧5, then ⏎ on the top row.
-    EXPECT: the picture is back on the clipboard. Nothing was lost.
+A. THE HEADLINE.
+A1. Press ⇪N. Look at the left column.
+    EXPECT: one heading — 🕸 HAMSIDIAN — with your tabs and your
+    notes under it together. NOT two sections.
+A2. Read a few rows. EXPECT: 📝 in front of every tab, 🕸 in front
+    of every note. If any row has no icon, tell me which.
+A3. Press ⇪3. EXPECT: the same window, the same one list.
 
-B. THE ONES THAT PROTECT YOUR OWN CLIPBOARD — these matter more than A.
-B1. Press ⇪4 over some text. Then, IMMEDIATELY, copy something else —
-    ⌘C on a word in any app — before the words come back.
-    EXPECT: your own copy survives. ⌘V pastes what YOU copied.
-    A FAIL here is the serious one; say so at once and
-    `settings = { screenshots = { textToClipboard = false } }` stops it.
-B2. Press ⇪4 over a PICTURE with no words in it — a photo, a diagram.
-    EXPECT: the picture stays on the clipboard. No words were read, so
-    nothing swaps.
-B3. Take a screenshot on the OTHER Mac and let OneDrive bring it over.
-    EXPECT: your clipboard is untouched. An arrival this config did not
-    just capture never swaps, whatever words are in it.
-B4. Press ⇪4, wait a full minute doing something else, and let the
-    naming finish late.
-    EXPECT: no swap — the window is 25 seconds. A shot from a minute ago
-    does not speak for what is on your clipboard now.
+B. THE KEYS MUST NOT HAVE MOVED — this is the half that matters.
+B1. Click a 📝 row. EXPECT: that tab opens, you can type in it.
+B2. Click a 🕸 row. EXPECT: that note opens with its text.
+B3. ⌘T makes a new tab. ⌘W closes the one you are on.
+B4. ↑↓ walk the whole list — through tabs AND notes, one run, no
+    jump. ⏎ opens whichever is highlighted.
+B5. The ✕ on a 📝 row closes the tab. The ✕ on a 🕸 row deletes the
+    note to .trash (6.321.0). They must NOT be swapped.
+B6. ⌘F and type. EXPECT: it filters both kinds at once. Type part
+    of a note's HEADING (6.328.0) and part of a tab's first line —
+    both must find their row.
 
-C. MUST STILL WORK — this touched every text this module copies.
-C1. ⇪⇧4 over some text: "📝 Text copied: …" and ⌘V pastes it. Unchanged.
-C2. ⇪⇧4 over a QR code: "🔳 Code copied: …". Unchanged.
-C3. ⇪4's crosshairs and the live 1280 × 720 (6.318.0): unchanged.
-C4. ⇪⇧5, then ⌘⏎ on a row: the PATH is copied, not the picture.
-C5. ⇪O still finds everything ever OCR'd, and ⏎ copies the full text.
-C6. The screenshot is still RENAMED after its words, as always.
+C. PASTE BACK.
+C1. `_G.vaultReport()` — the whole block.
 
-D. PASTE BACK, PASS OR FAIL.
-D1. `_G.screenshotsReport()` — there is a new `clip :` line. Healthy
-    after a day reads something like "3 text(s) copied · 2 of them
-    replaced the shot they were read from · 4 arrival(s) left your own
-    copy alone". That third number is the guard doing its job, not a
-    fault.
-D2. If it ever reads **⚠️ N clipboard write(s) REFUSED by macOS**,
-    paste it. That is a write that did not happen — and on every build
-    before this one it would have told you "📝 Text copied" anyway,
-    because the code never read macOS's answer.
-
-E. A JUDGEMENT ONLY YOU CAN MAKE.
-E1. Is swapping the picture for the words the right default? It is what
-    your sentence asks for and the picture is one keypress away (⇪⇧5 ⏎)
-    — but it IS a change to what ⇪4 leaves behind, and you are the one
-    who will meet it. "keep it" · "only on ⇪⇧4, leave ⇪4 alone" ·
-    "never, I will press ⇪⇧4 when I want words" decides it, and the
-    middle one is `textToClipboard = false`.
-E2. 25 seconds is the window. Too short if your Mac is slow to OCR, too
-    long if you copy quickly. It is a number, not a release.
-E3. 📏 NAMED, NOT BUILT, so it is not a surprise: ⌘C on image FILES in
-    Finder still writes the words into the Finder comment and leaves
-    your FILE copy alone — replacing a file copy with text would break
-    pasting the file into Mail or Finder. And the raw clipboard-image
-    OCR (⌘C on pixels) is still OFF on both Macs since 6.170.2. Say if
-    either should change.
-E4. 🔨 CRUDE OR ELEGANT: nothing was broken here — ⇪4 did exactly what
-    it always did. My reading is that this is a feature ask created by
-    a door nobody had asked about, not a defect, so I have not put it
-    in the ledger as a problem. The ONE thing in it that IS a defect is
-    silent and old: three places in this module claimed "Text copied"
-    over a write macOS may have refused, since they were written. Your
-    tag.
+D. A JUDGEMENT ONLY YOU CAN MAKE.
+D1. Newest first, both kinds mixed. Is that the right order, or
+    would you rather tabs always sat above notes inside the one
+    list? "mixed is right" · "tabs first" decides it.
+D2. 🔨 CRUDE OR ELEGANT: nothing was broken — this is a shape ask.
+    Say if you think it belongs in the ledger at all.
 
 
 
-## 6.318.0
+## 6.332.0
 
-6.318.0 verify with LL — 📐 ⇪4 HAS CROSSHAIRS (KNOWN GROUND)
-WHAT CHANGED: ⇪4 now draws full-screen crosshairs that follow the
-pointer, and the numbers are on screen BEFORE you press anything.
-🔎 YOU WERE RIGHT ON EVERY COUNT, INCLUDING THE LAST ONE. ⇪⇧4 is
-macOS's own `screencapture -i` and keeps its HUD — crosshairs and
-live coordinates from the instant the key is pressed. ⇪4 was that too
-until 6.264.0 moved it onto OUR selector, on your ask for a better
-pixel readout. And our selector drew a dashed band and a dim wash and
-nothing else until the button went down: no crosshair at any point,
-no numbers until a drag. So the keys really did differ, the
-difference really did arrive with a release of mine, and "it was
-working before" is the plain truth.
-📏 I did NOT put ⇪4 back on macOS's crosshair, and that is a decision
-you can reverse: it would hand back the crosshairs and take away the
-live 1280 × 720 you asked for twice. What was missing is the half
-macOS was giving you for free, and it is ours to draw.
+6.332.0 verify with LL — 🔄 ASANA REFRESHES ITSELF (KNOWN GROUND)
+WHAT CHANGED: Asana is told to reload every five minutes, on its
+own, whether or not it is in front.
+🚨 AND NOT THE WAY YOU DRAFTED IT, which I want to say plainly. Your
+version activated Asana, posted ⌘R and activated the previous app
+back. That posts a keystroke back through this config's own taps
+(6.218.0), steals focus twice every five minutes, and leaves a
+window where a ⌘R can land in whatever you clicked into. This one
+asks Asana's own View ▸ Reload menu WITHOUT activating it — nothing
+is stolen and nothing has to be put back.
 
-A. THE HEADLINE — ten seconds.
-A1. Press ⇪4 and DO NOT MOVE OR CLICK.
-    EXPECT, at once: a thin white vertical line and a thin horizontal
-    line crossing at the pointer, and a black box with the pointer's
-    position in it — e.g. `1182, 640`.
-    **A FAIL is the old behaviour: a dim screen and nothing else.**
-A2. Move the mouse without pressing.
-    EXPECT: both lines follow, and the numbers change with them.
-A3. Now press and drag.
-    EXPECT: the dashed band appears, the crosshair keeps following,
-    and the box switches to the SIZE — `1280 × 720` — exactly as
-    before.
-A4. Let go. The shot lands and is copied, unchanged.
-A5. Press Esc instead of dragging: it cancels, unchanged.
+A. THE HEADLINE.
+A1. Have Asana running. Work in another app for ten minutes.
+    EXPECT: NOTHING. No window comes forward, no flicker, no
+    keystroke lands anywhere. **A FAIL here is Asana jumping to the
+    front** — that is the thing this was built to avoid.
+A2. Console: `_G.asanaRefreshReport()`.
+    EXPECT something like:
+      every   : 5 minute(s) · running
+      asked   : 2 · refreshed 2 · app not running 0 · refused 0
+      menu    : View ▸ Reload
+    PASTE IT. The `menu :` line is the one I cannot know from here.
+A3. Look at Asana. EXPECT: the board is current.
 
-B. THE OTHER DOORS — the same selector, so the same crosshairs.
-B1. ⇪5 scrolling capture: crosshairs and numbers before the drag.
-B2. In the editor (⇪⇧1), ⌘A add-capture: the same.
-B3. ⇪⇧4 is UNCHANGED — still macOS's crosshair and macOS's HUD. That
-    is deliberate: it needs `-i` for the OCR path.
+B. THE ONE THAT MUST NOT CRY WOLF.
+B1. Quit Asana. Wait ten minutes.
+    EXPECT: no alert, no Console warning, nothing. The report's
+    "app not running" count goes up and that is all. A closed app is
+    the ordinary state, not a failure.
 
-C. MUST STILL WORK — this is the drag every capture goes through.
-C1. ⇪4 at the very edge of a screen. The lines must stay ON the
-    screen, never half off it.
-C2. ⇪4 on the OTHER monitor: crosshairs on that one, numbers right.
-C3. ⇪4, then ⇪⇧5 and ⌘5 ("repeat area") — same rectangle again.
-C4. The shutter still sounds on ⇪4 and not on a repeat.
+C. IF THE MENU IS WRONG.
+C1. If the report ever reads `menu : ⚠️ no menu path matched — tried
+    View ▸ Reload · View ▸ Refresh · …`, paste it. That means Asana
+    renamed the item and the fix is one line. The refresh does
+    nothing in the meantime — it never falls back to posting a key.
 
-D. PASTE BACK, PASS OR FAIL.
-D1. `_G.screenshotsReport()` — there is a new `cross :` line beside
-    the `size :` one. Healthy reads `drawn · last at 1182, 640 ·
-    <time>`. If it reads `⚠️ the crosshair threw`, paste it: the
-    selection still works, the lines went quiet, and that line is the
-    evidence.
-D2. If the crosshairs appear but the NUMBERS do not, that is the
-    other half failing and the `size :` line names it. They are two
-    switches and two failures on purpose — one sentence from you,
-    two different fixes here.
-
-E. A JUDGEMENT ONLY YOU CAN MAKE.
-E1. A one-point white hairline at 55% — too faint on a light
-    background, too loud on a dark one? Both are numbers, not a
-    release: `settings = { screenshots = { crossThick = 2,
-    crossAlpha = 0.8 } }`. Tell me how it reads and I will move the
-    default rather than leave you a line to type.
-E2. Do you want the lines off and just the numbers? `crosshair =
-    false`. Or macOS's crosshair back on ⇪4 at the cost of the live
-    size? `areaNative = true`. Both are one word from you.
-E3. 🔨 CRUDE OR ELEGANT: ⇪4 captured correctly the whole time — what
-    was missing was the aiming aid. My reading is that this is a
-    REGRESSION I introduced in 6.264.0 and did not notice for
-    fifty-four releases, which makes it mine however gracefully it
-    degraded. Your tag.
+D. IF IT GETS IN THE WAY.
+D1. `settings = { asana_comments = { refreshMins = 15 } }` slows it;
+    `refreshMins = 0` stops it.
+D2. 🗳 ONE QUESTION: should it PAUSE while you are typing in Asana? A
+    reload that discards a half-written comment is worse than a
+    stale board. I have not built that — say the word and it is a
+    small release.
 
 
 
-## 6.317.0
+## 6.331.0
 
-6.317.0 verify with LL — 💾 WHERE YOUR WRITING IS (KNOWN GROUND)
-WHAT CHANGED: every boot now prints a block saying where your stores
-are and when each last saved — without you asking for it.
-🔎 AND MOST OF IT ALREADY EXISTED, which is the honest part.
-`_G.saved()` has listed every store with its size, rows, last write
-and growth since boot since 6.115.0 — three hundred releases — and has
-written a probe file into the Logs folder and read it back to prove
-the folder still takes writes. You had never seen any of it. That is
-the same failure as the test plans: the instrument was not the gap,
-the DOOR was. So it prints where you already look.
+6.331.0 verify with LL — 💾 THE NOTES HAVE A SECOND COPY (KNOWN GROUND)
+WHAT CHANGED: your Hamsidian notes are rsync'd to a LOCAL folder
+every thirty minutes. Nothing you press changes.
+WHY: every other store in this config has had a 30-minute mirror
+since 6.190.0 and the vault never did. It lives in OneDrive so
+Obsidian can open it on either Mac — which means it has had exactly
+one copy, owned by a sync client, and a sync client is not a backup:
+a deletion propagates.
 
-A. THE HEADLINE — reload and read the Console. Ten seconds later:
-      💾 STORES — 24 files in /Users/…/OneDrive-Personal/Logs
-         last write : clipboard_history-….json — just now  ·  quietest: …
-         📋 clipboard      : /Users/…/clipboard_history-….json  ·  just now
-         📝 Hamsidian tabs : /Users/…/Logs/scratch/scratch.json  ·  4 minutes ago
-         🔤 OCR text       : …
-         📂 file history   : …
-         ⏱ app sessions   : …
-         🕸 Hamsidian notes : /Users/…/OneDrive-Personal/Vault  ·  412 notes
-         ↳ _G.saved() lists every file…
-A1. Read the 📋 clipboard line. That is the answer to "where does the
-    clipboard history go" and it is now in front of you every morning.
-A2. Read the 🕸 line. That is the folder Hamsidian is really using —
-    read out of the notes module itself, not worked out again here.
-A3. Any line reading **⚠️ NO FILE MATCHING** means a store you have
-    asked me about has NO file at all. Paste it. That is the whole
-    point of the list and the one thing it must never be silent about.
-A4. `_G.stores()` prints the same block whenever you want it.
+A. THE HEADLINE.
+A1. Console: `_G.backupReport()`. Find the new `vault :` line.
+    EXPECT: a destination under ~/Library/Application Support, and
+    either "not run yet" (straight after a reload) or a time and
+    "ok". PASTE IT.
+A2. Wait a few minutes after a reload, run it again.
+    EXPECT: a real time and "ok".
+A3. Open that destination folder in Finder.
+    EXPECT: your notes, as .md files. NOT a `.trash` folder — that
+    is excluded on purpose, because 6.321.0's bin already keeps
+    deleted notes for 180 days.
 
-B. THE LINE THAT MATTERS MOST, and it is the one that would have
-   answered last week. If OneDrive is not running when Hammerspoon
-   boots, the notes folder silently becomes a LOCAL one and Hamsidian
-   creates it empty — so it says "no notes yet" and is telling the
-   truth about the wrong folder.
-B1. To see it on purpose: quit OneDrive, reload Hammerspoon, wait ten
-    seconds.
-    EXPECT:
-      🚨 THE NOTES FOLDER IS LOCAL ONLY — /Users/…/.hammerspoon/vault
-         OneDrive was not found when this config booted, so Hamsidian is
-         reading an EMPTY LOCAL FOLDER and will say "no notes yet".
-         Your notes are not lost — they are in OneDrive, which this Mac
-         could not see. Start OneDrive and reload (⌘⌃R).
-B2. Start OneDrive, reload, wait ten seconds.
-    EXPECT: the 🚨 is gone and the 🕸 line names your OneDrive Vault
-    with a real note count.
-    **If the 🚨 ever appears when OneDrive IS running, stop and paste
-    it** — that is the real bug and it is the one you hit.
+B. IT MUST NEVER SHRINK.
+B1. Delete a throwaway note in Hamsidian. Wait for the next mirror.
+    EXPECT: the file is STILL in the local copy. No rsync in this
+    kit carries `--delete`, deliberately — a vault that failed to
+    load must not be able to erase its own backup. The cost is that
+    the copy only grows; that is the right trade for your writing.
 
 C. MUST STILL WORK.
-C1. `_G.saved()` still prints the full table, and it now carries the
-    same block at its top — one source, two surfaces.
-C2. ⇪⇧D still carries the write-ledger section.
-C3. Boot is not slower: the block is on a held timer ten seconds after
-    everything else. If you ever see it BEFORE the boot summary, that
-    Mac could not arm a timer and it printed early on purpose.
+C1. The nightly backup and the 30-minute store mirror are unchanged.
+C2. Hamsidian itself is untouched — no new write, no new read on the
+    path you type on.
 
-D. PASTE BACK, PASS OR FAIL.
-D1. The block itself, from an ordinary morning. The two numbers I want
-    are the note count and the "last write" line.
-D2. From the WORK MAC too. That is the Mac where the OneDrive answer
-    is most likely to differ, and this is the first build that can say
-    so in one line.
-
-E. A JUDGEMENT ONLY YOU CAN MAKE.
-E1. Six lines at every boot. Too much? Too little? I deliberately
-    broke the rule that a new instrument should be silent when
-    healthy, because you asked for the healthy case in writing — the
-    value is knowing it IS saving on the three hundred days before the
-    one when it is not. `settings = { write_ledger = { sayStores =
-    false } }` turns it off; say the word and I will change the
-    default instead.
-E2. Which stores should be named by name? Right now: clipboard,
-    Hamsidian tabs, OCR text, file history, app sessions. Name any
-    others and they go on the list — and a named store with no file
-    shouts, so the list can only fail loudly.
+D. A JUDGEMENT ONLY YOU CAN MAKE.
+D1. Thirty minutes, same as the stores. Too often for a folder of
+    notes, or not often enough? `vaultMirrorMins`.
+D2. The destination is deliberately NOT in OneDrive — a backup
+    inside the thing being backed up is one deletion from being
+    neither. Say if you want a second copy somewhere else as well
+    (an external disk, say); that is its own release.
 
 
 
-## 6.316.0
+## 6.330.0
 
-6.316.0 verify with LL — 🚨 A FAILED SAVE IS IMPOSSIBLE TO MISS (KNOWN GROUND)
-WHAT CHANGED: when Hamsidian cannot write — a note or a scratch tab —
-it now says so through FOUR channels instead of one, and the warning
-STAYS said until a real write clears it.
-🔎 AND IT ALREADY WARNED, which is the part worth reading. Both halves
-called hs.alert on a failed write. Four things made that not enough,
-and all four are now closed:
-  · 6.274.0 counted THREE `an alert could not draw` lines in eight
-    hours of your own Console. A refused alert was the whole warning.
-  · the gate was one per-SESSION switch, so a SECOND failure with a
-    DIFFERENT cause never spoke again that day.
-  · it never took the 🔔 door, so it reached no ledger row, no ⇪⇧D,
-    no `_G.degradeReport()` and — the expensive one — no row in the
-    on-disk log, which made `_G.todayReport()`, your own 4 PM
-    double-check, blind to the one failure that costs you writing.
-  · nothing survived the moment. Ten seconds later there was a count
-    in a report and no sentence saying your text was still unwritten.
+6.330.0 verify with LL — 🧊 THE HEARTBEAT CARRIES WHAT WAS RUNNING
+(KNOWN GROUND — an instrument, not a fix)
+WHAT CHANGED: the file the stall guard watches now carries the NAME
+of the shortcut the main thread is inside, not just a clock.
+🚨 AND I HAVE NOT FIXED YOUR LOCKUP. Saying that first. Your log
+reads `🧊 Hammerspoon HUNG for 73 s at 2026-10-04 17:16:59 and was
+relaunched by the stall guard` — that is 6.208.0's guard working,
+for the second time in the field, and it is why you got your Mac
+back without a reboot. What it could not say is WHAT hung. Two
+relaunches, two reports, zero attribution. This is the release that
+makes the next one name itself.
 
-A. THE HEADLINE — two minutes, and it needs you to break a write on
-   purpose. The safe way: in Finder, RENAME your `<OneDrive>/Vault`
-   folder (add an x). Hamsidian keeps every word in memory.
-A1. Open a note (⇪3), type a word, wait a second.
-    EXPECT: an alert "⚠️ Hamsidian save — the note <name> was NOT
-    written — …" naming the cause, AND a macOS notification, AND a
-    Console line beginning ⚠️.
-    **A FAIL is silence.** That is the whole release.
-A2. Keep typing for a minute.
-    EXPECT: it does NOT alert again for the same cause — once per ten
-    minutes. If your screen fills with alerts, tell me at once; that
-    is the opposite failure and it is the one that makes you switch a
-    warning off.
-A3. Console: `_G.degradeReport()`.
-    EXPECT the FIRST lines, above everything else:
-      🚨 NOT SAVED — Hamsidian: the note <name> — <cause>
-         since HH:MM:SS · N failed writes · /path/to/the/note.md
-         Your text is still in the window. Do not close it — copy it
-         out, or fix the folder … and type a character.
-A4. `_G.vaultReport()` — the same block, first, before the folder line.
-A5. Put the folder name back. Type a character in the note.
-    EXPECT: "✅ Hamsidian is saving again" and the file on disk now
-    holds your word. Run `_G.degradeReport()` again: the 🚨 block is
-    GONE. **Only a real write clears it** — not a timer, not a reload.
+A. THE HEADLINE.
+A1. Console: `_G.stallGuardReport()`.
+    EXPECT the usual block plus a new `in flt :` line. On an idle
+    Mac it reads "nothing in flight". PASTE IT.
+A2. Hold a ⇪ shortcut that takes a moment — ⇪D, say — and run the
+    report immediately afterwards.
+    EXPECT: "nothing in flight" again (it clears when the shortcut
+    returns). The line is only ever non-empty DURING a shortcut,
+    which is exactly when you cannot type.
+A3. If `in flt :` ever carries `⚠️ N beat(s) could not build a
+    label`, paste it — the guard still works (it falls back to the
+    bare clock) but the breadcrumb is not being written.
 
-B. THE SAME FOR THE TABS, because they are the other half of the one
-   window and they had the identical hole.
-B1. Rename the Logs folder (or just trust A). Type in a ⇪N scratch tab.
-    EXPECT the same four channels, naming "Hamsidian tabs" and
-    "your scratch tabs".
-B2. `_G.scratchPadReport()` carries the same 🚨 block at the top.
+B. WHEN IT LOCKS UP AGAIN — this is the real test and I cannot run
+   it from here.
+B1. If Hammerspoon hangs and the guard relaunches it, the next boot
+    announces it as before. **Then send me the guard's log**, which
+    the report names the path of. It will now carry a line reading
+    `in flight: ⇪<something>` beside the kill — that is the
+    shortcut the main thread was inside.
+B2. If it reads `in flight: (none)`, that is just as useful: it
+    means the thread stopped somewhere that is NOT a ⇪ shortcut —
+    a timer, a watcher, or macOS itself — and that halves the
+    search.
 
-C. THE 4 PM CHECK, which is the reason this is more than an alert.
-C1. After doing A, run `_G.todayReport()`.
-    EXPECT the failure listed with its time and cause — read back off
-    DISK, so it survives a reload. Before this release a failed
-    Hamsidian save never appeared there at all.
-C2. Reload Hammerspoon and run `_G.todayReport()` again.
-    EXPECT: still there. The sticky 🚨 block is gone (that one is
-    about right now), but the LOG row remains. Those are two different
-    facts on purpose.
+C. MUST STILL WORK — the guard is a kill switch, so this matters.
+C1. Use the Mac normally for a day. Hammerspoon must NOT be
+    relaunched. If it is, paste the log at once.
+C2. Reload Hammerspoon. `_G.stallGuardReport()` must show ONE
+    guard running, never two.
+C3. Close the lid for a few minutes and open it. Nothing must
+    happen — the sleep rule is unchanged.
 
-D. MUST STILL WORK — this touched the save path of the tool that holds
-   your writing, so this half matters more than A.
-D1. Type in a note, wait, close Hamsidian, reopen: the word is there.
-D2. ⌘N, ⌘F, ⌘⇧S export, the ✕ delete, ⌘Z — all unchanged.
-D3. Type in a scratch tab, ⌘T a new tab, reload: both survive.
-D4. On a HEALTHY Mac this release must be completely invisible. No new
-    alert, no new Console line, nothing. If you see anything at all on
-    a day when nothing failed, that is a finding and I want it
-    (6.269.0 — a new instrument's first duty is to be silent).
-
-E. A JUDGEMENT ONLY YOU CAN MAKE.
-E1. Is the notification right, or is it one channel too many? It holds
-    through Focus and lands after a meeting, which is why it is there
-    — but you are the one who gets it. "keep it" · "alert and log only".
-E2. 🔨 CRUDE OR ELEGANT: has a Hamsidian save ever actually failed on
-    you? If your notes have ever been short a paragraph you were sure
-    you typed, that is this, and the row is 🔨. If not, it is a hole
-    closed before it cost anything and my reading is ✨ ELEGANT, one
-    pass — your tag either way.
+D. WHAT I SUSPECT AND HAVE NOT PROVEN.
+D1. Your boot said `0.24s` and then loaded five Hammerspoon
+    extensions over the next FORTY-TWO SECONDS — notify at
+    17:17:03, mouse at 17:17:29 (twenty-six seconds later),
+    webview, drawing, geometry. Each of those is a library being
+    loaded on the main thread, lazily, the first time something
+    asks for it. That is a candidate for a long stall and it is
+    NOT a verdict (6.198.0). The breadcrumb is what will tell us.
+D2. 🔨 CRUDE OR ELEGANT: by your own description the Mac was
+    unusable — "I couldn't even click on anything on the screen".
+    My reading is 🔨 CRUDE, and the pass count is 0, because
+    nothing here is a fix yet. Your tag.
 
 
 

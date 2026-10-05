@@ -1,5 +1,5 @@
 ========================================================================
-RESOLVED FEATURE REQUESTS — Hammerspoon config 6.319.0
+RESOLVED FEATURE REQUESTS — Hammerspoon config 6.333.0
 Every feature and how to use it. Generated from the modules' own
 cheat sheets (the rows ⇪/ draws), so it is never out of date.
 ⇪ = Caps Lock held (the hyper key). ⇪⇧X = Caps Lock + Shift + X.
@@ -213,7 +213,10 @@ In the Console, _G.<tool>Report() prints any tool's own report.
   📌      Pin: the window stays up beside the app; Esc only hands the keys back
   Obsidian  Open the same folder as a vault in Obsidian — plug-ins and all
   ✕       On a note row — deletes it to <Vault>/.trash (never erased)
-  undo that _G.vaultUndelete() puts the last deleted note back
+  undo that _G.vaultUndelete() puts the LAST deleted note back
+  the bin   _G.vaultTrash() lists every note in .trash — nothing is ever erased
+  restore   _G.vaultRestore("<name>") brings any of them back to its own folder
+  purge     _G.vaultPurgeTrash() is a DRY RUN · (true) empties what is over 180 days
   Console   _G.vaultReport() · _G.vaultRescan()
 
 🔢 NUMPAD — ⇪ pad, THE CAPTURE ROW (⌘⇧ pad is all free)   [modules/numpad_layer.lua]
@@ -781,6 +784,20 @@ In the Console, _G.<tool>Report() prints any tool's own report.
 
 📜 RELEASE INDEX — newest first, one line per release (the full story of each is in CHANGELOG.md)
 ------------------------------------------------------------------------
+  6.333.0  🕸 ONE HAMSIDIAN LIST, AND THE ICON TELLS THEM APART
+  6.332.0  🔄 ASANA REFRESHES ITSELF
+  6.331.0  💾 THE VAULT HAS A LOCAL BACKUP
+  6.330.0  🧊 THE HEARTBEAT CARRIES WHAT WAS RUNNING
+  6.329.0  🗂 THE DESKTOP IS OUT OF THE BACKUP KIT
+  6.328.0  🏷 THE LEFT COLUMN SHOWS THE TITLE
+  6.327.0  🔖 ⇪3 REMEMBERS MORE THAN ONE NOTE
+  6.326.0  🎵 A CARD macOS REFUSED TO SHOW IS NOT AN OPEN CARD
+  6.325.0  📋 "COPIED" IS SAID ONLY WHEN IT WAS
+  6.324.0  🪜 THE VAULT SCAN STEPS OFF ITS OWN CALLBACK
+  6.323.0  ↩️ ⌘Z SURVIVES A SCAN
+  6.322.0  🔒 A NOTE THAT COLLAPSES KEEPS A COPY FIRST
+  6.321.0  🗑 HAMSIDIAN HAS A RECYCLE BIN
+  6.320.0  🚪 "THAT PATH LEAVES THE VAULT" MEANT A FOLDER CALLED
   6.319.0  📋 THE WORDS OF THE SHOT LAND ON THE CLIPBOARD
   6.318.0  📐 ⇪4 HAS CROSSHAIRS, AND THE NUMBERS COME FIRST
   6.317.0  💾 WHERE YOUR WRITING IS, AND WHEN IT LAST LANDED

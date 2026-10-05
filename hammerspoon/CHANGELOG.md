@@ -5,6 +5,409 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.333.0 — 🕸 ONE HAMSIDIAN LIST, AND THE ICON TELLS THEM APART
+  (modules/vault.lua). LL, in a list of Hamsidian asks: "The one-list
+  Hamsidian."
+
+  🔎 THE LEFT COLUMN DREW TWO SECTIONS — 📝 SCRATCH NOTES and 🕸 NOTES
+  — so a thing he had written was in one of two places depending on
+  how he happened to make it. That is not a bug and it is not a gap:
+  it is the shape the window grew into when 6.173.0 hosted the pad
+  inside the vault, and nobody re-asked it afterwards. 6.315.0's rule
+  one window along: when a panel grows a second list, the rule for the
+  first one has expired.
+
+  🔑 ONE LIST, NEWEST FIRST, 📝 ON A TAB AND 🕸 ON A NOTE. That is
+  6.253.0's own decision applied to the list itself: when the two
+  sides were given one name, the ICON became what tells them apart,
+  and a reader who accepts that in the header can read it in a row.
+  The page sorts both kinds into one array and the filter asks each
+  row's title as well as its name, so typing finds either.
+
+  📏 NOTHING MOVED ON DISK, and that is said rather than implied: a
+  tab is still a row in scratch.json and a note is still a .md file in
+  the vault. ⌘F, ↑↓, ⏎, ⌘T, ⌘W and the ✕ behave exactly as they did on
+  whichever kind the cursor is on. What changed is where they are
+  drawn.
+
+  🧪 The check that bites is a filter string matching a tab's TITLE
+  and a note's NAME at once — with two lists it could never have been
+  written, because the two halves were filtered by different code.
+
+NEW IN 6.332.0 — 🔄 ASANA REFRESHES ITSELF
+  (modules/asana_comments.lua). LL: "Asana auto-refresh every 5 min",
+  with a draft that activated Asana, posted ⌘R and activated the
+  previous app back.
+
+  🚨 THE DRAFT IS NOT WHAT SHIPPED, and every objection to it is a
+  rule already in this config. `hs.eventtap.keyStroke` POSTS, so that
+  ⌘R comes back through our own taps as typing (6.218.0). It steals
+  focus twice every five minutes with a window in between where
+  nobody owns the keyboard, so a ⌘R can land in whatever he clicked
+  into mid-flight. Its nested `doAfter`s are unheld and unslotted,
+  which is 6.196.1's shape in hs.timer. And it has no switch, no
+  report and no degrade for an Asana that is not running.
+
+  🔑 `app:selectMenuItem` REACHES THE APP WITHOUT ACTIVATING IT. No
+  focus theft, no posted key, no injection guard, nothing to put
+  back — and the whole feature is one call. `M.refreshPick(paths,
+  works)` is PURE and walks the candidate menu paths in order, so a
+  renamed menu item is a MISS THAT SAYS SO rather than a silent
+  no-op: the report names which path was found and which were tried.
+
+  🔕 ASANA NOT RUNNING IS NOT A FAILURE. It is the ordinary state
+  most of the day, so it is counted apart from a refusal and never
+  takes the 🔔 door — a tool that warns every five minutes about a
+  closed app is a tool he switches off (6.269.0).
+
+  ⏱ One held timer in its own slot (6.196.1), started in `M.warm` and
+  never in setup, so the switch is real (6.228.0).
+  `_G.asanaRefreshReport()` counts asked · refreshed · app not
+  running · refused, with the last result named.
+  `settings = { asana_comments = { refreshMins = 0 } }` stops it;
+  `refreshMins = 15` slows it. 📏 FIVE MINUTES IS HIS NUMBER, not a
+  default I chose.
+
+NEW IN 6.331.0 — 💾 THE VAULT HAS A LOCAL BACKUP
+  (modules/daily_backup.lua). LL: "Do: The Vault's local backup."
+
+  🔎 EVERY STORE IN THIS CONFIG IS MIRRORED EVERY THIRTY MINUTES
+  (6.190.0's `bk.mirrorStores`) AND THE VAULT IS NOT ONE OF THEM. It
+  lives in OneDrive on purpose — that is what lets Obsidian open the
+  same folder on either Mac — so it has always had exactly one copy
+  of his writing, and that copy is owned by a sync client. A sync
+  client is not a backup: a deletion propagates.
+
+  🔑 A SECOND COPY, LOCAL, RSYNC'd EVERY `vaultMirrorMins` (30) in a
+  HELD task. `bk.vaultSrc()` reads `_G.vault.dir` when the module is
+  up and works the path out from core when it is not;
+  `bk.vaultDest()` is under ~/Library/Application Support, never in
+  OneDrive — a backup inside the thing being backed up is one
+  deletion away from being neither.
+
+  🚫 NEVER `--delete`, and that is the rule rather than a setting: a
+  vault that failed to load, or a OneDrive that has not finished
+  downloading, must not be able to erase its own backup. The mirror
+  can only ever grow. 🗑 `.trash/` is EXCLUDED — 6.321.0's recycle
+  bin already holds deleted notes for 180 days and copying it would
+  make the backup a backup of a backup.
+
+  🔔 EVERY REFUSAL ANSWERS `false, why` AND TELLS THE CALLER. The
+  first version returned `done(...)`'s value — which is nil — at all
+  five refusal sites, so a caller reading two values saw success. The
+  suite found it; 6.179.0's read-THREE-values rule in a new module.
+
+  📏 `_G.backupReport()` carries a `vault :` line with the
+  destination, the last run and its outcome;
+  `settings = { daily_backup = { vaultMirror = false } }` stops it.
+
+NEW IN 6.330.0 — 🧊 THE HEARTBEAT CARRIES WHAT WAS RUNNING
+  (modules/stall_guard.lua + tools/hs-stall-guard.sh + init.lua).
+  LL: "Hammerspoon locks … I couldn't even click on anything on the
+  screen … and then Hammerspoon crashed", with a Console log carrying
+  `🧊 Hammerspoon HUNG for 73 s at 2026-10-04 17:16:59 and was
+  relaunched by the stall guard`.
+
+  ✅ THE GUARD WORKED, FIELD-PROVEN A SECOND TIME — 6.208.0 caught a
+  72 s beachball in September and a 73 s one now, killed it and
+  relaunched it, and the next boot announced it. He got his Mac back
+  without a reboot. 🚨 AND IT COULD NOT SAY WHAT HAD HUNG. The
+  heartbeat is one number — the epoch second — so the file that
+  proves the main thread stopped carries nothing about what it
+  stopped inside. Two reports, two relaunches, zero attribution.
+
+  🔑 THE BEAT CARRIES A BREADCRUMB. `_G.inFlightMark(what)` is
+  stamped by init.lua's hyperBind wrapper around every ⇪ shortcut —
+  set before the pressed fn, cleared after — and `sg.beatLine(now,
+  flight)` is PURE and writes `<epoch>\t<what>`. The script parses
+  the tab, keeps reading the epoch exactly as before, and LOGS
+  `in flight: <what>` on a kill and on the stale-one-of-two line. So
+  the next 73 seconds name the shortcut that was running when the
+  thread stopped.
+
+  🚨 THE BEAT MUST NEVER BE THE THING THAT BREAKS. It is written from
+  the main thread every two seconds and the whole guard rests on it,
+  so `beatLine` is called inside a pcall and a throw falls back to
+  the bare epoch — the old format, which the script still reads —
+  and is COUNTED (`sg.beatLineFails`, on the report). An instrument
+  added to diagnose a hang must not be able to cause one.
+
+  📏 NAMED, NOT FIXED: this does not stop the hang and does not claim
+  to. His log also shows 42 seconds of lazy extension loading after a
+  boot that reported 0.24 s — `notify`, then `mouse` 26 s later, then
+  `webview`, `drawing`, `geometry` — each a main-thread dylib load.
+  That is a candidate and not a cause, and the breadcrumb is what
+  will tell them apart.
+
+NEW IN 6.329.0 — 🗂 THE DESKTOP IS OUT OF THE BACKUP KIT
+  (modules/daily_backup.lua). LL: "Stop backing up desktop. It's
+  duplicating things that I don't want uploaded … I didn't realize
+  backing up the desktop was gonna recreate files and copy anything up
+  into OneDrive and bloat it so unnecessarily."
+
+  🔎 HE IS DESCRIBING THE FEATURE WORKING. The kit rsyncs ~/Desktop
+  into <backupDir>/Desktop, and <backupDir> is in OneDrive — so every
+  file on his desktop had a second copy in the cloud, which is
+  exactly what a backup is and exactly what he does not want for that
+  folder. A desktop is a staging area, not a store.
+
+  🔑 `bk.desktop = false`. The entry is KEPT, with its filters and its
+  own code, and one settings line brings it back — 6.254.0's shape,
+  and right here because this is a DOOR rather than a tool he has
+  stopped wanting. Nothing already in the backup is deleted: no rsync
+  in this kit carries `--delete`, deliberately, so the copies that
+  are there stay there until he removes them himself.
+
+  📏 SAID RATHER THAN SWEPT: the existing <backupDir>/Desktop folder
+  is his to delete and the report names its path so he can find it.
+  Deleting it from here would be this config erasing a folder full of
+  his files to tidy up after itself, which is the one thing a backup
+  module must never do.
+
+NEW IN 6.328.0 — 🏷 THE LEFT COLUMN SHOWS THE TITLE
+  (modules/vault.lua). LL: "Changing a title like # Add recycle bin
+  does not change the title in the lefthand column. I think it
+  should."
+
+  🔎 THE COLUMN HAS ALWAYS SHOWN THE FILE NAME, which was right when
+  every note was created by typing its name into ⌘N and never
+  afterwards. He writes an H1 and expects the list to follow it, and
+  he is right: the heading is the thing he maintains.
+
+  🔑 A FIFTH GREP, AND IT HANGS OFF THE END OF THE CHAIN. `grep -rHnIE
+  -m 1 -e '^#[[:space:]]'` over the vault answers every note's first
+  heading in one pass; `v.setHeadLines` parses it, `v.headOf(rel)`
+  answers, and `v.titleOf(rel, name)` is PURE — the heading when
+  there is one, the file name when there is not. 🚨 IT IS STARTED
+  AFTER `finish(nil)`, so the index, the links and the tags are all
+  published before it runs: a grep that fails or is slow costs the
+  titles and nothing else (6.174.0's rule about the optional greps).
+
+  ✂️ `v.headIn(text)` is its Lua twin for the note that is OPEN, so
+  the moment he types `# Something` the row under his hand follows
+  without waiting for a scan. One rule, two readers, and the check
+  moves a heading and requires both to agree.
+
+  📏 THE FILE IS NOT RENAMED. The name is the identity — every
+  [[link]], every backlink and every path in the index is keyed by
+  it — so this changes what is DRAWN and nothing else. A rename is a
+  different release and a much more dangerous one.
+
+NEW IN 6.327.0 — 🔖 ⇪3 REMEMBERS MORE THAN ONE NOTE
+  (modules/vault.lua). Found building 6.321.0's recycle bin, and it
+  is the bug that made his "⇪3 should restore to last open note" look
+  intermittent.
+
+  🔎 `vault.lastNote` IS ONE SLOT. Delete the note it names — or move
+  it, or rename it in Finder — and 6.277.0's restore correctly refuses
+  to re-create it and drops him on the list. Which is right, and
+  leaves him exactly where he was before 6.277.0 existed: finding the
+  note by hand. With 55 deletes in one session, as his own report
+  shows, that is most of the time.
+
+  🔑 A LIST, NOT A SLOT. `v.recentPush(list, rel, max)` is PURE —
+  newest first, one row per note, bounded at `recentMax` (20) — and
+  `goToLastNote` walks the slot, then the list, opening the first row
+  whose file is still there and PRUNING the rows that are not. So a
+  deleted note costs one step backwards rather than the whole
+  memory.
+
+  🗑 AND A DELETE FORGETS ITS ROW AT THE MOMENT IT HAPPENS, rather
+  than leaving it to be discovered later: the row is gone before the
+  next ⇪3 asks. Its own check — the mutation that removes it passes
+  every other test, because the prune covers for it on the SECOND
+  press and only the first one can tell.
+
+NEW IN 6.326.0 — 🎵 A CARD macOS REFUSED TO SHOW IS NOT AN OPEN CARD
+  (modules/music_player.lua). LL's own probe, run while the ⏯ key was
+  not reaching the player: `handle : false · window : false ·
+  visible : nil · frame : none · queue : 1 · gate : the card is closed
+  — macOS keeps the key`.
+
+  🔎 THAT IS THE GATE ANSWERING CORRECTLY ABOUT A CARD HE HAD OPENED.
+  `mp.show` assigned `mp.webview` and THEN called `view:show()`, so a
+  refusal (6.265.0's beta-OS shape — created, wired, refused) left a
+  handle pointing at a window that is not on screen. 6.309.0's gate
+  reads `mp.onScreen()`, which reads that handle, so ⏯ was held by a
+  card nobody could see — or, with the handle present and the window
+  gone, reported closed while the player held a queue. Both halves of
+  his report, from one line's ordering.
+
+  🔑 THE HANDLE IS ASSIGNED ONLY AFTER `view:show() ~= false`, and a
+  refusal TEARS THE WEBVIEW DOWN (`view:delete()`, both globals
+  nilled) rather than leaving it to be collected — an abandoned
+  webview keeps its Esc claim and its key handler (6.265.0 again).
+  The refusal is COUNTED (`mp.showRefused`), takes the 🔔 door and
+  rides the report's new `opens :` line.
+
+  🧪 The stub's `:show()` can answer false now, which is the whole
+  reason this was reachable from the gate at all (6.290.0).
+
+NEW IN 6.325.0 — 📋 "COPIED" IS SAID ONLY WHEN IT WAS
+  (core/coexist.lua + init.lua + unified_search · clipboard_history ·
+  ocr_engine). The third of the three issues named this release's
+  batch.
+
+  🔎 `hs.pasteboard.setContents` REFUSES BY RETURNING FALSE AND NEVER
+  THROWS — this config has carried that rule since 6.198.0 and
+  6.319.0 found a third file still wrapping it in a bare pcall. ⇪D's
+  ⏎, ⇪⇧V's copy and ⇪⇧O's copy each printed "📋 Copied" over a write
+  that may not have happened, and nothing counted them.
+
+  🔑 ONE DOOR THAT READS THE RETURN. `_G.clipWrite(text, who)` —
+  published as `core.copyText` — writes, reads the answer, counts
+  asked and refused per caller, and answers true only on a real
+  write. The three callers now say "📋 Copied" INSIDE an `if`, which
+  is the whole change at each site. `_G.clipboardWriteReport()` names
+  who asked, who was refused and what the last refusal was.
+
+  📏 It lives in core/coexist.lua rather than init.lua because
+  init.lua is at its 3,800-line budget — 6.285.0's precedent, and the
+  same file that already answers "two features want the same
+  resource, who gets it?" about the pasteboard.
+
+NEW IN 6.324.0 — 🪜 THE VAULT SCAN STEPS OFF ITS OWN CALLBACK
+  (modules/vault.lua). The second of the three issues, and it is
+  6.196.1's use-after-free on the ORDINARY path.
+
+  🚨 `finish()` NILLED ALL FOUR TASK SLOTS FROM INSIDE A TASK
+  CALLBACK — including the slot holding the task whose callback was
+  running. hs.task's finaliser then tears down the NSTask and the
+  callback block underneath the live frame, which kills the process
+  natively with no Lua error and nothing in the Console. 6.262.0 found
+  this exact shape in anchors.lua and this file's own note said the
+  vault chain was "otherwise safe"; it was not, and it runs on every
+  scan rather than on a rare branch.
+
+  🔑 `v.hop(slot, fn)` — the same door anchors.lua took: the flag is
+  cleared first, then a HELD `doAfter(0)` in its own slot lets the
+  callback RETURN before the slots are released. A Mac that cannot arm
+  a timer still finishes, on the old path, and the miss is COUNTED and
+  carries a ⚠️ that outranks the count (6.262.0).
+
+  🔬 AND THE FIFTH GREP READS ITS OWN `:start()`. `hs.task:start()`
+  refuses by returning FALSE (6.304.0, read in libtask.m), so a pcall
+  around it succeeds on a refusal — the task that would never run was
+  recorded as running, and the chain waited on a callback that could
+  not arrive.
+
+NEW IN 6.323.0 — ↩️ ⌘Z SURVIVES A SCAN
+  (modules/vault.lua). LL: "I also need a command+z feature because I
+  highlighted the text in a note and accidentally deleted it all and
+  then I couldn't get any of that text back while the note remained
+  blank."
+
+  🔎 ⌘Z IS THE BROWSER'S OWN AND IT WAS ALWAYS THERE — until a scan
+  landed. `v.render()` rebuilds the page, WebKit destroys the
+  textarea, and a textarea's undo stack dies with it. The vault
+  re-scans on a timer and after every write, so the window in which
+  ⌘Z works is as long as the gap between scans: he deleted a
+  paragraph, a scan landed, and the undo had nowhere to go.
+
+  🔑 A SCAN PUSHES THE INDEX; IT DOES NOT REBUILD THE PAGE.
+  `v.refreshIndex()` calls `setIndex(notes, tags, graph)` into the
+  live document, so the lists redraw and the textarea he is typing in
+  is never replaced. `v.scanRedraw(hasWindow, view, doc)` is PURE and
+  answers which of three things to do — nothing · rebuild · rows —
+  and the rebuild is kept for the cases that really need one (the
+  board, the graph, no document open).
+
+  🚨 AND THE FALLBACK HAD TO BE REACHABLE. The first version asked
+  `v.eval`, which swallows a throw, so a failed push reported success
+  and the page was left stale with no rebuild behind it. It calls
+  `webview:evaluateJavaScript` directly and reads the pcall now; the
+  mutation that proves it is a push that throws.
+
+NEW IN 6.322.0 — 🔒 A NOTE THAT COLLAPSES KEEPS A COPY FIRST
+  (modules/vault.lua). The other half of his lost paragraph: "the note
+  remained blank".
+
+  🔎 ⌘Z IS THE RIGHT ANSWER WHILE THE WINDOW IS OPEN AND IT IS NOT A
+  BACKSTOP. Close the note, reload, or let the save land and the only
+  copy of that text is the empty file on disk. The vault writes 0.3 s
+  after a keystroke, so "select all, type one character" is a
+  complete, saved, irreversible loss two keystrokes wide.
+
+  🔑 `v.shrinkGuard(old, new, minChars, keepBelow)` is PURE: a note
+  that had real text in it (`shrinkMin`, 200 chars) and is about to
+  be written at under a fraction of its size (`shrinkTo`, 20%) gets
+  its OLD text copied into `<Vault>/.trash` BEFORE the write, through
+  6.321.0's own naming. Nothing is blocked and nothing is undone —
+  the write happens exactly as he asked for it — but the paragraph is
+  recoverable with `_G.vaultRestore()`.
+
+  📏 THE THRESHOLDS ARE CHOSEN AGAINST THE DAMAGE: a short note being
+  cleared is cheap to retype and a long one is not, which is why the
+  floor exists at all; and 20% rather than "any shrink" so that
+  ordinary editing does not fill the trash with copies.
+
+NEW IN 6.321.0 — 🗑 HAMSIDIAN HAS A RECYCLE BIN
+  (modules/vault.lua). LL, twice: "Add recycle bin to Hamsidian that
+  only I can purge or that purges at 180 days" and "This is horrible
+  not having an undelete or recycled bin or trash that I can restore
+  from."
+
+  🔎 AND THE DATA WAS ALREADY THERE, WHICH IS THE PART THAT MATTERS.
+  6.280.0 built the delete properly: a note MOVES to `<Vault>/.trash`
+  with a timestamp in its name and is never erased. His own report
+  reads `deleted: 55 this session` — fifty-five notes, all of them on
+  disk, all of them recoverable, and the only way to reach any of
+  them was `_G.vaultUndelete()`, which holds ONE slot and had already
+  been spent. So his "I couldn't get any of that text back" was true
+  and his notes were never gone. 6.317.0's rule, third time: the
+  instrument is not the gap, the DOOR is.
+
+  🔑 THE BIN IS THE FOLDER. `v.trashList(lister, reader)` reads it
+  with the lister handed in as an argument (so the gate proves it with
+  no Mac), `v.trashRowOf` parses each row's original path and the
+  moment it was deleted, `_G.vaultTrash()` prints them newest first,
+  and `_G.vaultRestore(n)` puts one back — refusing to overwrite a
+  note that exists now, because a restore that destroys something is
+  the bug being fixed.
+
+  🕰 180 DAYS, HIS NUMBER. `v.trashDue(rows, now, days, max)` is PURE
+  and answers which rows are old enough; `v.purgeTrashOnce` runs it
+  ONCE per session from `M.warm`, bounded, and says how many went.
+  `_G.vaultPurgeTrash()` is the by-hand door, and `trashDays = 0`
+  turns the automatic purge off entirely — "only I can purge" is a
+  settings line away.
+
+  🚨 TWO DELETES OF ONE NOTE IN THE SAME SECOND COLLIDED, and the
+  suite found it rather than a Mac: the timestamp has second
+  resolution, so the second move overwrote the first and the earlier
+  version was unrecoverable through the very folder that exists to
+  make it recoverable. A " (2)" tie-break, and `trashRowOf` reads it.
+
+  🔒 AND 6.280.0'S OWN SENTRY WENT RED ON THE PURGE. It forbade the
+  WORD `os.remove` in this file — right when nothing in it could ever
+  legitimately erase, and wrong the moment a bin needs emptying. It
+  asks the RULE now: every `os.remove` takes a path built from
+  `v.trashDir()` and none is built from `v.dir`. 6.248.0, in a sentry
+  rather than a check.
+
+NEW IN 6.320.0 — 🚪 "THAT PATH LEAVES THE VAULT" MEANT A FOLDER CALLED
+  `..`
+  (modules/vault.lua). LL: "I have no idea what this means and why I
+  can't delete an item from the left column: 'Not deleted - that path
+  leaves the vault'".
+
+  🔎 HE WAS RIGHT TWICE: the message is unreadable, and it was wrong.
+  The guard asked whether the relative path CONTAINED the two
+  characters `..` anywhere in it — so a note called
+  `Budget..final.md`, or any name with an ellipsis in it, was refused
+  as an escape attempt. The rule it meant to enforce is about a path
+  COMPONENT that is `..`, which is a different question.
+
+  🔑 `v.relInside(rel)` is PURE and walks the components, refusing a
+  part that is exactly `..`, an absolute path and an empty path, and
+  answering the reason in words. Every name with dots in it passes,
+  which is every name he will ever type.
+
+  📏 THE MESSAGE SAYS WHAT HAPPENED: the refusal now names the note
+  and the actual reason rather than a sentence about the vault's
+  boundary that only makes sense to the person who wrote the guard.
+  A refusal he cannot act on is a bug even when the refusal is right.
+
 NEW IN 6.319.0 — 📋 THE WORDS OF THE SHOT LAND ON THE CLIPBOARD
   (modules/screenshots.lua). LL: "Once I OCR some text, that text
   should immediately go onto the clipboard so I can paste it."
