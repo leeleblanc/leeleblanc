@@ -549,6 +549,23 @@ do
           goodBlock:find("📋 clipboard", 1, true) ~= nil
           and goodBlock:find("clipboard_history-TestMac.json", 1, true) ~= nil, goodBlock)
 
+    -- 🚨 6.334.0 — EVERY NAMED STORE MUST RESOLVE ON A HEALTHY MAC. The
+    -- fixtures have written file_changes-TestMac.csv since this suite
+    -- was born and nothing asserted the row FOUND it, so `watchFor`
+    -- hunted "file_history" — a filename nothing in this config has ever
+    -- written — and shouted NO FILE MATCHING on every boot about a
+    -- tracker that was saving perfectly. The loud failure 6.276.0 asked
+    -- for, firing at a needle I got wrong. This walks the whole list
+    -- rather than naming one row, so the next wrong needle fails here.
+    check("🚨 and EVERY store on the hand-kept list resolves to a real file",
+          (function()
+              local bad = {}
+              for line in goodBlock:gmatch("[^\n]+") do
+                  if line:find("NO FILE MATCHING", 1, true) then bad[#bad + 1] = line end
+              end
+              return #bad == 0, table.concat(bad, " / ")
+          end)(), goodBlock)
+
     -- 🚨 A STORE HE NAMED THAT IS NOT THERE IS THE FACT HE WANTS. A
     -- hand-kept list is usually the defect (6.276.0); here the failure
     -- mode is inverted on purpose, so forgetting costs a loud line and
@@ -568,6 +585,22 @@ do
     check("an EMPTY but present notes folder warns too — and differently",
           emptyBlock:find("LOCAL ONLY", 1, true) == nil
           and emptyBlock:find("HOLDS NO NOTES", 1, true) ~= nil, emptyBlock)
+
+    -- 🔎 6.334.0 — AND A VAULT NOBODY HAS COUNTED IS NOT AN EMPTY ONE.
+    -- THE FIXTURE THAT BITES (6.230.0): every other input here sets
+    -- lastScan, so the old code and the new one agree on all of them.
+    -- Only a loaded module whose scan has never finished separates
+    -- them — which is every boot on which he has not pressed ⇪3, and is
+    -- the state his own 6.333.0 log was shouting about.
+    _G.vault = { dir = ROOT .. "/Cloud/Notes Elsewhere", notes = {}, lastScan = nil }
+    local coldFacts = wl.vaultFacts()
+    check("…a loaded vault with no finished scan reports no clock",
+          coldFacts.loaded == true and coldFacts.scanned == nil, tostring(coldFacts.scanned))
+    local coldBlock = table.concat(wl.storeLines(wl.scan(), coldFacts, os.time(), nil), "\n")
+    check("🚨 an UNCOUNTED notes folder says 'not counted yet' and does NOT shout",
+          coldBlock:find("not counted yet", 1, true) ~= nil
+          and coldBlock:find("HOLDS NO NOTES", 1, true) == nil
+          and coldBlock:find("0 notes", 1, true) == nil, coldBlock)
 
     -- a write that failed this session rides in it
     local failBlock = table.concat(wl.storeLines(wl.scan(), vfCloud, os.time(),

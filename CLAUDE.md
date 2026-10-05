@@ -3434,6 +3434,67 @@ work Mac.
   told. 📏 It is deliberately NOT silent when healthy (the opposite of
   6.269.0) because he asked for the healthy case in writing.
 
+- 🚪 THE INSTRUMENT WAS NOT THE GAP, THE DOOR WAS — THIRD TIME
+  (6.335.0, modules/vault.lua — LL, with a photograph of the Hamsidian
+  header: "I need a trash bin at the top with the other buttons that
+  lets me see notes I deleted"). Every note was already recoverable:
+  6.321.0 moves a delete to `<Vault>/.trash`, keeps it 180 days and
+  restores it by name. What it shipped was two CONSOLE COMMANDS.
+  🔑 THE SENTENCE IS 6.317.0's AND IT HAS NOW DECIDED THREE RELEASES
+  IN A ROW IN THIS MODULE: `_G.saved()` answered his question for three
+  hundred releases unseen (6.317.0) · fifty-five notes sat on disk
+  behind one undo slot (6.321.0) · the bin he could not open (this).
+  GENERAL: when he asks for something this config can already do, the
+  work is a DOOR — and the place to look first is where he is already
+  looking, not what the tool can already answer.
+  🗑 A FOURTH FACE OF THE LEFT COLUMN, exactly like ☑ tasks, which is
+  the precedent that made it small: a header button, a mode, a draw
+  function, a `setRows` kind. 🔑 BY TRASH FILE NAME, NEVER BY ROW
+  NUMBER (6.272.0 / 6.186.0) — the list renumbers the moment anything
+  is restored, in the one list whose purpose is not losing things.
+  🔎 THREE STATES (6.196.1): reading the bin… · the bin is empty · ⚠️
+  it could not be READ. The third must never render as the second.
+  🔒 NOTHING THE PAGE CAN SEND DESTROYS A FILE, and the check reads
+  the MESSAGE SET rather than grepping for a name — a purge control
+  one pixel from a restore control is the wrong button to add.
+  🚨 AND A LOCAL DECLARED BELOW THE PAGE BUILDER IS A NIL GLOBAL TO
+  IT. The bin's JSON encoder was written beside the bin, three
+  thousand lines under the builder that reads it; building the page
+  raised, `v.htmlSet` was never assigned, and the suite DIED with
+  eleven reds under one traceback. GENERAL: anything the page builder
+  reads is declared beside `jarr`, not beside the feature.
+  🧪 THE SWEEP FOUND THE CHECK THAT COULD NOT FAIL (6.273.0): the
+  empty-row-name guard asserted only that nothing was restored, which
+  is true with the guard deleted — `_G.vaultRestore("")` refuses by
+  itself. The guard's job is the SENTENCE (6.320.0), so it asserts the
+  words. And a check asserted the whole ROWSEL literal where it meant
+  "there is ONE walker" — 6.248.0, sixth time.
+
+- 🔎 A LAZY INDEX MAKES "NOT YET" AND "EMPTY" THE SAME WORDS — AND THE
+  CLOCK THAT SEPARATES THEM WAS ALREADY BEING COLLECTED (6.334.0,
+  modules/write_ledger.lua — his own 6.333.0 boot: `🕸 Hamsidian notes
+  : …/Vault · 0 notes` with `⚠️ THE FOLDER IS THERE AND HOLDS NO
+  NOTES` under it, over a vault holding all of them).
+  🔑 `v.scan()` RUNS WHEN HAMSIDIAN OPENS. Nothing triggers it at boot,
+  so ten seconds after warm `v.notes` is the empty table it was born
+  with and `#v.notes` is 0. 6.312.0 exactly, inside the instrument
+  6.317.0 built to prevent it — which is the rule's own warning paid:
+  anything moved off the boot path owes its report a fourth state, and
+  6.312.0 said that about two modules without sweeping the rest.
+  🕒 AND `vaultFacts` HAD CAPTURED `scanned = v.lastScan` SINCE 6.317.0
+  AND NOTHING READ IT. nil until a scan completes — the exact field the
+  two states differ by. GENERAL, and it is the cheap half: before
+  adding a state to a report, grep what the report's own fact-gatherer
+  is ALREADY collecting; the clock is often there and unread.
+  🔬 Branches, never an `and/or` chain (6.303.0).
+  📋 AND THE SAME BLOCK HUNTED A FILENAME NOTHING HAS EVER WRITTEN —
+  "file_history" against file_tracker's `file_changes-<Mac>.csv`. The
+  guard was RIGHT to shout (6.276.0: a hand-kept list is safe only when
+  forgetting is loud); the needle was wrong on day one. The suite had
+  written the real file since it was born and nothing asserted the row
+  RESOLVED, so the check now walks the whole block for "NO FILE
+  MATCHING" rather than naming one row.
+
 - 🚨 A TOOL THAT WARNS THROUGH ONE CHANNEL WARNS THROUGH NONE
   (6.316.0, core/notices.lua + modules/vault.lua + scratch_pad.lua —
   LL, in capitals: "!!CRITICAL: HAMSIDIAN MUST THROW VISIBLE ERRORS IF
@@ -4976,7 +5037,8 @@ that must be READ before a new cause is named.
 | "can only be accessible via full keyboard" · "I can't tell if that key combo is taken" | modules/music_player.lua · the key registry | 6.276.0 · 6.311.0 | 1 | ask |
 | "Hammerspoon locks" · "I couldn't even click on anything" · 73 s, then it crashed | core/ · the main thread · modules/stall_guard.lua | 6.208.0 · 6.324.0 · 6.330.0 | 0 (instrumented, not fixed) | ask |
 | "I couldn't get any of that text back while the note remained blank" | modules/vault.lua · ⌘Z and the save path | 6.322.0 · 6.323.0 | 1 | ask |
-| "this is horrible not having an undelete or recycled bin" · "nothing to undelete" | modules/vault.lua · `<Vault>/.trash` | 6.280.0 · 6.321.0 · 6.327.0 | 1 | ask |
+| "this is horrible not having an undelete or recycled bin" · "nothing to undelete" · "a trash bin at the top with the other buttons" | modules/vault.lua · `<Vault>/.trash` | 6.280.0 · 6.321.0 · 6.327.0 · 6.335.0 | 2 | ask |
+| "0 notes" / "THE FOLDER IS THERE AND HOLDS NO NOTES" on a full vault | modules/write_ledger.lua · the lazy notes index | 6.317.0 · 6.334.0 | 1 | ask |
 | "Not deleted - that path leaves the vault" — on an ordinary note | modules/vault.lua · the `..` guard | 6.320.0 | 1 | ask |
 | "changing a title … does not change the title in the lefthand column" | modules/vault.lua · the note list | 6.328.0 | 1 | ask |
 | "stop backing up desktop … bloat it so unnecessarily" | modules/daily_backup.lua | 6.329.0 | 1 | ask |
@@ -5070,6 +5132,8 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
+| 6.335.0 | 🗑 the bin is a button in the header — every note you deleted, click one to put it back | pending |
+| 6.334.0 | 🔎 the boot readout stops saying your notes folder is empty when it simply has not counted yet | pending |
 | 6.333.0 | 🕸 one Hamsidian list — a tab and a note side by side, newest first, the icon telling them apart | pending |
 | 6.332.0 | 🔄 Asana reloads itself every five minutes through its own menu — no focus stolen, no keystroke posted | pending |
 | 6.331.0 | 💾 the notes get a second copy that is not in the cloud — every store had a 30-minute mirror and the vault never did | pending |
@@ -6178,6 +6242,114 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.335.0 verify with LL — 🗑 THE BIN IS A BUTTON (KNOWN GROUND)
+  WHAT CHANGED: there is a 🗑 in the Hamsidian header, beside the other
+  buttons. It shows every note you have deleted; clicking one puts it
+  back.
+  🔎 AND NOTHING WAS BROKEN, which is worth saying first: those notes
+  have been recoverable since 6.321.0 — a delete MOVES the file to
+  <Vault>/.trash and nothing erases it for 180 days. What you could not
+  do was LOOK, without typing a command. That is the third time in this
+  module I have built the measurement and not the door.
+
+  A. THE HEADLINE.
+  A1. ⇪3. Look at the header, between 🗂 and ↻.
+      EXPECT: a 🗑 button.
+  A2. Click it.
+      EXPECT: the left column becomes the bin — your deleted notes,
+      newest first, each with the time it went. The strip above says
+      "🗑 BIN · N deleted".
+  A3. Hover a row. EXPECT: a tooltip saying where it would go back to.
+  A4. Click a row.
+      EXPECT: "🗑 <name> is back → <path>", the note is in Hamsidian
+      again, and the row is GONE from the bin.
+      **A FAIL is the note opening instead of being restored**, or the
+      wrong note coming back — tell me at once if either happens.
+  A5. Click 🗑 again (or press Esc). EXPECT: back to your notes.
+
+  B. THE EDGES WORTH ONE MINUTE.
+  B1. In the bin, press ⌥↓ and ⌥↑. EXPECT: the highlight walks the
+      rows. ⌥⏎ restores the highlighted one — the same thing a click
+      does.
+  B2. ⌘F and type part of a deleted note's name.
+      EXPECT: the bin filters. Type nonsense: "no deleted note matches"
+      — which must NOT read the same as an empty bin.
+  B3. If you have never deleted anything on this Mac, the bin reads
+      "the bin is empty — nothing has been deleted". If it ever says
+      "⚠ the .trash folder could not be read", paste that: those are
+      opposite facts and the second one is the one that matters.
+  B4. Restore a note whose name EXISTS again in the vault.
+      EXPECT: it lands beside it as "<name> (restored …)" and your
+      newer note is untouched. That rule is 6.321.0's and this must not
+      have broken it.
+
+  C. MUST STILL WORK — this touched the left column, which is every
+     list in that window.
+  C1. The notes list, ⌘F filter, ↑↓, ⏎ to open — unchanged.
+  C2. ☑ tasks (⌘⇧K), 🔎 search (⌘⇧F), 🕸 graph (⌘G), 🗂 board (⌘⇧B) —
+      all four still open and still come back with Esc.
+  C3. The ✕ on a note row still deletes it to the bin.
+  C4. Your scratch tabs are still in the one list (6.333.0).
+  C5. ⌘N, ⌘D, ⌘K, ⌘⇧S — unchanged.
+
+  D. PASTE BACK.
+  D1. `_G.vaultReport()` — its `bin :` line, and the `deleted:` count.
+  D2. `_G.vaultTrash()` still works from the Console and must list the
+      same notes the button shows. If the two ever disagree, that is a
+      real finding.
+
+  E. A JUDGEMENT ONLY YOU CAN MAKE.
+  E1. There is deliberately NO purge button in the bin. A
+      delete-forever control one pixel from a restore control, in the
+      list that exists to prevent loss, is the wrong button to add —
+      `_G.vaultPurgeTrash()` is still the only thing that removes a
+      file. Say if you want one anyway; it is your call, not a gap.
+  E2. A click restores immediately, with no confirm. Right, or would
+      you rather it asked? Nothing is destroyed either way, which is
+      why I made it immediate.
+  E3. 🔨 CRUDE OR ELEGANT: Hamsidian worked throughout and the notes
+      were never at risk — what was missing was a way to look. My
+      reading is that this is a DOOR I should have built in 6.321.0,
+      not a defect. Your tag.
+
+- 6.334.0 verify with LL — 🔎 THE BOOT READOUT STOPS LYING (KNOWN GROUND)
+  WHAT CHANGED: two lines in the 💾 STORES block that were false on
+  your 6.333.0 boot.
+  🚨 AND YOUR NOTES WERE NEVER MISSING. The line read "⚠️ THE FOLDER IS
+  THERE AND HOLDS NO NOTES" over a vault with all of them in it. The
+  notes index is built when Hamsidian OPENS, so ten seconds after boot
+  — which is when that block prints — it has not been built, and the
+  readout printed the words for "there is nothing" instead of "I have
+  not counted yet". That is the same mistake 6.312.0 fixed in the music
+  player, inside the instrument 6.317.0 added to stop exactly this.
+
+  A. THE HEADLINE.
+  A1. Reload Hammerspoon. Do NOT press ⇪3. Wait ten seconds and read
+      the 💾 STORES block.
+      EXPECT: `🕸 Hamsidian notes : …/Vault · ⏳ not counted yet — the
+      index is built when Hamsidian opens (⇪3)`.
+      **A FAIL is "0 notes" or the ⚠️ shout** — that is the old
+      behaviour.
+  A2. Now press ⇪3, then Console: `_G.stores()`.
+      EXPECT: a real count — the number of notes you actually have.
+  A3. Read the `📂 file history` line in either block.
+      EXPECT: a real path ending `file_changes-<your Mac>.csv` and a
+      time. It used to read ⚠️ NO FILE MATCHING "file_history" on every
+      boot, about a tracker that was saving perfectly.
+
+  B. THE SHOUT MUST STILL WORK — it is the line that matters most.
+  B1. The ⚠️ is now only for a vault that was COUNTED and is empty. If
+      you ever genuinely open Hamsidian to an empty folder, that ⚠️
+      must appear. I cannot test that from here without emptying your
+      vault, and I am not going to.
+  B2. The 🚨 THE NOTES FOLDER IS LOCAL ONLY line (OneDrive not found at
+      boot) is untouched and still shouts.
+
+  C. PASTE BACK.
+  C1. The whole 💾 STORES block from an ordinary morning. Every one of
+      the five named stores should resolve to a real path and a time —
+      there should be no ⚠️ anywhere in it.
+
 - 6.333.0 verify with LL — 🕸 ONE HAMSIDIAN LIST (KNOWN GROUND)
   WHAT CHANGED: the left column is ONE list now. A scratch tab and a
   note sit side by side, newest first, and the ICON tells them apart —

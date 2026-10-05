@@ -1589,7 +1589,24 @@ do
     check("…the page-side globals", has('MODE = "notes"', 'TEMPLATES = [', 'TPLDIR = "Templates"', 'SMARTLISTS = true', 'LINEH = 14 * 1.5', 'TAGROWS = 15', 'CURKEY = "alpha"', 'DAILY = '))
     check("…the Lua → page entry points and the page's own helpers", has("function setRows", "function setMentions", "function vaultHint", "function gotoLine", "function toggleTask", "function tplPick", "function setMode", "function tagsOf", "function drawOutline", "function drawFoot"))
     check("…the messages the new keys send", has("a:'tplnew'", "a:'tplinsert'", "a:'search'", "a:'dayshift'", "a:'extract'", "a:'random'", "a:'mode'", "a:'tplnone'"))
-    check("tag rows walk with the ONE row walker (ROWSEL)", hp:find("ROWSEL = '#rows li[data-name],#rows li[data-tab],#rows li[data-tag]'", 1, true) ~= nil)
+    -- 🚨 6.335.0 — ASSERT THE RULE, NOT THE LITERAL (6.248.0, sixth time).
+    -- This matched the whole selector as one string, so adding the bin's
+    -- rows to the walker failed a check written to prove there is ONE
+    -- walker — red with nothing to say about the change it exists to
+    -- guard. The rule is: exactly one ROWSEL, and every kind of row this
+    -- page draws is in it.
+    check("every row kind walks with the ONE row walker (ROWSEL)",
+          (function()
+              local n, sel = 0, nil
+              for m in hp:gmatch("ROWSEL = '([^']*)'") do n = n + 1; sel = m end
+              if n ~= 1 then return false, n .. " ROWSEL assignments" end
+              for _, kind in ipairs({ "data-name", "data-tab", "data-tag", "data-un" }) do
+                  if not sel:find("#rows li[" .. kind .. "]", 1, true) then
+                      return false, kind .. " is not in the walker"
+                  end
+              end
+              return true
+          end)())
     check("the chips sit first in the right pane, the OUTLINE last, after the mentions",
           hp:find('<div id="links"><div id="chips" hidden></div><h4>LINKS OUT</h4>', 1, true) ~= nil and hp:find('<h4>OUTLINE</h4><ul id="outline"></ul></div>', 1, true) ~= nil
           and hp:find('<ul id="unl">', 1, true) < hp:find('<h4>OUTLINE</h4>', 1, true))
@@ -3055,6 +3072,173 @@ do
 
     local ran = (pass + fail) - before
     check("§6.328.0 ran all of its checks (" .. ran .. " of 16)", ran >= 16, ran)
+end
+
+
+out("\n6.335.0 — 🗑 THE BIN IS A BUTTON, NOT A CONSOLE COMMAND\n")
+-- =======================================================================
+-- LL: "I need a trash bin at the top with the other buttons that lets me
+-- see notes I deleted." 6.321.0 built the bin and every note has been
+-- recoverable since — through two Console commands. The data was never
+-- the gap and this time neither was the instrument: it was the DOOR.
+do
+    local before = pass + fail
+
+    -- ---- PURE: the rows the page draws ------------------------------------
+    local rows = {
+        { file = "Deep  2026-10-04 152233.md", name = "Notes-Deep",
+          at = os.time({ year = 2026, month = 10, day = 4, hour = 15, min = 22, sec = 33 }),
+          rel = "Notes/Deep.md", known = true, kind = "delete" },
+        { file = "Loose  2026-10-04 152200.md", name = "Loose",
+          at = os.time({ year = 2026, month = 10, day = 4, hour = 15, min = 22, sec = 0 }),
+          rel = nil, known = false, kind = "delete" },
+    }
+    local pr = v.trashPageRows(rows, os.time())
+    check("🗑 every row carries its TRASH FILE NAME — the only thing a "
+          .. "restore is ever asked for (6.272.0: a row number forgets a "
+          .. "different note the moment the list renumbers)",
+          #pr == 2 and pr[1].f == "Deep  2026-10-04 152233.md"
+          and pr[2].f == "Loose  2026-10-04 152200.md",
+          pr[1] and tostring(pr[1].f))
+    check("📎 a note that lived in a folder says it goes back there",
+          pr[1].w == "Notes/Deep.md" and pr[1].root == false, tostring(pr[1].w))
+    check("🔎 …and one with no index row says it goes back to the ROOT, "
+          .. "rather than looking the same (6.196.1 — he is deciding "
+          .. "from this list)",
+          pr[2].w == "Loose.md" and pr[2].root == true, tostring(pr[2].w))
+    check("🕒 the clock is rendered, not raw",
+          pr[1].t:find("15:22", 1, true) ~= nil, pr[1].t)
+
+    -- 🚨 6.282.0 — AN INSTRUMENT THAT CAN RAISE IS WORSE THAN ONE THAT
+    -- LIES. os.date refuses a float outright, and the bin is the one
+    -- list he opens when something has already gone wrong.
+    local odd = v.trashPageRows({
+        { file = "F  2026-10-04 152233.md", name = "F", at = 1759600000.5, known = false },
+        { file = "G  2026-10-04 152233.md", name = "G", at = nil,          known = false },
+    }, os.time())
+    check("🕒 a fractional clock does not throw, and a missing one reads "
+          .. "as 'time not recorded' rather than 1970",
+          #odd == 2 and odd[1].t ~= "time not recorded"
+          and odd[2].t == "time not recorded", odd[2] and odd[2].t)
+
+    -- ---- the button, the mode and the payload -----------------------------
+    FILES[VAULT .. "/Keep.md"]   = "# Keep\n\nstays\n"
+    FILES[VAULT .. "/Bin Me.md"] = "# Bin Me\n\ngoing\n"
+    v.setNotes({ "Keep.md", "Bin Me.md" })
+    local okD, whyD = v.deleteNote("Bin Me.md")
+    check("🗑 (fixture) the note really went to the bin", okD == true, tostring(whyD))
+    v.show()
+    local W = WEBVIEWS[#WEBVIEWS]
+    local hp = W.htmlSet
+    check("🗑 the bin has a button in the header, beside the others",
+          hp:find('id="tbtn"', 1, true) ~= nil
+          and hp:find("setMode(MODE==='trash'?'notes':'trash')", 1, true) ~= nil, nil)
+    check("…and the page can draw it: the payload, the drawer and the "
+          .. "placeholder all exist",
+          hp:find("var TRASH = {rows:[", 1, true) ~= nil
+          and hp:find("function drawTrashRows", 1, true) ~= nil
+          and hp:find("trash: 'filter the bin", 1, true) ~= nil, nil)
+    check("🚨 and the row's restore message is NOT named text/sel/rel — "
+          .. "say() stamps those onto every message (6.203.0), so a value "
+          .. "sent under one is silently replaced with the OPEN note's",
+          hp:find("a:'untrash', bin: un", 1, true) ~= nil, nil)
+
+    local evalsBefore = #EVALS
+    v.setMode("trash")
+    check("🗑 ⇪3's left column has a fourth face, and asking for it READS "
+          .. "the folder", v.mode == "trash" and #v.trashRows >= 1,
+          v.mode .. " / " .. #v.trashRows)
+    check("…and it pushes them into the page it is already showing",
+          (function()
+              for i = #EVALS, evalsBefore + 1, -1 do
+                  if EVALS[i]:find('^setRows%("trash"') then return true end
+              end
+              return false
+          end)(), EVALS[#EVALS])
+    local binned
+    for _, r in ipairs(v.trashRows) do if r.n == "Bin Me" then binned = r end end
+    check("🗑 the note he deleted is in it, by name",
+          binned ~= nil and binned.f:find("^Bin Me  ") ~= nil,
+          binned and binned.f or "not listed")
+
+    -- ---- clicking a row puts it back --------------------------------------
+    check("↩️ a click restores by FILE NAME and the note is on disk again",
+          (function()
+              v.handleMessage({ a = "untrash", bin = binned.f })
+              return FILES[VAULT .. "/Bin Me.md"] ~= nil
+          end)(), nil)
+    check("↩️ …and the bin is not still showing it",
+          (function()
+              for _, r in ipairs(v.trashRows) do if r.f == binned.f then return false end end
+              return true
+          end)(), #v.trashRows)
+    check("🔢 …counted apart, so the report can be asked",
+          (v.untrashes or 0) == 1, tostring(v.untrashes))
+
+    -- 🚨 A MESSAGE WITH NO FILE NAME MUST NOT GUESS. The obvious build
+    -- falls through to "the first row", which restores something he did
+    -- not click — in the one list whose job is getting the right note
+    -- back.
+    -- 🚨 AND THE FIRST VERSION OF THIS CHECK COULD NOT FAIL (6.273.0).
+    -- It asserted only that nothing was restored — which is true with
+    -- the guard DELETED, because _G.vaultRestore finds no row called ""
+    -- and refuses by itself. The guard's whole job is the SENTENCE, and
+    -- a refusal he cannot act on is a defect even when the refusal is
+    -- right (6.320.0). So it asserts the words.
+    local n0, a0 = #v.trashRows, #ALERTS
+    v.handleMessage({ a = "untrash", bin = "" })
+    check("🔒 an empty row name restores NOTHING…",
+          #v.trashRows == n0 and (v.untrashes or 0) == 1, #v.trashRows)
+    check("…and says so in words he can act on, naming the ROW as the "
+          .. "thing that was wrong — not \"nothing in the bin called\"\"\"",
+          #ALERTS > a0 and ALERTS[#ALERTS]:find("no file name", 1, true) ~= nil,
+          ALERTS[#ALERTS])
+
+    -- 🔕 and the bin never destroys anything: the only door that removes
+    -- a file is still the purge (6.321.0), and nothing in the page can
+    -- reach it. A purge-forever control one pixel from a restore
+    -- control, in the list that exists to prevent loss, is the wrong
+    -- button to add.
+    -- 🚨 AND THE FIRST VERSION OF THIS CHECK WAS SATISFIED BY ITS OWN
+    -- EXPLANATION. It grepped the page for "vaultPurgeTrash" and found
+    -- the JS COMMENT above drawTrashRows saying that the purge is the
+    -- only door that destroys a file — the sentry matched the sentence
+    -- that states the rule it enforces (6.280.0 / 6.262.0, in a page
+    -- rather than a module). It reads the MESSAGES the page can send
+    -- now, which is what the rule is actually about, and asserts the
+    -- comment still exists so it cannot be satisfied by deleting it.
+    check("🔒 nothing the PAGE can send destroys a file in the bin",
+          (function()
+              local sent, bad = {}, nil
+              for m in hp:gmatch("a:%s*'([%w_]+)'") do sent[m] = true end
+              for _, m in ipairs({ "purge", "erase", "rm", "trashpurge", "destroy" }) do
+                  if sent[m] then bad = m end
+              end
+              if bad then return false, "the page can send a:'" .. bad .. "'" end
+              if not sent["untrash"] then return false, "the page cannot restore at all" end
+              return true
+          end)())
+    check("…and the page SAYS why, so the rule cannot be deleted quietly",
+          hp:find("only door that destroys a file", 1, true) ~= nil, nil)
+
+    -- 🔎 a bin that could not be READ is not an empty bin (6.196.1)
+    local realList = v.trashList
+    v.trashList = function() return nil, "the .trash folder could not be read" end
+    v.listTrash()
+    check("🔎 a bin that cannot be read says so, and does NOT read as empty",
+          v.trashErr ~= nil and #v.trashRows == 0
+          and EVALS[#EVALS]:find("could not be read", 1, true) ~= nil,
+          tostring(v.trashErr))
+    v.trashList = realList
+    v.listTrash()
+    check("…and it clears the moment the folder answers again",
+          v.trashErr == nil, tostring(v.trashErr))
+
+    v.setMode("notes")
+    v.hide()
+
+    local ran = (pass + fail) - before
+    check("§6.335.0 ran all of its checks (" .. ran .. " of 18)", ran >= 18, ran)
 end
 
 out(string.format("\n%d passed, %d failed\n", pass, fail))

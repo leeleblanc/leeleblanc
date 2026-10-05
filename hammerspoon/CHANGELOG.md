@@ -5,6 +5,152 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.335.0 — 🗑 THE BIN IS A BUTTON, NOT A CONSOLE COMMAND
+  (modules/vault.lua). LL, with a screenshot of the Hamsidian header:
+  "I need a trash bin at the top with the other buttons that lets me
+  see notes I deleted."
+
+  🔎 AND EVERY NOTE WAS ALREADY RECOVERABLE. 6.321.0 built the bin
+  properly: a deleted note MOVES to <Vault>/.trash, stamped with the
+  moment it went, and is never erased before trashDays (180). What
+  that release gave him was `_G.vaultTrash()` and
+  `_G.vaultRestore("<name>")` — two Console commands. A recycle bin
+  you can only read by typing a command is a recycle bin most people
+  do not have.
+
+  🔑 6.317.0'S FINDING, FOR THE THIRD TIME IN THIS MODULE: THE
+  INSTRUMENT WAS NOT THE GAP, THE DOOR WAS. 6.321.0 itself was the
+  second time (the data was on disk and one slot could reach it);
+  6.317.0 was the first (`_G.saved()` had answered his question for
+  three hundred releases and he had never seen a line of it). The
+  work is never a better report — it is putting the one that exists
+  where he already looks.
+
+  🗑 WHAT IT IS: a fourth face of the left column, exactly like ☑
+  tasks — a header button that swaps the note list for the bin.
+  Every deleted note, newest first, each row carrying its name, when
+  it went and where it will go back to. A click, or ⏎ on the
+  highlighted row, restores it. Esc returns to the notes, like every
+  other mode.
+
+  🔑 BY TRASH FILE NAME, NEVER BY ROW NUMBER. 6.272.0 and 6.186.0:
+  the list renumbers under his hand the moment anything is restored
+  or purged, so an index restores a DIFFERENT note than the one he
+  clicked — silently, in the one list whose entire purpose is not
+  losing things. `v.trashPageRows` is PURE and the file name is the
+  identity; `_G.vaultRestore` already took one.
+
+  🔎 THREE STATES, NOT TWO (6.196.1): "reading the bin…" before Lua
+  has answered · "the bin is empty — nothing has been deleted" ·
+  "⚠ the .trash folder could not be read". A bin that could not be
+  READ must never render as a bin that is EMPTY — those are opposite
+  facts and the second is the reassuring one.
+
+  📎 AND A ROW SAYS WHERE IT GOES BACK TO. A note deleted from a
+  folder returns to that folder; one with no row in the .trash index
+  returns to the root, and the row is marked "→ root" rather than
+  looking identical. He is deciding from this list.
+
+  🔒 NOTHING IN THE PAGE DESTROYS ANYTHING, and that is a decision
+  rather than an omission: a purge-forever control one pixel from a
+  restore control, in the list that exists to prevent loss, is the
+  wrong button to add. `_G.vaultPurgeTrash()` is still the only door
+  that removes a file, and a gate check reads the MESSAGES the page
+  can send to prove it.
+
+  🚨 `bin`, NOT `rel` OR `name` (6.203.0): the page's say() stamps
+  text / sel / rel onto every message, so a value handed over under
+  one of those names is silently replaced with the OPEN note's — here
+  that would restore whatever is on screen instead of the row he
+  clicked. The suite's own sentry covers it.
+
+  🚨 AND THE FIRST BUILD KILLED THE SUITE RATHER THAN FAILING IT. The
+  bin's JSON encoder was written next to the bin, three thousand
+  lines BELOW the page builder that reads it — and a Lua local that
+  is not in scope yet is a nil GLOBAL, so building the page raised,
+  v.htmlSet was never assigned, and eleven checks went red with one
+  traceback above them. It lives beside jarr now. 6.186.0's rule from
+  the other side: the gate caught it on the first run.
+
+  🧪 THE SWEEP FOUND THE CHECK THAT COULD NOT FAIL (6.273.0). The
+  empty-row-name guard asserted only that nothing was restored —
+  which is true with the guard DELETED, because _G.vaultRestore finds
+  no row called "" and refuses by itself. The guard's whole job is
+  the SENTENCE, and a refusal he cannot act on is a defect even when
+  the refusal is right (6.320.0), so it asserts the words. Eleven
+  mutations, eleven bites.
+
+  🧪 AND A CHECK ASSERTED A LITERAL WHERE IT MEANT A RULE (6.248.0,
+  sixth time): "tag rows walk with the ONE row walker" matched the
+  whole ROWSEL selector as one string, so adding the bin's rows to
+  the walker failed a check written to prove there is ONE walker —
+  red with nothing to say about the change it existed to guard. It
+  counts the ROWSEL assignments and requires every row kind to be in
+  the one it finds.
+
+  🧪 AND THE "nothing destroys a file" SENTRY MATCHED ITS OWN
+  EXPLANATION — it grepped the page for "vaultPurgeTrash" and found
+  the comment saying the purge is the only door that destroys one.
+  6.280.0 / 6.262.0 in a page rather than a module.
+
+  📋 The ⇪/ card carries the button in the same commit (6.181.0).
+
+NEW IN 6.334.0 — 🔎 THE STORES READOUT STOPS LYING, TWICE
+  (modules/write_ledger.lua). His own 6.333.0 boot log, minutes after
+  the install:
+      🕸 Hamsidian notes : …/OneDrive-Personal/Vault  ·  0 notes
+         ⚠️ THE FOLDER IS THERE AND HOLDS NO NOTES. Look at it in
+            Finder before writing anything new…
+      📂 file history : ⚠️ NO FILE MATCHING "file_history" IS IN THAT
+         FOLDER — nothing is being saved for it
+
+  Both lines were false, and both were printed by the release whose
+  whole subject is being told the truth about where his writing is.
+
+  🚨 THE NOTES COUNT. v.scan() — the /usr/bin/find that builds the
+  index — runs when Hamsidian OPENS. Nothing triggers it at boot. So
+  on a morning where ⇪3 has not been pressed, `v.notes` is still the
+  empty table it was initialised with, `#v.notes` is 0, and the
+  readout printed the words for "the folder holds nothing" about a
+  vault with every note in it. 6.312.0 EXACTLY — a report that reads
+  a lazy store owes a "not yet" — reproduced inside the instrument
+  6.317.0 built to keep it, thirteen releases later.
+
+  🔑 AND THE FIELD THAT SEPARATES THEM WAS ALREADY BEING COLLECTED.
+  `wl.vaultFacts()` has captured `scanned = v.lastScan` since 6.317.0
+  and `storeLines` never read it. lastScan is nil until a scan has
+  really finished, so it is exactly the clock the two states differ
+  by — 6.312.0's own lesson ("find the field that carries a clock")
+  paid with a field that was sitting there. The count now reads
+  "⏳ not counted yet — the index is built when Hamsidian opens (⇪3)"
+  and the 🚨 fires only for a vault that was COUNTED and is empty.
+
+  🔬 WRITTEN AS BRANCHES, NOT AN `and/or` CHAIN (6.303.0): the old
+  line was a three-term chain, and a chain cannot carry a false or a
+  nil as a MEANING.
+
+  🚨 THE FILE-HISTORY NEEDLE. `wl.watchFor` hunted "file_history".
+  file_tracker.lua:639 writes `file_changes-<Mac>.csv` and always
+  has. So that row has shouted on every boot since 6.317.0 about a
+  tracker that was saving perfectly.
+
+  🔑 AND THE GUARD WAS RIGHT TO SHOUT. 6.276.0's rule is that a
+  hand-kept list is safe only when its failure is LOUD — a name
+  matching no file prints "⚠️ NO FILE MATCHING", never nothing. It
+  did its job, at a needle I got wrong on day one. The other four
+  were checked against their writers and are correct.
+
+  🧪 AND THE SUITE HAD WRITTEN THE RIGHT FILE ALL ALONG. The fixture
+  has created file_changes-TestMac.csv since this suite was born;
+  nothing asserted the row FOUND it. The new check walks the WHOLE
+  block for "NO FILE MATCHING" rather than naming one row, so the
+  next wrong needle fails here instead of in his Console.
+
+  🧪 THE FIXTURE THAT BITES the notes half is a loaded vault whose
+  scan has never finished (6.230.0) — every other fixture in the
+  suite sets lastScan, so the old code and the new one agree on all
+  of them. Three mutations, three bites.
+
 NEW IN 6.333.0 — 🕸 ONE HAMSIDIAN LIST, AND THE ICON TELLS THEM APART
   (modules/vault.lua). LL, in a list of Hamsidian asks: "The one-list
   Hamsidian."

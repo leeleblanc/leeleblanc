@@ -466,7 +466,7 @@ function M.setup(core)
         { label = "📋 clipboard",      pat = "clipboard_history" },
         { label = "📝 Hamsidian tabs", pat = "scratch%.json$"    },
         { label = "🔤 OCR text",       pat = "image_text"        },
-        { label = "📂 file history",   pat = "file_history"      },
+        { label = "📂 file history",   pat = "file_changes"      },
         { label = "⏱ app sessions",   pat = "activity_history"  },
     }
 
@@ -538,16 +538,37 @@ function M.setup(core)
                 L[#L + 1] = "      Your notes are not lost — they are in OneDrive, which this Mac"
                 L[#L + 1] = "      could not see. Start OneDrive and reload (⌘⌃R)."
             else
-                local cnt = vf.notes and (vf.notes .. " note" .. (vf.notes == 1 and "" or "s"))
-                            or (vf.loaded and "the index has not finished yet"
-                                or "the notes module is not loaded")
+                -- 🔎 6.334.0 — A FOURTH STATE, AND IT IS THE ONE HE SAW.
+                -- The notes index is built by v.scan(), which runs when
+                -- Hamsidian OPENS — so on a boot where ⇪3 has not been
+                -- pressed, v.notes is still the empty table it was
+                -- initialised with and #v.notes is 0. The old chain read
+                -- that as "the folder holds no notes" and shouted it, in
+                -- capitals, about a vault with every note in it. 6.312.0
+                -- exactly, inside the instrument 6.317.0 built to keep it
+                -- — and the field that separates them was already being
+                -- collected (`scanned` = v.lastScan, nil until a scan has
+                -- really finished) and simply never read.
+                -- WRITTEN AS BRANCHES, not an `and/or` chain: 6.303.0 —
+                -- a chain cannot carry a false or a nil as a MEANING.
+                local counted = vf.scanned ~= nil
+                local cnt
+                if not vf.loaded then
+                    cnt = "the notes module is not loaded"
+                elseif not counted then
+                    cnt = "⏳ not counted yet — the index is built when Hamsidian opens (⇪3)"
+                else
+                    cnt = vf.notes .. " note" .. (vf.notes == 1 and "" or "s")
+                end
                 L[#L + 1] = "   🕸 Hamsidian notes : " .. tostring(vf.dir)
                             .. "  ·  " .. cnt
                             .. (vf.exists and "" or "  ⚠️ THAT FOLDER IS NOT THERE")
-            end
-            if vf.onCloud and vf.exists and vf.notes == 0 then
-                L[#L + 1] = "      ⚠️ THE FOLDER IS THERE AND HOLDS NO NOTES. Look at it in Finder"
-                L[#L + 1] = "         before writing anything new — and see _G.vaultReport()."
+                -- the shout is for a vault that was COUNTED and is empty,
+                -- never for one nobody has counted.
+                if vf.exists and counted and vf.notes == 0 then
+                    L[#L + 1] = "      ⚠️ THE FOLDER IS THERE AND HOLDS NO NOTES. Look at it in Finder"
+                    L[#L + 1] = "         before writing anything new — and see _G.vaultReport()."
+                end
             end
         end
         local fl = {}

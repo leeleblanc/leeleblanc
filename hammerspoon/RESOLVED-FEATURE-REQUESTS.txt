@@ -1,5 +1,5 @@
 ========================================================================
-RESOLVED FEATURE REQUESTS — Hammerspoon config 6.333.0
+RESOLVED FEATURE REQUESTS — Hammerspoon config 6.335.0
 Every feature and how to use it. Generated from the modules' own
 cheat sheets (the rows ⇪/ draws), so it is never out of date.
 ⇪ = Caps Lock held (the hyper key). ⇪⇧X = Caps Lock + Shift + X.
@@ -214,6 +214,7 @@ In the Console, _G.<tool>Report() prints any tool's own report.
   Obsidian  Open the same folder as a vault in Obsidian — plug-ins and all
   ✕       On a note row — deletes it to <Vault>/.trash (never erased)
   undo that _G.vaultUndelete() puts the LAST deleted note back
+  🗑      In the header — the bin: every note you have deleted, newest first. Click one (or ⏎) to put it back. Nothing in it can erase anything
   the bin   _G.vaultTrash() lists every note in .trash — nothing is ever erased
   restore   _G.vaultRestore("<name>") brings any of them back to its own folder
   purge     _G.vaultPurgeTrash() is a DRY RUN · (true) empties what is over 180 days
@@ -784,6 +785,8 @@ In the Console, _G.<tool>Report() prints any tool's own report.
 
 📜 RELEASE INDEX — newest first, one line per release (the full story of each is in CHANGELOG.md)
 ------------------------------------------------------------------------
+  6.335.0  🗑 THE BIN IS A BUTTON, NOT A CONSOLE COMMAND
+  6.334.0  🔎 THE STORES READOUT STOPS LYING, TWICE
   6.333.0  🕸 ONE HAMSIDIAN LIST, AND THE ICON TELLS THEM APART
   6.332.0  🔄 ASANA REFRESHES ITSELF
   6.331.0  💾 THE VAULT HAS A LOCAL BACKUP

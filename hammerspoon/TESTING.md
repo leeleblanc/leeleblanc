@@ -1,4 +1,4 @@
-# TESTING — how to score release 6.333.0
+# TESTING — how to score release 6.335.0
 
 You install ONE archive and it carries several releases. Below are the
 steps for each release this archive is new for, newest first. Run the
@@ -26,6 +26,122 @@ else is a LOSS and I fix it before building further. You are the only
 scorer; I never mark my own.
 
 ---
+
+## 6.335.0
+
+6.335.0 verify with LL — 🗑 THE BIN IS A BUTTON (KNOWN GROUND)
+WHAT CHANGED: there is a 🗑 in the Hamsidian header, beside the other
+buttons. It shows every note you have deleted; clicking one puts it
+back.
+🔎 AND NOTHING WAS BROKEN, which is worth saying first: those notes
+have been recoverable since 6.321.0 — a delete MOVES the file to
+<Vault>/.trash and nothing erases it for 180 days. What you could not
+do was LOOK, without typing a command. That is the third time in this
+module I have built the measurement and not the door.
+
+A. THE HEADLINE.
+A1. ⇪3. Look at the header, between 🗂 and ↻.
+    EXPECT: a 🗑 button.
+A2. Click it.
+    EXPECT: the left column becomes the bin — your deleted notes,
+    newest first, each with the time it went. The strip above says
+    "🗑 BIN · N deleted".
+A3. Hover a row. EXPECT: a tooltip saying where it would go back to.
+A4. Click a row.
+    EXPECT: "🗑 <name> is back → <path>", the note is in Hamsidian
+    again, and the row is GONE from the bin.
+    **A FAIL is the note opening instead of being restored**, or the
+    wrong note coming back — tell me at once if either happens.
+A5. Click 🗑 again (or press Esc). EXPECT: back to your notes.
+
+B. THE EDGES WORTH ONE MINUTE.
+B1. In the bin, press ⌥↓ and ⌥↑. EXPECT: the highlight walks the
+    rows. ⌥⏎ restores the highlighted one — the same thing a click
+    does.
+B2. ⌘F and type part of a deleted note's name.
+    EXPECT: the bin filters. Type nonsense: "no deleted note matches"
+    — which must NOT read the same as an empty bin.
+B3. If you have never deleted anything on this Mac, the bin reads
+    "the bin is empty — nothing has been deleted". If it ever says
+    "⚠ the .trash folder could not be read", paste that: those are
+    opposite facts and the second one is the one that matters.
+B4. Restore a note whose name EXISTS again in the vault.
+    EXPECT: it lands beside it as "<name> (restored …)" and your
+    newer note is untouched. That rule is 6.321.0's and this must not
+    have broken it.
+
+C. MUST STILL WORK — this touched the left column, which is every
+   list in that window.
+C1. The notes list, ⌘F filter, ↑↓, ⏎ to open — unchanged.
+C2. ☑ tasks (⌘⇧K), 🔎 search (⌘⇧F), 🕸 graph (⌘G), 🗂 board (⌘⇧B) —
+    all four still open and still come back with Esc.
+C3. The ✕ on a note row still deletes it to the bin.
+C4. Your scratch tabs are still in the one list (6.333.0).
+C5. ⌘N, ⌘D, ⌘K, ⌘⇧S — unchanged.
+
+D. PASTE BACK.
+D1. `_G.vaultReport()` — its `bin :` line, and the `deleted:` count.
+D2. `_G.vaultTrash()` still works from the Console and must list the
+    same notes the button shows. If the two ever disagree, that is a
+    real finding.
+
+E. A JUDGEMENT ONLY YOU CAN MAKE.
+E1. There is deliberately NO purge button in the bin. A
+    delete-forever control one pixel from a restore control, in the
+    list that exists to prevent loss, is the wrong button to add —
+    `_G.vaultPurgeTrash()` is still the only thing that removes a
+    file. Say if you want one anyway; it is your call, not a gap.
+E2. A click restores immediately, with no confirm. Right, or would
+    you rather it asked? Nothing is destroyed either way, which is
+    why I made it immediate.
+E3. 🔨 CRUDE OR ELEGANT: Hamsidian worked throughout and the notes
+    were never at risk — what was missing was a way to look. My
+    reading is that this is a DOOR I should have built in 6.321.0,
+    not a defect. Your tag.
+
+
+
+## 6.334.0
+
+6.334.0 verify with LL — 🔎 THE BOOT READOUT STOPS LYING (KNOWN GROUND)
+WHAT CHANGED: two lines in the 💾 STORES block that were false on
+your 6.333.0 boot.
+🚨 AND YOUR NOTES WERE NEVER MISSING. The line read "⚠️ THE FOLDER IS
+THERE AND HOLDS NO NOTES" over a vault with all of them in it. The
+notes index is built when Hamsidian OPENS, so ten seconds after boot
+— which is when that block prints — it has not been built, and the
+readout printed the words for "there is nothing" instead of "I have
+not counted yet". That is the same mistake 6.312.0 fixed in the music
+player, inside the instrument 6.317.0 added to stop exactly this.
+
+A. THE HEADLINE.
+A1. Reload Hammerspoon. Do NOT press ⇪3. Wait ten seconds and read
+    the 💾 STORES block.
+    EXPECT: `🕸 Hamsidian notes : …/Vault · ⏳ not counted yet — the
+    index is built when Hamsidian opens (⇪3)`.
+    **A FAIL is "0 notes" or the ⚠️ shout** — that is the old
+    behaviour.
+A2. Now press ⇪3, then Console: `_G.stores()`.
+    EXPECT: a real count — the number of notes you actually have.
+A3. Read the `📂 file history` line in either block.
+    EXPECT: a real path ending `file_changes-<your Mac>.csv` and a
+    time. It used to read ⚠️ NO FILE MATCHING "file_history" on every
+    boot, about a tracker that was saving perfectly.
+
+B. THE SHOUT MUST STILL WORK — it is the line that matters most.
+B1. The ⚠️ is now only for a vault that was COUNTED and is empty. If
+    you ever genuinely open Hamsidian to an empty folder, that ⚠️
+    must appear. I cannot test that from here without emptying your
+    vault, and I am not going to.
+B2. The 🚨 THE NOTES FOLDER IS LOCAL ONLY line (OneDrive not found at
+    boot) is untouched and still shouts.
+
+C. PASTE BACK.
+C1. The whole 💾 STORES block from an ordinary morning. Every one of
+    the five named stores should resolve to a real path and a time —
+    there should be no ⚠️ anywhere in it.
+
+
 
 ## 6.333.0
 
@@ -114,113 +230,6 @@ D2. 🗳 ONE QUESTION: should it PAUSE while you are typing in Asana? A
     reload that discards a half-written comment is worse than a
     stale board. I have not built that — say the word and it is a
     small release.
-
-
-
-## 6.331.0
-
-6.331.0 verify with LL — 💾 THE NOTES HAVE A SECOND COPY (KNOWN GROUND)
-WHAT CHANGED: your Hamsidian notes are rsync'd to a LOCAL folder
-every thirty minutes. Nothing you press changes.
-WHY: every other store in this config has had a 30-minute mirror
-since 6.190.0 and the vault never did. It lives in OneDrive so
-Obsidian can open it on either Mac — which means it has had exactly
-one copy, owned by a sync client, and a sync client is not a backup:
-a deletion propagates.
-
-A. THE HEADLINE.
-A1. Console: `_G.backupReport()`. Find the new `vault :` line.
-    EXPECT: a destination under ~/Library/Application Support, and
-    either "not run yet" (straight after a reload) or a time and
-    "ok". PASTE IT.
-A2. Wait a few minutes after a reload, run it again.
-    EXPECT: a real time and "ok".
-A3. Open that destination folder in Finder.
-    EXPECT: your notes, as .md files. NOT a `.trash` folder — that
-    is excluded on purpose, because 6.321.0's bin already keeps
-    deleted notes for 180 days.
-
-B. IT MUST NEVER SHRINK.
-B1. Delete a throwaway note in Hamsidian. Wait for the next mirror.
-    EXPECT: the file is STILL in the local copy. No rsync in this
-    kit carries `--delete`, deliberately — a vault that failed to
-    load must not be able to erase its own backup. The cost is that
-    the copy only grows; that is the right trade for your writing.
-
-C. MUST STILL WORK.
-C1. The nightly backup and the 30-minute store mirror are unchanged.
-C2. Hamsidian itself is untouched — no new write, no new read on the
-    path you type on.
-
-D. A JUDGEMENT ONLY YOU CAN MAKE.
-D1. Thirty minutes, same as the stores. Too often for a folder of
-    notes, or not often enough? `vaultMirrorMins`.
-D2. The destination is deliberately NOT in OneDrive — a backup
-    inside the thing being backed up is one deletion from being
-    neither. Say if you want a second copy somewhere else as well
-    (an external disk, say); that is its own release.
-
-
-
-## 6.330.0
-
-6.330.0 verify with LL — 🧊 THE HEARTBEAT CARRIES WHAT WAS RUNNING
-(KNOWN GROUND — an instrument, not a fix)
-WHAT CHANGED: the file the stall guard watches now carries the NAME
-of the shortcut the main thread is inside, not just a clock.
-🚨 AND I HAVE NOT FIXED YOUR LOCKUP. Saying that first. Your log
-reads `🧊 Hammerspoon HUNG for 73 s at 2026-10-04 17:16:59 and was
-relaunched by the stall guard` — that is 6.208.0's guard working,
-for the second time in the field, and it is why you got your Mac
-back without a reboot. What it could not say is WHAT hung. Two
-relaunches, two reports, zero attribution. This is the release that
-makes the next one name itself.
-
-A. THE HEADLINE.
-A1. Console: `_G.stallGuardReport()`.
-    EXPECT the usual block plus a new `in flt :` line. On an idle
-    Mac it reads "nothing in flight". PASTE IT.
-A2. Hold a ⇪ shortcut that takes a moment — ⇪D, say — and run the
-    report immediately afterwards.
-    EXPECT: "nothing in flight" again (it clears when the shortcut
-    returns). The line is only ever non-empty DURING a shortcut,
-    which is exactly when you cannot type.
-A3. If `in flt :` ever carries `⚠️ N beat(s) could not build a
-    label`, paste it — the guard still works (it falls back to the
-    bare clock) but the breadcrumb is not being written.
-
-B. WHEN IT LOCKS UP AGAIN — this is the real test and I cannot run
-   it from here.
-B1. If Hammerspoon hangs and the guard relaunches it, the next boot
-    announces it as before. **Then send me the guard's log**, which
-    the report names the path of. It will now carry a line reading
-    `in flight: ⇪<something>` beside the kill — that is the
-    shortcut the main thread was inside.
-B2. If it reads `in flight: (none)`, that is just as useful: it
-    means the thread stopped somewhere that is NOT a ⇪ shortcut —
-    a timer, a watcher, or macOS itself — and that halves the
-    search.
-
-C. MUST STILL WORK — the guard is a kill switch, so this matters.
-C1. Use the Mac normally for a day. Hammerspoon must NOT be
-    relaunched. If it is, paste the log at once.
-C2. Reload Hammerspoon. `_G.stallGuardReport()` must show ONE
-    guard running, never two.
-C3. Close the lid for a few minutes and open it. Nothing must
-    happen — the sleep rule is unchanged.
-
-D. WHAT I SUSPECT AND HAVE NOT PROVEN.
-D1. Your boot said `0.24s` and then loaded five Hammerspoon
-    extensions over the next FORTY-TWO SECONDS — notify at
-    17:17:03, mouse at 17:17:29 (twenty-six seconds later),
-    webview, drawing, geometry. Each of those is a library being
-    loaded on the main thread, lazily, the first time something
-    asks for it. That is a candidate for a long stall and it is
-    NOT a verdict (6.198.0). The breadcrumb is what will tell us.
-D2. 🔨 CRUDE OR ELEGANT: by your own description the Mac was
-    unusable — "I couldn't even click on anything on the screen".
-    My reading is 🔨 CRUDE, and the pass count is 0, because
-    nothing here is a fix yet. Your tag.
 
 
 

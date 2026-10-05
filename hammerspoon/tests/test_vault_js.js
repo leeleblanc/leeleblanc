@@ -32,7 +32,7 @@ function makeEnv() {
   const sent = [];
   const t = el("TEXTAREA"), q = el("INPUT"), hdr = el("HEADER"), ac = el("DIV"), rows = el("UL"), links = el("DIV"), cv = el("CANVAS"), gbtn = el("BUTTON");
   // 6.174.0 — the mode strip, footer, chips, outline, mentions, hint and the two header buttons
-  const mode = el("DIV"), foot = el("DIV"), chips = el("DIV"), outline = el("UL"), unl = el("UL"), unlh = el("H4"), hint = el("SPAN"), sbtn = el("BUTTON"), kbtn = el("BUTTON");
+  const mode = el("DIV"), foot = el("DIV"), chips = el("DIV"), outline = el("UL"), unl = el("UL"), unlh = el("H4"), hint = el("SPAN"), sbtn = el("BUTTON"), kbtn = el("BUTTON"), tbtn = el("BUTTON");
   // 6.183.0 — the 🔎 QUERY block in the right pane
   const qbox = el("DIV"), qres = el("UL"), qh = el("H4");
   // 6.186.0 — the 🗂 board: its columns, its footer, the card that follows the pointer
@@ -43,7 +43,7 @@ function makeEnv() {
   // could not be caught because it never ran. A stub missing an element
   // the real page has is 6.193.0's hole with a tick beside it.
   const pr = el("DIV"), prlab = el("DIV"), prin = el("INPUT"), prwarn = el("DIV");
-  const byId = { t, q, hdr, ac, rows, links, cv, gbtn, mode, foot, chips, outline, unl, unlh, hint, sbtn, kbtn, qbox, qres, qh, bcols, btip, bdrag, bbtn, pr, prlab, prin, prwarn };
+  const byId = { t, q, hdr, ac, rows, links, cv, gbtn, mode, foot, chips, outline, unl, unlh, hint, sbtn, kbtn, tbtn, qbox, qres, qh, bcols, btip, bdrag, bbtn, pr, prlab, prin, prwarn };
   const docListeners = {}, winListeners = {};
   // 6.186.0 — the board's columns, parsed out of bcols.innerHTML into elements
   // the page's own drag code can walk: a card's parentNode is .cards and its
@@ -141,7 +141,7 @@ function makeEnv() {
     return card;
   }
   return { sandbox, sent, t, q, ac, rows, docListeners, winListeners, byId, liRows, click, mode, foot, chips, pr, prin, prwarn, prlab,
-           outline, unl, unlh, hint, kbtn, qbox, qres, qh, links, bcols, btip, bdrag, boardCols, drag,
+           outline, unl, unlh, hint, kbtn, tbtn, qbox, qres, qh, links, bcols, btip, bdrag, boardCols, drag, liRows,
            setHit: (h) => { hit = h; } };
 }
 const padHtml = process.argv[3] ? fs.readFileSync(process.argv[3], "utf8") : null;
@@ -1117,6 +1117,76 @@ if (padHtml) {
   check("🚨 6.203.0 — no say({…}) sets text:, sel: or rel: — those are say's own,\n"
         + "        and a value handed over under one of those names never arrives",
         src.length > 5000 && bad.length === 0, bad.join(" | "));
+}
+
+// 6.335.0 — 🗑 THE BIN IS A FOURTH FACE OF THE LEFT COLUMN
+// LL: "I need a trash bin at the top with the other buttons that lets me
+// see notes I deleted." The notes were always recoverable (6.321.0); the
+// only doors were two Console commands.
+{
+  const env = load();
+  check("🗑 the header carries the bin button, and it says what it does",
+        html.includes('id="tbtn"') && html.includes("every note you have deleted"));
+  env.sent.length = 0;
+  env.call("setMode('trash')");
+  check("🗑 the bin is a mode: it lights its button and tells Lua",
+        env.call("MODE") === "trash" && env.tbtn.classList.contains("on")
+        && env.sent.some((m) => m.a === "mode" && m.m === "trash"), JSON.stringify(env.sent));
+  check("🔎 …and before Lua has answered it says so — not 'the bin is empty'",
+        env.rows.innerHTML.includes("reading the bin"), env.rows.innerHTML);
+
+  env.call('setRows("trash", [{f:"Deep  2026-10-04 152233.md",n:"Notes-Deep",w:"Notes/Deep.md",t:"Oct 04 15:22",root:false},'
+         + '{f:"Loose  2026-10-04 152200.md",n:"Loose",w:"Loose.md",t:"Oct 04 15:20",root:true}], false, "")');
+  check("🗑 a row per deleted note, with its name and when it went",
+        env.rows.innerHTML.includes("Notes-Deep") && env.rows.innerHTML.includes("Oct 04 15:22")
+        && env.rows.innerHTML.includes("Loose"), env.rows.innerHTML);
+  check("🔎 the one with no folder on record SAYS it goes back to the root — "
+        + "and the one that has a folder does not",
+        (env.rows.innerHTML.match(/→ root/g) || []).length === 1, env.rows.innerHTML);
+  check("…and the count is on the strip", env.mode.textContent.includes("2 deleted"), env.mode.textContent);
+
+  env.sent.length = 0; env.q.value = "loose"; env.q.listeners.input({});
+  check("the box filters the bin locally — no message",
+        env.rows.innerHTML.includes("Loose") && !env.rows.innerHTML.includes("Notes-Deep")
+        && env.sent.length === 0, env.rows.innerHTML);
+  env.q.value = "zzz"; env.q.listeners.input({});
+  check("🔎 a filter that matches nothing is NOT the same sentence as an empty bin",
+        env.rows.innerHTML.includes("no deleted note matches"), env.rows.innerHTML);
+  env.q.value = ""; env.q.listeners.input({});
+
+  // ↩️ the click. BY FILE NAME — the row number renumbers under his hand
+  // the moment anything is restored or purged (6.272.0).
+  env.sent.length = 0;
+  const binRows = env.liRows(env.rows.innerHTML);
+  check("the bin's rows are walkable rows", binRows.length === 2, binRows.length);
+  env.click(env.rows, binRows[1]);
+  check("↩️ clicking a row asks Lua to put THAT file back, by its file name",
+        env.sent.length === 1 && env.sent[0].a === "untrash"
+        && env.sent[0].bin === "Loose  2026-10-04 152200.md", JSON.stringify(env.sent));
+  check("🚨 …and it does NOT also send an open — a bin row carries no "
+        + "data-name, so falling through would open nothing, silently",
+        !env.sent.some((m) => m.a === "open"), JSON.stringify(env.sent));
+
+  // ⏎ walks to the same door (6.231.0: one function, two callers)
+  env.sent.length = 0;
+  env.key("ArrowDown", { altKey: true }); env.key("Enter", { altKey: true });
+  check("⌨️ the row walker reaches the bin and ⏎ restores the highlighted "
+        + "row — the same message the click sends (6.231.0: one door)",
+        env.sent.length === 1 && env.sent[0].a === "untrash"
+        && env.sent[0].bin === "Deep  2026-10-04 152233.md", JSON.stringify(env.sent));
+
+  // 🔎 6.196.1 — a bin that could not be READ is not an empty bin
+  env.call('setRows("trash", [], false, "the .trash folder could not be read")');
+  check("🔎 a bin that cannot be read says so, and never reads as empty",
+        env.rows.innerHTML.includes("could not be read")
+        && !env.rows.innerHTML.includes("the bin is empty"), env.rows.innerHTML);
+  env.call('setRows("trash", [], false, "")');
+  check("…and a genuinely empty bin says THAT instead",
+        env.rows.innerHTML.includes("the bin is empty"), env.rows.innerHTML);
+
+  env.sent.length = 0; env.key("Escape");
+  check("Esc leaves the bin for the notes, like every other mode",
+        env.call("MODE") === "notes" && !env.tbtn.classList.contains("on"), env.call("MODE"));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

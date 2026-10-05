@@ -222,6 +222,7 @@ local M = {
             { "Obsidian",   "Open the same folder as a vault in Obsidian — plug-ins and all" },
             { "✕",          "On a note row — deletes it to <Vault>/.trash (never erased)" },
             { "undo that",  "_G.vaultUndelete() puts the LAST deleted note back" },
+            { "🗑",          "In the header — the bin: every note you have deleted, newest first. Click one (or ⏎) to put it back. Nothing in it can erase anything" },
             { "the bin",    "_G.vaultTrash() lists every note in .trash — nothing is ever erased" },
             { "restore",    "_G.vaultRestore(\"<name>\") brings any of them back to its own folder" },
             { "purge",      "_G.vaultPurgeTrash() is a DRY RUN · (true) empties what is over 180 days" },
@@ -339,6 +340,8 @@ function M.setup(core)
         searchQuery = "", searchRows = {}, searchMore = false, searchTask = nil, searchTimer = nil, searchSeq = 0,
         searching = false, searchErr = nil, lastSearch = nil, searches = 0,
         taskRows = {}, taskMore = false, tasksTask = nil, tasksSeq = 0, tasksListing = false, tasksErr = nil, lastTasks = nil,
+        -- 🗑 6.335.0 — the bin is a FACE of the left column, like ☑ tasks.
+        trashRows = {}, trashErr = nil, lastTrash = nil, untrashes = 0,
         unlinked = { key = nil, rels = {}, pending = false, why = nil, more = false }, mentionTask = nil, mentionSeq = 0,
         catTask = nil, catTimer = nil, tplSeq = 0,
         caretLine = nil, caretHead = nil, extracts = 0, randoms = 0,
@@ -438,6 +441,24 @@ function M.setup(core)
         end
         return "[" .. table.concat(out, ",") .. "]"
     end
+    -- 🗑 6.335.0 — the bin's rows → a JS array literal. Its own encoder:
+    -- jarr knows n/r/l/x and nothing else, and widening it would change
+    -- what every other pusher sends.
+    -- 🚨 IT LIVES BESIDE jarr, NOT BESIDE THE BIN. Written next to
+    -- v.listTrash it is declared AFTER the page builder reads it, and a
+    -- local that is not in scope yet is a nil GLOBAL — so building the
+    -- page raised, v.htmlSet was never assigned, and the suite DIED
+    -- rather than failing a check. Caught by the gate on the first run.
+    local function jtrash(rows)
+        local out = {}
+        for _, r in ipairs(rows or {}) do
+            out[#out + 1] = "{f:" .. jstr(r.f) .. ",n:" .. jstr(r.n)
+                            .. ",w:" .. jstr(r.w) .. ",t:" .. jstr(r.t)
+                            .. ",root:" .. tostring(r.root == true) .. "}"
+        end
+        return "[" .. table.concat(out, ",") .. "]"
+    end
+
     -- an absolute path under the vault → its rel; anything else → nil
     local function relOf(path)
         path = tostring(path or "")
@@ -2020,10 +2041,11 @@ function M.setup(core)
         v.searchQuery, v.searchRows, v.searchMore, v.searching = "", {}, false, false
     end
     function v.setMode(m)
-        if m ~= "search" and m ~= "tasks" then m = "notes" end
+        if m ~= "search" and m ~= "tasks" and m ~= "trash" then m = "notes" end
         if v.mode == "search" and m ~= "search" then leaveSearch() end
         v.mode = m
         if m == "tasks" then v.listTasks() end
+        if m == "trash" then v.listTrash() end
         if m == "notes" then v.filter = "" end
         return m
     end
@@ -2600,6 +2622,10 @@ body.board #board{display:flex}
 #rows li.tag .ct{opacity:.5;margin-left:auto}
 #rows li.tpl{opacity:.75}
 #rows li.hit,#rows li.task{white-space:normal;font-size:FS1px}
+#rows li.bin{display:flex;align-items:center;gap:8px}
+#rows li.bin .tt{flex:1;overflow:hidden;text-overflow:ellipsis}
+#rows li.bin .bt{opacity:.45;font-size:FS2px;white-space:nowrap}
+#rows li.bin .bk{opacity:.5;font-size:FS2px;white-space:nowrap}
 .hn{font-weight:600}
 .hl{opacity:.5;margin:0 6px}
 .hx{opacity:.8}
@@ -2663,6 +2689,7 @@ body.board #board{display:flex}
 <button id="sbtn" onclick="setMode('search')" title="Search inside every note ⌘⇧F">🔎</button><button id="kbtn" class="]==] .. (v.mode == "tasks" and "on" or "") .. [==[" onclick="setMode(MODE==='tasks'?'notes':'tasks')" title="Every open task ⌘⇧K">☑</button>
 <button id="gbtn" class="]==] .. (v.view == "graph" and "on" or "") .. [==[" onclick="say({a:'graph'})" title="Graph ⌘G">🕸</button>
 <button id="bbtn" class="]==] .. (v.view == "board" and "on" or "") .. [==[" onclick="say({a:'board'})" title="Board ⌘⇧B — your notes as Kanban columns, grouped by a front-matter field. Drag a card and it rewrites that note's field.">🗂</button>
+<button id="tbtn" class="]==] .. (v.mode == "trash" and "on" or "") .. [==[" onclick="setMode(MODE==='trash'?'notes':'trash')" title="🗑 The bin — every note you have deleted, newest first. Click one to put it back. Nothing in here is erased before it is ]==] .. tostring(v.trashDays or 180) .. [==[ days old.">🗑</button>
 <button onclick="say({a:'rescan'})" title="Rescan the folder">↻</button>
 <button id="pin" class="]==] .. (v.pinned and "on" or "") .. [==[" onclick="say({a:'pin'})" title="Pin: the window stays up beside the app; Esc only hands the keyboard back">📌</button>
 <button onclick="say({a:'hide'})" title="Close ⇪3 / ⇪1 / Esc">✕</button></header>
@@ -2756,6 +2783,7 @@ var TEMPLATES = ]==] .. v.templatesJson() .. [==[;
 var TPLDIR = ]==] .. jstr(v.templatesDir or "") .. [==[;
 var SEARCH = {q:]==] .. jstr(v.searchQuery) .. [==[, rows:]==] .. jarr(v.searchRows) .. [==[, more:]==] .. tostring(v.searchMore == true) .. [==[, err:]==] .. jstr(v.searchErr or "") .. [==[, busy:]==] .. tostring(v.searching == true) .. [==[};
 var TASKS = {rows:]==] .. jarr(v.taskRows) .. [==[, more:]==] .. tostring(v.taskMore == true) .. [==[, err:]==] .. jstr(v.tasksErr or "") .. [==[, listed:]==] .. tostring(v.lastTasks ~= nil) .. [==[};
+var TRASH = {rows:]==] .. jtrash(v.trashRows) .. [==[, err:]==] .. jstr(v.trashErr or "") .. [==[, listed:]==] .. tostring(v.lastTrash ~= nil) .. [==[};
 var UNL = {key:]==] .. jstr(u.key or "") .. [==[, rows:]==] .. jarr(unlRows) .. [==[, pending:]==] .. tostring(u.pending == true) .. [==[, why:]==] .. jstr(u.why or (u.more and "more" or "")) .. [==[};
 var CARETLINE = ]==] .. tostring(math.floor(tonumber(v.caretLine) or 0)) .. [==[;
 var CARETHEAD = ]==] .. (v.caretHead and jstr(v.caretHead) or "null") .. [==[;
@@ -2796,10 +2824,11 @@ document.addEventListener('keyup', function(e){
 var modeEl = document.getElementById('mode'), foot = document.getElementById('foot'), chips = document.getElementById('chips');
 var outlineEl = document.getElementById('outline'), unl = document.getElementById('unl'), unlh = document.getElementById('unlh');
 var hint = document.getElementById('hint'), kbtn = document.getElementById('kbtn');
+var tbtn = document.getElementById('tbtn');
 var qbox = document.getElementById('qbox'), qres = document.getElementById('qres'), qh = document.getElementById('qh');
 var bcols = document.getElementById('bcols'), btip = document.getElementById('btip'), bdrag = document.getElementById('bdrag');
 var HINT0 = (hint && hint.textContent) || '', PANE_T = null;
-var PLACEHOLDER = { notes: 'filter notes… ⌘F', search: 'words… ("a phrase", tag:x, path:x) — ⏎ opens at the line', tasks: 'filter the tasks…' };
+var PLACEHOLDER = { notes: 'filter notes… ⌘F', search: 'words… ("a phrase", tag:x, path:x) — ⏎ opens at the line', tasks: 'filter the tasks…', trash: 'filter the bin…' };
 
 // ---- the note list (filtered) ----
 function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;'); }
@@ -2814,6 +2843,7 @@ function noteHasTag(x, tag, exact){
 function drawRows(){
   if (MODE === 'search') { drawSearchRows(); return; }
   if (MODE === 'tasks') { drawTaskRows(); return; }
+  if (MODE === 'trash') { drawTrashRows(); return; }
   var f = (q.value || '').toLowerCase().trim(), h = [], n = 0, s = [], tag = tagFilter();
   if (tag !== null) f = '';
   // 6.173.0 — the Scorp Pad's tabs first, a section of their own (hidden under a # filter)
@@ -2950,8 +2980,38 @@ function drawTaskRows(){
   rowsEl.innerHTML = h.join('');
   SEL = -1;
 }
+// 🗑 6.335.0 — THE BIN. Every note deleted since this vault was made,
+// newest first, with where it would go back to. Clicking one restores
+// it; nothing in here can delete anything, which is deliberate — a
+// purge-forever control one pixel from a restore control, in the one
+// list that exists to prevent loss, is exactly the wrong button to add.
+// _G.vaultPurgeTrash() is still the only door that destroys a file.
+function drawTrashRows(){
+  var f = (q.value || '').toLowerCase().trim(), h = [], rows = TRASH.rows || [];
+  var shown = 0;
+  for (var i = 0; i < rows.length; i++) {
+    var r = rows[i];
+    if (f && r.n.toLowerCase().indexOf(f) < 0) continue;
+    shown++;
+    h.push('<li class="bin" data-un="' + esc(r.f) + '" title="' + esc('Deleted ' + r.t + ' — ⏎ or click puts it back as ' + r.w + (r.root ? ' (the root: this one has no folder on record)' : '')) + '">'
+         + '<span class="tt">🗑 ' + esc(r.n) + '</span>'
+         + (r.root ? '<span class="bk">→ root</span>' : '')
+         + '<span class="bt">' + esc(r.t) + '</span></li>');
+  }
+  if (!h.length) {
+    var msg;
+    if (TRASH.err) msg = '⚠ ' + TRASH.err;
+    else if (!TRASH.listed) msg = 'reading the bin…';
+    else if (rows.length) msg = 'no deleted note matches';
+    else msg = 'the bin is empty — nothing has been deleted';
+    h.push('<li style="opacity:.4;cursor:default">' + esc(msg) + '</li>');
+  }
+  if (modeEl) modeEl.textContent = '🗑 BIN · ' + rows.length + ' deleted · ⏎ or click puts one back · Esc back' + (TRASH.err ? ' · ⚠ ' + TRASH.err : '');
+  rowsEl.innerHTML = h.join('');
+  SEL = -1;
+}
 rowsEl.addEventListener('click', function(e){
-  var li = e.target.closest ? e.target.closest('li[data-name],li[data-tab],li[data-tag],li[data-new]') : null; if (!li) return;
+  var li = e.target.closest ? e.target.closest('li[data-name],li[data-tab],li[data-tag],li[data-new],li[data-un]') : null; if (!li) return;
   if (li.getAttribute('data-new')) { say({a:'newnote'}); return; }
   var tid = li.getAttribute('data-tab');
   // 🚨 6.280.0 — THE ✕ IS ASKED BEFORE THE ROW IT SITS INSIDE. This is
@@ -2972,7 +3032,7 @@ if (chips) chips.addEventListener('click', function(e){
   var c = e.target.closest ? e.target.closest('[data-tag]') : null; if (c) setFilter('#' + c.getAttribute('data-tag')); });
 q.addEventListener('input', function(){
   if (MODE === 'search') { SEARCH.q = q.value; SEARCH.busy = !!q.value.trim(); SEARCH.err = ''; say({a:'search', q: q.value}); drawRows(); }
-  else if (MODE === 'tasks') drawRows();
+  else if (MODE === 'tasks' || MODE === 'trash') drawRows();   // 🗑 6.335.0 — the bin filters in the page too, and sends nothing
   else { say({a:'filter', f: q.value}); drawRows(); } });
 q.addEventListener('keydown', function(e){
   if (e.key !== 'Enter' || SEL >= 0) return;
@@ -3004,13 +3064,14 @@ function setFilter(s){
 }
 // the left column's three faces; Lua is told unless `quiet` (the load sequence)
 function setMode(m, quiet){
-  if (m !== 'search' && m !== 'tasks') m = 'notes';
+  if (m !== 'search' && m !== 'tasks' && m !== 'trash') m = 'notes';
   var was = MODE; MODE = m;
   if (was === 'search' && m !== 'search') { SEARCH.q = ''; SEARCH.rows = []; SEARCH.more = false; SEARCH.busy = false; SEARCH.err = ''; }
   if (m === 'search') q.value = SEARCH.q || ''; else if (was !== m) q.value = '';
   q.placeholder = PLACEHOLDER[m];
   if (modeEl) { modeEl.hidden = (m === 'notes'); modeEl.className = m; }
   if (kbtn) kbtn.classList.toggle('on', m === 'tasks');
+  if (tbtn) tbtn.classList.toggle('on', m === 'trash');
   if (!quiet) say({a:'mode', m: m});
   drawRows();
   q.focus();
@@ -3031,6 +3092,7 @@ function setIndex(notes, tags, graph){
 function setRows(kind, rows, more, qq){
   if (kind === 'search') { if (MODE !== 'search' || qq !== SEARCH.q) return; SEARCH.rows = rows || []; SEARCH.more = !!more; SEARCH.busy = false; drawRows(); }
   else if (kind === 'tasks') { TASKS.rows = rows || []; TASKS.more = !!more; TASKS.listed = true; if (MODE === 'tasks') drawRows(); }
+  else if (kind === 'trash') { TRASH.rows = rows || []; TRASH.err = qq || ''; TRASH.listed = true; if (MODE === 'trash') drawRows(); }
 }
 function setMentions(rows, key, why){ if (key !== UNL.key) return; UNL.rows = rows || []; UNL.pending = false; UNL.why = why || ''; drawUnlinked(); }
 function vaultHint(s){ if (hint) hint.textContent = s || HINT0; }
@@ -3038,7 +3100,7 @@ function vaultHint(s){ if (hint) hint.textContent = s || HINT0; }
 // ⌨️ 6.170.0 — ARROW THROUGH THE ROWS. ⌥↑/⌥↓ always; plain ↑/↓ when the
 // caret is not in the text; ⏎ / ⌥⏎ acts on the highlighted row.
 // 6.174.0 — tag rows, template rows, search hits and tasks are rows too.
-var SEL = -1, ROWSEL = '#rows li[data-name],#rows li[data-tab],#rows li[data-tag]';
+var SEL = -1, ROWSEL = '#rows li[data-name],#rows li[data-tab],#rows li[data-tag],#rows li[data-un]';
 function rowsList(){ try { return Array.prototype.slice.call(document.querySelectorAll(ROWSEL)); } catch(e){ return []; } }
 function inText(){ var a = null; try { a = document.activeElement; } catch(e){} return !!(a && a.tagName === 'TEXTAREA'); }
 function moveSel(d){
@@ -3061,6 +3123,12 @@ function rowKey(e){
 }
 function rowAct(r){
   var tid = r.getAttribute('data-tab'), tag = r.getAttribute('data-tag');
+  // 🗑 6.335.0 — a bin row is asked FIRST and returns. It carries no
+  // data-name, so falling through would send {a:'open', name:null} and
+  // the one list whose job is recovering a note would quietly open
+  // nothing.
+  var un = r.getAttribute('data-un');
+  if (un) { say({a:'untrash', bin: un}); return; }
   if (tid === '+') say({a:'tabnew'});
 
   else if (tid === '+capture' || tid === '+append') say({a:'tabkind', kind: tid.slice(1)});
@@ -4282,6 +4350,29 @@ else {
             v.setMode(tostring(body.m or "notes"))
         elseif a == "search" then
             v.search(tostring(body.q or ""))
+        elseif a == "untrash" then
+            -- 🗑 6.335.0 — BY FILE NAME, never by row number (6.272.0).
+            -- 🚨 `bin`, NOT `rel` or `name`: the page's say() stamps
+            -- text / sel / rel onto EVERY message (6.203.0), so a value
+            -- sent under one of those names is silently replaced with
+            -- the OPEN note's — which here would restore whatever is on
+            -- screen instead of the row he clicked.
+            local file = tostring(body.bin or "")
+            if file == "" then
+                alert("🗑 Nothing to put back — that row carried no file name", 4)
+            else
+                local okR = _G.vaultRestore(file)
+                if okR then v.untrashes = (v.untrashes or 0) + 1 end
+                -- the bin must not still be showing a note that is out
+                -- of it. listTrash pushes, and the render is the BELT:
+                -- vaultRestore has just rebuilt the page, and a push
+                -- into a page WebKit has not parsed is dropped in
+                -- silence (6.238.0), so the payload is made right too.
+                if v.mode == "trash" then
+                    v.listTrash()
+                    v.render()
+                end
+            end
         elseif a == "tasks" then
             v.listTasks()
         elseif a == "tplinsert" then
@@ -4808,6 +4899,59 @@ else {
             return a.file < b.file
         end)
         return rows
+    end
+
+    -- 🗑 6.335.0 — PURE: the bin as the PAGE draws it. LL: "I need a
+    -- trash bin at the top with the other buttons that lets me see notes
+    -- I deleted." 6.321.0 built the bin and gave it two Console
+    -- commands; a recycle bin you can only read by typing a command is
+    -- 6.317.0's finding again — the instrument was not the gap, the DOOR
+    -- was, and this is the third time that sentence has decided a
+    -- release in this module.
+    -- 🔑 THE TRASH FILE NAME IS THE IDENTITY, and it is the only thing a
+    -- restore is ever asked for. 6.272.0 / 6.186.0: a restore or a purge
+    -- renumbers the list under his hand, so a row number forgets a
+    -- DIFFERENT note than the one he clicked — in the one list whose
+    -- whole purpose is not losing things.
+    function v.trashPageRows(rows, now)
+        now = tonumber(now) or os.time()
+        local out = {}
+        for _, r in ipairs(rows or {}) do
+            -- where it goes back to: its own folder when the .index
+            -- remembered one, the root when it did not — and the row
+            -- SAYS which, because those are different outcomes and he is
+            -- deciding from this list (6.196.1).
+            local back = r.rel
+            local known = (r.known == true) and type(back) == "string" and back ~= ""
+            if not known then back = tostring(r.name or "") .. ".md" end
+            -- 🕒 FORMATTED THROUGH SOMETHING THAT ANSWERS (6.282.0): a
+            -- report that can RAISE is worse than one that lies, and
+            -- os.date refuses a float outright.
+            local at, when = tonumber(r.at), "time not recorded"
+            if at and at > 0 then
+                local ok, txt = pcall(os.date, "%b %d %H:%M", math.floor(at))
+                if ok and type(txt) == "string" then when = txt end
+            end
+            out[#out + 1] = { f = tostring(r.file or ""), n = tostring(r.name or ""),
+                              w = back, t = when, root = (not known) }
+        end
+        return out
+    end
+
+    -- 🗑 Read the folder and push it. SYNCHRONOUS on purpose, and that is
+    -- a decision rather than an oversight: this is one directory listing
+    -- and one small .index read, paid by a KEYPRESS — not a grep, so
+    -- there is no task to hold, no sequence number to check and no
+    -- half-drawn state to report. 6.267.0's rule is about the BOOT path;
+    -- nothing here runs at setup or at warm.
+    function v.listTrash()
+        local rows, why = v.trashList()
+        v.trashErr  = (rows == nil) and tostring(why or "the bin could not be read") or nil
+        v.trashRows = v.trashPageRows(rows or {})
+        v.lastTrash = os.time()
+        v.eval("setRows(\"trash\", " .. jtrash(v.trashRows) .. ", false, "
+               .. jstr(v.trashErr or "") .. ")")
+        return rows ~= nil, why
     end
 
     -- PURE: which rows a purge is due to take, given a clock. Separated

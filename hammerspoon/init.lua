@@ -4,35 +4,38 @@
 -- =====================================================================
 -- 10-05-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.333.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.335.0
 -- =====================================================================
 
--- NEW IN 6.333.0 — 🕸 ONE HAMSIDIAN LIST, THE ICON TELLS THEM APART
---   (modules/vault.lua). LL: "The one-list Hamsidian." The left
---   column drew 📝 SCRATCH NOTES and 🕸 NOTES as two sections, so a
---   thing he had written was in one of two places depending on how he
---   made it. ONE list now, newest first, 📝 on a tab and 🕸 on a note
---   — 6.253.0's rule (the icon is what tells them apart) applied to
---   the list itself. Nothing moved on disk: a tab is still
---   scratch.json, a note is still a .md file, and ⌘F, ↑↓, ⏎ and the
---   ✕ are unchanged on both.
+-- NEW IN 6.335.0 — 🗑 THE BIN IS A BUTTON, NOT A CONSOLE COMMAND
+--   (modules/vault.lua). LL: "I need a trash bin at the top with the
+--   other buttons that lets me see notes I deleted." 6.321.0 built
+--   the bin and every note has been recoverable since — through two
+--   Console commands. 6.317.0's finding for the THIRD time: the
+--   instrument was not the gap, the DOOR was. 🗑 in the header is a
+--   fourth face of the left column (like ☑ tasks): every deleted
+--   note, newest first, with where it goes back to. A click or ⏎
+--   restores it, by its TRASH FILE NAME and never by row number
+--   (6.272.0 — the list renumbers under his hand). Nothing the page
+--   can send destroys a file; the purge is still the only door.
 
--- NEW IN 6.332.0 — 🔄 ASANA REFRESHES ITSELF
---   (modules/asana_comments.lua). LL: "Asana auto-refresh every
---   5 min." 🔑 NOT the keystroke he drafted: `selectMenuItem` reaches
---   the app WITHOUT activating it, so no focus is stolen, no ⌘R is
---   posted back through our own taps (6.218.0) and nothing has to be
---   put back. `M.refreshPick` is PURE and walks the menu paths in
---   order, so a renamed menu is a miss that SAYS so rather than a
---   silent no-op. Asana not running is not a failure. One held timer
---   in its own slot (6.196.1), `_G.asanaRefreshReport()`, and
---   `settings = { asana_comments = { refreshMins = 0 } }` stops it.
+-- NEW IN 6.334.0 — 🔎 THE STORES READOUT STOPS LYING, TWICE
+--   (modules/write_ledger.lua). His 6.333.0 boot shouted "THE FOLDER
+--   IS THERE AND HOLDS NO NOTES" over a full vault: the notes index
+--   is built when Hamsidian OPENS, so ten seconds after warm it is
+--   still the empty table it was born with — 6.312.0 reproduced
+--   inside the instrument 6.317.0 built to prevent it. The field
+--   that separates "not counted yet" from "empty" was already being
+--   collected and never read. And the same block hunted a file named
+--   "file_history", which nothing here has ever written: the tracker
+--   writes file_changes-<Mac>.csv. A loud failure, firing at a needle
+--   that was wrong.
 
--- (6.331.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.333.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 cut the inline count to
 --  TWO; a gate check proves every entry here is also in CHANGELOG.md.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.333.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.335.0
 -- =====================================================================
 -- The catalogue that used to sit here moved to GUIDE.md ("What each
 -- tool does") in 6.180.0 — 259 lines of prose inside the orchestrator.
@@ -125,7 +128,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.333.0"
+_G.configVersion = "6.335.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the
