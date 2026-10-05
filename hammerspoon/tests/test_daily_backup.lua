@@ -297,15 +297,31 @@ check("everything else lands inside RebuildKit/", (function()
     end
     return true
 end)())
-check("Documents and Desktop ride along while bk.docs is true",
-      ids.documents ~= nil and ids.desktop ~= nil)
+-- 🗑 6.329.0 — THE DESKTOP IS OUT, ON HIS WORD: "Stop backing up
+-- desktop… I didn't realize backing up the desktop was gonna recreate
+-- files and copy anything up into onedrive and bloat it." The kit lands
+-- inside OneDrive and his Desktop already syncs there, so it was being
+-- copied to a second place in the same account. These two checks
+-- asserted the OLD pairing and are re-aimed at the rule (6.248.0): the
+-- two folders are their own decisions now, because he has made them so.
+check("Documents rides along while bk.docs is true",
+      ids.documents ~= nil)
+check("🗑 …and the Desktop does NOT, by default",
+      ids.desktop == nil)
+bk.desktop = true
+local withDesk = bk.buildKit()
+check("🔌 …but the switch is real in both directions", (function()
+          for _, e in ipairs(withDesk) do if e.id == "desktop" then return true end end
+          return false
+      end)())
+bk.desktop = false
 bk.docs = false
 local worKit = bk.buildKit()
 -- 6.140.1 — no shipped profile sets this any more (LL: "all documents
 -- are safe to backup" on the work Mac too), but the knob must keep
 -- working for any future Mac that needs it.
-check("…and the docs=false knob drops exactly those two",
-      #worKit == #kit - 2, #worKit)
+check("…and the docs=false knob drops Documents",
+      #worKit == #kit - 1, #worKit)
 bk.docs = true
 check("🚨 SSH appears ONLY as its config FILE — never the keys folder", (function()
     for _, e in ipairs(kit) do
@@ -371,7 +387,7 @@ pump({
     { 23, "", "rsync: opendir failed: Operation not permitted (1)" }, -- Fonts
     { 0, "Number of regular files transferred: 2\n",  "" },   -- CrashReports
     { 0, "Number of regular files transferred: 900\n", "" },  -- Documents
-    { 0, "Number of regular files transferred: 33\n",  "" },  -- Desktop
+    -- (no Desktop: 6.329.0 took it out of the kit, on his word)
     { 0, "google-chrome\nhammerspoon\n", "" },                -- brew list
     { 0, "", "" },                                            -- brew bundle dump
 })

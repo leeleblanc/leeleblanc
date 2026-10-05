@@ -112,7 +112,25 @@ function M.setup(core)
     bk.mirrorMins  = 30      -- 0 disables the half-hourly store mirror
     bk.mirrorFirst = 120     -- seconds after boot before the first one
     bk.mirrorLast  = nil     -- { at, ok, why } — for the report
-    bk.docs        = true    -- Documents + Desktop in the kit (both Macs)
+    bk.docs        = true    -- Documents in the kit (both Macs)
+    -- 🗑 6.329.0 — THE DESKTOP IS OUT, ON HIS WORD. LL: "Stop backing up
+    -- desktop. It's duplicating things that I don't [want] to be
+    -- uploaded… I didn't realize backing up the desktop was gonna
+    -- recreate files and copy anything up into onedrive and bloat it so
+    -- unnecessary."
+    --
+    -- 🔎 HE IS DESCRIBING THE KIT WORKING AS DESIGNED, and that is why
+    -- this is a DEFAULT CHANGE and not a bug fix: the rebuild kit lands
+    -- in <backupDir>/RebuildKit, backupDir is inside OneDrive, and a
+    -- Desktop that already syncs to OneDrive is therefore copied to a
+    -- SECOND place inside the same cloud account. Documents has the same
+    -- shape and he did not name it, so it stays — his sentence was about
+    -- the Desktop, and widening it would be deciding something he did
+    -- not ask me to decide.
+    --
+    -- 🔌 ITS OWN SWITCH, not a narrowing of bk.docs: those two folders
+    -- are one decision today and he has just made them two.
+    bk.desktop     = false   -- 6.329.0: his Desktop is NOT copied into the kit
     -- 🚨 6.197.0 — Hammerspoon's crash reports. The glob is the whole
     -- safety of pointing an rsync at that folder: it holds every app's
     -- diagnostics and this destination is a cloud folder. Narrow it, or
@@ -212,6 +230,10 @@ function M.setup(core)
         end
         if bk.docs then
             list[#list + 1] = { id = "documents", src = home .. "/Documents", dest = kit .. "/Documents" }
+        end
+        -- 🗑 6.329.0 — off by default, on his word. `daily_backup =
+        -- { desktop = true }` puts it back.
+        if bk.desktop then
             list[#list + 1] = { id = "desktop",   src = home .. "/Desktop",   dest = kit .. "/Desktop" }
         end
         return list
@@ -965,6 +987,30 @@ function M.setup(core)
             L[#L + 1] = "             in OneDrive (localFirst is off)"
         end
         if (tonumber(bk.mirrorMins) or 0) > 0 then
+        -- 🗑 6.329.0 — and the copy that is ALREADY in OneDrive is NAMED,
+        -- never swept. No rsync here carries --delete (that is deliberate
+        -- — a store that failed to load must not erase its own backup),
+        -- so switching the Desktop off stops NEW copies and removes
+        -- nothing. Leaving him to discover that himself would be the
+        -- release doing half its job and reading like the whole of it.
+        do
+            local deskDest = bk.kitDir and (bk.kitDir .. "/Desktop") or nil
+            local there = false
+            if deskDest and hs.fs and hs.fs.attributes then
+                local okA, a = pcall(hs.fs.attributes, deskDest)
+                there = okA and a ~= nil
+            end
+            L[#L + 1] = "   desktop : " .. (bk.desktop
+                        and "copied into the kit (daily_backup = { desktop = false } stops it)"
+                        or "NOT copied — off since 6.329.0, on your word")
+            if there and not bk.desktop then
+                L[#L + 1] = "      ⚠️ the copy made BEFORE that is still in OneDrive and is"
+                L[#L + 1] = "         still taking space. Nothing here deletes it — no rsync in"
+                L[#L + 1] = "         this module carries --delete, on purpose. Remove it when"
+                L[#L + 1] = "         you are ready, in Finder or with one line:"
+                L[#L + 1] = "         rm -rf \"" .. deskDest .. "\""
+            end
+        end
             L[#L + 1] = "   mirror  : every " .. bk.mirrorMins .. " min → "
                         .. (bk.mirrorDest or "nowhere — no OneDrive")
             local m = bk.mirrorLast
