@@ -209,7 +209,19 @@ function M.setup(core)
             sg.lastBeatWhy = "cannot write " .. sg.dir .. "/heartbeat"
             return false, sg.lastBeatWhy
         end
-        local okW = f:write(sg.beatLine(os.time(), sg.inFlight))
+        -- 🚨 6.330.0 — THE LABEL CAN NEVER COST THE PULSE. The sweep
+        -- found this: a beatLine that throws takes sg.beat() with it,
+        -- and sg.beat() runs at setup — so one bad breadcrumb would
+        -- stop the heartbeat, which stops the guard, which is the one
+        -- thing standing between him and a 73-second lock-up. IT
+        -- DEGRADES, IT NEVER BREAKS: a label that cannot be built is a
+        -- bare epoch, which is what the pulse was before this release.
+        local okL, line = pcall(sg.beatLine, os.time(), sg.inFlight)
+        if not okL or type(line) ~= "string" then
+            line = tostring(os.time())
+            sg.beatLineFails = (sg.beatLineFails or 0) + 1
+        end
+        local okW = f:write(line)
         f:close()
         if not okW then
             sg.beatFails = sg.beatFails + 1
@@ -410,6 +422,11 @@ function M.setup(core)
             -- report itself runs between shortcuts; its value is in the
             -- LOG, where a relaunch now names what was running.
             local fl = sg.inFlight
+            if (sg.beatLineFails or 0) > 0 then
+                L[#L + 1] = "      ⚠️ " .. sg.beatLineFails .. " pulse(s) could not carry a label"
+                L[#L + 1] = "         — the beat itself was never at risk, but a relaunch in that"
+                L[#L + 1] = "         window would name nothing."
+            end
             L[#L + 1] = "   in flt : " .. (fl
                         and (tostring(fl.what) .. " (" .. tostring(fl.who) .. ") since "
                              .. os.date("%H:%M:%S", fl.at))
