@@ -121,7 +121,10 @@ a platform fact that decides an architecture, so it is checked on his
 Mac or not at all. That makes it NEW GROUND, where the first release is
 a probe and never a fix built on a guess.
 
-Suite: 71 modules, 475 checks in tests/test_screenshots.lua (26 new).
+Suite: 71 modules, 476 checks in tests/test_screenshots.lua (27 new — the
+last one is the mutation sweep's own finding: areaPlan's two native
+sentences were proven pure and the CALL SITE choosing between them was
+driven by nothing).
 
 NEW IN 6.336.0 — 🚪 A DRAG ENDS WHEREVER THE BUTTON COMES UP
   (modules/screenshots.lua)

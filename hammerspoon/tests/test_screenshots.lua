@@ -3366,6 +3366,17 @@ do
        S.areaRuns.native .. "/" .. S.areaRuns.refused .. "/" .. S.areaRuns.ours)
     ck("…and nothing degraded for it (6.269.0 — a default must be silent)",
        S.areaLast and not tostring(S.areaLast.why):find("could not", 1, true))
+    -- 🚨 6.273.0 — THE SWEEP FOUND THIS ONE MISSING. areaPlan's two native
+    -- sentences are proven pure above, and the CALL SITE that decides
+    -- which of them he gets was driven by nothing: hard-coding `asked`
+    -- true passed all 475 checks, so the report would have told him he
+    -- asked for a default he never chose and the gate would have agreed.
+    ck("🚨 AND THE PRESS ITSELF SAYS 'shipped default', NOT 'your settings "
+       .. "line' — the pure branches prove the sentences, nothing proved "
+       .. "which one a real ⇪4 reaches",
+       S.areaLast and tostring(S.areaLast.why):find("shipped default", 1, true) ~= nil
+       and tostring(S.areaLast.why):find("your settings line", 1, true) == nil,
+       S.areaLast and tostring(S.areaLast.why) or "no areaLast")
     if TASKS[#TASKS] then TASKS[#TASKS].cb() end
 
     -- ---- 🔒 ONE DOOR, asserted against the source ----------------------
@@ -3382,7 +3393,7 @@ do
 
     MOUSE_AT, BUTTONS, S.areaNative = keptAt, keptBtn, keptNat
     ck("the 6.337.0 block ran every one of its checks",
-       (pass + fail) - n20 == 26, (pass + fail) - n20)
+       (pass + fail) - n20 == 27, (pass + fail) - n20)
 end
 
 -- =====================================================================
