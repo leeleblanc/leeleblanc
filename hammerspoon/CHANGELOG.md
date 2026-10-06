@@ -5,6 +5,124 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.337.0 — 🚪 THE PIPELINE IS THE VARIABLE: ⇪4 IS macOS'S
+  CROSSHAIR AGAIN, AND 6.336.0's BELT ASKED THE VETO BACKWARDS
+  (modules/screenshots.lua)
+
+LL, installing 6.336.0 and pressing the key: "I just don't get why OCR
+hyper+shift+4 works and hyper+4 still does not. Why cant you resolve
+this the?"
+
+🔎 HIS QUESTION IS THE DIAGNOSIS, AND THE ANSWER IS ARCHITECTURAL.
+Read side by side, the two keys are not variations of one feature:
+
+  · shots.recognize()  — ⇪⇧4 — calls ensureDir(), then
+    runCapture({ "-i", path }). The whole drag belongs to
+    `screencapture -i`: a SEPARATE PROCESS, whose event grab is the
+    window server's, which macOS does not interrupt and whose HUD,
+    magnifier and SPACE-to-shoot-a-window come free.
+  · shots.capture()    — ⇪4  — calls the same ensureDir(), then
+    shots.selectArea(), which builds an hs.canvas and performs the
+    drag ITSELF in a mouseCallback.
+
+So the folder is not the difference — both ask for it first, and ⇪⇧4
+proves it exists and takes a write. The difference is that ⇪4 has been
+RE-IMPLEMENTING a system drag since 6.264.0. And macOS reads a
+three-finger trackpad drag as a Space swipe: the gesture is taken from
+us before our callback is asked, and a Space transition is precisely
+when macOS stops delivering events to us (6.303.0 found that about the
+F18 tap; 6.306.0 about the panel drag engine). No fix inside the
+selector can reach that, because by then the drag is not ours.
+
+🔑 WHICH IS 6.266.0's CONDITION, MET. "When a delivery fails three
+times and every fix so far changed something inside the SAME pipeline,
+the pipeline IS the variable — stop refining it and route around it."
+⇪4 on our selector has cost SIX releases: 6.264.0 built it, 6.265.0
+made its unreachable fallback reachable, 6.274.0 counted its refusals,
+6.282.0 stopped its report throwing, 6.318.0 drew the crosshairs macOS
+had been drawing for free, 6.336.0 added a drag-end watch. Every one
+moved a part of the selector. So ⇪4 goes back to the path that works —
+`shots.areaNative = true`, the shipped default — which is the same code
+`screencapture -i` path ⇪⇧4 uses, byte for byte.
+
+📏 COST, NAMED, AND IT IS THE THING HE ASKED FOR TWICE (6.260.0,
+6.264.0): ⇪4 has no live W × H of ours and no crosshair of ours. It has
+macOS's HUD, which carries its own numbers, plus the native magnifier
+and SPACE-to-capture-a-window, both of which 6.264.0 took away.
+"Repeat area" (⌘5) also loses its rectangle after a ⇪4, because -i
+cannot report where you dragged. NOTHING IS DELETED AND NOTHING IS
+SWITCHED OFF: ⇪5 scrolling capture, the editor's ⌘A and repeat-area all
+still drag on our selector with the readout and the crosshairs, and
+`settings = { screenshots = { areaNative = false } }` puts ⇪4 back on
+it. ✍️ 6.267.0's rule decides the shape — he does not edit init.lua, so
+a wrong default is changed and SHIPPED rather than left as a line for
+him to type; the switch exists so the release is reversible and so the
+gate can prove it in both directions, and it is documented, never
+prescribed.
+
+🚨 AND THE SECOND FINDING IS A REGRESSION I SHIPPED LAST NIGHT, which
+is why "still does not" is the honest report of 6.336.0 and not an
+unchanged symptom. That release's belt quoted 6.306.0's sentence into
+its own notes — "checkMouseButtons IS A VETO, NOT AN ORACLE … believed
+only when it positively says STILL DOWN" — and then built a 0.2 s
+timer whose SOLE trigger is the negative answer:
+
+    if shots.dragStillHeld(btn) then return end
+    ... finishAt(...)                 -- anything else ends the drag
+
+In core/coexist.lua the veto is consulted only AFTER a `mouseMoved`
+event has independently proved the button is up (macOS sends
+leftMouseDragged while it is held), so there the negative CONFIRMS a
+fact already in hand. Here nothing else was asked, so "it would not
+say" and "it came up" were acted on identically. A three-finger drag
+presses no physical button, so `pressedMouseButtons` can report nothing
+throughout — and the belt then ended the drag on its FIRST tick, a few
+pixels wide, into finishAt's "📐 Nothing captured — that drag measured
+3 × 2". 6.335.0 at least drew a band. I made it worse.
+
+🔑 THE RULE, IMPLEMENTED THIS TIME: an instrument that has never once
+said "down" during THIS drag is UNINFORMATIVE, not negative.
+`shots.beltVerdict(sawHeld, buttons)` is PURE with three answers
+(6.196.1) — held · ended · stand down — and only the second may touch
+the selection. `sawHeld` is per selector and never global: a Mac that
+reports a physical click fine still has gesture drags it cannot see, so
+the two must not vouch for each other. A stand-down is COUNTED ONCE PER
+DRAG (`selEnds.noSignal`), not once per tick, and the report names it —
+a recovery that stood down must not read as a recovery that worked.
+🧪 THE FIXTURE THAT BITES is sawHeld = false with nothing down: every
+other input agrees with 6.336.0 (6.230.0 — pick the input where the two
+implementations must differ), and two existing checks in §19 were
+driving BUTTONS = {} straight after a mouseDown, which is now the
+stand-down rather than the recovery; they take a held tick first.
+🔒 A SOURCE SENTRY holds the one door: beltTick asks `beltVerdict` and
+never `dragStillHeld` directly, because the direct call IS the
+regression and a second reader of the veto is a second place to get its
+direction wrong (6.231.0).
+
+🔎 AND areaPlan GAINS A FOURTH ANSWER, because the default moved. Until
+now "native" could only mean his own settings line, so that is what the
+sentence said; it is the SHIPPED behaviour now, and a report that tells
+him he asked for something he did not is worse than one that says
+nothing. `asked` is the caller's answer to "did an override put us
+here", computed from `shots.areaNativeDefault` rather than retyped
+(6.276.0 — read the truth, never keep a second copy by hand). Three
+native origins stay distinguishable and all three are mutation-proven:
+the default · his override · a Mac that could not draw ours. The
+default is SILENT — a default is not a degrade, and counting it as one
+would make 6.274.0's refusal number unreadable (6.269.0).
+
+📏 NAMED, NOT FIXED, AND IT IS THE NEXT RELEASE IF HE WANTS THE NUMBERS
+BACK: a mouse-TRANSPARENT canvas drawn over `screencapture -i`, so
+macOS keeps the drag and we only draw the W × H. mouse_grid's landed
+outline proves a click-through canvas is possible in this config. What
+is NOT known is whether any level we can reach sits ABOVE macOS's own
+screenshot overlay, and 6.233.0 forbids designing on that belief: it is
+a platform fact that decides an architecture, so it is checked on his
+Mac or not at all. That makes it NEW GROUND, where the first release is
+a probe and never a fix built on a guess.
+
+Suite: 71 modules, 475 checks in tests/test_screenshots.lua (26 new).
+
 NEW IN 6.336.0 — 🚪 A DRAG ENDS WHEREVER THE BUTTON COMES UP
   (modules/screenshots.lua)
 

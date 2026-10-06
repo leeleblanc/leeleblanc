@@ -2309,12 +2309,19 @@ do
     -- through our selector. A report sentence that promises behaviour
     -- that no longer happens is a broken feature (6.181.0), and a check
     -- pinning the old sentence is what makes anyone notice.
-    ck("…and the line names WHERE the readout appears, ⇪4 among them",
+    -- 📐 6.337.0 — AND IT MOVED BACK, in the same commit, for the same
+    -- reason it moved in 6.264.0: ⇪4 is macOS's crosshair again on his
+    -- evidence, so a line claiming our readout is on it would be the
+    -- 6.181.0 defect wearing the opposite sign. The check asks the RULE
+    -- — the line names every key that really drags on ours, and says
+    -- which crosshair ⇪4 has — rather than pinning either sentence.
+    ck("…and the line names WHERE the readout appears, and ⇪4's crosshair",
        (function()
            local r = RPT()
-           return r:find("⇪4", 1, true) ~= nil
-                  and r:find("⇪4 is macOS's own crosshair", 1, true) == nil
-       end)(), RPT():match("↳ ⇪4[^\n]*"))
+           return r:find("⇪5", 1, true) ~= nil
+                  and r:find("⌘A", 1, true) ~= nil
+                  and r:find("⇪4 is macOS's own", 1, true) ~= nil
+       end)(), RPT():match("↳ ⇪5[^\n]*"))
 
     -- ---- 📐 6.264.0 — the area line's three states ---------------------
     local keptLastArea, keptNative = S.areaLast, S.areaNative
@@ -3138,6 +3145,8 @@ do
     S.selectArea(function(r) captures = captures + 1; CAPTURED = r end)
     local cv2 = _G.__lastCanvas
     cv2.cb(cv2, "mouseDown", "_canvas_", 100, 100)
+    BUTTONS = { left = true }
+    POLLS[1].fn()                       -- the drag is seen to be held
     BUTTONS = {}
     MOUSE_AT = { x = 400, y = 300 }
     POLLS[1].fn()
@@ -3152,6 +3161,12 @@ do
     S.selectArea(function(r) CAPTURED = r end)
     cv = _G.__lastCanvas
     cv.cb(cv, "mouseDown", "_canvas_", 100, 100)
+    -- 🚨 6.337.0 — ONE HELD TICK FIRST. The belt stands down until this
+    -- Mac has positively said "down" during this drag, so a block that
+    -- goes straight to BUTTONS = {} is now driving the stand-down, not
+    -- the recovery. 6.306.0's veto rule, which 6.336.0 inverted.
+    BUTTONS = { left = true }
+    POLLS[1].fn()
     BUTTONS = {}
     MOUSE_AT = { x = 5000, y = 4000 }     -- released on the other display
     POLLS[1].fn()
@@ -3223,6 +3238,151 @@ do
     MOUSE_AT, BUTTONS = keptAt, keptBtn
     ck("the 6.336.0 block ran every one of its checks",
        (pass + fail) - n19 == 26, (pass + fail) - n19)
+end
+
+out("\n20. 🚪 6.337.0 — THE PIPELINE IS THE VARIABLE (⇪4 goes native again)\n")
+-- =====================================================================
+-- LL: "I just don't get why OCR hyper+shift+4 works and hyper+4 still
+-- does not. Why cant you resolve this the?"
+--
+-- TWO findings, and the first is a regression I shipped. 6.336.0's belt
+-- quoted 6.306.0's veto rule into its own release notes and then built a
+-- 0.2 s timer whose SOLE trigger is the negative answer — so on a drag
+-- macOS reports no pressed button for (a three-finger trackpad drag
+-- presses nothing) the belt ended the drag on its FIRST tick, a few
+-- pixels wide. 6.335.0 at least drew a band.
+-- The second is the answer to his question: ⇪⇧4 hands the drag to
+-- `screencapture -i`, a separate process whose event grab belongs to the
+-- window server; ⇪4 since 6.264.0 performs the drag itself in a canvas
+-- callback, and macOS takes a three-finger gesture away from us before
+-- the callback is asked. Six releases inside that one pipeline — so the
+-- pipeline is the variable (6.266.0) and ⇪4 is the path that works.
+do
+    local n20 = pass + fail
+    local function ck(l, c, e) check("   " .. l, c, e) end
+
+    -- 🧪 6.186.0 — the helper answers falsely rather than indexing a nil
+    ck("…there IS a pure belt verdict to drive", type(S.beltVerdict) == "function")
+    local function BV(saw, b)
+        if type(S.beltVerdict) ~= "function" then return nil end
+        return (S.beltVerdict(saw, b))
+    end
+
+    -- ---- ✏️ PURE: three answers, and only one may touch the drag ------
+    ck("a button really down is HELD, whatever has been seen before",
+       BV(false, { left = true }) == "held" and BV(true, { left = true }) == "held")
+    ck("…and a release AFTER a held tick is the recovery 6.336.0 exists for",
+       BV(true, {}) == "ended")
+    ck("🚨 BUT NOTHING EVER SEEN DOWN IS A STAND-DOWN, NOT A RELEASE — "
+       .. "this is the whole regression: a trackpad gesture drag presses "
+       .. "no button, so the belt was killing every one of them 0.2 s in",
+       BV(false, {}) == "standDown")
+    ck("…and so is a Mac that would not answer at all (nil, a string)",
+       BV(false, nil) == "standDown" and BV(false, "left") == "standDown")
+    ck("🚨 AND THE FIXTURE THAT BITES IS sawHeld = false WITH NOTHING "
+       .. "DOWN (6.230.0): every other input agrees with 6.336.0, so a "
+       .. "check that never drives this one proves nothing",
+       BV(false, {}) ~= BV(true, {}))
+    local _, bwhy = S.beltVerdict(false, {})
+    ck("…and it SAYS which of the two it is (6.196.1)",
+       type(bwhy) == "string" and bwhy:find("never saw", 1, true) ~= nil, bwhy)
+    local _, ewhy = S.beltVerdict(true, {})
+    ck("…and the recovery names itself differently",
+       type(ewhy) == "string" and ewhy:find("could not hear", 1, true) ~= nil, ewhy)
+
+    -- ---- 🚪 HIS GESTURE DRAG, DRIVEN END TO END ------------------------
+    local keptAt, keptBtn, keptNat = MOUSE_AT, BUTTONS, S.areaNative
+    POLLS, CAPTURED = {}, nil
+    S.selEnds = { mouseUp = 0, belt = 0, tiny = 0, noBelt = 0, noSignal = 0 }
+    S.areaNative = false            -- drive OUR selector on purpose
+    S.selectArea(function(r) CAPTURED = r end)
+    local cv = _G.__lastCanvas
+    cv.cb(cv, "mouseDown", "_canvas_", 100, 100)
+    BUTTONS = {}                    -- a gesture drag: nothing is ever pressed
+    MOUSE_AT = { x = 400, y = 300 }
+    POLLS[1].fn(); POLLS[1].fn(); POLLS[1].fn(); POLLS[1].fn()
+    ck("🚨 FOUR TICKS INTO A GESTURE DRAG AND THE SELECTION IS STILL "
+       .. "ALIVE — on 6.336.0 the first tick ended it at 0 × 0",
+       CAPTURED == nil and not cv.deleted and not POLLS[1].stopped,
+       CAPTURED and "captured" or (cv.deleted and "torn down" or "alive"))
+    ck("…and the stand-down is COUNTED ONCE PER DRAG, not once per tick "
+       .. "— a number climbing five times a second is unreadable (6.229.0)",
+       S.selEnds.noSignal == 1, S.selEnds.noSignal)
+    ck("…and nothing was recorded as a swallowed release, which would be "
+       .. "a lie about what happened (6.196.1)",
+       S.selEnds.belt == 0, S.selEnds.belt)
+    cv.cb(cv, "mouseUp", "_canvas_", 400, 300)
+    ck("🚨 AND THE REAL mouseUp STILL CAPTURES — the drag was never "
+       .. "killed, so a gesture drag that DOES stay on this screen works",
+       CAPTURED ~= nil and CAPTURED.w == 300 and CAPTURED.h == 200
+       and S.selEnds.mouseUp == 1,
+       CAPTURED and (CAPTURED.w .. "x" .. CAPTURED.h) or "nil")
+
+    -- ---- 🔎 and the report says it stood down --------------------------
+    ck("the report names the stand-down rather than leaving it silent",
+       _G.screenshotsReport():find("no held%-button signal") ~= nil,
+       _G.screenshotsReport():match("↳ %d+ drag%(s%) ran[^\n]*"))
+
+    -- ---- 🚪 ⇪4 IS macOS's CROSSHAIR AGAIN, BY DEFAULT ------------------
+    local fh = io.open(HS .. "/modules/screenshots.lua")
+    local msrc = fh and fh:read("a") or ""
+    if fh then fh:close() end
+    ck("the sentry read a real file (6.313.0)", #msrc > 10000, #msrc)
+    ck("🚨 THE SHIPPED DEFAULT IS THE NATIVE CROSSHAIR — read off the "
+       .. "source, because every section above this one moves the live "
+       .. "flag and a default proven from a mutated global is no default",
+       msrc:find("shots%.areaNative%s+=%s+true") ~= nil)
+    ck("…and the module publishes what it shipped, so areaPlan can tell "
+       .. "the default from an override without a second hand-kept copy "
+       .. "(6.276.0)", S.areaNativeDefault == true, tostring(S.areaNativeDefault))
+
+    local howD, whyD = S.areaPlan(true, nil, nil, false)
+    ck("🚨 AND IT DOES NOT TELL HIM HE ASKED FOR SOMETHING HE DID NOT — "
+       .. "that sentence was true for 73 releases and is not now",
+       howD == "native" and whyD:find("shipped default", 1, true) ~= nil
+       and whyD:find("your settings line", 1, true) == nil, whyD)
+    local _, whyA = S.areaPlan(true, nil, nil, true)
+    ck("…and an override still says so, counted apart (6.274.0)",
+       whyA:find("your settings line", 1, true) ~= nil, whyA)
+    ck("🚨 the fixture that bites is the two native origins DIFFERING "
+       .. "(6.230.0) — one sentence for both passes every other check",
+       whyD ~= whyA)
+    local _, whyR = S.areaPlan(false, false, "hs.canvas would not make the selector")
+    ck("…and a REFUSAL is still a third thing, with its own words",
+       whyR:find("could not start", 1, true) ~= nil, whyR)
+
+    S.areaNative = S.areaNativeDefault
+    S.areaRuns = { ours = 0, native = 0, refused = 0 }
+    local tBefore, cBefore = #TASKS, _G.__lastCanvas
+    HYPER["|4"]()
+    ck("🚪 SO ⇪4 RUNS THE DRAG ⇪⇧4 RUNS — one interactive screencapture, "
+       .. "and OUR selector is never built",
+       #TASKS == tBefore + 1 and TASKS[#TASKS].args[1] == "-i"
+       and _G.__lastCanvas == cBefore,
+       TASKS[#TASKS] and table.concat(TASKS[#TASKS].args, " ") or "no task")
+    ck("…counted as native with NO refusal — a default is not a degrade, "
+       .. "and summing them would make the intermittent one unreadable",
+       S.areaRuns.native == 1 and S.areaRuns.refused == 0 and S.areaRuns.ours == 0,
+       S.areaRuns.native .. "/" .. S.areaRuns.refused .. "/" .. S.areaRuns.ours)
+    ck("…and nothing degraded for it (6.269.0 — a default must be silent)",
+       S.areaLast and not tostring(S.areaLast.why):find("could not", 1, true))
+    if TASKS[#TASKS] then TASKS[#TASKS].cb() end
+
+    -- ---- 🔒 ONE DOOR, asserted against the source ----------------------
+    local belt = msrc:match("local function beltTick%(%)(.-)\n        end")
+    ck("the sentry found beltTick's body", belt ~= nil and #belt > 60, belt and #belt)
+    ck("🚨 THE BELT ASKS beltVerdict AND NEVER dragStillHeld DIRECTLY — "
+       .. "the direct call IS the regression, and a second reader of the "
+       .. "veto is a second place to get its direction wrong (6.231.0)",
+       belt ~= nil and belt:find("beltVerdict", 1, true) ~= nil
+       and belt:find("dragStillHeld", 1, true) == nil)
+    ck("…and the stand-down counter is behind a once-per-drag flag, or it "
+       .. "climbs five times a second for as long as he holds the drag",
+       belt ~= nil and belt:find("toldNoSignal", 1, true) ~= nil)
+
+    MOUSE_AT, BUTTONS, S.areaNative = keptAt, keptBtn, keptNat
+    ck("the 6.337.0 block ran every one of its checks",
+       (pass + fail) - n20 == 26, (pass + fail) - n20)
 end
 
 -- =====================================================================

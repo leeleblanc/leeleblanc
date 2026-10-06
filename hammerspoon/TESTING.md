@@ -1,4 +1,4 @@
-# TESTING — how to score release 6.336.0
+# TESTING — how to score release 6.337.0
 
 You install ONE archive and it carries several releases. Below are the
 steps for each release this archive is new for, newest first. Run the
@@ -26,6 +26,109 @@ else is a LOSS and I fix it before building further. You are the only
 scorer; I never mark my own.
 
 ---
+
+## 6.337.0
+
+6.337.0 verify with LL — 🚪 ⇪4 IS macOS'S CROSSHAIR AGAIN (KNOWN GROUND)
+WHAT CHANGED: ⇪4 drags the way ⇪⇧4 drags — macOS's own crosshair, its
+own numbers, its magnifier, and SPACE to shoot a whole window.
+🔎 WHY, AND IT IS THE ANSWER TO YOUR QUESTION. Both keys ask for the
+same folder first and write into it, so the folder was never the
+difference. ⇪⇧4 hands the whole drag to `screencapture -i` — a
+SEPARATE PROCESS whose grab on the mouse belongs to the window server.
+⇪4, since 6.264.0, did the drag ITSELF inside this config. And macOS
+reads a three-finger trackpad drag as a swipe between desktops: the
+gesture is taken away from us before our code is ever asked, and a
+desktop switch is exactly when macOS stops sending us events. The same
+hand motion works on one key and cannot work on the other.
+🔑 SO I STOPPED FIXING THE SELECTOR. ⇪4 on it cost six releases —
+6.264.0 built it, 6.265.0, 6.274.0, 6.282.0, 6.318.0 and 6.336.0 each
+repaired a different part — and every one of them moved a piece of the
+same thing. Your working key was pointing at the answer the whole
+time.
+🚨 AND 6.336.0 MADE IT WORSE, which you should know before you test.
+Its drag-end watch quoted a rule from this project — ask macOS whether
+a button is down, and believe it ONLY when it says yes — and then did
+the opposite: it ended the drag whenever macOS did not say yes. A
+three-finger drag presses no button at all, so it ended every one of
+them 0.2 seconds in, a few pixels wide, with "📐 Nothing captured".
+That is mine, it is fixed, and "still does not" was the correct report
+of it.
+
+A. THE HEADLINE — thirty seconds.
+A1. Press ⇪4 and drag a rectangle THE WAY YOU NORMALLY DO, three
+    fingers and all.
+    EXPECT: macOS's crosshair with its own live coordinates, the
+    shutter, and the file in your screenshots folder — exactly like
+    ⇪⇧4, because it is the same drag.
+    **A FAIL is anything that is not a captured rectangle.**
+A2. Press ⇪4 and hover WITHOUT dragging, over something small.
+    EXPECT: the native MAGNIFIER — the loupe showing individual
+    pixels. 6.264.0 took that away; it is back.
+A3. Press ⇪4 and tap the SPACE BAR, then click a window.
+    EXPECT: that whole window is captured. Also back.
+A4. Press ⇪4 and press Esc. EXPECT: nothing captured, no overlay left.
+A5. ⇪⇧4 (OCR) — unchanged, and now it should FEEL identical to ⇪4 up
+    to the moment of release, because it is.
+
+B. WHAT YOU LOSE, so it is not a surprise in a week.
+B1. ⇪4 no longer has OUR live `1280 × 720` box or our white
+    crosshairs. macOS's HUD carries its own numbers instead.
+B2. ⇪4 then ⇪⇧5 and ⌘5 ("repeat area") no longer re-shoots the same
+    rectangle, because `-i` will not tell us where you dragged. A
+    rectangle you select with ⇪5 or the editor's ⌘A still repeats.
+B3. **OUR SELECTOR IS NOT GONE.** ⇪5 scrolling capture and the
+    editor's ⌘A still drag on it, crosshairs and live size and all —
+    try ⇪5 and you will see them. If you prefer ours on ⇪4 and will
+    live with the gesture problem, ONE WORD and I change the default
+    back; it is `settings = { screenshots = { areaNative = false } }`
+    and I would rather ship the answer than leave you a line to type.
+
+C. MUST STILL WORK — ⇪4 feeds half this module.
+C1. The shot still lands in the screenshots folder and still goes on
+    the clipboard (⌘V pastes it).
+C2. It is still RENAMED after the words in it a few seconds later.
+C3. ⇪⇧1 on it opens the editor. ⇪⇧5 lists it. ⇪⇧2 window, ⇪⇧3
+    delayed, ⇪5 scrolling — all unchanged.
+C4. ⇪5: drag over a scrolling page. EXPECT our crosshairs and live
+    size, and a stitched shot. **This is the key that still uses our
+    selector, so it is the one that proves the belt fix.**
+
+D. PASTE BACK, PASS OR FAIL.
+D1. `_G.screenshotsReport()` — the whole block. Three lines matter:
+    · `area    :` should read "macOS's own crosshair and HUD — the
+      shipped default since 6.337.0…". It must NOT say "your settings
+      line asked for it", because you did not.
+    · `routes  :` counts ⇪4's presses; `refused` must be 0, because a
+      default is not a failure.
+    · `drag    :` now only moves for ⇪5 and ⌘A. If it ever carries
+      "N drag(s) ran with no held-button signal at all", paste it —
+      that line is the 6.336.0 regression being refused rather than
+      acted on, and on a trackpad I expect to see it.
+D2. If ⇪4 ever does nothing again, `_G.alertReport()` as well. With
+    ⇪4 back on `-i` there is almost nothing of ours left in that path,
+    so a failure now points at the folder or at macOS.
+
+E. A JUDGEMENT ONLY YOU CAN MAKE.
+E1. **The one question, and it is the whole release:** which do you
+    want on ⇪4 — macOS's crosshair that always captures, or our live
+    W × H that cannot survive a three-finger drag? I have shipped the
+    first because a readout on a key that does not capture is worth
+    nothing. Say the word and the default goes back.
+E2. THE WAY TO HAVE BOTH, and I will not build it on a guess: draw our
+    W × H on a see-through overlay ON TOP of macOS's crosshair, so
+    macOS keeps the drag and we only draw the numbers. I do not know
+    whether anything we can draw sits above macOS's own screenshot
+    layer, and that is a fact only your Mac can answer. If you want
+    it, the next release is a probe that tries it and reports what
+    happened — not a fix.
+E3. 🔨 CRUDE OR ELEGANT: ⇪4 is the key you press most, and it has been
+    unreliable since 6.264.0. My reading is 🔨 CRUDE for the stretch
+    where 6.336.0 killed every drag 0.2 s in — that is a key that did
+    not work, from a release of mine — and the pass count is 6. Your
+    tag either way.
+
+
 
 ## 6.336.0
 
@@ -209,48 +312,6 @@ C. PASTE BACK.
 C1. The whole 💾 STORES block from an ordinary morning. Every one of
     the five named stores should resolve to a real path and a time —
     there should be no ⚠️ anywhere in it.
-
-
-
-## 6.333.0
-
-6.333.0 verify with LL — 🕸 ONE HAMSIDIAN LIST (KNOWN GROUND)
-WHAT CHANGED: the left column is ONE list now. A scratch tab and a
-note sit side by side, newest first, and the ICON tells them apart —
-📝 is a tab, 🕸 is a note.
-WHY: you asked for "the one-list Hamsidian", and you were right that
-two sections was the odd part. 6.253.0 gave both sides one name and
-made the icon the difference; the list had never caught up.
-
-A. THE HEADLINE.
-A1. Press ⇪N. Look at the left column.
-    EXPECT: one heading — 🕸 HAMSIDIAN — with your tabs and your
-    notes under it together. NOT two sections.
-A2. Read a few rows. EXPECT: 📝 in front of every tab, 🕸 in front
-    of every note. If any row has no icon, tell me which.
-A3. Press ⇪3. EXPECT: the same window, the same one list.
-
-B. THE KEYS MUST NOT HAVE MOVED — this is the half that matters.
-B1. Click a 📝 row. EXPECT: that tab opens, you can type in it.
-B2. Click a 🕸 row. EXPECT: that note opens with its text.
-B3. ⌘T makes a new tab. ⌘W closes the one you are on.
-B4. ↑↓ walk the whole list — through tabs AND notes, one run, no
-    jump. ⏎ opens whichever is highlighted.
-B5. The ✕ on a 📝 row closes the tab. The ✕ on a 🕸 row deletes the
-    note to .trash (6.321.0). They must NOT be swapped.
-B6. ⌘F and type. EXPECT: it filters both kinds at once. Type part
-    of a note's HEADING (6.328.0) and part of a tab's first line —
-    both must find their row.
-
-C. PASTE BACK.
-C1. `_G.vaultReport()` — the whole block.
-
-D. A JUDGEMENT ONLY YOU CAN MAKE.
-D1. Newest first, both kinds mixed. Is that the right order, or
-    would you rather tabs always sat above notes inside the one
-    list? "mixed is right" · "tabs first" decides it.
-D2. 🔨 CRUDE OR ELEGANT: nothing was broken — this is a shape ask.
-    Say if you think it belongs in the ledger at all.
 
 
 

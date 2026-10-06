@@ -248,7 +248,44 @@ function M.setup(core)
     -- visual that shows the pixels measurements better." 6.260.0 named
     -- this as his call and its own release; this is him making it.
     -- true here goes back to `screencapture -i` and macOS's own HUD.
-    shots.areaNative   = false
+    --
+    -- 🚪 6.337.0 — AND IT IS TRUE AGAIN, ON HIS EVIDENCE AND NOT ON TASTE
+    -- (LL: "I just don't get why OCR hyper+shift+4 works and hyper+4
+    -- still does not"). Both keys ask shots.ensureDir() first and both
+    -- land a file in the same folder, so the folder is not the
+    -- difference. The difference is the whole of it: ⇪⇧4 hands the drag
+    -- to `screencapture -i`, a SEPARATE PROCESS whose event grab belongs
+    -- to the window server, and ⇪4 since 6.264.0 performs the drag ITSELF
+    -- in an hs.canvas mouseCallback. macOS reads a three-finger trackpad
+    -- drag as a Space swipe and a Space transition is exactly when it
+    -- stops delivering events to us — so the same hand motion that works
+    -- on ⇪⇧4 cannot work on ours. No fix inside the selector can reach
+    -- that, because the gesture is taken from us before the selector is
+    -- asked.
+    -- 🔑 6.266.0's RULE, AND THIS IS THE CONDITION IT NAMES: ⇪4 on our
+    -- selector has now cost SIX releases — 6.264.0 built it, 6.265.0 made
+    -- its fallback reachable, 6.274.0 counted its refusals, 6.282.0
+    -- stopped its report throwing, 6.318.0 drew the crosshairs macOS had
+    -- been drawing for free, 6.336.0 added a drag-end watch — and every
+    -- one of those changed something INSIDE the same pipeline. When a
+    -- thing fails that many times and every fix so far moved a part of
+    -- it, THE PIPELINE IS THE VARIABLE: stop refining it and route
+    -- around it. ⇪4 is the code path that demonstrably works on his Mac,
+    -- which is the one ⇪⇧4 uses.
+    -- 📏 COST, NAMED, AND IT IS THE THING HE ASKED FOR TWICE: ⇪4 has no
+    -- live W × H and no crosshair of ours — it has macOS's HUD, which
+    -- carries its own numbers, plus the native magnifier and SPACE to
+    -- shoot a window, both of which 6.264.0 took away. "Repeat area"
+    -- (⌘5) also loses its rectangle after a ⇪4, because -i cannot report
+    -- where you dragged. Our selector is NOT deleted and is not even
+    -- switched off: ⇪5, the editor's ⌘A and repeat-area still drag on it,
+    -- readout and crosshairs and all. One line puts ⇪4 back on it:
+    -- `settings = { screenshots = { areaNative = false } }`.
+    shots.areaNative   = true
+    -- What this module SHIPS, so areaPlan can tell "the default" from
+    -- "he overrode it" without either of them having to be retyped
+    -- (6.276.0: read the truth, never keep a second copy by hand).
+    shots.areaNativeDefault = true
     -- 🔎 6.274.0 — "INTERMITTENTLY WORKING" IS A COUNT, NOT A SAMPLE.
     -- `shots.areaLast` records the LAST press, which can never answer a
     -- question about a key that works most of the time (6.229.0: when a
@@ -275,7 +312,7 @@ function M.setup(core)
     -- nobody asked the selector (6.305.0: a rule written about one
     -- caller is not a rule until every caller has been asked).
     shots.selPollSecs = 0.2
-    shots.selEnds     = { mouseUp = 0, belt = 0, tiny = 0, noBelt = 0 }
+    shots.selEnds     = { mouseUp = 0, belt = 0, tiny = 0, noBelt = 0, noSignal = 0 }
     shots.selLastEnd  = nil   -- { how, w, h, at } — the report's evidence
     -- 📐 6.318.0 — the crosshair ⇪⇧4 has had all along (it is macOS's,
     -- on `screencapture -i`) and ⇪4 lost in 6.264.0 when it moved onto
@@ -602,7 +639,8 @@ function M.setup(core)
             if ok then started, why = a, b
             else started, why = false, "the selector threw: " .. tostring(a) end
         end
-        local how, note = shots.areaPlan(shots.areaNative, started, why)
+        local how, note = shots.areaPlan(shots.areaNative, started, why,
+                                         shots.areaNative ~= shots.areaNativeDefault)
         local at = 0
         pcall(function() at = hs.timer.secondsSinceEpoch() end)
         shots.areaLast = { how = how, why = note, at = at }
@@ -648,10 +686,22 @@ function M.setup(core)
     -- he asked for it (his settings line) · this Mac could not draw ours
     -- (a real degrade) · it is ours and working. Three branches, three
     -- mutations. `started` is only ever consulted when we actually tried.
-    function shots.areaPlan(native, started, why)
+    -- 🚪 6.337.0 — A FOURTH ANSWER, because the default moved. Until now
+    -- "native" could only mean his own settings line, so that is what the
+    -- sentence said. It is the SHIPPED behaviour now, and a report that
+    -- tells him he asked for something he did not is worse than one that
+    -- says nothing (6.196.1 — and 6.274.0 counts these apart on purpose).
+    -- `asked` is the caller's answer to "did an override put us here",
+    -- never a second copy of the default.
+    function shots.areaPlan(native, started, why, asked)
         if native then
-            return "native", "macOS's own crosshair and HUD — your settings line "
-                   .. "asked for it (screenshots = { areaNative = true })"
+            if asked then
+                return "native", "macOS's own crosshair and HUD — your settings line "
+                       .. "asked for it (screenshots = { areaNative = true })"
+            end
+            return "native", "macOS's own crosshair and HUD — the shipped default since "
+                   .. "6.337.0, because this is the drag ⇪⇧4 uses and it works "
+                   .. "(screenshots = { areaNative = false } puts our selector back)"
         end
         if started == false then
             return "native", "our selector could not start ("
@@ -1039,6 +1089,39 @@ function M.setup(core)
         return false, "no button is down"
     end
 
+    -- 🚨 6.337.0 — AND THE BELT ASKED IT IN THE FORBIDDEN DIRECTION.
+    -- 6.336.0 quoted 6.306.0's sentence into its own release notes —
+    -- "checkMouseButtons IS A VETO, NOT AN ORACLE … believed only when it
+    -- positively says STILL DOWN" — and then built a 0.2 s timer whose
+    -- SOLE trigger is the negative answer. In core/coexist.lua the veto
+    -- is consulted only AFTER a mouseMoved event has independently proved
+    -- the button is up (macOS sends leftMouseDragged while it is held);
+    -- there the negative confirms a fact we already have. Here nothing
+    -- else was asked, so "it would not say" and "it came up" were acted
+    -- on identically.
+    -- 🔎 WHAT THAT COSTS, and it is the reason ⇪4 got WORSE rather than
+    -- better: a three-finger trackpad drag presses no physical button, so
+    -- `pressedMouseButtons` can report nothing throughout — and the belt
+    -- then ended the drag on its FIRST tick, 0.2 s after the press, a few
+    -- pixels wide, into finishAt's "📐 Nothing captured — that drag
+    -- measured 3 × 2". 6.335.0 at least drew a band.
+    -- 🔑 THE RULE, IMPLEMENTED THIS TIME: an instrument that has never
+    -- once said "down" during this drag is UNINFORMATIVE, not negative.
+    -- Three answers (6.196.1): held · ended · stand down, and only the
+    -- second may touch the selection. PURE, so the gate proves all three
+    -- with no Mac and no trackpad.
+    function shots.beltVerdict(sawHeld, buttons)
+        if shots.dragStillHeld(buttons) then
+            return "held", "a button is still down"
+        end
+        if not sawHeld then
+            return "standDown", "this Mac has not once reported a held button during "
+                   .. "this drag — the watch cannot tell a release from a drag it "
+                   .. "never saw, so it does nothing"
+        end
+        return "ended", "the button came up somewhere this canvas could not hear"
+    end
+
     function shots.selectArea(cb)
         shots.cancelSelect()
         local scr
@@ -1309,11 +1392,31 @@ function M.setup(core)
         -- outside this canvas, and a rectangle running off the screen is
         -- one screencapture silently trims — so the band he watched and
         -- the file he gets would disagree.
+        -- 🚨 6.337.0 — the belt only acts once this Mac has POSITIVELY
+        -- reported a held button during THIS drag. Per selector, never
+        -- global: a Mac that reports a physical click fine still has
+        -- gesture drags it cannot see, so the two must not vouch for
+        -- each other.
+        local sawHeld, toldNoSignal = false, false
         local function beltTick()
             if not startPt then return end
             local btn
             pcall(function() btn = hs.eventtap.checkMouseButtons() end)
-            if shots.dragStillHeld(btn) then return end
+            local act = shots.beltVerdict(sawHeld, btn)
+            if act == "held" then sawHeld = true; return end
+            if act == "standDown" then
+                -- 🔔 COUNTED ONCE PER DRAG, not once per tick: a number
+                -- that climbs five times a second is a number nobody can
+                -- read, and this one is the evidence that the recovery
+                -- stood down rather than that it worked (6.229.0 counts
+                -- events, 6.196.1 says a stand-down must not read as
+                -- health).
+                if not toldNoSignal then
+                    toldNoSignal = true
+                    shots.selEnds.noSignal = (shots.selEnds.noSignal or 0) + 1
+                end
+                return
+            end
             local mp
             pcall(function() mp = hs.mouse.absolutePosition() end)
             if not mp then
@@ -1897,8 +2000,12 @@ function M.setup(core)
         end
         -- 📐 6.264.0 — the line under it used to end "⇪4 is macOS's own
         -- crosshair and keeps its HUD". It is not, by default, any more.
-        L[#L + 1] = "             ↳ ⇪4, ⇪5, the editor's ⌘A and 'repeat area' all "
-                    .. "drag on OUR selector now, with crosshairs and a live size"
+        -- 📐 6.337.0 — ⇪4 came OFF our selector again, on his evidence, so
+        -- this line no longer claims it. ⇪5, the editor's ⌘A and
+        -- repeat-area still drag on ours, readout and crosshairs and all.
+        L[#L + 1] = "             ↳ ⇪5, the editor's ⌘A and 'repeat area' drag on OUR "
+                    .. "selector, with crosshairs and a live size; ⇪4 is macOS's own "
+                    .. "crosshair and HUD again (6.337.0)"
         -- 🔎 THREE STATES (6.196.1): ⇪4 looking unchanged is either his
         -- own settings line or a Mac that could not draw ours, and those
         -- are opposite facts. Never asked is a third.
@@ -1910,8 +2017,9 @@ function M.setup(core)
                      .. " · last pressed "
                      .. shots.clockText(shots.areaLast.at))
             or (shots.areaNative
-                    and "macOS's own crosshair — settings = { screenshots = "
-                        .. "{ areaNative = true } } · not pressed yet this session"
+                    and "macOS's own crosshair and HUD — the shipped default "
+                        .. "(areaNative = false puts our selector back) · not "
+                        .. "pressed yet this session"
                     or "our selector, with the live size readout · not pressed "
                        .. "yet this session"))
         -- 🔎 6.274.0 — the routes, counted apart, because "intermittent"
@@ -1955,6 +2063,11 @@ function M.setup(core)
                                                       or "ended on the release",
                                     shots.clockText(le.at))
             end
+        end
+        if (se.noSignal or 0) > 0 then
+            L[#L + 1] = "   ↳ " .. se.noSignal .. " drag(s) ran with no held-button signal "
+                        .. "at all — the drag-end watch stood down rather than guess "
+                        .. "(a trackpad gesture drag presses no button)"
         end
         if (se.noBelt or 0) > 0 then
             L[#L + 1] = "   ↳ ⚠️ " .. se.noBelt .. " selector(s) ran with NO drag-end watch — "
