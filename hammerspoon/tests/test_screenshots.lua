@@ -72,6 +72,11 @@ local DIR   = HOME .. "/Library/CloudStorage/OneDrive-Personal/2026 Screenshots"
 local FILES = {}       -- path -> { size=, modification= }
 local DIRS  = { [HOME .. "/Library/CloudStorage/OneDrive-Personal"] = true }
 MOUSE_AT = { x = 700, y = 400 }   -- 6.318.0: the pointer, movable by the checks
+-- 🚪 6.336.0 — what macOS says about the mouse BUTTONS, and the polls this
+-- config holds. Both are new stubs, and both exist because the real
+-- providers have them and this harness did not (6.290.0).
+BUTTONS = {}                      -- hs.eventtap.checkMouseButtons()'s answer
+POLLS = {}                        -- every hs.timer.doEvery armed
 local ALERTS, TASKS, CHOICES_SET = {}, {}, nil
 local DEGRADES = {}
 local DEFER_TIMERS = false   -- §12 turns this on to hold the debounce
@@ -184,6 +189,13 @@ hs = {
         end,
     },
     eventtap = { checkKeyboardModifiers = function() return MODS end,
+                 -- 🔬 6.336.0 — macOS answers a TABLE keyed by button
+                 -- name, and it answers one whether or not anything is
+                 -- down. A stub that answered nil when nothing is held
+                 -- would make "no button is down" and "this Mac would
+                 -- not say" the same input, which is the one distinction
+                 -- shots.dragStillHeld exists to make (6.290.0).
+                 checkMouseButtons = function() return BUTTONS end,
                  new = function(types, fn)
                      return { start = function(s) return s end,
                               stop  = function(s) return s end, fn = fn }
@@ -271,6 +283,17 @@ hs = {
                   else
                       fn()
                   end
+                  return t
+              end,
+              -- ⏱ 6.336.0 — A POLL DOES NOT FIRE WHEN IT IS ARMED, which
+              -- is the whole difference between a watch and a call. The
+              -- checks tick it by hand; a stub that ran the body on the
+              -- spot would end every drag the instant the selector
+              -- opened and would prove the opposite of what it tests.
+              doEvery = function(secs, fn)
+                  local t = { secs = secs, fn = fn, stopped = false }
+                  function t:stop() self.stopped = true end
+                  POLLS[#POLLS + 1] = t
                   return t
               end },
 }
@@ -3025,6 +3048,181 @@ do
     NOWF = keptNow
     check("the 6.319.0 block ran every one of its checks",
           (pass + fail) - n18 == 44, (pass + fail) - n18)
+end
+
+-- =====================================================================
+out("\n19. 🚪 6.336.0 — A DRAG ENDS WHEREVER THE BUTTON COMES UP\n")
+-- =====================================================================
+-- LL, on ⇪4: "did show crosshairs on releasing crosshairs, it said 0x0
+-- pixels, and then jumped a few desktops, and then I had to hit escape
+-- to get it in." Three sentences, one missing exit: the canvas callback
+-- is the ONLY thing that ended a drag and it hears nothing off its own
+-- frame, so a release macOS swallowed left the band at its last seen
+-- size, fired no capture, and left the overlay on screen.
+do
+    local n19 = pass + fail
+    local function ck(l, c, e) check("   " .. l, c, e) end
+
+    -- 🧪 6.186.0 — the helper answers falsely rather than indexing a nil,
+    -- so a mutation that renames the thing under test FAILS a check
+    -- instead of ending the run with "0 failed" never printed.
+    ck("…there IS a pure verdict to drive", type(S.dragStillHeld) == "function")
+    local function HELD(b)
+        if type(S.dragStillHeld) ~= "function" then return nil end
+        return (S.dragStillHeld(b))
+    end
+
+    -- ---- ✏️ PURE: the veto, and its direction --------------------------
+    ck("a button really down is believed", HELD({ left = true }) == true)
+    ck("a numeric key counts too — macOS answers both shapes",
+       HELD({ [1] = true }) == true)
+    ck("🚨 nothing down means the drag is OVER", HELD({}) == false)
+    ck("…and so does an explicit false", HELD({ left = false }) == false)
+    ck("🚨 A MAC THAT CANNOT ANSWER READS AS 'OVER', NEVER AS 'STILL "
+       .. "HELD' — believing it the other way is a stuck overlay he can "
+       .. "only clear with Esc, which is the bug (6.306.0's veto rule)",
+       HELD(nil) == false and HELD("left") == false)
+    local _, why = S.dragStillHeld(nil)
+    ck("…and it SAYS which of the two it is (6.196.1)",
+       type(why) == "string" and why:find("would not say", 1, true) ~= nil, why)
+
+    -- ---- 🚪 HIS CASE, DRIVEN END TO END --------------------------------
+    local keptAt, keptBtn = MOUSE_AT, BUTTONS
+    local savedDeg = #DEGRADES
+    POLLS = {}
+    TASKS = {}
+    S.selEnds = { mouseUp = 0, belt = 0, tiny = 0, noBelt = 0 }
+    S.selectArea(function(r) CAPTURED = r end)
+    local cv = _G.__lastCanvas
+    ck("the selector arms a drag-end watch", #POLLS == 1 and not POLLS[1].stopped,
+       #POLLS)
+    ck("…and nothing degraded for arming it", #DEGRADES == savedDeg)
+
+    CAPTURED = nil
+    cv.cb(cv, "mouseDown", "_canvas_", 100, 100)
+    BUTTONS = { left = true }
+    POLLS[1].fn()
+    ck("🚨 WHILE THE BUTTON IS STILL DOWN THE WATCH DOES NOTHING — a poll "
+       .. "that ends a live drag is worse than the bug it replaces",
+       CAPTURED == nil and not cv.deleted and not POLLS[1].stopped)
+
+    -- the release macOS swallowed: no mouseUp ever reaches the canvas,
+    -- the pointer is where he dragged to, and the button is up.
+    BUTTONS = {}
+    MOUSE_AT = { x = 400, y = 300 }
+    POLLS[1].fn()
+    ck("🚨 IT DOES NOT MERELY UNSTICK THE OVERLAY — it finishes the "
+       .. "rectangle he actually dragged, from where the pointer is now",
+       CAPTURED ~= nil and CAPTURED.w == 300 and CAPTURED.h == 200
+       and CAPTURED.x == 100 and CAPTURED.y == 100,
+       CAPTURED and (CAPTURED.x .. "," .. CAPTURED.y .. " "
+                     .. CAPTURED.w .. "x" .. CAPTURED.h) or "nil")
+    ck("…and the selector is GONE without him pressing Esc",
+       cv.deleted == true and POLLS[1].stopped == true)
+    ck("…counted apart from a release the canvas heard (6.196.1): "
+       .. "'swallowed' climbing is the evidence, and a sum would hide it",
+       S.selEnds.belt == 1 and S.selEnds.mouseUp == 0,
+       tostring(S.selEnds.belt) .. "/" .. tostring(S.selEnds.mouseUp))
+    ck("…and the timer object is HELD one more turn, never dropped from "
+       .. "inside its own callback (6.196.1 in hs.timer's hat)",
+       S.selPollLast ~= nil and S.selPoll == nil)
+    -- 🚨 6.273.0 — THE SWEEP FOUND THIS ONE MISSING. `startPt = nil` inside
+    -- the finish survived its mutation, because nothing here drove the
+    -- race it exists for: the belt ends the drag, and the REAL mouseUp
+    -- then arrives at a canvas macOS has not torn down yet. Without that
+    -- line it is a second capture of the same rectangle — one keypress,
+    -- two files.
+    local captures = 0
+    CAPTURED = nil
+    POLLS = {}
+    S.selectArea(function(r) captures = captures + 1; CAPTURED = r end)
+    local cv2 = _G.__lastCanvas
+    cv2.cb(cv2, "mouseDown", "_canvas_", 100, 100)
+    BUTTONS = {}
+    MOUSE_AT = { x = 400, y = 300 }
+    POLLS[1].fn()
+    cv2.cb(cv2, "mouseUp", "_canvas_", 400, 300)
+    ck("🚨 THE LATE mouseUp CAPTURES NOTHING — a drag the belt already "
+       .. "finished is finished, or one keypress writes two files",
+       captures == 1, captures)
+
+    -- ---- 📏 the clamp ---------------------------------------------------
+    POLLS = {}
+    CAPTURED = nil
+    S.selectArea(function(r) CAPTURED = r end)
+    cv = _G.__lastCanvas
+    cv.cb(cv, "mouseDown", "_canvas_", 100, 100)
+    BUTTONS = {}
+    MOUSE_AT = { x = 5000, y = 4000 }     -- released on the other display
+    POLLS[1].fn()
+    ck("🚨 a release on ANOTHER display is clamped into this screen — an "
+       .. "unclamped rect runs off the frame and screencapture trims it "
+       .. "silently, so the band he watched and the file he gets differ",
+       CAPTURED ~= nil and CAPTURED.w == 1340 and CAPTURED.h == 800,
+       CAPTURED and (CAPTURED.w .. "x" .. CAPTURED.h) or "nil")
+
+    -- ---- 🚨 a drag too small SAYS so -----------------------------------
+    POLLS = {}
+    CAPTURED = nil
+    ALERTS = {}
+    S.selectArea(function(r) CAPTURED = r end)
+    cv = _G.__lastCanvas
+    cv.cb(cv, "mouseDown", "_canvas_", 200, 200)
+    cv.cb(cv, "mouseUp", "_canvas_", 202, 201)
+    ck("a drag under the floor still captures nothing", CAPTURED == nil)
+    ck("🚨 AND IT SAYS SO, WITH THE SIZE — this exit was a bare `end`, so "
+       .. "the key did nothing and explained nothing (6.320.0: a refusal "
+       .. "he cannot act on is a defect even when it is right)",
+       #ALERTS > 0 and ALERTS[#ALERTS]:find("2 × 1", 1, true) ~= nil,
+       ALERTS[#ALERTS] or "no alert")
+    ck("…and that release WAS heard, so it counts as a mouseUp",
+       S.selEnds.mouseUp == 1 and S.selEnds.tiny == 1,
+       tostring(S.selEnds.mouseUp) .. "/" .. tostring(S.selEnds.tiny))
+
+    -- ---- 🔎 the report --------------------------------------------------
+    local rep = _G.screenshotsReport()
+    ck("the report counts the two endings apart in words",
+       rep:find("swallowed the release", 1, true) ~= nil
+       and rep:find("ended on the release", 1, true) ~= nil, "drag line")
+    ck("…and names the last one's size, so '0 × 0' is readable afterwards",
+       rep:find("2 × 1", 1, true) ~= nil)
+
+    -- ---- 🔔 a Mac that cannot arm the watch -----------------------------
+    POLLS = {}
+    savedDeg = #DEGRADES
+    S.selEnds = { mouseUp = 0, belt = 0, tiny = 0, noBelt = 0 }
+    local keptEvery = hs.timer.doEvery
+    hs.timer.doEvery = nil
+    CAPTURED = nil
+    local okSel = S.selectArea(function(r) CAPTURED = r end)
+    cv = _G.__lastCanvas
+    cv.cb(cv, "mouseDown", "_canvas_", 100, 100)
+    cv.cb(cv, "mouseUp", "_canvas_", 400, 300)
+    hs.timer.doEvery = keptEvery
+    ck("🚨 a Mac that cannot arm the watch STILL SELECTS, on the old path "
+       .. "— the belt is a recovery, never the drag",
+       okSel == true and CAPTURED ~= nil and CAPTURED.w == 300)
+    ck("…and the miss is COUNTED and takes the 🔔 door, rather than "
+       .. "reading as health (6.196.1)",
+       S.selEnds.noBelt == 1 and #DEGRADES > savedDeg, S.selEnds.noBelt)
+    ck("…and the report carries a ⚠️ naming what that Mac loses",
+       _G.screenshotsReport():find("NO drag%-end watch") ~= nil)
+
+    -- ---- 🔒 one finish, two callers ------------------------------------
+    local fh = io.open(HS .. "/modules/screenshots.lua")
+    local src = fh and fh:read("a") or ""
+    if fh then fh:close() end
+    ck("the sentry read a real file (6.313.0 — a sentry over an empty "
+       .. "haystack is green and measures nothing)", #src > 10000, #src)
+    local _, nMath = src:gsub("math%.floor%(sf%.x %+ math%.min", "")
+    ck("🚨 THE RECTANGLE IS BUILT IN EXACTLY ONE PLACE (6.231.0): two "
+       .. "copies of this arithmetic is how the two exits come to "
+       .. "disagree about what was selected",
+       nMath == 1, nMath)
+
+    MOUSE_AT, BUTTONS = keptAt, keptBtn
+    ck("the 6.336.0 block ran every one of its checks",
+       (pass + fail) - n19 == 26, (pass + fail) - n19)
 end
 
 -- =====================================================================

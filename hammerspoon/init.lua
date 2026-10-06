@@ -4,8 +4,22 @@
 -- =====================================================================
 -- 10-05-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.335.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.336.0
 -- =====================================================================
+
+-- NEW IN 6.336.0 — 🚪 A DRAG ENDS WHEREVER THE BUTTON COMES UP
+--   (modules/screenshots.lua). LL on ⇪4: "did show crosshairs, on
+--   releasing it said 0x0 pixels, and then jumped a few desktops, and
+--   then I had to hit escape to get it in." Three sentences, ONE
+--   missing exit. The area selector ended a drag in exactly one place
+--   — a mouseUp delivered INSIDE its own canvas — and a canvas hears
+--   nothing off its own frame, so a release on another display, past
+--   a screen edge, or across a Space switch (macOS reads a
+--   three-finger drag as a swipe) never arrived: the band froze at
+--   its last seen size, nothing was captured, and the overlay stayed
+--   up until Esc. A held watch asks macOS whether a button is still
+--   down and finishes the rectangle he actually dragged. Third caller
+--   of a rule written twice (6.222.0, 6.306.0) and never asked here.
 
 -- NEW IN 6.335.0 — 🗑 THE BIN IS A BUTTON, NOT A CONSOLE COMMAND
 --   (modules/vault.lua). LL: "I need a trash bin at the top with the
@@ -19,23 +33,11 @@
 --   (6.272.0 — the list renumbers under his hand). Nothing the page
 --   can send destroys a file; the purge is still the only door.
 
--- NEW IN 6.334.0 — 🔎 THE STORES READOUT STOPS LYING, TWICE
---   (modules/write_ledger.lua). His 6.333.0 boot shouted "THE FOLDER
---   IS THERE AND HOLDS NO NOTES" over a full vault: the notes index
---   is built when Hamsidian OPENS, so ten seconds after warm it is
---   still the empty table it was born with — 6.312.0 reproduced
---   inside the instrument 6.317.0 built to prevent it. The field
---   that separates "not counted yet" from "empty" was already being
---   collected and never read. And the same block hunted a file named
---   "file_history", which nothing here has ever written: the tracker
---   writes file_changes-<Mac>.csv. A loud failure, firing at a needle
---   that was wrong.
-
--- (6.333.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.334.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 cut the inline count to
 --  TWO; a gate check proves every entry here is also in CHANGELOG.md.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.335.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.336.0
 -- =====================================================================
 -- The catalogue that used to sit here moved to GUIDE.md ("What each
 -- tool does") in 6.180.0 — 259 lines of prose inside the orchestrator.
@@ -128,7 +130,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.335.0"
+_G.configVersion = "6.336.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the

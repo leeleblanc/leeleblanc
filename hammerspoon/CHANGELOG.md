@@ -5,6 +5,90 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.336.0 — 🚪 A DRAG ENDS WHEREVER THE BUTTON COMES UP
+  (modules/screenshots.lua)
+
+  LL, on ⇪4: "did show crosshairs on releasing crosshairs, it said 0x0
+  pixels, and then jumped a few desktops, and then I had to hit escape
+  to get it in." Then the same on ⇪5, which stitched six copies of one
+  frame of his desktop wallpaper.
+
+  🔎 THREE SENTENCES, ONE MISSING EXIT, and they are in the order the
+  mechanism produces them. shots.selectArea draws its band on an
+  hs.canvas and ends the drag in exactly ONE place: `msg == "mouseUp"`
+  inside that canvas's own mouseCallback. A canvas callback hears only
+  what happens over its own frame. So a release on the other display,
+  past a screen edge, or across a Space switch is a release this
+  config never learns about — and macOS reads a three-finger trackpad
+  drag as a swipe between Spaces, which is both why his desktop jumped
+  and why the events stopped arriving (a Space transition is exactly
+  when macOS stops delivering to a tap — 6.303.0 found that about the
+  F18 tap, 6.306.0 about the panel drag). The band froze at the last
+  size it had seen, which was the 0 × 0 written at the press; nothing
+  was captured; the overlay stayed on screen with Esc the only way
+  out. Every word of his report, from one hole.
+
+  🔁 THIRD CALLER OF A RULE THIS CONFIG HAS ALREADY WRITTEN TWICE.
+  6.222.0: "A DRAG ENDS WHEN THE BUTTON COMES UP, WHEREVER THAT
+  HAPPENS" — for the screenshot editor's page, where a mouseup outside
+  the window is never delivered. 6.306.0: "A DRAG ENDS WHEREVER THE
+  BUTTON COMES UP, AND EVERY EXIT OWES THE CALLER ITS ANSWER" — for
+  the panel drag engine, which had four exits and told the caller from
+  one. Both were written, both are in the memory file, and nobody
+  asked the selector. That is 6.305.0 exactly: A RULE WRITTEN ABOUT
+  ONE CALLER IS NOT A RULE UNTIL EVERY CALLER HAS BEEN ASKED.
+
+  🚪 A HELD WATCH, 0.2 s, FOR THE RELEASE WE CANNOT HEAR. While a drag
+  is open it asks macOS directly; when no button is down any more the
+  button came up somewhere else and the drag is over. It does not
+  merely UNSTICK the overlay — it finishes the rectangle he actually
+  dragged, from where the pointer is now, so the release that used to
+  cost him the selection now lands it.
+
+  🔬 `shots.dragStillHeld` is PURE and the direction is load-bearing:
+  checkMouseButtons IS A VETO, NOT AN ORACLE (6.306.0; window_move
+  6.156.0 paid for trusting it the other way). It is believed only
+  when it positively says a button is STILL DOWN. An empty table, a
+  nil, a Mac that cannot answer all read as "over" — ending a drag
+  early costs one selection he can take again, and not ending it
+  costs an overlay only Esc can clear, which is the bug.
+
+  📏 THE POINT IS CLAMPED INTO THIS SCREEN, and that is not tidiness:
+  a release on the other display answers a point outside this canvas,
+  and a rectangle running off the frame is one screencapture trims
+  silently — so the band he watched and the file he gets would differ.
+
+  🔑 ONE FINISH, TWO CALLERS (6.231.0) — the mouseUp the canvas hears
+  and the watch for every release it cannot. A source sentry holds the
+  rectangle arithmetic to one place; two copies is how two exits come
+  to disagree about what was selected.
+
+  🚨 AND A DRAG TOO SMALL TO CAPTURE SAYS SO. That exit was a bare
+  `end`: under 8 px the selector vanished, nothing was captured and
+  nothing was said. 6.320.0's rule — a refusal he cannot act on is a
+  defect even when it is right — and it names the size, because
+  "0 × 0" is the whole diagnosis when a release went unheard.
+
+  🪜 THE TIMER IS HELD ONE TURN LONGER, never dropped from inside its
+  own callback: the watch ends a drag from its own tick, and nilling
+  the only reference to a running timer is 6.196.1's use-after-free
+  wearing hs.timer's hat (6.198.0 found exactly that in power_tools).
+
+  🔔 A Mac that cannot arm the watch still selects, on the old path.
+  The miss is COUNTED and takes the 🔔 door rather than reading as
+  health, and `_G.screenshotsReport()` gains a `drag :` line counting
+  the two endings apart — "ended on the release" against "macOS
+  swallowed the release". That second number climbing is the evidence
+  for the Space-swipe story, and the only thing that can settle it
+  without asking him to remember what his fingers did.
+
+  🧪 THE SWEEP FOUND THE CHECK THAT WAS MISSING (6.273.0): closing the
+  drag inside the finish survived its mutation, because nothing drove
+  the race it exists for — the watch ends the drag, and the REAL
+  mouseUp then arrives at a canvas macOS has not torn down yet.
+  Without that line it is a second capture of the same rectangle: one
+  keypress, two files. Driven now; 8 mutations, 8 bites.
+
 NEW IN 6.335.0 — 🗑 THE BIN IS A BUTTON, NOT A CONSOLE COMMAND
   (modules/vault.lua). LL, with a screenshot of the Hamsidian header:
   "I need a trash bin at the top with the other buttons that lets me

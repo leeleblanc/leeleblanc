@@ -1,4 +1,4 @@
-# TESTING — how to score release 6.335.0
+# TESTING — how to score release 6.336.0
 
 You install ONE archive and it carries several releases. Below are the
 steps for each release this archive is new for, newest first. Run the
@@ -26,6 +26,75 @@ else is a LOSS and I fix it before building further. You are the only
 scorer; I never mark my own.
 
 ---
+
+## 6.336.0
+
+6.336.0 verify with LL — 🚪 ⇪4 SURVIVES A RELEASE macOS SWALLOWS
+(KNOWN GROUND)
+WHAT CHANGED: when the release of a ⇪4 / ⇪5 drag never reaches this
+config, the selection is finished from where the pointer is instead
+of the overlay sitting there until you press Esc.
+🔎 YOUR THREE SENTENCES ARE ONE BUG, and it is worth saying which:
+"crosshairs showed · it said 0x0 on release · it jumped a few
+desktops · I had to hit escape". The selector ended a drag in exactly
+ONE place — a mouse-up delivered inside its own overlay — and that
+overlay hears nothing that happens off its own screen. macOS reads a
+three-finger trackpad drag as a swipe between desktops, and a desktop
+switch is exactly when macOS stops sending us events. So the numbers
+froze at the 0 × 0 written the instant you pressed, nothing was
+captured, and Esc was the only way out. The ⇪5 picture you sent is
+the same event: six slices of the desktop you had been thrown onto.
+
+A. THE HEADLINE.
+A1. Press ⇪4 and drag a rectangle normally. EXPECT: unchanged — the
+    crosshairs, the live W × H, the shutter, the file.
+A2. Now press ⇪4 and drag with THREE FINGERS, the way it failed.
+    EXPECT: even if the desktop jumps, the selector is GONE when you
+    let go and the rectangle you dragged was captured.
+    **A FAIL is the overlay still on screen needing Esc.**
+A3. Press ⇪4, start dragging, and release the button with the pointer
+    PAST THE EDGE of the screen (or on the other monitor).
+    EXPECT: it captures, clamped to the screen's edge. It used to
+    hang there.
+A4. Press ⇪4 and click once without dragging.
+    EXPECT: "📐 Nothing captured — that drag measured 0 × 0. Press
+    the key again and drag a rectangle." It used to say nothing at
+    all, which is a key that did nothing and explained nothing.
+
+B. MUST STILL WORK — this is the drag every capture goes through.
+B1. ⇪5 scrolling capture: drag, and the stitched shot is of the page.
+B2. In the editor (⇪⇧1), ⌘A add-capture.
+B3. ⇪4 then ⇪⇧5 and ⌘5 ("repeat area") — the same rectangle again.
+B4. Esc during a drag still cancels and captures nothing.
+B5. ⇪⇧4 is untouched — still macOS's own crosshair.
+
+C. PASTE BACK, PASS OR FAIL.
+C1. `_G.screenshotsReport()` — there is a new `drag :` line:
+      drag    : 6 finished — 4 on the release itself · 2 where macOS
+                swallowed the release
+    **That second number is the answer to the desktop question**, and
+    it needs nothing from your memory. If it is 0 after a day of
+    ordinary use, the swipe is not happening to you and I am wrong
+    about the mechanism — which is just as useful.
+C2. If it ever reads "⚠️ N selector(s) ran with NO drag-end watch",
+    paste it: that Mac would not give us a timer and is back on the
+    old behaviour.
+
+D. A JUDGEMENT ONLY YOU CAN MAKE.
+D1. THE DESKTOP JUMP ITSELF IS NOT FIXED, and I am not going to fix
+    it quietly. It is macOS's own gesture, and the only lever here is
+    to start SWALLOWING your drag — which costs every app underneath
+    it. Check System Settings › Accessibility › Pointer Control ›
+    Trackpad Options › "Use trackpad for dragging" with three-finger
+    drag. Tell me whether turning that off stops the jumping; that
+    one answer settles it, and it is the same question 6.306.0 asked
+    about the cheat sheet and never got.
+D2. 🔨 CRUDE OR ELEGANT: ⇪4 left an overlay on your screen that only
+    Esc could clear, and the shot you wanted was lost. My reading is
+    that it degraded — Esc always worked and nothing was destroyed —
+    but it cost you the capture every time. Your tag.
+
+
 
 ## 6.335.0
 
@@ -182,54 +251,6 @@ D1. Newest first, both kinds mixed. Is that the right order, or
     list? "mixed is right" · "tabs first" decides it.
 D2. 🔨 CRUDE OR ELEGANT: nothing was broken — this is a shape ask.
     Say if you think it belongs in the ledger at all.
-
-
-
-## 6.332.0
-
-6.332.0 verify with LL — 🔄 ASANA REFRESHES ITSELF (KNOWN GROUND)
-WHAT CHANGED: Asana is told to reload every five minutes, on its
-own, whether or not it is in front.
-🚨 AND NOT THE WAY YOU DRAFTED IT, which I want to say plainly. Your
-version activated Asana, posted ⌘R and activated the previous app
-back. That posts a keystroke back through this config's own taps
-(6.218.0), steals focus twice every five minutes, and leaves a
-window where a ⌘R can land in whatever you clicked into. This one
-asks Asana's own View ▸ Reload menu WITHOUT activating it — nothing
-is stolen and nothing has to be put back.
-
-A. THE HEADLINE.
-A1. Have Asana running. Work in another app for ten minutes.
-    EXPECT: NOTHING. No window comes forward, no flicker, no
-    keystroke lands anywhere. **A FAIL here is Asana jumping to the
-    front** — that is the thing this was built to avoid.
-A2. Console: `_G.asanaRefreshReport()`.
-    EXPECT something like:
-      every   : 5 minute(s) · running
-      asked   : 2 · refreshed 2 · app not running 0 · refused 0
-      menu    : View ▸ Reload
-    PASTE IT. The `menu :` line is the one I cannot know from here.
-A3. Look at Asana. EXPECT: the board is current.
-
-B. THE ONE THAT MUST NOT CRY WOLF.
-B1. Quit Asana. Wait ten minutes.
-    EXPECT: no alert, no Console warning, nothing. The report's
-    "app not running" count goes up and that is all. A closed app is
-    the ordinary state, not a failure.
-
-C. IF THE MENU IS WRONG.
-C1. If the report ever reads `menu : ⚠️ no menu path matched — tried
-    View ▸ Reload · View ▸ Refresh · …`, paste it. That means Asana
-    renamed the item and the fix is one line. The refresh does
-    nothing in the meantime — it never falls back to posting a key.
-
-D. IF IT GETS IN THE WAY.
-D1. `settings = { asana_comments = { refreshMins = 15 } }` slows it;
-    `refreshMins = 0` stops it.
-D2. 🗳 ONE QUESTION: should it PAUSE while you are typing in Asana? A
-    reload that discards a half-written comment is worse than a
-    stale board. I have not built that — say the word and it is a
-    small release.
 
 
 

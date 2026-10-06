@@ -3450,6 +3450,47 @@ work Mac.
   told. 📏 It is deliberately NOT silent when healthy (the opposite of
   6.269.0) because he asked for the healthy case in writing.
 
+- 🚪 A DRAG ENDS WHEREVER THE BUTTON COMES UP — THIRD CALLER, AND
+  NOBODY ASKED IT (6.336.0, modules/screenshots.lua — LL on ⇪4: "did
+  show crosshairs, on releasing it said 0x0 pixels, and then jumped a
+  few desktops, and then I had to hit escape to get it in").
+  🔎 THREE SENTENCES, ONE MISSING EXIT, in the order the mechanism
+  produces them. `shots.selectArea` ended a drag in exactly one place —
+  `msg == "mouseUp"` inside its own hs.canvas mouseCallback — and a
+  canvas hears nothing off its own frame. macOS reads a three-finger
+  trackpad drag as a Space swipe, and a Space transition is precisely
+  when it stops delivering events to us (6.303.0 found that about the
+  F18 tap). So the band froze at the 0 × 0 written at the press,
+  nothing was captured, and the overlay stayed up with Esc the only way
+  out. The ⇪5 "weird screenshot" is the same event: six slices of the
+  desktop he had been thrown onto.
+  🔁 THE RULE WAS ALREADY WRITTEN TWICE — 6.222.0 for the editor's page
+  and 6.306.0 for the panel drag engine — and the selector was never
+  asked. 6.305.0 exactly, and it is the third time that sentence has
+  decided a release: A RULE WRITTEN ABOUT ONE CALLER IS NOT A RULE
+  UNTIL EVERY CALLER HAS BEEN ASKED. GENERAL, and it is the cheap half:
+  when a rule lands, grep for every OTHER surface in this config that
+  hands control out and waits for an event to come back — a canvas
+  callback, a page, a tap — and ask each of them in the same sitting.
+  🔬 `shots.dragStillHeld` is PURE, and checkMouseButtons IS A VETO,
+  NOT AN ORACLE (6.306.0): believed only when it positively says STILL
+  DOWN. nil, an empty table, a Mac that cannot answer all read as
+  "over", because ending a drag early costs one selection he can take
+  again and not ending it costs an overlay only Esc clears.
+  📏 THE RECOVERED POINT IS CLAMPED INTO THE SCREEN — a release on the
+  other display answers a point outside the canvas, and screencapture
+  trims such a rectangle silently, so the band he watched and the file
+  he gets would differ.
+  🚨 AND THE SUB-8-PIXEL EXIT WAS A BARE `end`: the selector vanished,
+  nothing was captured and nothing was said. 6.320.0 again, and the
+  message names the SIZE, because "0 × 0" is the whole diagnosis when a
+  release went unheard.
+  🧪 The sweep found the missing check (6.273.0): closing the drag
+  inside the finish survived, because nothing drove the race it exists
+  for — the watch ends the drag and the REAL mouseUp then arrives at a
+  canvas macOS has not torn down. Without it, one keypress writes two
+  files.
+
 - 🚪 THE INSTRUMENT WAS NOT THE GAP, THE DOOR WAS — THIRD TIME
   (6.335.0, modules/vault.lua — LL, with a photograph of the Hamsidian
   header: "I need a trash bin at the top with the other buttons that
@@ -5031,6 +5072,7 @@ that must be READ before a new cause is named.
 | "a drag kills the sheet functionality" · wheel dead over ⇪/ · desktop jump | core/coexist.lua drag engine | 6.138.0 · 6.306.0 | 2 | ask |
 | "hyper+4 no longer works" / "intermittently working" | modules/screenshots.lua | 6.264.0 · 6.265.0 · 6.274.0 · 6.282.0 | 4 | ask |
 | "hyper+4 does not have pixel crosshairs" · "it was working before" | modules/screenshots.lua · the selector | 6.264.0 · 6.318.0 | 1 | ask |
+| "it said 0x0 pixels, then jumped a few desktops, then I had to hit escape" | modules/screenshots.lua · the selector's one exit | 6.336.0 | 1 | ask |
 | "once I OCR some text, that text should immediately go onto the clipboard" | modules/screenshots.lua · the OCR doors | 6.173.1 · 6.319.0 | 1 | ask |
 | "frozen grid again" — a yellow box only a reload clears | modules/mouse_grid.lua · `_G.showCanvasSafely` | 6.266.0 | 1 | ask |
 | "can't move files in drag and drop" · Hammerspoon locked up | modules/file_tracker.lua | 6.228.0 · 6.229.0 · 6.230.0 · 6.241.0 | 4 | ask |
@@ -5148,6 +5190,7 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
+| 6.336.0 | 🚪 a ⇪4 drag whose release macOS swallowed now captures what you dragged instead of leaving the overlay on screen | pending |
 | 6.335.0 | 🗑 the bin is a button in the header — every note you deleted, click one to put it back | pending |
 | 6.334.0 | 🔎 the boot readout stops saying your notes folder is empty when it simply has not counted yet | pending |
 | 6.333.0 | 🕸 one Hamsidian list — a tab and a note side by side, newest first, the icon telling them apart | pending |
@@ -6258,6 +6301,71 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.336.0 verify with LL — 🚪 ⇪4 SURVIVES A RELEASE macOS SWALLOWS
+  (KNOWN GROUND)
+  WHAT CHANGED: when the release of a ⇪4 / ⇪5 drag never reaches this
+  config, the selection is finished from where the pointer is instead
+  of the overlay sitting there until you press Esc.
+  🔎 YOUR THREE SENTENCES ARE ONE BUG, and it is worth saying which:
+  "crosshairs showed · it said 0x0 on release · it jumped a few
+  desktops · I had to hit escape". The selector ended a drag in exactly
+  ONE place — a mouse-up delivered inside its own overlay — and that
+  overlay hears nothing that happens off its own screen. macOS reads a
+  three-finger trackpad drag as a swipe between desktops, and a desktop
+  switch is exactly when macOS stops sending us events. So the numbers
+  froze at the 0 × 0 written the instant you pressed, nothing was
+  captured, and Esc was the only way out. The ⇪5 picture you sent is
+  the same event: six slices of the desktop you had been thrown onto.
+
+  A. THE HEADLINE.
+  A1. Press ⇪4 and drag a rectangle normally. EXPECT: unchanged — the
+      crosshairs, the live W × H, the shutter, the file.
+  A2. Now press ⇪4 and drag with THREE FINGERS, the way it failed.
+      EXPECT: even if the desktop jumps, the selector is GONE when you
+      let go and the rectangle you dragged was captured.
+      **A FAIL is the overlay still on screen needing Esc.**
+  A3. Press ⇪4, start dragging, and release the button with the pointer
+      PAST THE EDGE of the screen (or on the other monitor).
+      EXPECT: it captures, clamped to the screen's edge. It used to
+      hang there.
+  A4. Press ⇪4 and click once without dragging.
+      EXPECT: "📐 Nothing captured — that drag measured 0 × 0. Press
+      the key again and drag a rectangle." It used to say nothing at
+      all, which is a key that did nothing and explained nothing.
+
+  B. MUST STILL WORK — this is the drag every capture goes through.
+  B1. ⇪5 scrolling capture: drag, and the stitched shot is of the page.
+  B2. In the editor (⇪⇧1), ⌘A add-capture.
+  B3. ⇪4 then ⇪⇧5 and ⌘5 ("repeat area") — the same rectangle again.
+  B4. Esc during a drag still cancels and captures nothing.
+  B5. ⇪⇧4 is untouched — still macOS's own crosshair.
+
+  C. PASTE BACK, PASS OR FAIL.
+  C1. `_G.screenshotsReport()` — there is a new `drag :` line:
+        drag    : 6 finished — 4 on the release itself · 2 where macOS
+                  swallowed the release
+      **That second number is the answer to the desktop question**, and
+      it needs nothing from your memory. If it is 0 after a day of
+      ordinary use, the swipe is not happening to you and I am wrong
+      about the mechanism — which is just as useful.
+  C2. If it ever reads "⚠️ N selector(s) ran with NO drag-end watch",
+      paste it: that Mac would not give us a timer and is back on the
+      old behaviour.
+
+  D. A JUDGEMENT ONLY YOU CAN MAKE.
+  D1. THE DESKTOP JUMP ITSELF IS NOT FIXED, and I am not going to fix
+      it quietly. It is macOS's own gesture, and the only lever here is
+      to start SWALLOWING your drag — which costs every app underneath
+      it. Check System Settings › Accessibility › Pointer Control ›
+      Trackpad Options › "Use trackpad for dragging" with three-finger
+      drag. Tell me whether turning that off stops the jumping; that
+      one answer settles it, and it is the same question 6.306.0 asked
+      about the cheat sheet and never got.
+  D2. 🔨 CRUDE OR ELEGANT: ⇪4 left an overlay on your screen that only
+      Esc could clear, and the shot you wanted was lost. My reading is
+      that it degraded — Esc always worked and nothing was destroyed —
+      but it cost you the capture every time. Your tag.
+
 - 6.335.0 verify with LL — 🗑 THE BIN IS A BUTTON (KNOWN GROUND)
   WHAT CHANGED: there is a 🗑 in the Hamsidian header, beside the other
   buttons. It shows every note you have deleted; clicking one puts it

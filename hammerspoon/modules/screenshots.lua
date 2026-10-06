@@ -258,6 +258,25 @@ function M.setup(core)
     -- in "native", and they are opposite facts.
     shots.areaRuns = { ours = 0, native = 0, refused = 0 }
     shots.dirFails = 0
+    -- 🚪 6.336.0 — A DRAG ENDS WHEREVER THE BUTTON COMES UP, and this
+    -- selector had exactly ONE exit: a mouseUp delivered INSIDE its own
+    -- canvas. A canvas mouseCallback hears nothing that happens off its
+    -- own frame, so a release on another display, past a screen edge, or
+    -- during a Space switch (macOS reads a three-finger drag as a swipe,
+    -- and a Space transition is exactly when it switches event delivery
+    -- out from under us — 6.306.0) never arrived: the band stayed at the
+    -- size of the last event it saw, the selection never fired, and the
+    -- overlay stayed on screen until Esc. LL: ⇪4 "did show crosshairs,
+    -- on releasing it said 0x0 pixels, and then jumped a few desktops,
+    -- and then I had to hit escape to get it in." All three sentences
+    -- are that one missing exit, in order.
+    -- 🔁 THIRD CALLER OF A RULE THIS CONFIG HAS WRITTEN TWICE — 6.222.0
+    -- for the editor's page, 6.306.0 for the panel drag engine, and
+    -- nobody asked the selector (6.305.0: a rule written about one
+    -- caller is not a rule until every caller has been asked).
+    shots.selPollSecs = 0.2
+    shots.selEnds     = { mouseUp = 0, belt = 0, tiny = 0, noBelt = 0 }
+    shots.selLastEnd  = nil   -- { how, w, h, at } — the report's evidence
     -- 📐 6.318.0 — the crosshair ⇪⇧4 has had all along (it is macOS's,
     -- on `screencapture -i`) and ⇪4 lost in 6.264.0 when it moved onto
     -- our own selector. Its own switch, independent of the readout:
@@ -766,6 +785,16 @@ function M.setup(core)
     -- need the rectangle as numbers. A full-screen dimmed canvas, a
     -- dashed band that follows the drag, Esc bails out.
     function shots.cancelSelect()
+        if shots.selPoll then
+            pcall(function() shots.selPoll:stop() end)
+            -- 🪜 HELD ONE MORE TURN, never dropped from inside its own
+            -- callback. The belt below ends a drag from the timer's own
+            -- tick, and nilling the only reference to a timer whose
+            -- callback is RUNNING is 6.196.1's use-after-free wearing
+            -- hs.timer's hat (6.198.0 found exactly that in power_tools).
+            -- One slot, released by the next selector.
+            shots.selPollLast, shots.selPoll = shots.selPoll, nil
+        end
         if shots.selTap then
             pcall(function() shots.selTap:stop() end)
             shots.selTap = nil
@@ -992,6 +1021,24 @@ function M.setup(core)
     -- (macOS's own crosshair) and a key that silently captures nothing is
     -- worse than a key that captures without our numbers on it.
     -- true / false, why — read THREE values at the call site (6.179.0).
+    -- 🔬 PURE — `hs.eventtap.checkMouseButtons()` IS A VETO, NOT AN
+    -- ORACLE, and the direction is load-bearing (6.306.0; window_move
+    -- 6.156.0 paid for trusting it the other way). It is believed only
+    -- when it positively says a button is STILL DOWN. An empty table,
+    -- a nil, a Mac that cannot answer — all read as "the drag is over",
+    -- because ending a drag early costs one selection he can take
+    -- again, and not ending it costs an overlay he can only clear with
+    -- Esc, which is the bug being fixed.
+    function shots.dragStillHeld(buttons)
+        if type(buttons) ~= "table" then
+            return false, "this Mac would not say which buttons are down"
+        end
+        for _, down in pairs(buttons) do
+            if down == true then return true, "a button is still down" end
+        end
+        return false, "no button is down"
+    end
+
     function shots.selectArea(cb)
         shots.cancelSelect()
         local scr
@@ -1127,6 +1174,41 @@ function M.setup(core)
         end
 
         local startPt = nil
+
+        -- 🔑 ONE FINISH, TWO CALLERS (6.231.0): the mouseUp the canvas
+        -- hears, and the belt below for every release it cannot. Two
+        -- copies of this arithmetic is how the two exits come to
+        -- disagree about what was selected.
+        local function finishAt(mx, my, how)
+            if not startPt then return end
+            local rect = {
+                x = math.floor(sf.x + math.min(startPt.x, mx)),
+                y = math.floor(sf.y + math.min(startPt.y, my)),
+                w = math.floor(math.abs(mx - startPt.x)),
+                h = math.floor(math.abs(my - startPt.y)),
+            }
+            startPt = nil
+            shots.cancelSelect()
+            shots.selEnds[how] = (shots.selEnds[how] or 0) + 1
+            shots.selLastEnd = { how = how, w = rect.w, h = rect.h, at = os.time() }
+            if rect.w >= 8 and rect.h >= 8 then
+                cb(rect)
+                return
+            end
+            -- 🚨 AND A DRAG TOO SMALL TO CAPTURE SAYS SO. This exit was a
+            -- bare `end`: the selector vanished, nothing was captured and
+            -- nothing was said, which is a key that did nothing (6.320.0
+            -- — a refusal he cannot act on is a defect even when it is
+            -- right). It names the size, because "0 × 0" is the whole
+            -- diagnosis when a release went somewhere we could not hear.
+            shots.selEnds.tiny = shots.selEnds.tiny + 1
+            pcall(function()
+                hs.alert.show(("📐 Nothing captured — that drag measured %d × %d. "
+                               .. "Press the key again and drag a rectangle.")
+                              :format(rect.w, rect.h), 3)
+            end)
+        end
+
         pcall(function()
             canvas:mouseCallback(function(_, msg, _, mx, my)
                 -- mouseCallback runs per event — same rule as an eventtap:
@@ -1168,14 +1250,7 @@ function M.setup(core)
                         -- elements 3 and 4 to write to at all.
                         if readout then readout = showSize(band) end
                     elseif msg == "mouseUp" and startPt then
-                        local rect = {
-                            x = math.floor(sf.x + math.min(startPt.x, mx)),
-                            y = math.floor(sf.y + math.min(startPt.y, my)),
-                            w = math.floor(math.abs(mx - startPt.x)),
-                            h = math.floor(math.abs(my - startPt.y)),
-                        }
-                        shots.cancelSelect()
-                        if rect.w >= 8 and rect.h >= 8 then cb(rect) end
+                        finishAt(mx, my, "mouseUp")
                     end
                 end)
                 if not ok then shots.cancelSelect() end
@@ -1221,6 +1296,56 @@ function M.setup(core)
         end
         shots.selCanvas = canvas   -- HELD
         shots.selStarted = true
+
+        -- 🚪 6.336.0 — THE RELEASE WE CANNOT HEAR. The canvas callback is
+        -- the only thing that ends a drag and it only fires over its own
+        -- frame, so this asks macOS directly: while a drag is open and no
+        -- button is down any more, the button came up somewhere else and
+        -- the drag is over. It does not merely UNSTICK the overlay — it
+        -- finishes the selection he actually dragged, from where the
+        -- pointer is now.
+        -- 📏 THE POINT IS CLAMPED INTO THIS SCREEN, and that is not
+        -- tidiness: a release on the other display answers a point
+        -- outside this canvas, and a rectangle running off the screen is
+        -- one screencapture silently trims — so the band he watched and
+        -- the file he gets would disagree.
+        local function beltTick()
+            if not startPt then return end
+            local btn
+            pcall(function() btn = hs.eventtap.checkMouseButtons() end)
+            if shots.dragStillHeld(btn) then return end
+            local mp
+            pcall(function() mp = hs.mouse.absolutePosition() end)
+            if not mp then
+                -- cannot say where it ended: end it at the press, which
+                -- takes finishAt's 0 × 0 refusal and SAYS so. An overlay
+                -- left up is the failure this release exists to remove.
+                finishAt(startPt.x, startPt.y, "belt")
+                return
+            end
+            local lx = math.max(0, math.min(sf.w, (mp.x or 0) - (sf.x or 0)))
+            local ly = math.max(0, math.min(sf.h, (mp.y or 0) - (sf.y or 0)))
+            finishAt(lx, ly, "belt")
+        end
+
+        local armed = false
+        pcall(function()
+            shots.selPoll = hs.timer.doEvery(shots.selPollSecs, function()
+                if not pcall(beltTick) then shots.cancelSelect() end
+            end)
+            armed = shots.selPoll ~= nil
+        end)
+        if not armed then
+            -- 🔔 A Mac that cannot arm it still selects, on the old path.
+            -- What it loses is the recovery, so it is COUNTED and named
+            -- rather than left to look like health (6.196.1).
+            shots.selEnds.noBelt = (shots.selEnds.noBelt or 0) + 1
+            if type(core.degrade) == "function" then
+                pcall(core.degrade, "Screenshot area selector",
+                      "this Mac would not arm the drag-end watch — a release macOS "
+                      .. "swallows will leave the selector on screen until you press Esc")
+            end
+        end
 
         -- 📐 6.318.0 — DRAWN AT ONCE, AT THE POINTER, BEFORE ANY EVENT.
         -- Waiting for the first mouseMove would mean a selector that
@@ -1802,6 +1927,38 @@ function M.setup(core)
                 L[#L + 1] = "   ↳ ⚠️ " .. ar.refused .. " of those were a REFUSAL, not your settings line"
                             .. " — that is the intermittent one"
             end
+        end
+        -- 🚪 6.336.0 — HOW THE DRAG ENDED, counted apart. "the button came
+        -- up where we could not see it" climbing is the evidence for the
+        -- Space-swipe story and the only thing that can settle it without
+        -- asking him to remember what his fingers did.
+        local se = shots.selEnds or {}
+        local ends = (se.mouseUp or 0) + (se.belt or 0)
+        if ends == 0 then
+            L[#L + 1] = "   drag    : no drag has finished this session"
+        else
+            L[#L + 1] = ("   drag    : %d finished — %d on the release itself · "
+                         .. "%d where macOS swallowed the release")
+                        :format(ends, se.mouseUp or 0, se.belt or 0)
+            if (se.belt or 0) > 0 then
+                L[#L + 1] = "   ↳ a release off this screen, past its edge, or across a "
+                            .. "desktop switch — recovered rather than left on screen"
+            end
+            if (se.tiny or 0) > 0 then
+                L[#L + 1] = "   ↳ " .. se.tiny .. " of them were too small to capture and said so"
+            end
+            local le = shots.selLastEnd
+            if le then
+                L[#L + 1] = ("   ↳ last: %d × %d, %s · %s")
+                            :format(le.w or 0, le.h or 0,
+                                    le.how == "belt" and "the release was swallowed"
+                                                      or "ended on the release",
+                                    shots.clockText(le.at))
+            end
+        end
+        if (se.noBelt or 0) > 0 then
+            L[#L + 1] = "   ↳ ⚠️ " .. se.noBelt .. " selector(s) ran with NO drag-end watch — "
+                        .. "a swallowed release leaves this one up until Esc"
         end
         if (shots.dirFails or 0) > 0 then
             L[#L + 1] = "   ↳ ⚠️ " .. shots.dirFails .. " press(es) found no folder to write to: "
