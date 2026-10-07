@@ -2806,21 +2806,21 @@ end
 -- NAMED, NOT COVERED: a module that aliases the table (`local c = core`)
 -- is outside this sentry's reach; nothing does today.
 do
-    local initSrc = slurpFile(HS .. "/init.lua") or ""
-    local clean   = initSrc:gsub("%-%-%[%[.-%]%]", " "):gsub("%-%-[^\n]*", "")
-    local _, tableAt = clean:find("\nlocal core = {")
-    check("🔌 the core table can be read out of init.lua", tableAt ~= nil)
-
-    -- The keys of the table itself, never a hand-kept list beside it
-    -- (6.276.0: read the truth, do not retype it). Depth-aware, because
-    -- a `local w = false` inside copyText's body is not a member — and
-    -- EVERY key on a line, because init.lua packs the path rows two to a
-    -- line and a first-match-only reader would miss cloudDir, backupDir
-    -- and configDir, then cry wolf on correct code (6.269.0).
-    local real, nKeys = {}, 0
-    if tableAt then
-        local depth, blk = 1, 0
-        for line in clean:sub(tableAt + 1):gmatch("([^\n]*)\n") do
+    -- 🚨 ONE FUNCTION, TWO CALLERS (6.231.0) — and here that is what
+    -- makes the thing testable at all. The first draft re-implemented
+    -- the match inside its own BITES fixture, so the fixture proved a
+    -- COPY of the rule and two mutations of the real reader survived
+    -- (depth-blindness, and comparisons read as keys). The sweep and
+    -- every fixture below go through these two functions.
+    local function membersOf(src)
+        local clean = src:gsub("%-%-%[%[.-%]%]", " "):gsub("%-%-[^\n]*", "")
+        local _, at = clean:find("\nlocal core = {")
+        if not at then return nil end
+        local real, n, depth, blk = {}, 0, 1, 0
+        for line in clean:sub(at + 1):gmatch("([^\n]*)\n") do
+            -- DEPTH-AWARE: `local w = false` inside copyText's body is
+            -- not a member of the table, and a reader that counted it
+            -- would wave `core.w` through as real.
             if depth == 1 and blk == 0 then
                 local i = 1
                 while true do
@@ -2829,9 +2829,14 @@ do
                     -- `==`, `~=`, `<=`, `>=` are comparisons, not keys
                     if line:sub(b + 1, b + 1) ~= "="
                        and not line:sub(b - 1, b - 1):match("[=~<>]") then
-                        if not real[k] then nKeys = nKeys + 1 end
+                        if not real[k] then n = n + 1 end
                         real[k] = true
                     end
+                    -- EVERY key on the line, not the first: init.lua
+                    -- packs the path rows two to a line, so a
+                    -- first-match reader loses cloudDir, backupDir and
+                    -- configDir and then cries wolf on correct code
+                    -- (6.269.0 — measured against the healthy case).
                     i = b + 1
                 end
             end
@@ -2844,15 +2849,79 @@ do
             depth = depth + opens - closes
             if depth <= 0 then break end
         end
+        return real, n
     end
+
+    local function unknownIn(code, real)
+        local clean = code:gsub("%-%-%[%[.-%]%]", " "):gsub("%-%-[^\n]*", "")
+        local out, said = {}, {}
+        for k in clean:gmatch("%f[%w_]core%.([%a_][%w_]*)") do
+            if not real[k] and not said[k] then
+                said[k] = true ; out[#out + 1] = k
+            end
+        end
+        return out
+    end
+
+    local real, nKeys = membersOf(slurpFile(HS .. "/init.lua") or "")
+    check("🔌 the core table can be read out of init.lua", real ~= nil)
+    real = real or {}
     -- A sentry over a haystack it did not prove it read is green and
-    -- measures nothing (6.313.0). These five are the trio plus two that
-    -- cannot plausibly leave the table.
-    check("🔌 ...and its members are read, not guessed",
-          nKeys > 20 and real.provide and real.call and real.degrade
-          and real.showPopup, nKeys .. " member(s)")
+    -- measures nothing (6.313.0).
+    check("🔌 ...and its members are read off the table, never a list "
+          .. "beside it (6.276.0)",
+          (nKeys or 0) > 20 and real.provide and real.call and real.degrade
+          and real.showPopup, tostring(nKeys) .. " member(s)")
     check("🔌 `has` is on core beside `provide` and `call` — the trio is "
-          .. "complete, which is the 6.339.0 fix itself", real.has == true)
+          .. "complete, which IS the 6.339.0 fix", real.has == true)
+
+    -- 🧪 THE READER'S OWN FIXTURES, each the input where a right and a
+    -- wrong implementation MUST differ (6.230.0) — every other input
+    -- agrees, which is why the first draft's mutations survived.
+    do
+        local two = "\nlocal core = {\n    a = 1,     b = 2,\n    c = 3,\n}\n"
+        local m2, n2 = membersOf(two)
+        check("🔌 the reader takes EVERY key on a line, not the first",
+              n2 == 3 and m2.a and m2.b and m2.c, tostring(n2))
+
+        local nested = "\nlocal core = {\n    f = function(t)\n"
+            .. "        local w = false\n        inner = 1\n"
+            .. "        return w\n    end,\n    g = 2,\n}\n"
+        local m3, n3 = membersOf(nested)
+        check("🔌 ...and a local inside a member's BODY is not a member",
+              n3 == 2 and m3.f and m3.g and not m3.w and not m3.inner,
+              tostring(n3))
+
+        local cmp = "\nlocal core = {\n    a = 1,\n    b = (x == y),\n"
+            .. "    c = (p ~= q),\n}\n"
+        local m4 = membersOf(cmp)
+        check("🔌 ...and a comparison is not a key",
+              m4.a and m4.b and m4.c and not m4.x and not m4.p)
+
+        check("🔌 ...and a source with no core table answers nil, never {}",
+              membersOf("local other = { a = 1 }\n") == nil)
+    end
+
+    -- 🧪 AND THE SWEEP'S OWN, through the SAME unknownIn the real scan
+    -- uses — the 6.339.0 bug put back by hand, and the fix beside it.
+    do
+        local sick = "local M = {}\nfunction M.setup(core)\n"
+            .. "  if not (core.has and core.has('x')) then return end\n"
+            .. "  core.nosuchthing()\nend\n"
+        local found = unknownIn(sick, real)
+        check("🔌 the sweep BITES an invented member", #found == 1
+              and found[1] == "nosuchthing", table.concat(found, ","))
+        local fine = "core.has('a') core.call('b') core.provide('c', f)\n"
+            .. "core.degrade('t', 'why') core.cloudDir core.backupDir\n"
+        check("🔌 ...and is SILENT on members that exist, the two-to-a-line "
+              .. "path rows included", #unknownIn(fine, real) == 0,
+              table.concat(unknownIn(fine, real), ","))
+        -- A name that only looks real to a DEPTH-BLIND reader must still
+        -- be rejected: this is the check whose absence let that mutation
+        -- survive the first sweep.
+        check("🔌 ...and a body-local is NOT accepted as a core member",
+              #unknownIn("core.w", real) == 1)
+    end
 
     local unknown, scanned = {}, 0
     local p = io.popen('ls "' .. HS .. '"/modules/*.lua 2>/dev/null')
@@ -2860,40 +2929,20 @@ do
         for path in p:lines() do
             local src = slurpFile(path) or ""
             if #src > 0 then scanned = scanned + 1 end
-            local code = src:gsub("%-%-%[%[.-%]%]", " "):gsub("%-%-[^\n]*", "")
             local base = path:match("([^/]+)$")
-            local said = {}
-            for k in code:gmatch("%f[%w_]core%.([%a_][%w_]*)") do
-                if not real[k] and not said[k] then
-                    said[k] = true
-                    unknown[#unknown + 1] = base .. " → core." .. k
-                end
+            for _, k in ipairs(unknownIn(src, real)) do
+                unknown[#unknown + 1] = base .. " → core." .. k
             end
         end
         p:close()
     end
     check("🔌 every module file was read", scanned > 60, scanned .. " file(s)")
+    -- 📏 THE REGRESSION GUARD ITSELF, said plainly: on a healthy tree
+    -- this cannot be made to fail by a mutation, because there is
+    -- nothing unknown to find. The fixtures above prove the MECHANISM;
+    -- this is the line that spends it on the real tree.
     check("🔌 no module calls a member the real `core` table does not have",
           #unknown == 0, table.concat(unknown, " · "))
-
-    -- BITES: the 6.339.0 bug itself, put back by hand.
-    do
-        local sick = "local M = {}\nfunction M.setup(core)\n"
-            .. "  if not (core.has and core.has('x')) then return end\n"
-            .. "  core.nosuchthing()\nend\n"
-        local found = {}
-        for k in sick:gmatch("%f[%w_]core%.([%a_][%w_]*)") do
-            if not real[k] then found[#found + 1] = k end
-        end
-        check("🔌 the sweep BITES an invented member", #found == 1
-              and found[1] == "nosuchthing", table.concat(found, ","))
-        -- and is SILENT on the real ones, including the one just added
-        local fine, ok2 = "core.has('a') core.call('b') core.provide('c', f)", true
-        for k in fine:gmatch("%f[%w_]core%.([%a_][%w_]*)") do
-            if not real[k] then ok2 = false end
-        end
-        check("🔌 ...and is silent on members that exist", ok2)
-    end
 end
 
 -- =====================================================================

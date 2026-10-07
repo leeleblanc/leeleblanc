@@ -98,7 +98,7 @@ member, and the module-side sentry is already red. A guard that can
 only fire where another one has already fired is dead code with a
 comment on it.
 
-GATE: 82 stages, 11,705 checks.
+GATE: 82 stages, 11,710 checks.
 
 NEW IN 6.338.0 — ⏰ A SCHEDULE THAT CANNOT CATCH UP IS NOT A SCHEDULE
   (modules/daily_backup.lua)
