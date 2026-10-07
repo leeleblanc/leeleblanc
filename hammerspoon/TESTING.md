@@ -1,4 +1,4 @@
-# TESTING — how to score release 6.337.0
+# TESTING — how to score release 6.338.0
 
 You install ONE archive and it carries several releases. Below are the
 steps for each release this archive is new for, newest first. Run the
@@ -26,6 +26,86 @@ else is a LOSS and I fix it before building further. You are the only
 scorer; I never mark my own.
 
 ---
+
+## 6.338.0
+
+6.338.0 verify with LL — ⏰ THE BACKUP CATCHES UP (KNOWN GROUND)
+WHAT CHANGED: the rebuild kit refreshes itself without you running
+anything.
+🔎 AND THE ANSWER TO YOUR QUESTION IS "it already was", which is why
+this is a bug and not a feature. The backup has run on a daily timer
+since the config had sections — 17:00, every day. What that kind of
+timer does is fire at an INSTANT: if the Mac is asleep at five o'clock,
+or Hammerspoon is not running then, that day is skipped and nothing
+ever goes back for it. Twelve days old means twelve missed 5 PMs, and
+from where you were sitting that looks exactly like a backup nobody
+set up.
+🔑 WHAT IT DOES NOW: once an hour it asks "is the kit more than a day
+old?" and runs one if it is. That covers a wake, a late boot, a reload
+and a Mac that was simply off at five — one mechanism, not three.
+
+A. THE HEADLINE — and the first run may happen on its own.
+A1. Install and reload. Watch the Console for about two minutes.
+    EXPECT, because your kit is overdue right now:
+      ☁️ Rebuild kit catch-up — the kit is 12 day(s) old — past the
+         1-day window; running one now
+    **That line IS the release.** Paste it.
+A2. Console: `_G.backupReport()`. Find the new `catch-up:` line.
+    EXPECT: `every 60 min · 1 started this session · the kit is 12
+    day(s) old — past the 1-day window`, and a `↳ last catch-up` line
+    under it with the time.
+A3. The `last run:` line above it should now be TODAY, with its usual
+    per-entry rows. That is the kit being fresh again.
+A4. Reload once more and read the boot note. EXPECT it is GONE — the
+    kit is a few minutes old. If it is still there, paste it.
+
+B. THE NOTE NO LONGER HANDS YOU A CHORE.
+B1. If you ever do see "☁️ The rebuild kit is N days old" again, read
+    the rest of the line: it now says **"a catch-up run is due within
+    60 min"** instead of giving you `_G.backupNow()`.
+B2. 🚨 AND THAT MAKES IT WORTH READING: with the catch-up working,
+    that note surviving means the catch-up ITSELF is failing. Before
+    this release it just meant your Mac had been asleep at five. If
+    you see it twice on different days, paste it — that is a fault now.
+
+C. MUST STILL WORK — this touched the thing that copies your files.
+C1. `_G.backupNow()` still runs one by hand, immediately.
+C2. The 17:00 timer is unchanged — nothing about it moved.
+C3. `_G.backupReport()` still lists every entry with its status, the
+    app manifest count, and the crash-report lines.
+C4. The half-hourly store mirror and the hourly notes mirror are
+    untouched: check their lines still read `ok` with a recent time.
+C5. Nothing in the backup folder is ever deleted. Still true — no
+    rsync here carries `--delete`.
+
+D. PASTE BACK, PASS OR FAIL.
+D1. `_G.backupReport()` after a day of normal use. Two lines matter:
+    `catch-up:` and `last run:`. If `catch-up:` ever still reads
+    **"not asked yet this session"** an hour after boot, the timer is
+    not firing and I want to know — that is the one state this
+    release exists to make impossible.
+D2. From the WORK MAC too, when you next install there. A work laptop
+    is shut at 5 PM far more often than a home one, so that is where
+    this should show the biggest difference.
+
+E. A JUDGEMENT ONLY YOU CAN MAKE.
+E1. **A backup can now start at any hour of your day**, not only at
+    five. It is an incremental copy running outside Hammerspoon, so
+    after the first one it should be unnoticeable — but if you ever
+    feel the Mac get busy and find a catch-up in the report at that
+    moment, tell me. `settings = { daily_backup = { catchUpDays = 0 } }`
+    puts it back to 5 PM only, and `catchUpMins` changes how often it
+    asks.
+E2. One day is the threshold — the kit has to be more than a day old
+    before a catch-up runs, which restores the daily rhythm rather
+    than adding a second one. Too eager? Too slack? It is a number.
+E3. 🔨 CRUDE OR ELEGANT: nothing was broken and nothing was lost —
+    the kit was simply stale, and you would have found out the day you
+    needed it. My reading is that this is a defect in a SCHEDULE
+    rather than a feature ask, because the config was promising a
+    daily backup it was not delivering. Your tag.
+
+
 
 ## 6.337.0
 
@@ -270,48 +350,6 @@ E3. 🔨 CRUDE OR ELEGANT: Hamsidian worked throughout and the notes
     were never at risk — what was missing was a way to look. My
     reading is that this is a DOOR I should have built in 6.321.0,
     not a defect. Your tag.
-
-
-
-## 6.334.0
-
-6.334.0 verify with LL — 🔎 THE BOOT READOUT STOPS LYING (KNOWN GROUND)
-WHAT CHANGED: two lines in the 💾 STORES block that were false on
-your 6.333.0 boot.
-🚨 AND YOUR NOTES WERE NEVER MISSING. The line read "⚠️ THE FOLDER IS
-THERE AND HOLDS NO NOTES" over a vault with all of them in it. The
-notes index is built when Hamsidian OPENS, so ten seconds after boot
-— which is when that block prints — it has not been built, and the
-readout printed the words for "there is nothing" instead of "I have
-not counted yet". That is the same mistake 6.312.0 fixed in the music
-player, inside the instrument 6.317.0 added to stop exactly this.
-
-A. THE HEADLINE.
-A1. Reload Hammerspoon. Do NOT press ⇪3. Wait ten seconds and read
-    the 💾 STORES block.
-    EXPECT: `🕸 Hamsidian notes : …/Vault · ⏳ not counted yet — the
-    index is built when Hamsidian opens (⇪3)`.
-    **A FAIL is "0 notes" or the ⚠️ shout** — that is the old
-    behaviour.
-A2. Now press ⇪3, then Console: `_G.stores()`.
-    EXPECT: a real count — the number of notes you actually have.
-A3. Read the `📂 file history` line in either block.
-    EXPECT: a real path ending `file_changes-<your Mac>.csv` and a
-    time. It used to read ⚠️ NO FILE MATCHING "file_history" on every
-    boot, about a tracker that was saving perfectly.
-
-B. THE SHOUT MUST STILL WORK — it is the line that matters most.
-B1. The ⚠️ is now only for a vault that was COUNTED and is empty. If
-    you ever genuinely open Hamsidian to an empty folder, that ⚠️
-    must appear. I cannot test that from here without emptying your
-    vault, and I am not going to.
-B2. The 🚨 THE NOTES FOLDER IS LOCAL ONLY line (OneDrive not found at
-    boot) is untouched and still shouts.
-
-C. PASTE BACK.
-C1. The whole 💾 STORES block from an ordinary morning. Every one of
-    the five named stores should resolve to a real path and a time —
-    there should be no ⚠️ anywhere in it.
 
 
 

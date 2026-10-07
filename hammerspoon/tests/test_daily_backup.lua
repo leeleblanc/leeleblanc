@@ -1302,6 +1302,230 @@ do
 end
 
 
+-- =====================================================================
+out("\n──\n")
+-- =====================================================================
+out("\n⏰ 6.338.0 — A SCHEDULE THAT CANNOT CATCH UP IS NOT A SCHEDULE\n")
+-- =====================================================================
+-- LL, on a boot note reading "the rebuild kit is 12 days old": "Can't
+-- this be done automatically?" It already was — bk.time, daily, since
+-- §1.7 — and that IS the defect. hs.timer.doAt fires at an INSTANT, so
+-- a laptop asleep at 17:00 loses that day and nothing retries it.
+do
+    local before = pass + fail
+
+    -- ---- the parser, PURE -------------------------------------------------
+    local full = bk.stampEpoch("2026-10-06 17:00:00")
+    check("📅 a full stamp parses to a real epoch",
+          type(full) == "number" and full > 0, tostring(full))
+    local dateOnly = bk.stampEpoch("2026-10-06")
+    check("📅 a DATE-ONLY stamp still parses, at noon — older stored rows "
+          .. "must not shift the day this lands",
+          type(dateOnly) == "number"
+          and math.abs(dateOnly - (full - 5 * 3600)) < 2,
+          tostring(dateOnly) .. " vs " .. tostring(full))
+
+    -- 🚨 THE FIXTURE THAT BITES (6.230.0): nil and 0 both look falsy-ish
+    -- at a glance, and 0 is 1970 — which every age test below reads as
+    -- "ancient" and would run a backup on the strength of a string
+    -- nobody could parse. The two implementations must differ HERE.
+    check("🔎 a stamp this config cannot read answers nil, NEVER 0 — 0 is "
+          .. "1970 and reads as 'ancient' to every age test",
+          bk.stampEpoch("not a date") == nil
+          and bk.stampEpoch(nil) == nil
+          and bk.stampEpoch(12345) == nil,
+          tostring(bk.stampEpoch("not a date")))
+
+    -- ---- the verdict, PURE (the clock is an ARGUMENT) ---------------------
+    local NOW = 1760000000
+    local a, w = bk.catchUpVerdict(NOW - 100, NOW, 1, false)
+    check("⏰ switched off answers 'off' and says so", a == "off"
+          and w:find("switched off", 1, true) ~= nil, a .. " / " .. w)
+
+    a, w = bk.catchUpVerdict(nil, NOW, 1, true, nil)
+    check("⏰ a Mac that has never backed up is the MOST overdue — it runs",
+          a == "run" and w:find("has ever been recorded", 1, true) ~= nil, a .. " / " .. w)
+
+    a, w = bk.catchUpVerdict(NOW - 3600, NOW, 1, true, "x")
+    check("⏰ an hour old is inside a 1-day window — it does NOT run",
+          a == "fresh", a .. " / " .. w)
+
+    a, w = bk.catchUpVerdict(NOW - 12 * 86400, NOW, 1, true, "x")
+    check("⏰ twelve days old runs, and the reason carries the NUMBER "
+          .. "(his own boot note said 12)",
+          a == "run" and w:find("12 day", 1, true) ~= nil, a .. " / " .. w)
+
+    -- 🕒 A NEGATIVE AGE IS A CLOCK THAT MOVED, not a fresh backup.
+    a, w = bk.catchUpVerdict(NOW + 86400, NOW, 1, true, "x")
+    check("🕒 a stamp in the FUTURE runs rather than reading as fresh — "
+          .. "that is the direction that costs a backup",
+          a == "run" and w:find("FUTURE", 1, true) ~= nil, a .. " / " .. w)
+
+    -- 🔎 NEVER RUN and COULD NOT BE READ both end in a backup, so the
+    -- ACTION cannot tell them apart — the REASON is the only thing that
+    -- can, and a check asserting only the action passes with the branch
+    -- deleted (6.196.1 inside the instrument).
+    local _, wNever = bk.catchUpVerdict(nil, NOW, 1, true, nil)
+    local _, wJunk  = bk.catchUpVerdict(nil, NOW, 1, true, "wednesday-ish")
+    check("🔎 'never recorded' and 'the stamp could not be read' are "
+          .. "DIFFERENT sentences, and the unreadable one quotes the stamp",
+          wNever ~= wJunk and wJunk:find("could not be read", 1, true) ~= nil
+          and wJunk:find("wednesday-ish", 1, true) ~= nil, wJunk)
+
+    -- ---- end to end: an overdue kit really starts a backup ----------------
+    local mark = #TIMERS
+    local startedBefore = #TASKS
+    SETTINGS["dailyBackup.last"] = {
+        at = os.date("%Y-%m-%d %H:%M:%S", os.time() - 12 * 86400), ms = 10 }
+    local realP = print
+    local BOOT = {}
+    print = function(...) BOOT[#BOOT + 1] = table.concat({ ... }, " ") end
+    M.setup(CORE)
+    print = realP
+    local bkC = _G.dailyBackup
+
+    check("☁️ the boot note no longer hands him a command when a catch-up "
+          .. "is armed — it says the thing is about to fix itself",
+          (function()
+              for _, l in ipairs(BOOT) do
+                  if l:find("rebuild kit is 12 days old", 1, true)
+                     and l:find("catch-up run is due", 1, true) then return true end
+              end
+              return false
+          end)(), table.concat(BOOT, " | "):sub(1, 200))
+
+    -- The HELD globals are the timers, which is the thing worth asserting:
+    -- matching TIMERS by duration would pass on somebody else's 120 s.
+    local every, first = _G.backupCatchUpTimer, _G.backupCatchUpFirst
+    check("⏰ BOTH timers are armed — the hourly ask AND an early one, "
+          .. "because doEvery's first tick is a whole interval away and "
+          .. "an overdue kit would wait an hour to be noticed",
+          every ~= nil and first ~= nil,
+          tostring(every) .. " / " .. tostring(first))
+    check("🔒 both are HELD in _G — an unreferenced timer is collected and "
+          .. "a collected timer never fires (6.196.1)",
+          _G.backupCatchUpTimer ~= nil and _G.backupCatchUpFirst ~= nil)
+
+    check("🔎 before the first ask the report says NOT ASKED YET — which is "
+          .. "not the same sentence as 'it asked and the kit is fresh'",
+          (function()
+              local RL = {}
+              local rp = print
+              print = function(...) RL[#RL + 1] = table.concat({ ... }, " ") end
+              pcall(_G.backupReport)
+              print = rp
+              local r = table.concat(RL, "\n")
+              return r:find("not asked yet", 1, true) ~= nil
+          end)())
+
+    startedBefore = #TASKS
+    check("⏰ nothing is in flight before the ask", bkC.running == false)
+    local rpQ = print; print = function() end
+    first.fn()
+    print = rpQ
+    -- bk.run's first rsync is a step BEHIND bk.stepSecs, so counting
+    -- hs.task objects at this instant measures the breath, not the run.
+    -- `running` is the flag bk.run raises on entry and the one its own
+    -- guard reads — assert the thing the feature actually turns on.
+    check("☁️ the early ask on a 12-day-old kit STARTS a backup",
+          bkC.catchUps == 1 and bkC.running == true,
+          tostring(bkC.catchUps) .. " / running=" .. tostring(bkC.running))
+    check("📣 ...and it is named in the Console and on the report, with the "
+          .. "age that caused it",
+          bkC.catchUpLast ~= nil
+          and tostring(bkC.catchUpLast.why):find("12 day", 1, true) ~= nil,
+          tostring(bkC.catchUpLast and bkC.catchUpLast.why))
+
+    -- 🚧 A SECOND TICK WHILE ONE IS IN FLIGHT MUST NOT START A SECOND
+    -- BACKUP (6.304.0). bk.running is still true here — the task has not
+    -- been completed by hand — so this is the real in-flight case.
+    local tasksMid = #TASKS
+    first.fn()
+    check("🚧 a tick while a backup is in flight starts nothing and does "
+          .. "not even count — the guard is asked BEFORE the counter",
+          bkC.catchUps == 1 and #TASKS == tasksMid and bkC.running == true,
+          tostring(bkC.catchUps) .. " / " .. tostring(#TASKS - tasksMid))
+
+    -- ---- a FRESH kit must not run one -------------------------------------
+    local mark2 = #TIMERS
+    local tasks2 = #TASKS
+    SETTINGS["dailyBackup.last"] = {
+        at = os.date("%Y-%m-%d %H:%M:%S", os.time() - 600), ms = 10 }
+    local rp2 = print
+    print = function() end
+    M.setup(CORE)
+    print = rp2
+    local bkF = _G.dailyBackup
+    local first2 = _G.backupCatchUpFirst
+    tasks2 = #TASKS
+    first2.fn()
+    check("⏰ a kit backed up ten minutes ago starts NOTHING — the catch-up "
+          .. "restores the daily rhythm, it does not add a second one",
+          bkF.catchUps == 0 and #TASKS == tasks2,
+          tostring(bkF.catchUps) .. " / " .. tostring(#TASKS - tasks2))
+    check("🔎 ...and the report now says it ASKED and found it fresh, which "
+          .. "is the third state",
+          (function()
+              local RL = {}
+              local rp = print
+              print = function(...) RL[#RL + 1] = table.concat({ ... }, " ") end
+              pcall(_G.backupReport)
+              print = rp
+              local r = table.concat(RL, "\n")
+              return r:find("catch%-up: every") ~= nil
+                     and r:find("inside the 1-day window", 1, true) ~= nil
+          end)())
+
+    -- ---- the switch is real in BOTH directions (6.259.0) ------------------
+    local mark3 = #TIMERS
+    local CORE4 = {}
+    for k, v in pairs(CORE) do CORE4[k] = v end
+    CORE4.profile = nil
+    local rp3 = print
+    print = function() end
+    M.setup(CORE4)
+    local bkOff = _G.dailyBackup
+    bkOff.catchUpDays = 0
+    M.setup(CORE4)
+    print = rp3
+    local bkOff2 = _G.dailyBackup
+    bkOff2.catchUpDays = 0
+    local armedAny = false
+    for i = mark3 + 1, #TIMERS do
+        if TIMERS[i].secs == (bkOff2.catchUpMins or 60) * 60
+           and TIMERS[i].every == true then armedAny = true end
+    end
+    check("🔌 catchUpDays = 0 is read and the report SAYS the cost — a Mac "
+          .. "asleep at " .. tostring(bkOff2.time) .. " loses that day",
+          (function()
+              local RL = {}
+              local rp = print
+              print = function(...) RL[#RL + 1] = table.concat({ ... }, " ") end
+              pcall(_G.backupReport)
+              print = rp
+              local r = table.concat(RL, "\n")
+              return r:find("catch%-up: OFF") ~= nil
+                     and r:find("loses that day", 1, true) ~= nil
+          end)())
+
+    -- 🔒 ONE PARSER, TWO READERS (6.231.0) — a source sentry, because the
+    -- boot note and the catch-up disagreeing about the age is exactly
+    -- how a Mac comes to be warned about a backup already in hand.
+    local src = io.open(HS .. "/modules/daily_backup.lua"):read("a")
+    local clean = src:gsub("\n%s*%-%-[^\n]*", "\n")
+    local _, nParse = clean:gsub("year%s*=%s*tonumber", "")
+    check("🔒 exactly ONE place in this module turns a stamp into an epoch "
+          .. "— the boot note reads it through bk.stampEpoch like everyone "
+          .. "else (6.231.0)", nParse == 1, nParse)
+    check("🔒 ...and the catch-up tick asks bk.catchUpVerdict rather than "
+          .. "comparing days itself",
+          clean:find("bk%.catchUpVerdict%(") ~= nil)
+
+    local ran = (pass + fail) - before
+    check("§6.338.0 ran all of its checks (" .. ran .. " of 20)", ran >= 20, ran)
+end
+
+
 if fail == 0 then
     out(string.format("%d passed, 0 failed\n", pass))
 else

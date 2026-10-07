@@ -101,6 +101,19 @@ function M.setup(core)
     bk.sliceApps   = 12      -- Info.plists read per step in the app scan
     bk.taskCapSecs = 600     -- watchdog: no single rsync/brew step runs longer
     bk.staleDays   = 3       -- boot note when the last good run is older
+    -- ⏰ 6.338.0 — A SCHEDULE THAT CANNOT CATCH UP IS NOT A SCHEDULE
+    -- (LL, on a boot note reading "the rebuild kit is 12 days old":
+    -- "Can't this be done automatically?"). It already was — bk.time,
+    -- daily, since §1.7 — and that is the defect: hs.timer.doAt fires at
+    -- an INSTANT, so a laptop asleep or a Hammerspoon not running at
+    -- 17:00 loses that day outright and nothing ever retries it. Twelve
+    -- missed 5 PMs read exactly like a backup that was never set up.
+    -- So the schedule gains the half it never had: an hourly ask
+    -- "is the kit overdue?", which catches a wake, a late boot and a
+    -- reload with ONE mechanism rather than three triggers.
+    bk.catchUpDays = 1       -- run one when the kit is older than this; 0 = off
+    bk.catchUpMins = 60      -- how often to ask (a subtraction, not a backup)
+    bk.catchUpFirstSecs = 120 -- the first ask, well clear of boot (6.267.0)
     -- 🏠 6.190.0 — LL: "every 30 minutes write a back up of all the files
     -- that have histories or modifications." That is the STORES, not the
     -- rebuild kit: one rsync of the whole Logs folder to OneDrive, on its
@@ -453,6 +466,13 @@ function M.setup(core)
     -- =====================================================================
     bk.running  = false
     bk.last     = nil
+    -- ⏰ 6.338.0 — counted apart, because "the catch-up has not been
+    -- asked yet" (a Mac two minutes into a boot) and "it asked and the
+    -- kit is fresh" are different facts (6.196.1) and the report must
+    -- not print the second over the first.
+    bk.catchUps    = 0
+    bk.catchUpWhy  = nil
+    bk.catchUpLast = nil
     pcall(function()
         local saved = hs.settings.get(SETTINGS_KEY)
         if type(saved) == "table" then bk.last = saved end
@@ -542,6 +562,73 @@ function M.setup(core)
                 end
             end)(done)
         end
+    end
+
+    -- 📅 ONE PARSER, TWO READERS (6.231.0). The boot staleness note and
+    -- the catch-up both ask "how old is the kit?", and two copies of
+    -- that arithmetic is how a Mac comes to be WARNED about a backup
+    -- that is about to run by itself — two instruments contradicting
+    -- each other over one fact. PURE, so the whole rule is proven with
+    -- no Mac and no clock.
+    -- 🔎 It answers nil, NEVER 0, when the stamp cannot be read: 0 is
+    -- 1970, which every age test reads as "ancient" and would run a
+    -- backup on the strength of a string nobody could parse. "I cannot
+    -- tell" and "it is old" are opposite facts (6.196.1).
+    function bk.stampEpoch(s)
+        if type(s) ~= "string" then return nil end
+        local y, mo, d, h, mi, sec =
+            s:match("^(%d%d%d%d)%-(%d%d)%-(%d%d)%s+(%d%d):(%d%d):(%d%d)")
+        if not y then
+            -- a DATE-ONLY stamp is read at noon, which is what the boot
+            -- note has assumed since it was written; keeping that here
+            -- means older stored rows do not shift when this lands.
+            y, mo, d = s:match("^(%d%d%d%d)%-(%d%d)%-(%d%d)")
+            h, mi, sec = 12, 0, 0
+        end
+        if not y then return nil end
+        local ok, t = pcall(os.time, { year = tonumber(y), month = tonumber(mo),
+                                       day = tonumber(d), hour = tonumber(h),
+                                       min = tonumber(mi), sec = tonumber(sec) })
+        if not ok or type(t) ~= "number" then return nil end
+        return t
+    end
+
+    -- ⏰ THE CATCH-UP RULE, PURE — the clock is an ARGUMENT, so every
+    -- edge is proven without waiting a day for one (6.234.0's shape).
+    -- FOUR answers (6.196.1), and the fourth is the one that earns its
+    -- place: a stamp this config cannot read must not be treated as a
+    -- fresh backup, because that is the reading under which the feature
+    -- silently never runs.
+    function bk.catchUpVerdict(lastEpoch, now, days, armed, stamp)
+        if not armed then
+            return "off", "the catch-up is switched off (catchUpDays = 0)"
+        end
+        if lastEpoch == nil then
+            -- 🔎 NEVER RUN and COULD NOT BE READ both end in a backup, and
+            -- they are not the same sentence (6.196.1). The action is
+            -- the safe one either way; the REASON is the only thing
+            -- that tells him which Mac he is looking at, so a stamp
+            -- that arrived and could not be parsed says so by name.
+            if stamp ~= nil then
+                return "run", "the last run's stamp could not be read: "
+                              .. tostring(stamp)
+            end
+            return "run", "no backup has ever been recorded on this Mac"
+        end
+        local age = now - lastEpoch
+        -- 🕒 A NEGATIVE AGE IS A CLOCK THAT MOVED, not a fresh backup:
+        -- a wake, a time-zone change, a stamp written on the other Mac.
+        -- Reading it as fresh is the direction that costs a backup, so
+        -- it runs (6.246.0 — a negative age is never freshness).
+        if age < 0 then
+            return "run", "the last run is stamped in the FUTURE — the clock moved"
+        end
+        if age <= days * 86400 then
+            return "fresh", ("the kit is %d day(s) old, inside the %d-day window")
+                            :format(math.floor(age / 86400), days)
+        end
+        return "run", ("the kit is %d day(s) old — past the %d-day window")
+                      :format(math.floor(age / 86400), days)
     end
 
     function bk.run(manual)
@@ -933,6 +1020,28 @@ function M.setup(core)
             if n then L[#L + 1] = "   manifest: " .. n .. " apps in apps.csv" end
         else
             L[#L + 1] = "   last run: never — _G.backupNow() starts one"
+        end
+        -- ⏰ 6.338.0 — THE CATCH-UP, IN WORDS. Three states, and the
+        -- middle one is why this is three and not two (6.196.1): a Mac
+        -- two minutes into a boot has not asked yet, which is not the
+        -- same sentence as "it asked and the kit is fresh" and must
+        -- never be printed as it.
+        if (tonumber(bk.catchUpDays) or 0) <= 0 then
+            L[#L + 1] = "   catch-up: OFF — only the " .. tostring(bk.time)
+                        .. " timer runs, and a Mac asleep then loses that day"
+            L[#L + 1] = "             settings = { daily_backup = { catchUpDays = 1 } }"
+        elseif not bk.catchUpWhy then
+            L[#L + 1] = ("   catch-up: armed — every %s min, first ask %s s after boot"
+                         .. " · not asked yet this session")
+                        :format(tostring(bk.catchUpMins), tostring(bk.catchUpFirstSecs))
+        else
+            L[#L + 1] = ("   catch-up: every %s min · %d started this session · %s")
+                        :format(tostring(bk.catchUpMins), bk.catchUps or 0,
+                                tostring(bk.catchUpWhy))
+            if bk.catchUpLast then
+                L[#L + 1] = "             ↳ last catch-up " .. tostring(bk.catchUpLast.at)
+                            .. " — " .. tostring(bk.catchUpLast.why)
+            end
         end
         -- 🚨 6.197.0 — the crash reports, counted where they actually
         -- are. This line is here rather than only in _G.crashReport()
@@ -1347,16 +1456,53 @@ function M.setup(core)
         -- day. The staleness note below is the honest counterweight — a
         -- kit that quietly stopped updating gets named at boot, instead
         -- of being discovered the day it is needed.
-        if bk.last and bk.last.at then
-            local y, mo, d = tostring(bk.last.at):match("(%d+)-(%d+)-(%d+)")
-            if y then
-                local age = os.time() - os.time({ year = tonumber(y),
-                    month = tonumber(mo), day = tonumber(d), hour = 12 })
-                if age > bk.staleDays * 86400 then
-                    print("☁️ The rebuild kit is " .. math.floor(age / 86400)
-                          .. " days old — _G.backupNow() refreshes it")
-                end
+        -- 📅 ONE PARSER (6.231.0): this note and the catch-up below read
+        -- the same stamp through bk.stampEpoch, so they cannot disagree
+        -- about the age — and with the catch-up armed this note STOPS
+        -- handing him a command and tells him it is about to fix itself,
+        -- because a warning about a thing already in hand is the kind
+        -- nobody reads twice (6.269.0).
+        local lastE = bk.stampEpoch(bk.last and bk.last.at)
+        if lastE then
+            local age = os.time() - lastE
+            if age > bk.staleDays * 86400 then
+                print("☁️ The rebuild kit is " .. math.floor(age / 86400)
+                      .. " days old — "
+                      .. (((tonumber(bk.catchUpDays) or 0) > 0)
+                          and ("a catch-up run is due within "
+                               .. tostring(bk.catchUpMins) .. " min")
+                          or "_G.backupNow() refreshes it"))
             end
+        end
+        -- ⏰ 6.338.0 — THE HALF doAt NEVER HAD. The tick is a subtraction
+        -- and a comparison; the backup itself is bk.run's own async
+        -- rsync, and bk.run's `running` guard is what stops a second one
+        -- starting while one is in flight (6.304.0 — a guard only a
+        -- SUCCESS can release is a wedge, and this one is cleared on
+        -- every exit of that function already).
+        if (tonumber(bk.catchUpDays) or 0) > 0 then
+            local function catchUpTick()
+                local stamp = bk.last and bk.last.at or nil
+                local act, why = bk.catchUpVerdict(
+                    bk.stampEpoch(stamp), os.time(),
+                    bk.catchUpDays, true, stamp)
+                bk.catchUpWhy = why
+                if act ~= "run" then return end
+                if bk.running then return end
+                bk.catchUps    = (bk.catchUps or 0) + 1
+                bk.catchUpLast = { at = os.date("%Y-%m-%d %H:%M:%S"), why = why }
+                print("☁️ Rebuild kit catch-up — " .. why .. "; running one now")
+                bk.run(false)
+            end
+            -- HELD in _G, like every other timer here: an unreferenced
+            -- timer is collected and a collected timer never fires.
+            _G.backupCatchUpTimer = hs.timer.doEvery(bk.catchUpMins * 60, catchUpTick)
+            -- doEvery's FIRST tick is one interval away, so an overdue
+            -- kit would wait an hour to be noticed. The early ask is its
+            -- own held timer — and it is a timer rather than a call in
+            -- setup because an rsync started while 71 modules are still
+            -- loading is 6.267.0's tax on every key that boot (6.228.0).
+            _G.backupCatchUpFirst = hs.timer.doAfter(bk.catchUpFirstSecs, catchUpTick)
         end
         say("armed for " .. bk.time .. " daily → " .. core.backupDir)
     else

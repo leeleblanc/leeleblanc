@@ -3470,6 +3470,58 @@ work Mac.
   told. 📏 It is deliberately NOT silent when healthy (the opposite of
   6.269.0) because he asked for the healthy case in writing.
 
+- ⏰ A TIMER THAT FIRES AT AN INSTANT IS NOT A SCHEDULE ON A MACHINE
+  THAT SLEEPS (6.338.0, modules/daily_backup.lua — LL, on a boot note
+  reading "the rebuild kit is 12 days old": "Can't this be done
+  automatically?").
+  🔎 IT ALREADY WAS, AND THAT IS THE DEFECT — which is the shape worth
+  recognising, because the honest first answer to "can't this be
+  automatic" was "it is, daily, at 17:00, and has been since §1.7".
+  `hs.timer.doAt` fires at an INSTANT: a laptop asleep at 17:00, or a
+  Hammerspoon not running then, loses that day outright and NOTHING
+  retries it. Twelve consecutive missed 5 PMs is an ordinary fortnight
+  for a laptop, and from outside it is indistinguishable from a backup
+  nobody ever set up.
+  🔑 GENERAL: ask whether the thing is OVERDUE, never whether the
+  moment has arrived. One hourly "is the kit older than N days?" covers
+  a wake, a late boot, a reload and a Mac that was off at five with ONE
+  mechanism — where a wake watcher, a boot hook and a second timer are
+  three triggers to keep in step. Any doAt in this config is the same
+  bug waiting: grep for one before trusting a daily anything.
+  📅 ONE PARSER, TWO READERS (6.231.0): the staleness note and the
+  catch-up both ask "how old is it?", and two copies of that arithmetic
+  is how a Mac comes to be WARNED about a backup already in hand — two
+  instruments contradicting each other over one fact. `bk.stampEpoch` is
+  PURE, is the only place that turns a stamp into an epoch, and a source
+  sentry holds it there.
+  🔎 AND IT ANSWERS nil, NEVER 0. 0 is 1970, which every age test reads
+  as "ancient", so an unparseable stamp would start a backup on the
+  strength of a string nobody understood. GENERAL, and it generalises to
+  every clock in this config: A PARSER THAT FAILS INTO A VALID-LOOKING
+  NUMBER IS WORSE THAN ONE THAT THROWS — "I cannot tell" and "it is old"
+  are opposite facts (6.196.1), and the check that bites is the junk
+  string, not the good one.
+  ⏰ `bk.catchUpVerdict` is PURE with the clock as an ARGUMENT (6.234.0).
+  TWO OF ITS ANSWERS SHARE AN ACTION AND DIFFER ONLY IN THEIR REASON —
+  "never recorded" and "the stamp could not be read" both run — so a
+  check asserting the ACTION passes with the branch deleted; it asserts
+  that the two SENTENCES differ and that the unreadable one quotes the
+  stamp. 🕒 A negative age is a clock that MOVED, never freshness: the
+  reading that costs a backup is the one to refuse.
+  🚧 It cannot stack: the tick asks bk.run's `running` guard BEFORE it
+  counts, and the check drives the real in-flight case (a task started
+  and not completed) rather than setting the flag by hand.
+  📣 AND THE WARNING STOPS HANDING HIM A COMMAND. With the catch-up
+  armed the boot note says a run is due within the hour instead of
+  naming `_G.backupNow()` — and that makes the note MEAN something it
+  could not before: surviving now proves the catch-up itself failed,
+  which is a fault rather than a chore (6.269.0).
+  📏 COST, NAMED: a backup can start at an arbitrary moment in his day
+  rather than only at 17:00. Incremental rsync, out of process, cheap
+  after the first — but a real change to when the disk and OneDrive are
+  used. `catchUpDays = 0` restores the old behaviour exactly, and the
+  report says what that costs.
+
 - 🚪 SIX FIXES INSIDE ONE PIPELINE MEANS THE PIPELINE IS THE FIX
   (6.337.0, modules/screenshots.lua — LL: "I just don't get why OCR
   hyper+shift+4 works and hyper+4 still does not. Why cant you resolve
@@ -5191,6 +5243,7 @@ that must be READ before a new cause is named.
 | "Not deleted - that path leaves the vault" — on an ordinary note | modules/vault.lua · the `..` guard | 6.320.0 | 1 | ask |
 | "changing a title … does not change the title in the lefthand column" | modules/vault.lua · the note list | 6.328.0 | 1 | ask |
 | "stop backing up desktop … bloat it so unnecessarily" | modules/daily_backup.lua | 6.329.0 | 1 | ask |
+| "the rebuild kit is 12 days old" · "can't this be done automatically?" | modules/daily_backup.lua · a doAt that cannot catch up | 6.338.0 | 1 | ask |
 | "the card is closed — macOS keeps the key" over a card he had opened | modules/music_player.lua · `mp.show` | 6.289.0 · 6.309.0 · 6.326.0 | 3 | ask |
 
 📏 SEEDED FROM THE RECORD, NOT INVENTED: every row above is a real
@@ -5281,6 +5334,7 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
+| 6.338.0 | ⏰ the backup catches up after a night asleep — a 5 PM timer on a laptop had quietly skipped twelve days | pending |
 | 6.337.0 | 🚪 ⇪4 is macOS's own crosshair again — the drag ⇪⇧4 uses, because six releases of ours could not survive a three-finger gesture | pending |
 | 6.336.0 | 🚪 a ⇪4 drag whose release macOS swallowed now captures what you dragged instead of leaving the overlay on screen | LOSS — LL: "I just don't get why OCR hyper+shift+4 works and hyper+4 still does not." The belt asked checkMouseButtons in the direction 6.306.0 forbids, so a three-finger drag (no button pressed) was killed 0.2 s in at 0 × 0 — worse than 6.335.0 → fix 6.337.0 |
 | 6.335.0 | 🗑 the bin is a button in the header — every note you deleted, click one to put it back | pending |
@@ -6393,6 +6447,82 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.338.0 verify with LL — ⏰ THE BACKUP CATCHES UP (KNOWN GROUND)
+  WHAT CHANGED: the rebuild kit refreshes itself without you running
+  anything.
+  🔎 AND THE ANSWER TO YOUR QUESTION IS "it already was", which is why
+  this is a bug and not a feature. The backup has run on a daily timer
+  since the config had sections — 17:00, every day. What that kind of
+  timer does is fire at an INSTANT: if the Mac is asleep at five o'clock,
+  or Hammerspoon is not running then, that day is skipped and nothing
+  ever goes back for it. Twelve days old means twelve missed 5 PMs, and
+  from where you were sitting that looks exactly like a backup nobody
+  set up.
+  🔑 WHAT IT DOES NOW: once an hour it asks "is the kit more than a day
+  old?" and runs one if it is. That covers a wake, a late boot, a reload
+  and a Mac that was simply off at five — one mechanism, not three.
+
+  A. THE HEADLINE — and the first run may happen on its own.
+  A1. Install and reload. Watch the Console for about two minutes.
+      EXPECT, because your kit is overdue right now:
+        ☁️ Rebuild kit catch-up — the kit is 12 day(s) old — past the
+           1-day window; running one now
+      **That line IS the release.** Paste it.
+  A2. Console: `_G.backupReport()`. Find the new `catch-up:` line.
+      EXPECT: `every 60 min · 1 started this session · the kit is 12
+      day(s) old — past the 1-day window`, and a `↳ last catch-up` line
+      under it with the time.
+  A3. The `last run:` line above it should now be TODAY, with its usual
+      per-entry rows. That is the kit being fresh again.
+  A4. Reload once more and read the boot note. EXPECT it is GONE — the
+      kit is a few minutes old. If it is still there, paste it.
+
+  B. THE NOTE NO LONGER HANDS YOU A CHORE.
+  B1. If you ever do see "☁️ The rebuild kit is N days old" again, read
+      the rest of the line: it now says **"a catch-up run is due within
+      60 min"** instead of giving you `_G.backupNow()`.
+  B2. 🚨 AND THAT MAKES IT WORTH READING: with the catch-up working,
+      that note surviving means the catch-up ITSELF is failing. Before
+      this release it just meant your Mac had been asleep at five. If
+      you see it twice on different days, paste it — that is a fault now.
+
+  C. MUST STILL WORK — this touched the thing that copies your files.
+  C1. `_G.backupNow()` still runs one by hand, immediately.
+  C2. The 17:00 timer is unchanged — nothing about it moved.
+  C3. `_G.backupReport()` still lists every entry with its status, the
+      app manifest count, and the crash-report lines.
+  C4. The half-hourly store mirror and the hourly notes mirror are
+      untouched: check their lines still read `ok` with a recent time.
+  C5. Nothing in the backup folder is ever deleted. Still true — no
+      rsync here carries `--delete`.
+
+  D. PASTE BACK, PASS OR FAIL.
+  D1. `_G.backupReport()` after a day of normal use. Two lines matter:
+      `catch-up:` and `last run:`. If `catch-up:` ever still reads
+      **"not asked yet this session"** an hour after boot, the timer is
+      not firing and I want to know — that is the one state this
+      release exists to make impossible.
+  D2. From the WORK MAC too, when you next install there. A work laptop
+      is shut at 5 PM far more often than a home one, so that is where
+      this should show the biggest difference.
+
+  E. A JUDGEMENT ONLY YOU CAN MAKE.
+  E1. **A backup can now start at any hour of your day**, not only at
+      five. It is an incremental copy running outside Hammerspoon, so
+      after the first one it should be unnoticeable — but if you ever
+      feel the Mac get busy and find a catch-up in the report at that
+      moment, tell me. `settings = { daily_backup = { catchUpDays = 0 } }`
+      puts it back to 5 PM only, and `catchUpMins` changes how often it
+      asks.
+  E2. One day is the threshold — the kit has to be more than a day old
+      before a catch-up runs, which restores the daily rhythm rather
+      than adding a second one. Too eager? Too slack? It is a number.
+  E3. 🔨 CRUDE OR ELEGANT: nothing was broken and nothing was lost —
+      the kit was simply stale, and you would have found out the day you
+      needed it. My reading is that this is a defect in a SCHEDULE
+      rather than a feature ask, because the config was promising a
+      daily backup it was not delivering. Your tag.
+
 - 6.337.0 verify with LL — 🚪 ⇪4 IS macOS'S CROSSHAIR AGAIN (KNOWN GROUND)
   WHAT CHANGED: ⇪4 drags the way ⇪⇧4 drags — macOS's own crosshair, its
   own numbers, its magnifier, and SPACE to shoot a whole window.

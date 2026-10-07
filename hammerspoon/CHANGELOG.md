@@ -5,6 +5,103 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.338.0 — ⏰ A SCHEDULE THAT CANNOT CATCH UP IS NOT A SCHEDULE
+  (modules/daily_backup.lua)
+
+LL, on a boot note reading "☁️ The rebuild kit is 12 days old —
+_G.backupNow() refreshes it": "Can't this be done automatically?"
+
+🔎 IT ALREADY WAS, AND THAT IS THE DEFECT. The backup has been on a
+daily timer since §1.7 was a section — `hs.timer.doAt(bk.time, "1d",
+...)`, 17:00, every day. What doAt does is fire at an INSTANT. A laptop
+asleep at 17:00, or a Hammerspoon not running then, skips that day
+outright, and nothing anywhere retries it. Twelve consecutive missed
+5 PMs is not an unusual week for a laptop, and from the outside it is
+indistinguishable from a backup nobody ever set up.
+
+🔑 SO THE ANSWER TO "can't this be automatic" IS NOT A SCHEDULE, IT IS
+A CATCH-UP. The release does not move bk.time, add a second schedule, or
+replace doAt. It adds the half doAt never had: an hourly ask, "is the
+kit overdue?", which covers a wake, a late boot, a reload and a Mac that
+was simply off at five o'clock with ONE mechanism rather than three
+triggers. GENERAL, and it is the half to carry past backups: A TIMER
+THAT FIRES AT AN INSTANT IS NOT A SCHEDULE ON A MACHINE THAT SLEEPS —
+ask whether the thing is OVERDUE, never whether the moment has arrived.
+
+📅 ONE PARSER, TWO READERS (6.231.0). The boot staleness note did its
+own `os.time({ year = ..., hour = 12 })` inline, and the catch-up needs
+the same arithmetic. Two copies is how a Mac comes to be warned about a
+backup that is about to run by itself — two instruments contradicting
+each other over one fact. `bk.stampEpoch` is PURE and is the only place
+in the module that turns a stamp into an epoch; a source sentry holds it
+there. It reads a full `%Y-%m-%d %H:%M:%S` stamp, and a DATE-ONLY one at
+noon, which is what that note has always assumed, so no stored row
+shifts the day this lands.
+
+🔎 AND IT ANSWERS nil, NEVER 0. 0 is 1970, which every age test reads
+as "ancient" — so a stamp nobody could parse would start a backup on the
+strength of a string this config did not understand. "I cannot tell" and
+"it is old" are opposite facts (6.196.1), and the check that bites is
+exactly that: `stampEpoch("not a date")` must be nil, not 0.
+
+⏰ `bk.catchUpVerdict(lastEpoch, now, days, armed, stamp)` is PURE with
+the clock as an ARGUMENT, so every edge is proven without waiting a day
+for one (6.234.0's shape). FOUR answers, and two of them share an
+action and differ only in their REASON:
+  · off — catchUpDays = 0
+  · run — no backup has ever been recorded on this Mac
+  · run — the last run's stamp could not be read: <the stamp>
+  · run — the kit is N day(s) old, past the N-day window
+  · fresh — inside the window
+NEVER RUN and COULD NOT BE READ both end in a backup, so the ACTION
+cannot tell them apart and a check asserting only the action passes with
+the branch deleted (6.196.1 inside the instrument). The reason is the
+only thing that names which Mac you are looking at, so the unreadable
+one quotes the stamp, and the check asserts the two sentences DIFFER.
+
+🕒 A NEGATIVE AGE IS A CLOCK THAT MOVED, not a fresh backup — a wake,
+a time-zone change, a stamp written on the other Mac. Reading it as
+fresh is the direction that costs a backup, so it runs.
+
+🚧 AND IT CANNOT STACK. bk.run raises `running` on entry and clears it
+on every exit, and the tick asks that guard BEFORE it counts — so a tick
+landing while an rsync is in flight starts nothing and does not even
+move the counter. Its check sets up the real in-flight case (a task
+started and not yet completed) rather than setting the flag by hand.
+
+🔒 BOTH TIMERS ARE HELD IN _G, because an unreferenced timer is
+collected and a collected timer never fires (6.196.1). There are two on
+purpose: doEvery's FIRST tick is a whole interval away, so an overdue
+kit would wait an hour to be noticed, and the early ask is its own
+`doAfter(catchUpFirstSecs)`. That early ask is a TIMER rather than a
+call in setup because an rsync started while 71 modules are still
+loading is 6.267.0's tax on every key that boot (6.228.0).
+
+📣 THE BOOT NOTE STOPS HANDING HIM A COMMAND. With the catch-up armed
+it reads "the rebuild kit is 12 days old — a catch-up run is due within
+60 min" instead of naming `_G.backupNow()`. A warning about a thing
+already in hand is the kind nobody reads twice (6.269.0) — and with the
+catch-up working, that note surviving now MEANS something: it is the
+catch-up itself failing, which is a fault rather than a chore.
+
+🔎 `_G.backupReport()` gains a `catch-up:` line with three states, and
+the middle one is why it is three and not two: a Mac two minutes into a
+boot has NOT ASKED YET, which is not the same sentence as "it asked and
+the kit is fresh" and must never be printed as it.
+
+📏 COST, NAMED: a backup can now start at an arbitrary moment in his
+day rather than only at 17:00. It is an incremental rsync in an
+out-of-process task, so after the first one it is cheap — but it is a
+real change to when disk and OneDrive get used, and
+`settings = { daily_backup = { catchUpDays = 0 } }` restores exactly the
+old behaviour, with the report saying what that costs.
+
+🧪 Suite: 11,698 checks over eighty-two stages, 20 new in
+test_daily_backup — the parser's three shapes, the verdict's five
+answers, the two reasons that must differ, both timers held, the
+in-flight guard, the three report states, and a source sentry that the
+boot note reads the age through the same parser.
+
 NEW IN 6.337.0 — 🚪 THE PIPELINE IS THE VARIABLE: ⇪4 IS macOS'S
   CROSSHAIR AGAIN, AND 6.336.0's BELT ASKED THE VETO BACKWARDS
   (modules/screenshots.lua)

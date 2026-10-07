@@ -2,10 +2,21 @@
 -- * Working VERSION *
 -- =====================================================================
 -- =====================================================================
--- 10-06-26 using Claude          ← EDITED date. Bumped with every release.
+-- 10-07-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.337.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.338.0
 -- =====================================================================
+
+-- NEW IN 6.338.0 — ⏰ A SCHEDULE THAT CANNOT CATCH UP IS NOT A
+--   SCHEDULE (modules/daily_backup.lua). LL, on a boot note reading
+--   "the rebuild kit is 12 days old": "Can't this be done
+--   automatically?" It already was — bk.time, daily, since §1.7 — and
+--   that IS the defect: hs.timer.doAt fires at an INSTANT, so a laptop
+--   asleep or a Hammerspoon not running at 17:00 loses that day and
+--   nothing retries. Twelve missed 5 PMs read exactly like a backup
+--   nobody set up. An hourly ask — "is the kit overdue?" — catches a
+--   wake, a late boot and a reload with ONE mechanism; bk.run's guard
+--   stops a second starting mid-flight. catchUpDays = 0 is off.
 
 -- NEW IN 6.337.0 — 🚪 THE PIPELINE IS THE VARIABLE: ⇪4 IS macOS'S
 --   CROSSHAIR AGAIN (modules/screenshots.lua). LL: "I just don't get
@@ -13,32 +24,21 @@
 --   the drag to `screencapture -i`, a SEPARATE PROCESS whose event grab
 --   is the window server's; ⇪4 since 6.264.0 did the drag itself in a
 --   canvas callback — and macOS reads a three-finger drag as a Space
---   swipe, taking the gesture before our callback is asked. Six
---   releases tried to fix that from inside the selector (6.266.0: every
---   fix moved a part of the SAME pipeline, so the pipeline IS the
---   variable). COST: ⇪4 loses our live W × H, gains macOS's HUD,
+--   swipe, taking it before our callback is asked. Six releases tried
+--   to fix that inside the selector; every one moved part of the SAME
+--   pipeline, so the pipeline IS it (6.266.0). COST: ⇪4 loses our W × H,
 --   magnifier and SPACE-for-a-window; `areaNative = false` puts ours
---   back, and ⇪5 / ⌘A / repeat-area still use it. 🚨 AND 6.336.0's BELT
+--   back; ⇪5 / ⌘A / repeat-area still use it. 🚨 6.336.0's BELT
 --   ASKED checkMouseButtons BACKWARDS — it quoted "a VETO, not an
 --   ORACLE" and made the NEGATIVE its sole trigger, killing every
---   gesture drag 0.2 s in at 0 × 0. It stands down unless this Mac
---   positively says "down" in that drag.
+--   gesture drag 0.2 s in at 0 × 0. It stands down now unless this
+--   Mac positively says "down" during that drag.
 
--- NEW IN 6.336.0 — 🚪 A DRAG ENDS WHEREVER THE BUTTON COMES UP
---   (modules/screenshots.lua). LL on ⇪4: "it said 0x0 pixels, and
---   then jumped a few desktops, and then I had to hit escape." The
---   area selector ended a drag in exactly ONE place — a mouseUp inside
---   its own canvas — and a canvas hears nothing off its own frame, so a
---   release on another display, past an edge, or across a Space switch
---   never arrived: nothing was captured and the overlay stayed up
---   until Esc. A held watch finishes the rectangle he dragged — third
---   caller of a rule written twice (6.222.0, 6.306.0), never asked here.
-
--- (6.335.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.336.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 cut the inline count to
 --  TWO; a gate check proves every entry here is also in CHANGELOG.md.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.337.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.338.0
 -- =====================================================================
 -- The catalogue that used to sit here moved to GUIDE.md ("What each
 -- tool does") in 6.180.0 — 259 lines of prose inside the orchestrator.
@@ -131,7 +131,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.337.0"
+_G.configVersion = "6.338.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the

@@ -1,5 +1,5 @@
 ========================================================================
-RESOLVED FEATURE REQUESTS — Hammerspoon config 6.337.0
+RESOLVED FEATURE REQUESTS — Hammerspoon config 6.338.0
 Every feature and how to use it. Generated from the modules' own
 cheat sheets (the rows ⇪/ draws), so it is never out of date.
 ⇪ = Caps Lock held (the hyper key). ⇪⇧X = Caps Lock + Shift + X.
@@ -785,6 +785,7 @@ In the Console, _G.<tool>Report() prints any tool's own report.
 
 📜 RELEASE INDEX — newest first, one line per release (the full story of each is in CHANGELOG.md)
 ------------------------------------------------------------------------
+  6.338.0  ⏰ A SCHEDULE THAT CANNOT CATCH UP IS NOT A SCHEDULE
   6.337.0  🚪 THE PIPELINE IS THE VARIABLE: ⇪4 IS macOS'S
   6.336.0  🚪 A DRAG ENDS WHEREVER THE BUTTON COMES UP
   6.335.0  🗑 THE BIN IS A BUTTON, NOT A CONSOLE COMMAND
