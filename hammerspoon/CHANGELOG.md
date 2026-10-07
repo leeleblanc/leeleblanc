@@ -98,7 +98,28 @@ member, and the module-side sentry is already red. A guard that can
 only fire where another one has already fired is dead code with a
 comment on it.
 
-GATE: 82 stages, 11,710 checks.
+GATE: 82 stages, 11,710 checks. 10 mutations, 9 bites — the tenth is
+the regression guard named above, which cannot fail on a healthy tree
+because there is nothing unknown to find, and is said rather than
+implied. THE SWEEP ITSELF COST THREE CORRECTIONS, which is the argument
+for running it: the BITES fixture re-implemented the match, so it
+proved a COPY of the rule and two reader mutations survived; a fixture
+indexed a nil when the reader answered nothing, so the run DIED with
+"0 failed" never printed (6.186.0, eighth time); and an unreadable
+module file was counted as scanned while contributing no matches, so
+the sweep could have gone green over a haystack it never read.
+
+🪜 AND THE HARNESS ATE ITS OWN FIRST RUN, which belongs here because
+6.270.0 wrote the rule and this release broke it: the sweep was started
+against an UNCOMMITTED rewrite, so its first `git checkout --` restore
+reverted that rewrite and every mutation after the first measured the
+OLD sentry. The tell was arithmetic — the baseline printed 297 checks
+and the next run printed 293 (6.263.0: missing checks are a
+fingerprint). COMMIT FIRST, THEN MUTATE, and the harness now REFUSES a
+dirty tree, verifies the restore against a stored SHA after every
+mutation, re-checks that the baseline count has not moved, and reports
+NOT APPLIED when a pattern matches nothing — four ways of noticing that
+it is measuring itself rather than the code.
 
 NEW IN 6.338.0 — ⏰ A SCHEDULE THAT CANNOT CATCH UP IS NOT A SCHEDULE
   (modules/daily_backup.lua)
