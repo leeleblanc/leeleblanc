@@ -347,6 +347,26 @@ work Mac.
      GENERAL: when a delivery is reported broken for the Nth time, check
      whether the evidence is about the ARTEFACT or about the VIEWER —
      they look identical from the person's side and have opposite fixes.
+     ✅ AND IT PAID A SECOND TIME, ON THE DAY IT WAS HOLDING UP A FIX
+     (2026-10-06, LL on the re-sent 6.337.0: "your zip was empty this
+     second time", with a screenshot of the Claude app's Files SEARCH
+     BOX reading "No matching files" — and, in the SAME message, a boot
+     log reading `📌 init.lua ARCHITECTURE VERSION: 6.337.0`, All
+     green, 71 modules, 0.13s. The archive was 196 entries, 3,097,314
+     bytes, and it INSTALLED AND LOADED. Five "empty archive" reports
+     now, and two of them are a viewer.
+     🔒 AND THAT SEARCH BOX IS THE SAME SIGNAL 6.303.0 READ AS PROOF OF
+     NON-ARRIVAL ("a Files search returns 'No matching files'"), which
+     makes it an instrument that has now answered the same way for an
+     archive that never came and one that installed. GENERAL, and it is
+     the sharper half: AN INSTRUMENT THAT READS IDENTICALLY IN BOTH
+     DIRECTIONS IS NOT EVIDENCE — name a field that can only be true on
+     one side.
+     🔑 THAT FIELD IS THE BOOT LOG, and he pastes one more often than
+     not: a running config reporting the new version IS the artefact
+     arriving, installing and loading, all four links at once. So an
+     "empty archive" report beside a boot log naming that release is
+     ANSWERED, never investigated — read the log before re-sending.
      📣 The numbers still go in the message (entries, MB, the version
      grepped out of an unpacked init.lua), because they are what tells a
      bad build from a bad delivery. The archive is still committed — the
