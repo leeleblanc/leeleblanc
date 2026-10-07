@@ -2879,24 +2879,30 @@ do
     -- wrong implementation MUST differ (6.230.0) — every other input
     -- agrees, which is why the first draft's mutations survived.
     do
+        -- 🚨 EVERY FIXTURE READ IS GUARDED. The first sweep's M6 — the
+        -- table pattern broken — made membersOf answer nil here and the
+        -- run DIED on `m2.a` with "0 failed" never printed, which in a
+        -- gate that reads the tail looks like a pass. A test helper
+        -- answers falsely rather than indexing a nil (6.186.0, eighth
+        -- time in this project), so a mutation FAILS a check.
         local two = "\nlocal core = {\n    a = 1,     b = 2,\n    c = 3,\n}\n"
         local m2, n2 = membersOf(two)
         check("🔌 the reader takes EVERY key on a line, not the first",
-              n2 == 3 and m2.a and m2.b and m2.c, tostring(n2))
+              m2 ~= nil and n2 == 3 and m2.a and m2.b and m2.c, tostring(n2))
 
         local nested = "\nlocal core = {\n    f = function(t)\n"
             .. "        local w = false\n        inner = 1\n"
             .. "        return w\n    end,\n    g = 2,\n}\n"
         local m3, n3 = membersOf(nested)
         check("🔌 ...and a local inside a member's BODY is not a member",
-              n3 == 2 and m3.f and m3.g and not m3.w and not m3.inner,
-              tostring(n3))
+              m3 ~= nil and n3 == 2 and m3.f and m3.g and not m3.w
+              and not m3.inner, tostring(n3))
 
         local cmp = "\nlocal core = {\n    a = 1,\n    b = (x == y),\n"
             .. "    c = (p ~= q),\n}\n"
         local m4 = membersOf(cmp)
         check("🔌 ...and a comparison is not a key",
-              m4.a and m4.b and m4.c and not m4.x and not m4.p)
+              m4 ~= nil and m4.a and m4.b and m4.c and not m4.x and not m4.p)
 
         check("🔌 ...and a source with no core table answers nil, never {}",
               membersOf("local other = { a = 1 }\n") == nil)
@@ -2927,11 +2933,19 @@ do
     local p = io.popen('ls "' .. HS .. '"/modules/*.lua 2>/dev/null')
     if p then
         for path in p:lines() do
-            local src = slurpFile(path) or ""
-            if #src > 0 then scanned = scanned + 1 end
+            local src  = slurpFile(path)
             local base = path:match("([^/]+)$")
-            for _, k in ipairs(unknownIn(src, real)) do
-                unknown[#unknown + 1] = base .. " → core." .. k
+            scanned = scanned + 1
+            -- 🚨 AN UNREADABLE FILE IS A FAILURE, NOT A SKIP. Read as
+            -- "" it yields no matches, so the sweep would go green over
+            -- a file it never saw — a sentry certifying a haystack it
+            -- did not read (6.313.0). It joins the failure list by name.
+            if not src or #src == 0 then
+                unknown[#unknown + 1] = base .. " → COULD NOT BE READ"
+            else
+                for _, k in ipairs(unknownIn(src, real)) do
+                    unknown[#unknown + 1] = base .. " → core." .. k
+                end
             end
         end
         p:close()
