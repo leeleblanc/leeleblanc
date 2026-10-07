@@ -4,8 +4,19 @@
 -- =====================================================================
 -- 10-07-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.338.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.339.0
 -- =====================================================================
+
+-- NEW IN 6.339.0 — 🔌 A TABLE THAT IS INCOMPLETE FAILS SILENTLY
+--   (init.lua's core table + modules/screenshot_editor.lua). LL, over a
+--   Console printing the whole SCREENSHOTS block: "Add capture needs the
+--   screenshots module, which is not loaded". It was loaded. The guard
+--   read `core.has and core.has(...)` and `core` carried provide and
+--   call and NOT has — nil, so nil-guarded, so refused on every Mac from
+--   the day it was written. ⌘A, ⌘D, ⌘F and ⌘O — 6.213.0, 6.255.0,
+--   6.256.0, 6.258.0 — have never run. The trio is complete now, and a
+--   sentry closes the CLASS rather than the instance: no module may call
+--   a member the real core table does not have, read off that table.
 
 -- NEW IN 6.338.0 — ⏰ A SCHEDULE THAT CANNOT CATCH UP IS NOT A
 --   SCHEDULE (modules/daily_backup.lua). LL, on a boot note reading
@@ -18,27 +29,11 @@
 --   wake, a late boot and a reload with ONE mechanism; bk.run's guard
 --   stops a second starting mid-flight. catchUpDays = 0 is off.
 
--- NEW IN 6.337.0 — 🚪 THE PIPELINE IS THE VARIABLE: ⇪4 IS macOS'S
---   CROSSHAIR AGAIN (modules/screenshots.lua). LL: "I just don't get
---   why OCR hyper+shift+4 works and hyper+4 still does not." ⇪⇧4 hands
---   the drag to `screencapture -i`, a SEPARATE PROCESS whose event grab
---   is the window server's; ⇪4 since 6.264.0 did the drag itself in a
---   canvas callback — and macOS reads a three-finger drag as a Space
---   swipe, taking it before our callback is asked. Six releases tried
---   to fix that inside the selector; every one moved part of the SAME
---   pipeline, so the pipeline IS it (6.266.0). COST: ⇪4 loses our W × H,
---   magnifier and SPACE-for-a-window; `areaNative = false` puts ours
---   back; ⇪5 / ⌘A / repeat-area still use it. 🚨 6.336.0's BELT
---   ASKED checkMouseButtons BACKWARDS — it quoted "a VETO, not an
---   ORACLE" and made the NEGATIVE its sole trigger, killing every
---   gesture drag 0.2 s in at 0 × 0. It stands down now unless this
---   Mac positively says "down" during that drag.
-
--- (6.336.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.337.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 cut the inline count to
 --  TWO; a gate check proves every entry here is also in CHANGELOG.md.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.338.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.339.0
 -- =====================================================================
 -- The catalogue that used to sit here moved to GUIDE.md ("What each
 -- tool does") in 6.180.0 — 259 lines of prose inside the orchestrator.
@@ -131,7 +126,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.338.0"
+_G.configVersion = "6.339.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the
@@ -3329,6 +3324,10 @@ local core = {
     -- crash if the module is missing.
     provide  = function(name, fn) _G.service.provide(name, fn) end,
     call     = function(name, ...) return _G.service.call(name, ...) end,
+    -- 6.339.0: the THIRD of the trio. It was missing, and `core.has` is
+    -- nil-guarded wherever it is reached for, so the absence refused
+    -- silently rather than throwing — four editor buttons, four releases.
+    has      = function(name) return _G.service.has(name) end,
     -- diagnostics (§1.11)
     diag     = _G.diag,
     safeJson = _G.safeJson,

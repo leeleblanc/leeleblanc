@@ -2776,6 +2776,127 @@ do
 end
 
 -- =====================================================================
+-- 🔌 A MODULE MAY NOT CALL A MEMBER `core` DOES NOT HAVE (6.339.0)
+-- =====================================================================
+-- LL, with a photograph of the screenshot editor: "Add capture needs the
+-- screenshots module, which is not loaded" — over a Console in which
+-- _G.screenshotsReport() had just printed the whole SCREENSHOTS block
+-- and ⇪4 had logged a press four minutes earlier. The module was loaded.
+--
+-- 🔎 THE GUARD ASKED A QUESTION NOTHING COULD ANSWER YES:
+--     if not (core.has and core.has("screenshots.captureAreaTo")) then
+-- init.lua's core table carried `provide` and `call` and NOT `has` —
+-- `has` lived only on _G.service, which is what the other seventy
+-- modules use. So `core.has` was nil, `nil and …` is nil, and the guard
+-- refused on every Mac from the day it was written. FOUR BUTTONS, FOUR
+-- RELEASES: ⌘A add capture (6.213.0), ⌘D delayed (6.255.0), ⌘F full
+-- screen (6.256.0) and ⌘O load shot (6.258.0) have never once run.
+--
+-- 🔑 WHY NO FUNCTIONAL TEST COULD SEE IT, which is the whole reason this
+-- is a sentry: the call site is NIL-GUARDED, so the absence does not
+-- throw — it takes the degrade branch, which is correct-looking code
+-- reporting a correct-sounding reason. An incomplete table that fails
+-- silently is worse than one that fails loudly, and `provide`/`call`
+-- without `has` is an incompleteness a module author cannot see.
+--
+-- 📏 modules/ ONLY, and that is a scope rather than an oversight: every
+-- file in core/ is `return function(core)` taking its own bespoke table
+-- from init.lua's call site, so `core.enter` there is a real member of a
+-- different table. A module's `core` is always M.setup's parameter.
+-- NAMED, NOT COVERED: a module that aliases the table (`local c = core`)
+-- is outside this sentry's reach; nothing does today.
+do
+    local initSrc = slurpFile(HS .. "/init.lua") or ""
+    local clean   = initSrc:gsub("%-%-%[%[.-%]%]", " "):gsub("%-%-[^\n]*", "")
+    local _, tableAt = clean:find("\nlocal core = {")
+    check("🔌 the core table can be read out of init.lua", tableAt ~= nil)
+
+    -- The keys of the table itself, never a hand-kept list beside it
+    -- (6.276.0: read the truth, do not retype it). Depth-aware, because
+    -- a `local w = false` inside copyText's body is not a member — and
+    -- EVERY key on a line, because init.lua packs the path rows two to a
+    -- line and a first-match-only reader would miss cloudDir, backupDir
+    -- and configDir, then cry wolf on correct code (6.269.0).
+    local real, nKeys = {}, 0
+    if tableAt then
+        local depth, blk = 1, 0
+        for line in clean:sub(tableAt + 1):gmatch("([^\n]*)\n") do
+            if depth == 1 and blk == 0 then
+                local i = 1
+                while true do
+                    local a, b, k = line:find("([%a_][%w_]*)%s*=", i)
+                    if not a then break end
+                    -- `==`, `~=`, `<=`, `>=` are comparisons, not keys
+                    if line:sub(b + 1, b + 1) ~= "="
+                       and not line:sub(b - 1, b - 1):match("[=~<>]") then
+                        if not real[k] then nKeys = nKeys + 1 end
+                        real[k] = true
+                    end
+                    i = b + 1
+                end
+            end
+            for w in line:gmatch("%f[%w_][%a_]+%f[^%w_]") do
+                if w == "function" or w == "do" or w == "if" then blk = blk + 1
+                elseif w == "end" then blk = blk - 1 end
+            end
+            local _, opens  = line:gsub("{", "")
+            local _, closes = line:gsub("}", "")
+            depth = depth + opens - closes
+            if depth <= 0 then break end
+        end
+    end
+    -- A sentry over a haystack it did not prove it read is green and
+    -- measures nothing (6.313.0). These five are the trio plus two that
+    -- cannot plausibly leave the table.
+    check("🔌 ...and its members are read, not guessed",
+          nKeys > 20 and real.provide and real.call and real.degrade
+          and real.showPopup, nKeys .. " member(s)")
+    check("🔌 `has` is on core beside `provide` and `call` — the trio is "
+          .. "complete, which is the 6.339.0 fix itself", real.has == true)
+
+    local unknown, scanned = {}, 0
+    local p = io.popen('ls "' .. HS .. '"/modules/*.lua 2>/dev/null')
+    if p then
+        for path in p:lines() do
+            local src = slurpFile(path) or ""
+            if #src > 0 then scanned = scanned + 1 end
+            local code = src:gsub("%-%-%[%[.-%]%]", " "):gsub("%-%-[^\n]*", "")
+            local base = path:match("([^/]+)$")
+            local said = {}
+            for k in code:gmatch("%f[%w_]core%.([%a_][%w_]*)") do
+                if not real[k] and not said[k] then
+                    said[k] = true
+                    unknown[#unknown + 1] = base .. " → core." .. k
+                end
+            end
+        end
+        p:close()
+    end
+    check("🔌 every module file was read", scanned > 60, scanned .. " file(s)")
+    check("🔌 no module calls a member the real `core` table does not have",
+          #unknown == 0, table.concat(unknown, " · "))
+
+    -- BITES: the 6.339.0 bug itself, put back by hand.
+    do
+        local sick = "local M = {}\nfunction M.setup(core)\n"
+            .. "  if not (core.has and core.has('x')) then return end\n"
+            .. "  core.nosuchthing()\nend\n"
+        local found = {}
+        for k in sick:gmatch("%f[%w_]core%.([%a_][%w_]*)") do
+            if not real[k] then found[#found + 1] = k end
+        end
+        check("🔌 the sweep BITES an invented member", #found == 1
+              and found[1] == "nosuchthing", table.concat(found, ","))
+        -- and is SILENT on the real ones, including the one just added
+        local fine, ok2 = "core.has('a') core.call('b') core.provide('c', f)", true
+        for k in fine:gmatch("%f[%w_]core%.([%a_][%w_]*)") do
+            if not real[k] then ok2 = false end
+        end
+        check("🔌 ...and is silent on members that exist", ok2)
+    end
+end
+
+-- =====================================================================
 -- 🚨 6.308.0 — A MODULE HAS EXACTLY ONE M.warm, AND setup() NEVER
 -- ASSIGNS IT
 -- =====================================================================

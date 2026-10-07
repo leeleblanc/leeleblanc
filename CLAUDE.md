@@ -3470,6 +3470,55 @@ work Mac.
   told. 📏 It is deliberately NOT silent when healthy (the opposite of
   6.269.0) because he asked for the healthy case in writing.
 
+- 🔌 A TABLE THAT IS INCOMPLETE FAILS SILENTLY, AND NIL-GUARDED IS THE
+  WORST WAY TO FAIL (6.339.0, init.lua's core table +
+  modules/screenshot_editor.lua — LL, with a photograph: "Add capture
+  needs the screenshots module, which is not loaded", drawn over a
+  Console in which `_G.screenshotsReport()` had just printed the whole
+  SCREENSHOTS block and ⇪4 had logged a press four minutes earlier).
+  🔎 THE GUARD ASKED A QUESTION NOTHING COULD ANSWER YES: `core.has and
+  core.has("screenshots.captureAreaTo")`. The core table carries
+  `provide` and `call` and has NEVER carried `has` — that lives on
+  `_G.service`, which every other module uses. So `core.has` is nil,
+  `nil and …` is nil, and the guard refused on every Mac from the day it
+  was written. FOUR BUTTONS, FOUR RELEASES, NONE EVER RUN: ⌘A add
+  capture (6.213.0), ⌘D delayed (6.255.0), ⌘F full screen (6.256.0), ⌘O
+  load shot (6.258.0). A fifth site, ⌘⏎'s copy, had a real fallback, so
+  it worked and simply never took the module's door — named, not swept.
+  🔑 GENERAL, AND IT IS THE HALF TO CARRY: an incomplete table whose
+  absence RAISES is a five-second bug; one whose absence is NIL-GUARDED
+  is a four-release one, because the degrade branch is correct-looking
+  code giving a correct-sounding reason about a module that is fine.
+  When a table is a published contract, a partial implementation of a
+  trio is not a smaller contract — it is a trap. Complete it, or make
+  the gap loud.
+  🔬 AND THE GATE WAS GREEN BECAUSE THE STUB INVENTED THE MEMBER:
+  test_editor.lua's fake core carries `has`, re-pointed in four
+  sections, so every check on those four features ran against a core
+  that answers while the shipped one cannot. 6.273.0 word for word (a
+  stub that invents a calling convention CERTIFIES the bug) and
+  6.278.0's missing `degrade` — third time for this project's own core.
+  🚪 THE FIX IS THE TRIO, NOT THE FOUR CALL SITES. Rewriting the editor
+  to `_G.service.has` fixes the instance and leaves the table as
+  incomplete, so the next module reaching for the obvious third member
+  gets the identical silent refusal.
+  🔒 THE SENTRY READS THE TABLE, NOT A LIST BESIDE IT (6.276.0): it
+  lifts core's members out of init.lua's source and fails the gate on
+  any `core.<name>` in modules/ that is not one of them. Depth-aware (a
+  `local w` inside a body is not a member) and EVERY key on a line —
+  init.lua packs the path rows two to a line, and a first-match reader
+  misses cloudDir/backupDir/configDir and then cries wolf on correct
+  code (6.269.0). It asserts it READ something, because a sentry over an
+  empty haystack is green and measures nothing (6.313.0). 📏 modules/
+  only: every file in core/ is `return function(core)` taking a bespoke
+  table, so `core.enter` there is a real member of a different table.
+  🗑 A SECOND SENTRY WAS WRITTEN AND TAKEN OUT AGAIN (6.199.0, SEVENTH
+  time): "no test's core stub may carry a member the real table lacks"
+  reads like the obvious other half and is redundant — the moment such a
+  stub matters, some module is calling that member and the module-side
+  sentry is already red. A guard that can only fire where another has
+  already fired is dead code with a comment on it.
+
 - ⏰ A TIMER THAT FIRES AT AN INSTANT IS NOT A SCHEDULE ON A MACHINE
   THAT SLEEPS (6.338.0, modules/daily_backup.lua — LL, on a boot note
   reading "the rebuild kit is 12 days old": "Can't this be done
@@ -5243,6 +5292,7 @@ that must be READ before a new cause is named.
 | "Not deleted - that path leaves the vault" — on an ordinary note | modules/vault.lua · the `..` guard | 6.320.0 | 1 | ask |
 | "changing a title … does not change the title in the lefthand column" | modules/vault.lua · the note list | 6.328.0 | 1 | ask |
 | "stop backing up desktop … bloat it so unnecessarily" | modules/daily_backup.lua | 6.329.0 | 1 | ask |
+| "Add capture needs the screenshots module, which is not loaded" (over a working report) | modules/screenshot_editor.lua · an incomplete `core` table | 6.339.0 | 1 | ask |
 | "the rebuild kit is 12 days old" · "can't this be done automatically?" | modules/daily_backup.lua · a doAt that cannot catch up | 6.338.0 | 1 | ask |
 | "the card is closed — macOS keeps the key" over a card he had opened | modules/music_player.lua · `mp.show` | 6.289.0 · 6.309.0 · 6.326.0 | 3 | ask |
 
@@ -5334,6 +5384,7 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
+| 6.339.0 | 🔌 ⌘A, ⌘D, ⌘F and ⌘O in the screenshot editor work for the first time — a guard asked `core.has`, which the core table has never had | pending |
 | 6.338.0 | ⏰ the backup catches up after a night asleep — a 5 PM timer on a laptop had quietly skipped twelve days | pending |
 | 6.337.0 | 🚪 ⇪4 is macOS's own crosshair again — the drag ⇪⇧4 uses, because six releases of ours could not survive a three-finger gesture | pending |
 | 6.336.0 | 🚪 a ⇪4 drag whose release macOS swallowed now captures what you dragged instead of leaving the overlay on screen | LOSS — LL: "I just don't get why OCR hyper+shift+4 works and hyper+4 still does not." The belt asked checkMouseButtons in the direction 6.306.0 forbids, so a three-finger drag (no button pressed) was killed 0.2 s in at 0 × 0 — worse than 6.335.0 → fix 6.337.0 |
@@ -6447,6 +6498,96 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.339.0 verify with LL — 🔌 FOUR BUTTONS THAT HAVE NEVER RUN (KNOWN GROUND)
+  WHAT CHANGED: ⌘A, ⌘D, ⌘F and ⌘O in the screenshot editor work. Not
+  "work better" — work at all, for the first time since each shipped.
+  🔎 YOUR SCREENSHOT WAS THE WHOLE DIAGNOSIS. "Add capture needs the
+  screenshots module, which is not loaded" was drawn over a Console in
+  which `_G.screenshotsReport()` had just printed the entire SCREENSHOTS
+  block and ⇪4 had logged a press four minutes earlier. The module was
+  loaded; the report was its own proof. What was missing was the way to
+  ASK: the guard called `core.has`, and the `core` table every module is
+  handed carries `provide` and `call` and has never carried `has`. Nil,
+  nil-guarded, so it refused silently rather than erroring — which is
+  why it survived four releases and a green gate.
+  🚨 SO EXPECT THESE TO BE NEW TO YOU. If any of them does something you
+  have seen before, say so — that would mean I have the cause wrong.
+
+  A. THE HEADLINE — ⌘A, the one you photographed.
+  A1. ⇪⇧1 on any screenshot to open the editor.
+  A2. Press ⌘A (or the 📸 Add capture button in the right rail).
+      EXPECT: the editor stays put and a selector appears over the
+      screen — drag a rectangle over something.
+      **A FAIL is the old alert**, "Add capture needs the screenshots
+      module, which is not loaded". That sentence should be impossible
+      now; if you see it, stop and tell me.
+  A3. Let go. EXPECT: what you dragged lands ON the shot as a movable
+      image at about 40% width. Drag it; drag its corner to scale it.
+  A4. ⌘Z. EXPECT: it comes off again.
+  A5. 🪟 Move the editor window aside first if it covers the thing you
+      want — ⌘A does NOT hide it, deliberately. ⌘F is the one that does.
+
+  B. ⌘O — LOAD SHOT (6.258.0, never run).
+  B1. In the editor, press ⌘O (or 🖼 Load shot).
+      EXPECT: a picker listing your other screenshots, newest first.
+      NOT "Load shot needs the screenshots module…".
+  B2. Pick one. EXPECT: the canvas GROWS and that shot is drawn in the
+      new space at its own size — two wide shots stack, a tall one goes
+      beside.
+  B3. 🚨 THE RULE WORTH CHECKING, because it is the whole design: draw
+      an arrow or a text box on the FIRST shot before you press ⌘O.
+      After the grow it must still be exactly on the thing it pointed
+      at. If any mark moves, that is a real break and I want the
+      screenshot.
+  B4. ⌘Z takes the whole grow back, canvas size and all.
+
+  C. ⌘D AND ⌘F — THE TWO SCREEN GRABS (6.255.0 / 6.256.0, never run).
+  C1. In the editor, press ⌘F (🖥 Full screen).
+      EXPECT: the editor blinks out, the whole screen is taken, and the
+      editor comes straight back with that screen on the shot.
+  C2. 🔎 LOOK AT THE PICTURE: the editor must NOT be in it. If it is,
+      the settle beat is too short on your Mac and that is a number, not
+      a release — tell me and I will move the default.
+  C3. Press ⌘D (⏲ Delayed 5s). EXPECT: the editor hides, you get five
+      seconds to arrange the screen — open a menu, hover something —
+      then it comes back with the screen on the shot.
+  C4. 🚨 THE ONE THAT MATTERS MORE THAN THE FEATURE: the editor must
+      ALWAYS come back. If it ever hides and does not return within
+      about eight seconds, that is a real break — and it is caught: an
+      alert reads "⚠️ Screenshot editor — the delayed capture never
+      answered — the window is back". Paste that if you see it.
+
+  D. MUST STILL WORK — I changed a table every module is handed.
+  D1. Boot: All green, 71 modules, the usual ⇪ shortcut count.
+  D2. A spread of keys across different tools: ⇪T, ⇪D, ⇪N, ⇪3, ⇪X, ⇪4,
+      ⇪space, ⇪V, ⇪/. Nothing should feel different anywhere.
+  D3. In the editor: the nine drawing tools (B T A L O H C S M), ⌘Z,
+      ⌘-drag on the title strip, Esc, and ⌘⏎ Save & copy.
+  D4. ⌘⏎ specifically: it saves "… (edited).png" beside the original AND
+      puts it on the clipboard, as it always has. It now takes the
+      module's door to do it rather than its own fallback, so this is
+      the one existing behaviour this release could plausibly have
+      disturbed. ⌘V somewhere afterwards and check you get the picture.
+
+  E. PASTE BACK, PASS OR FAIL.
+  E1. `_G.screenshotEditorReport()` — the whole block, after doing A–C.
+      The "capture :" line should show asked/landed counts that are no
+      longer 0 for the first time.
+  E2. `_G.screenshotsReport()` — unchanged by this release, but its
+      "routes :" line tells me whether ⌘A went through the same path.
+
+  F. A JUDGEMENT ONLY YOU CAN MAKE.
+  F1. Now that these four actually run — are they what you wanted when
+      you asked for them? ⌘A and ⌘O were your asks in 6.213.0 and
+      6.258.0 and you have never been able to press either. If the
+      behaviour is wrong rather than absent, that is a new and much more
+      useful conversation.
+  F2. 🔨 CRUDE OR ELEGANT: nothing broke, nothing was lost, and the
+      editor stayed usable throughout — four buttons were simply absent
+      while telling you something false about why. My reading is that
+      the degrade was graceful and the MESSAGE was a lie, which is its
+      own kind of cost; one pass. Your tag.
+
 - 6.338.0 verify with LL — ⏰ THE BACKUP CATCHES UP (KNOWN GROUND)
   WHAT CHANGED: the rebuild kit refreshes itself without you running
   anything.

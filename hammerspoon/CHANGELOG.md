@@ -5,6 +5,101 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.339.0 — 🔌 A TABLE THAT IS INCOMPLETE FAILS SILENTLY
+  (init.lua's core table + modules/screenshot_editor.lua)
+
+LL, with a photograph of the screenshot editor: "Add capture needs the
+screenshots module, which is not loaded" — drawn over a Console in
+which `_G.screenshotsReport()` had just printed the whole SCREENSHOTS
+block, and in which ⇪4 had logged a press four minutes earlier. The
+module was loaded. The report was its own proof.
+
+🔎 THE GUARD WAS ASKING A QUESTION NOTHING COULD ANSWER YES:
+
+    if not (core.has and core.has("screenshots.captureAreaTo")) then
+        return false, "Add capture needs the screenshots module, ..."
+    end
+
+init.lua's `core` table carries `provide` and `call`. It has never
+carried `has` — that lives on `_G.service`, which is what the other
+seventy modules use. So `core.has` is nil, `nil and …` is nil, `not
+nil` is true, and the guard refused on every Mac from the day it was
+written.
+
+🚨 FOUR BUTTONS, FOUR RELEASES, NONE OF WHICH HAS EVER RUN.
+screenshot_editor.lua is the ONLY file in the config that spells it
+`core.has`, and it does so at four sites:
+  · ⌘A add capture  — 6.213.0
+  · ⌘D delayed 5 s  — 6.255.0  (via one shared `canAsk`)
+  · ⌘F full screen  — 6.256.0  (the same `canAsk`)
+  · ⌘O load shot    — 6.258.0
+A fifth site, ⌘⏎'s clipboard copy, has a real fallback behind it, so
+Save & copy worked — it has simply never taken the module's door, and
+therefore never recorded the write in `shots.ownClip`. That is a
+harmless direction (6.319.0 refuses to swap a clipboard it does not
+own), and it is named rather than quietly fixed.
+
+🔑 WHY NO FUNCTIONAL TEST COULD HAVE CAUGHT IT, and this is the half
+worth carrying: THE CALL SITE IS NIL-GUARDED, so the missing member
+does not throw — it takes the degrade branch. Correct-looking code,
+reporting a correct-sounding reason, about a module that is fine. An
+incomplete table whose absence RAISES is a five-second bug; one whose
+absence is nil-guarded is a four-release one. GENERAL: when a table is
+a published contract, a partial implementation of a trio
+(provide/call/…) is not a smaller contract, it is a trap — complete it
+or make the gap loud.
+
+🔬 AND THE GATE WAS GREEN BECAUSE THE STUB INVENTED THE MEMBER.
+tests/test_editor.lua builds a fake core carrying `has = function(n)
+... end`, and re-points it at a local registry in four separate
+sections. Every check on those four features therefore ran against a
+core that answers while the shipped one cannot. That is 6.273.0 word
+for word — a stub that invents a calling convention does not merely
+miss the bug, it CERTIFIES it — and 6.278.0's missing `degrade` in the
+very same table. Third time for this project's own core.
+
+🚪 THE FIX IS THE TRIO, NOT THE FOUR CALL SITES. Rewriting the editor
+to `_G.service.has` would have fixed the instance and left the table
+exactly as incomplete, so the next module reaching for the obvious
+third member of provide/call gets the identical silent refusal. `has`
+is on core now, one line, wrapping `_G.service.has` the way `provide`
+and `call` already wrap theirs.
+
+🔒 AND A SENTRY CLOSES THE CLASS (tests/test_integration.lua). It reads
+the core table's members OUT OF init.lua's source — never a hand-kept
+list beside it (6.276.0) — and fails the gate on any `core.<name>` in
+modules/ that is not one of them.
+  · DEPTH-AWARE, because `local w = false` inside copyText's body is
+    not a member;
+  · EVERY key on a line, because init.lua packs the path rows two to a
+    line and a first-match-only reader misses cloudDir, backupDir and
+    configDir, then cries wolf on correct code (6.269.0 — a new
+    instrument is measured against the healthy case FIRST; modules/ is
+    clean on this tree, with `has` added, and that silence is the
+    evidence);
+  · it ASSERTS it read something (31 members, 71 module files), because
+    a sentry over a haystack it did not prove it read is green and
+    measures nothing (6.313.0);
+  · and it BITES — an invented member is found, the real ones are not.
+
+📏 modules/ ONLY, and that is a scope with a reason rather than an
+oversight: every file in core/ is `return function(core)` taking a
+bespoke table from init.lua's call site, so `core.enter` in
+core/hyper_key.lua is a real member of a different table entirely. A
+module's `core` is always M.setup's parameter. NAMED, NOT COVERED: a
+module that aliased the table (`local c = core`) would be outside this
+sentry's reach. Nothing does today.
+
+🗑 A SECOND SENTRY WAS WRITTEN AND TAKEN OUT AGAIN (6.199.0, seventh
+time). It would have failed any suite whose core stub carries a member
+the real table lacks — which reads like the obvious other half, and is
+redundant: the moment such a stub matters, some module is calling that
+member, and the module-side sentry is already red. A guard that can
+only fire where another one has already fired is dead code with a
+comment on it.
+
+GATE: 82 stages, 11,705 checks.
+
 NEW IN 6.338.0 — ⏰ A SCHEDULE THAT CANNOT CATCH UP IS NOT A SCHEDULE
   (modules/daily_backup.lua)
 

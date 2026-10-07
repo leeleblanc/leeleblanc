@@ -1,4 +1,4 @@
-# TESTING — how to score release 6.338.0
+# TESTING — how to score release 6.339.0
 
 You install ONE archive and it carries several releases. Below are the
 steps for each release this archive is new for, newest first. Run the
@@ -26,6 +26,100 @@ else is a LOSS and I fix it before building further. You are the only
 scorer; I never mark my own.
 
 ---
+
+## 6.339.0
+
+6.339.0 verify with LL — 🔌 FOUR BUTTONS THAT HAVE NEVER RUN (KNOWN GROUND)
+WHAT CHANGED: ⌘A, ⌘D, ⌘F and ⌘O in the screenshot editor work. Not
+"work better" — work at all, for the first time since each shipped.
+🔎 YOUR SCREENSHOT WAS THE WHOLE DIAGNOSIS. "Add capture needs the
+screenshots module, which is not loaded" was drawn over a Console in
+which `_G.screenshotsReport()` had just printed the entire SCREENSHOTS
+block and ⇪4 had logged a press four minutes earlier. The module was
+loaded; the report was its own proof. What was missing was the way to
+ASK: the guard called `core.has`, and the `core` table every module is
+handed carries `provide` and `call` and has never carried `has`. Nil,
+nil-guarded, so it refused silently rather than erroring — which is
+why it survived four releases and a green gate.
+🚨 SO EXPECT THESE TO BE NEW TO YOU. If any of them does something you
+have seen before, say so — that would mean I have the cause wrong.
+
+A. THE HEADLINE — ⌘A, the one you photographed.
+A1. ⇪⇧1 on any screenshot to open the editor.
+A2. Press ⌘A (or the 📸 Add capture button in the right rail).
+    EXPECT: the editor stays put and a selector appears over the
+    screen — drag a rectangle over something.
+    **A FAIL is the old alert**, "Add capture needs the screenshots
+    module, which is not loaded". That sentence should be impossible
+    now; if you see it, stop and tell me.
+A3. Let go. EXPECT: what you dragged lands ON the shot as a movable
+    image at about 40% width. Drag it; drag its corner to scale it.
+A4. ⌘Z. EXPECT: it comes off again.
+A5. 🪟 Move the editor window aside first if it covers the thing you
+    want — ⌘A does NOT hide it, deliberately. ⌘F is the one that does.
+
+B. ⌘O — LOAD SHOT (6.258.0, never run).
+B1. In the editor, press ⌘O (or 🖼 Load shot).
+    EXPECT: a picker listing your other screenshots, newest first.
+    NOT "Load shot needs the screenshots module…".
+B2. Pick one. EXPECT: the canvas GROWS and that shot is drawn in the
+    new space at its own size — two wide shots stack, a tall one goes
+    beside.
+B3. 🚨 THE RULE WORTH CHECKING, because it is the whole design: draw
+    an arrow or a text box on the FIRST shot before you press ⌘O.
+    After the grow it must still be exactly on the thing it pointed
+    at. If any mark moves, that is a real break and I want the
+    screenshot.
+B4. ⌘Z takes the whole grow back, canvas size and all.
+
+C. ⌘D AND ⌘F — THE TWO SCREEN GRABS (6.255.0 / 6.256.0, never run).
+C1. In the editor, press ⌘F (🖥 Full screen).
+    EXPECT: the editor blinks out, the whole screen is taken, and the
+    editor comes straight back with that screen on the shot.
+C2. 🔎 LOOK AT THE PICTURE: the editor must NOT be in it. If it is,
+    the settle beat is too short on your Mac and that is a number, not
+    a release — tell me and I will move the default.
+C3. Press ⌘D (⏲ Delayed 5s). EXPECT: the editor hides, you get five
+    seconds to arrange the screen — open a menu, hover something —
+    then it comes back with the screen on the shot.
+C4. 🚨 THE ONE THAT MATTERS MORE THAN THE FEATURE: the editor must
+    ALWAYS come back. If it ever hides and does not return within
+    about eight seconds, that is a real break — and it is caught: an
+    alert reads "⚠️ Screenshot editor — the delayed capture never
+    answered — the window is back". Paste that if you see it.
+
+D. MUST STILL WORK — I changed a table every module is handed.
+D1. Boot: All green, 71 modules, the usual ⇪ shortcut count.
+D2. A spread of keys across different tools: ⇪T, ⇪D, ⇪N, ⇪3, ⇪X, ⇪4,
+    ⇪space, ⇪V, ⇪/. Nothing should feel different anywhere.
+D3. In the editor: the nine drawing tools (B T A L O H C S M), ⌘Z,
+    ⌘-drag on the title strip, Esc, and ⌘⏎ Save & copy.
+D4. ⌘⏎ specifically: it saves "… (edited).png" beside the original AND
+    puts it on the clipboard, as it always has. It now takes the
+    module's door to do it rather than its own fallback, so this is
+    the one existing behaviour this release could plausibly have
+    disturbed. ⌘V somewhere afterwards and check you get the picture.
+
+E. PASTE BACK, PASS OR FAIL.
+E1. `_G.screenshotEditorReport()` — the whole block, after doing A–C.
+    The "capture :" line should show asked/landed counts that are no
+    longer 0 for the first time.
+E2. `_G.screenshotsReport()` — unchanged by this release, but its
+    "routes :" line tells me whether ⌘A went through the same path.
+
+F. A JUDGEMENT ONLY YOU CAN MAKE.
+F1. Now that these four actually run — are they what you wanted when
+    you asked for them? ⌘A and ⌘O were your asks in 6.213.0 and
+    6.258.0 and you have never been able to press either. If the
+    behaviour is wrong rather than absent, that is a new and much more
+    useful conversation.
+F2. 🔨 CRUDE OR ELEGANT: nothing broke, nothing was lost, and the
+    editor stayed usable throughout — four buttons were simply absent
+    while telling you something false about why. My reading is that
+    the degrade was graceful and the MESSAGE was a lie, which is its
+    own kind of cost; one pass. Your tag.
+
+
 
 ## 6.338.0
 
@@ -276,80 +370,6 @@ D2. 🔨 CRUDE OR ELEGANT: ⇪4 left an overlay on your screen that only
     Esc could clear, and the shot you wanted was lost. My reading is
     that it degraded — Esc always worked and nothing was destroyed —
     but it cost you the capture every time. Your tag.
-
-
-
-## 6.335.0
-
-6.335.0 verify with LL — 🗑 THE BIN IS A BUTTON (KNOWN GROUND)
-WHAT CHANGED: there is a 🗑 in the Hamsidian header, beside the other
-buttons. It shows every note you have deleted; clicking one puts it
-back.
-🔎 AND NOTHING WAS BROKEN, which is worth saying first: those notes
-have been recoverable since 6.321.0 — a delete MOVES the file to
-<Vault>/.trash and nothing erases it for 180 days. What you could not
-do was LOOK, without typing a command. That is the third time in this
-module I have built the measurement and not the door.
-
-A. THE HEADLINE.
-A1. ⇪3. Look at the header, between 🗂 and ↻.
-    EXPECT: a 🗑 button.
-A2. Click it.
-    EXPECT: the left column becomes the bin — your deleted notes,
-    newest first, each with the time it went. The strip above says
-    "🗑 BIN · N deleted".
-A3. Hover a row. EXPECT: a tooltip saying where it would go back to.
-A4. Click a row.
-    EXPECT: "🗑 <name> is back → <path>", the note is in Hamsidian
-    again, and the row is GONE from the bin.
-    **A FAIL is the note opening instead of being restored**, or the
-    wrong note coming back — tell me at once if either happens.
-A5. Click 🗑 again (or press Esc). EXPECT: back to your notes.
-
-B. THE EDGES WORTH ONE MINUTE.
-B1. In the bin, press ⌥↓ and ⌥↑. EXPECT: the highlight walks the
-    rows. ⌥⏎ restores the highlighted one — the same thing a click
-    does.
-B2. ⌘F and type part of a deleted note's name.
-    EXPECT: the bin filters. Type nonsense: "no deleted note matches"
-    — which must NOT read the same as an empty bin.
-B3. If you have never deleted anything on this Mac, the bin reads
-    "the bin is empty — nothing has been deleted". If it ever says
-    "⚠ the .trash folder could not be read", paste that: those are
-    opposite facts and the second one is the one that matters.
-B4. Restore a note whose name EXISTS again in the vault.
-    EXPECT: it lands beside it as "<name> (restored …)" and your
-    newer note is untouched. That rule is 6.321.0's and this must not
-    have broken it.
-
-C. MUST STILL WORK — this touched the left column, which is every
-   list in that window.
-C1. The notes list, ⌘F filter, ↑↓, ⏎ to open — unchanged.
-C2. ☑ tasks (⌘⇧K), 🔎 search (⌘⇧F), 🕸 graph (⌘G), 🗂 board (⌘⇧B) —
-    all four still open and still come back with Esc.
-C3. The ✕ on a note row still deletes it to the bin.
-C4. Your scratch tabs are still in the one list (6.333.0).
-C5. ⌘N, ⌘D, ⌘K, ⌘⇧S — unchanged.
-
-D. PASTE BACK.
-D1. `_G.vaultReport()` — its `bin :` line, and the `deleted:` count.
-D2. `_G.vaultTrash()` still works from the Console and must list the
-    same notes the button shows. If the two ever disagree, that is a
-    real finding.
-
-E. A JUDGEMENT ONLY YOU CAN MAKE.
-E1. There is deliberately NO purge button in the bin. A
-    delete-forever control one pixel from a restore control, in the
-    list that exists to prevent loss, is the wrong button to add —
-    `_G.vaultPurgeTrash()` is still the only thing that removes a
-    file. Say if you want one anyway; it is your call, not a gap.
-E2. A click restores immediately, with no confirm. Right, or would
-    you rather it asked? Nothing is destroyed either way, which is
-    why I made it immediate.
-E3. 🔨 CRUDE OR ELEGANT: Hamsidian worked throughout and the notes
-    were never at risk — what was missing was a way to look. My
-    reading is that this is a DOOR I should have built in 6.321.0,
-    not a defect. Your tag.
 
 
 
