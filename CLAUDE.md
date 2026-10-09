@@ -405,6 +405,24 @@ work Mac.
      GENERAL: when a partial delivery makes an honest guard complain,
      the guard is the evidence the delivery was partial — ship the
      missing half, never silence the guard.
+- ❓ EVERY QUESTION FOR HIM GOES IN ONE LIST AT THE END (2026-10-09, LL:
+  "Please start grouping as all your questions as a list at the end. I am
+  missing them as they are buried in your replies."). He is right, and it
+  is this file's own failure rather than a style preference: almost every
+  rule here ends in "ask him" — 6.198.0's artefact-first, 6.201.0's ASK
+  FOR THE ARTEFACT, the 🔨 CRUDE-or-ELEGANT tag only he can give, the
+  verify blocks' "A JUDGEMENT ONLY YOU CAN MAKE" — and a question he
+  never sees is a question that was never asked. So the answers that
+  decide the next release were sitting unanswered inside paragraphs he
+  had already read past.
+  🔑 THE SHAPE, every reply: the diagnosis and the work first, then a
+  final block headed ❓ QUESTIONS, numbered, one line each, each saying
+  what the answer DECIDES. A question with no consequence named is one he
+  cannot prioritise — and if a question has no consequence, it should not
+  be asked. GENERAL, past this project: when a method depends on somebody
+  answering, the asking is part of the method and gets the same structure
+  the work does.
+
 - ✍️ LL DOES NOT EDIT init.lua AND A SETTINGS LINE IS NOT AN ANSWER
   (6.267.0, LL: "I do not edit the init.lua so I don't cause simple
   errors. You are to generate and test a new init.lua."). Every
@@ -5707,6 +5725,38 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   `_G.stallGuardReport()`), which now carries `in flight: <shortcut>`
   beside the kill, and the full Console around it. `(none)` is as useful
   as a name: it rules out every ⇪ shortcut in one line.
+
+- 🔒 "Unable to fetch NSRunningApplication for pid: 830" — AND THE FIRST
+  SECURE-INPUT READING IS NEVER ANNOUNCED (2026-10-09, his Console,
+  06:12:31 → 06:17:16, twice at the same second then "that line is
+  repeating").
+  🔎 TWO CALLERS CAN PRODUCE IT AND THEY ARE OPPOSITE FACTS, so it is
+  NOT diagnosed from here (6.198.0). `core/capabilities.lua`'s `siName`
+  runs on the 60 s Secure Input poll and is reached ONLY when ioreg
+  reported a live `kCGSSessionSecureInputPID` — so that caller means
+  SECURE INPUT WAS ON, held by pid 830, which is the state that kills
+  every event tap AND hotkey dispatch system-wide with no error anywhere
+  (6.196.0 — it took his keyboard for four hours). `modules/net_watch.lua`'s
+  `aggregate` calls the same function once per live connection and is
+  driven by ⇪⇧6, which explains two identical lines in one second far
+  better than a once-a-minute poll does. `_G.secureInputReport()`'s
+  `state :` line separates them in one word.
+  🚨 AND THE HOLE IS PROVEN BY READING, whichever caller it was:
+  `_G.secureInput` is born with `on = nil`, and the announcement is
+  guarded by `if was ~= nil and was ~= si.on`. So THE FIRST READING IS
+  NEVER SAID OUT LOUD. The guard is right for the OFF case — a line every
+  minute saying "still fine" is how a real warning gets scrolled past
+  (6.269.0) — and WRONG for the ON case: a Mac where Secure Input is
+  already held when the first probe lands reports it to nobody, for ever,
+  and the only trace in the Console is a LuaSkin error about a pid macOS
+  cannot name. 6.196.1 inside the instrument built to keep it, in the
+  single highest-stakes row this config has.
+  🔑 THE FIX IS ONE ASYMMETRY, not a new instrument: a first reading of
+  ON speaks; a first reading of OFF stays silent. Its own release, and it
+  does not wait on which caller logged pid 830 — the hole is real either
+  way. 📏 And `siName`'s own pcall cannot suppress that line: LuaSkin logs
+  it from inside `applicationForPID` before returning nil, so the noise is
+  macOS's and only the ASKING can be reduced.
 
 - 🎙 SUPERWHISPER — HIS CODE, READ (2026-10-04, LL: "How horrible is
   this code? Do I need it to work with my text expansion snippets you
