@@ -4,36 +4,37 @@
 -- =====================================================================
 -- 10-07-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.339.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.341.0
 -- =====================================================================
 
--- NEW IN 6.339.0 — 🔌 A TABLE THAT IS INCOMPLETE FAILS SILENTLY
---   (init.lua's core table + modules/screenshot_editor.lua). LL, over a
---   Console printing the whole SCREENSHOTS block: "Add capture needs the
---   screenshots module, which is not loaded". It was loaded. The guard
---   read `core.has and core.has(...)` and `core` carried provide and
---   call and NOT has — nil, so nil-guarded, so refused on every Mac from
---   the day it was written. ⌘A, ⌘D, ⌘F and ⌘O — 6.213.0, 6.255.0,
---   6.256.0, 6.258.0 — have never run. The trio is complete now, and a
---   sentry closes the CLASS rather than the instance: no module may call
---   a member the real core table does not have, read off that table.
+-- NEW IN 6.341.0 — 🔁 THE SHOT KEEPS THE CLIPBOARD; ⇪⇧4 IS THE OCR
+--   DOOR (modules/screenshots.lua). LL: "sometimes when I do hyper+4 it
+--   places an image on the clipboard. Sometimes it seems like the OCR
+--   runs and places the characters on the clipboard… When I take a
+--   screenshot that always takes priority, unless I use my
+--   hyper+shift+4." "Sometimes" WAS the feature: 6.319.0's swap fires
+--   only when the naming OCR happens to find words, only while the shot
+--   is still what the clipboard holds, and only inside clipSwapSecs.
+--   textToClipboard ships FALSE. ⇪⇧4 is untouched — it has copied by its
+--   own path since 6.173.1 — and the OCR still runs in the background,
+--   naming the file and filling ⇪O. Only the clipboard write stops.
 
--- NEW IN 6.338.0 — ⏰ A SCHEDULE THAT CANNOT CATCH UP IS NOT A
---   SCHEDULE (modules/daily_backup.lua). LL, on a boot note reading
---   "the rebuild kit is 12 days old": "Can't this be done
---   automatically?" It already was — bk.time, daily, since §1.7 — and
---   that IS the defect: hs.timer.doAt fires at an INSTANT, so a laptop
---   asleep or a Hammerspoon not running at 17:00 loses that day and
---   nothing retries. Twelve missed 5 PMs read exactly like a backup
---   nobody set up. An hourly ask — "is the kit overdue?" — catches a
---   wake, a late boot and a reload with ONE mechanism; bk.run's guard
---   stops a second starting mid-flight. catchUpDays = 0 is off.
+-- NEW IN 6.340.0 — 🔎 A FIRST OPEN IS NOT AN EMPTY VAULT
+--   (modules/vault.lua). LL: "When I first load Hamsidian, it's blank.
+--   Then I escape, open again, and the notes are there." v.render() runs
+--   BEFORE v.scan("open"), so the page was drawn from the empty table
+--   v.notes is born with and said "no notes yet — ⌘N" over a vault
+--   holding all of them (6.196.1, fourth time) — and the rows reached
+--   the page only at finish(), the end of four greps, when the NAMES are
+--   known after the first. The page carries SCANNED now, the rows go in
+--   when the FIND answers, the `ready` handshake is answered (6.238.0),
+--   and ⏎ in the filter refuses to CREATE over an index nobody has read.
 
--- (6.337.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.339.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 cut the inline count to
 --  TWO; a gate check proves every entry here is also in CHANGELOG.md.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.339.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.341.0
 -- =====================================================================
 -- The catalogue that used to sit here moved to GUIDE.md ("What each
 -- tool does") in 6.180.0 — 259 lines of prose inside the orchestrator.
@@ -126,7 +127,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.339.0"
+_G.configVersion = "6.341.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the

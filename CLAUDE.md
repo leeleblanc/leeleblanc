@@ -3470,6 +3470,86 @@ work Mac.
   told. 📏 It is deliberately NOT silent when healthy (the opposite of
   6.269.0) because he asked for the healthy case in writing.
 
+- 🔎 A SURFACE DRAWN BEFORE ITS DATA IS A SURFACE THAT LIES ABOUT THE
+  DATA (6.340.0, modules/vault.lua — LL: "When I first load Hamsidian,
+  it's blank. Then I escape, open again, and the notes are there").
+  🔎 TWO THINGS AT ONCE, and only one of them looks obvious. `v.open()`
+  calls `v.render()`, then `view:show()`, and only THEN `v.scan("open")`
+  — so the left column is built from the empty table `v.notes` is born
+  with, and the page's own empty-list line read **"no notes yet — ⌘N"**.
+  Over a vault holding every note he has, in the tool that holds his
+  writing, where that sentence reads as data loss. 6.196.1 for the
+  FOURTH time (6.312.0 · 6.334.0 · 6.267.0, which wrote it down about
+  two modules and did not sweep the ones that followed).
+  ⏳ AND THE ROWS WAITED FOR FOUR GREPS WHEN ONE WOULD DO. The chain is
+  find → links → tags → front matter, and only `finish()` pushed rows
+  into the page — while the NAMES are known the moment the find
+  answers. So a first open over a vault in OneDrive sat blank for the
+  whole chain, which is exactly as long as he waited before escaping;
+  the second open is drawn from the index the first open filled in
+  after he had left, which is why it works and why it reads as
+  intermittent.
+  🔑 GENERAL, and it is the half to carry: **A LAZY READ MAKES "NOT YET"
+  AND "THERE IS NOTHING" IDENTICAL FROM OUTSIDE — INCLUDING FROM THE
+  PERSON'S SIDE OF THE GLASS.** 6.312.0 said this about a REPORT;
+  this is the same failure on a SURFACE, where it is worse, because a
+  report is read once and a surface is believed. Any page in this
+  config drawn before an asynchronous read lands owes a third state in
+  the DRAWING, not only in the diagnostics.
+  🔑 AND THE FIELD WAS ALREADY THERE: `v.lastScan` is nil until a scan
+  completes, and 6.334.0 found it being collected and unread in the
+  boot readout. Before adding a state, grep what is already recorded.
+  🚨 AND ⏎ MAY NOT CREATE OVER AN INDEX NOBODY HAS READ. 6.307.0's rule
+  is that a match beats a creation — and before the find answers there
+  are no rows to match AGAINST, so ⏎ in the ⌘F box would write a second,
+  near-identical note into the folder holding his writing: that bug,
+  reached through a timing window instead of a mode. GENERAL: when a
+  guard rests on a list, ask what it does while the list is still being
+  built.
+  🪟 THE PAGE ALREADY SAID WHEN IT EXISTS and nobody was answering it
+  with the index — `say({a:'ready'})` has closed its load sequence since
+  6.174.0. `view:html()` returns BEFORE WebKit parses (6.238.0), so the
+  early push is the fast path, `ready` is the belt and `finish()` is
+  behind both.
+  🔬 THE DUMP BUILT A STATE NO MAC CAN BE IN — six notes with no
+  completed scan — so the moment this shipped all 289 existing page
+  checks fell into the reading branch (6.290.0). 🧪 And the hint-strip
+  check first passed on the wrong haystack: "reading your notes…" is
+  also a string in drawRows' own source, so grepping the document is
+  green with the strip untouched (6.313.0).
+
+- 🔁 A RULE WHOSE OUTCOME CANNOT BE PREDICTED BEFORE THE KEYPRESS IS
+  EXPERIENCED AS RANDOMNESS (6.341.0, modules/screenshots.lua — LL:
+  "sometimes when I do hyper+4 it places an image on the clipboard.
+  Sometimes it seems like the OCR runs and places the characters on the
+  clipboard. But I haven't done hyper+shift+4 … When I take a screenshot
+  that always takes priority, unless I use my hyper+shift+4").
+  🔎 "SOMETIMES" WAS THE FEATURE. 6.319.0 built the swap on his own
+  earlier ask and bounded it carefully, because the damage a clipboard
+  write can do is destroying something he copied: `swapVerdict` has six
+  answers and only one writes. A photograph, a diagram, a ⌘C of his own
+  in the two seconds between — any of those and the picture stays.
+  🔑 SO THE DEFECT IS THE CONDITIONALITY, NOT A BRANCH. Every one of
+  those six answers is right. GENERAL, and it is the one to carry: when
+  a feature is reported INTERMITTENT and each branch reads correct, ask
+  whether the CONDITION should exist rather than which branch to fix —
+  a person cannot hold six invisible predicates in their head, so they
+  experience a correct rule as a coin toss.
+  🚪 ⇪⇧4 IS UNTOUCHED, and that is what makes the flip safe:
+  `shots.recognizeFile` has copied through its own path since 6.173.1
+  and does not read this flag. 6.319.0's own rule paid — when a feature
+  has several doors, ask which DOORS do X; here one of them did it on a
+  coin toss and the fix is to stop that one, not to touch the other.
+  🚨 AND THE OCR STILL RUNS, which is the half he asked for by name: the
+  shot is still renamed after its words, the Finder comment and ⇪O's log
+  still fill. Only the clipboard write stops. ✍️ 6.267.0 decides the
+  shape — the default is CHANGED AND SHIPPED, the switch stays so the
+  release is reversible, and it is documented rather than prescribed.
+  📋 The cheat sheet gains the division, which was readable nowhere
+  (6.181.0). 🧪 The sweep's own finding (6.273.0): hard-coding the OFF
+  count to 0 SURVIVED a check that asked only for the words — a sentence
+  with no evidence under it is 6.229.0's yield line again.
+
 - 🔌 A TABLE THAT IS INCOMPLETE FAILS SILENTLY, AND NIL-GUARDED IS THE
   WORST WAY TO FAIL (6.339.0, init.lua's core table +
   modules/screenshot_editor.lua — LL, with a photograph: "Add capture
@@ -5203,7 +5283,7 @@ THE METHOD, when something breaks after a stacked zip:
    6.216.0 6f06071 · 6.217.0 a475bef · 6.218.0 41b002b · 6.219.0 862c177
    · 6.220.0 ac3975e · 6.221.0 ead07d9 · 6.222.0 1842ca7 · 6.223.0
    86ac82b · 6.224.0 67957ea · 6.225.0 98434fe · 6.226.0 304f1f9 ·
-   6.227.0 14e953a · 6.228.0 2aa3dfe · 6.229.0 a1318e1 · 6.230.0 0740c07 · 6.231.0 c1921af · 6.231.1 5a5c298 · 6.232.0 1ca3f6f · 6.233.0 2328c8c · 6.234.0 57f78d0 · 6.235.0 52e5b21 · 6.236.0 34cff8b · 6.236.1 fdce771 · 6.237.0 adf9256 · 6.238.0 3adad4f · 6.239.0 3adad4f (one commit, two releases) · 6.240.0 8f44bec · 6.241.0 dce517e · 6.242.0 1a1dab0 · 6.243.0 8fba04f · 6.244.0 9320906 · 6.245.0 9c1a8b1 · 6.246.0 1400abd · 6.247.0 3b92e99 · 6.248.0 e4e3a03 · 6.249.0 e4edc3f · 6.250.0 c267c1b · 6.251.0 f7b0d57 · 6.252.0 6307253 · 6.253.0 ef20313 · 6.254.0 14493e5 · 6.255.0 d371b34 · 6.256.0 3c29888 · 6.257.0 7f55d2b · 6.258.0 10d2250 · 6.259.0 2bcda06 · 6.260.0 f16e286 · 6.261.0 8680504 · 6.262.0 595dc2e · 6.263.0 014ddf6 · 6.264.0 5e41879 · 6.265.0 f0c487c · 6.266.0 9135f7b · 6.267.0 a621a60 · 6.268.0 c2e513f · 6.269.0 f6552ea (078cece is the same release before the report was corrected) · 6.270.0 b8eda88 · 6.271.0 b8edbe1 · 6.272.0 881a91b · 6.273.0 56b0d2b · 6.274.0 c6e9b6b · 6.275.0 9cebe19 · 6.276.0 3db904e · 6.277.0 c6632a1 · 6.278.0 6c1fe75 · 6.279.0 a6241f5 · 6.280.0 893b40b · 6.281.0 5611a4a · 6.282.0 11dc992 · 6.283.0 3fa417f · 6.284.0 a8f3df4 · 6.285.0 70d118b · 6.286.0 fa93f1b · 6.287.0 39b9dba · 6.288.0 8508186 · 6.289.0 83f5296 · 6.290.0 6daee50 · 6.291.0 aec4561 · 6.292.0 c89c65f · 6.293.0 10c9410 · 6.294.0 0aeebdc · 6.295.0 641c45c (52c1b2b adds the check its own mutation sweep found missing) · 6.296.0 e82ad95 (8bd970b adds the cross-file sentry) · 6.297.0 dacb791 (1604d55 hardens the suite) · 6.298.0 f77c47e (fe109ff adds the two checks its sweep found missing) · 6.299.0 bdc6855 (c587502 the same) · 6.300.0 8ab4802 (cc8b7f9 the same) · 6.301.0 dcff776 · 6.302.0 b465418 (e287164 the mutation sweep's own two findings) · 6.303.0 f5d89e1 · 6.304.0 b8b1b51 (7cf3d9b is the release; b8b1b51 adds the mutation sweep's own four findings) · 6.305.0 b1aa974 (f478dc8 is the release; b1aa974 adds the mutation sweep's own four findings) · 6.306.0 cf14689 · 6.307.0–6.310.0 10c6a87 (one commit, four releases — the four live in four different modules, so a break still names its version by which tool it is in) · 6.311.0 82e52f8 (c7cd4de adds the mutation sweep's own two findings) · 6.312.0 4ad18dc · 6.313.0 c09cb78 (the ceremony for both is the commit after; the code is in those two) · 6.314.0 9ee6a76 (0a363e9 is the ceremony and the mutation sweep's own finding) · 6.315.0 a9394e4 · 6.316.0 cb411aa (8ee2228 adds the mutation sweep's own findings) · 6.317.0 2d2f1e1 (07d5fa5 the same) · 6.318.0 4e95bd2 (366d17f the same) · 6.319.0 8ef0bbe (6c9a7f7, 865ba74, c6f23ef, b448bd1, 99cfafc and c4994f6 are the mutation sweep's own six findings — the third of them is the real one) · 6.320.0 and 6.321.0 ddf6310 (one commit, two releases — the `..` guard and the bin it unblocked) · 6.322.0 fd3d91e (b6b39e5 is the faithful degrade stub it needed) · 6.323.0 44b027a (3602db5 makes its fallback reachable) · 6.324.0 524ae1f · 6.325.0 06c731b (0c0f890 adds the door's own checks) · 6.326.0 1363050 · 6.327.0 e26f17f (6c7e2e9 drives the delete-time forget) · 6.328.0 c4b6fe3 · 6.329.0 029f5de · 6.330.0 7bc13f3 (981c1b7 makes a label that cannot be built a bare epoch rather than a dead pulse) · 6.331.0 4471793 · 6.332.0 7ea10d9 (a1715c9 the sweep's own two findings) · 6.333.0 c57ba35 · 6.334.0 and 6.335.0 212b1ac (one commit, two releases — the readout fix is in write_ledger, the bin in vault, so a break still names its version by which tool it is in) · 6.336.0 0a71d7f · 6.337.0 14c39a9 (191e708 adds the mutation sweep's own finding — the call site choosing between areaPlan's two native sentences was driven by nothing) · 6.338.0 c84b846 (12 of 12 mutations bit on the first sweep) · 6.339.0 06552b7 (de8ef9b and 2261996 are the mutation sweep's own findings — a BITES fixture that re-implemented the rule and so proved a copy of it, and a fixture that DIED instead of failing).
+   6.227.0 14e953a · 6.228.0 2aa3dfe · 6.229.0 a1318e1 · 6.230.0 0740c07 · 6.231.0 c1921af · 6.231.1 5a5c298 · 6.232.0 1ca3f6f · 6.233.0 2328c8c · 6.234.0 57f78d0 · 6.235.0 52e5b21 · 6.236.0 34cff8b · 6.236.1 fdce771 · 6.237.0 adf9256 · 6.238.0 3adad4f · 6.239.0 3adad4f (one commit, two releases) · 6.240.0 8f44bec · 6.241.0 dce517e · 6.242.0 1a1dab0 · 6.243.0 8fba04f · 6.244.0 9320906 · 6.245.0 9c1a8b1 · 6.246.0 1400abd · 6.247.0 3b92e99 · 6.248.0 e4e3a03 · 6.249.0 e4edc3f · 6.250.0 c267c1b · 6.251.0 f7b0d57 · 6.252.0 6307253 · 6.253.0 ef20313 · 6.254.0 14493e5 · 6.255.0 d371b34 · 6.256.0 3c29888 · 6.257.0 7f55d2b · 6.258.0 10d2250 · 6.259.0 2bcda06 · 6.260.0 f16e286 · 6.261.0 8680504 · 6.262.0 595dc2e · 6.263.0 014ddf6 · 6.264.0 5e41879 · 6.265.0 f0c487c · 6.266.0 9135f7b · 6.267.0 a621a60 · 6.268.0 c2e513f · 6.269.0 f6552ea (078cece is the same release before the report was corrected) · 6.270.0 b8eda88 · 6.271.0 b8edbe1 · 6.272.0 881a91b · 6.273.0 56b0d2b · 6.274.0 c6e9b6b · 6.275.0 9cebe19 · 6.276.0 3db904e · 6.277.0 c6632a1 · 6.278.0 6c1fe75 · 6.279.0 a6241f5 · 6.280.0 893b40b · 6.281.0 5611a4a · 6.282.0 11dc992 · 6.283.0 3fa417f · 6.284.0 a8f3df4 · 6.285.0 70d118b · 6.286.0 fa93f1b · 6.287.0 39b9dba · 6.288.0 8508186 · 6.289.0 83f5296 · 6.290.0 6daee50 · 6.291.0 aec4561 · 6.292.0 c89c65f · 6.293.0 10c9410 · 6.294.0 0aeebdc · 6.295.0 641c45c (52c1b2b adds the check its own mutation sweep found missing) · 6.296.0 e82ad95 (8bd970b adds the cross-file sentry) · 6.297.0 dacb791 (1604d55 hardens the suite) · 6.298.0 f77c47e (fe109ff adds the two checks its sweep found missing) · 6.299.0 bdc6855 (c587502 the same) · 6.300.0 8ab4802 (cc8b7f9 the same) · 6.301.0 dcff776 · 6.302.0 b465418 (e287164 the mutation sweep's own two findings) · 6.303.0 f5d89e1 · 6.304.0 b8b1b51 (7cf3d9b is the release; b8b1b51 adds the mutation sweep's own four findings) · 6.305.0 b1aa974 (f478dc8 is the release; b1aa974 adds the mutation sweep's own four findings) · 6.306.0 cf14689 · 6.307.0–6.310.0 10c6a87 (one commit, four releases — the four live in four different modules, so a break still names its version by which tool it is in) · 6.311.0 82e52f8 (c7cd4de adds the mutation sweep's own two findings) · 6.312.0 4ad18dc · 6.313.0 c09cb78 (the ceremony for both is the commit after; the code is in those two) · 6.314.0 9ee6a76 (0a363e9 is the ceremony and the mutation sweep's own finding) · 6.315.0 a9394e4 · 6.316.0 cb411aa (8ee2228 adds the mutation sweep's own findings) · 6.317.0 2d2f1e1 (07d5fa5 the same) · 6.318.0 4e95bd2 (366d17f the same) · 6.319.0 8ef0bbe (6c9a7f7, 865ba74, c6f23ef, b448bd1, 99cfafc and c4994f6 are the mutation sweep's own six findings — the third of them is the real one) · 6.320.0 and 6.321.0 ddf6310 (one commit, two releases — the `..` guard and the bin it unblocked) · 6.322.0 fd3d91e (b6b39e5 is the faithful degrade stub it needed) · 6.323.0 44b027a (3602db5 makes its fallback reachable) · 6.324.0 524ae1f · 6.325.0 06c731b (0c0f890 adds the door's own checks) · 6.326.0 1363050 · 6.327.0 e26f17f (6c7e2e9 drives the delete-time forget) · 6.328.0 c4b6fe3 · 6.329.0 029f5de · 6.330.0 7bc13f3 (981c1b7 makes a label that cannot be built a bare epoch rather than a dead pulse) · 6.331.0 4471793 · 6.332.0 7ea10d9 (a1715c9 the sweep's own two findings) · 6.333.0 c57ba35 · 6.334.0 and 6.335.0 212b1ac (one commit, two releases — the readout fix is in write_ledger, the bin in vault, so a break still names its version by which tool it is in) · 6.336.0 0a71d7f · 6.337.0 14c39a9 (191e708 adds the mutation sweep's own finding — the call site choosing between areaPlan's two native sentences was driven by nothing) · 6.338.0 c84b846 (12 of 12 mutations bit on the first sweep) · 6.339.0 06552b7 (de8ef9b and 2261996 are the mutation sweep's own findings — a BITES fixture that re-implemented the rule and so proved a copy of it, and a fixture that DIED instead of failing) · 6.340.0 e8c7371 · 6.341.0 c6a3be7.
    Keep this list current: one line per release, appended at ceremony
    time.
 4. A BISECT IS AN OPTION, NOT THE FIRST MOVE — it costs him an install
@@ -5265,7 +5345,7 @@ that must be READ before a new cause is named.
 | "hyper+4 does not have pixel crosshairs" · "it was working before" | modules/screenshots.lua · the selector | 6.264.0 · 6.318.0 | 1 | ask |
 | "it said 0x0 pixels, then jumped a few desktops, then I had to hit escape" | modules/screenshots.lua · the selector's one exit | 6.336.0 · 6.337.0 | 2 | ask |
 | "why OCR hyper+shift+4 works and hyper+4 still does not" | modules/screenshots.lua · ⇪4 re-implementing a system drag | 6.264.0 · 6.265.0 · 6.274.0 · 6.282.0 · 6.318.0 · 6.336.0 · 6.337.0 | 6 | ask |
-| "once I OCR some text, that text should immediately go onto the clipboard" | modules/screenshots.lua · the OCR doors | 6.173.1 · 6.319.0 | 1 | ask |
+| "once I OCR some text, that text should immediately go onto the clipboard" · "sometimes … it places an image … sometimes the OCR runs" | modules/screenshots.lua · the OCR doors | 6.173.1 · 6.319.0 · 6.341.0 | 2 | ask |
 | "frozen grid again" — a yellow box only a reload clears | modules/mouse_grid.lua · `_G.showCanvasSafely` | 6.266.0 | 1 | ask |
 | "can't move files in drag and drop" · Hammerspoon locked up | modules/file_tracker.lua | 6.228.0 · 6.229.0 · 6.230.0 · 6.241.0 | 4 | ask |
 | "can't drop a file on the music player" | modules/music_player.lua | 6.231.0 · 6.233.0 · 6.235.0 · 6.237.0 | 4 | ✨ WIN |
@@ -5288,7 +5368,7 @@ that must be READ before a new cause is named.
 | "Hammerspoon locks" · "I couldn't even click on anything" · 73 s, then it crashed | core/ · the main thread · modules/stall_guard.lua | 6.208.0 · 6.324.0 · 6.330.0 | 0 (instrumented, not fixed) | ask |
 | "I couldn't get any of that text back while the note remained blank" | modules/vault.lua · ⌘Z and the save path | 6.322.0 · 6.323.0 | 1 | ask |
 | "this is horrible not having an undelete or recycled bin" · "nothing to undelete" · "a trash bin at the top with the other buttons" | modules/vault.lua · `<Vault>/.trash` | 6.280.0 · 6.321.0 · 6.327.0 · 6.335.0 | 2 | ask |
-| "0 notes" / "THE FOLDER IS THERE AND HOLDS NO NOTES" on a full vault | modules/write_ledger.lua · the lazy notes index | 6.317.0 · 6.334.0 | 1 | ask |
+| "0 notes" / "THE FOLDER IS THERE AND HOLDS NO NOTES" on a full vault · "when I first load Hamsidian, it's blank" | modules/write_ledger.lua · modules/vault.lua · the lazy notes index | 6.317.0 · 6.334.0 · 6.340.0 | 2 | ask |
 | "Not deleted - that path leaves the vault" — on an ordinary note | modules/vault.lua · the `..` guard | 6.320.0 | 1 | ask |
 | "changing a title … does not change the title in the lefthand column" | modules/vault.lua · the note list | 6.328.0 | 1 | ask |
 | "stop backing up desktop … bloat it so unnecessarily" | modules/daily_backup.lua | 6.329.0 | 1 | ask |
@@ -5384,6 +5464,8 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
+| 6.341.0 | 🔁 ⇪4 leaves the picture on the clipboard, always — ⇪⇧4 is the OCR door, and the reading still runs in the background | pending |
+| 6.340.0 | 🔎 Hamsidian's first open says "reading your notes…" instead of "no notes yet", and the list arrives seconds sooner | pending |
 | 6.339.0 | 🔌 ⌘A, ⌘D, ⌘F and ⌘O in the screenshot editor work for the first time — a guard asked `core.has`, which the core table has never had | pending |
 | 6.338.0 | ⏰ the backup catches up after a night asleep — a 5 PM timer on a laptop had quietly skipped twelve days | pending |
 | 6.337.0 | 🚪 ⇪4 is macOS's own crosshair again — the drag ⇪⇧4 uses, because six releases of ours could not survive a three-finger gesture | pending |
@@ -6498,6 +6580,148 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.341.0 verify with LL — 🔁 THE SHOT KEEPS THE CLIPBOARD (KNOWN GROUND)
+  WHAT CHANGED: ⇪4 leaves the PICTURE on the clipboard. Always. ⇪⇧4 is
+  the OCR door and is untouched.
+  🔎 AND "SOMETIMES" WAS THE FEATURE, which is why it felt like a fault.
+  6.319.0 put the words of a ⇪4 shot on the clipboard — but only when
+  the OCR that NAMES the file happened to find words, only while the
+  shot was still the thing on the clipboard, and only within 25
+  seconds. A photograph, a diagram, a ⌘C of your own in between: the
+  picture stayed. One key, two outcomes, nothing on screen beforehand
+  to say which. Your sentence is the whole bug report.
+  🚨 AND THE OCR STILL RUNS IN THE BACKGROUND — you asked for that by
+  name and nothing about it changed. The shot is still renamed after
+  its words, the words still go into the Finder comment and into ⇪O.
+  What stops is only the clipboard write.
+
+  A. THE HEADLINE — thirty seconds.
+  A1. Press ⇪4 and drag over a paragraph of real text.
+  A2. Wait five seconds (longer than the OCR takes), then ⌘V somewhere.
+      EXPECT: the PICTURE. **A FAIL is pasting the words** — that is the
+      old behaviour.
+  A3. Do it four or five more times over different things — a photo, a
+      dark panel, a page of text, a screenshot of a screenshot.
+      EXPECT: the picture, every single time. The whole point is that
+      it no longer depends on what was in the shot.
+  A4. Look at the file in the screenshots folder a few seconds later.
+      EXPECT: it is still RENAMED after its words. If it is not, the
+      reading has been switched off with the writing and that is a real
+      break — tell me at once.
+
+  B. THE OTHER DOOR — the one you named.
+  B1. Press ⇪⇧4 and drag over some text. EXPECT: "📝 Text copied: …"
+      and ⌘V pastes the WORDS. Unchanged.
+  B2. ⇪⇧4 over a QR code. EXPECT: "🔳 Code copied: …". Unchanged.
+  B3. ⇪O. EXPECT: the words of the ⇪4 shots from step A are all in the
+      log, and ⏎ on a row copies the full text. That is where the words
+      live now, and it is one keypress.
+
+  C. MUST STILL WORK.
+  C1. ⇪4's macOS crosshair, the magnifier, SPACE for a window (6.337.0).
+  C2. The shot lands in the folder AND on the clipboard, as always.
+  C3. ⇪⇧1 opens the editor on it; ⇪⇧5 lists it; ⌘9 sweeps the backlog.
+  C4. ⇪5 scrolling capture, ⇪⇧2 window, ⇪⇧3 delayed — all unchanged.
+
+  D. PASTE BACK, PASS OR FAIL.
+  D1. `_G.screenshotsReport()` — the `clip :` line. Healthy reads
+      "the shot keeps the clipboard — ⇪⇧4 is the OCR door (shipped
+      default since 6.341.0) · N arrival(s) kept the picture this
+      session". **That N is the release working**, not a tally of
+      failures: it counts the shots that would have been swapped before.
+  D2. If that line ever says anything about a REFUSED write, paste it.
+
+  E. A JUDGEMENT ONLY YOU CAN MAKE.
+  E1. Is the picture always right, or do you want the words on SOME ⇪4
+      shots? There is a middle I did not build and will not guess at:
+      swap only when the shot is MOSTLY text. That is a condition
+      again — a sixth invisible predicate — which is the thing this
+      release exists to remove, so say the word if you want it anyway.
+  E2. `settings = { screenshots = { textToClipboard = true } }` puts
+      6.319.0's behaviour back exactly. Say so and I change the default
+      rather than leaving you a line to type.
+  E3. 🔨 CRUDE OR ELEGANT: nothing broke and nothing was lost — the
+      words were always in ⇪O and in the file name. What it cost was
+      trust in what the key does. My reading is that it degraded, one
+      pass, but it is the second pass on 6.319.0's ask. Your tag.
+
+- 6.340.0 verify with LL — 🔎 A FIRST OPEN IS NOT AN EMPTY VAULT (KNOWN GROUND)
+  WHAT CHANGED: Hamsidian's first open shows your notes seconds sooner,
+  and while it is still reading it SAYS so instead of saying you have
+  none.
+  🚨 AND YOUR NOTES WERE NEVER MISSING — that is the first thing to say,
+  because the words it printed were the worst possible ones. The list
+  is built when the window OPENS, the page is drawn BEFORE that read
+  starts, and the empty list said **"no notes yet — ⌘N"**. Over a vault
+  holding all of them. That is the fourth time this config has printed
+  "there is nothing" where it meant "I have not looked yet", and this
+  is the one place it reads as your writing being gone.
+  ⏳ AND IT WAS SLOWER THAN IT HAD TO BE: the names are known after the
+  FIRST of four background greps, and the page was told after the
+  fourth. Escaping and reopening worked because the second open is
+  drawn from the list the first open had finally finished building.
+
+  A. THE HEADLINE — do this on a COLD Hammerspoon, which is the case
+     that failed.
+  A1. Reload Hammerspoon (⌘⌃R). Do not open anything else.
+  A2. Press ⇪3.
+      EXPECT: your notes, within about a second.
+      If there is any gap at all, the left column reads
+      **"reading your notes…"** in grey.
+      **A FAIL is "no notes yet — ⌘N"** — that sentence should now be
+      impossible unless the vault is genuinely empty.
+  A3. Do NOT press Escape. Just watch for two or three seconds.
+      EXPECT: the notes fill in by themselves. Before this release
+      that is the wait you were escaping out of.
+  A4. Escape, press ⇪3 again. EXPECT: instant, as it always was.
+
+  B. THE ONE THAT PROTECTS YOUR WRITING — worth the thirty seconds.
+  B1. Reload again, press ⇪3, and IMMEDIATELY press ⌘F and type a few
+      letters of a note you know exists — before the list appears.
+  B2. Press ⏎ straight away.
+      EXPECT: **nothing is created**, and the hint line under the box
+      reads "reading your notes… — ⏎ creates once the list is in".
+      Wait a second and press ⏎ again: it opens the note.
+      **A FAIL is a new empty note appearing with your typed text as
+      its name** — that is 6.307.0's bug reached through timing, and it
+      writes into the folder with your writing in it.
+  B3. Once the list is in, ⌘F a name no note has and press ⏎.
+      EXPECT: it still CREATES that note, exactly as before. The guard
+      must not have cost you the feature.
+
+  C. MUST STILL WORK — this touched the window's whole left column.
+  C1. The notes list, your scratch tabs in the same list (6.333.0), the
+      icons telling them apart.
+  C2. ⌘N, ⌘F, ↑↓, ⏎, the ✕ delete, 🗑 the bin, ⌘⇧K tasks, ⌘⇧F search,
+      ⌘G graph, ⌘⇧B board.
+  C3. 🚨 ⌘Z IN A NOTE, which is the thing most likely to have broken:
+      open a note, delete a paragraph, WAIT TEN SECONDS for a re-scan,
+      press ⌘Z. EXPECT: your text comes back (6.323.0). If it does
+      not, this release broke it and I want to know immediately.
+  C4. Add a `#tag` to a note and watch the tag list fill in a moment
+      later, without your typing being disturbed.
+
+  D. PASTE BACK, PASS OR FAIL.
+  D1. `_G.vaultReport()` after an ordinary morning — the `notes :` line
+      and the rows/rebuilds line under it.
+  D2. If you ever see "reading your notes…" and it NEVER resolves,
+      paste the whole report: that is the scan failing rather than
+      being slow, and those are opposite facts.
+
+  E. A JUDGEMENT ONLY YOU CAN MAKE.
+  E1. How long is the gap now, on a cold start? If it is still long
+      enough to be annoying, the next step is building the index at
+      BOOT instead of on first open — which costs boot time and was
+      deliberately moved off it in 6.334.0's lineage. Your call, and
+      it is a real trade rather than a free win.
+  E2. "reading your notes…" — right words? It is what you will see in
+      the one second that used to look like an empty vault.
+  E3. 🔨 CRUDE OR ELEGANT: nothing was lost and the Mac was fine, but
+      for a moment every time you opened it, the tool holding your
+      writing told you it was empty. My reading is that the DEGRADE was
+      graceful and the MESSAGE was a lie — the same shape as 6.339.0.
+      One pass. Your tag.
+
 - 6.339.0 verify with LL — 🔌 FOUR BUTTONS THAT HAVE NEVER RUN (KNOWN GROUND)
   WHAT CHANGED: ⌘A, ⌘D, ⌘F and ⌘O in the screenshot editor work. Not
   "work better" — work at all, for the first time since each shipped.

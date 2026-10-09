@@ -1,4 +1,4 @@
-# TESTING — how to score release 6.339.0
+# TESTING — how to score release 6.341.0
 
 You install ONE archive and it carries several releases. Below are the
 steps for each release this archive is new for, newest first. Run the
@@ -26,6 +26,156 @@ else is a LOSS and I fix it before building further. You are the only
 scorer; I never mark my own.
 
 ---
+
+## 6.341.0
+
+6.341.0 verify with LL — 🔁 THE SHOT KEEPS THE CLIPBOARD (KNOWN GROUND)
+WHAT CHANGED: ⇪4 leaves the PICTURE on the clipboard. Always. ⇪⇧4 is
+the OCR door and is untouched.
+🔎 AND "SOMETIMES" WAS THE FEATURE, which is why it felt like a fault.
+6.319.0 put the words of a ⇪4 shot on the clipboard — but only when
+the OCR that NAMES the file happened to find words, only while the
+shot was still the thing on the clipboard, and only within 25
+seconds. A photograph, a diagram, a ⌘C of your own in between: the
+picture stayed. One key, two outcomes, nothing on screen beforehand
+to say which. Your sentence is the whole bug report.
+🚨 AND THE OCR STILL RUNS IN THE BACKGROUND — you asked for that by
+name and nothing about it changed. The shot is still renamed after
+its words, the words still go into the Finder comment and into ⇪O.
+What stops is only the clipboard write.
+
+A. THE HEADLINE — thirty seconds.
+A1. Press ⇪4 and drag over a paragraph of real text.
+A2. Wait five seconds (longer than the OCR takes), then ⌘V somewhere.
+    EXPECT: the PICTURE. **A FAIL is pasting the words** — that is the
+    old behaviour.
+A3. Do it four or five more times over different things — a photo, a
+    dark panel, a page of text, a screenshot of a screenshot.
+    EXPECT: the picture, every single time. The whole point is that
+    it no longer depends on what was in the shot.
+A4. Look at the file in the screenshots folder a few seconds later.
+    EXPECT: it is still RENAMED after its words. If it is not, the
+    reading has been switched off with the writing and that is a real
+    break — tell me at once.
+
+B. THE OTHER DOOR — the one you named.
+B1. Press ⇪⇧4 and drag over some text. EXPECT: "📝 Text copied: …"
+    and ⌘V pastes the WORDS. Unchanged.
+B2. ⇪⇧4 over a QR code. EXPECT: "🔳 Code copied: …". Unchanged.
+B3. ⇪O. EXPECT: the words of the ⇪4 shots from step A are all in the
+    log, and ⏎ on a row copies the full text. That is where the words
+    live now, and it is one keypress.
+
+C. MUST STILL WORK.
+C1. ⇪4's macOS crosshair, the magnifier, SPACE for a window (6.337.0).
+C2. The shot lands in the folder AND on the clipboard, as always.
+C3. ⇪⇧1 opens the editor on it; ⇪⇧5 lists it; ⌘9 sweeps the backlog.
+C4. ⇪5 scrolling capture, ⇪⇧2 window, ⇪⇧3 delayed — all unchanged.
+
+D. PASTE BACK, PASS OR FAIL.
+D1. `_G.screenshotsReport()` — the `clip :` line. Healthy reads
+    "the shot keeps the clipboard — ⇪⇧4 is the OCR door (shipped
+    default since 6.341.0) · N arrival(s) kept the picture this
+    session". **That N is the release working**, not a tally of
+    failures: it counts the shots that would have been swapped before.
+D2. If that line ever says anything about a REFUSED write, paste it.
+
+E. A JUDGEMENT ONLY YOU CAN MAKE.
+E1. Is the picture always right, or do you want the words on SOME ⇪4
+    shots? There is a middle I did not build and will not guess at:
+    swap only when the shot is MOSTLY text. That is a condition
+    again — a sixth invisible predicate — which is the thing this
+    release exists to remove, so say the word if you want it anyway.
+E2. `settings = { screenshots = { textToClipboard = true } }` puts
+    6.319.0's behaviour back exactly. Say so and I change the default
+    rather than leaving you a line to type.
+E3. 🔨 CRUDE OR ELEGANT: nothing broke and nothing was lost — the
+    words were always in ⇪O and in the file name. What it cost was
+    trust in what the key does. My reading is that it degraded, one
+    pass, but it is the second pass on 6.319.0's ask. Your tag.
+
+
+
+## 6.340.0
+
+6.340.0 verify with LL — 🔎 A FIRST OPEN IS NOT AN EMPTY VAULT (KNOWN GROUND)
+WHAT CHANGED: Hamsidian's first open shows your notes seconds sooner,
+and while it is still reading it SAYS so instead of saying you have
+none.
+🚨 AND YOUR NOTES WERE NEVER MISSING — that is the first thing to say,
+because the words it printed were the worst possible ones. The list
+is built when the window OPENS, the page is drawn BEFORE that read
+starts, and the empty list said **"no notes yet — ⌘N"**. Over a vault
+holding all of them. That is the fourth time this config has printed
+"there is nothing" where it meant "I have not looked yet", and this
+is the one place it reads as your writing being gone.
+⏳ AND IT WAS SLOWER THAN IT HAD TO BE: the names are known after the
+FIRST of four background greps, and the page was told after the
+fourth. Escaping and reopening worked because the second open is
+drawn from the list the first open had finally finished building.
+
+A. THE HEADLINE — do this on a COLD Hammerspoon, which is the case
+   that failed.
+A1. Reload Hammerspoon (⌘⌃R). Do not open anything else.
+A2. Press ⇪3.
+    EXPECT: your notes, within about a second.
+    If there is any gap at all, the left column reads
+    **"reading your notes…"** in grey.
+    **A FAIL is "no notes yet — ⌘N"** — that sentence should now be
+    impossible unless the vault is genuinely empty.
+A3. Do NOT press Escape. Just watch for two or three seconds.
+    EXPECT: the notes fill in by themselves. Before this release
+    that is the wait you were escaping out of.
+A4. Escape, press ⇪3 again. EXPECT: instant, as it always was.
+
+B. THE ONE THAT PROTECTS YOUR WRITING — worth the thirty seconds.
+B1. Reload again, press ⇪3, and IMMEDIATELY press ⌘F and type a few
+    letters of a note you know exists — before the list appears.
+B2. Press ⏎ straight away.
+    EXPECT: **nothing is created**, and the hint line under the box
+    reads "reading your notes… — ⏎ creates once the list is in".
+    Wait a second and press ⏎ again: it opens the note.
+    **A FAIL is a new empty note appearing with your typed text as
+    its name** — that is 6.307.0's bug reached through timing, and it
+    writes into the folder with your writing in it.
+B3. Once the list is in, ⌘F a name no note has and press ⏎.
+    EXPECT: it still CREATES that note, exactly as before. The guard
+    must not have cost you the feature.
+
+C. MUST STILL WORK — this touched the window's whole left column.
+C1. The notes list, your scratch tabs in the same list (6.333.0), the
+    icons telling them apart.
+C2. ⌘N, ⌘F, ↑↓, ⏎, the ✕ delete, 🗑 the bin, ⌘⇧K tasks, ⌘⇧F search,
+    ⌘G graph, ⌘⇧B board.
+C3. 🚨 ⌘Z IN A NOTE, which is the thing most likely to have broken:
+    open a note, delete a paragraph, WAIT TEN SECONDS for a re-scan,
+    press ⌘Z. EXPECT: your text comes back (6.323.0). If it does
+    not, this release broke it and I want to know immediately.
+C4. Add a `#tag` to a note and watch the tag list fill in a moment
+    later, without your typing being disturbed.
+
+D. PASTE BACK, PASS OR FAIL.
+D1. `_G.vaultReport()` after an ordinary morning — the `notes :` line
+    and the rows/rebuilds line under it.
+D2. If you ever see "reading your notes…" and it NEVER resolves,
+    paste the whole report: that is the scan failing rather than
+    being slow, and those are opposite facts.
+
+E. A JUDGEMENT ONLY YOU CAN MAKE.
+E1. How long is the gap now, on a cold start? If it is still long
+    enough to be annoying, the next step is building the index at
+    BOOT instead of on first open — which costs boot time and was
+    deliberately moved off it in 6.334.0's lineage. Your call, and
+    it is a real trade rather than a free win.
+E2. "reading your notes…" — right words? It is what you will see in
+    the one second that used to look like an empty vault.
+E3. 🔨 CRUDE OR ELEGANT: nothing was lost and the Mac was fine, but
+    for a moment every time you opened it, the tool holding your
+    writing told you it was empty. My reading is that the DEGRADE was
+    graceful and the MESSAGE was a lie — the same shape as 6.339.0.
+    One pass. Your tag.
+
+
 
 ## 6.339.0
 
@@ -198,178 +348,6 @@ E3. 🔨 CRUDE OR ELEGANT: nothing was broken and nothing was lost —
     needed it. My reading is that this is a defect in a SCHEDULE
     rather than a feature ask, because the config was promising a
     daily backup it was not delivering. Your tag.
-
-
-
-## 6.337.0
-
-6.337.0 verify with LL — 🚪 ⇪4 IS macOS'S CROSSHAIR AGAIN (KNOWN GROUND)
-WHAT CHANGED: ⇪4 drags the way ⇪⇧4 drags — macOS's own crosshair, its
-own numbers, its magnifier, and SPACE to shoot a whole window.
-🔎 WHY, AND IT IS THE ANSWER TO YOUR QUESTION. Both keys ask for the
-same folder first and write into it, so the folder was never the
-difference. ⇪⇧4 hands the whole drag to `screencapture -i` — a
-SEPARATE PROCESS whose grab on the mouse belongs to the window server.
-⇪4, since 6.264.0, did the drag ITSELF inside this config. And macOS
-reads a three-finger trackpad drag as a swipe between desktops: the
-gesture is taken away from us before our code is ever asked, and a
-desktop switch is exactly when macOS stops sending us events. The same
-hand motion works on one key and cannot work on the other.
-🔑 SO I STOPPED FIXING THE SELECTOR. ⇪4 on it cost six releases —
-6.264.0 built it, 6.265.0, 6.274.0, 6.282.0, 6.318.0 and 6.336.0 each
-repaired a different part — and every one of them moved a piece of the
-same thing. Your working key was pointing at the answer the whole
-time.
-🚨 AND 6.336.0 MADE IT WORSE, which you should know before you test.
-Its drag-end watch quoted a rule from this project — ask macOS whether
-a button is down, and believe it ONLY when it says yes — and then did
-the opposite: it ended the drag whenever macOS did not say yes. A
-three-finger drag presses no button at all, so it ended every one of
-them 0.2 seconds in, a few pixels wide, with "📐 Nothing captured".
-That is mine, it is fixed, and "still does not" was the correct report
-of it.
-
-A. THE HEADLINE — thirty seconds.
-A1. Press ⇪4 and drag a rectangle THE WAY YOU NORMALLY DO, three
-    fingers and all.
-    EXPECT: macOS's crosshair with its own live coordinates, the
-    shutter, and the file in your screenshots folder — exactly like
-    ⇪⇧4, because it is the same drag.
-    **A FAIL is anything that is not a captured rectangle.**
-A2. Press ⇪4 and hover WITHOUT dragging, over something small.
-    EXPECT: the native MAGNIFIER — the loupe showing individual
-    pixels. 6.264.0 took that away; it is back.
-A3. Press ⇪4 and tap the SPACE BAR, then click a window.
-    EXPECT: that whole window is captured. Also back.
-A4. Press ⇪4 and press Esc. EXPECT: nothing captured, no overlay left.
-A5. ⇪⇧4 (OCR) — unchanged, and now it should FEEL identical to ⇪4 up
-    to the moment of release, because it is.
-
-B. WHAT YOU LOSE, so it is not a surprise in a week.
-B1. ⇪4 no longer has OUR live `1280 × 720` box or our white
-    crosshairs. macOS's HUD carries its own numbers instead.
-B2. ⇪4 then ⇪⇧5 and ⌘5 ("repeat area") no longer re-shoots the same
-    rectangle, because `-i` will not tell us where you dragged. A
-    rectangle you select with ⇪5 or the editor's ⌘A still repeats.
-B3. **OUR SELECTOR IS NOT GONE.** ⇪5 scrolling capture and the
-    editor's ⌘A still drag on it, crosshairs and live size and all —
-    try ⇪5 and you will see them. If you prefer ours on ⇪4 and will
-    live with the gesture problem, ONE WORD and I change the default
-    back; it is `settings = { screenshots = { areaNative = false } }`
-    and I would rather ship the answer than leave you a line to type.
-
-C. MUST STILL WORK — ⇪4 feeds half this module.
-C1. The shot still lands in the screenshots folder and still goes on
-    the clipboard (⌘V pastes it).
-C2. It is still RENAMED after the words in it a few seconds later.
-C3. ⇪⇧1 on it opens the editor. ⇪⇧5 lists it. ⇪⇧2 window, ⇪⇧3
-    delayed, ⇪5 scrolling — all unchanged.
-C4. ⇪5: drag over a scrolling page. EXPECT our crosshairs and live
-    size, and a stitched shot. **This is the key that still uses our
-    selector, so it is the one that proves the belt fix.**
-
-D. PASTE BACK, PASS OR FAIL.
-D1. `_G.screenshotsReport()` — the whole block. Three lines matter:
-    · `area    :` should read "macOS's own crosshair and HUD — the
-      shipped default since 6.337.0…". It must NOT say "your settings
-      line asked for it", because you did not.
-    · `routes  :` counts ⇪4's presses; `refused` must be 0, because a
-      default is not a failure.
-    · `drag    :` now only moves for ⇪5 and ⌘A. If it ever carries
-      "N drag(s) ran with no held-button signal at all", paste it —
-      that line is the 6.336.0 regression being refused rather than
-      acted on, and on a trackpad I expect to see it.
-D2. If ⇪4 ever does nothing again, `_G.alertReport()` as well. With
-    ⇪4 back on `-i` there is almost nothing of ours left in that path,
-    so a failure now points at the folder or at macOS.
-
-E. A JUDGEMENT ONLY YOU CAN MAKE.
-E1. **The one question, and it is the whole release:** which do you
-    want on ⇪4 — macOS's crosshair that always captures, or our live
-    W × H that cannot survive a three-finger drag? I have shipped the
-    first because a readout on a key that does not capture is worth
-    nothing. Say the word and the default goes back.
-E2. THE WAY TO HAVE BOTH, and I will not build it on a guess: draw our
-    W × H on a see-through overlay ON TOP of macOS's crosshair, so
-    macOS keeps the drag and we only draw the numbers. I do not know
-    whether anything we can draw sits above macOS's own screenshot
-    layer, and that is a fact only your Mac can answer. If you want
-    it, the next release is a probe that tries it and reports what
-    happened — not a fix.
-E3. 🔨 CRUDE OR ELEGANT: ⇪4 is the key you press most, and it has been
-    unreliable since 6.264.0. My reading is 🔨 CRUDE for the stretch
-    where 6.336.0 killed every drag 0.2 s in — that is a key that did
-    not work, from a release of mine — and the pass count is 6. Your
-    tag either way.
-
-
-
-## 6.336.0
-
-6.336.0 verify with LL — 🚪 ⇪4 SURVIVES A RELEASE macOS SWALLOWS
-(KNOWN GROUND)
-WHAT CHANGED: when the release of a ⇪4 / ⇪5 drag never reaches this
-config, the selection is finished from where the pointer is instead
-of the overlay sitting there until you press Esc.
-🔎 YOUR THREE SENTENCES ARE ONE BUG, and it is worth saying which:
-"crosshairs showed · it said 0x0 on release · it jumped a few
-desktops · I had to hit escape". The selector ended a drag in exactly
-ONE place — a mouse-up delivered inside its own overlay — and that
-overlay hears nothing that happens off its own screen. macOS reads a
-three-finger trackpad drag as a swipe between desktops, and a desktop
-switch is exactly when macOS stops sending us events. So the numbers
-froze at the 0 × 0 written the instant you pressed, nothing was
-captured, and Esc was the only way out. The ⇪5 picture you sent is
-the same event: six slices of the desktop you had been thrown onto.
-
-A. THE HEADLINE.
-A1. Press ⇪4 and drag a rectangle normally. EXPECT: unchanged — the
-    crosshairs, the live W × H, the shutter, the file.
-A2. Now press ⇪4 and drag with THREE FINGERS, the way it failed.
-    EXPECT: even if the desktop jumps, the selector is GONE when you
-    let go and the rectangle you dragged was captured.
-    **A FAIL is the overlay still on screen needing Esc.**
-A3. Press ⇪4, start dragging, and release the button with the pointer
-    PAST THE EDGE of the screen (or on the other monitor).
-    EXPECT: it captures, clamped to the screen's edge. It used to
-    hang there.
-A4. Press ⇪4 and click once without dragging.
-    EXPECT: "📐 Nothing captured — that drag measured 0 × 0. Press
-    the key again and drag a rectangle." It used to say nothing at
-    all, which is a key that did nothing and explained nothing.
-
-B. MUST STILL WORK — this is the drag every capture goes through.
-B1. ⇪5 scrolling capture: drag, and the stitched shot is of the page.
-B2. In the editor (⇪⇧1), ⌘A add-capture.
-B3. ⇪4 then ⇪⇧5 and ⌘5 ("repeat area") — the same rectangle again.
-B4. Esc during a drag still cancels and captures nothing.
-B5. ⇪⇧4 is untouched — still macOS's own crosshair.
-
-C. PASTE BACK, PASS OR FAIL.
-C1. `_G.screenshotsReport()` — there is a new `drag :` line:
-      drag    : 6 finished — 4 on the release itself · 2 where macOS
-                swallowed the release
-    **That second number is the answer to the desktop question**, and
-    it needs nothing from your memory. If it is 0 after a day of
-    ordinary use, the swipe is not happening to you and I am wrong
-    about the mechanism — which is just as useful.
-C2. If it ever reads "⚠️ N selector(s) ran with NO drag-end watch",
-    paste it: that Mac would not give us a timer and is back on the
-    old behaviour.
-
-D. A JUDGEMENT ONLY YOU CAN MAKE.
-D1. THE DESKTOP JUMP ITSELF IS NOT FIXED, and I am not going to fix
-    it quietly. It is macOS's own gesture, and the only lever here is
-    to start SWALLOWING your drag — which costs every app underneath
-    it. Check System Settings › Accessibility › Pointer Control ›
-    Trackpad Options › "Use trackpad for dragging" with three-finger
-    drag. Tell me whether turning that off stops the jumping; that
-    one answer settles it, and it is the same question 6.306.0 asked
-    about the cheat sheet and never got.
-D2. 🔨 CRUDE OR ELEGANT: ⇪4 left an overlay on your screen that only
-    Esc could clear, and the shot you wanted was lost. My reading is
-    that it degraded — Esc always worked and nothing was destroyed —
-    but it cost you the capture every time. Your tag.
 
 
 

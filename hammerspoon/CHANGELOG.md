@@ -5,6 +5,181 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.341.0 — 🔁 THE SHOT KEEPS THE CLIPBOARD; ⇪⇧4 IS THE OCR DOOR
+  (modules/screenshots.lua)
+
+LL: "i'm not sure but it seems like sometimes when I do hyper+4 it
+places an image on the clipboard. Sometimes it seems like the OCR runs
+and places the characters on the clipboard. But I haven't done
+hyper+shift+4. So if I run hyper+shift+4, that's when I want OCR. And I
+want OCR run in the background. Right now I have to use hyper+shift+5
+to places the screenshot back. Reverse that. When I take a screenshot
+that always takes priority, unless I use my hyper+shift+4."
+
+🔎 "SOMETIMES" WAS THE FEATURE, which is exactly why it reads as a
+fault. 6.319.0 built the swap on his own earlier ask — "once I OCR some
+text, that text should immediately go onto the clipboard" — and bounded
+it carefully, because the damage a clipboard write can do is destroying
+something he copied. `shots.swapVerdict` has SIX answers and only one
+writes: the words may replace the shot they were read from, still on
+the clipboard, put there by this config, inside `clipSwapSecs` (25).
+
+So on a ⇪4 the picture lands on the clipboard, the folder watcher OCRs
+the file to NAME it, and the words take the picture's place only when
+all of that holds. A photograph. A dark panel. A diagram with no
+readable words. A ⌘C of his own in the two seconds between. Any of
+those and the picture stays. One key, two outcomes, and nothing on
+screen beforehand to say which — which is worse than either behaviour
+on its own, and is precisely the sentence he wrote.
+
+🔑 THE GENERAL SHAPE, and it is not "the guard was wrong": every one of
+those six answers is right, and the conditionality itself is the
+defect. A rule whose outcome a person cannot predict BEFORE they press
+the key is a rule they experience as randomness, however sound each
+branch is. When a feature is reported as intermittent and the code is
+correct, ask whether the CONDITION is the thing to remove rather than
+the branch to fix.
+
+🔁 SO THE DEFAULT FLIPS. `shots.textToClipboard` ships FALSE. ⇪4 leaves
+the picture, always. ✍️ 6.267.0 decides the shape: a wrong default is
+CHANGED AND SHIPPED, never handed to him as a settings line to type.
+The switch stays — that is how the release is reversible and how the
+gate drives it both ways — and it is documented rather than prescribed.
+
+🚪 THE OTHER DOOR IS UNTOUCHED, AND THAT IS WHAT MAKES THIS SAFE.
+`shots.recognizeFile` — ⇪⇧4 — has put its OCR text and its QR payloads
+on the clipboard through its own path since 6.173.1, and does not read
+this flag at all. So the key he names as the OCR door goes on being it,
+and nothing about it changes. 6.319.0's own rule, paid: when a feature
+has several doors, "does this config do X?" is the wrong question —
+ask which DOORS do X. Here the answer was that one of them did it on a
+coin toss, and the fix is to stop that one rather than to touch the
+other.
+
+🚨 AND THE OCR STILL RUNS IN THE BACKGROUND, which is the half he asked
+for by name. Nothing about the reading stops: the shot is still renamed
+after its words, the words still go into the Finder comment, and they
+still go into ⇪O's log where ⇪space can find them. The ONLY thing that
+stops is the clipboard write. A reader that had been switched off with
+it would have cost him the file names this config is built around.
+
+📋 THE CHEAT SHEET GAINS THE DIVISION, because it was readable nowhere
+(6.181.0): ⇪4 leaves the PICTURE, ⇪⇧4 is the OCR door, and a ⇪4 shot's
+words are in ⇪O and in its own file name. A rule a person has to infer
+from behaviour is a rule they will infer wrongly.
+
+🔎 AND THE REPORT NAMES THIS AS THE SHIPPED STATE, not as something he
+switched off and forgot — with the COUNT that proves it ("N arrival(s)
+kept the picture this session"), and the way back said once underneath
+rather than inside it.
+
+🧪 THE SWEEP'S OWN FINDING (6.273.0): hard-coding that count to 0
+SURVIVED, because the check asked only for the words. A sentence with
+no evidence under it is 6.229.0's yield line again, in a line written
+to prove a default. It asserts the number now.
+
+🧪 AND 6.186.0 BIT THIS BLOCK AS IT WAS WRITTEN, for the eighth time:
+the first version of the OCR-log check indexed a table this suite does
+not have, so the run ENDED there and "0 failed" was never printed —
+which, in a gate that reads the tail, looks exactly like a pass. A test
+helper answers falsely rather than indexing a nil. The block also
+installs its own capture of the OCR log, because an earlier section
+restores `_G.service` and a silently-skipped record read here as a
+stale row from four sections back — which is what the first version
+actually measured.
+
+📏 COST, NAMED: after a ⇪4 whose words were read, ⌘V pastes the
+PICTURE. The words are in the file's own name, in its Finder comment
+and in ⇪O. `settings = { screenshots = { textToClipboard = true } }`
+puts the swap back exactly as 6.319.0 shipped it.
+
+5 mutations, 5 bites. 488 checks in test_screenshots.
+```
+
+```text
+NEW IN 6.340.0 — 🔎 A FIRST OPEN IS NOT AN EMPTY VAULT
+  (modules/vault.lua)
+
+LL: "When I first load Hamsidian, it's blank. Then I escape, open
+again, and the notes are there."
+
+Two things are true at once here and only one of them is the one that
+looks obvious.
+
+🔎 THE PAGE IS DRAWN BEFORE THE INDEX EXISTS. `v.open()` calls
+`v.render()`, then `view:show()`, and only THEN `v.scan("open")` — so
+the left column is built from the empty table `v.notes` is born with.
+And the page's own empty-list line read `no notes yet — ⌘N`. Over a
+vault holding every note he has, in the tool that holds his writing,
+where that sentence reads as data loss.
+
+That is 6.196.1's rule broken for the FOURTH time — after 6.312.0 (the
+music player's store), 6.334.0 (the boot readout's note count) and
+6.267.0, which wrote it down about two modules and did not sweep the
+ones that followed. 6.334.0 found `v.lastScan` already being collected
+and unread in the boot readout; this is the same field, in the window
+he actually looks at.
+
+⏳ AND THE ROWS WAITED FOR FOUR GREPS WHEN ONE WOULD DO. The scan chain
+is find → links grep → tags grep → front-matter grep, and `finish()` —
+the end of all four — was the only thing that pushed rows into the
+page. The NAMES are known the moment the FIND answers. So a first open
+over a vault in OneDrive sat blank for the whole chain, which is
+exactly as long as he waited before pressing Escape. The second open is
+drawn from the index the first open's scan filled in after he had left,
+which is why it works and why it looks intermittent.
+
+🔑 THREE PARTS, ONE DEFECT:
+
+· THE PAGE IS TOLD WHICH STATE IT IS IN. `SCANNED` rides in as
+  `v.lastScan ~= nil`, and an unread index draws "reading your notes…"
+  instead of any of the three sentences that mean "there is nothing" —
+  the bare list, a filter miss and a #tag miss. The hint strip and the
+  Console's "opened — N notes" line said "0 notes" the same way and now
+  say the same third thing.
+
+· THE ROWS GO IN WHEN THE FIND ANSWERS. One line, in the find's own
+  callback, through `v.refreshIndex` — the same door the headings grep
+  has used since 6.328.0. The later greps push again as they fill the
+  tags and the titles in.
+
+· THE PAGE SAYS WHEN IT EXISTS AND LUA ANSWERS. `view:html()` returns
+  BEFORE WebKit has parsed the document (6.238.0), so a find that
+  answers inside that window pushes into a page with no `setIndex` in
+  it and is dropped in silence. The page has said `say({a:'ready'})` at
+  the end of its load sequence since 6.174.0 and nobody was answering
+  it with the index. Fast path, belt, and `finish()` behind both.
+
+🚨 AND ⏎ MAY NOT CREATE OVER AN INDEX NOBODY HAS READ. 6.307.0's rule
+is that a match beats a creation — but before the find has answered
+there are no rows to match AGAINST, so ⏎ in the ⌘F box would write a
+second, near-identical note into the folder holding his writing. The
+same bug, reached through a timing window instead of through a mode. It
+refuses, and says why in the hint where he is looking (6.203.0) rather
+than in an alert under the window.
+
+🔬 THE DUMP WAS BUILDING A STATE NO MAC CAN BE IN. `dump_vault_html.lua`
+sets six notes and left `v.lastScan` nil — notes in the index with no
+completed scan — so every one of the 289 existing page checks fell into
+the reading branch the moment this shipped. 6.290.0's rule: a stub
+models a state the provider can really hold. It sets one now, and the
+unscanned half is driven explicitly in its own section, which is where
+it belongs.
+
+🧪 The hint-strip check first passed on the wrong haystack: "reading
+your notes…" is also a string in `drawRows`' own source, so grepping
+the whole document is green with the strip untouched. It reads the one
+span. 6.313.0's rule — a sentry over a haystack it did not prove it
+read measures nothing.
+
+📏 COST, NAMED: none that is new. The early push costs one
+`evaluateJavaScript` per scan that a window is open for, on a path that
+already made four.
+
+8 mutations, 8 bites. 570 Lua checks, 302 page checks.
+```
+
+```text
 NEW IN 6.339.0 — 🔌 A TABLE THAT IS INCOMPLETE FAILS SILENTLY
   (init.lua's core table + modules/screenshot_editor.lua)
 

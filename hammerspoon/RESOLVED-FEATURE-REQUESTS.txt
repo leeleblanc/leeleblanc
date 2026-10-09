@@ -1,5 +1,5 @@
 ========================================================================
-RESOLVED FEATURE REQUESTS — Hammerspoon config 6.339.0
+RESOLVED FEATURE REQUESTS — Hammerspoon config 6.341.0
 Every feature and how to use it. Generated from the modules' own
 cheat sheets (the rows ⇪/ draws), so it is never out of date.
 ⇪ = Caps Lock held (the hyper key). ⇪⇧X = Caps Lock + Shift + X.
@@ -517,6 +517,9 @@ In the Console, _G.<tool>Report() prints any tool's own report.
   ⇪⇧2   🪟 Capture the active window — no clicking
   ⇪⇧3   ⏲ Delayed capture, full screen after the countdown
   ⇪⇧4   🔤 Recognize text / QR — the words go to the clipboard
+  📋 which ⇪4 leaves the PICTURE on the clipboard, always · ⇪⇧4 is
+            the OCR door · the words of a ⇪4 shot are in ⇪O and in
+            its file name · textToClipboard = true swaps them back
   ⇪5      🧻 Scrolling capture (experimental) — best in browsers · the result is saved AND on the clipboard
   📐 size ⇪4 / ⇪5 / “repeat area” / the editor's ⌘A show a LIVE 1280 × 720
             white on 90%-opaque black · areaNative = true for macOS's
@@ -785,6 +788,8 @@ In the Console, _G.<tool>Report() prints any tool's own report.
 
 📜 RELEASE INDEX — newest first, one line per release (the full story of each is in CHANGELOG.md)
 ------------------------------------------------------------------------
+  6.341.0  🔁 THE SHOT KEEPS THE CLIPBOARD; ⇪⇧4 IS THE OCR DOOR
+  6.340.0  🔎 A FIRST OPEN IS NOT AN EMPTY VAULT
   6.339.0  🔌 A TABLE THAT IS INCOMPLETE FAILS SILENTLY
   6.338.0  ⏰ A SCHEDULE THAT CANNOT CATCH UP IS NOT A SCHEDULE
   6.337.0  🚪 THE PIPELINE IS THE VARIABLE: ⇪4 IS macOS'S
