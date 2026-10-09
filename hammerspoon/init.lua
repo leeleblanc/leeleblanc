@@ -2,10 +2,21 @@
 -- * Working VERSION *
 -- =====================================================================
 -- =====================================================================
--- 10-07-26 using Claude          ← EDITED date. Bumped with every release.
+-- 10-09-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.341.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.342.0
 -- =====================================================================
+
+-- NEW IN 6.342.0 — 📐 ⌘D IS THE ⇧⌘5 SHAPE: DRAG THE AREA, THEN COUNT
+--   DOWN, THEN SHOOT IT (screenshot_editor.lua + screenshots.lua). LL,
+--   on 6.255.0's ⌘D: "five seconds to setup, shows no crosshairs, and
+--   then … a screenshot of the desktop is placed on it" — which is what
+--   that release built; his expectation is macOS's ⇧⌘5 order. OUR
+--   selector, never `-i` (6.337.0: it cannot report where you dragged,
+--   and this must HOLD a rect across a countdown). TWO BELT LEGS, since
+--   the selector waits on a hand — a long last resort, re-armed short
+--   once a rect exists (6.304.0) — and the belt ENDS a selector still
+--   open instead of reappearing in the area he is choosing.
 
 -- NEW IN 6.341.0 — 🔁 THE SHOT KEEPS THE CLIPBOARD; ⇪⇧4 IS THE OCR
 --   DOOR (modules/screenshots.lua). LL: "sometimes when I do hyper+4 it
@@ -19,22 +30,11 @@
 --   own path since 6.173.1 — and the OCR still runs in the background,
 --   naming the file and filling ⇪O. Only the clipboard write stops.
 
--- NEW IN 6.340.0 — 🔎 A FIRST OPEN IS NOT AN EMPTY VAULT
---   (modules/vault.lua). LL: "When I first load Hamsidian, it's blank.
---   Then I escape, open again, and the notes are there." v.render() runs
---   BEFORE v.scan("open"), so the page was drawn from the empty table
---   v.notes is born with and said "no notes yet — ⌘N" over a vault
---   holding all of them (6.196.1, fourth time) — and the rows reached
---   the page only at finish(), the end of four greps, when the NAMES are
---   known after the first. The page carries SCANNED now, the rows go in
---   when the FIND answers, the `ready` handshake is answered (6.238.0),
---   and ⏎ in the filter refuses to CREATE over an index nobody has read.
-
--- (6.339.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.340.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 cut the inline count to
 --  TWO; a gate check proves every entry here is also in CHANGELOG.md.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.341.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.342.0
 -- =====================================================================
 -- The catalogue that used to sit here moved to GUIDE.md ("What each
 -- tool does") in 6.180.0 — 259 lines of prose inside the orchestrator.
@@ -127,7 +127,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.341.0"
+_G.configVersion = "6.342.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the

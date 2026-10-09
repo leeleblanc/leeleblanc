@@ -1,4 +1,4 @@
-# TESTING — how to score release 6.341.0
+# TESTING — how to score release 6.342.0
 
 You install ONE archive and it carries several releases. Below are the
 steps for each release this archive is new for, newest first. Run the
@@ -26,6 +26,107 @@ else is a LOSS and I fix it before building further. You are the only
 scorer; I never mark my own.
 
 ---
+
+## 6.342.0
+
+6.342.0 verify with LL — 📐 ⌘D DRAGS THE AREA FIRST (KNOWN GROUND)
+WHAT CHANGED: ⌘D in the screenshot editor is macOS's ⇧⌘5 order now —
+the editor gets out of the way, you DRAG the area you want, then you
+get five seconds to arrange the screen, then THAT rectangle lands on
+the shot. Your ask, in your words.
+🔎 AND 6.255.0 WAS NOT BROKEN, which is worth saying first: hide ·
+count five seconds · shoot the WHOLE screen · land it on the shot is
+exactly what that release built, with no selector and no crosshairs by
+design. What you described is a different ORDER, and you were right
+that it is the better one.
+🚪 OUR SELECTOR, NOT macOS's — so you get the crosshairs and the live
+W × H, and ⌘5 "repeat area" gets the rectangle for free. macOS's own
+`-i` crosshair cannot tell us where you dragged, which is why ⇪4 lost
+"repeat area" in 6.337.0 and why this one could not use it.
+
+A. THE HEADLINE — thirty seconds.
+A1. ⇪⇧1 on any screenshot to open the editor.
+A2. Press ⌘D (or the ⏲ Area +5s button in the right rail).
+    EXPECT: the editor DISAPPEARS, and a moment later the crosshairs
+    and the live size box appear over your desktop.
+    **A FAIL is the old behaviour — no crosshairs, five seconds, and
+    then the whole desktop landing on the shot.**
+A3. Drag a rectangle around something and let go.
+    EXPECT: an alert reading "📐 1280 × 720 in 5 seconds — set it
+    up…", naming the rectangle you just dragged.
+A4. Use those five seconds: open a menu, hover something, put a
+    dialog up.
+    EXPECT: after five seconds the editor comes back with THAT
+    rectangle on the shot as a movable image. Drag it, scale it by its
+    corner, ⌘Z takes it off.
+A5. 🔎 LOOK AT THE PICTURE: the editor must NOT be in it, even though
+    you dragged over where it was sitting. If it IS in there, the
+    settle beat is too short on your Mac and that is a number, not a
+    release — tell me.
+
+B. THE ONE THAT PROTECTS YOU FROM A LOST WINDOW.
+B1. Press ⌘D and then press Esc on the selector instead of dragging.
+    EXPECT: the editor comes straight back, with an alert reading
+    "📐 Nothing captured — the selection was cancelled. The editor is
+    back." No warning, no error, nothing in the Console.
+    **A FAIL is the editor staying hidden** — that is the thing this
+    release had to build a second belt for, and I want to know at once.
+B2. Press ⌘D and then click once without dragging (a tiny drag).
+    EXPECT: "📐 Nothing captured — that drag measured 0 × 0", and the
+    editor is back.
+B3. Press ⌘D and then just leave it. Walk away for two minutes.
+    EXPECT: the selector goes by itself and the editor comes back.
+    That is the long belt, and ninety seconds is deliberately generous
+    — if it feels too long, say so and it is a number.
+
+C. MUST STILL WORK — this touched the window that hides itself, so
+   this half matters more than A.
+C1. ⌘F (🖥 Full screen) — unchanged: the editor blinks out, the whole
+    screen is taken, the editor comes back with it on the shot.
+C2. ⌘A (📸 Add capture) — unchanged: drag an area and it lands AT
+    ONCE, no countdown. That is what ⌘A is for.
+C3. ⌘O (🖼 Load shot) and ⌘V (📋 Paste image) — unchanged.
+C4. ⇪4 — unchanged: macOS's own crosshair, as of 6.337.0.
+C5. ⇪5 scrolling capture — our selector, with crosshairs and the live
+    size. This is the OTHER caller of the thing I changed, so it is the
+    one most likely to have broken: drag over a scrolling page and
+    check you get a stitched shot.
+C6. The nine drawing tools, ⌘Z, Esc, ⌘⏎ Save & copy.
+
+D. PASTE BACK, PASS OR FAIL.
+D1. `_G.screenshotEditorReport()` — there is a new `⌘D :` line saying
+    what the key does now, with a cancel count beside it. If it does
+    NOT say "drag an area", the release did not take.
+D2. `_G.screenshotsReport()` — a new `region :` line:
+      region  : 3 asked — 2 your rectangle · 1 cancelled · 0 fell back
+                to the whole screen
+    **If "fell back to the whole screen" is ever a number**, paste it:
+    that Mac could not draw our selector, you got the old shape, and
+    the line under it names macOS's reason.
+D3. If it ever says "⚠️ N of them shot AT ONCE", paste that too — that
+    Mac would not arm the countdown, so you had no time to set up.
+
+E. A JUDGEMENT ONLY YOU CAN MAKE.
+E1. Five seconds, between the drag and the shot. Right for what you
+    use it for, or should it be longer now that you have already spent
+    time choosing the rectangle? It is `delaySecs`, a number, not a
+    release — say a number and I will change the default.
+E2. Ninety seconds is how long the selector may sit open before the
+    editor comes back by itself. Too long? Too short?
+E3. "⏲ Area +5s" is the button's new label, with the order spelled out
+    on hover. Does the label read right to you, or would you rather it
+    said something else?
+E4. 🔨 CRUDE OR ELEGANT: nothing was broken and nothing was lost —
+    ⌘D did exactly what it was built to do and the editor always came
+    back. My reading is that this is a SHAPE you had never been asked
+    about, not a defect, so I have logged it as one pass and your
+    sentence as the symptom. Your tag.
+E5. 📏 AND THE OTHER THREE: you said "those four screenshot tools run
+    weird". ⌘A, ⌘F and ⌘O were all unreachable until 6.339.0 — a guard
+    asked `core.has`, which the core table has never carried — so if
+    any of them still behaves oddly on this build, that is new
+    information and I want it named one at a time.
+
 
 ## 6.341.0
 
@@ -268,86 +369,6 @@ F2. 🔨 CRUDE OR ELEGANT: nothing broke, nothing was lost, and the
     while telling you something false about why. My reading is that
     the degrade was graceful and the MESSAGE was a lie, which is its
     own kind of cost; one pass. Your tag.
-
-
-
-## 6.338.0
-
-6.338.0 verify with LL — ⏰ THE BACKUP CATCHES UP (KNOWN GROUND)
-WHAT CHANGED: the rebuild kit refreshes itself without you running
-anything.
-🔎 AND THE ANSWER TO YOUR QUESTION IS "it already was", which is why
-this is a bug and not a feature. The backup has run on a daily timer
-since the config had sections — 17:00, every day. What that kind of
-timer does is fire at an INSTANT: if the Mac is asleep at five o'clock,
-or Hammerspoon is not running then, that day is skipped and nothing
-ever goes back for it. Twelve days old means twelve missed 5 PMs, and
-from where you were sitting that looks exactly like a backup nobody
-set up.
-🔑 WHAT IT DOES NOW: once an hour it asks "is the kit more than a day
-old?" and runs one if it is. That covers a wake, a late boot, a reload
-and a Mac that was simply off at five — one mechanism, not three.
-
-A. THE HEADLINE — and the first run may happen on its own.
-A1. Install and reload. Watch the Console for about two minutes.
-    EXPECT, because your kit is overdue right now:
-      ☁️ Rebuild kit catch-up — the kit is 12 day(s) old — past the
-         1-day window; running one now
-    **That line IS the release.** Paste it.
-A2. Console: `_G.backupReport()`. Find the new `catch-up:` line.
-    EXPECT: `every 60 min · 1 started this session · the kit is 12
-    day(s) old — past the 1-day window`, and a `↳ last catch-up` line
-    under it with the time.
-A3. The `last run:` line above it should now be TODAY, with its usual
-    per-entry rows. That is the kit being fresh again.
-A4. Reload once more and read the boot note. EXPECT it is GONE — the
-    kit is a few minutes old. If it is still there, paste it.
-
-B. THE NOTE NO LONGER HANDS YOU A CHORE.
-B1. If you ever do see "☁️ The rebuild kit is N days old" again, read
-    the rest of the line: it now says **"a catch-up run is due within
-    60 min"** instead of giving you `_G.backupNow()`.
-B2. 🚨 AND THAT MAKES IT WORTH READING: with the catch-up working,
-    that note surviving means the catch-up ITSELF is failing. Before
-    this release it just meant your Mac had been asleep at five. If
-    you see it twice on different days, paste it — that is a fault now.
-
-C. MUST STILL WORK — this touched the thing that copies your files.
-C1. `_G.backupNow()` still runs one by hand, immediately.
-C2. The 17:00 timer is unchanged — nothing about it moved.
-C3. `_G.backupReport()` still lists every entry with its status, the
-    app manifest count, and the crash-report lines.
-C4. The half-hourly store mirror and the hourly notes mirror are
-    untouched: check their lines still read `ok` with a recent time.
-C5. Nothing in the backup folder is ever deleted. Still true — no
-    rsync here carries `--delete`.
-
-D. PASTE BACK, PASS OR FAIL.
-D1. `_G.backupReport()` after a day of normal use. Two lines matter:
-    `catch-up:` and `last run:`. If `catch-up:` ever still reads
-    **"not asked yet this session"** an hour after boot, the timer is
-    not firing and I want to know — that is the one state this
-    release exists to make impossible.
-D2. From the WORK MAC too, when you next install there. A work laptop
-    is shut at 5 PM far more often than a home one, so that is where
-    this should show the biggest difference.
-
-E. A JUDGEMENT ONLY YOU CAN MAKE.
-E1. **A backup can now start at any hour of your day**, not only at
-    five. It is an incremental copy running outside Hammerspoon, so
-    after the first one it should be unnoticeable — but if you ever
-    feel the Mac get busy and find a catch-up in the report at that
-    moment, tell me. `settings = { daily_backup = { catchUpDays = 0 } }`
-    puts it back to 5 PM only, and `catchUpMins` changes how often it
-    asks.
-E2. One day is the threshold — the kit has to be more than a day old
-    before a catch-up runs, which restores the daily rhythm rather
-    than adding a second one. Too eager? Too slack? It is a number.
-E3. 🔨 CRUDE OR ELEGANT: nothing was broken and nothing was lost —
-    the kit was simply stale, and you would have found out the day you
-    needed it. My reading is that this is a defect in a SCHEDULE
-    rather than a feature ask, because the config was promising a
-    daily backup it was not delivering. Your tag.
 
 
 

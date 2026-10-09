@@ -322,6 +322,23 @@ function M.setup(core)
     shots.selPollSecs = 0.2
     shots.selEnds     = { mouseUp = 0, belt = 0, tiny = 0, noBelt = 0, noSignal = 0 }
     shots.selLastEnd  = nil   -- { how, w, h, at } — the report's evidence
+    -- 🪪 6.342.0 — THE SELECTOR CAN TELL ITS CALLER IT WAS CANCELLED.
+    -- Esc called `shots.cancelSelect()` and nothing else: the overlay
+    -- went, and the CALLER — which may have hidden a window to get out
+    -- of the shot — learned nothing and waited on a belt that would then
+    -- say "the capture never answered", which is a lie about a selection
+    -- the person deliberately abandoned. One optional callback, held in
+    -- one slot, fired ONCE and cleared (6.299.0's `onDone` shape: a
+    -- caller that passes nothing is unaffected, and four of the five
+    -- callers pass nothing).
+    shots.selCancelCb = nil   -- HELD while a selector is up
+    -- 📐 6.342.0 — ⌘D's shape, counted. "your rectangle after the
+    -- countdown" and "the whole screen because our selector would not
+    -- draw" produce pictures that can look identical, and the second is
+    -- a degrade (6.196.1 — and 6.274.0 counts ⇪4's two routes apart for
+    -- exactly this reason).
+    shots.regionRuns = { asked = 0, region = 0, now = 0, screen = 0, cancelled = 0 }
+    shots.regionLast = nil    -- { how, why, w, h, at }
     -- 📐 6.318.0 — the crosshair ⇪⇧4 has had all along (it is macOS's,
     -- on `screencapture -i`) and ⇪4 lost in 6.264.0 when it moved onto
     -- our own selector. Its own switch, independent of the readout:
@@ -799,6 +816,146 @@ function M.setup(core)
         return true
     end
 
+    -- 📐 6.342.0 — THE ⇧⌘5 SHAPE, for the editor's ⌘D: drag the area
+    -- FIRST, then count down, then shoot THAT rectangle. LL, on 6.255.0's
+    -- ⌘D: "⌘D says I have five seconds to setup, shows no crosshairs, and
+    -- then in the screenshot of the editor, a screenshot of the desktop is
+    -- placed on it" — which is exactly what that release built, and his
+    -- expectation is macOS's own ⇧⌘5 order. He asked for this one.
+    -- 🚪 OUR SELECTOR, NEVER `screencapture -i`, and that is a constraint
+    -- rather than a preference: 6.337.0 established that `-i` CANNOT
+    -- report where you dragged (it is why ⌘5 "repeat area" lost its
+    -- rectangle when ⇪4 went native), and this shape has to hold the
+    -- rectangle across a countdown before it can shoot it. Ours answers
+    -- the rect, carries the crosshairs (6.318.0) and the live W × H
+    -- (6.260.0), and is the same selector ⇪5 and ⌘A already drag on —
+    -- so every piece of this is KNOWN GROUND.
+    -- ⏱ AND THE COUNTDOWN IS OURS, not screencapture's -T. `-T` with `-R`
+    -- is a platform belief this container cannot check, and 6.233.0 is
+    -- explicit that a platform fact deciding an architecture is read in
+    -- the source with the file named — so the wait is a HELD timer in its
+    -- own slot and the shot is the `-x -R` this module has always used.
+    -- cb(path, why, how): how is "region" · "now" · "screen" · "cancelled",
+    -- additive, so a caller reading two values is unaffected.
+    function shots.captureRegionTo(delay, cb, onPicked)
+        if type(cb) ~= "function" then return false, "no callback" end
+        if not shots.ensureDir() then cb(nil, "no screenshots folder") return false end
+        delay = math.floor(tonumber(delay) or 0)
+        shots.regionRuns.asked = shots.regionRuns.asked + 1
+
+        local function record(how, note, rect)
+            shots.regionRuns[how] = (shots.regionRuns[how] or 0) + 1
+            local at = 0
+            pcall(function() at = os.time() end)
+            shots.regionLast = { how = how, why = note, at = at,
+                                 w = rect and rect.w, h = rect and rect.h }
+        end
+
+        local function shoot(rect, how)
+            local path = freshPath()
+            -- ⌘5 "repeat area" gets this rectangle for free, which is one
+            -- of the things `-i` can never hand back (6.337.0's cost).
+            shots.lastRect = rect
+            local started = shots.runCapture({
+                "-x",
+                ("-R%d,%d,%d,%d"):format(rect.x, rect.y, rect.w, rect.h),
+                path,
+            }, path, false, function(p, exitCode, serr)
+                local size
+                pcall(function() size = hs.fs.attributes(p, "size") end)
+                -- 6.255.0 — one verdict, three callers now (see captureVerdict)
+                local ok, why = shots.captureVerdict(exitCode, size, serr)
+                if ok then cb(p, nil, how) else cb(nil, why, how) end
+            end)
+            if not started then cb(nil, "screencapture could not be started", how) end
+        end
+
+        local function onRect(rect)
+            -- 🔑 THE CALLER IS TOLD THE MOMENT THE RECTANGLE EXISTS, and
+            -- that is not decoration: the selector phase is unbounded —
+            -- the person may stare at the screen for a minute — so a
+            -- caller holding a hidden window needs ONE long last-resort
+            -- belt for the drag and a SHORT one for the countdown, and
+            -- this is the only signal that says when to swap them
+            -- (6.304.0: one belt per leg, re-armed for the second).
+            if type(onPicked) == "function" then pcall(onPicked, rect) end
+            if delay <= 0 then
+                local how, note = shots.regionPlan(true, nil, true, delay)
+                record(how, note, rect)
+                shoot(rect, how)
+                return
+            end
+            -- 🪜 HELD, IN ITS OWN SLOT (6.196.1): an unreferenced timer
+            -- never fires, and this one is the whole countdown.
+            if shots.regionTimer then pcall(function() shots.regionTimer:stop() end) end
+            shots.regionTimer = nil
+            pcall(function()
+                shots.regionTimer = hs.timer.doAfter(delay, function()
+                    local how, note = shots.regionPlan(true, nil, true, delay)
+                    record(how, note, rect)
+                    shoot(rect, how)
+                end)
+            end)
+            if shots.regionTimer then return end
+            -- 🔔 A Mac that cannot arm it still CAPTURES, at once, and
+            -- says so — the rectangle he dragged is worth more than the
+            -- five seconds he was promised to arrange the screen in.
+            local how, note = shots.regionPlan(true, nil, false, delay)
+            record(how, note, rect)
+            if type(core.degrade) == "function" then
+                pcall(core.degrade, "Screenshot region capture", note)
+            end
+            shoot(rect, how)
+        end
+
+        local function onCancelled(why)
+            record("cancelled", "nothing was captured — " .. tostring(why))
+            cb(nil, tostring(why), "cancelled")
+        end
+
+        -- 🚨 READ THREE VALUES (6.179.0). selectArea answers false, why
+        -- since 6.264.0, and reading two would make a refusal look like a
+        -- successful start — the editor would then sit hidden waiting for
+        -- a selector that was never drawn, which is 6.265.0 exactly.
+        local ok, started, why = pcall(shots.selectArea, onRect, onCancelled)
+        if ok and started ~= false then return true end
+        local because = ok and why
+                        or ("the selector threw: " .. tostring(started))
+        local how, note = shots.regionPlan(false, because, nil, delay)
+        record(how, note)
+        if type(core.degrade) == "function" then
+            pcall(core.degrade, "Screenshot region capture", note)
+        end
+        -- 🚪 THE OLD SHAPE IS THE DEGRADE, not a dead key: whole screen
+        -- after the countdown, which is what ⌘D did for eighty-seven
+        -- releases and still works on a Mac that cannot draw a canvas.
+        return shots.captureScreenTo(delay, function(p, w) cb(p, w, how) end)
+    end
+
+    -- 📐 6.342.0 — WHICH SHAPE DID THE REGION GRAB GET, PURE, and it
+    -- answers WHY as well as which. FOUR answers, because "shot at once
+    -- since nobody asked for a countdown" and "shot at once because this
+    -- Mac would not arm one" are opposite facts and only the second is a
+    -- degrade (6.196.1, and 6.274.0's own reason for counting ⇪4's routes
+    -- apart). `canTimer` is only ever consulted when a countdown was
+    -- actually wanted.
+    function shots.regionPlan(started, why, canTimer, delay)
+        delay = math.floor(tonumber(delay) or 0)
+        if started == false then
+            return "screen", "our selector could not start ("
+                   .. tostring(why or "no reason given")
+                   .. ") — the whole screen after the countdown instead"
+        end
+        if delay > 0 and canTimer == false then
+            return "now", "your rectangle, but this Mac would not arm the "
+                   .. "countdown, so the shot was taken at once"
+        end
+        if delay > 0 then
+            return "region", ("your rectangle, after a %d second countdown"):format(delay)
+        end
+        return "region", "your rectangle, now — no countdown was asked for"
+    end
+
     function shots.repeatArea(thenEdit)
         if shots.lastRect then
             shots.captureRect(shots.lastRect, thenEdit)
@@ -843,6 +1000,12 @@ function M.setup(core)
     -- need the rectangle as numbers. A full-screen dimmed canvas, a
     -- dashed band that follows the drag, Esc bails out.
     function shots.cancelSelect()
+        -- 🪪 6.342.0 — TAKEN AND CLEARED FIRST, told LAST. Taken first so
+        -- a caller that starts a new selector from inside its own cancel
+        -- handler cannot be answered twice; told last so everything this
+        -- function tears down is already gone by the time it runs.
+        local tell = shots.selCancelCb
+        shots.selCancelCb = nil
         if shots.selPoll then
             pcall(function() shots.selPoll:stop() end)
             -- 🪜 HELD ONE MORE TURN, never dropped from inside its own
@@ -860,6 +1023,9 @@ function M.setup(core)
         if shots.selCanvas then
             pcall(function() shots.selCanvas:delete() end)
             shots.selCanvas = nil
+        end
+        if type(tell) == "function" then
+            pcall(tell, "the selection was cancelled")
         end
     end
 
@@ -1130,7 +1296,14 @@ function M.setup(core)
         return "ended", "the button came up somewhere this canvas could not hear"
     end
 
-    function shots.selectArea(cb)
+    -- 🪪 6.342.0 — `onCancel` is OPTIONAL and additive: it is called
+    -- with a reason when the selector ends without a rectangle (Esc, a
+    -- drag too small to capture, or a newer selector superseding this
+    -- one), and never when `cb` fires. It is NOT called for the four
+    -- early refusals below — those answer `false, why` synchronously and
+    -- a caller reading that answer must not also be told later, which is
+    -- 6.299.0's "exactly once, through one door" in the other direction.
+    function shots.selectArea(cb, onCancel)
         shots.cancelSelect()
         local scr
         pcall(function() scr = hs.mouse.getCurrentScreen() end)
@@ -1279,6 +1452,12 @@ function M.setup(core)
                 h = math.floor(math.abs(my - startPt.y)),
             }
             startPt = nil
+            -- 🪪 6.342.0 — TAKE THE CANCEL SLOT BEFORE TEARING DOWN, or
+            -- cancelSelect answers the caller "cancelled" one line before
+            -- `cb(rect)` answers it "here is your rectangle". Two answers
+            -- to one ask is worse than none.
+            local tell = shots.selCancelCb
+            shots.selCancelCb = nil
             shots.cancelSelect()
             shots.selEnds[how] = (shots.selEnds[how] or 0) + 1
             shots.selLastEnd = { how = how, w = rect.w, h = rect.h, at = os.time() }
@@ -1298,6 +1477,12 @@ function M.setup(core)
                                .. "Press the key again and drag a rectangle.")
                               :format(rect.w, rect.h), 3)
             end)
+            -- 🪪 6.342.0 — A TINY DRAG IS A CANCEL AS FAR AS THE CALLER
+            -- IS CONCERNED: no rectangle is coming, so a caller holding a
+            -- hidden window has to be let go here as well as on Esc.
+            if type(tell) == "function" then
+                pcall(tell, ("that drag measured %d × %d"):format(rect.w, rect.h))
+            end
         end
 
         pcall(function()
@@ -1387,6 +1572,11 @@ function M.setup(core)
         end
         shots.selCanvas = canvas   -- HELD
         shots.selStarted = true
+        -- 🪪 6.342.0 — ARMED ONLY NOW. Every refusal above has already
+        -- answered `false, why`, and one of them calls cancelSelect on
+        -- its way out; arming earlier would hand the caller a second,
+        -- contradictory answer for a selector that never existed.
+        shots.selCancelCb = onCancel
 
         -- 🚪 6.336.0 — THE RELEASE WE CANNOT HEAR. The canvas callback is
         -- the only thing that ends a drag and it only fires over its own
@@ -2116,6 +2306,32 @@ function M.setup(core)
         if (se.noBelt or 0) > 0 then
             L[#L + 1] = "   ↳ ⚠️ " .. se.noBelt .. " selector(s) ran with NO drag-end watch — "
                         .. "a swallowed release leaves this one up until Esc"
+        end
+        -- 📐 6.342.0 — ⌘D's SHAPE, COUNTED. A whole-screen image and a
+        -- region image can look identical when the region was most of
+        -- the screen, so "your rectangle" and "our selector would not
+        -- draw, here is everything" have to be countable apart — and only
+        -- the second is a degrade (6.274.0's reason for ⇪4's routes).
+        local rr = shots.regionRuns or {}
+        if (rr.asked or 0) == 0 then
+            L[#L + 1] = "   region  : ⌘D in the editor has not been pressed this session"
+        else
+            L[#L + 1] = ("   region  : %d asked — %d your rectangle · %d cancelled · "
+                         .. "%d fell back to the whole screen%s")
+                        :format(rr.asked or 0, (rr.region or 0) + (rr.now or 0),
+                                rr.cancelled or 0, rr.screen or 0,
+                                (rr.screen or 0) > 0 and " ⚠️" or "")
+            if (rr.now or 0) > 0 then
+                L[#L + 1] = "   ↳ ⚠️ " .. rr.now .. " of them shot AT ONCE — this Mac would "
+                            .. "not arm the countdown, so there was no time to set up"
+            end
+            local rl = shots.regionLast
+            if rl then
+                L[#L + 1] = ("   ↳ last: %s%s · %s")
+                            :format(tostring(rl.why or rl.how),
+                                    rl.w and (" (" .. rl.w .. " × " .. rl.h .. ")") or "",
+                                    shots.clockText(rl.at))
+            end
         end
         if (shots.dirFails or 0) > 0 then
             L[#L + 1] = "   ↳ ⚠️ " .. shots.dirFails .. " press(es) found no folder to write to: "
@@ -3367,6 +3583,16 @@ function M.setup(core)
     core.provide("screenshots.captureAreaTo", function(cb) return shots.captureAreaTo(cb) end)
     core.provide("screenshots.captureScreenTo",
                  function(delay, cb) return shots.captureScreenTo(delay, cb) end)
+    core.provide("screenshots.captureRegionTo",
+                 function(delay, cb, onPicked)
+                     return shots.captureRegionTo(delay, cb, onPicked)
+                 end)
+    -- 📐 6.342.0 — the ONE way to end a selector from outside this module.
+    -- The editor needs it because its belt can fire while a ⌘D selector
+    -- is still open, and bringing the editor back under a live selector
+    -- would put it in the shot it hid to stay out of. It goes through the
+    -- module that owns the teardown rather than being copied there.
+    core.provide("screenshots.cancelSelect", function() shots.cancelSelect() end)
     core.provide("screenshots.show",    function() return shots.show() end)
     -- 6.258.0 — this module owns the folder, so it answers "what is in it";
     -- the editor's ⌘O asks rather than listing the folder a second time.

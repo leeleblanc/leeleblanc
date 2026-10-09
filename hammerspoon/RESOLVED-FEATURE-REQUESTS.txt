@@ -1,5 +1,5 @@
 ========================================================================
-RESOLVED FEATURE REQUESTS — Hammerspoon config 6.341.0
+RESOLVED FEATURE REQUESTS — Hammerspoon config 6.342.0
 Every feature and how to use it. Generated from the modules' own
 cheat sheets (the rows ⇪/ draws), so it is never out of date.
 ⇪ = Caps Lock held (the hyper key). ⇪⇧X = Caps Lock + Shift + X.
@@ -542,7 +542,7 @@ In the Console, _G.<tool>Report() prints any tool's own report.
   L O H C   6.212.0: Line · Oval · Highlighter (translucent yellow box) · Counter (①②③ — a numbered badge per click, ⌘Z takes the last back)
   S M       6.213.0: Spotlight (darkens everything but the box) · Magnifier (a 2× circle; drag its right-hand dot to size it)
   ⌘V ⌘A 6.213.0: paste the clipboard's IMAGE onto the shot · Add capture — drag an area of the screen and it lands on the shot (move the editor first if it is in the way)
-  ⌘D      6.255.0: Delayed capture — this window gets out of the way, you arrange the screen, and five seconds later the WHOLE screen lands on the shot
+  ⌘D      6.342.0: Delayed AREA capture (macOS's ⇧⌘5 order) — this window gets out of the way, you DRAG the area you want, then five seconds to arrange the screen, then that rectangle lands on the shot
   ⌘F      6.256.0: Full screen — the whole screen, right now, with this window out of the picture
   ⌘O      6.258.0: Load a PRIOR shot — the canvas grows so you can see both, and what you have already drawn does not move
   text      click, type, ⏎ — white text, white outline box · click an EXISTING box (Text tool) to edit its words, or ⏎ on a selected one
@@ -788,6 +788,7 @@ In the Console, _G.<tool>Report() prints any tool's own report.
 
 📜 RELEASE INDEX — newest first, one line per release (the full story of each is in CHANGELOG.md)
 ------------------------------------------------------------------------
+  6.342.0  📐 ⌘D IS THE ⇧⌘5 SHAPE: DRAG THE AREA, THEN COUNT
   6.341.0  🔁 THE SHOT KEEPS THE CLIPBOARD; ⇪⇧4 IS THE OCR DOOR
   6.340.0  🔎 A FIRST OPEN IS NOT AN EMPTY VAULT
   6.339.0  🔌 A TABLE THAT IS INCOMPLETE FAILS SILENTLY

@@ -3344,6 +3344,82 @@ work Mac.
   nothing — then name the one open question (here: should it pause while
   he is typing in Asana?) rather than guessing it.
 
+
+- 🪜 A WAIT THAT DEPENDS ON A HAND CANNOT SHARE A BELT WITH A WAIT THAT
+  DEPENDS ON A CLOCK (6.342.0, modules/screenshot_editor.lua +
+  screenshots.lua — LL, on 6.255.0's ⌘D: "⌘D says I have five seconds to
+  setup, shows no crosshairs, and then in the screenshot of the editor, a
+  screenshot of the desktop is places on it. In fact, those four
+  screenshot tools run weird.").
+  🔎 AND THAT IS WHAT 6.255.0 BUILT — hide · count five seconds · shoot
+  the WHOLE screen — so nothing was broken and nothing was a regression.
+  What he described is macOS's own ⇧⌘5 ORDER: drag the area FIRST, then
+  the countdown, then the shot. 6.311.0's rule about a KEY, applied to an
+  ORDER: a shape set by an answer nobody re-asked is a decision whose
+  premise can expire, and the fix is to put it to him rather than defend
+  it. He answered "Go ahead with the ⌘+⇧+5 shape for ⌘+D".
+  🪜 THE RELEASE'S REAL WORK IS THE BELT, and this is the half that
+  generalises. ⌘F and the old ⌘D knew exactly how long the editor would
+  be hidden, so ONE belt armed before the hide covered it (6.255.0's
+  three rules). The new shape waits on a HAND — the selector may be open
+  for a second or a minute — so leg 1 is a long last resort
+  (`regionGraceSecs`, 90) and leg 2 re-arms SHORT the instant a rectangle
+  exists (6.304.0's one-belt-per-leg). GENERAL: when a timed operation
+  gains an UNBOUNDED phase, one belt cannot cover both — a belt sized for
+  the clock fires over the hand, and a belt sized for the hand leaves the
+  failure undetected for as long as the hand was allowed.
+  🚨 AND A BELT THAT FIRES DURING THE UNBOUNDED PHASE MUST END IT, NEVER
+  ACT BESIDE IT. Leg 1 can land with the selector still up, and bringing
+  the editor back underneath would put it in the very area he is dragging.
+  So the belt's FIRST act is to cancel the selector, which resolves the
+  run through the ordinary cancel path and clears `hidden`/`delayBusy` —
+  after which the belt's own existing guard returns, so one event is
+  reported once instead of being counted as both a cancel and a late
+  return. 6.266.0's rule in the other direction: there a retry had to ASK
+  the caller before acting a turn later; here a belt has to STOP the thing
+  it is protecting before standing in for it.
+  🪪 WHICH NEEDED THE SELECTOR TO BE ABLE TO SAY "CANCELLED", and it could
+  not: `shots.cancelSelect()` tore the overlay down and told its caller
+  NOTHING. So Esc on a ⌘D selector would have left the editor hidden until
+  a belt that then says "the delayed capture never answered" — a lie about
+  a selection the person deliberately abandoned. `shots.selectArea` takes
+  an OPTIONAL `onCancel` (6.299.0's shape — four of its five callers pass
+  nothing), held in ONE slot, fired ONCE and cleared: on Esc, on a drag
+  too small to capture, and when a newer selector supersedes an older one.
+  🚨 NOT on the four SYNCHRONOUS refusals, which answer `false, why` on
+  the spot — telling the caller a second time is 6.299.0's "exactly once,
+  through one door" broken in the other direction, and `finishAt` has to
+  TAKE the slot before its own `cancelSelect()` or the caller is told
+  "cancelled" one line before it is handed a rectangle. GENERAL: any
+  helper in this config that tears something down on a caller's behalf
+  owes the caller a way to hear about it — a teardown nobody is told
+  about is indistinguishable from a hang.
+  🚪 OUR SELECTOR, NEVER `-i`, and it is a constraint rather than a
+  taste: 6.337.0 established that `screencapture -i` cannot report where
+  you dragged (it is exactly why ⌘5 "repeat area" lost its rectangle),
+  and this shape must HOLD a rectangle across a countdown. Ours answers
+  the rect, carries the crosshairs (6.318.0) and the live W × H (6.260.0),
+  and is the selector ⇪5 and ⌘A already drag on — so the release is KNOWN
+  GROUND. ⏱ The countdown is OURS too, a HELD doAfter in its own slot,
+  because whether `-T` is honoured alongside `-R` is a platform belief
+  this container cannot check and 6.233.0 forbids designing on one.
+  🚨 A CANCEL IS NOT A FAILURE and never takes the 🔔 door — he pressed
+  Esc, or his drag measured 3 × 2, and a tool that shouts about a decision
+  he made is one he stops reading (6.269.0). Its own count, its own quiet
+  alert saying the editor is back; a sum would make his choice read as a
+  fault. 🚨 And the SETTLE BEAT matters here in a way it did not before:
+  the old ⌘D hid behind `-T`, so nothing of ours waited for the window to
+  leave — now the SELECTOR draws next, and a selector over a window that
+  has not gone is an area he drags around the editor (6.256.0, one surface
+  on). 📐 `shots.regionPlan` is PURE with FOUR answers, and the fixture
+  that bites is the pair at `delay = 0`, where "shot at once because
+  nobody asked for a countdown" and "shot at once because this Mac would
+  not arm one" take the same ACTION and only the second is a degrade.
+  🔬 The gate ratchets on the new contract (test_stub_fidelity §6c: a
+  `captureRegionTo` stub that drops `onPicked` cannot reach the leg-2
+  swap), while the `cancelSelect` contract is NAMED in §7's written-down
+  list — a suite legitimately needs a quiet stub for every check that is
+  not about leg 1, and a sentry there would cry wolf on correct tests.
 - 🪟 A HANDLE RECORDED BEFORE THE WINDOW IS UP IS A HANDLE THAT LIES
   (6.326.0, modules/music_player.lua — LL's own probe:
   `handle : false · window : false · visible : nil · frame : none ·
@@ -5345,6 +5421,7 @@ that must be READ before a new cause is named.
 | "hyper+4 does not have pixel crosshairs" · "it was working before" | modules/screenshots.lua · the selector | 6.264.0 · 6.318.0 | 1 | ask |
 | "it said 0x0 pixels, then jumped a few desktops, then I had to hit escape" | modules/screenshots.lua · the selector's one exit | 6.336.0 · 6.337.0 | 2 | ask |
 | "why OCR hyper+shift+4 works and hyper+4 still does not" | modules/screenshots.lua · ⇪4 re-implementing a system drag | 6.264.0 · 6.265.0 · 6.274.0 · 6.282.0 · 6.318.0 · 6.336.0 · 6.337.0 | 6 | ask |
+| "⌘D says I have five seconds to setup, shows no crosshairs" · "those four screenshot tools run weird" | modules/screenshot_editor.lua · the ⌘D order | 6.255.0 · 6.342.0 | 1 | ask |
 | "once I OCR some text, that text should immediately go onto the clipboard" · "sometimes … it places an image … sometimes the OCR runs" | modules/screenshots.lua · the OCR doors | 6.173.1 · 6.319.0 · 6.341.0 | 2 | ask |
 | "frozen grid again" — a yellow box only a reload clears | modules/mouse_grid.lua · `_G.showCanvasSafely` | 6.266.0 | 1 | ask |
 | "can't move files in drag and drop" · Hammerspoon locked up | modules/file_tracker.lua | 6.228.0 · 6.229.0 · 6.230.0 · 6.241.0 | 4 | ask |
@@ -5464,6 +5541,7 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
+| 6.342.0 | 📐 ⌘D drags the area first, then counts down, then shoots it — macOS's own ⇧⌘5 order, on his word | pending |
 | 6.341.0 | 🔁 ⇪4 leaves the picture on the clipboard, always — ⇪⇧4 is the OCR door, and the reading still runs in the background | pending |
 | 6.340.0 | 🔎 Hamsidian's first open says "reading your notes…" instead of "no notes yet", and the list arrives seconds sooner | pending |
 | 6.339.0 | 🔌 ⌘A, ⌘D, ⌘F and ⌘O in the screenshot editor work for the first time — a guard asked `core.has`, which the core table has never had | pending |
@@ -6580,6 +6658,103 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.342.0 verify with LL — 📐 ⌘D DRAGS THE AREA FIRST (KNOWN GROUND)
+  WHAT CHANGED: ⌘D in the screenshot editor is macOS's ⇧⌘5 order now —
+  the editor gets out of the way, you DRAG the area you want, then you
+  get five seconds to arrange the screen, then THAT rectangle lands on
+  the shot. Your ask, in your words.
+  🔎 AND 6.255.0 WAS NOT BROKEN, which is worth saying first: hide ·
+  count five seconds · shoot the WHOLE screen · land it on the shot is
+  exactly what that release built, with no selector and no crosshairs by
+  design. What you described is a different ORDER, and you were right
+  that it is the better one.
+  🚪 OUR SELECTOR, NOT macOS's — so you get the crosshairs and the live
+  W × H, and ⌘5 "repeat area" gets the rectangle for free. macOS's own
+  `-i` crosshair cannot tell us where you dragged, which is why ⇪4 lost
+  "repeat area" in 6.337.0 and why this one could not use it.
+
+  A. THE HEADLINE — thirty seconds.
+  A1. ⇪⇧1 on any screenshot to open the editor.
+  A2. Press ⌘D (or the ⏲ Area +5s button in the right rail).
+      EXPECT: the editor DISAPPEARS, and a moment later the crosshairs
+      and the live size box appear over your desktop.
+      **A FAIL is the old behaviour — no crosshairs, five seconds, and
+      then the whole desktop landing on the shot.**
+  A3. Drag a rectangle around something and let go.
+      EXPECT: an alert reading "📐 1280 × 720 in 5 seconds — set it
+      up…", naming the rectangle you just dragged.
+  A4. Use those five seconds: open a menu, hover something, put a
+      dialog up.
+      EXPECT: after five seconds the editor comes back with THAT
+      rectangle on the shot as a movable image. Drag it, scale it by its
+      corner, ⌘Z takes it off.
+  A5. 🔎 LOOK AT THE PICTURE: the editor must NOT be in it, even though
+      you dragged over where it was sitting. If it IS in there, the
+      settle beat is too short on your Mac and that is a number, not a
+      release — tell me.
+
+  B. THE ONE THAT PROTECTS YOU FROM A LOST WINDOW.
+  B1. Press ⌘D and then press Esc on the selector instead of dragging.
+      EXPECT: the editor comes straight back, with an alert reading
+      "📐 Nothing captured — the selection was cancelled. The editor is
+      back." No warning, no error, nothing in the Console.
+      **A FAIL is the editor staying hidden** — that is the thing this
+      release had to build a second belt for, and I want to know at once.
+  B2. Press ⌘D and then click once without dragging (a tiny drag).
+      EXPECT: "📐 Nothing captured — that drag measured 0 × 0", and the
+      editor is back.
+  B3. Press ⌘D and then just leave it. Walk away for two minutes.
+      EXPECT: the selector goes by itself and the editor comes back.
+      That is the long belt, and ninety seconds is deliberately generous
+      — if it feels too long, say so and it is a number.
+
+  C. MUST STILL WORK — this touched the window that hides itself, so
+     this half matters more than A.
+  C1. ⌘F (🖥 Full screen) — unchanged: the editor blinks out, the whole
+      screen is taken, the editor comes back with it on the shot.
+  C2. ⌘A (📸 Add capture) — unchanged: drag an area and it lands AT
+      ONCE, no countdown. That is what ⌘A is for.
+  C3. ⌘O (🖼 Load shot) and ⌘V (📋 Paste image) — unchanged.
+  C4. ⇪4 — unchanged: macOS's own crosshair, as of 6.337.0.
+  C5. ⇪5 scrolling capture — our selector, with crosshairs and the live
+      size. This is the OTHER caller of the thing I changed, so it is the
+      one most likely to have broken: drag over a scrolling page and
+      check you get a stitched shot.
+  C6. The nine drawing tools, ⌘Z, Esc, ⌘⏎ Save & copy.
+
+  D. PASTE BACK, PASS OR FAIL.
+  D1. `_G.screenshotEditorReport()` — there is a new `⌘D :` line saying
+      what the key does now, with a cancel count beside it. If it does
+      NOT say "drag an area", the release did not take.
+  D2. `_G.screenshotsReport()` — a new `region :` line:
+        region  : 3 asked — 2 your rectangle · 1 cancelled · 0 fell back
+                  to the whole screen
+      **If "fell back to the whole screen" is ever a number**, paste it:
+      that Mac could not draw our selector, you got the old shape, and
+      the line under it names macOS's reason.
+  D3. If it ever says "⚠️ N of them shot AT ONCE", paste that too — that
+      Mac would not arm the countdown, so you had no time to set up.
+
+  E. A JUDGEMENT ONLY YOU CAN MAKE.
+  E1. Five seconds, between the drag and the shot. Right for what you
+      use it for, or should it be longer now that you have already spent
+      time choosing the rectangle? It is `delaySecs`, a number, not a
+      release — say a number and I will change the default.
+  E2. Ninety seconds is how long the selector may sit open before the
+      editor comes back by itself. Too long? Too short?
+  E3. "⏲ Area +5s" is the button's new label, with the order spelled out
+      on hover. Does the label read right to you, or would you rather it
+      said something else?
+  E4. 🔨 CRUDE OR ELEGANT: nothing was broken and nothing was lost —
+      ⌘D did exactly what it was built to do and the editor always came
+      back. My reading is that this is a SHAPE you had never been asked
+      about, not a defect, so I have logged it as one pass and your
+      sentence as the symptom. Your tag.
+  E5. 📏 AND THE OTHER THREE: you said "those four screenshot tools run
+      weird". ⌘A, ⌘F and ⌘O were all unreachable until 6.339.0 — a guard
+      asked `core.has`, which the core table has never carried — so if
+      any of them still behaves oddly on this build, that is new
+      information and I want it named one at a time.
 - 6.341.0 verify with LL — 🔁 THE SHOT KEEPS THE CLIPBOARD (KNOWN GROUND)
   WHAT CHANGED: ⇪4 leaves the PICTURE on the clipboard. Always. ⇪⇧4 is
   the OCR door and is untouched.

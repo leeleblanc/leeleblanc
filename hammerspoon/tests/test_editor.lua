@@ -602,13 +602,18 @@ E.railW = savedRail
 check("§10 ran every one of its checks", mine == 17, mine)
 
 -- =====================================================================
-out("\n11. 6.255.0 — ⌘D: a delayed FULL-SCREEN capture, onto the shot\n")
+out("\n11. 6.342.0 — ⌘D: drag an AREA, then count down, then shoot it\n")
 -- =====================================================================
--- LL: "Add a delayed screenshot feature with a delay of 5 seconds."
--- The window has to get out of the way (a whole-screen shot taken with
--- the editor open is a picture of the editor) — and a window that hides
--- and does not come back is his work gone, so the belt is the half this
--- section spends most of its checks on.
+-- LL, on 6.255.0's ⌘D: "⌘D says I have five seconds to setup, shows no
+-- crosshairs, and then in the screenshot of the editor, a screenshot of
+-- the desktop is placed on it." That IS what 6.255.0 built — and his
+-- expectation is macOS's own ⇧⌘5 order, which he then asked for by
+-- name. So the shape is: hide · settle · OUR selector (crosshairs since
+-- 6.318.0, live W × H since 6.260.0, and the only selector that can
+-- report the rectangle — 6.337.0) · countdown · shoot THAT rect.
+-- 🪜 The risk is the belt. ⌘F and the old ⌘D knew how long they would be
+-- hidden; this one waits on a hand, so there are TWO legs and most of
+-- this section is spent on them.
 do
     local n11 = 0
     local function c11(label, cond, extra) n11 = n11 + 1; check(label, cond, extra) end
@@ -616,7 +621,7 @@ do
     -- ---- the PURE plan ------------------------------------------------
     c11("grabPlan: open, service there, idle, 5 s → go, with the reason",
         (function()
-            local ok, why = E.grabPlan(true, true, false, 5, true)
+            local ok, why = E.grabPlan(true, true, false, 5, true, "the area you drag")
             return ok == true and tostring(why):find("5 second", 1, true) ~= nil
         end)())
     c11("grabPlan: the editor is not open → refused, named",
@@ -632,6 +637,20 @@ do
         tostring(select(2, E.grabPlan(true, true, false, 0, true)))
             :find("Full screen", 1, true) ~= nil
         and E.grabPlan(true, true, false, 0, false) == true)
+    -- 📐 6.342.0 — `what` EARNS ITS PLACE: the two callers capture two
+    -- different surfaces, and a plan that said "the whole screen" about
+    -- ⌘D would be a reason that lies on one of its callers. The check
+    -- that bites asserts BOTH halves — asserting only ⌘D's passes with
+    -- the parameter ignored and the default rewritten.
+    c11("🚨 grabPlan names the SURFACE: ⌘D's reason says the area he drags, "
+        .. "⌘F's still says the whole screen",
+        (function()
+            local _, area  = E.grabPlan(true, true, false, 5, true, "the area you drag")
+            local _, whole = E.grabPlan(true, true, false, 0, false)
+            return tostring(area):find("area you drag", 1, true) ~= nil
+               and tostring(area):find("whole screen", 1, true) == nil
+               and tostring(whole):find("whole screen", 1, true) ~= nil
+        end)())
 
     -- ---- the page -----------------------------------------------------
     READABLE["/x/D.png"] = "PNGBYTES"
@@ -642,20 +661,28 @@ do
         and LAST_HTML:find("id=\"btn-delay\"", 1, true) ~= nil
         and LAST_HTML:find("e.key === 'd'", 1, true) ~= nil)
     c11("…and the button's LABEL says the configured number of seconds",
-        LAST_HTML:find("⏲ Delayed 5s", 1, true) ~= nil)
+        LAST_HTML:find("⏲ Area +5s", 1, true) ~= nil)
+    -- 6.203.0 — say it where he is looking. The label is a NAME; the
+    -- hover is where the order of the two steps is spelled out, and
+    -- the old label ("Delayed 5s") described a shape this release
+    -- replaced, so leaving it would be 6.181.0's stale promise.
+    c11("🏷 …and the hover names the ORDER — drag first, then the seconds",
+        LAST_HTML:find("drag an area, then 5 seconds", 1, true) ~= nil
+        and LAST_HTML:find("⏲ Delayed", 1, true) == nil, LAST_HTML:sub(1, 0))
     -- 6.239.0: assert the shipped default and the check passes when the
     -- number is typed in twice. Move the config; the page must follow.
     E.close(); E.delaySecs = 9; E.open("/x/D.png")
-    c11("🚨 the label and the page's own DELAYSECS both come from the config "
-        .. "— move it and both move, or they were two numbers",
-        LAST_HTML:find("⏲ Delayed 9s", 1, true) ~= nil
+    c11("🚨 the label, the hover and the page's own DELAYSECS all come from "
+        .. "the config — move it and all three move, or they were three numbers",
+        LAST_HTML:find("⏲ Area +9s", 1, true) ~= nil
+        and LAST_HTML:find("then 9 seconds", 1, true) ~= nil
         and LAST_HTML:find("var DELAYSECS = 9;", 1, true) ~= nil)
     E.delaySecs = 5
 
     -- ---- no service ----------------------------------------------------
     CORE.has  = function(n) return PROVIDED[n] ~= nil end
     CORE.call = function(n, ...) return PROVIDED[n](...) end
-    PROVIDED["screenshots.captureScreenTo"] = nil
+    PROVIDED["screenshots.captureRegionTo"] = nil
     E.close(); JS, ALERTS, EVENTS, TIMERS, DEGRADES = {}, {}, {}, {}, {}
     E.open("/x/D.png")
     EVENTS = {}          -- opening the window is a "show"; this is about ⌘D
@@ -665,72 +692,124 @@ do
         and E.hidden == false and #EVENTS == 0, ALERTS[#ALERTS])
 
     -- ---- the happy path -------------------------------------------------
-    local ASKED, CB = nil, nil
-    PROVIDED["screenshots.captureScreenTo"] = function(secs, cb)
-        ASKED = secs; CB = cb; return true
+    local ASKED, CB, PICK, CANCELLED = nil, nil, nil, 0
+    PROVIDED["screenshots.captureRegionTo"] = function(secs, cb, onPicked)
+        ASKED = secs; CB = cb; PICK = onPicked; return true
     end
+    PROVIDED["screenshots.cancelSelect"] = function() CANCELLED = CANCELLED + 1 end
     JS, ALERTS, EVENTS, TIMERS, DEGRADES = {}, {}, {}, {}, {}
     BRIDGE({ body = { a = "delay" } })
-    c11("⌘D asks screenshots.captureScreenTo for the CONFIGURED seconds",
-        ASKED == 5 and type(CB) == "function", ASKED)
-    c11("…and the alert says how long he has to arrange the screen",
-        (ALERTS[#ALERTS] or ""):find("5 seconds", 1, true) ~= nil, ALERTS[#ALERTS])
-    c11("🪟 the editor HIDES — a full-screen shot taken over it is a "
-        .. "picture of it", E.hidden == true)
+    c11("🪟 the editor HIDES — an area dragged around a window that is still "
+        .. "there is an area containing the editor",
+        E.hidden == true)
     c11("🚨 THE BELT IS ARMED BEFORE THE WINDOW GOES (6.246.0's ordering): "
         .. "a hide with no way back is the failure this release could cause",
         EVENTS[1] == "timer" and EVENTS[2] == "hide",
         table.concat(EVENTS, ","))
-    c11("…and the belt waits the countdown PLUS the grace, in its own slot",
-        #TIMERS == 1 and TIMERS[1].secs == 5 + E.delayGraceSecs
-        and E.delayTimer ~= nil, TIMERS[1] and TIMERS[1].secs)
-    -- a second ⌘D while one is counting down
+    -- 🚨 THE SETTLE BEAT IS NEW TO ⌘D, and it is the 6.256.0 finding one
+    -- surface on: the old ⌘D hid behind screencapture's own -T, so
+    -- nothing of ours had to wait for the window to leave. Now the
+    -- SELECTOR draws next, and :hide() is not instant.
+    c11("🚨 …and the SELECTOR is not asked for until the window has had a "
+        .. "beat to leave the screen",
+        EVENTS[3] == "timer" and ASKED == nil, table.concat(EVENTS, ","))
+    -- 🪜 LEG 1 IS THE LONG ONE, and this is the whole difference from
+    -- 6.255.0: asserting `secs + grace` here passes with the long leg
+    -- deleted, and then a belt fires five seconds into a drag he has not
+    -- finished — the window comes back INTO the area he is choosing.
+    c11("🪜 LEG 1 waits regionGraceSecs, not the countdown — the selector "
+        .. "waits on a hand and nothing can say how long that is",
+        #TIMERS >= 1 and TIMERS[1].secs == E.regionGraceSecs + E.delayGraceSecs
+        and E.regionGraceSecs > E.delaySecs, TIMERS[1] and TIMERS[1].secs)
+    TIMERS[2].fn()       -- the settle beat passes
+    c11("⌘D asks screenshots.captureRegionTo for the CONFIGURED seconds, "
+        .. "with a callback AND a picked-the-rectangle hook",
+        ASKED == 5 and type(CB) == "function" and type(PICK) == "function", ASKED)
+    -- a second ⌘D while one is open
     local before = #TIMERS
     BRIDGE({ body = { a = "delay" } })
-    c11("a second ⌘D mid-countdown is refused — one countdown, one shot",
+    c11("a second ⌘D mid-selection is refused — one selector, one shot",
         #TIMERS == before
         and (ALERTS[#ALERTS] or ""):find("already running", 1, true) ~= nil,
         ALERTS[#ALERTS])
 
+    -- ---- the rectangle is picked ---------------------------------------
+    ALERTS, EVENTS, TIMERS = {}, {}, {}
+    PICK({ x = 10, y = 20, w = 1280, h = 720 })
+    c11("📐 the countdown alert names the RECTANGLE and the seconds — the "
+        .. "whole point is that he can see what will be shot",
+        (ALERTS[#ALERTS] or ""):find("1280 × 720", 1, true) ~= nil
+        and (ALERTS[#ALERTS] or ""):find("5 seconds", 1, true) ~= nil,
+        ALERTS[#ALERTS])
+    c11("🪜 LEG 2 RE-ARMS SHORT: the drag is over, so a 93-second last "
+        .. "resort would leave the window hidden long after a dead capture",
+        #TIMERS == 1 and TIMERS[1].secs == 5 + E.hideSettleSecs + E.delayGraceSecs,
+        TIMERS[1] and TIMERS[1].secs)
+
     -- the capture lands
     local markerEncode = hs.base64.encode
-    hs.base64.encode = function() return "RlVMTFNDUkVFTg==" end
-    READABLE["/x/Full.png"] = "FULLSCREEN"
+    hs.base64.encode = function() return "UkVHSU9O" end
+    READABLE["/x/Region.png"] = "REGION"
     FOCUSED = false
-    CB("/x/Full.png")
+    CB("/x/Region.png", nil, "region")
     hs.base64.encode = markerEncode
     c11("🚨 the window comes BACK the moment the capture answers",
         E.hidden == false and VIEW.shown == true)
     c11("…and it asks for the keyboard once, rather than leaving a window "
         .. "that is up but not key (6.251.0)", FOCUSED == true)
-    c11("…and the shot lands on the canvas as addImage(<data URI>, w, h)",
-        JS[#JS] == "addImage('data:image/png;base64,RlVMTFNDUkVFTg==', 800, 600)",
+    c11("…and the rectangle lands on the canvas as addImage(<data URI>, w, h)",
+        JS[#JS] == "addImage('data:image/png;base64,UkVHSU9O', 800, 600)",
         JS[#JS])
     c11("…counted as LANDED, and nothing degraded",
         E.delays.landed == 1 and E.delays.failed == 0 and #DEGRADES == 0)
-    c11("…and the countdown is over, so ⌘D works again",
-        E.delayBusy == false)
+    c11("…and the run is over, so ⌘D works again", E.delayBusy == false)
+
+    -- ---- Esc on the selector -------------------------------------------
+    -- 🚨 A CANCEL IS NOT A FAILURE. He pressed Esc, or his drag was too
+    -- small to capture; a tool that takes the 🔔 door over a decision he
+    -- made is a tool he stops reading (6.269.0).
+    JS, ALERTS, EVENTS, DEGRADES, TIMERS = {}, {}, {}, {}, {}
+    BRIDGE({ body = { a = "delay" } })
+    TIMERS[2].fn()
+    local pushedBefore = #JS
+    CB(nil, "the selection was cancelled", "cancelled")
+    c11("Esc on the selector: the editor is BACK and nothing was pushed",
+        E.hidden == false and VIEW.shown == true and #JS == pushedBefore)
+    c11("🚨 …counted as CANCELLED, never as a capture that failed",
+        E.delays.cancelled == 1 and E.delays.failed == 0, E.delays.failed)
+    c11("🔕 …and it does NOT take the 🔔 door — he cancelled on purpose",
+        #DEGRADES == 0, DEGRADES[1] and DEGRADES[1].why)
+    c11("…but it SAYS so, quietly: a window that reappears with no "
+        .. "explanation is 6.320.0's refusal nobody can act on",
+        (ALERTS[#ALERTS] or ""):find("Nothing captured", 1, true) ~= nil,
+        ALERTS[#ALERTS])
 
     -- ---- the capture fails ---------------------------------------------
-    JS, ALERTS, EVENTS, DEGRADES = {}, {}, {}, {}
+    JS, ALERTS, EVENTS, DEGRADES, TIMERS = {}, {}, {}, {}, {}
     BRIDGE({ body = { a = "delay" } })
-    local pushed = #JS
-    CB(nil, "screencapture exit 1 — could not create image")
+    TIMERS[2].fn()
+    pushedBefore = #JS
+    CB(nil, "screencapture exit 1 — could not create image", "region")
     c11("a capture that did not land: the window is back, nothing pushed",
-        E.hidden == false and #JS == pushed)
+        E.hidden == false and #JS == pushedBefore)
     c11("🔔 …and it takes the DOOR with screencapture's own words — a "
         .. "silence here is a shot he thinks he took",
         #DEGRADES == 1
         and DEGRADES[1].why:find("could not create image", 1, true) ~= nil,
         DEGRADES[1] and DEGRADES[1].why)
-    c11("…counted as FAILED, apart from the ones that landed",
-        E.delays.failed == 1 and E.delays.landed == 1)
+    c11("…counted as FAILED, apart from the ones that landed and the ones "
+        .. "he cancelled",
+        E.delays.failed == 1 and E.delays.landed == 1 and E.delays.cancelled == 1)
 
-    -- ---- the belt ------------------------------------------------------
+    -- ---- the belt, leg 2 ------------------------------------------------
     JS, ALERTS, EVENTS, DEGRADES, TIMERS = {}, {}, {}, {}, {}
     BRIDGE({ body = { a = "delay" } })
-    c11("the window is hidden and waiting", E.hidden == true and #TIMERS == 1)
-    TIMERS[1].fn()      -- the countdown passed and NOTHING ever answered
+    TIMERS[2].fn()
+    PICK({ x = 0, y = 0, w = 400, h = 300 })
+    local leg2 = TIMERS[#TIMERS]
+    c11("the window is hidden and the countdown leg is armed",
+        E.hidden == true and leg2.secs == 5 + E.hideSettleSecs + E.delayGraceSecs)
+    leg2.fn()           -- the countdown passed and NOTHING ever answered
     c11("🚨 THE BELT BRINGS THE WINDOW BACK when the capture never answers "
         .. "— his work is in a live page he cannot see otherwise",
         E.hidden == false and VIEW.shown == true)
@@ -742,26 +821,56 @@ do
         E.delays.late == 1)
     c11("…and the busy flag is cleared, so ⌘D is not dead for the session",
         E.delayBusy == false)
-    -- the late CB arriving after the belt must not hide anything again
-    CB(nil, "too late")
+    CB(nil, "too late", "region")
     c11("a callback that arrives after the belt cannot re-hide the window",
         E.hidden == false)
+
+    -- ---- the belt, LEG 1, with the selector still open ------------------
+    -- 📐 6.342.0's own hazard, and it is new: the belt can now fire while
+    -- a selector is STILL UP, because the selector waits on a hand.
+    -- Bringing the editor back under a live selector would put it in the
+    -- very area he is dragging — so the belt ENDS the selector, and the
+    -- ordinary cancel path then resolves the run.
+    JS, ALERTS, EVENTS, DEGRADES, TIMERS = {}, {}, {}, {}, {}
+    E.delays = { asked = 0, landed = 0, failed = 0, late = 0, cancelled = 0 }
+    CANCELLED = 0
+    BRIDGE({ body = { a = "delay" } })
+    local leg1 = TIMERS[1]
+    TIMERS[2].fn()                 -- settle; the selector is now open
+    c11("the selector is open and the editor is hidden",
+        E.hidden == true and E.regionRunning == true and type(CB) == "function")
+    -- the real module cancels the selector, which answers through cb
+    PROVIDED["screenshots.cancelSelect"] = function()
+        CANCELLED = CANCELLED + 1
+        CB(nil, "the selection was cancelled", "cancelled")
+    end
+    leg1.fn()
+    c11("🚨 LEG 1 ENDS THE SELECTOR rather than reappearing underneath it "
+        .. "— a window brought back under a live selector is a window in "
+        .. "the area he is choosing",
+        CANCELLED == 1 and E.hidden == false and E.regionRunning == false)
+    c11("🚨 …and the belt does NOT also count a late return: the cancel "
+        .. "resolved the run, so one event is reported once",
+        E.delays.cancelled == 1 and E.delays.late == 0,
+        tostring(E.delays.cancelled) .. "/" .. tostring(E.delays.late))
+    PROVIDED["screenshots.cancelSelect"] = function() CANCELLED = CANCELLED + 1 end
 
     -- ---- a Mac that cannot arm a timer ---------------------------------
     JS, ALERTS, EVENTS, DEGRADES, TIMERS = {}, {}, {}, {}, {}
     NO_TIMER = true
     BRIDGE({ body = { a = "delay" } })
-    c11("🚨 NO TIMER, NO HIDE: a shot that contains the editor is a bad "
+    c11("🚨 NO TIMER, NO HIDE: an area that contains the editor is a bad "
         .. "picture; a window that cannot come back is lost work",
         E.hidden == false and #EVENTS == 0, table.concat(EVENTS, ","))
     NO_TIMER = false
-    CB("/x/Full.png")
+    CB("/x/Region.png", nil, "region")
 
     -- ---- no hswindow ----------------------------------------------------
     JS, ALERTS, EVENTS, DEGRADES, TIMERS = {}, {}, {}, {}, {}
     NO_HSWINDOW, FOCUSED = true, false
     BRIDGE({ body = { a = "delay" } })
-    CB(nil, "no")
+    TIMERS[2].fn()
+    CB(nil, "no", "region")
     c11("a Mac whose window cannot be named still gets its editor back",
         E.hidden == false and FOCUSED == false)
     NO_HSWINDOW = false
@@ -774,20 +883,35 @@ do
         rpt:find("capture :", 1, true) ~= nil
         and rpt:find("landed", 1, true) ~= nil
         and rpt:find("failed", 1, true) ~= nil, rpt)
+    -- 📐 6.342.0 — the report NAMES THE SHAPE, because a build that still
+    -- hides and shoots the whole screen reads identically otherwise.
+    c11("📐 …and it says what ⌘D does now — drag an area, then the seconds, "
+        .. "then that rectangle",
+        rpt:find("drag an area", 1, true) ~= nil
+        and rpt:find("that rectangle", 1, true) ~= nil, rpt)
+    -- the belt line is about WORDING: a return the belt made must be
+    -- named, never folded into the ordinary counts (6.196.1). The run
+    -- above deliberately left `late` at 0 to prove leg 1 does not
+    -- double-report, so the state is set here rather than borrowed.
+    E.delays.late = 1
     c11("…it names the belt's returns rather than printing health",
-        rpt:find("brought back by the belt", 1, true) ~= nil, rpt)
+        _G.screenshotEditorReport():find("brought back by the belt", 1, true) ~= nil)
     c11("…and it carries the settings line that turns the hiding off",
         rpt:find("hideForDelay", 1, true) ~= nil
         and rpt:find("delaySecs = 5", 1, true) ~= nil, rpt)
+    -- a cancel has to be visible in the report, or Esc is a silent number
+    E.delays.cancelled = 3
+    c11("🔎 …and a cancelled selection is in the report, not only in a counter",
+        _G.screenshotEditorReport():find("3 cancelled", 1, true) ~= nil)
     -- 6.196.1 — never asked must not read like asked-and-nothing-happened
-    E.delays = { asked = 0, landed = 0, failed = 0, late = 0 }
+    E.delays = { asked = 0, landed = 0, failed = 0, late = 0, cancelled = 0 }
     local fresh = _G.screenshotEditorReport()
     c11("🔎 never asked reads differently from asked and failed",
         fresh:find("never asked", 1, true) ~= nil
         and fresh:find("0 asked", 1, true) == nil, fresh)
 
     E.close()
-    check("§11 ran every one of its checks", n11 == 36, n11)
+    check("§11 ran every one of its checks", n11 == 49, n11)
 end
 
 -- =====================================================================

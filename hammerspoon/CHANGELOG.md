@@ -5,6 +5,132 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.342.0 — 📐 ⌘D IS THE ⇧⌘5 SHAPE: DRAG THE AREA, THEN COUNT
+  DOWN, THEN SHOOT IT (modules/screenshot_editor.lua + screenshots.lua)
+
+LL, with a screenshot of the editor: "⌘D says I have five seconds to
+setup, shows no crosshairs, and then in the screenshot of the editor, a
+screenshot of the desktop is places on it. In fact, those four
+screenshot tools run weird."
+
+🔎 THAT IS WHAT 6.255.0 BUILT, and saying so first matters: hide the
+editor · count five seconds down · shoot the WHOLE screen · land it on
+the shot as a movable image. No selector, no crosshairs, by design. So
+nothing was broken. What he described is macOS's own ⇧⌘5 order — drag
+the area FIRST, then the countdown, then the shot — and when I put that
+to him he answered "Go ahead with the ⌘+⇧+5 shape for ⌘+D".
+
+🚪 OUR SELECTOR, NEVER `screencapture -i`, and that is a constraint
+rather than a preference. 6.337.0 established that `-i` CANNOT report
+where you dragged — it is precisely why ⌘5 "repeat area" lost its
+rectangle when ⇪4 went native — and this shape has to HOLD a rectangle
+across a countdown before it can shoot it. Our own selector answers the
+rect, carries the crosshairs (6.318.0) and the live W × H (6.260.0), and
+is the same selector ⇪5 and the editor's ⌘A already drag on. So every
+piece of this is KNOWN GROUND rather than a new macOS surface.
+
+⏱ AND THE COUNTDOWN IS OURS, not screencapture's `-T`. Whether `-T`
+is honoured alongside `-R` is a platform belief this container cannot
+check, and 6.233.0 is explicit that a platform fact deciding an
+architecture is read in the source with the file named. So the wait is a
+HELD `hs.timer.doAfter` in its own slot (6.196.1) and the shot is the
+`-x -R` this module has used since it was written.
+
+🪜 TWO BELT LEGS, AND THAT IS THE WHOLE RISK IN THE RELEASE. ⌘F and the
+old ⌘D both knew exactly how long the editor would be hidden, so ONE
+belt armed before the hide covered it (6.255.0's three rules). This one
+waits on a HAND: the selector may be open for a second or a minute. So
+leg 1 is a long last resort (`regionGraceSecs`, 90) for the drag, and
+the moment a rectangle exists leg 2 re-arms SHORT for the countdown and
+the shutter — 6.304.0's one-belt-per-leg, re-armed for the second. A
+single belt would either fire over a live selector or leave the window
+hidden a minute and a half after a capture had died.
+
+🚨 AND THE BELT NOW ENDS A SELECTOR THAT IS STILL OPEN. This hazard is
+new to this release and it is the one worth naming: leg 1 can fire while
+the overlay is up, and bringing the editor back underneath it would put
+the editor in the very area he is dragging. So the belt's first act is
+`ed.stopRegion()`, which asks the module that OWNS the selector to cancel
+it; that resolves the run through the ordinary cancel path, clearing
+`hidden` and `delayBusy` — and the belt's own existing guard then returns
+without ALSO counting a late return. One event, reported once.
+
+🪪 WHICH NEEDED THE SELECTOR TO BE ABLE TO SAY "CANCELLED", and it could
+not. `shots.cancelSelect()` tore the overlay down and told its caller
+NOTHING, so Esc on a ⌘D selector would have left the editor hidden until
+a belt that then says "the delayed capture never answered" — a lie about
+a selection the person deliberately abandoned. `shots.selectArea` takes
+an OPTIONAL `onCancel` now (6.299.0's `onDone` shape: four of its five
+callers pass nothing and are unchanged), held in one slot, fired ONCE
+and cleared — on Esc, on a drag too small to capture, and when a newer
+selector supersedes an older one. It is NOT fired for the four
+synchronous refusals, which answer `false, why` on the spot: telling the
+caller twice is 6.299.0 broken in the other direction.
+
+🚨 A CANCEL IS NOT A FAILURE. He pressed Esc, or his drag measured 3 × 2;
+a tool that takes the 🔔 door over a decision he made is a tool he stops
+reading (6.269.0). `ed.delays.cancelled` is its own count, the alert is
+quiet and says the editor is back, and nothing degrades. A sum of
+"failed" and "cancelled" would make his own choice read as a fault.
+
+🚨 AND THE SETTLE BEAT MATTERS HERE IN A WAY IT DID NOT BEFORE. The old
+⌘D hid behind screencapture's own `-T`, so nothing of ours had to wait
+for the window to leave the screen. Now the SELECTOR draws next, and
+`:hide()` is not instant — which is 6.256.0's finding one surface on. A
+selector drawn over a window that has not gone yet is an area he drags
+around the editor.
+
+📐 `shots.regionPlan` is PURE with FOUR answers, because two of them
+take the same action and differ only in whether it is a degrade: his
+rectangle after the countdown · his rectangle AT ONCE because this Mac
+would not arm a timer · his rectangle now because no countdown was asked
+for · the whole screen because our selector would not draw. The check
+that bites is the pair at `delay = 0`, where a Mac that cannot arm a
+timer must NOT read as a refusal (6.338.0's rule, and 6.230.0's: pick the
+input where the right and wrong implementations must differ).
+
+🚪 THE OLD SHAPE IS THE DEGRADE, not a dead key: a Mac that cannot draw
+our canvas gets the whole screen after the countdown, exactly as ⌘D has
+done for eighty-seven releases, the 🔔 door is taken with macOS's own
+reason, and the caller is told WHICH shape it got so it can say so.
+6.265.0's lesson — the fallback has to be REACHABLE, and the one value
+that says whether the selector drew is READ (6.179.0, three values).
+
+🔎 COUNTED APART in `_G.screenshotsReport()`'s new `region :` line, with
+a ⚠️ on the fallback: a whole-screen image and a region image can look
+identical when the region was most of the screen, and only one of them
+is a degrade (6.274.0's reason for counting ⇪4's two routes). And
+`_G.screenshotEditorReport()` now NAMES THE SHAPE outright — a build
+that still hides and shoots the whole screen reads identically otherwise.
+
+📏 `ed.grabPlan` gains a `what` parameter for the same reason it has
+`needDelay`: ⌘D captures the area he drags and ⌘F captures the whole
+screen, and one plan saying "the whole screen" about both is a reason
+that lies on one of its two callers (6.196.0's `choicesFrom` rule, in a
+guard). Default unchanged, so ⌘F reads exactly as it did.
+
+🏷 THE BUTTON SAYS SO. "⏲ Delayed 5s" described a shape this release
+replaced, and a card promising behaviour that no longer happens is a
+broken feature (6.181.0). It reads "⏲ Area +5s" with a hover spelling
+out the order, both built from `ed.delaySecs` — move the config and the
+label, the hover and the page's own DELAYSECS all move, or they were
+three numbers (6.239.0).
+
+🔬 AND THE GATE RATCHETS: test_stub_fidelity §6c fails any
+`captureRegionTo` stub that drops `onPicked`, which is 6.290.0's rule on
+a brand-new contract — a stub without it makes the leg-2 swap
+unreachable, and the failure it hides is the editor reappearing on top of
+a live selector. The `cancelSelect` contract is NAMED in §7's
+written-down list instead, because a suite legitimately needs a quiet
+stub for every check that is not about leg 1, and a static sentry there
+would cry wolf on correct tests (6.269.0).
+
+📏 NAMED, NOT CHANGED: ⌘F is untouched — one change per release — and so
+is ⇪4, which is still macOS's own crosshair after 6.337.0. ⌘A (add
+capture) still drags and shoots at once, with no countdown, which is
+what it is for.
+
+
 NEW IN 6.341.0 — 🔁 THE SHOT KEEPS THE CLIPBOARD; ⇪⇧4 IS THE OCR DOOR
   (modules/screenshots.lua)
 

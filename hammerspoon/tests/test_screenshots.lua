@@ -3574,6 +3574,323 @@ do
        (pass + fail) - n21 == 10, (pass + fail) - n21)
 end
 
+
+-- =====================================================================
+out("\n22. 📐 6.342.0 — ⌘D IS THE ⇧⌘5 SHAPE (drag, count down, shoot)\n")
+-- =====================================================================
+-- LL, on 6.255.0's ⌘D: "⌘D says I have five seconds to setup, shows no
+-- crosshairs, and then in the screenshot of the editor, a screenshot of
+-- the desktop is placed on it." That is what that release built — and
+-- his expectation is macOS's own ⇧⌘5 order, which he then asked for.
+--
+-- 🚪 OUR SELECTOR, NEVER `-i`, and 6.337.0 is why: `screencapture -i`
+-- cannot report where you dragged (it is exactly what cost ⌘5 "repeat
+-- area" its rectangle), and this shape has to HOLD a rectangle across a
+-- countdown before it can shoot it.
+do
+    local n22 = pass + fail
+    local function c(l, cond, e) check("   " .. l, cond, e) end
+
+    -- 🧪 6.186.0 — the helpers answer falsely rather than indexing a nil,
+    -- so a mutation that renames the thing under test fails a check
+    -- instead of ending the run with "0 failed" never printed.
+    c("…there IS a pure plan to drive", type(S.regionPlan) == "function")
+    c("…and a region door to drive", type(S.captureRegionTo) == "function")
+    local function PLAN(st, why, canT, d)
+        if type(S.regionPlan) ~= "function" then return "no regionPlan", "" end
+        local how, note = S.regionPlan(st, why, canT, d)
+        return tostring(how), tostring(note)
+    end
+
+    -- ---- ✏️ PURE: four answers, and the pairs that must differ ---------
+    do
+        local how, note = PLAN(true, nil, true, 5)
+        c("a selector that started and a countdown that armed → his rectangle",
+          how == "region" and note:find("5 second", 1, true) ~= nil, note)
+    end
+    do
+        local how, note = PLAN(false, "hs.canvas would not make the selector", nil, 5)
+        c("🚨 a selector that could NOT start → the whole screen, and the "
+          .. "reason macOS gave rides into the sentence",
+          how == "screen" and note:find("whole screen", 1, true) ~= nil
+          and note:find("hs.canvas", 1, true) ~= nil, note)
+    end
+    c("…and a refusal with no reason still says there was none, rather "
+      .. "than printing nil into his report (6.196.1)",
+      select(2, PLAN(false, nil, nil, 5)):find("no reason given", 1, true) ~= nil)
+    do
+        local how, note = PLAN(true, nil, false, 5)
+        c("🚨 a rectangle but NO countdown timer → shot at once, and it "
+          .. "says so: the rectangle is worth more than the five seconds",
+          how == "now" and note:find("at once", 1, true) ~= nil, note)
+    end
+    -- 🧪 THE FIXTURE THAT BITES (6.338.0's rule): delay 0 and canTimer
+    -- false take the SAME ACTION as delay 0 and canTimer true — shoot
+    -- now — and differ only in whether that is a degrade. A check that
+    -- asserted the action would pass with the `delay > 0` guard deleted,
+    -- and then every ⌘F-shaped call would report a timer failure that
+    -- never happened.
+    do
+        local howA, noteA = PLAN(true, nil, false, 0)
+        local howB, noteB = PLAN(true, nil, true, 0)
+        c("🚨 with NO countdown asked for, a Mac that cannot arm one is "
+          .. "not a degrade — both read as his rectangle, and neither "
+          .. "blames the timer",
+          howA == "region" and howB == "region"
+          and noteA:find("at once", 1, true) == nil
+          and noteA == noteB, howA .. " / " .. noteA)
+    end
+
+    -- ---- 🚪 THE DOOR, DRIVEN END TO END --------------------------------
+    local keptDefer, keptPending = DEFER_TIMERS, PENDING
+    local keptAt, keptBtn = MOUSE_AT, BUTTONS
+    local keptNat = S.areaNative
+    S.areaNative = false
+    S.regionRuns = { asked = 0, region = 0, now = 0, screen = 0, cancelled = 0 }
+    S.regionLast = nil
+
+    -- the whole point of onPicked: the caller is told the instant a
+    -- rectangle exists, because that is when its belt has to change leg
+    local GOT, WHY, HOW, PICKED, CANCELS = nil, nil, nil, nil, 0
+    local function reset()
+        GOT, WHY, HOW, PICKED = nil, nil, nil, nil
+        TASKS = {}
+    end
+    local function CB(p, w, h) GOT, WHY, HOW = p, w, h end
+    local function ONPICK(r) PICKED = r end
+
+    DEFER_TIMERS = true ; PENDING = {}
+    reset()
+    local started = S.captureRegionTo(5, CB, ONPICK)
+    c("the door answers true and opens OUR selector, not `-i`",
+      started == true and _G.__lastCanvas ~= nil
+      and #TASKS == 0, tostring(started))
+    local cv = _G.__lastCanvas
+    cv.cb(cv, "mouseDown", "_canvas_", 100, 100)
+    cv.cb(cv, "mouseUp", "_canvas_", 420, 280)
+    c("🔑 THE CALLER IS TOLD THE MOMENT THE RECTANGLE EXISTS — without "
+      .. "this signal a caller holding a hidden window cannot tell a "
+      .. "drag that is still open from a countdown that has started",
+      PICKED ~= nil and PICKED.w == 320 and PICKED.h == 180,
+      PICKED and (PICKED.w .. "x" .. PICKED.h) or "nil")
+    c("🚨 …and NOTHING IS SHOT YET: the countdown is the whole feature, "
+      .. "and a shot fired on the mouseUp is 6.255.0's ⌘A, not ⌘D",
+      #TASKS == 0 and GOT == nil, #TASKS)
+    local armed = nil
+    for _, t in ipairs(PENDING) do if not t.stopped then armed = t end end
+    c("…the countdown is a HELD timer in its own slot, for the seconds "
+      .. "it was asked for (6.196.1)",
+      armed ~= nil and armed.secs == 5 and S.regionTimer ~= nil,
+      armed and armed.secs)
+
+    armed.fn()        -- the five seconds pass
+    c("…and NOW it shoots, with -x -R over the rectangle he dragged",
+      #TASKS == 1
+      and table.concat(TASKS[1].args, " "):find("-R100,100,320,180", 1, true) ~= nil
+      and table.concat(TASKS[1].args, " "):find("-x", 1, true) ~= nil,
+      TASKS[1] and table.concat(TASKS[1].args, " "))
+    c("🎁 …and ⌘5 'repeat area' gets that rectangle for free — the one "
+      .. "thing `-i` can never hand back (6.337.0's named cost)",
+      S.lastRect ~= nil and S.lastRect.w == 320 and S.lastRect.h == 180)
+    local shot = TASKS[1].args[#TASKS[1].args]
+    FILES[shot] = { size = 7777, modification = 1000 }
+    FIRE(TASKS[1], 0, "", "")
+    c("…the path reaches the caller, with no reason and the shape named",
+      GOT == shot and WHY == nil and HOW == "region", tostring(GOT))
+    c("…and the run is recorded as his rectangle",
+      S.regionRuns.region == 1 and S.regionRuns.asked == 1
+      and (S.regionLast or {}).w == 320, S.regionRuns.region)
+
+    -- ---- 📏 a zero-byte file is a FAILURE (6.255.0's verdict) ----------
+    reset()
+    PENDING = {}
+    S.captureRegionTo(5, CB, ONPICK)
+    local cv2 = _G.__lastCanvas
+    cv2.cb(cv2, "mouseDown", "_canvas_", 0, 0)
+    cv2.cb(cv2, "mouseUp", "_canvas_", 200, 150)
+    for _, t in ipairs(PENDING) do if not t.stopped then t.fn() end end
+    local shot2 = TASKS[#TASKS].args[#TASKS[#TASKS].args]
+    FILES[shot2] = { size = 0, modification = 1000 }
+    FIRE(TASKS[#TASKS], 0, "", "")
+    c("📏 exit 0 with a zero-byte file is a FAILURE, not a path — "
+      .. "screencapture writes one and a caller handed it opens nothing",
+      GOT == nil and tostring(WHY):find("no file was written", 1, true) ~= nil
+      and HOW == "region", tostring(WHY))
+
+    -- ---- 🪪 Esc ON THE SELECTOR, which nobody could hear before --------
+    -- `shots.cancelSelect()` tore the overlay down and told the caller
+    -- NOTHING, so a caller that had hidden a window sat waiting on a
+    -- belt that would then say "the capture never answered" — a lie
+    -- about a selection the person deliberately abandoned.
+    reset()
+    PENDING = {}
+    S.captureRegionTo(5, CB, ONPICK)
+    local cv3 = _G.__lastCanvas
+    cv3.cb(cv3, "mouseDown", "_canvas_", 10, 10)
+    S.cancelSelect()
+    c("🪪 Esc ANSWERS THE CALLER: no path, a reason, and 'cancelled' so a "
+      .. "cancel is never reported as a capture that failed",
+      GOT == nil and HOW == "cancelled"
+      and tostring(WHY):find("cancelled", 1, true) ~= nil, tostring(WHY))
+    c("…counted apart from a fallback and from a rectangle (6.196.1)",
+      S.regionRuns.cancelled == 1 and S.regionRuns.screen == 0,
+      S.regionRuns.cancelled)
+    c("…and the real Esc key is what reaches it — keyDown 53, swallowed",
+      S.selEscape({ getKeyCode = function() return 53 end }) == true
+      and S.selEscape({ getKeyCode = function() return 36 end }) == false)
+
+    -- ---- 🪪 A DRAG TOO SMALL IS A CANCEL FOR THE CALLER ----------------
+    -- The overlay goes and an alert names the size (6.320.0), but no
+    -- rectangle is coming — so a caller holding a hidden window has to
+    -- be let go here too, or the only way back is the belt.
+    reset()
+    PENDING = {}
+    S.regionRuns.cancelled = 0
+    S.captureRegionTo(5, CB, ONPICK)
+    local cv4 = _G.__lastCanvas
+    cv4.cb(cv4, "mouseDown", "_canvas_", 50, 50)
+    cv4.cb(cv4, "mouseUp", "_canvas_", 53, 52)
+    c("🪪 a 3 × 2 drag answers the caller with the SIZE, not a silence",
+      GOT == nil and HOW == "cancelled"
+      and tostring(WHY):find("3 × 2", 1, true) ~= nil
+      and #TASKS == 0, tostring(WHY))
+
+    -- ---- 🚨 ONE ANSWER, NEVER TWO --------------------------------------
+    -- `finishAt` calls cancelSelect on its way to `cb(rect)`, so the
+    -- cancel slot has to be taken BEFORE the teardown — otherwise the
+    -- caller is told "cancelled" one line before it is handed a
+    -- rectangle, which is worse than being told nothing.
+    reset()
+    PENDING = {}
+    local answers = {}
+    S.captureRegionTo(5, function(p, w, h) answers[#answers + 1] = tostring(h) end,
+                      ONPICK)
+    local cv5 = _G.__lastCanvas
+    cv5.cb(cv5, "mouseDown", "_canvas_", 0, 0)
+    cv5.cb(cv5, "mouseUp", "_canvas_", 300, 200)
+    c("🚨 a good drag answers ONCE, and it is not 'cancelled'",
+      #answers == 0, table.concat(answers, ","))
+    for _, t in ipairs(PENDING) do if not t.stopped then t.fn() end end
+    local shot5 = TASKS[#TASKS].args[#TASKS[#TASKS].args]
+    FILES[shot5] = { size = 500, modification = 1000 }
+    FIRE(TASKS[#TASKS], 0, "", "")
+    c("…and the one answer it gets is the region, never a cancel",
+      #answers == 1 and answers[1] == "region", table.concat(answers, ","))
+
+    -- ---- 🚪 THE SELECTOR REFUSES → THE OLD SHAPE IS THE DEGRADE --------
+    -- 6.265.0's lesson: the fallback has to be REACHABLE. ⌘D did the
+    -- whole screen after a countdown for eighty-seven releases and still
+    -- works on a Mac that cannot draw a canvas.
+    reset()
+    PENDING = {}
+    local degBefore = #DEGRADES
+    local realNew = hs.canvas.new
+    hs.canvas.new = function() return nil end
+    local ok2 = S.captureRegionTo(5, CB, ONPICK)
+    hs.canvas.new = realNew
+    c("🚪 a Mac that cannot draw the selector still CAPTURES — the whole "
+      .. "screen, with screencapture's own -T countdown",
+      ok2 == true and #TASKS == 1
+      and table.concat(TASKS[1].args, " "):find("-T 5", 1, true) ~= nil
+      and table.concat(TASKS[1].args, " "):find("-R", 1, true) == nil,
+      TASKS[1] and table.concat(TASKS[1].args, " "))
+    c("🔔 …and it takes the DOOR rather than silently changing shape — a "
+      .. "whole-screen image where he dragged a rectangle is a surprise",
+      #DEGRADES > degBefore
+      and DEGRADES[#DEGRADES].why:find("whole screen", 1, true) ~= nil,
+      DEGRADES[#DEGRADES] and DEGRADES[#DEGRADES].why)
+    local shot6 = TASKS[1].args[#TASKS[1].args]
+    FILES[shot6] = { size = 4242, modification = 1000 }
+    FIRE(TASKS[1], 0, "", "")
+    c("…and the caller is told WHICH shape it got, so it can say so",
+      GOT == shot6 and HOW == "screen", tostring(HOW))
+    c("…counted as a fallback, which is the number that must never read "
+      .. "as a rectangle (6.274.0's reason for counting ⇪4's routes)",
+      S.regionRuns.screen == 1)
+
+    -- ---- 🔔 A MAC THAT CANNOT ARM THE COUNTDOWN ------------------------
+    reset()
+    PENDING = {}
+    degBefore = #DEGRADES
+    local realAfter = hs.timer.doAfter
+    hs.timer.doAfter = function() return nil end
+    S.regionTimer = nil
+    S.captureRegionTo(5, CB, ONPICK)
+    local cv7 = _G.__lastCanvas
+    cv7.cb(cv7, "mouseDown", "_canvas_", 0, 0)
+    cv7.cb(cv7, "mouseUp", "_canvas_", 100, 100)
+    hs.timer.doAfter = realAfter
+    c("🔔 no countdown timer: it shoots the rectangle AT ONCE rather than "
+      .. "not at all, and the degrade names what he lost",
+      #TASKS == 1
+      and table.concat(TASKS[1].args, " "):find("-R0,0,100,100", 1, true) ~= nil
+      and #DEGRADES > degBefore
+      and DEGRADES[#DEGRADES].why:find("at once", 1, true) ~= nil,
+      DEGRADES[#DEGRADES] and DEGRADES[#DEGRADES].why)
+    c("…counted as 'now', apart from the ones that waited",
+      S.regionRuns.now == 1)
+
+    -- ---- 🚨 THE SYNCHRONOUS REFUSALS MUST NOT ALSO CALL onCancel -------
+    -- They answer `false, why` to the caller on the spot; telling it
+    -- again later is 6.299.0's "exactly once, through one door" broken
+    -- in the other direction.
+    do
+        local told = 0
+        local realNew2 = hs.canvas.new
+        hs.canvas.new = function() return nil end
+        local okS, why2 = S.selectArea(function() end, function() told = told + 1 end)
+        hs.canvas.new = realNew2
+        c("🚨 a selector that never drew answers false, why — and does NOT "
+          .. "also call onCancel for a selection that never existed",
+          okS == false and type(why2) == "string" and told == 0,
+          tostring(okS) .. " / " .. tostring(told))
+    end
+
+    -- ---- 🪪 A SUPERSEDING SELECTOR TELLS THE FIRST CALLER --------------
+    do
+        local told = 0
+        S.selectArea(function() end, function() told = told + 1 end)
+        S.selectArea(function() end)        -- a second press
+        c("🪪 a second selector supersedes the first, and the first "
+          .. "caller is TOLD — it may be holding a hidden window",
+          told == 1, told)
+        S.cancelSelect()
+    end
+
+    -- ---- 🔎 THE REPORT -------------------------------------------------
+    do
+        local keptRuns, keptLast = S.regionRuns, S.regionLast
+        S.regionRuns = { asked = 0, region = 0, now = 0, screen = 0, cancelled = 0 }
+        S.regionLast = nil
+        c("🔎 never pressed reads as never pressed, not as nothing happened",
+          RPT():find("⌘D in the editor has not been pressed", 1, true) ~= nil)
+        S.regionRuns = { asked = 4, region = 2, now = 0, screen = 1, cancelled = 1 }
+        S.regionLast = { how = "region", why = "your rectangle, after a 5 second countdown",
+                         at = 1000, w = 320, h = 180 }
+        local r = RPT()
+        c("…and the three outcomes are counted apart, with a ⚠️ on the one "
+          .. "that silently changed shape",
+          r:find("4 asked", 1, true) ~= nil
+          and r:find("2 your rectangle", 1, true) ~= nil
+          and r:find("1 cancelled", 1, true) ~= nil
+          and r:find("1 fell back to the whole screen ⚠️", 1, true) ~= nil, r)
+        c("…and the last one is named, with its size and its clock",
+          r:find("320 × 180", 1, true) ~= nil
+          and r:find("after a 5 second countdown", 1, true) ~= nil, r)
+        S.regionRuns = { asked = 1, region = 0, now = 1, screen = 0, cancelled = 0 }
+        c("🔔 …and a shot taken with no countdown carries its own ⚠️ — he "
+          .. "was promised time to set up and did not get it",
+          RPT():find("shot AT ONCE", 1, true) ~= nil)
+        S.regionRuns, S.regionLast = keptRuns, keptLast
+    end
+
+    DEFER_TIMERS, PENDING = keptDefer, keptPending
+    MOUSE_AT, BUTTONS, S.areaNative = keptAt, keptBtn, keptNat
+    S.cancelSelect()
+    c("the 6.342.0 block ran every one of its checks",
+      (pass + fail) - n22 == 34, (pass + fail) - n22)
+end
+
 -- =====================================================================
 out(("\n%d passed, %d failed\n"):format(pass, fail))
 for _, f in ipairs(failures) do out("    ❌ " .. f .. "\n") end

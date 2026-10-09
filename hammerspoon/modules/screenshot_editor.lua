@@ -59,7 +59,7 @@ local M = {
             { "L O H C", "6.212.0: Line · Oval · Highlighter (translucent yellow box) · Counter (①②③ — a numbered badge per click, ⌘Z takes the last back)" },
             { "S M",   "6.213.0: Spotlight (darkens everything but the box) · Magnifier (a 2× circle; drag its right-hand dot to size it)" },
             { "⌘V ⌘A", "6.213.0: paste the clipboard's IMAGE onto the shot · Add capture — drag an area of the screen and it lands on the shot (move the editor first if it is in the way)" },
-            { "⌘D",    "6.255.0: Delayed capture — this window gets out of the way, you arrange the screen, and five seconds later the WHOLE screen lands on the shot" },
+            { "⌘D",    "6.342.0: Delayed AREA capture (macOS's ⇧⌘5 order) — this window gets out of the way, you DRAG the area you want, then five seconds to arrange the screen, then that rectangle lands on the shot" },
             { "⌘F",    "6.256.0: Full screen — the whole screen, right now, with this window out of the picture" },
             { "⌘O",    "6.258.0: Load a PRIOR shot — the canvas grows so you can see both, and what you have already drawn does not move" },
             { "text",  "click, type, ⏎ — white text, white outline box · click an EXISTING box (Text tool) to edit its words, or ⏎ on a selected one" },
@@ -134,6 +134,13 @@ function M.setup(core)
     ed.hideForDelay   = true  -- get this window out of the shot
     ed.delayGraceSecs = 3     -- the belt: how long past the countdown
                               -- before the window comes back regardless
+    -- 📐 6.342.0 — ⌘D drags an area FIRST now, and nothing can say how
+    -- long a hand will take over it. This is the LAST-RESORT leg: the
+    -- longest the editor may sit hidden with a selector open before it
+    -- comes back by itself (plus delayGraceSecs, as every belt here).
+    -- It is deliberately generous — a belt that fires while he is still
+    -- choosing a rectangle is worse than one he never sees.
+    ed.regionGraceSecs = 90
     -- 🖥 6.256.0 — the full-screen grab (⌘F) has no countdown to hide
     -- behind, and :hide() is not instant: macOS takes the window off the
     -- screen on its own turn, so a screencapture asked for on the next
@@ -162,7 +169,11 @@ function M.setup(core)
     -- "never asked" and "asked and failed" are different answers (6.196.1),
     -- and because a window that had to be brought back by the BELT is the
     -- one number that says this feature nearly cost him his work.
-    ed.delays    = { asked = 0, landed = 0, failed = 0, late = 0 }
+    -- 📐 6.342.0 — `cancelled` is its own count: a selector he pressed
+    -- Esc on is not a capture that failed, and a report that summed them
+    -- would make his own decision read as a fault (6.196.1).
+    ed.delays    = { asked = 0, landed = 0, failed = 0, late = 0, cancelled = 0 }
+    ed.regionRunning = false   -- is a ⌘D selector open right now
     ed.delayBusy = false
     ed.hidden    = false
     ed.delayTimer = nil       -- HELD, its own slot (6.196.1)
@@ -328,7 +339,7 @@ function M.setup(core)
     <div class="lbl">Add</div>
     <button onclick="say({a:'paste'})" title="⌘V">📋 Paste image</button>
     <button onclick="say({a:'capture'})" title="⌘A">📸 Add capture</button>
-    <button id="btn-delay" onclick="say({a:'delay'})" title="⌘D">⏲ Delayed ]] .. tostring(delaySecs) .. [[s</button>
+    <button id="btn-delay" onclick="say({a:'delay'})" title="⌘D — drag an area, then ]] .. tostring(delaySecs) .. [[ seconds to set it up">⏲ Area +]] .. tostring(delaySecs) .. [[s</button>
     <button id="btn-full" onclick="say({a:'full'})" title="⌘F">🖥 Full screen</button>
     <button id="btn-load" onclick="say({a:'loadshot'})" title="⌘O">🖼 Load shot</button>
     <div class="lbl">Edit</div>
@@ -1192,7 +1203,7 @@ function M.setup(core)
       // 6.213.0 — the clipboard's image, and a fresh capture, both via Lua
       else if (e.metaKey && (e.key === 'v' || e.key === 'V')) { e.preventDefault(); say({ a: 'paste' }); }
       else if (e.metaKey && (e.key === 'a' || e.key === 'A')) { e.preventDefault(); say({ a: 'capture' }); }
-      // 6.255.0 — ⌘D: hide, count DELAYSECS down, land the whole screen
+      // 6.342.0 — ⌘D: drag an area, count DELAYSECS down, land THAT rect
       else if (e.metaKey && (e.key === 'd' || e.key === 'D')) { e.preventDefault(); say({ a: 'delay' }); }
       // 6.256.0 — ⌘F: the whole screen, now, with this window out of it
       else if (e.metaKey && (e.key === 'f' || e.key === 'F')) { e.preventDefault(); say({ a: 'full' }); }
@@ -1673,7 +1684,13 @@ function M.setup(core)
     -- PARAMETER that tells ⌘D from ⌘F, rather than a second plan that
     -- would drift: a countdown of zero is a broken ⌘D and a perfectly
     -- good ⌘F (6.196.0's choicesFrom rule, in a guard).
-    function ed.grabPlan(open, canAsk, busy, secs, needDelay)
+    -- 📐 6.342.0 — `what` is the SURFACE, and it is a parameter for the
+    -- same reason `needDelay` is: ⌘D captures the area he drags and ⌘F
+    -- captures the whole screen, and a plan that says "the whole screen"
+    -- about both is a reason that lies on one of its two callers. Default
+    -- unchanged, so every existing caller reads exactly as it did.
+    function ed.grabPlan(open, canAsk, busy, secs, needDelay, what)
+        what = what or "the whole screen"
         if not open then return false, "the editor is not open" end
         if not canAsk then
             return false, "A screen capture needs the screenshots module, which is not loaded"
@@ -1684,9 +1701,9 @@ function M.setup(core)
             return false, "the delay is set to 0 — use 🖥 Full screen instead"
         end
         if secs > 0 then
-            return true, ("%d second(s), the whole screen"):format(math.floor(secs))
+            return true, ("%d second(s), %s"):format(math.floor(secs), what)
         end
-        return true, "the whole screen, now"
+        return true, what .. ", now"
     end
 
     -- Never throws. Answers whether the window is hidden NOW, which is
@@ -1722,6 +1739,16 @@ function M.setup(core)
         local wait = num(secs, 5) + num(ed.delayGraceSecs, 3)
         pcall(function()
             ed.delayTimer = hs.timer.doAfter(wait, function()
+                -- 📐 6.342.0 — A SELECTOR STILL OPEN IS OVER. ⌘D now
+                -- waits on a hand, so the belt can fire with the overlay
+                -- still up; bringing the window back under a live
+                -- selector would put the editor in the very shot it hid
+                -- to stay out of. Cancelling it resolves the run through
+                -- the ordinary cancel path, which clears `hidden` and
+                -- `delayBusy` — so the guard on the next line then
+                -- returns and this belt does NOT also count a late
+                -- return. A ⌘F run has no selector and this is a no-op.
+                ed.stopRegion()
                 if not (ed.hidden or ed.delayBusy) then return end
                 ed.delays.late = ed.delays.late + 1
                 ed.delayBusy = false
@@ -1832,7 +1859,149 @@ function M.setup(core)
         ed.settleTimer = nil
     end
 
-    function ed.addDelayed()   return ed.grabScreen(ed.delaySecs, true)  end
+    -- 📐 6.342.0 — the one way to end a ⌘D selector from outside it.
+    -- A no-op unless a region grab is waiting on a rectangle, and it
+    -- goes through the module that OWNS the selector rather than
+    -- reaching for `shots.*` (there is no second copy of the teardown).
+    function ed.stopRegion()
+        if not ed.regionRunning then return end
+        ed.regionRunning = false
+        if core.has and core.has("screenshots.cancelSelect") then
+            pcall(function() core.call("screenshots.cancelSelect") end)
+        end
+    end
+
+    -- 📐 6.342.0 — ⌘D IS THE ⇧⌘5 SHAPE: drag the area, THEN the
+    -- countdown, THEN that rectangle. LL asked for exactly this, on his
+    -- own report of what 6.255.0 did ("⌘D says I have five seconds to
+    -- setup, shows no crosshairs, and then … a screenshot of the desktop
+    -- is placed on it").
+    -- 🪜 TWO BELT LEGS, AND THAT IS THE WHOLE RISK IN THIS RELEASE.
+    -- ⌘F and the old ⌘D both knew exactly how long the editor would be
+    -- hidden, so ONE belt armed before the hide covered it (6.255.0).
+    -- This one waits on a hand: the selector may be open for a second or
+    -- a minute. So leg 1 is a long last resort for the drag, and the
+    -- moment a rectangle exists leg 2 re-arms SHORT for the countdown and
+    -- the shutter (6.304.0: one belt per leg, re-armed for the second —
+    -- a single belt would either fire over a live selector or leave the
+    -- window hidden a minute and a half after a capture had died).
+    -- 🚨 AND THE SETTLE BEAT MATTERS HERE IN A WAY IT DID NOT BEFORE:
+    -- the old ⌘D hid behind screencapture's own -T, so nothing of ours
+    -- had to wait for the window to leave. Now the SELECTOR draws next,
+    -- and a selector drawn over a window that has not gone yet is an
+    -- area he drags around the editor (6.256.0's finding, one surface on).
+    function ed.grabRegion(secs)
+        local canAsk = (core.has and core.has("screenshots.captureRegionTo"))
+                       and true or false
+        local ok, why = ed.grabPlan(ed.webview ~= nil, canAsk,
+                                    ed.delayBusy == true, secs, true,
+                                    "the area you drag")
+        if not ok then return false, why end
+
+        secs = math.floor(num(secs, 0))
+        local settle = num(ed.hideSettleSecs, 0.4)
+        local state = { answered = false }
+        ed.delays.asked = ed.delays.asked + 1
+        ed.delayBusy = true
+        ed.regionRunning = true
+
+        local hid, belted = false, false
+        if ed.hideForDelay then
+            belted = ed.armDelayBelt(num(ed.regionGraceSecs, 90))
+            if belted then
+                hid = ed.hideForShot()
+            else
+                -- 6.255.0's rule, unchanged: a shot containing the editor
+                -- is a bad picture and a window that cannot come back is
+                -- lost work, so a Mac with no timer does not hide at all.
+                say("no timer to bring the window back — it stays on screen, "
+                    .. "so the area may contain the editor")
+            end
+        end
+
+        local function picked(rect)
+            if state.answered then return end
+            if belted then ed.armDelayBelt(secs + settle) end
+            ed.regionRunning = false   -- the selector is gone; the shot is next
+            pcall(function()
+                hs.alert.show(("📐 %d × %d in %d seconds — set it up…")
+                              :format(math.floor(rect and rect.w or 0),
+                                      math.floor(rect and rect.h or 0), secs), 2.5)
+            end)
+        end
+
+        local function landed(path, whyShot, how)
+            if state.answered then return end
+            state.answered = true
+            ed.regionRunning = false
+            ed.delayBusy = false
+            ed.stopSettle()
+            ed.showAgain()
+            -- 🚨 A CANCEL IS NOT A FAILURE and must not take the 🔔 door:
+            -- he pressed Esc, or his drag was too small, and a tool that
+            -- shouts about a decision he made is a tool he stops reading
+            -- (6.269.0). Counted apart, said quietly, nothing degraded.
+            if how == "cancelled" then
+                ed.delays.cancelled = num(ed.delays.cancelled, 0) + 1
+                pcall(function()
+                    hs.alert.show("📐 Nothing captured — " .. tostring(whyShot)
+                                  .. ". The editor is back.", 2.5)
+                end)
+                return
+            end
+            if not path then
+                ed.delays.failed = ed.delays.failed + 1
+                ed.lastDelayWhy = tostring(whyShot)
+                if core.degrade then
+                    core.degrade("Screenshot editor",
+                        "the area capture did not land — " .. tostring(whyShot))
+                end
+                return
+            end
+            local b64 = readFileBase64(path)
+            local w, h = 0, 0
+            pcall(function()
+                local im = hs.image.imageFromPath(path)
+                local sz = im and im:size()
+                if sz then w, h = sz.w, sz.h end
+            end)
+            local okPush, whyPush = false, "the capture could not be read"
+            if b64 then
+                okPush, whyPush = ed.pushImage("data:image/png;base64," .. b64, w, h)
+            end
+            if okPush then
+                ed.delays.landed = ed.delays.landed + 1
+                ed.lastDelayWhy  = nil
+            else
+                ed.delays.failed = ed.delays.failed + 1
+                ed.lastDelayWhy  = tostring(whyPush)
+                if core.degrade then core.degrade("Screenshot editor", tostring(whyPush)) end
+            end
+        end
+
+        local function ask()
+            local started = core.call("screenshots.captureRegionTo", secs, landed, picked)
+            if started == false and not state.answered then
+                ed.regionRunning = false
+                ed.delayBusy = false
+                ed.showAgain()
+                if core.degrade then
+                    core.degrade("Screenshot editor", "the capture could not be started")
+                end
+            end
+        end
+
+        if hid and settle > 0 then
+            ed.stopSettle()
+            pcall(function() ed.settleTimer = hs.timer.doAfter(settle, ask) end)
+            if not ed.settleTimer then ask() end
+        else
+            ask()
+        end
+        return true
+    end
+
+    function ed.addDelayed()   return ed.grabRegion(ed.delaySecs)        end
     function ed.addFullScreen() return ed.grabScreen(0, false)           end
 
     -- 🔎 6.255.0 — THIS MODULE HAD NO REPORT, which is why a delayed
@@ -1886,6 +2055,17 @@ function M.setup(core)
                 L[#L + 1] = "   ↳ last failure: " .. tostring(ed.lastDelayWhy)
             end
         end
+        -- 📐 6.342.0 — WHICH SHAPE ⌘D HAS, said outright. The release
+        -- changed what the key DOES, and a build that still hides and
+        -- shoots the whole screen looks identical in the report unless
+        -- the report names the shape.
+        L[#L + 1] = ("   ⌘D      : drag an area, then %d second(s), then that "
+                     .. "rectangle%s"):format(
+                        math.floor(num(ed.delaySecs, 5)),
+                        num(d.cancelled, 0) > 0
+                            and (" · " .. num(d.cancelled, 0)
+                                 .. " cancelled (Esc, or a drag too small)")
+                            or "")
         L[#L + 1] = ("   hide    : %s for the countdown%s"):format(
                         ed.hideForDelay and "hidden" or "LEFT ON SCREEN",
                         (num(d.late, 0) > 0)

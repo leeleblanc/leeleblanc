@@ -462,6 +462,51 @@ do
 end
 
 -- =====================================================================
+out("\n=== 6c. 📐 A REGION CAPTURE ANSWERS TWICE (6.342.0) ===\n")
+-- =====================================================================
+-- `screenshots.captureRegionTo` has the same shape as the submit in §6
+-- and for the same reason: it answers ONCE when a rectangle exists
+-- (onPicked) and once when the shot lands (cb). The first answer is not
+-- a convenience — ⌘D hides the editor, the selector then waits on a
+-- HAND, and the belt leg that covers an unbounded wait has to be swapped
+-- for a short one the instant the drag is over. A stub that drops
+-- onPicked makes that swap unreachable from the gate, and the failure it
+-- hides is the editor reappearing on top of a live selector, inside the
+-- very area he is dragging.
+local function regionStubsMissingOnPicked(list)
+    local out = {}
+    for _, f in ipairs(list) do
+        local init = 1
+        while true do
+            local s2, e2 = f.code:find('captureRegionTo"?%]?%s*=%s*function%s*%b()', init)
+            if not s2 then break end
+            local body = bodyAfter(f.code, e2 + 1)
+            if body and not throws(body) and not body:find("onPicked", 1, true) then
+                out[#out + 1] = f.name
+            end
+            init = e2 + 1
+        end
+    end
+    return out
+end
+local mutePick = regionStubsMissingOnPicked(files)
+check("every captureRegionTo stub carries onPicked, as the real door does",
+      #mutePick == 0, table.concat(mutePick, " · "))
+
+do
+    local sick = { { name = "sick.lua", code = stripComments(
+        'PROVIDED["screenshots.captureRegionTo"] = function(secs, cb) CB = cb return true end') } }
+    check("§6c BITES: a region stub with no rectangle channel is found",
+          #regionStubsMissingOnPicked(sick) == 1,
+          #regionStubsMissingOnPicked(sick))
+    local fine = { { name = "ok.lua", code = stripComments(
+        'PROVIDED["screenshots.captureRegionTo"] = function(secs, cb, onPicked) '
+        .. 'CB = cb; PICK = onPicked; return true end') } }
+    check("§6c IS SILENT on a stub that carries it",
+          #regionStubsMissingOnPicked(fine) == 0)
+end
+
+-- =====================================================================
 out("\n=== 7. 📏 NAMED, NOT AUTOMATED — the gap, written down ===\n")
 -- =====================================================================
 -- 🚨 A COMMENT CLAIMING A GUARD THAT DOES NOT EXIST is worse than no
@@ -485,8 +530,13 @@ local NOT_AUTOMATED = {
                  .. " `new = function()`, so automating it is its own release" },
     { "6.201.0", "a suite stubbing setContents may also need changeCount — a join too"
                  .. " narrow to automate without crying wolf on 31 files" },
+    { "6.342.0", "a `screenshots.cancelSelect` stub that merely records the call is"
+                 .. " gentler than the module, whose cancelSelect fires the"
+                 .. " caller's onCancel — but a suite NEEDS the quiet one for"
+                 .. " every check that is not about the belt's first leg, so a"
+                 .. " static sentry here would cry wolf on correct tests (6.269.0)" },
 }
-check("the unautomated contracts are listed, not implied", #NOT_AUTOMATED == 9)
+check("the unautomated contracts are listed, not implied", #NOT_AUTOMATED == 10)
 for _, row in ipairs(NOT_AUTOMATED) do
     out("   · " .. row[1] .. "  " .. row[2] .. "\n")
 end
