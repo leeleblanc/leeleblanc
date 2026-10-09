@@ -3420,6 +3420,33 @@ work Mac.
   swap), while the `cancelSelect` contract is NAMED in §7's written-down
   list — a suite legitimately needs a quiet stub for every check that is
   not about leg 1, and a sentry there would cry wolf on correct tests.
+  🧪 THE SWEEP FOUND FOUR THINGS AND ALL FOUR ARE OLD RULES IN NEW
+  COSTUMES (24 mutations, 3 survived, then 5 more on the fixes):
+  · `picked`'s guard was `state.answered`, which THE BELT NEVER SETS —
+    so the one case it was written for walked straight past it. On a Mac
+    with no `screenshots.cancelSelect` provider the belt cannot end the
+    overlay, so he can drag a rectangle a minute after being told the
+    capture died, and the old guard re-armed a belt and shouted a
+    countdown for a dead run. The RUN'S OWN LIVENESS is the fact to ask.
+    6.273.0 and 6.304.0's generation problem in its simplest form.
+  · `local because = ok and why or ("the selector threw: " .. …)` is
+    6.303.0's trap with a VARIABLE b. Every refusal `selectArea` makes
+    today carries a reason, so it was correct and unkillable; a fifth
+    `return false` added later need not, and the report would then accuse
+    the selector of RAISING when it simply declined. 🔑 AND THE 6.308.0
+    SENTRY CANNOT SEE THIS SHAPE — it matches the literal `and nil or`,
+    and widening it to a nil-able variable would cry wolf on every
+    legitimate `a and b or c`. GENERAL: a textual sentry closes the
+    LITERAL half of a class and never the variable half; the second half
+    is closed by a check that drives the nil, or not at all.
+  · reading TWO values from `pcall(shots.selectArea, …)` still gets the
+    DECISION right — `started` is false either way — so what a thrown-away
+    third value costs is not the verdict but the DIAGNOSABILITY. 6.179.0
+    read as a rule about the REASON rather than the branch: the check that
+    bites asserts macOS's own words are in the degrade.
+  · and the cancel-slot check had to drive "created, wired, REFUSED TO
+    SHOW" rather than "cannot create" — 6.265.0, fifth time, and the
+    refusal is the branch that calls `cancelSelect` on its way out.
 - 🪟 A HANDLE RECORDED BEFORE THE WINDOW IS UP IS A HANDLE THAT LIES
   (6.326.0, modules/music_player.lua — LL's own probe:
   `handle : false · window : false · visible : nil · frame : none ·

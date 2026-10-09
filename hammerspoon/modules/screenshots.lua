@@ -919,8 +919,17 @@ function M.setup(core)
         -- a selector that was never drawn, which is 6.265.0 exactly.
         local ok, started, why = pcall(shots.selectArea, onRect, onCancelled)
         if ok and started ~= false then return true end
-        local because = ok and why
-                        or ("the selector threw: " .. tostring(started))
+        -- 🔬 BRANCHES, NEVER `ok and why or …` — 6.303.0 and 6.308.0 wrote
+        -- this rule about a b that can be FALSE and about a b that is a
+        -- literal nil; `why` here is a VARIABLE that can be nil (a future
+        -- refusal in selectArea with no reason), and the `or` would then
+        -- run and blame a throw that never happened. The 6.308.0 sentry
+        -- matches the literal `and nil or` and cannot see this shape,
+        -- which is the honest limit of a textual sentry — so the guard is
+        -- the code, not the gate, and the sweep is what found it.
+        local because
+        if ok then because = why
+        else because = "the selector threw: " .. tostring(started) end
         local how, note = shots.regionPlan(false, because, nil, delay)
         record(how, note)
         if type(core.degrade) == "function" then

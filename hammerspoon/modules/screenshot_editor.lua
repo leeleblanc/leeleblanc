@@ -1920,7 +1920,20 @@ function M.setup(core)
         end
 
         local function picked(rect)
-            if state.answered then return end
+            -- 🚨 6.342.0's SWEEP FOUND THIS GUARD UNKILLABLE as
+            -- `state.answered`, and the reason is the finding: the belt
+            -- does NOT set that flag, so the one case it was meant to
+            -- cover — leg 1 giving up while the selector is still open —
+            -- walked straight past it. On a Mac with no
+            -- `screenshots.cancelSelect` provider `stopRegion` cannot end
+            -- the overlay, so he can still drag a rectangle a minute
+            -- after being told the capture never answered; re-arming a
+            -- belt and shouting a countdown for a run that is over is
+            -- 6.304.0's generation problem in its simplest form. The
+            -- run's own liveness is the fact to ask (6.273.0: when a fix
+            -- lands on a line no mutation can kill, the line is not the
+            -- finding, the missing check is).
+            if not ed.delayBusy then return end
             if belted then ed.armDelayBelt(secs + settle) end
             ed.regionRunning = false   -- the selector is gone; the shot is next
             pcall(function()

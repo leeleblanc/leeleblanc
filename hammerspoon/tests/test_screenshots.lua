@@ -3804,9 +3804,52 @@ do
     FIRE(TASKS[1], 0, "", "")
     c("…and the caller is told WHICH shape it got, so it can say so",
       GOT == shot6 and HOW == "screen", tostring(HOW))
+    -- 🚨 6.273.0 — THE SWEEP FOUND THIS ONE MISSING. Reading TWO values
+    -- from `pcall(shots.selectArea, …)` still gets the DECISION right —
+    -- `started` is false either way — so every check above passed with
+    -- the third value thrown away, and what went missing was the only
+    -- thing that makes the next failure diagnosable: macOS's own reason.
+    -- 6.179.0's read-three-values rule is about the REASON here, not the
+    -- verdict, so the check has to be about the reason.
+    c("🚨 …and the degrade carries the SELECTOR'S OWN reason, not just "
+      .. "the word 'fallback' — a third value thrown away reads as a "
+      .. "correct decision and an undiagnosable one (6.179.0)",
+      DEGRADES[#DEGRADES].why:find("hs.canvas", 1, true) ~= nil
+      and DEGRADES[#DEGRADES].why:find("threw", 1, true) == nil,
+      DEGRADES[#DEGRADES] and DEGRADES[#DEGRADES].why)
+    -- 🔬 AND IT MUST NOT BLAME A THROW THAT DID NOT HAPPEN. The sweep's
+    -- own second finding: `ok and why or ("the selector threw: " …)` is
+    -- 6.303.0's trap with a VARIABLE b — when `why` is nil the `or` runs
+    -- and the report accuses the selector of raising. Branches now; the
+    -- 6.308.0 sentry matches a literal `and nil or` and cannot see this.
+    c("🔬 …and a refusal with NO reason says there was none rather than "
+      .. "inventing a throw — `a and b or c` with a nil-able b (6.303.0)",
+      select(2, PLAN(false, nil, nil, 5)):find("threw", 1, true) == nil)
     c("…counted as a fallback, which is the number that must never read "
       .. "as a rectangle (6.274.0's reason for counting ⇪4's routes)",
       S.regionRuns.screen == 1)
+    -- 🔬 AND THE CALLER'S OWN BRANCHES ARE DRIVEN, not just the pure
+    -- function: the sweep's N1 proved that reverting `because` to
+    -- `ok and why or ("the selector threw: " …)` survived everything
+    -- above, because every refusal selectArea makes TODAY carries a
+    -- reason. A fifth `return false` added later need not — and then the
+    -- report would accuse the selector of raising when it simply
+    -- declined. 6.199.0 is the other half: a guard no test can fail is
+    -- dead code with a comment on it, so this drives the shape.
+    do
+        local realSel = S.selectArea
+        S.selectArea = function() return false end     -- refused, no reason
+        reset()
+        degBefore = #DEGRADES
+        S.captureRegionTo(5, CB, ONPICK)
+        S.selectArea = realSel
+        local said = (DEGRADES[#DEGRADES] or {}).why or ""
+        c("🔬 a refusal with no reason at all is reported as 'no reason "
+          .. "given', NEVER as a throw that did not happen",
+          #DEGRADES > degBefore
+          and said:find("no reason given", 1, true) ~= nil
+          and said:find("threw", 1, true) == nil, said)
+    end
 
     -- ---- 🔔 A MAC THAT CANNOT ARM THE COUNTDOWN ------------------------
     reset()
@@ -3844,6 +3887,28 @@ do
           .. "also call onCancel for a selection that never existed",
           okS == false and type(why2) == "string" and told == 0,
           tostring(okS) .. " / " .. tostring(told))
+    end
+
+    -- 🚨 6.273.0 + 6.265.0 — AND THE SWEEP FOUND THIS ONE TOO. The check
+    -- above takes `hs.canvas.new` away, so the function returns BEFORE a
+    -- canvas exists and the cancel slot is never reached in either
+    -- version. The branch that matters is "created, wired, and REFUSED
+    -- TO SHOW" — the shape a beta OS actually produces — because THAT
+    -- one calls cancelSelect on its way out, and a slot armed before the
+    -- show would answer the caller "cancelled" for a selector that was
+    -- never on screen, one line after it was told `false, why`.
+    do
+        local told = 0
+        local realShow = _G.showCanvasSafely
+        _G.showCanvasSafely = function() return false end
+        local okS, why3 = S.selectArea(function() end, function() told = told + 1 end)
+        _G.showCanvasSafely = realShow
+        c("🚨 a selector macOS REFUSED TO SHOW answers false, why — and "
+          .. "does NOT also call onCancel, even though it tears itself "
+          .. "down on the way out (6.265.0's shape, not 'cannot create')",
+          okS == false and type(why3) == "string"
+          and why3:find("on screen", 1, true) ~= nil and told == 0,
+          tostring(okS) .. " / " .. tostring(told) .. " / " .. tostring(why3))
     end
 
     -- ---- 🪪 A SUPERSEDING SELECTOR TELLS THE FIRST CALLER --------------
@@ -3888,7 +3953,7 @@ do
     MOUSE_AT, BUTTONS, S.areaNative = keptAt, keptBtn, keptNat
     S.cancelSelect()
     c("the 6.342.0 block ran every one of its checks",
-      (pass + fail) - n22 == 34, (pass + fail) - n22)
+      (pass + fail) - n22 == 38, (pass + fail) - n22)
 end
 
 -- =====================================================================

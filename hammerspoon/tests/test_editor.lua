@@ -855,6 +855,33 @@ do
         tostring(E.delays.cancelled) .. "/" .. tostring(E.delays.late))
     PROVIDED["screenshots.cancelSelect"] = function() CANCELLED = CANCELLED + 1 end
 
+    -- ---- 🚨 LEG 1 GAVE UP AND THE SELECTOR IS STILL THERE --------------
+    -- 6.273.0 — the sweep found this check missing, and the reason is the
+    -- finding: `picked`'s guard was `state.answered`, which the BELT
+    -- never sets, so the one case it was written for walked past it. On a
+    -- Mac with no `screenshots.cancelSelect` provider stopRegion cannot
+    -- end the overlay, so he can still drag a rectangle a minute after
+    -- being told the capture never answered — and re-arming a belt and
+    -- shouting a countdown for a run that is over is 6.304.0's
+    -- generation problem in its simplest form.
+    JS, ALERTS, EVENTS, DEGRADES, TIMERS = {}, {}, {}, {}, {}
+    E.delays = { asked = 0, landed = 0, failed = 0, late = 0, cancelled = 0 }
+    PROVIDED["screenshots.cancelSelect"] = nil     -- this Mac has no door
+    BRIDGE({ body = { a = "delay" } })
+    local leg1b = TIMERS[1]
+    TIMERS[2].fn()
+    leg1b.fn()          -- the belt gives up with the overlay still open
+    c11("with no cancel door the belt still brings the window back, and "
+        .. "says the capture never answered",
+        E.hidden == false and E.delays.late == 1)
+    local timersThen, alertsThen = #TIMERS, #ALERTS
+    PICK({ x = 0, y = 0, w = 900, h = 700 })
+    c11("🚨 …and a rectangle dragged AFTER that does not re-arm a belt or "
+        .. "shout a countdown for a run he has already been told died",
+        #TIMERS == timersThen and #ALERTS == alertsThen,
+        tostring(#TIMERS - timersThen) .. "/" .. tostring(#ALERTS - alertsThen))
+    PROVIDED["screenshots.cancelSelect"] = function() CANCELLED = CANCELLED + 1 end
+
     -- ---- a Mac that cannot arm a timer ---------------------------------
     JS, ALERTS, EVENTS, DEGRADES, TIMERS = {}, {}, {}, {}, {}
     NO_TIMER = true
@@ -911,7 +938,7 @@ do
         and fresh:find("0 asked", 1, true) == nil, fresh)
 
     E.close()
-    check("§11 ran every one of its checks", n11 == 49, n11)
+    check("§11 ran every one of its checks", n11 == 51, n11)
 end
 
 -- =====================================================================
