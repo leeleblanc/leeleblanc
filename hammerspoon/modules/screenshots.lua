@@ -141,6 +141,14 @@ local M = {
             { "⇪⇧2",  "🪟 Capture the active window — no clicking" },
             { "⇪⇧3",  "⏲ Delayed capture, full screen after the countdown" },
             { "⇪⇧4",  "🔤 Recognize text / QR — the words go to the clipboard" },
+            -- 🔁 6.341.0 — 6.181.0's rule: the sheet is where the division
+            -- between the two keys is readable, and until now it was
+            -- nowhere. The OCR still runs on a ⇪4 shot in the background
+            -- (it names the file and fills ⇪O); what it no longer does is
+            -- take the picture off the clipboard.
+            { "📋 which", "⇪4 leaves the PICTURE on the clipboard, always · ⇪⇧4 is" },
+            { "",         "the OCR door · the words of a ⇪4 shot are in ⇪O and in" },
+            { "",         "its file name · textToClipboard = true swaps them back" },
             { "⇪5",   "🧻 Scrolling capture (experimental) — best in browsers · the result is saved AND on the clipboard" },
             { "📐 size", "⇪4 / ⇪5 / “repeat area” / the editor's ⌘A show a LIVE 1280 × 720" },
             { "",        "white on 90%-opaque black · areaNative = true for macOS's" },
@@ -1782,7 +1790,31 @@ function M.setup(core)
     -- that changed under him with nothing said is the surprise this
     -- release would otherwise be.
     --     settings = { screenshots = { textToClipboard = false } }
-    shots.textToClipboard = true
+    --
+    -- 🔁 6.341.0 — AND IT SHIPS OFF, ON HIS WORD. LL: "When I take a
+    -- screenshot that always takes priority, unless I use my
+    -- hyper+shift+4 … Right now I have to use hyper+shift+5 to place the
+    -- screenshot back. Reverse that."
+    --
+    -- 🔎 AND IT EXPLAINS "SOMETIMES", which is how he reported it: the
+    -- swap only ever fired when OCR actually found WORDS, when the shot
+    -- was still the thing on the clipboard, and inside clipSwapSecs. A
+    -- photograph, a dark panel, a diagram, a copy of his own in between —
+    -- any of those left the picture alone. One key, two outcomes, no way
+    -- to tell in advance which: that is worse than either behaviour.
+    --
+    -- 🚪 THE OTHER DOOR IS UNTOUCHED. ⇪⇧4 (shots.recognizeFile) has
+    -- copied its OCR text through its own path since 6.173.1 and does not
+    -- read this flag, so the key he names as the OCR door keeps being it.
+    -- And the OCR still RUNS here, in the background, exactly as he asked:
+    -- the file is renamed after its words, the words go into the Finder
+    -- comment and into ⇪O's log. What stops is only the clipboard write.
+    --
+    -- ✍️ 6.267.0 decides the shape: a wrong default is CHANGED AND
+    -- SHIPPED, never left as a settings line for him to type. The switch
+    -- stays so the release is reversible and the gate can drive it both
+    -- ways, and it is documented rather than prescribed.
+    shots.textToClipboard = false
     shots.clipSwapSecs    = 25     -- a shot older than this speaks for nobody
     shots.ownClip         = nil    -- { path, count, at } — what WE last put there
     shots.clipStats       = { wrote = 0, failed = 0, empty = 0,
@@ -1968,8 +2000,14 @@ function M.setup(core)
             local cs = shots.clipStats or {}
             local line
             if not shots.textToClipboard then
-                line = "OFF — settings = { screenshots = { textToClipboard = false } }"
-                       .. " · ⇪⇧4 still copies what it reads"
+                -- 🔁 6.341.0 — THIS IS THE SHIPPED DEFAULT NOW, so it must
+                -- not read like something he switched off and forgot. The
+                -- count is what PROVES it: "N arrival(s) kept the picture"
+                -- is the release working, not a tally of refusals.
+                line = ("the shot keeps the clipboard — ⇪⇧4 is the OCR door "
+                        .. "(shipped default since 6.341.0) · %d arrival(s) "
+                        .. "kept the picture this session")
+                       :format(cs.off or 0)
             elseif (shots.clipThrew or 0) > 0 then
                 line = ("⚠️ %d swap(s) THREW — the words are in ⇪O and the "
                         .. "naming was unaffected"):format(shots.clipThrew)
@@ -1996,6 +2034,12 @@ function M.setup(core)
             if shots.swapWhy and (cs.held or 0) > 0 then
                 L[#L + 1] = "             ↳ last arrival did not swap: "
                             .. tostring(shots.swapWhy)
+            end
+            -- 🔁 6.341.0 — the way back, said once, under the state it
+            -- reverses rather than inside it
+            if not shots.textToClipboard then
+                L[#L + 1] = "             ↳ settings = { screenshots = "
+                            .. "{ textToClipboard = true } } puts the swap back"
             end
         end
         -- 📐 6.264.0 — the line under it used to end "⇪4 is macOS's own

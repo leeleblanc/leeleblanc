@@ -2740,6 +2740,9 @@ do
     S.clipStats = { wrote = 0, failed = 0, empty = 0, swapped = 0,
                     held = 0, off = 0 }
     S.clipLast, S.swapWhy, S.ownClip = nil, nil, nil
+    -- 🔁 6.341.0 — this is an OVERRIDE now, not the default: the swap
+    -- ships OFF on LL's word. Everything below is still the rule for
+    -- when it is switched back on, and §21 owns the shipped state.
     S.textToClipboard = true
     S.areaNative = false
     local keptNow = NOWF
@@ -2988,9 +2991,19 @@ do
     ck("🔌 OFF really is off: the picture stays on the clipboard",
        CLIP.kind == "image", CLIP.kind)
     local rOff = RPT()
-    ck("…and the report SAYS off rather than reading as 'nothing qualified'",
-       (rOff:match("clip    :[^\n]*") or ""):find("OFF", 1, true) ~= nil,
-       rOff:match("clip    :[^\n]*"))
+    -- 6.248.0 — this asserted the literal "OFF", which 6.341.0 stopped
+    -- printing because that state IS the shipped default now and must
+    -- not read like something he switched off and forgot. The RULE is
+    -- unchanged and is what it asks: the line must say the picture was
+    -- kept, and must not read as "on and nothing qualified".
+    local offLine = rOff:match("clip    :[^\n]*") or ""
+    ck("…and the report SAYS the shot kept the clipboard rather than "
+       .. "reading as 'nothing qualified'",
+       offLine:find("keeps the clipboard", 1, true) ~= nil
+       and offLine:find("no OCR text has reached", 1, true) == nil, offLine)
+    ck("…and it names ⇪⇧4 as the door that does copy, so the OFF state "
+       .. "is an answer and not a gap",
+       offLine:find("⇪⇧4", 1, true) ~= nil, offLine)
     S.textToClipboard = true
 
     -- 🔎 THE REPORT'S STATES (6.196.1) — and ⚠️ outranks a count
@@ -3054,7 +3067,7 @@ do
 
     NOWF = keptNow
     check("the 6.319.0 block ran every one of its checks",
-          (pass + fail) - n18 == 44, (pass + fail) - n18)
+          (pass + fail) - n18 == 45, (pass + fail) - n18)
 end
 
 -- =====================================================================
@@ -3394,6 +3407,171 @@ do
     MOUSE_AT, BUTTONS, S.areaNative = keptAt, keptBtn, keptNat
     ck("the 6.337.0 block ran every one of its checks",
        (pass + fail) - n20 == 27, (pass + fail) - n20)
+end
+
+-- =====================================================================
+out("\n21. 🔁 6.341.0 — THE SHOT KEEPS THE CLIPBOARD (⇪⇧4 IS THE OCR DOOR)\n")
+-- =====================================================================
+-- LL: "sometimes when I do hyper+4 it places an image on the clipboard.
+-- Sometimes it seems like the OCR runs and places the characters on the
+-- clipboard. But I haven't done hyper+shift+4 … When I take a screenshot
+-- that always takes priority, unless I use my hyper+shift+4."
+--
+-- "Sometimes" was the feature: the swap fired only when OCR found WORDS,
+-- only while the shot was still what the clipboard held, and only inside
+-- clipSwapSecs. One key, two outcomes, no way to know which in advance.
+do
+    local n21 = pass + fail
+
+    -- 🔒 THE CLAIM IS ABOUT WHAT SHIPS, so it is read off the SOURCE and
+    -- not off a field eighteen sections have been assigning all run.
+    do
+        local src = io.open(HS .. "/modules/screenshots.lua"):read("a")
+        ck("🔁 the SHIPPED default is off — the shot keeps the clipboard",
+           src:find("shots.textToClipboard = false", 1, true) ~= nil
+           and src:find("shots.textToClipboard = true", 1, true) == nil)
+        ck("…and the switch still EXISTS, so the release is reversible "
+           .. "and the gate can drive it both ways (6.267.0)",
+           src:find("textToClipboard = true } }", 1, true) ~= nil)
+    end
+
+    S.clipStats = { wrote = 0, failed = 0, empty = 0, swapped = 0,
+                    held = 0, off = 0 }
+    S.clipLast, S.swapWhy, S.ownClip = nil, nil, nil
+    S.textToClipboard = false
+    S.areaNative = false
+    local keptNow = NOWF
+
+    -- this block's OWN capture of the OCR log, because an earlier section
+    -- restores _G.service and a silently-skipped record would read here
+    -- as a stale row from four sections ago (which is exactly what the
+    -- first version of the check below measured)
+    local keptSvc, LOG21 = _G.service, {}
+    _G.service = {
+        has  = function(n) return n == "ocr.comment" or n == "ocr.record" end,
+        call = function(n, p, txt)
+                   LOG21[#LOG21 + 1] = { n = n, text = p, path = txt }
+                   return true
+               end,
+    }
+
+    -- ---- ⇪4: the picture stays, with words in the shot -------------------
+    local tB = #TASKS
+    HYPER["|4"]()
+    local cv = _G.__lastCanvas
+    if cv then
+        cv.cb(cv, "mouseDown", "_canvas_", 10, 10)
+        cv.cb(cv, "mouseUp", "_canvas_", 210, 160)
+    end
+    local shot = (TASKS[#TASKS] and TASKS[#TASKS].args
+                  and TASKS[#TASKS].args[#TASKS[#TASKS].args]) or "<none>"
+    FILES[shot] = { size = 9000, modification = 1000, w = 200, h = 150 }
+    if TASKS[#TASKS] and #TASKS > tB then FIRE(TASKS[#TASKS], 0, "", "") end
+    ck("⇪4 put the PICTURE on the clipboard, as it always has",
+       CLIP.kind == "image", CLIP.kind)
+
+    NOWF = NOWF + 1
+    local nB, gotNew, gotWhy = #TASKS, nil, nil
+    S.nameByText(shot, function(np, w) gotNew, gotWhy = np, w end)
+    local ranOCR = #TASKS > nB
+    if ranOCR then
+        FIRE(TASKS[#TASKS], 0, "Strategies of the Directors", "")
+    end
+    ck("🔁 …and words in that shot do NOT take it away again",
+       CLIP.kind == "image", CLIP.kind .. " / " .. tostring(CLIP.v))
+
+    -- 🚨 AND THE OCR STILL RAN, which is the half he asked for by name:
+    -- "I want OCR run in the background." The file is renamed after its
+    -- words and the words reach the log; only the clipboard write stops.
+    -- 🚨 AND THE OCR STILL RAN, which is the half he asked for by name.
+    -- The ANSWER, in the module's own vocabulary (6.281.0: named · no
+    -- text · no name · failed · NOT RUN) — "not run" is the one state
+    -- that would mean this release had switched the reading off too.
+    ck("🚨 the OCR still ran in the background — a reader was spawned "
+       .. "and it answered with a reason that is not 'not run'",
+       ranOCR and gotWhy ~= nil and gotWhy ~= "not run",
+       tostring(gotWhy) .. " / spawned=" .. tostring(ranOCR))
+    -- 🧪 6.186.0, EIGHTH TIME, AND IT BIT THIS BLOCK AS IT WAS WRITTEN:
+    -- the first version indexed a table that does not exist in this
+    -- suite, so the run ENDED here and "0 failed" was never printed —
+    -- which in a gate that reads the tail looks exactly like a pass. A
+    -- test helper answers falsely rather than indexing a nil.
+    -- 🚨 AND IT IS THE TEXT SLOT, NOT THE PATH: recordText calls the
+    -- service as (text, path), so reading the second one measures the
+    -- FILE NAME and passes on any run where a path holds the word.
+    local function lastRecorded()
+        local last
+        for _, c in ipairs(LOG21) do
+            if c.n == "ocr.record" then last = c end
+        end
+        return last and tostring(last.text) or "no ocr.record call at all"
+    end
+    ck("…and the words still reached ⇪O's log",
+       lastRecorded():find("Strategies", 1, true) ~= nil, lastRecorded())
+
+    -- ---- ⇪⇧4 is a DIFFERENT path and is untouched ------------------------
+    -- shots.recognizeFile has copied through its own door since 6.173.1
+    -- and does not read this flag. The fixture that bites is the flag
+    -- OFF: if the two doors ever shared a switch, this is where it shows.
+    do
+        CLIP.kind, CLIP.v = "image", "a picture"
+        local rB = #TASKS
+        S.recognizeFile(shot)
+        if #TASKS > rB then
+            FIRE(TASKS[#TASKS], 0, "the words ⇪⇧4 read", "")
+        end
+        ck("🚪 ⇪⇧4 still copies what it reads with the swap switched OFF — "
+           .. "the two doors do not share a switch",
+           CLIP.kind == "text"
+           and tostring(CLIP.v):find("the words ⇪⇧4 read", 1, true) ~= nil,
+           CLIP.kind .. " / " .. tostring(CLIP.v))
+    end
+
+    -- ---- the report says which state this is -----------------------------
+    local rOff = RPT()
+    local line = rOff:match("clip    :[^\n]*") or ""
+    -- 🚨 AND THE NUMBER, NOT JUST THE SENTENCE — the sweep's own finding
+    -- (6.273.0): hard-coding the count to 0 survived a check that asked
+    -- only for the words, and a sentence with no evidence under it is
+    -- 6.229.0's yield line all over again. One arrival has been through
+    -- the naming path in this block, with the swap off.
+    ck("🔎 the report names the shipped default and COUNTS what it bought",
+       line:find("keeps the clipboard", 1, true) ~= nil
+       and line:find("1 arrival(s) kept the picture", 1, true) ~= nil
+       and (S.clipStats.off or 0) == 1, line)
+    ck("…and the way back is said once, under it",
+       rOff:find("textToClipboard = true } }", 1, true) ~= nil)
+
+    -- ---- 🔌 the switch is real in the other direction too ----------------
+    -- 6.259.0's rule: a default that cannot be switched back is a removal
+    -- wearing a knob. The fixture that bites is the SAME input twice.
+    do
+        S.textToClipboard = true
+        S.ownClip = nil
+        local tB2 = #TASKS
+        HYPER["|4"]()
+        local cv2 = _G.__lastCanvas
+        if cv2 then
+            cv2.cb(cv2, "mouseDown", "_canvas_", 10, 10)
+            cv2.cb(cv2, "mouseUp", "_canvas_", 210, 160)
+        end
+        local shot2 = (TASKS[#TASKS] and TASKS[#TASKS].args
+                       and TASKS[#TASKS].args[#TASKS[#TASKS].args]) or "<none>"
+        FILES[shot2] = { size = 9000, modification = 1000, w = 200, h = 150 }
+        if TASKS[#TASKS] and #TASKS > tB2 then FIRE(TASKS[#TASKS], 0, "", "") end
+        NOWF = NOWF + 1
+        local nB2 = #TASKS
+        S.nameByText(shot2)
+        if #TASKS > nB2 then FIRE(TASKS[#TASKS], 0, "switched back on", "") end
+        ck("🔌 switched back on, the same shot's words DO replace it — the "
+           .. "release is reversible and the knob is not decorative",
+           CLIP.kind == "text", CLIP.kind .. " / " .. tostring(CLIP.v))
+        S.textToClipboard = false
+    end
+
+    NOWF, _G.service = keptNow, keptSvc
+    ck("the 6.341.0 block ran every one of its checks",
+       (pass + fail) - n21 == 10, (pass + fail) - n21)
 end
 
 -- =====================================================================
