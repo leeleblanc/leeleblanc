@@ -1189,5 +1189,78 @@ if (padHtml) {
         env.call("MODE") === "notes" && !env.tbtn.classList.contains("on"), env.call("MODE"));
 }
 
+// =====================================================================
+// 🔎 6.340.0 — "READING YOUR NOTES…" IS NOT "YOU HAVE NO NOTES"
+// =====================================================================
+// LL: "When I first load Hamsidian, it's blank. Then I escape, open
+// again, and the notes are there." The index is built when the window
+// OPENS (v.render() runs BEFORE v.scan("open")), so a first open draws
+// this list from the empty table v.notes is born with — and it printed
+// "no notes yet — ⌘N" over a vault holding every note he has. 6.196.1
+// for the fourth time, in the tool that holds his writing.
+{
+  const env = load();
+  // the state a first open is really in: no scan has completed, no rows
+  env.call("SCANNED = false; NOTES = []; TABS = []; drawRows()");
+  check("🔎 an index nobody has read says so, and NEVER says 'no notes yet'",
+        env.rows.innerHTML.includes("reading your notes")
+        && !env.rows.innerHTML.includes("no notes yet"), env.rows.innerHTML);
+
+  // the fixture that BITES is the empty vault, where the two branches
+  // disagree and every other input agrees (6.230.0): a read index with
+  // no notes in it must still say "no notes yet — ⌘N".
+  env.call("SCANNED = true; drawRows()");
+  check("…and a vault that was READ and is genuinely empty says THAT",
+        env.rows.innerHTML.includes("no notes yet")
+        && !env.rows.innerHTML.includes("reading your notes"), env.rows.innerHTML);
+
+  // 🚨 ⏎ MAY NOT CREATE OVER AN INDEX NOBODY HAS READ (6.307.0's rule,
+  // reached through a timing window instead of a mode). Before the find
+  // answers there are no rows to match against, so the handler would
+  // write a second near-identical note into the folder with his writing.
+  env.call("SCANNED = false; NOTES = []; drawRows()");
+  env.q.value = "Strategies"; env.sent.length = 0;
+  const e1 = env.q.listeners.keydown({ key: "Enter", preventDefault() { this.prevented = true; }, prevented: false });
+  check("🚨 ⏎ in the filter creates NOTHING while the index is still being read",
+        env.sent.length === 0, JSON.stringify(env.sent));
+  check("…and it says why, where he is looking (6.203.0)",
+        /reading your notes/.test(env.hint.textContent), env.hint.textContent);
+
+  // and the same press once the index is in still creates, as it has
+  // since 6.307.0 — the guard must not cost him the feature
+  env.call("SCANNED = true; drawRows()");
+  env.sent.length = 0;
+  env.q.listeners.keydown({ key: "Enter", preventDefault() { this.prevented = true; }, prevented: false });
+  check("…and once the list is in, ⏎ creates that name exactly as before",
+        env.sent.length === 1 && env.sent[0].a === "open"
+        && env.sent[0].name === "Strategies" && env.sent[0].made === true,
+        JSON.stringify(env.sent[0]));
+
+  // 🔑 A PUSH IS AN ANSWER. setIndex is only ever called from
+  // v.refreshIndex(), which runs after v.setNotes() — so reaching it
+  // means a find answered, and an EMPTY array is a real answer.
+  env.q.value = "";     // the filter from the step above would hide every row
+  env.call("SCANNED = false; NOTES = []; drawRows()");
+  check("before the push, the list is still reading",
+        env.rows.innerHTML.includes("reading your notes"), env.rows.innerHTML);
+  env.call("setIndex([], [], {})");
+  check("🔑 a push of an EMPTY index still ends the reading state — "
+        + "an empty answer is an answer",
+        env.rows.innerHTML.includes("no notes yet")
+        && !env.rows.innerHTML.includes("reading your notes"), env.rows.innerHTML);
+
+  // …and a push with rows draws them
+  env.call("setIndex([{n:'Alpha',r:'Alpha.md',k:'alpha',l:[]}], [], {})");
+  check("…and a push with rows draws them without a rebuild",
+        env.rows.innerHTML.includes('data-name="Alpha"'), env.rows.innerHTML);
+
+  // a #tag miss has the same two states
+  env.call("SCANNED = false; NOTES = []; drawRows()");
+  env.q.value = "#zzz"; env.call("drawRows()");
+  check("🔎 a #tag over an unread index reads as reading, not as 'no note carries it'",
+        env.rows.innerHTML.includes("reading your notes")
+        && !env.rows.innerHTML.includes("no note carries"), env.rows.innerHTML);
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

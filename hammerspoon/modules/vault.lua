@@ -1335,6 +1335,18 @@ function M.setup(core)
                 if rel then rels[#rels + 1] = rel end
             end
             v.setNotes(rels)
+            -- 🔎 6.340.0 — THE NAMES ARE KNOWN NOW, AND THE PAGE WAITED FOR
+            -- THREE MORE GREPS. finish() is the end of find → links → tags
+            -- → front matter, and only finish() pushed the rows — so a
+            -- first open sat blank for the whole chain over a vault in
+            -- OneDrive, which is exactly as long as LL waited before
+            -- pressing Escape. The left column needs the find and nothing
+            -- else; the later greps push again through the same door when
+            -- they fill the tags and the headings in.
+            -- 🚨 NOT A REPLACEMENT FOR finish()'s push: a page WebKit has
+            -- not parsed yet drops this in silence (6.238.0), which is why
+            -- the `ready` handshake and finish() are both still belts.
+            if v.webview then pcall(v.refreshIndex) end
             if code ~= 0 and #rels == 0 then finish("find exited " .. tostring(code) .. ": " .. trim(serr or "")) return end
             local grepArgs = { "-rHo", "--include=*.md" }
             for _, d in ipairs(v.skipDirs) do grepArgs[#grepArgs + 1] = "--exclude-dir=" .. d end
@@ -2515,7 +2527,14 @@ function M.setup(core)
         for _, rel in ipairs(u.rels or {}) do unlRows[#unlRows + 1] = { n = rel:match("([^/]+)%.md$") or rel, r = rel } end
         local fs = tonumber(v.fontSize) or 16
         if fs < 8 then fs = 8 end
-        local status = v.scanning and "scanning…" or (v.scanErr and ("⚠ " .. v.scanErr) or (#v.notes .. " notes"))
+        -- 🔎 6.340.0 — THREE STATES, and the third is the one a first open
+        -- is always in: v.render() runs BEFORE v.scan("open"), so v.scanning
+        -- is false and #v.notes is 0, and this printed "0 notes" about a
+        -- full vault. v.lastScan is nil until a scan has completed.
+        local status = v.scanning and "scanning…"
+                       or (v.scanErr and ("⚠ " .. v.scanErr)
+                           or (v.lastScan and (#v.notes .. " notes")
+                               or "reading your notes…"))
         if v.partial then status = status .. " (partial)" end
         -- 6.173.0 — the pad's tabs and closed tabs, for the page
         local tabsJs, histJs, hist = {}, {}, {}
@@ -2766,6 +2785,13 @@ body.board #board{display:flex}
   window.addEventListener('blur', function(){ var b = box(); if (b) b.style.display = 'none'; });
 })();
 var NOTES = ]==] .. v.notesJson() .. [==[;
+// 🔎 6.340.0 — HAS THE INDEX EVER BEEN READ? v.lastScan is nil until a
+// scan completes, and it is the ONE field that separates "not read yet"
+// from "there is nothing" — 6.334.0 found it already being collected and
+// unread in the boot readout; this is the same field in the window LL
+// actually looks at. setIndex() sets it true, because reaching setIndex
+// means the find has answered.
+var SCANNED = ]==] .. tostring(v.lastScan ~= nil) .. [==[;
 var GRAPH = ]==] .. v.graphJson() .. [==[;
 var CUR = ]==] .. jstr(d and d.rel or "") .. [==[;
 var CURKEY = ]==] .. jstr(d and d.key or "") .. [==[, CURNAME = ]==] .. jstr(d and d.name or "") .. [==[;
@@ -2915,7 +2941,19 @@ function drawRows(){
     h.push('<li class="note' + (x.r === CUR ? ' cur' : '') + '" data-name="' + esc(x.n) + '" data-del="' + esc(x.r) + '" title="' + esc(x.r) + (x.t ? ' — the file is ' + esc(x.n) + '.md' : '') + '">' + esc(shown) + '<span class="x" title="delete">\u2715</span></li>');
     if (++n >= 400) break;
   }
-  if (!h.length) h.push('<li style="opacity:.4;cursor:default">' + (tag !== null ? 'no note carries #' + esc(tag) : (f ? 'no note matches — ⏎ creates &quot;' + esc(q.value.trim()) + '&quot;' : 'no notes yet — ⌘N')) + '</li>');
+  // 🔎 6.340.0 — "NOT READ YET" AND "THERE IS NOTHING" MUST NOT PRINT THE
+  // SAME WORDS (6.196.1, and this is the fourth costume). The index is
+  // built when Hamsidian OPENS — nothing triggers it at boot — so a first
+  // open draws this list from the empty table v.notes is born with, and
+  // it said "no notes yet — ⌘N" over a vault holding every note he has.
+  // LL: "When I first load Hamsidian, it's blank. Then I escape, open
+  // again, and the notes are there." The second open is drawn from the
+  // index the first open's scan filled in after he had already left.
+  if (!h.length) h.push('<li style="opacity:.4;cursor:default">'
+    + (tag !== null ? (SCANNED ? 'no note carries #' + esc(tag) : 'reading your notes…')
+      : (f ? (SCANNED ? 'no note matches — ⏎ creates &quot;' + esc(q.value.trim()) + '&quot;'
+                      : 'reading your notes… — ⏎ creates once the list is in')
+           : (SCANNED ? 'no notes yet — ⌘N' : 'reading your notes…'))) + '</li>');
   // 6.195.0 — LL: "can I have a way to quickly create a Hammer-sidian note
   // like I do with the notepad section where I can click a +/plus". The
   // same shape as the pad's "+ new tab ⌘T", one section down, and it goes
@@ -3050,6 +3088,13 @@ q.addEventListener('keydown', function(e){
     e.preventDefault();
     var hit = document.querySelector('#rows li[data-name]');
     if (hit) { say({a:'open', name: hit.getAttribute('data-name'), via:'filter'}); return; }
+    // 🔎 6.340.0 — AN INDEX NOBODY HAS READ CANNOT SAY THERE IS NO MATCH.
+    // 6.307.0's rule is that a match beats a creation; before the find has
+    // answered there are no rows to match AGAINST, so ⏎ here writes a
+    // second, near-identical note into the folder holding his writing —
+    // that same bug, reached through a timing window instead of a mode.
+    // The press is not lost, it is early, and the hint says so.
+    if (!SCANNED) { vaultHint('reading your notes… — ⏎ creates once the list is in'); return; }
     // Nothing matched — which is what the empty row has SAID all along
     // ("no note matches — ⏎ creates …"). Now the handler agrees with it.
     say({a:'open', name: f, via:'filter', made: true});
@@ -3087,6 +3132,11 @@ function setIndex(notes, tags, graph){
   if (notes) NOTES = notes;
   if (tags)  TAGS  = tags;
   if (graph) GRAPH = graph;
+  // 🔎 6.340.0 — reaching here means a find has answered: every caller is
+  // v.refreshIndex(), which runs after v.setNotes(). An EMPTY notes array
+  // is a real answer and must read as "no notes yet", not as "still
+  // reading" — so this is set whatever the length.
+  SCANNED = true;
   drawRows();
 }
 function setRows(kind, rows, more, qq){
@@ -4337,6 +4387,14 @@ else {
         -- 6.174.0 — the page finished loading: hand it anything that
         -- arrived while it was still being built.
         elseif a == "ready" then
+            -- 🪟 6.340.0 — AND THE INDEX, for the same reason the mentions
+            -- are here: view:html() returns BEFORE WebKit has parsed the
+            -- document (6.238.0), so a find that answered in that window
+            -- pushed into a page with no setIndex in it and was dropped in
+            -- silence. The page says when it exists and Lua answers; the
+            -- blind push in the find's callback is the fast path, this is
+            -- the belt, and finish() is the backstop behind both.
+            if v.lastScan or #v.notes > 0 then pcall(v.refreshIndex) end
             if v.doc and not v.doc.scratch and v.unlinked.key == v.doc.key then v.pushMentions() end
             if v.mode == "tasks" and v.lastTasks then
                 v.eval("setRows(\"tasks\", " .. jarr(v.taskRows) .. ", " .. tostring(v.taskMore) .. ", \"\")")
@@ -5350,7 +5408,10 @@ else {
         v.scan("open")
         local okT, rt = pcall(hs.timer.doEvery, v.rescanEvery, function() if v.webview then v.scan("timer") end end)
         v.rescanTimer = okT and rt or nil     -- HELD
-        say("opened — " .. #v.notes .. " notes")
+        -- 🔎 6.340.0 — "opened — 0 notes" on every first open, because the
+        -- scan above has only just started. Same two states, one line.
+        say("opened — " .. (v.lastScan and (#v.notes .. " notes")
+                            or "reading your notes…"))
     end
     v.toggle = v.show
 

@@ -44,6 +44,14 @@ local v = _G.vault
 -- 6.174.0 — a template and a daily note in the index; tags, a task list and
 -- a mentions answer, so the page has every pane's data to draw
 v.setNotes({ "Alpha.md", "Projects/Beta.md", "Gamma.md", "Long Name Here.md", "Templates/Meeting.md", "Daily/2026-09-06.md" })
+-- 🔬 6.340.0 — A PAGE WITH SIX NOTES AND NO COMPLETED SCAN CANNOT HAPPEN.
+-- v.lastScan is nil until a scan finishes, and the page reads it as
+-- SCANNED: notes in the index mean a find answered. Leaving it nil here
+-- dumped a state no Mac can be in and put all 289 existing checks into
+-- the "reading your notes…" branch (6.290.0 — a stub models a state the
+-- provider can really hold). The unscanned half is driven explicitly in
+-- test_vault_js.js §22, which is where it belongs.
+v.lastScan = 1700000000
 v.setLinkLines("/od/Vault/Alpha.md:[[Beta|B]]\n/od/Vault/Gamma.md:[[Alpha]]\n/od/Vault/Gamma.md:[[Delta]]\n")
 v.tagsOf = { ["Alpha.md"] = { "Work" }, ["Gamma.md"] = { "work/deep" }, ["Projects/Beta.md"] = { "Home" } }
 v.rebuildTags()

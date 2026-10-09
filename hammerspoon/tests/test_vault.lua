@@ -3241,5 +3241,108 @@ do
     check("§6.335.0 ran all of its checks (" .. ran .. " of 18)", ran >= 18, ran)
 end
 
+out("\n6.340.0 — 🔎 A FIRST OPEN IS NOT AN EMPTY VAULT\n")
+-- =======================================================================
+-- LL: "When I first load Hamsidian, it's blank. Then I escape, open
+-- again, and the notes are there." v.render() runs BEFORE v.scan("open"),
+-- and the rows only reached the page at finish() — the end of find →
+-- links → tags → front matter. So the window sat blank for the whole
+-- chain and said "no notes yet — ⌘N" while it did. 6.196.1 for the
+-- fourth time, in the tool that holds his writing.
+do
+    local before = pass + fail
+
+    -- ---- the page is TOLD which of the two states it is in ---------------
+    -- 🚨 THE STRIP, NOT THE PAGE: "reading your notes…" is also a string
+    -- in drawRows' own source, so a check that greps the whole document
+    -- passes with the strip untouched. This reads the one span.
+    local function hintOf(h) return h:match('id="hint">([^<]*)') or "" end
+    -- earlier sections leave a scan in flight; v.scanning outranks both
+    -- states here and would mask the one under test
+    -- …and §6.304.0 deliberately leaves a refused scan recorded, which
+    -- outranks both states in the strip for the same honest reason
+    v.scanning, v.scanErr = false, nil
+    v.setNotes({})
+    v.lastScan = nil
+    local h0 = v.buildHtml()
+    check("🔎 an index nobody has read reaches the page as SCANNED = false",
+          h0:find("var SCANNED = false", 1, true) ~= nil)
+    check("…and the hint strip says reading, not '0 notes'",
+          hintOf(h0):find("reading your notes", 1, true) ~= nil
+          and hintOf(h0):find("0 notes", 1, true) == nil, hintOf(h0))
+
+    v.setNotes({ "Alpha.md", "Beta.md" })
+    v.lastScan = 1700000000
+    local h1 = v.buildHtml()
+    check("…and a read index reaches it as SCANNED = true, with the count",
+          h1:find("var SCANNED = true", 1, true) ~= nil
+          and hintOf(h1):find("2 notes", 1, true) ~= nil, hintOf(h1))
+
+    -- ---- THE ROWS GO IN WHEN THE FIND ANSWERS ----------------------------
+    -- The names are known after ONE task and the page waited for four.
+    -- This is the check that bites: it asserts the push has happened
+    -- BEFORE any grep callback is delivered.
+    v.openNote("Alpha")
+    v.open()
+    local W = WEBVIEWS[#WEBVIEWS]
+    local mark = #EVALS
+    v.rowRefresh = 0
+    v.scan("firstopen")
+    local ft = lastTask("find")
+    ft.cb(0, "/Users/ll/OneDrive/Vault/Alpha.md\n/Users/ll/OneDrive/Vault/Beta.md\n", "")
+
+    local pushedEarly = false
+    for i = #EVALS, mark + 1, -1 do
+        if EVALS[i]:find("^setIndex%(") then pushedEarly = true break end
+    end
+    check("🔎 the rows are in the page the moment the FIND answers — "
+          .. "not three greps later",
+          pushedEarly and v.rowRefresh >= 1, v.rowRefresh .. " refresh(es)")
+    check("…and the push carried the notes the find named",
+          EVALS[#EVALS]:find("Alpha", 1, true) ~= nil, EVALS[#EVALS]:sub(1, 60))
+
+    -- drain the rest of the chain so the module is left idle
+    for _ = 1, 5 do
+        local t = lastTask("grep")
+        if t and not t.done then t.cb(1, "", "") else break end
+    end
+
+    -- ---- 🪟 THE PAGE SAYS WHEN IT EXISTS, AND LUA ANSWERS -----------------
+    -- view:html() returns BEFORE WebKit has parsed the document (6.238.0),
+    -- so a find that answers inside that window pushes into a page with no
+    -- setIndex in it and is dropped in silence. The `ready` handshake is
+    -- the belt for exactly that.
+    local mark2 = #EVALS
+    msg({ a = "ready" })
+    local answered = false
+    for i = #EVALS, mark2 + 1, -1 do
+        if EVALS[i]:find("^setIndex%(") then answered = true break end
+    end
+    check("🪟 the page saying 'ready' is answered with the index — a push "
+          .. "into a page WebKit had not parsed is not lost",
+          answered, tostring(#EVALS - mark2) .. " eval(s)")
+
+    -- …and it says NOTHING when there is nothing to say: a ready on a Mac
+    -- where no scan has ever completed and no note is known must not push
+    -- an empty index and end the reading state for a list still loading.
+    local keptNotes, keptScan = v.notes, v.lastScan
+    v.notes, v.lastScan = {}, nil
+    local mark3 = #EVALS
+    msg({ a = "ready" })
+    local saidNothing = true
+    for i = #EVALS, mark3 + 1, -1 do
+        if EVALS[i]:find("^setIndex%(") then saidNothing = false break end
+    end
+    check("…and a ready with nothing known pushes NO index, so the page "
+          .. "keeps saying it is reading",
+          saidNothing, tostring(#EVALS - mark3) .. " eval(s)")
+    v.notes, v.lastScan = keptNotes, keptScan
+
+    v.hide()
+
+    local ran = (pass + fail) - before
+    check("§6.340.0 ran all of its checks (" .. ran .. " of 7)", ran >= 7, ran)
+end
+
 out(string.format("\n%d passed, %d failed\n", pass, fail))
 os.exit(fail == 0 and 0 or 1)
