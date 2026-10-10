@@ -727,6 +727,12 @@ document.addEventListener('keydown',function(e){
 </script></body></html>]] })
     end
 
+    -- 🧪 PUBLISHED so the gate can RUN this page rather than grep it.
+    -- A page this config draws is a page the gate runs (6.231.1): four
+    -- pages had a suite and the fifth did not, and asking for it found
+    -- the bug in a minute.
+    vid.buildPage = buildHtml
+
     -- =================================================================
     -- THE WINDOW
     -- =================================================================

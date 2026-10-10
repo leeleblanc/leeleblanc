@@ -4,8 +4,18 @@
 -- =====================================================================
 -- 10-09-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.343.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.344.0
 -- =====================================================================
+
+-- NEW IN 6.344.0 — 🎬 THE MUG PLAYER (⇪⇧,): A JUG PLAYER FOR FILMS
+--   (modules/video_player.lua, new). LL: "a Jug Player but for movies.
+--   Once it's stable we will merge them." .mp4, his scope. A <video
+--   controls> stage — scrubber, clock, volume, full screen and PiP all
+--   WebKit's OWN — over a queue and 30 days of history.
+--   🪟 NEW GROUND, SAID: nothing here has played video in a webview, so
+--   whether one reads a film off disk is UNMEASURED. vid.sourceDoors
+--   lists the ways in, the page reports which carried it, and a film no
+--   door reaches gets a sentence and ⌘O. 🔌 drag.paths is SHARED.
 
 -- NEW IN 6.343.0 — 🚨 ⇪Esc WAS FIRING THE PANIC CHORD, AND 93 ioreg
 --   PROCESSES WERE PILING UP (power_tools.lua + core/hyper_key.lua +
@@ -19,22 +29,11 @@
 --   names any other such chord whose hyper key is unclaimed.
 --   🧟 And the Secure Input belt KILLS the ioreg it gave up on.
 
--- NEW IN 6.342.0 — 📐 ⌘D IS THE ⇧⌘5 SHAPE: DRAG THE AREA, THEN COUNT
---   DOWN, THEN SHOOT IT (screenshot_editor.lua + screenshots.lua). LL,
---   on 6.255.0's ⌘D: "five seconds to setup, shows no crosshairs, and
---   then … a screenshot of the desktop is placed on it" — which is what
---   that release built; his expectation is macOS's ⇧⌘5 order. OUR
---   selector, never `-i` (6.337.0: it cannot report where you dragged,
---   and this must HOLD a rect across a countdown). TWO BELT LEGS, since
---   the selector waits on a hand — a long last resort, re-armed short
---   once a rect exists (6.304.0) — and the belt ENDS a selector still
---   open instead of reappearing in the area he is choosing.
-
--- (6.341.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.342.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 cut the inline count to
 --  TWO; a gate check proves every entry here is also in CHANGELOG.md.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.343.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.344.0
 -- =====================================================================
 -- The catalogue that used to sit here moved to GUIDE.md ("What each
 -- tool does") in 6.180.0 — 259 lines of prose inside the orchestrator.
@@ -127,7 +126,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.343.0"
+_G.configVersion = "6.344.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the

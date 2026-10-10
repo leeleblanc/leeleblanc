@@ -5,6 +5,127 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.344.0 — 🎬 THE MUG PLAYER (⇪⇧,): A JUG PLAYER FOR FILMS
+  (modules/video_player.lua, new)
+
+  LL, 2026-10-10: "Right now, give me something that is Mug Player. So
+  a Jug Player but for movies. Once it's stable we will merge the
+  players." And, the night before, the scope in his own words: "Build
+  the video player to handle .mp4. I'll deal with the rest on my own."
+
+  So: a SEPARATE tool, a separate key, a separate store — and a merge
+  later, on his word, once this one has run on his Mac for a while.
+  That is his sequencing, not mine, and it is the right one: two tools
+  that share nothing mutable cannot take each other down, and the
+  merge is a decision with evidence behind it rather than a guess made
+  on the day the second one was written.
+
+  🎛 NATIVE CONTROLS, WHICH IS WHAT HE ASKED FOR TWICE. The stage is
+  one `<video controls>` element, so the scrubber, the clock, the
+  volume slider, full screen and picture-in-picture are WebKit's own —
+  the same chrome Safari puts under a film. Nothing here reimplements
+  a transport bar, and nothing here can get one wrong. The deck under
+  it is the Jug Player's shape: a queue, a 30-day history, one row per
+  file, ↑↓ across both as one list, ⏎, ⌫, ⌘1–9 and a ✕ per history row.
+
+  🪟 NEW GROUND, AND IT IS SAID RATHER THAN DISCOVERED. Seventy-one
+  modules draw webviews and not one of them has ever played VIDEO in
+  one, so the single fact this whole tool rests on — whether a
+  WKWebView Hammerspoon opened will load a film off the local disk —
+  is a fact nothing in this project has measured. 6.233.0's rule
+  forbids designing on a belief about a platform, and the honest
+  answer to "I do not know" is not a guess, it is a MEASUREMENT:
+  `vid.sourceDoors` lists the ways in (the film's own folder as the
+  page's base URL with a relative src; then an absolute file:// URL),
+  the page's own `<video>` reports whether it loaded or errored, Lua
+  moves to the next door on a failure, and `_G.mugReport()` names the
+  one that carried it. A Hammerspoon whose `:html()` ignores a second
+  argument simply makes door 1 behave as door 2 and falls through —
+  nothing breaks either way, which is the entire point of not
+  guessing.
+  🔑 AND THE WINNER IS REMEMBERED ACROSS BOOTS (`doorStart`, in the
+  store), so the second film opens straight through the door that
+  worked. A tool that rediscovers the same platform fact on every file
+  is a tool that flickers.
+  🚨 AND WHEN EVERY DOOR IS REFUSED IT SAYS SO IN WORDS, over the
+  stage, naming the film and giving ⌘O into QuickTime — never a black
+  rectangle. That is the state this release exists to make legible.
+
+  🔌 ONE THING IS BORROWED AND ONE DELIBERATELY IS NOT, and the line
+  between them is the judgement worth recording. The DRAG READER is
+  borrowed: music_player's `mp.dropPaths` is published as the service
+  `drag.paths` — five pasteboard readers asked in order, plus the
+  bookmark round trip that turns Finder's `file:///.file/id=…` inode
+  URLs back into files. That is four releases of hard-won macOS
+  knowledge (6.233.0, 6.235.0, 6.236.1, 6.237.0) and a second copy of
+  it would be a second copy to get wrong (6.231.0). Its failure mode
+  is the mild one: no provider, no DROP, said in the report, and
+  nothing of his is lost. It is also the lift this file already called
+  for when the OCR tag path hit the identical inode bug.
+  🚫 THE HISTORY ARITHMETIC IS NOT BORROWED. It is fifteen lines of
+  list rules with its own fixtures, and hanging this module's DATA
+  path off another module's load order would mean a film history that
+  prunes at thirty days on a good boot and never on a bad one. A
+  shared helper is right when the knowledge is expensive and the
+  failure is mild; it is wrong when the failure silently changes what
+  is kept.
+
+  ⏯ THE MEDIA KEYS ARE NOT CLAIMED, and that is a decision rather than
+  an omission. The Jug Player takes F7/F8/F9 while its card is on
+  screen (6.289.0, narrowed in 6.309.0), and two tools reaching for one
+  physical key is exactly the shape 6.291.0 exists because of. With the
+  stage focused macOS routes them to the film anyway. When the players
+  merge, ONE gate decides for both; until then this one does not reach.
+
+  📏 SCOPE, HIS: .mp4 only. `vid.exts` is the list, the report prints
+  it, and the refusal a .mkv meets names both the list and ⌘O — so
+  widening it to .m4v or .mov is one word from him and not a release,
+  but it ships as he asked for it rather than as I would have guessed.
+
+  🧪 THE SUITE FOUND THREE REAL DEFECTS BEFORE HIS MAC COULD, which is
+  the argument for stubs as unforgiving as macOS (6.290.0) in one
+  release:
+    · `encodePath` ran TWO gsubs — "%" in one, everything else in the
+      other — so the second re-encoded the "%" the first had written.
+      "50% off.mp4" came out "50%2525%20off.mp4" and no file could
+      load. ANY two-pass encoder has that defect, because the second
+      pass cannot tell an escape it wrote from a character it must
+      escape. One pass now. The fixture that bites holds BOTH a
+      percent and a space, because either alone passes under the wrong
+      implementation (6.230.0).
+    · the focus chase compared window OBJECTS (`focusedWindow() == w`),
+      and hs.window hands back a FRESH wrapper on every call — so the
+      chase would have run its four tries and reported "gave up" on a
+      perfectly healthy Mac. By id now.
+    · `show()` was wrapped as `pcall(function() view:show() ; shown =
+      true end)`, which is 6.304.0's rule broken in the very release
+      that quotes it: a refusal RETURNS false and does not throw, so
+      the flag was set either way, a window macOS refused would have
+      been recorded as OPEN, and the teardown beneath it was
+      unreachable. The stub refuses by returning false, as macOS does,
+      which is what made it visible.
+
+  🧪 AND THE MUTATION SWEEP FOUND THREE MISSING CHECKS (34 mutations,
+  3 survivors, all three now biting — 6.273.0: when a line no mutation
+  can kill turns up, the line is not the finding, the missing check
+  is):
+    · the empty-path guard in `forgetHistory` was tested against three
+      REAL paths, where nothing matches either way. The fixture that
+      bites contains a row whose path IS empty.
+    · "playing claims both the row and its list" started with the
+      cursor already in the queue, so deleting the line passed. It
+      starts in the history now.
+    · nothing asserted the catcher's `mouseCallback`, which hs.canvas
+      documents as required before a window will accept a dragged file
+      and whose absence is invisible in the result — LL's "a drag just
+      puts it behind the player" from 6.231.0, word for word. The stub
+      refuses the drag registration without one now.
+
+  📋 Its page is RUN by the gate (stage 3f, 44 checks): the drawing,
+  the ✕-before-the-row rule, every key, the drop veil, the failure
+  message and the `<video>` element's own door reporting. A page this
+  config draws is a page the gate runs (6.231.1).
+
 NEW IN 6.343.0 — 🚨 ⇪Esc WAS FIRING THE PANIC CHORD, AND 93 ioreg
   PROCESSES WERE PILING UP (modules/power_tools.lua +
   core/hyper_key.lua + core/capabilities.lua)

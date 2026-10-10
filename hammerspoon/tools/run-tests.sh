@@ -372,6 +372,39 @@ else
 fi
 echo ""
 
+# --------------------------------------------- 3f. mug player page JS
+echo "3f. MUG PLAYER — PAGE JAVASCRIPT, EXECUTED"
+if [ -z "$LUA" ] || [ -z "$NODE" ]; then
+    echo "   ⚠️  skipped — needs both lua and node"
+    echo "      The drawing, the ✕, the keys and the <video> element's own"
+    echo "      door reporting live in this page. If this is skipped, ⇪⇧,'s"
+    echo "      behaviour is UNTESTED this run."
+    SKIPPED="$SKIPPED mug-js"
+elif [ ! -f "$HS/tests/dump_mug_html.lua" ] || [ ! -f "$HS/tests/test_mug_js.js" ]; then
+    echo "   ⚠️  skipped — harness files missing from tests/"
+    SKIPPED="$SKIPPED mug-js"
+else
+    STAGES_RUN=$((STAGES_RUN + 1))
+    if "$LUA" "$HS/tests/dump_mug_html.lua" "$HS/modules" "$WORK/mug-rows.json" \
+            > "$WORK/mug.html" 2>"$WORK/mug.err"; then
+        out=$("$NODE" "$HS/tests/test_mug_js.js" "$WORK/mug.html" "$WORK/mug-rows.json" 2>&1)
+        line=$(echo "$out" | grep -E '[0-9]+ passed, [0-9]+ failed' | tail -1)
+        if echo "$line" | grep -q ', 0 failed'; then
+            echo "   ✅ test_mug_js — $line"
+            tally "$line"
+        else
+            echo "   ❌ test_mug_js — ${line:-did not finish}"
+            echo "$out" | grep -E '^\s*(❌|FAIL)' | head -10 | sed 's/^/        /'
+            FAILED=$((FAILED + 1))
+        fi
+    else
+        echo "   ❌ the Mug Player page's HTML could not be generated:"
+        tail -5 "$WORK/mug.err" | sed 's/^/        /'
+        FAILED=$((FAILED + 1))
+    fi
+fi
+echo ""
+
 # ---------------------------------------------------------------- the verdict
 echo "──"
 if [ -n "$SKIPPED" ]; then

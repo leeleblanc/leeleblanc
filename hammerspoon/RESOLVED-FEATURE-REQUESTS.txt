@@ -1,5 +1,5 @@
 ========================================================================
-RESOLVED FEATURE REQUESTS — Hammerspoon config 6.343.0
+RESOLVED FEATURE REQUESTS — Hammerspoon config 6.344.0
 Every feature and how to use it. Generated from the modules' own
 cheat sheets (the rows ⇪/ draws), so it is never out of date.
 ⇪ = Caps Lock held (the hyper key). ⇪⇧X = Caps Lock + Shift + X.
@@ -625,6 +625,24 @@ In the Console, _G.<tool>Report() prints any tool's own report.
   focus     The card takes the keyboard when it opens — no click first
   Console   _G.musicReport()
 
+🎬 MUG PLAYER (⇪⇧, — films, with the Mac's own controls)   [modules/video_player.lua]
+  ⇪⇧,   Open / close the Mug Player
+  drop      Drag .mp4 films onto the window: the first plays, the rest queue
+  controls  The scrubber, clock, volume, full screen and PiP are macOS's own
+  space     Play / pause, wherever the keyboard is in the window
+  ← →   Seek, and ⇧ with them seeks further — the film's own keys
+  ↑ ↓ · ⏎ Walk the queue AND the 🕘 history as one list · ⏎ plays
+  ⌘1–⌘9 Play the Nth film in the queue
+  ⌫       On a queue row: take it out · on a 🕘 history row: forget it
+  ✕       On a 🕘 history row: forget that film (the file is not touched)
+  ⌘O      Open the film playing now in QuickTime — the way out when
+            macOS will not let this window read it
+  drag      Move the window: grab its title strip — or ⌘-drag anywhere on it
+  ⏯ ⏮ ⏭ NOT taken here, deliberately: the Jug Player holds them, and two
+            tools on one physical key is how they come to disagree (6.291.0)
+  format    .mp4 only — his scope; the report names the list
+  Console   _G.mugReport()
+
 📊 DAILY ROLLUP (one card at 16:01 — no key, no store)   [modules/daily_rollup.lua]
   16:01     A card in the corner: time, documents, notes
   📊      Show today's card now — ⇪space, then @tool
@@ -789,6 +807,7 @@ In the Console, _G.<tool>Report() prints any tool's own report.
 
 📜 RELEASE INDEX — newest first, one line per release (the full story of each is in CHANGELOG.md)
 ------------------------------------------------------------------------
+  6.344.0  🎬 THE MUG PLAYER (⇪⇧,): A JUG PLAYER FOR FILMS
   6.343.0  🚨 ⇪Esc WAS FIRING THE PANIC CHORD, AND 93 ioreg
   6.342.0  📐 ⌘D IS THE ⇧⌘5 SHAPE: DRAG THE AREA, THEN COUNT
   6.341.0  🔁 THE SHOT KEEPS THE CLIPBOARD; ⇪⇧4 IS THE OCR DOOR

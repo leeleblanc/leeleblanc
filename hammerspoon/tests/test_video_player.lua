@@ -156,13 +156,22 @@ hs = {
         new = function(rect)
             if CANVAS_REFUSES then return nil end
             local c = { rect = rect, deleted = false, shown = false }
-            function c:mouseCallback() return self end
+            -- 🔬 hs.canvas DOCUMENTS a mouseCallback as required before
+            -- a window will accept a dragged file, and its absence is
+            -- invisible in the result — the drag simply passes through
+            -- to whatever is behind, which is the shape that cost
+            -- 6.233.0. A stub that accepted a drag without one would
+            -- make that condition unprovable (6.290.0).
+            function c:mouseCallback() self.hasMouseCb = true ; return self end
             function c:level()
                 if NO_DRAGLEVEL then error("no such level", 0) end
                 return self
             end
             function c:draggingCallback(fn)
                 if NO_DRAGCB then error("no drag support", 0) end
+                if not self.hasMouseCb then
+                    error("a canvas with no mouseCallback takes no drags", 0)
+                end
                 self.dragFn = fn ; return self
             end
             function c:show() self.shown = true ; return self end
@@ -403,10 +412,17 @@ local left, gone = vid.forgetHistory(list, "/a.mp4")
 -- said it removed the film.
 check("🗑 every matching row goes, not just the first", gone == 2 and #left == 1)
 check("🗑 and the right one is left", left[1].path == "/b.mp4")
-local same, none = vid.forgetHistory(list, "")
--- 🚨 A blank message must never empty the list.
+-- 🚨 A BLANK MESSAGE MUST NEVER EMPTY THE LIST, and the fixture that
+-- proves it has to CONTAIN a row an empty path would match. The first
+-- version passed "" against three real paths, where nothing matches
+-- either way — the guard was unkillable, and the mutation sweep said
+-- so. 6.230.0: pick the input where the two implementations differ.
+local withBlank = { { path = "" }, { path = "/a.mp4" }, { path = "" } }
+local same, none = vid.forgetHistory(withBlank, "")
 check("🗑 an EMPTY path is refused — a blank message empties nothing",
-      none == 0 and #same == 3)
+      none == 0 and #same == 3, tostring(none) .. " removed")
+check("🗑 …and a real path still works on that same list",
+      select(2, vid.forgetHistory(withBlank, "/a.mp4")) == 1)
 check("🗑 a path no row holds removes nothing",
       select(2, vid.forgetHistory(list, "/zz.mp4")) == 0)
 
@@ -569,8 +585,13 @@ check("🎬 the first film started playing", vid.index == 1)
 -- 🚨 BOTH the row and its LIST are claimed (6.315.0's own sweep
 -- finding): leaving the list behind makes the cursor read a queue
 -- number as a history row, and the next ⌫ forgets something else.
-check("🚨 playing claims BOTH the row and the list it is in",
-      vid.sel == 1 and vid.selList == "queue")
+-- 🔑 THE CURSOR IS PUT IN THE HISTORY FIRST, or the check passes with
+-- the line deleted — "queue" is where it already was. The sweep caught
+-- exactly that.
+vid.selList, vid.sel = "history", 1
+vid.playIndex(1)
+check("🚨 playing claims BOTH the row and the LIST it is in",
+      vid.sel == 1 and vid.selList == "queue", vid.selList)
 check("🕘 …and it went into the history", #vid.history == 1)
 
 -- 🔎 THE READER'S ABSENCE IS AN ANSWER, NOT A CRASH.
@@ -603,6 +624,17 @@ check("🧊 hs.canvas REFUSING is its own branch, with its own words",
       and vid.dropWhy:find("could not be created", 1, true) ~= nil,
       vid.dropWhy)
 CANVAS_REFUSES = false
+-- 🧊 BOTH CONDITIONS hs.canvas DOCUMENTS, driven. The mouseCallback is
+-- the quiet one: without it the window registers no dragged types, the
+-- drag passes straight through to whatever is behind, and nothing in
+-- the result says so — which is LL's "a drag just puts it behind the
+-- player" from 6.231.0, word for word.
+reset()
+vid.show()
+check("🧊 the catcher set a mouseCallback — without one it takes no drags",
+      vid.catcher ~= nil and vid.catcher.hasMouseCb == true)
+check("🧊 …and a dragging callback, which is the other half",
+      vid.catcher ~= nil and type(vid.catcher.dragFn) == "function")
 reset()
 NO_DRAGLEVEL = true
 vid.show()

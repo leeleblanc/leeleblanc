@@ -388,9 +388,16 @@ check("🪦 the setup row is gone — the tick is made by hand, and the "
       .. "native triple-press of Touch ID walks there",
       pt.byId("monoset") == nil)
 -- 🔑 THE FOUR WITH A KEY OF THEIR OWN. ⇪⇧, and ⇪⇧. are NOT among them
--- and must never be: numpad_layer's laptop window row has claimed both
--- since 6.114.0 (shrink and grow), and the first draft of this release
--- pointed two tools at them. The hyper sentry would have printed a
+-- and must never be, because POWER TOOLS does not own them — and the
+-- reason written here was stale for two hundred releases, which is
+-- exactly the shape CLAUDE.md warns about. It said numpad_layer's
+-- laptop window row had claimed both since 6.114.0 (shrink and grow);
+-- 6.142.0 CLEARED that whole layer, `numpad.shiftActions` has been
+-- empty ever since, and both keys were genuinely free. ⇪⇧. went to the
+-- Jug Player in 6.311.0 and ⇪⇧, to the Mug Player in 6.344.0 — neither
+-- of them this file. The sentry below is still right and still worth
+-- keeping; only its explanation had rotted. The first draft of 6.19x
+-- pointed two tools at these keys. The hyper sentry would have printed a
 -- conflict at boot and one of the window keys would have gone quietly
 -- dead, which is the failure this config exists to prevent.
 check("⇪' pauses everything", BOUND["+'"] ~= nil)

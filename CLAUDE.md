@@ -445,7 +445,8 @@ work Mac.
 - 🆓 NEVER ANSWER "IS THIS KEY FREE?" FROM THIS FILE — ASK THE REGISTRY
   (6.276.0's rule, and 6.311.0 is the release that kept it). ⇪⇧Z is
   reserved and must not be bound. ⇪⇧T and ⇪1 were spent in 6.194.0;
-  ⇪⇧. was spent in 6.311.0 (the Jug Player's second door); ⇪3 → vault
+  ⇪⇧. was spent in 6.311.0 (the Jug Player's second door) and
+  ⇪⇧, in 6.344.0 (the Mug Player, deliberately beside it); ⇪3 → vault
   6.172.0; ⇪⇧U → anchors 6.180.0; ⇪⇧7 → Bluetooth 6.216.0.
   🚨 AND THE LINE THAT USED TO SIT HERE SENT YOU TO A DELETED FILE: it
   said to check `hint.groups` in modules/shortcut_hints.lua, "the
@@ -5404,7 +5405,7 @@ THE METHOD, when something breaks after a stacked zip:
    6.216.0 6f06071 · 6.217.0 a475bef · 6.218.0 41b002b · 6.219.0 862c177
    · 6.220.0 ac3975e · 6.221.0 ead07d9 · 6.222.0 1842ca7 · 6.223.0
    86ac82b · 6.224.0 67957ea · 6.225.0 98434fe · 6.226.0 304f1f9 ·
-   6.227.0 14e953a · 6.228.0 2aa3dfe · 6.229.0 a1318e1 · 6.230.0 0740c07 · 6.231.0 c1921af · 6.231.1 5a5c298 · 6.232.0 1ca3f6f · 6.233.0 2328c8c · 6.234.0 57f78d0 · 6.235.0 52e5b21 · 6.236.0 34cff8b · 6.236.1 fdce771 · 6.237.0 adf9256 · 6.238.0 3adad4f · 6.239.0 3adad4f (one commit, two releases) · 6.240.0 8f44bec · 6.241.0 dce517e · 6.242.0 1a1dab0 · 6.243.0 8fba04f · 6.244.0 9320906 · 6.245.0 9c1a8b1 · 6.246.0 1400abd · 6.247.0 3b92e99 · 6.248.0 e4e3a03 · 6.249.0 e4edc3f · 6.250.0 c267c1b · 6.251.0 f7b0d57 · 6.252.0 6307253 · 6.253.0 ef20313 · 6.254.0 14493e5 · 6.255.0 d371b34 · 6.256.0 3c29888 · 6.257.0 7f55d2b · 6.258.0 10d2250 · 6.259.0 2bcda06 · 6.260.0 f16e286 · 6.261.0 8680504 · 6.262.0 595dc2e · 6.263.0 014ddf6 · 6.264.0 5e41879 · 6.265.0 f0c487c · 6.266.0 9135f7b · 6.267.0 a621a60 · 6.268.0 c2e513f · 6.269.0 f6552ea (078cece is the same release before the report was corrected) · 6.270.0 b8eda88 · 6.271.0 b8edbe1 · 6.272.0 881a91b · 6.273.0 56b0d2b · 6.274.0 c6e9b6b · 6.275.0 9cebe19 · 6.276.0 3db904e · 6.277.0 c6632a1 · 6.278.0 6c1fe75 · 6.279.0 a6241f5 · 6.280.0 893b40b · 6.281.0 5611a4a · 6.282.0 11dc992 · 6.283.0 3fa417f · 6.284.0 a8f3df4 · 6.285.0 70d118b · 6.286.0 fa93f1b · 6.287.0 39b9dba · 6.288.0 8508186 · 6.289.0 83f5296 · 6.290.0 6daee50 · 6.291.0 aec4561 · 6.292.0 c89c65f · 6.293.0 10c9410 · 6.294.0 0aeebdc · 6.295.0 641c45c (52c1b2b adds the check its own mutation sweep found missing) · 6.296.0 e82ad95 (8bd970b adds the cross-file sentry) · 6.297.0 dacb791 (1604d55 hardens the suite) · 6.298.0 f77c47e (fe109ff adds the two checks its sweep found missing) · 6.299.0 bdc6855 (c587502 the same) · 6.300.0 8ab4802 (cc8b7f9 the same) · 6.301.0 dcff776 · 6.302.0 b465418 (e287164 the mutation sweep's own two findings) · 6.303.0 f5d89e1 · 6.304.0 b8b1b51 (7cf3d9b is the release; b8b1b51 adds the mutation sweep's own four findings) · 6.305.0 b1aa974 (f478dc8 is the release; b1aa974 adds the mutation sweep's own four findings) · 6.306.0 cf14689 · 6.307.0–6.310.0 10c6a87 (one commit, four releases — the four live in four different modules, so a break still names its version by which tool it is in) · 6.311.0 82e52f8 (c7cd4de adds the mutation sweep's own two findings) · 6.312.0 4ad18dc · 6.313.0 c09cb78 (the ceremony for both is the commit after; the code is in those two) · 6.314.0 9ee6a76 (0a363e9 is the ceremony and the mutation sweep's own finding) · 6.315.0 a9394e4 · 6.316.0 cb411aa (8ee2228 adds the mutation sweep's own findings) · 6.317.0 2d2f1e1 (07d5fa5 the same) · 6.318.0 4e95bd2 (366d17f the same) · 6.319.0 8ef0bbe (6c9a7f7, 865ba74, c6f23ef, b448bd1, 99cfafc and c4994f6 are the mutation sweep's own six findings — the third of them is the real one) · 6.320.0 and 6.321.0 ddf6310 (one commit, two releases — the `..` guard and the bin it unblocked) · 6.322.0 fd3d91e (b6b39e5 is the faithful degrade stub it needed) · 6.323.0 44b027a (3602db5 makes its fallback reachable) · 6.324.0 524ae1f · 6.325.0 06c731b (0c0f890 adds the door's own checks) · 6.326.0 1363050 · 6.327.0 e26f17f (6c7e2e9 drives the delete-time forget) · 6.328.0 c4b6fe3 · 6.329.0 029f5de · 6.330.0 7bc13f3 (981c1b7 makes a label that cannot be built a bare epoch rather than a dead pulse) · 6.331.0 4471793 · 6.332.0 7ea10d9 (a1715c9 the sweep's own two findings) · 6.333.0 c57ba35 · 6.334.0 and 6.335.0 212b1ac (one commit, two releases — the readout fix is in write_ledger, the bin in vault, so a break still names its version by which tool it is in) · 6.336.0 0a71d7f · 6.337.0 14c39a9 (191e708 adds the mutation sweep's own finding — the call site choosing between areaPlan's two native sentences was driven by nothing) · 6.338.0 c84b846 (12 of 12 mutations bit on the first sweep) · 6.339.0 06552b7 (de8ef9b and 2261996 are the mutation sweep's own findings — a BITES fixture that re-implemented the rule and so proved a copy of it, and a fixture that DIED instead of failing) · 6.340.0 e8c7371 · 6.341.0 c6a3be7 · 6.342.0 2d4774b (e07e67a adds the mutation sweep's own four findings — the unkillable `picked` guard the BELT never set, and `ok and why or …` with a nil-able b, which the 6.308.0 sentry cannot see).
+   6.227.0 14e953a · 6.228.0 2aa3dfe · 6.229.0 a1318e1 · 6.230.0 0740c07 · 6.231.0 c1921af · 6.231.1 5a5c298 · 6.232.0 1ca3f6f · 6.233.0 2328c8c · 6.234.0 57f78d0 · 6.235.0 52e5b21 · 6.236.0 34cff8b · 6.236.1 fdce771 · 6.237.0 adf9256 · 6.238.0 3adad4f · 6.239.0 3adad4f (one commit, two releases) · 6.240.0 8f44bec · 6.241.0 dce517e · 6.242.0 1a1dab0 · 6.243.0 8fba04f · 6.244.0 9320906 · 6.245.0 9c1a8b1 · 6.246.0 1400abd · 6.247.0 3b92e99 · 6.248.0 e4e3a03 · 6.249.0 e4edc3f · 6.250.0 c267c1b · 6.251.0 f7b0d57 · 6.252.0 6307253 · 6.253.0 ef20313 · 6.254.0 14493e5 · 6.255.0 d371b34 · 6.256.0 3c29888 · 6.257.0 7f55d2b · 6.258.0 10d2250 · 6.259.0 2bcda06 · 6.260.0 f16e286 · 6.261.0 8680504 · 6.262.0 595dc2e · 6.263.0 014ddf6 · 6.264.0 5e41879 · 6.265.0 f0c487c · 6.266.0 9135f7b · 6.267.0 a621a60 · 6.268.0 c2e513f · 6.269.0 f6552ea (078cece is the same release before the report was corrected) · 6.270.0 b8eda88 · 6.271.0 b8edbe1 · 6.272.0 881a91b · 6.273.0 56b0d2b · 6.274.0 c6e9b6b · 6.275.0 9cebe19 · 6.276.0 3db904e · 6.277.0 c6632a1 · 6.278.0 6c1fe75 · 6.279.0 a6241f5 · 6.280.0 893b40b · 6.281.0 5611a4a · 6.282.0 11dc992 · 6.283.0 3fa417f · 6.284.0 a8f3df4 · 6.285.0 70d118b · 6.286.0 fa93f1b · 6.287.0 39b9dba · 6.288.0 8508186 · 6.289.0 83f5296 · 6.290.0 6daee50 · 6.291.0 aec4561 · 6.292.0 c89c65f · 6.293.0 10c9410 · 6.294.0 0aeebdc · 6.295.0 641c45c (52c1b2b adds the check its own mutation sweep found missing) · 6.296.0 e82ad95 (8bd970b adds the cross-file sentry) · 6.297.0 dacb791 (1604d55 hardens the suite) · 6.298.0 f77c47e (fe109ff adds the two checks its sweep found missing) · 6.299.0 bdc6855 (c587502 the same) · 6.300.0 8ab4802 (cc8b7f9 the same) · 6.301.0 dcff776 · 6.302.0 b465418 (e287164 the mutation sweep's own two findings) · 6.303.0 f5d89e1 · 6.304.0 b8b1b51 (7cf3d9b is the release; b8b1b51 adds the mutation sweep's own four findings) · 6.305.0 b1aa974 (f478dc8 is the release; b1aa974 adds the mutation sweep's own four findings) · 6.306.0 cf14689 · 6.307.0–6.310.0 10c6a87 (one commit, four releases — the four live in four different modules, so a break still names its version by which tool it is in) · 6.311.0 82e52f8 (c7cd4de adds the mutation sweep's own two findings) · 6.312.0 4ad18dc · 6.313.0 c09cb78 (the ceremony for both is the commit after; the code is in those two) · 6.314.0 9ee6a76 (0a363e9 is the ceremony and the mutation sweep's own finding) · 6.315.0 a9394e4 · 6.316.0 cb411aa (8ee2228 adds the mutation sweep's own findings) · 6.317.0 2d2f1e1 (07d5fa5 the same) · 6.318.0 4e95bd2 (366d17f the same) · 6.319.0 8ef0bbe (6c9a7f7, 865ba74, c6f23ef, b448bd1, 99cfafc and c4994f6 are the mutation sweep's own six findings — the third of them is the real one) · 6.320.0 and 6.321.0 ddf6310 (one commit, two releases — the `..` guard and the bin it unblocked) · 6.322.0 fd3d91e (b6b39e5 is the faithful degrade stub it needed) · 6.323.0 44b027a (3602db5 makes its fallback reachable) · 6.324.0 524ae1f · 6.325.0 06c731b (0c0f890 adds the door's own checks) · 6.326.0 1363050 · 6.327.0 e26f17f (6c7e2e9 drives the delete-time forget) · 6.328.0 c4b6fe3 · 6.329.0 029f5de · 6.330.0 7bc13f3 (981c1b7 makes a label that cannot be built a bare epoch rather than a dead pulse) · 6.331.0 4471793 · 6.332.0 7ea10d9 (a1715c9 the sweep's own two findings) · 6.333.0 c57ba35 · 6.334.0 and 6.335.0 212b1ac (one commit, two releases — the readout fix is in write_ledger, the bin in vault, so a break still names its version by which tool it is in) · 6.336.0 0a71d7f · 6.337.0 14c39a9 (191e708 adds the mutation sweep's own finding — the call site choosing between areaPlan's two native sentences was driven by nothing) · 6.338.0 c84b846 (12 of 12 mutations bit on the first sweep) · 6.339.0 06552b7 (de8ef9b and 2261996 are the mutation sweep's own findings — a BITES fixture that re-implemented the rule and so proved a copy of it, and a fixture that DIED instead of failing) · 6.340.0 e8c7371 · 6.341.0 c6a3be7 · 6.342.0 2d4774b (e07e67a adds the mutation sweep's own four findings — the unkillable `picked` guard the BELT never set, and `ok and why or …` with a nil-able b, which the 6.308.0 sentry cannot see) · 6.343.0 c04378a · 6.344.0 <this commit> (34 mutations, 3 survivors, all three missing CHECKS rather than spare lines).
    Keep this list current: one line per release, appended at ceremony
    time.
 4. A BISECT IS AN OPTION, NOT THE FIRST MOVE — it costs him an install
@@ -5466,6 +5467,8 @@ that must be READ before a new cause is named.
 | "hyper+4 does not have pixel crosshairs" · "it was working before" | modules/screenshots.lua · the selector | 6.264.0 · 6.318.0 | 1 | ask |
 | "it said 0x0 pixels, then jumped a few desktops, then I had to hit escape" | modules/screenshots.lua · the selector's one exit | 6.336.0 · 6.337.0 | 2 | ask |
 | "why OCR hyper+shift+4 works and hyper+4 still does not" | modules/screenshots.lua · ⇪4 re-implementing a system drag | 6.264.0 · 6.265.0 · 6.274.0 · 6.282.0 · 6.318.0 · 6.336.0 · 6.337.0 | 6 | ask |
+| "a Jug Player but for movies" · "once it's stable we will merge the players" | modules/video_player.lua · a webview that plays video | 6.344.0 | 1 | ask |
+| "I did not mean to hit panic" · "my keyboard froze" · "Console shows nothing weird" | modules/power_tools.lua · an unclaimed ⇪ key forwarding onto the panic chord | 6.343.0 | 1 | ask |
 | "⌘D says I have five seconds to setup, shows no crosshairs" · "those four screenshot tools run weird" | modules/screenshot_editor.lua · the ⌘D order | 6.255.0 · 6.342.0 | 1 | ask |
 | "once I OCR some text, that text should immediately go onto the clipboard" · "sometimes … it places an image … sometimes the OCR runs" | modules/screenshots.lua · the OCR doors | 6.173.1 · 6.319.0 · 6.341.0 | 2 | ask |
 | "frozen grid again" — a yellow box only a reload clears | modules/mouse_grid.lua · `_G.showCanvasSafely` | 6.266.0 | 1 | ask |
@@ -5586,6 +5589,8 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
+| 6.344.0 | 🎬 the Mug Player (⇪⇧,) — drop .mp4 films on a window and watch them with the Mac's own controls | pending |
+| 6.343.0 | 🚨 ⇪Esc was firing the panic chord — nothing claimed it, so it forwarded onto ⌘⇧⌃⌥Esc | pending |
 | 6.342.0 | 📐 ⌘D drags the area first, then counts down, then shoots it — macOS's own ⇧⌘5 order, on his word | pending |
 | 6.341.0 | 🔁 ⇪4 leaves the picture on the clipboard, always — ⇪⇧4 is the OCR door, and the reading still runs in the background | pending |
 | 6.340.0 | 🔎 Hamsidian's first open says "reading your notes…" instead of "no notes yet", and the list arrives seconds sooner | pending |
@@ -5918,6 +5923,31 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
      remembering a key for "make a window stay put", the candidate is
      win_pin, removed 6.166.0, which held ⇪⇧U — freed then and spent
      again by anchors in 6.180.0. Ask before building.
+
+- 💾 DRAFT KEEPER — ESCALATED BY NAME (2026-10-10, LL: "Escalate draft
+  keeper."). It is the NEXT release after the Mug Player, ahead of the
+  tool-health timestamps, the ⌘5 veil, the snippet pair, the Hamsidian
+  failure-path sweep, the install templates and ⇪7. His scope, from
+  2026-10-09, is already decided and is not re-asked:
+    · FIELDS: browser fields AND Microsoft Outlook fields.
+    · ⏎ ON A ROW **COPIES** IT. It never types back into the page —
+      his word, and it is also the safe shape: a tool that types into
+      a form is a tool that can type into the wrong one.
+    · STORED AS A **.csv** IN THE LOGS FOLDER, created on first write
+      per Mac (so `draft_keeper-<Mac>.csv`, beside every other store).
+    · `@draft` is the ⇪D source.
+  🚨 AND IT IS THE ONLY TOOL IN THIS CONFIG THAT WATCHES HIS TYPING
+  INTO SOMEBODY ELSE'S FORM, so the rules it has to meet are already
+  written: the tap stands down on `_G.hsPaused` (6.152.0); it must
+  never post a key (6.218.0); a password field and anything macOS
+  marks secure are refused, and a Mac that cannot say whether a field
+  is secure is treated as though it is (6.200.0's fail-closed rule);
+  and the CSV write is temp-then-rename (6.313.0) off the main thread
+  where it can be (6.228.0).
+  🗳 THE ONE QUESTION ITS FIRST RELEASE MUST ASK, because it decides
+  the whole shape: does it keep EVERY draft, or only ones over some
+  length and only after some pause? Keeping everything makes the .csv
+  a log of every search box he has ever typed in.
 
 - 📥 LL'S QUEUE, 2026-09-20 (asked in two messages; NONE built yet,
   and the order below is MINE until he says otherwise — removals and
@@ -6735,6 +6765,99 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.344.0 verify with LL — 🎬 THE MUG PLAYER (NEW GROUND — expect a round)
+  WHAT CHANGED: there is a new tool. **⇪⇧,** opens the Mug Player — a
+  Jug Player for films. Drop .mp4 files on it, the first plays, the
+  rest queue under it, and the controls are macOS's own.
+  🪟 AND IT IS NEW GROUND, SAID UP FRONT: nothing in this config has
+  ever played video in one of its windows, so whether macOS will let
+  that window read a film off your disk is a thing NOBODY HAS
+  MEASURED — not me, not a previous release. The player tries two ways
+  in, reports which one worked, and if neither does it says so in
+  words and gives you ⌘O into QuickTime. So the most useful thing you
+  can send back is one line of `_G.mugReport()`, whether it works or
+  not.
+
+  A. THE HEADLINE — a minute.
+  A1. Press **⇪⇧,** (hold Caps Lock and Shift, press the comma).
+      EXPECT: a dark window opens in the middle of the screen with
+      "Mug Player" along the top and an empty deck underneath.
+      Press it again: it closes.
+  A2. Drag two or three **.mp4** films onto that window from Finder.
+      EXPECT: the window goes blue as the drag crosses it, and on the
+      drop the first film STARTS PLAYING with a control bar under it —
+      play/pause, a scrubber, a clock, volume, full screen.
+      **A FAIL is a black rectangle with no picture** — that is the
+      case this release exists to make legible, so go straight to D1.
+  A3. Use the control bar. It is macOS's own, not mine: the scrubber,
+      the volume slider, the full-screen button and picture-in-picture
+      should all behave exactly as they do in Safari.
+  A4. Press **space**. It plays and pauses, wherever the keyboard is in
+      the window. **← and →** seek; **⇧** with them seeks further.
+  A5. ↑ ↓ walk the deck, **⏎** plays the highlighted row, **⌘1–⌘9**
+      plays the Nth film, **⌫** takes a film out of the queue.
+  A6. Let a film run to its END. EXPECT: the next one starts by itself.
+
+  B. THE BITS THAT PROTECT YOU.
+  B1. Drag something that is NOT an .mp4 — a .mkv, a .mov, a photo.
+      EXPECT: it is NOT queued, and an alert names the file and says
+      "Mug Player plays .mp4 (your scope); ⌘O opens it in QuickTime".
+      That is your own scope answering, not a bug. Say the word and
+      .mov and .m4v join the list — one line, not a release.
+  B2. With a film playing, press **⌘O**.
+      EXPECT: it opens in QuickTime (or whatever your default player
+      is). That is the way out when this window cannot read a film.
+  B3. Click the **✕** at the end of a 🕘 history row.
+      EXPECT: the row disappears and NOTHING starts playing. A film
+      starting there is the worst thing this release can do — tell me
+      at once.
+  B4. Check the file is still on disk. Nothing here ever deletes one.
+  B5. Drag the window by its **title strip**, close it, reopen it.
+      EXPECT: it comes back where you left it. ⌘-drag anywhere on it
+      works too.
+  B6. **Esc** closes it. Then ⇪/ — the cheat sheet still closes last.
+
+  C. MUST STILL WORK — this release published one of the Jug Player's
+     own functions as a shared service, so that is what to check.
+  C1. **⇪⇧.** — the Jug Player opens, drop an mp3 on it, it plays.
+      That drop now goes through the same reader the Mug Player uses,
+      so if music drops stop working, this release did it and I want
+      to know immediately.
+  C2. With the Jug Player's card up and a queue in it, press **F8**.
+      EXPECT: the Jug Player pauses, as always. The Mug Player
+      deliberately does NOT take that key — see E2.
+  C3. A spread of ⇪ keys: ⇪T, ⇪D, ⇪N, ⇪3, ⇪X, ⇪4, ⇪space, ⇪V, ⇪/.
+  C4. Type a **comma** in any app. EXPECT: a comma.
+
+  D. PASTE BACK, PASS OR FAIL. These matter more than usual.
+  D1. `_G.mugReport()` — the whole block. The line I need is **way in**:
+      · "relative to the film's own folder — this is the one that
+        carried a film" or "the absolute file URL — …" → it WORKS, and
+        now I know which way, which decides everything built on it.
+      · "⏳ no film has loaded yet" → nothing has been tried.
+      · a **refused** line listing both ways → macOS will not let the
+        window read local files at all, and the next release is a
+        different mechanism rather than a tweak to this one.
+  D2. `_G.musicReport()` — unchanged, and it proves C1.
+
+  E. A JUDGEMENT ONLY YOU CAN MAKE.
+  E1. **The window is 880 × 660 and fixed.** A film player probably
+      wants to be resizable, and I did not build that — say what size
+      you actually want, or whether it should remember a size the way
+      it remembers a position.
+  E2. **⏯ / F7 / F9 are NOT taken by the Mug Player**, deliberately:
+      the Jug Player holds them while its card is up, and two tools on
+      one physical key is how they come to disagree. With the film
+      focused macOS routes them to it anyway. Is that right until the
+      merge, or do you want the film to win whenever its window is up?
+  E3. **.mp4 only.** Confirm, or name the formats to add. Anything
+      WebKit can play will work (.m4v and .mov almost certainly will;
+      .mkv almost certainly will not, whatever I put in the list).
+  E4. 🔨 CRUDE OR ELEGANT: this is a new tool, so there was nothing to
+      break — but if it opens a black rectangle and nothing plays, it
+      is a tool that does not work, and I would log that as 🔨 with a
+      pass count of 1. Your tag, as always.
+
 - 6.343.0 verify with LL — 🚨 ⇪Esc WAS PAUSING YOUR CONFIG (KNOWN GROUND)
   WHAT CHANGED: Caps Lock + Escape no longer fires the panic chord. And
   the Secure Input probe kills the `ioreg` it gives up on.

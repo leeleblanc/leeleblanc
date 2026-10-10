@@ -1,4 +1,4 @@
-# TESTING — how to score release 6.343.0
+# TESTING — how to score release 6.344.0
 
 You install ONE archive and it carries several releases. Below are the
 steps for each release this archive is new for, newest first. Run the
@@ -26,6 +26,103 @@ else is a LOSS and I fix it before building further. You are the only
 scorer; I never mark my own.
 
 ---
+
+## 6.344.0
+
+6.344.0 verify with LL — 🎬 THE MUG PLAYER (NEW GROUND — expect a round)
+WHAT CHANGED: there is a new tool. **⇪⇧,** opens the Mug Player — a
+Jug Player for films. Drop .mp4 files on it, the first plays, the
+rest queue under it, and the controls are macOS's own.
+🪟 AND IT IS NEW GROUND, SAID UP FRONT: nothing in this config has
+ever played video in one of its windows, so whether macOS will let
+that window read a film off your disk is a thing NOBODY HAS
+MEASURED — not me, not a previous release. The player tries two ways
+in, reports which one worked, and if neither does it says so in
+words and gives you ⌘O into QuickTime. So the most useful thing you
+can send back is one line of `_G.mugReport()`, whether it works or
+not.
+
+A. THE HEADLINE — a minute.
+A1. Press **⇪⇧,** (hold Caps Lock and Shift, press the comma).
+    EXPECT: a dark window opens in the middle of the screen with
+    "Mug Player" along the top and an empty deck underneath.
+    Press it again: it closes.
+A2. Drag two or three **.mp4** films onto that window from Finder.
+    EXPECT: the window goes blue as the drag crosses it, and on the
+    drop the first film STARTS PLAYING with a control bar under it —
+    play/pause, a scrubber, a clock, volume, full screen.
+    **A FAIL is a black rectangle with no picture** — that is the
+    case this release exists to make legible, so go straight to D1.
+A3. Use the control bar. It is macOS's own, not mine: the scrubber,
+    the volume slider, the full-screen button and picture-in-picture
+    should all behave exactly as they do in Safari.
+A4. Press **space**. It plays and pauses, wherever the keyboard is in
+    the window. **← and →** seek; **⇧** with them seeks further.
+A5. ↑ ↓ walk the deck, **⏎** plays the highlighted row, **⌘1–⌘9**
+    plays the Nth film, **⌫** takes a film out of the queue.
+A6. Let a film run to its END. EXPECT: the next one starts by itself.
+
+B. THE BITS THAT PROTECT YOU.
+B1. Drag something that is NOT an .mp4 — a .mkv, a .mov, a photo.
+    EXPECT: it is NOT queued, and an alert names the file and says
+    "Mug Player plays .mp4 (your scope); ⌘O opens it in QuickTime".
+    That is your own scope answering, not a bug. Say the word and
+    .mov and .m4v join the list — one line, not a release.
+B2. With a film playing, press **⌘O**.
+    EXPECT: it opens in QuickTime (or whatever your default player
+    is). That is the way out when this window cannot read a film.
+B3. Click the **✕** at the end of a 🕘 history row.
+    EXPECT: the row disappears and NOTHING starts playing. A film
+    starting there is the worst thing this release can do — tell me
+    at once.
+B4. Check the file is still on disk. Nothing here ever deletes one.
+B5. Drag the window by its **title strip**, close it, reopen it.
+    EXPECT: it comes back where you left it. ⌘-drag anywhere on it
+    works too.
+B6. **Esc** closes it. Then ⇪/ — the cheat sheet still closes last.
+
+C. MUST STILL WORK — this release published one of the Jug Player's
+   own functions as a shared service, so that is what to check.
+C1. **⇪⇧.** — the Jug Player opens, drop an mp3 on it, it plays.
+    That drop now goes through the same reader the Mug Player uses,
+    so if music drops stop working, this release did it and I want
+    to know immediately.
+C2. With the Jug Player's card up and a queue in it, press **F8**.
+    EXPECT: the Jug Player pauses, as always. The Mug Player
+    deliberately does NOT take that key — see E2.
+C3. A spread of ⇪ keys: ⇪T, ⇪D, ⇪N, ⇪3, ⇪X, ⇪4, ⇪space, ⇪V, ⇪/.
+C4. Type a **comma** in any app. EXPECT: a comma.
+
+D. PASTE BACK, PASS OR FAIL. These matter more than usual.
+D1. `_G.mugReport()` — the whole block. The line I need is **way in**:
+    · "relative to the film's own folder — this is the one that
+      carried a film" or "the absolute file URL — …" → it WORKS, and
+      now I know which way, which decides everything built on it.
+    · "⏳ no film has loaded yet" → nothing has been tried.
+    · a **refused** line listing both ways → macOS will not let the
+      window read local files at all, and the next release is a
+      different mechanism rather than a tweak to this one.
+D2. `_G.musicReport()` — unchanged, and it proves C1.
+
+E. A JUDGEMENT ONLY YOU CAN MAKE.
+E1. **The window is 880 × 660 and fixed.** A film player probably
+    wants to be resizable, and I did not build that — say what size
+    you actually want, or whether it should remember a size the way
+    it remembers a position.
+E2. **⏯ / F7 / F9 are NOT taken by the Mug Player**, deliberately:
+    the Jug Player holds them while its card is up, and two tools on
+    one physical key is how they come to disagree. With the film
+    focused macOS routes them to it anyway. Is that right until the
+    merge, or do you want the film to win whenever its window is up?
+E3. **.mp4 only.** Confirm, or name the formats to add. Anything
+    WebKit can play will work (.m4v and .mov almost certainly will;
+    .mkv almost certainly will not, whatever I put in the list).
+E4. 🔨 CRUDE OR ELEGANT: this is a new tool, so there was nothing to
+    break — but if it opens a black rectangle and nothing plays, it
+    is a tool that does not work, and I would log that as 🔨 with a
+    pass count of 1. Your tag, as always.
+
+
 
 ## 6.343.0
 
@@ -263,87 +360,6 @@ E3. 🔨 CRUDE OR ELEGANT: nothing broke and nothing was lost — the
     words were always in ⇪O and in the file name. What it cost was
     trust in what the key does. My reading is that it degraded, one
     pass, but it is the second pass on 6.319.0's ask. Your tag.
-
-
-
-## 6.340.0
-
-6.340.0 verify with LL — 🔎 A FIRST OPEN IS NOT AN EMPTY VAULT (KNOWN GROUND)
-WHAT CHANGED: Hamsidian's first open shows your notes seconds sooner,
-and while it is still reading it SAYS so instead of saying you have
-none.
-🚨 AND YOUR NOTES WERE NEVER MISSING — that is the first thing to say,
-because the words it printed were the worst possible ones. The list
-is built when the window OPENS, the page is drawn BEFORE that read
-starts, and the empty list said **"no notes yet — ⌘N"**. Over a vault
-holding all of them. That is the fourth time this config has printed
-"there is nothing" where it meant "I have not looked yet", and this
-is the one place it reads as your writing being gone.
-⏳ AND IT WAS SLOWER THAN IT HAD TO BE: the names are known after the
-FIRST of four background greps, and the page was told after the
-fourth. Escaping and reopening worked because the second open is
-drawn from the list the first open had finally finished building.
-
-A. THE HEADLINE — do this on a COLD Hammerspoon, which is the case
-   that failed.
-A1. Reload Hammerspoon (⌘⌃R). Do not open anything else.
-A2. Press ⇪3.
-    EXPECT: your notes, within about a second.
-    If there is any gap at all, the left column reads
-    **"reading your notes…"** in grey.
-    **A FAIL is "no notes yet — ⌘N"** — that sentence should now be
-    impossible unless the vault is genuinely empty.
-A3. Do NOT press Escape. Just watch for two or three seconds.
-    EXPECT: the notes fill in by themselves. Before this release
-    that is the wait you were escaping out of.
-A4. Escape, press ⇪3 again. EXPECT: instant, as it always was.
-
-B. THE ONE THAT PROTECTS YOUR WRITING — worth the thirty seconds.
-B1. Reload again, press ⇪3, and IMMEDIATELY press ⌘F and type a few
-    letters of a note you know exists — before the list appears.
-B2. Press ⏎ straight away.
-    EXPECT: **nothing is created**, and the hint line under the box
-    reads "reading your notes… — ⏎ creates once the list is in".
-    Wait a second and press ⏎ again: it opens the note.
-    **A FAIL is a new empty note appearing with your typed text as
-    its name** — that is 6.307.0's bug reached through timing, and it
-    writes into the folder with your writing in it.
-B3. Once the list is in, ⌘F a name no note has and press ⏎.
-    EXPECT: it still CREATES that note, exactly as before. The guard
-    must not have cost you the feature.
-
-C. MUST STILL WORK — this touched the window's whole left column.
-C1. The notes list, your scratch tabs in the same list (6.333.0), the
-    icons telling them apart.
-C2. ⌘N, ⌘F, ↑↓, ⏎, the ✕ delete, 🗑 the bin, ⌘⇧K tasks, ⌘⇧F search,
-    ⌘G graph, ⌘⇧B board.
-C3. 🚨 ⌘Z IN A NOTE, which is the thing most likely to have broken:
-    open a note, delete a paragraph, WAIT TEN SECONDS for a re-scan,
-    press ⌘Z. EXPECT: your text comes back (6.323.0). If it does
-    not, this release broke it and I want to know immediately.
-C4. Add a `#tag` to a note and watch the tag list fill in a moment
-    later, without your typing being disturbed.
-
-D. PASTE BACK, PASS OR FAIL.
-D1. `_G.vaultReport()` after an ordinary morning — the `notes :` line
-    and the rows/rebuilds line under it.
-D2. If you ever see "reading your notes…" and it NEVER resolves,
-    paste the whole report: that is the scan failing rather than
-    being slow, and those are opposite facts.
-
-E. A JUDGEMENT ONLY YOU CAN MAKE.
-E1. How long is the gap now, on a cold start? If it is still long
-    enough to be annoying, the next step is building the index at
-    BOOT instead of on first open — which costs boot time and was
-    deliberately moved off it in 6.334.0's lineage. Your call, and
-    it is a real trade rather than a free win.
-E2. "reading your notes…" — right words? It is what you will see in
-    the one second that used to look like an empty vault.
-E3. 🔨 CRUDE OR ELEGANT: nothing was lost and the Mac was fine, but
-    for a moment every time you opened it, the tool holding your
-    writing told you it was empty. My reading is that the DEGRADE was
-    graceful and the MESSAGE was a lie — the same shape as 6.339.0.
-    One pass. Your tag.
 
 
 
