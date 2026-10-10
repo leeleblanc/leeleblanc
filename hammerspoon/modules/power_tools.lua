@@ -153,6 +153,8 @@ local M = {
             { "ℹ️ meta",  "Every mdls attribute of the Finder selection, ⏎ copies" },
             { "⇪'",     "⏸ Pause all audio and video — media key + every" },
             { "",       "scriptable player that is already running" },
+            { "⇪Esc",   "⎋ CLOSE THE FRONT PANEL — and, by being claimed, it "
+                        .. "stops ⇪Esc forwarding onto the panic chord (6.343.0)" },
             { "⇪⇧Esc",  "⏸ PAUSE HAMMERSPOON — ⇪ shortcuts and typing helpers" },
             { "",       "off until pressed again · ⏸ HS in the menu bar meanwhile" },
             { "⌃⌥⌘⇧Esc", "🚨 PANIC — lets go of everything: the ⇪ hold, the vault" },
@@ -2278,6 +2280,55 @@ end tell]]
                               function() pt.hsPauseToggle() end,
                               "pause Hammerspoon")
     end
+
+    -- 🚨 ⇪Esc IS CLAIMED, AND CLAIMING IT IS THE WHOLE FIX (6.343.0, LL:
+    -- "No, I did not mean to hit panic. Something is making key presses
+    -- do weird things. And my keyboard froze. Console shows nothing
+    -- weird."). Three facts, each read rather than guessed, and together
+    -- they are a loaded gun pointed at the switch that turns this config
+    -- off:
+    --   1. NOTHING claimed ⇪Esc, so §3.12 FORWARDED it — an unclaimed
+    --      hyper key is re-posted as _G.hyperMods + the key, and
+    --      _G.hyperMods is { cmd, shift, ctrl, alt }.
+    --   2. pt.panicKey IS "escape" and pt.panicMods ARE those same four.
+    --      So the forward of ⇪Esc is, character for character, the panic
+    --      chord.
+    --   3. The only thing standing between them was rail 2 of
+    --      _G.globalTapDispatch, which refuses a four-modifier chord ONLY
+    --      while _G.hyperChordUntil is in the future — a 0.25 s window.
+    -- 🔁 AND A TIME WINDOW ROUND A POSTED EVENT IS 6.218.0's DEFECT
+    -- EXACTLY: hs.eventtap.keyStroke POSTS, the event arrives after the
+    -- call returns, and on a loaded main thread it can arrive late. This
+    -- Mac loads its extensions over 42 seconds and spends 0.94 s in a
+    -- menu-bar scan; 250 ms is not a guarantee here. Win the race and
+    -- nothing happens. Lose it and the config pauses itself.
+    -- 🖥 WHICH IS WHY IT IS HIM AND WHY IT IS NEW: with Carbon alive this
+    -- chord was delivered by macOS and this dispatcher never saw it. The
+    -- path only opened when Carbon stopped dispatching on this Mac.
+    -- 🔑 THE FIX IS AT THE SOURCE, NOT AT THE RACE. A claimed key is never
+    -- forwarded, so the synthetic chord is never posted and the window
+    -- stops mattering. Widening the window would have traded this bug for
+    -- a forwarded ⇪⇧D that no longer reaches the diagnostics report, and
+    -- a guard tuned between two failures is a guard that will be wrong
+    -- again. GENERAL: when an accidental chord can reach a control that
+    -- disables the tool, do not make the guard better — make the chord
+    -- unreachable.
+    -- ⎋ AND IT DOES THE USEFUL THING: Esc under ⇪ closes whichever panel
+    -- claims Escape, through coexist's router, which is what a person
+    -- pressing it almost certainly meant. No panel claiming it is a
+    -- no-op, which is what ⇪Esc did before — minus the hazard.
+    -- 📏 COST, NAMED: ⇪Esc is spent. It was free, and it is being spent to
+    -- stop the config switching itself off by accident.
+    core.hyperAddShortcut({}, "escape", function()
+        local ok, taker = pcall(function()
+            return _G.routeEscape and _G.routeEscape() or nil
+        end)
+        if not (ok and taker) then
+            -- Nothing wanted it. Say so quietly rather than leaving the
+            -- key feeling broken — and NEVER fall through to a forward.
+            pcall(function() hs.alert.show("⎋ nothing open to close", 0.6) end)
+        end
+    end, "close the front panel")
 
     -- 🚨 THE PANIC CHORD — bound DIRECTLY, never through hyperAddShortcut.
     -- See the note at pt.panicKey: the whole point is that it still works

@@ -442,6 +442,52 @@ end
 -- absence traps you. It is routed through coexist's escape router, so
 -- whichever panel currently claims Esc gets it — cheat sheet, pomodoro,
 -- or anything added later — without this file knowing any of their names.
+-- 🚨 WHICH GLOBAL CHORDS CAN AN UNCLAIMED ⇪ KEY REACH BY ACCIDENT?
+-- (6.343.0.) §3.12 forwards an unclaimed hyper key as _G.hyperMods + the
+-- key — all four modifiers — so EVERY four-modifier global chord is
+-- reachable from ⇪<key> unless that hyper key is claimed. Rail 2 below is
+-- the only thing in the way and it is a 0.25 s race (see the note in
+-- power_tools at the ⇪Esc binding, which is the one that cost a release:
+-- ⇪Esc forwarded onto the PANIC chord and paused the config).
+--
+-- 🔑 IT ASKS THE TWO REGISTRIES RATHER THAN CARRYING A LIST. 6.276.0's
+-- rule: a hand-kept list of which keys are safe is wrong the first time
+-- somebody binds a chord, and wrong silently. Both tables are filled by
+-- the binders themselves, so this cannot drift.
+--
+-- 🔕 SILENT WHEN HEALTHY (6.269.0). A four-modifier chord whose hyper
+-- key IS claimed cannot be reached by a forward, which is the whole
+-- point of claiming it. Only an unclaimed one is named.
+function _G.chordAudit()
+    local risky, checked = {}, 0
+    local bound  = _G.hyperBound   or {}
+    local global = _G.globalDispatch or {}
+    for combo, entry in pairs(global) do
+        -- A four-modifier combo is the only shape a forward can produce.
+        local n = 0
+        for _ in tostring(combo):gmatch("%+") do n = n + 1 end
+        local hasAll = tostring(combo):find("cmd")  and tostring(combo):find("shift")
+                   and tostring(combo):find("ctrl") and tostring(combo):find("alt")
+        if hasAll and n >= 4 then
+            checked = checked + 1
+            local key = tostring(combo):match("([^+]+)$") or ""
+            -- Both forms forward identically: the forward posts hyperMods
+            -- whatever the person held, so ⇪<key> and ⇪⇧<key> land on the
+            -- same chord. Either one being claimed closes the door.
+            local bare  = _G.hyperCombo and _G.hyperCombo({}, key) or key
+            local shift = _G.hyperCombo and _G.hyperCombo({ "shift" }, key)
+                          or ("shift+" .. key)
+            if not (bound[bare] or bound[shift]) then
+                risky[#risky + 1] = {
+                    key = key, combo = combo,
+                    what = (type(entry) == "table" and entry.what) or "a global hotkey",
+                }
+            end
+        end
+    end
+    return risky, checked
+end
+
 function _G.globalTapDispatch(ev, t, code)
     if _G.typingInjection and _G.typingInjection()
        and not _G.hyperSelfTestInFlight then
