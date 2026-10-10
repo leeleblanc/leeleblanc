@@ -3107,6 +3107,7 @@ local BASE = {
     "pomodoro",           -- ⇪⇧P  25 on, 5 off
     -- 6.231.0
     "music_player",       -- ⇪⇧pad.  a card in the corner, files dropped on it
+    "video_player",       -- ⇪⇧,    the Mug Player: .mp4 films, native controls
     -- (the Outlook diagnostic left this list in 6.105.0 and the repo in
     --  6.117.0 — deleted, not moved. Outlook automation is shelved: the
     --  tenant policy blocks the only route that worked. Do not re-add it

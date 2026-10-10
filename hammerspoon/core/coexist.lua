@@ -415,6 +415,11 @@ _G.escapePriorities = {
     musicplayer = 32,  -- 6.231.0 — a corner card like the calendar, so it
                        -- sits beside it: Esc takes the player first, the
                        -- calendar next, and the cheat sheet still last.
+    mugplayer  =  33,  -- 6.344.0 — the film window, one rung above the Jug
+                       -- Player it will one day merge with. It is the
+                       -- biggest thing on screen when it is up, so Esc
+                       -- takes it before either card and long before the
+                       -- cheat sheet.
     switcher   =  40,
     -- ⎋ 6.93.0 — LL, again: "Above any other hammerspoon window of any
     -- type, the cheat sheet should close last." The 6.78.0 rule was

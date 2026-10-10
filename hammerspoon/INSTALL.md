@@ -58,7 +58,7 @@ Nothing else is affected.
 │   ├── lag.lua               which tap is eating the keystroke — OFF unless ~/.hammerspoon/LAGPROBE exists
 │   ├── double_tap.lua        ⌘⌘ and ⌥⌥ — one watcher, many gestures
 │   └── notices.lua           the failure ledger — nothing fails silently
-├── modules/              71 files, loaded by the §1.12 loader
+├── modules/              72 files, loaded by the §1.12 loader
 ├── snippets/
 │   └── bundled.lua       1,926 public snippets — ships in the archive
 ├── tools/                hs-doctor.sh · hs-install.sh · run-tests.sh · hs-stall-guard.sh
@@ -214,7 +214,7 @@ ls ~/.hammerspoon/modules | wc -l
 ls ~/.hammerspoon/snippets/bundled.lua
 ```
 
-✅ **Success:** a path · the version line · `12` · `71` · a path.
+✅ **Success:** a path · the version line · `12` · `72` · a path.
 ❌ **Failure — any "No such file or directory":** the install did not
 happen. Re-run 3c and read its output rather than re-running blindly.
 
@@ -235,7 +235,7 @@ Open the Console (menu bar hammer → *Console*). A healthy boot is two
 lines:
 
 ```
-🧭 Lees-MacBook-Air  ·  71 modules  ·  106 ⇪ shortcuts  ·  0.13s
+🧭 Lees-MacBook-Air  ·  72 modules  ·  108 ⇪ shortcuts  ·  0.13s
    All green.  ⇪ is proven on your next Caps Lock press.  ⇪⇧D diagnostic report
 ```
 

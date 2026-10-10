@@ -2656,6 +2656,18 @@ say({a:'ready'});
     -- shipped keys, so a hand-typed combo creeping back in fails the
     -- gate rather than quietly disagreeing with the binding.
 
+    -- 🔌 6.344.0 — THE DRAG READER IS SHARED, AND IT KEEPS A NEUTRAL
+    -- NAME because it is not about music: it answers "what files did
+    -- macOS just hand us?" and the Mug Player asks the same question of
+    -- the same pasteboard. Its home is here because this is where the
+    -- knowledge was paid for — five readers asked in order (6.235.0) and
+    -- the bookmark round trip that turns Finder's `file:///.file/id=…`
+    -- inode URLs back into files (6.237.0). A second copy of that in the
+    -- video module would be a second copy to get wrong (6.231.0), and it
+    -- is the lift CLAUDE.md already called for when the OCR tag path hit
+    -- the identical inode bug.
+    core.provide("drag.paths",   function(pb) return mp.dropPaths(pb) end)
+
     core.provide("music.show",   function() return mp.show() end)
     core.provide("music.hide",   function() mp.hide() return true end)
     core.provide("music.toggle", function() return mp.toggle() end)
