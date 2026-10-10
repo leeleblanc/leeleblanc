@@ -232,10 +232,28 @@ local HEADER = "timestamp,file_name,new_name,present_location,moved_location,eve
 -- expected strings computed with the SAME os.date the module uses — so
 -- this suite passes in Denver and in Sydney rather than only where it
 -- was written.
-local T_JUL = os.time({ year = 2026, month = 7, day = 11, hour = 14, min = 30 })
-local T_AUG = os.time({ year = 2026, month = 8, day = 3,  hour = 9,  min = 5  })
-local ISO_JUL = os.date("%Y-%m-%d %H:%M", T_JUL)
-local ISO_AUG = os.date("%Y-%m-%d %H:%M", T_AUG)
+--
+-- ⏳ AND RELATIVE TO NOW, NOT PINNED TO A DATE (6.343.0). These were
+-- 2026-07-11 and 2026-08-03, fixed. The MIGRATION under test prunes
+-- against the real os.time() with a 90-day retention, so on 2026-10-10
+-- the July row turned 91 days old and the prune — working perfectly —
+-- dropped it. Eighteen checks went red overnight with nothing changed
+-- and nothing wrong, and the gate read "do not ship this" about a
+-- release that was fine.
+-- 🔑 GENERAL, and it is the rule worth keeping: A FIXTURE PINNED TO AN
+-- ABSOLUTE DATE IS A TEST WITH AN EXPIRY DATE. When the code under test
+-- compares against the clock, the fixture is expressed in the same
+-- terms — an offset from now — or it is a time bomb with a test's name
+-- on it. 6.234.0 made the clock an ARGUMENT to the pure functions for
+-- exactly this reason; this is the same rule for a fixture that has to
+-- survive the module's own os.time().
+-- 📏 Both sit WELL inside the 90-day window on purpose: these checks are
+-- about the MIGRATION keeping every row, not about retention. Pruning
+-- has its own section, with its own fixed NOW.
+local T_OLDER = os.time() - 20 * 86400
+local T_NEWER = os.time() - 10 * 86400
+local ISO_OLDER = os.date("%Y-%m-%d %H:%M", T_OLDER)
+local ISO_NEWER = os.date("%Y-%m-%d %H:%M", T_NEWER)
 
 -- =====================================================================
 out("\n=== 1. The schema itself ===\n")
@@ -257,8 +275,8 @@ out("\n=== 2. Migrating a 6.114.0 file ===\n")
 wipe()
 local OLD_BODY =
     "file_name,new_name,present_location,moved_location,timestamp,event,epoch\n"
-    .. '"budget.xlsx","budget final.xlsx","~/Documents","","11/07/26 14:30","Renamed",' .. T_JUL .. "\n"
-    .. '"photo.png","","~/Desktop","~/Pictures","03/08/26 09:05","Moved",' .. T_AUG .. "\n"
+    .. '"budget.xlsx","budget final.xlsx","~/Documents","","11/07/26 14:30","Renamed",' .. T_OLDER .. "\n"
+    .. '"photo.png","","~/Desktop","~/Pictures","03/08/26 09:05","Moved",' .. T_NEWER .. "\n"
 put(CSV, OLD_BODY)
 printed = {}
 boot()
@@ -269,18 +287,18 @@ check("🚨 an existing file is REWRITTEN into the new layout — a migration "
       .. "format forever", L[1] == HEADER, L[1])
 check("every row survived the migration", #L == 3, #L)
 check("the first data row now leads with its ISO date",
-      (L[2] or ""):sub(1, #ISO_JUL) == ISO_JUL, L[2])
+      (L[2] or ""):sub(1, #ISO_OLDER) == ISO_OLDER, L[2])
 check("...and the fields after it kept their meaning, in order", (function()
     local c = splitCSVLine(L[2] or "")
     return c[2] == "budget.xlsx" and c[3] == "budget final.xlsx"
        and c[4] == "~/Documents" and c[5] == "" and c[6] == "Renamed"
-       and tonumber(c[7]) == T_JUL
+       and tonumber(c[7]) == T_OLDER
 end)(), L[2])
 check("the second row too — including an empty new_name column, which "
       .. "must stay an empty FIELD rather than vanishing and shifting "
       .. "everything left", (function()
     local c = splitCSVLine(L[3] or "")
-    return c[1] == ISO_AUG and c[2] == "photo.png" and c[3] == ""
+    return c[1] == ISO_NEWER and c[2] == "photo.png" and c[3] == ""
        and c[4] == "~/Desktop" and c[5] == "~/Pictures" and c[6] == "Moved"
 end)(), L[3])
 check("the migration announces itself with a row count", logged("migrated 2 rows"))
@@ -317,18 +335,18 @@ out("\n=== 3. The old date text is DISCARDED, never parsed ===\n")
 wipe()
 put(CSV,
     "file_name,new_name,present_location,moved_location,timestamp,event,epoch\n"
-    .. '"a.txt","","~/D","","01/01/99 00:00","Created",' .. T_JUL .. "\n"
-    .. '"b.txt","","~/D","","garbage not a date","Created",' .. T_AUG .. "\n"
-    .. '"c.txt","","~/D","","","Created",' .. T_JUL .. "\n")
+    .. '"a.txt","","~/D","","01/01/99 00:00","Created",' .. T_OLDER .. "\n"
+    .. '"b.txt","","~/D","","garbage not a date","Created",' .. T_NEWER .. "\n"
+    .. '"c.txt","","~/D","","","Created",' .. T_OLDER .. "\n")
 boot()
 L = lines(CSV)
 check("🚨 a row whose old text says 1999 still migrates to its EPOCH's "
       .. "date — the text is not consulted",
-      (L[2] or ""):sub(1, #ISO_JUL) == ISO_JUL, L[2])
+      (L[2] or ""):sub(1, #ISO_OLDER) == ISO_OLDER, L[2])
 check("a row with unparseable date text migrates cleanly rather than "
-      .. "being dropped", (L[3] or ""):sub(1, #ISO_AUG) == ISO_AUG, L[3])
+      .. "being dropped", (L[3] or ""):sub(1, #ISO_NEWER) == ISO_NEWER, L[3])
 check("a row with an EMPTY date text still gets a real date",
-      (L[4] or ""):sub(1, #ISO_JUL) == ISO_JUL, L[4])
+      (L[4] or ""):sub(1, #ISO_OLDER) == ISO_OLDER, L[4])
 check("all three rows are present — none was discarded for having a bad "
       .. "date", #L == 4, #L)
 
@@ -343,19 +361,19 @@ out("\n=== 4. Both layouts in one file ===\n")
 wipe()
 put(CSV,
     HEADER .. "\n"
-    .. csvQuote(ISO_AUG) .. ',"new.txt","","~/D","","Created",' .. T_AUG .. "\n"
-    .. '"old.txt","","~/D","","11/07/26 14:30","Created",' .. T_JUL .. "\n")
+    .. csvQuote(ISO_NEWER) .. ',"new.txt","","~/D","","Created",' .. T_NEWER .. "\n"
+    .. '"old.txt","","~/D","","11/07/26 14:30","Created",' .. T_OLDER .. "\n")
 boot()
 L = lines(CSV)
 check("a file holding BOTH layouts is read whole", #L == 3, #L)
 check("...the already-new row is left as it is", (function()
     local c = splitCSVLine(L[2] or "")
-    return c[1] == ISO_AUG and c[2] == "new.txt"
+    return c[1] == ISO_NEWER and c[2] == "new.txt"
 end)(), L[2])
 check("🚨 ...and the old row beneath it is converted, not mis-read as a "
       .. "file called '11/07/26'", (function()
     local c = splitCSVLine(L[3] or "")
-    return c[1] == ISO_JUL and c[2] == "old.txt" and c[6] == "Created"
+    return c[1] == ISO_OLDER and c[2] == "old.txt" and c[6] == "Created"
 end)(), L[3])
 
 -- =====================================================================
@@ -386,7 +404,7 @@ out("\n=== 6. Quoting survives the reorder ===\n")
 wipe()
 put(CSV,
     "file_name,new_name,present_location,moved_location,timestamp,event,epoch\n"
-    .. '"Q3, final ""draft"".docx","","~/My Docs, old","","11/07/26 14:30","Renamed",' .. T_JUL .. "\n")
+    .. '"Q3, final ""draft"".docx","","~/My Docs, old","","11/07/26 14:30","Renamed",' .. T_OLDER .. "\n")
 boot()
 L = lines(CSV)
 check("a file name containing a comma and quotes still occupies ONE row",
@@ -406,7 +424,7 @@ out("\n=== 7. Damaged and hostile files ===\n")
 wipe()
 put(CSV,
     "file_name,new_name,present_location,moved_location,timestamp,event,epoch\n"
-    .. '"good.txt","","~/D","","11/07/26 14:30","Created",' .. T_JUL .. "\n"
+    .. '"good.txt","","~/D","","11/07/26 14:30","Created",' .. T_OLDER .. "\n"
     .. "half a line with no epoch\n"
     .. '"noepoch.txt","","~/D","","11/07/26 14:30","Created",notanumber\n')
 local ok = pcall(boot)
@@ -1429,7 +1447,7 @@ local beforeA, okA, errA = pass + fail, pcall(function()
 
 wipe()
 put(CSV, HEADER .. "\n"
-    .. '"' .. ISO_JUL .. '","budget.xlsx","budget final.xlsx","~/Documents","","Renamed",' .. T_JUL .. "\n")
+    .. '"' .. ISO_OLDER .. '","budget.xlsx","budget final.xlsx","~/Documents","","Renamed",' .. T_OLDER .. "\n")
 
 -- 1. SETUP ALONE READS NOTHING. This is the release, and the mutation
 --    that puts the read back in setup() fails exactly here.
@@ -1484,7 +1502,7 @@ check("...and warmAfter is set, so this read and activity_tracker's land "
 wipe()
 put(CSV,
     "file_name,new_name,present_location,moved_location,timestamp,event,epoch\n"
-    .. '"budget.xlsx","budget final.xlsx","~/Documents","","11/07/26 14:30","Renamed",' .. T_JUL .. "\n")
+    .. '"budget.xlsx","budget final.xlsx","~/Documents","","11/07/26 14:30","Renamed",' .. T_OLDER .. "\n")
 local MA3 = bootOnly()
 check("🚨 setup() does not rewrite a 6.114.0 file either — the write is off "
       .. "the boot path too, not just the read",
