@@ -201,10 +201,39 @@ return function(core)
         -- probe), and lives in its OWN held slot (6.196.1). A Mac that
         -- cannot arm a timer still probes — it simply has no belt, and
         -- the report counts that apart rather than implying one is there.
+        -- 🧟 AND A PROBE YOU GIVE UP ON IS KILLED, NOT DROPPED (6.343.0,
+        -- LL's `pgrep -fl ioreg | wc -l` → 93). 6.304.0 taught the belt to
+        -- clear siBusy so the NEXT probe runs, which is right and is why
+        -- the feature kept trying — but it never terminated the ioreg it
+        -- had stopped waiting for. The slot holds one task and the next
+        -- probe overwrites it, so every abandoned run is an orphan whose
+        -- only remaining hope is a GC cycle that may never come: one a
+        -- minute, all day, on the Mac whose main thread is the thing this
+        -- config spends its releases protecting (6.228.0).
+        -- 🪜 IT BELONGS IN THE BELT, NOT IN finish(). finish() is also the
+        -- SUCCESS path, reached from inside the task's own callback, and
+        -- terminating a task from there is 6.196.1's use-after-free —
+        -- hs.task's finaliser tears down the NSTask and the callback block
+        -- under the live frame. A TIMER callback has no task frame on the
+        -- stack, so this is the one place the kill is safe.
+        local function killProbeTasks()
+            local slots = _G.secureInputTasks or {}
+            for _, name in ipairs({ "narrow", "broad" }) do
+                local t = slots[name]
+                -- `false` is what a REFUSED :start() leaves here (6.304.0),
+                -- so ask for a table before calling a method on it.
+                if type(t) == "userdata" or type(t) == "table" then
+                    pcall(function() t:terminate() end)
+                    _G.secureInput.killed = (_G.secureInput.killed or 0) + 1
+                end
+                slots[name] = nil
+            end
+        end
         local beltOK = pcall(function()
             _G.secureInputBelt = hs.timer.doAfter(answerSecs, function()
                 _G.secureInput.timeouts = (_G.secureInput.timeouts or 0) + 1
                 _G.secureInput.fails    = _G.secureInput.fails + 1
+                pcall(killProbeTasks)
                 finish(nil, "ioreg was asked and never answered in "
                             .. answerSecs .. "s", true)
             end)
@@ -347,6 +376,13 @@ return function(core)
         if (si.timeouts or 0) > 0 then
             L[#L + 1] = "   ↳ " .. si.timeouts .. " × ioreg started and NEVER "
                         .. "ANSWERED — the belt ended the probe, so the next one runs"
+        end
+        -- 🧟 COUNTED, because "the belt ended it" and "the process is gone"
+        -- were the same sentence until 6.343.0 and only one of them was
+        -- true. A timeout count climbing with this at 0 is the leak back.
+        if (si.killed or 0) > 0 then
+            L[#L + 1] = "   ↳ " .. si.killed .. " abandoned ioreg process(es) "
+                        .. "KILLED — `pgrep -fl ioreg | wc -l` is the check"
         end
         if (si.noBelt or 0) > 0 then
             L[#L + 1] = "   ⚠️ " .. si.noBelt .. " probe(s) ran with NO belt — this Mac "
