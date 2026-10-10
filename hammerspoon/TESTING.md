@@ -1,4 +1,4 @@
-# TESTING — how to score release 6.342.0
+# TESTING — how to score release 6.343.0
 
 You install ONE archive and it carries several releases. Below are the
 steps for each release this archive is new for, newest first. Run the
@@ -26,6 +26,75 @@ else is a LOSS and I fix it before building further. You are the only
 scorer; I never mark my own.
 
 ---
+
+## 6.343.0
+
+6.343.0 verify with LL — 🚨 ⇪Esc WAS PAUSING YOUR CONFIG (KNOWN GROUND)
+WHAT CHANGED: Caps Lock + Escape no longer fires the panic chord. And
+the Secure Input probe kills the `ioreg` it gives up on.
+🔎 WHAT IT WAS, and your own words found it: "I did not mean to hit
+panic." You didn't. Nothing claimed ⇪Esc, so an unclaimed hyper key
+was FORWARDED — re-posted as ⌘⇧⌃⌥ plus the key — and ⌘⇧⌃⌥Esc IS the
+panic chord. One guard stood between them and it was a 0.25-second
+window around an event that arrives late on a busy Mac. Your 14:52:10
+line, `🚨 panic (panic chord) — 2 released, 0 threw`, is it happening.
+🔑 AND "Console shows nothing weird" WAS THE EVIDENCE, not a dead end:
+nothing went wrong. Every step was a feature working.
+
+A. THE HEADLINE — ten seconds, and it is the whole release.
+A1. Press **Caps Lock + Escape** with nothing open.
+    EXPECT: a small "⎋ nothing open to close" and NOTHING else.
+    **A FAIL is the panic alert** — Released / hold released / card
+    closed / Hammerspoon paused. That is the bug, unchanged.
+A2. Open any panel — ⇪/ the cheat sheet will do — and press
+    **Caps Lock + Escape**. EXPECT: the panel closes. That is ⇪Esc's
+    new job.
+A3. Press **⇪⇧Esc**. EXPECT: Hammerspoon pauses, as it always has.
+    Press it again to come back. That key is unchanged.
+A4. Press **⌃⌥⌘⇧Esc** on purpose. EXPECT: the panic alert. The real
+    chord still works — only the accidental route is closed.
+
+B. THE 93 PROCESSES.
+B1. Terminal: `pgrep -fl ioreg | wc -l`. Note the number.
+B2. Use the Mac for a few hours. Run it again.
+    EXPECT: it has NOT climbed into the dozens. Before this it grew
+    by one a minute.
+B3. Console: `_G.secureInputReport()`. If the timeout count is
+    climbing, a new "abandoned ioreg process(es) KILLED" line should
+    be climbing with it. **A timeout count climbing with no kill line
+    is the leak back** — paste it.
+
+C. MUST STILL WORK — this touched the keyboard, so this half matters
+   more than A.
+C1. A spread of ⇪ keys: ⇪T, ⇪D, ⇪N, ⇪3, ⇪X, ⇪4, ⇪space, ⇪V, ⇪/.
+C2. Escape still closes every panel it closed before, on its own.
+C3. ⇪⇧D still opens the diagnostic report — that one RELIES on the
+    forwarding this release did not touch, so it is the check that
+    proves I narrowed the fix rather than breaking the mechanism.
+C4. Type normally for a while. No missed characters, no stray Escape.
+
+D. PASTE BACK, PASS OR FAIL.
+D1. `_G.chordAudit()` — new. On a healthy Mac it finds nothing. If it
+    names a chord, that is a SECOND key with the same hazard and I
+    want it immediately.
+D2. `_G.secureInputReport()` after a day.
+D3. `_G.hyperKeyReport()` — the latch/handover/relay counts.
+
+E. A JUDGEMENT ONLY YOU CAN MAKE.
+E1. ⇪Esc now closes the front panel, and says "nothing open to close"
+    when there is none. Is that little message useful or noise? It is
+    one line either way.
+E2. 🔨 CRUDE OR ELEGANT: by your own account the Mac was unusable —
+    keys doing weird things, the keyboard dead, and no explanation
+    anywhere. My reading is 🔨 CRUDE, and the honest pass count is 1
+    (found and fixed in one pass, from your artefacts). Your tag.
+E3. 📏 The arrow keys moving windows is NOT explained by this and I am
+    not claiming it. ⌃⌥← and ⌃⌥→ are two-modifier chords and the
+    forward makes four, so a forward cannot reach them. If it happens
+    again, the one thing I need is whether the WINDOW moved or the
+    MOUSE POINTER moved — they are different bugs.
+
+
 
 ## 6.342.0
 
@@ -275,100 +344,6 @@ E3. 🔨 CRUDE OR ELEGANT: nothing was lost and the Mac was fine, but
     writing told you it was empty. My reading is that the DEGRADE was
     graceful and the MESSAGE was a lie — the same shape as 6.339.0.
     One pass. Your tag.
-
-
-
-## 6.339.0
-
-6.339.0 verify with LL — 🔌 FOUR BUTTONS THAT HAVE NEVER RUN (KNOWN GROUND)
-WHAT CHANGED: ⌘A, ⌘D, ⌘F and ⌘O in the screenshot editor work. Not
-"work better" — work at all, for the first time since each shipped.
-🔎 YOUR SCREENSHOT WAS THE WHOLE DIAGNOSIS. "Add capture needs the
-screenshots module, which is not loaded" was drawn over a Console in
-which `_G.screenshotsReport()` had just printed the entire SCREENSHOTS
-block and ⇪4 had logged a press four minutes earlier. The module was
-loaded; the report was its own proof. What was missing was the way to
-ASK: the guard called `core.has`, and the `core` table every module is
-handed carries `provide` and `call` and has never carried `has`. Nil,
-nil-guarded, so it refused silently rather than erroring — which is
-why it survived four releases and a green gate.
-🚨 SO EXPECT THESE TO BE NEW TO YOU. If any of them does something you
-have seen before, say so — that would mean I have the cause wrong.
-
-A. THE HEADLINE — ⌘A, the one you photographed.
-A1. ⇪⇧1 on any screenshot to open the editor.
-A2. Press ⌘A (or the 📸 Add capture button in the right rail).
-    EXPECT: the editor stays put and a selector appears over the
-    screen — drag a rectangle over something.
-    **A FAIL is the old alert**, "Add capture needs the screenshots
-    module, which is not loaded". That sentence should be impossible
-    now; if you see it, stop and tell me.
-A3. Let go. EXPECT: what you dragged lands ON the shot as a movable
-    image at about 40% width. Drag it; drag its corner to scale it.
-A4. ⌘Z. EXPECT: it comes off again.
-A5. 🪟 Move the editor window aside first if it covers the thing you
-    want — ⌘A does NOT hide it, deliberately. ⌘F is the one that does.
-
-B. ⌘O — LOAD SHOT (6.258.0, never run).
-B1. In the editor, press ⌘O (or 🖼 Load shot).
-    EXPECT: a picker listing your other screenshots, newest first.
-    NOT "Load shot needs the screenshots module…".
-B2. Pick one. EXPECT: the canvas GROWS and that shot is drawn in the
-    new space at its own size — two wide shots stack, a tall one goes
-    beside.
-B3. 🚨 THE RULE WORTH CHECKING, because it is the whole design: draw
-    an arrow or a text box on the FIRST shot before you press ⌘O.
-    After the grow it must still be exactly on the thing it pointed
-    at. If any mark moves, that is a real break and I want the
-    screenshot.
-B4. ⌘Z takes the whole grow back, canvas size and all.
-
-C. ⌘D AND ⌘F — THE TWO SCREEN GRABS (6.255.0 / 6.256.0, never run).
-C1. In the editor, press ⌘F (🖥 Full screen).
-    EXPECT: the editor blinks out, the whole screen is taken, and the
-    editor comes straight back with that screen on the shot.
-C2. 🔎 LOOK AT THE PICTURE: the editor must NOT be in it. If it is,
-    the settle beat is too short on your Mac and that is a number, not
-    a release — tell me and I will move the default.
-C3. Press ⌘D (⏲ Delayed 5s). EXPECT: the editor hides, you get five
-    seconds to arrange the screen — open a menu, hover something —
-    then it comes back with the screen on the shot.
-C4. 🚨 THE ONE THAT MATTERS MORE THAN THE FEATURE: the editor must
-    ALWAYS come back. If it ever hides and does not return within
-    about eight seconds, that is a real break — and it is caught: an
-    alert reads "⚠️ Screenshot editor — the delayed capture never
-    answered — the window is back". Paste that if you see it.
-
-D. MUST STILL WORK — I changed a table every module is handed.
-D1. Boot: All green, 71 modules, the usual ⇪ shortcut count.
-D2. A spread of keys across different tools: ⇪T, ⇪D, ⇪N, ⇪3, ⇪X, ⇪4,
-    ⇪space, ⇪V, ⇪/. Nothing should feel different anywhere.
-D3. In the editor: the nine drawing tools (B T A L O H C S M), ⌘Z,
-    ⌘-drag on the title strip, Esc, and ⌘⏎ Save & copy.
-D4. ⌘⏎ specifically: it saves "… (edited).png" beside the original AND
-    puts it on the clipboard, as it always has. It now takes the
-    module's door to do it rather than its own fallback, so this is
-    the one existing behaviour this release could plausibly have
-    disturbed. ⌘V somewhere afterwards and check you get the picture.
-
-E. PASTE BACK, PASS OR FAIL.
-E1. `_G.screenshotEditorReport()` — the whole block, after doing A–C.
-    The "capture :" line should show asked/landed counts that are no
-    longer 0 for the first time.
-E2. `_G.screenshotsReport()` — unchanged by this release, but its
-    "routes :" line tells me whether ⌘A went through the same path.
-
-F. A JUDGEMENT ONLY YOU CAN MAKE.
-F1. Now that these four actually run — are they what you wanted when
-    you asked for them? ⌘A and ⌘O were your asks in 6.213.0 and
-    6.258.0 and you have never been able to press either. If the
-    behaviour is wrong rather than absent, that is a new and much more
-    useful conversation.
-F2. 🔨 CRUDE OR ELEGANT: nothing broke, nothing was lost, and the
-    editor stayed usable throughout — four buttons were simply absent
-    while telling you something false about why. My reading is that
-    the degrade was graceful and the MESSAGE was a lie, which is its
-    own kind of cost; one pass. Your tag.
 
 
 

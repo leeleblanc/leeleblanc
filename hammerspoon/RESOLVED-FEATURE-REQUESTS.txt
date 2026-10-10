@@ -1,5 +1,5 @@
 ========================================================================
-RESOLVED FEATURE REQUESTS — Hammerspoon config 6.342.0
+RESOLVED FEATURE REQUESTS — Hammerspoon config 6.343.0
 Every feature and how to use it. Generated from the modules' own
 cheat sheets (the rows ⇪/ draws), so it is never out of date.
 ⇪ = Caps Lock held (the hyper key). ⇪⇧X = Caps Lock + Shift + X.
@@ -478,6 +478,7 @@ In the Console, _G.<tool>Report() prints any tool's own report.
   ℹ️ meta Every mdls attribute of the Finder selection, ⏎ copies
   ⇪'      ⏸ Pause all audio and video — media key + every
             scriptable player that is already running
+  ⇪Esc    ⎋ CLOSE THE FRONT PANEL — and, by being claimed, it stops ⇪Esc forwarding onto the panic chord (6.343.0)
   ⇪⇧Esc ⏸ PAUSE HAMMERSPOON — ⇪ shortcuts and typing helpers
             off until pressed again · ⏸ HS in the menu bar meanwhile
   ⌃⌥⌘⇧Esc 🚨 PANIC — lets go of everything: the ⇪ hold, the vault
@@ -788,6 +789,7 @@ In the Console, _G.<tool>Report() prints any tool's own report.
 
 📜 RELEASE INDEX — newest first, one line per release (the full story of each is in CHANGELOG.md)
 ------------------------------------------------------------------------
+  6.343.0  🚨 ⇪Esc WAS FIRING THE PANIC CHORD, AND 93 ioreg
   6.342.0  📐 ⌘D IS THE ⇧⌘5 SHAPE: DRAG THE AREA, THEN COUNT
   6.341.0  🔁 THE SHOT KEEPS THE CLIPBOARD; ⇪⇧4 IS THE OCR DOOR
   6.340.0  🔎 A FIRST OPEN IS NOT AN EMPTY VAULT

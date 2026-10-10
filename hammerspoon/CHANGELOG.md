@@ -5,6 +5,91 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.343.0 — 🚨 ⇪Esc WAS FIRING THE PANIC CHORD, AND 93 ioreg
+  PROCESSES WERE PILING UP (modules/power_tools.lua +
+  core/hyper_key.lua + core/capabilities.lua)
+
+LL: "No, I did not mean to hit panic. Something is making key presses
+do weird things. And my keyboard froze. Console shows nothing weird."
+
+Three facts, each read in the source rather than guessed, and together
+they are a loaded gun pointed at the switch that turns this config off:
+
+  1. NOTHING claimed ⇪Esc, so §3.12 FORWARDED it — an unclaimed hyper
+     key is re-posted as _G.hyperMods + the key.
+  2. _G.hyperMods is { cmd, shift, ctrl, alt }. pt.panicKey IS "escape"
+     and pt.panicMods ARE those same four. So the forward of ⇪Esc is,
+     character for character, the panic chord — which releases the
+     hold, closes panels, and PAUSES the whole config.
+  3. The only thing between them was rail 2 of _G.globalTapDispatch,
+     which refuses a four-modifier chord ONLY while _G.hyperChordUntil
+     is in the future: a 0.25 s window.
+
+🔁 A TIME WINDOW ROUND A POSTED EVENT IS 6.218.0's DEFECT EXACTLY.
+hs.eventtap.keyStroke POSTS; the event arrives after the call returns.
+On a main thread that loads its extensions over 42 seconds and spends
+0.94 s in a menu-bar scan, 250 ms is not a guarantee. Win the race and
+nothing happens. Lose it and the config switches itself off.
+
+🔎 AND NOTHING WAS IN THE CONSOLE BECAUSE NOTHING WENT WRONG. Every
+step is a feature working correctly. "Console shows nothing weird" was
+not a dead end — it was the strongest evidence in the report, and it is
+what ruled out a crash, a throw and a stuck tap in one sentence.
+
+🖥 WHY IT IS HIM AND WHY IT IS NEW: with Carbon alive, macOS delivered
+that chord and this dispatcher never saw it. The path only opened when
+Carbon stopped dispatching on this Mac — which its own boot line has
+been announcing, correctly, for days.
+
+🔑 THE FIX IS AT THE SOURCE, NOT AT THE RACE. ⇪Esc is CLAIMED: it closes
+whichever panel owns Escape, through coexist's router. A claimed key is
+never forwarded, so the synthetic chord is never posted and the window
+stops mattering. Widening the window would have traded this bug for a
+forwarded ⇪⇧D that no longer reaches the diagnostics report, and a
+guard tuned between two failures will be wrong again. GENERAL: when an
+accidental chord can reach a control that DISABLES the tool, do not
+make the guard better — make the chord unreachable.
+
+🔒 _G.chordAudit() closes the class rather than the instance: it names
+any other four-modifier global chord whose hyper key is unclaimed, by
+asking _G.hyperBound and _G.globalDispatch rather than carrying a list
+(6.276.0 — a hand-kept list of safe keys is wrong the first time
+somebody binds a chord, and wrong silently). Silent when healthy.
+
+🧪 AND THE GATE CAUGHT MY OWN SLIP: 6.294.0's auditor failed the build
+for a bound key printed on no cheat sheet. The row is in.
+
+📏 COST, NAMED: ⇪Esc is spent. It was free, and it is being spent to
+stop the config switching itself off by accident.
+
+🧟 AND THE SECOND HALF — A PROBE YOU GIVE UP ON IS KILLED, NOT DROPPED.
+LL's `pgrep -fl ioreg | wc -l` → 93. His report read "742 probe(s)
+STARTED and none finished", one a minute all day. 6.304.0 taught the
+belt to clear siBusy so the NEXT probe runs — right, and why the
+feature kept trying — but it never terminated the ioreg it had stopped
+waiting for. The slot holds one task and the next probe overwrites it,
+so every abandoned run is an orphan whose only remaining hope is a GC
+cycle that may never come.
+🪜 THE KILL BELONGS IN THE BELT, NOT IN finish(). finish() is also the
+SUCCESS path, reached from inside the task's own callback, and
+terminating a task from there is 6.196.1's use-after-free. A timer
+callback has no task frame on the stack. A `false` slot is what a
+REFUSED :start() leaves (6.304.0), so the type is checked before a
+method is called on it. Kills are counted and printed, because "the
+belt ended it" and "the process is gone" were the same sentence and
+only one of them was true.
+
+⏳ AND THE GATE WAS RED FOR A TEST THAT HAD EXPIRED. test_file_tracker
+went 156/18 overnight with nothing changed: its migration fixture was
+pinned to 2026-07-11 and 2026-08-03, and the module prunes against the
+real os.time() with a 90-day window, so on 2026-10-10 the July row
+turned 91 days old and the prune — working perfectly — dropped it
+before the migration checks could count it. The rows are offsets from
+now (20 and 10 days) now. GENERAL: A FIXTURE PINNED TO AN ABSOLUTE DATE
+IS A TEST WITH AN EXPIRY DATE. When the code under test compares
+against the clock, the fixture is expressed in the same terms or it is
+a time bomb with a test's name on it (6.234.0, for a fixture).
+
 NEW IN 6.342.0 — 📐 ⌘D IS THE ⇧⌘5 SHAPE: DRAG THE AREA, THEN COUNT
   DOWN, THEN SHOOT IT (modules/screenshot_editor.lua + screenshots.lua)
 

@@ -4,8 +4,20 @@
 -- =====================================================================
 -- 10-09-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.342.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.343.0
 -- =====================================================================
+
+-- NEW IN 6.343.0 — 🚨 ⇪Esc WAS FIRING THE PANIC CHORD, AND 93 ioreg
+--   PROCESSES WERE PILING UP (power_tools.lua + core/hyper_key.lua +
+--   core/capabilities.lua). LL: "I did not mean to hit panic … my
+--   keyboard froze. Console shows nothing weird." Nothing claimed ⇪Esc,
+--   so §3.12 FORWARDED it as _G.hyperMods + the key — and that is
+--   { cmd, shift, ctrl, alt }, i.e. pt.panicMods over pt.panicKey =
+--   "escape". Between them stood only a 0.25 s window round a POSTED
+--   event (6.218.0's defect) that a loaded thread loses. ⇪Esc is
+--   CLAIMED now (a claimed key is never forwarded); _G.chordAudit()
+--   names any other such chord whose hyper key is unclaimed.
+--   🧟 And the Secure Input belt KILLS the ioreg it gave up on.
 
 -- NEW IN 6.342.0 — 📐 ⌘D IS THE ⇧⌘5 SHAPE: DRAG THE AREA, THEN COUNT
 --   DOWN, THEN SHOOT IT (screenshot_editor.lua + screenshots.lua). LL,
@@ -18,23 +30,11 @@
 --   once a rect exists (6.304.0) — and the belt ENDS a selector still
 --   open instead of reappearing in the area he is choosing.
 
--- NEW IN 6.341.0 — 🔁 THE SHOT KEEPS THE CLIPBOARD; ⇪⇧4 IS THE OCR
---   DOOR (modules/screenshots.lua). LL: "sometimes when I do hyper+4 it
---   places an image on the clipboard. Sometimes it seems like the OCR
---   runs and places the characters on the clipboard… When I take a
---   screenshot that always takes priority, unless I use my
---   hyper+shift+4." "Sometimes" WAS the feature: 6.319.0's swap fires
---   only when the naming OCR happens to find words, only while the shot
---   is still what the clipboard holds, and only inside clipSwapSecs.
---   textToClipboard ships FALSE. ⇪⇧4 is untouched — it has copied by its
---   own path since 6.173.1 — and the OCR still runs in the background,
---   naming the file and filling ⇪O. Only the clipboard write stops.
-
--- (6.340.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.341.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 cut the inline count to
 --  TWO; a gate check proves every entry here is also in CHANGELOG.md.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.342.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.343.0
 -- =====================================================================
 -- The catalogue that used to sit here moved to GUIDE.md ("What each
 -- tool does") in 6.180.0 — 259 lines of prose inside the orchestrator.
@@ -127,7 +127,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.342.0"
+_G.configVersion = "6.343.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the

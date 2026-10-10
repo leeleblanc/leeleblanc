@@ -6735,6 +6735,71 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.343.0 verify with LL — 🚨 ⇪Esc WAS PAUSING YOUR CONFIG (KNOWN GROUND)
+  WHAT CHANGED: Caps Lock + Escape no longer fires the panic chord. And
+  the Secure Input probe kills the `ioreg` it gives up on.
+  🔎 WHAT IT WAS, and your own words found it: "I did not mean to hit
+  panic." You didn't. Nothing claimed ⇪Esc, so an unclaimed hyper key
+  was FORWARDED — re-posted as ⌘⇧⌃⌥ plus the key — and ⌘⇧⌃⌥Esc IS the
+  panic chord. One guard stood between them and it was a 0.25-second
+  window around an event that arrives late on a busy Mac. Your 14:52:10
+  line, `🚨 panic (panic chord) — 2 released, 0 threw`, is it happening.
+  🔑 AND "Console shows nothing weird" WAS THE EVIDENCE, not a dead end:
+  nothing went wrong. Every step was a feature working.
+
+  A. THE HEADLINE — ten seconds, and it is the whole release.
+  A1. Press **Caps Lock + Escape** with nothing open.
+      EXPECT: a small "⎋ nothing open to close" and NOTHING else.
+      **A FAIL is the panic alert** — Released / hold released / card
+      closed / Hammerspoon paused. That is the bug, unchanged.
+  A2. Open any panel — ⇪/ the cheat sheet will do — and press
+      **Caps Lock + Escape**. EXPECT: the panel closes. That is ⇪Esc's
+      new job.
+  A3. Press **⇪⇧Esc**. EXPECT: Hammerspoon pauses, as it always has.
+      Press it again to come back. That key is unchanged.
+  A4. Press **⌃⌥⌘⇧Esc** on purpose. EXPECT: the panic alert. The real
+      chord still works — only the accidental route is closed.
+
+  B. THE 93 PROCESSES.
+  B1. Terminal: `pgrep -fl ioreg | wc -l`. Note the number.
+  B2. Use the Mac for a few hours. Run it again.
+      EXPECT: it has NOT climbed into the dozens. Before this it grew
+      by one a minute.
+  B3. Console: `_G.secureInputReport()`. If the timeout count is
+      climbing, a new "abandoned ioreg process(es) KILLED" line should
+      be climbing with it. **A timeout count climbing with no kill line
+      is the leak back** — paste it.
+
+  C. MUST STILL WORK — this touched the keyboard, so this half matters
+     more than A.
+  C1. A spread of ⇪ keys: ⇪T, ⇪D, ⇪N, ⇪3, ⇪X, ⇪4, ⇪space, ⇪V, ⇪/.
+  C2. Escape still closes every panel it closed before, on its own.
+  C3. ⇪⇧D still opens the diagnostic report — that one RELIES on the
+      forwarding this release did not touch, so it is the check that
+      proves I narrowed the fix rather than breaking the mechanism.
+  C4. Type normally for a while. No missed characters, no stray Escape.
+
+  D. PASTE BACK, PASS OR FAIL.
+  D1. `_G.chordAudit()` — new. On a healthy Mac it finds nothing. If it
+      names a chord, that is a SECOND key with the same hazard and I
+      want it immediately.
+  D2. `_G.secureInputReport()` after a day.
+  D3. `_G.hyperKeyReport()` — the latch/handover/relay counts.
+
+  E. A JUDGEMENT ONLY YOU CAN MAKE.
+  E1. ⇪Esc now closes the front panel, and says "nothing open to close"
+      when there is none. Is that little message useful or noise? It is
+      one line either way.
+  E2. 🔨 CRUDE OR ELEGANT: by your own account the Mac was unusable —
+      keys doing weird things, the keyboard dead, and no explanation
+      anywhere. My reading is 🔨 CRUDE, and the honest pass count is 1
+      (found and fixed in one pass, from your artefacts). Your tag.
+  E3. 📏 The arrow keys moving windows is NOT explained by this and I am
+      not claiming it. ⌃⌥← and ⌃⌥→ are two-modifier chords and the
+      forward makes four, so a forward cannot reach them. If it happens
+      again, the one thing I need is whether the WINDOW moved or the
+      MOUSE POINTER moved — they are different bugs.
+
 - 6.342.0 verify with LL — 📐 ⌘D DRAGS THE AREA FIRST (KNOWN GROUND)
   WHAT CHANGED: ⌘D in the screenshot editor is macOS's ⇧⌘5 order now —
   the editor gets out of the way, you DRAG the area you want, then you
