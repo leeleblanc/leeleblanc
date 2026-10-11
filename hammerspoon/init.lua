@@ -4,36 +4,32 @@
 -- =====================================================================
 -- 10-09-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.346.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.348.0
 -- =====================================================================
 
--- NEW IN 6.346.0 — 🗑 TRANSMISSION IS OFF THE APP CLOSE MONITOR
---   (modules/app_watcher.lua). LL: "Remove Transmission from the app
---   close monitor." It quits by itself when a download finishes, the
---   worst shape for a list whose panel never gives up (6.16.21). 18 now.
---   🚨 AND THE SUITE COULD NOT HAVE PROVEN A REMOVAL: nineteen tests,
---   every one quitting a WATCHED app, so a list with one name taken
---   out read the same as a list nobody consults. Two checks drive the
---   negative case now (6.269.0 — a join says nothing about a MISSING
---   row), and putting the name back fails them.
+-- NEW IN 6.348.0 — 🪟 A WINDOW macOS REFUSES IS RETRIED ONCE, AND THE
+--   FIRST ⇪⇧, NO LONGER PAYS TWO DYLIB LOADS (video_player.lua). His
+--   20:45:51 Console: `Loading extension: webview`, `Loading
+--   extension: drawing`, `macOS would not put the window on screen` —
+--   three lines, ONE SECOND. The first press of a session loaded both
+--   extensions on the main thread and then asked AppKit to order a
+--   window on screen in the same turn. M.warm pays them now (6.267.0
+--   applied to Hammerspoon's own libraries, which 6.330.0 named and
+--   nothing had paid). 🚨 A CANDIDATE, NOT THE CAUSE (6.198.0) — so the
+--   retry is the half that works regardless, 6.266.0's shape: the
+--   CALLER decides a beat later, one try, counted in the report.
 
--- NEW IN 6.345.0 — 🚨 THE MUG PLAYER PLAYS: hs.json.encode TAKES A
---   TABLE (modules/video_player.lua). 6.344.0 drew a black rectangle
---   and ONE function did all of it — the payload builder called
---   hs.json.encode on a bare film NAME. LuaSkin raises on a non-table,
---   a pcall swallowed the raise, so EVERY string came back "": the
---   <video>'s src (hence no picture), the title, the brand, every row.
---   The escaper is OURS now, pure and gate-proven; the gate's own stub
---   refuses a bare string as LuaSkin does (6.290.0, eleventh time), and
---   a sentry closes the class across modules/. ⎋ The page hears Escape
---   and closes the window (WebKit keeps it in full screen); a refused
---   door carries macOS's own MediaError; a row number is an integer.
+-- NEW IN 6.347.0 — 🗑 IINA IS OFF THE APP CLOSE MONITOR TOO
+--   (app_watcher.lua). LL: "Remove IINA." Same sentence as 6.346.0's
+--   and the same reason — a film player is quit when a film ends, and
+--   this panel pings until it is answered. 17 apps. 6.346.0's two
+--   negative checks are what make a second removal cost one line.
 
--- (6.344.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.346.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 cut the inline count to
 --  TWO; a gate check proves every entry here is also in CHANGELOG.md.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.346.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.348.0
 -- =====================================================================
 -- The catalogue that used to sit here moved to GUIDE.md ("What each
 -- tool does") in 6.180.0 — 259 lines of prose inside the orchestrator.
@@ -126,7 +122,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.346.0"
+_G.configVersion = "6.348.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the

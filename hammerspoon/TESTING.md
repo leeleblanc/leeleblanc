@@ -1,4 +1,4 @@
-# TESTING — how to score release 6.346.0
+# TESTING — how to score release 6.348.0
 
 You install ONE archive and it carries several releases. Below are the
 steps for each release this archive is new for, newest first. Run the
@@ -26,6 +26,94 @@ else is a LOSS and I fix it before building further. You are the only
 scorer; I never mark my own.
 
 ---
+
+## 6.348.0
+
+6.348.0 verify with LL — 🪟 THE WINDOW macOS REFUSED (KNOWN GROUND)
+WHAT CHANGED: a window macOS refuses to put on screen is tried ONCE
+more, a beat later — and the first ⇪⇧, of a session no longer pays
+two main-thread library loads in the same turn as the show.
+🔎 YOUR CONSOLE NAMED THIS, and it is a DIFFERENT failure from the
+black rectangle 6.345.0 fixes. Three lines, one second:
+    20:45:51  -- Loading extension: webview
+    20:45:51  -- Loading extension: drawing
+    20:45:51  ⚠️ Mug Player: macOS would not put the window on screen
+The window never opened at all. Hammerspoon loads a library the first
+time anything touches it, on the main thread, and on your Mac that is
+seconds — your 6.330.0 log has one arriving twenty-six seconds after
+another. So the first press was loading two of them and then asking
+macOS to order a window on screen in the same breath.
+🚨 I AM NOT CLAIMING THAT IS THE CAUSE. The same Console has the
+cheat sheet refused forty minutes earlier, so this Mac refuses window
+shows generally. What this does is take two known pieces of work off
+that moment, and retry once when it still happens.
+
+A. THE HEADLINE — and the case that matters is the FIRST press.
+A1. Reload Hammerspoon (⌘⌃R). Wait ten seconds, no keys.
+A2. Press **⇪⇧,** — the FIRST press of the session.
+    EXPECT: the window. **A FAIL is nothing happening**, and if that
+    is what you get, go straight to D1 — the report now counts it.
+A3. Watch the Console while you do A2.
+    EXPECT: NO `-- Loading extension: webview` line at that moment.
+    It should have been loaded ten seconds after boot instead. If it
+    still appears on your keypress, the warm did not run and that is
+    the finding.
+A4. Close and open it a few times. EXPECT: every time.
+
+B. THE RETRY, which you may never see.
+B1. If a press ever seems to do nothing and then the window appears a
+    moment later, that IS the retry. Normal.
+B2. If you get "macOS would not put the window on screen, TWICE",
+    that is two refusals in a row — paste it. It means the retry is
+    working and the refusal is something bigger than a busy turn.
+
+C. MUST STILL WORK.
+C1. Everything in the 6.345.0 block — the film plays, names in the
+    deck, Escape closes, ⌘O.
+C2. ⇪⇧. the Jug Player, ⇪/ the cheat sheet, ⇪3 Hamsidian, ⇪N, ⇪T.
+    Those all draw windows and none of them changed.
+C3. Boot: All green, 72 modules. Boot time should be unchanged —
+    the two libraries load in warm, seconds AFTER boot, not during.
+
+D. PASTE BACK, PASS OR FAIL.
+D1. `_G.mugReport()` — a new line:
+      opens  : 3 asked · 3 straight through · 0 refused by macOS
+    and, if any were refused, one under it saying how many came up on
+    the retry against how many were refused twice. **Those are
+    opposite facts** and the old report could say neither.
+D2. Still the one I most need: the **way in** line, once a film
+    actually plays.
+
+E. A JUDGEMENT ONLY YOU CAN MAKE.
+E1. 📏 COST, NAMED: your Mac now loads hs.webview and hs.drawing a few
+    seconds after every boot even if you never press ⇪⇧,. Six other
+    tools here draw webviews so you were almost certainly paying it
+    anyway — but if boot ever FEELS slower, say so and it comes out.
+E2. Every other window in this config still has the bare show this
+    release fixed in one place — the music card, Hamsidian, the
+    screenshot editor. If any of THEM ever does nothing on a press,
+    that is the same bug and I will take the same door there.
+E3. 🔨 CRUDE OR ELEGANT: for the Mug Player this is pass three. Your
+    tag, and I would not argue with 🔨.
+
+
+
+## 6.347.0
+
+6.347.0 verify with LL — 🗑 IINA IS OFF THE MONITOR TOO (KNOWN GROUND)
+WHAT CHANGED: one more name out of the same list. 17 apps watched.
+A1. Quit IINA. EXPECT: nothing — no popup, no ping.
+A2. Quit a watched app (Shottr, CotEditor, Word). EXPECT: the popup,
+    exactly as always. That half must be untouched.
+🔑 IT COST ONE LINE BECAUSE 6.346.0 BUILT THE CHECKS FIRST: the
+negative case now runs once per removed name, each on its own boot,
+and putting either name back fails its own row.
+C1. The eighteen left: 1Password, Alfred, Bartender, CotEditor,
+    Ghostty, Chrome, OneDrive, Defender, Excel, PowerPoint, Word,
+    Outlook, Teams, NordVPN, Rectangle, Shottr, Sublime. Name any
+    others and they go in one line each.
+
+
 
 ## 6.346.0
 
@@ -159,172 +247,6 @@ E2. 🔨 CRUDE OR ELEGANT: a brand-new tool that opened a window and
     second pass. Your tag.
 E3. Still unanswered from last time, and still only yours: .mp4 only,
     or add .m4v and .mov? And 🔨/✨ for 6.343.0 and 6.344.0.
-
-
-
-## 6.344.0
-
-6.344.0 verify with LL — 🎬 THE MUG PLAYER (NEW GROUND — expect a round)
-WHAT CHANGED: there is a new tool. **⇪⇧,** opens the Mug Player — a
-Jug Player for films. Drop .mp4 files on it, the first plays, the
-rest queue under it, and the controls are macOS's own.
-🪟 AND IT IS NEW GROUND, SAID UP FRONT: nothing in this config has
-ever played video in one of its windows, so whether macOS will let
-that window read a film off your disk is a thing NOBODY HAS
-MEASURED — not me, not a previous release. The player tries two ways
-in, reports which one worked, and if neither does it says so in
-words and gives you ⌘O into QuickTime. So the most useful thing you
-can send back is one line of `_G.mugReport()`, whether it works or
-not.
-
-A. THE HEADLINE — a minute.
-A1. Press **⇪⇧,** (hold Caps Lock and Shift, press the comma).
-    EXPECT: a dark window opens in the middle of the screen with
-    "Mug Player" along the top and an empty deck underneath.
-    Press it again: it closes.
-A2. Drag two or three **.mp4** films onto that window from Finder.
-    EXPECT: the window goes blue as the drag crosses it, and on the
-    drop the first film STARTS PLAYING with a control bar under it —
-    play/pause, a scrubber, a clock, volume, full screen.
-    **A FAIL is a black rectangle with no picture** — that is the
-    case this release exists to make legible, so go straight to D1.
-A3. Use the control bar. It is macOS's own, not mine: the scrubber,
-    the volume slider, the full-screen button and picture-in-picture
-    should all behave exactly as they do in Safari.
-A4. Press **space**. It plays and pauses, wherever the keyboard is in
-    the window. **← and →** seek; **⇧** with them seeks further.
-A5. ↑ ↓ walk the deck, **⏎** plays the highlighted row, **⌘1–⌘9**
-    plays the Nth film, **⌫** takes a film out of the queue.
-A6. Let a film run to its END. EXPECT: the next one starts by itself.
-
-B. THE BITS THAT PROTECT YOU.
-B1. Drag something that is NOT an .mp4 — a .mkv, a .mov, a photo.
-    EXPECT: it is NOT queued, and an alert names the file and says
-    "Mug Player plays .mp4 (your scope); ⌘O opens it in QuickTime".
-    That is your own scope answering, not a bug. Say the word and
-    .mov and .m4v join the list — one line, not a release.
-B2. With a film playing, press **⌘O**.
-    EXPECT: it opens in QuickTime (or whatever your default player
-    is). That is the way out when this window cannot read a film.
-B3. Click the **✕** at the end of a 🕘 history row.
-    EXPECT: the row disappears and NOTHING starts playing. A film
-    starting there is the worst thing this release can do — tell me
-    at once.
-B4. Check the file is still on disk. Nothing here ever deletes one.
-B5. Drag the window by its **title strip**, close it, reopen it.
-    EXPECT: it comes back where you left it. ⌘-drag anywhere on it
-    works too.
-B6. **Esc** closes it. Then ⇪/ — the cheat sheet still closes last.
-
-C. MUST STILL WORK — this release published one of the Jug Player's
-   own functions as a shared service, so that is what to check.
-C1. **⇪⇧.** — the Jug Player opens, drop an mp3 on it, it plays.
-    That drop now goes through the same reader the Mug Player uses,
-    so if music drops stop working, this release did it and I want
-    to know immediately.
-C2. With the Jug Player's card up and a queue in it, press **F8**.
-    EXPECT: the Jug Player pauses, as always. The Mug Player
-    deliberately does NOT take that key — see E2.
-C3. A spread of ⇪ keys: ⇪T, ⇪D, ⇪N, ⇪3, ⇪X, ⇪4, ⇪space, ⇪V, ⇪/.
-C4. Type a **comma** in any app. EXPECT: a comma.
-
-D. PASTE BACK, PASS OR FAIL. These matter more than usual.
-D1. `_G.mugReport()` — the whole block. The line I need is **way in**:
-    · "relative to the film's own folder — this is the one that
-      carried a film" or "the absolute file URL — …" → it WORKS, and
-      now I know which way, which decides everything built on it.
-    · "⏳ no film has loaded yet" → nothing has been tried.
-    · a **refused** line listing both ways → macOS will not let the
-      window read local files at all, and the next release is a
-      different mechanism rather than a tweak to this one.
-D2. `_G.musicReport()` — unchanged, and it proves C1.
-
-E. A JUDGEMENT ONLY YOU CAN MAKE.
-E1. **The window is 880 × 660 and fixed.** A film player probably
-    wants to be resizable, and I did not build that — say what size
-    you actually want, or whether it should remember a size the way
-    it remembers a position.
-E2. **⏯ / F7 / F9 are NOT taken by the Mug Player**, deliberately:
-    the Jug Player holds them while its card is up, and two tools on
-    one physical key is how they come to disagree. With the film
-    focused macOS routes them to it anyway. Is that right until the
-    merge, or do you want the film to win whenever its window is up?
-E3. **.mp4 only.** Confirm, or name the formats to add. Anything
-    WebKit can play will work (.m4v and .mov almost certainly will;
-    .mkv almost certainly will not, whatever I put in the list).
-E4. 🔨 CRUDE OR ELEGANT: this is a new tool, so there was nothing to
-    break — but if it opens a black rectangle and nothing plays, it
-    is a tool that does not work, and I would log that as 🔨 with a
-    pass count of 1. Your tag, as always.
-
-
-
-## 6.343.0
-
-6.343.0 verify with LL — 🚨 ⇪Esc WAS PAUSING YOUR CONFIG (KNOWN GROUND)
-WHAT CHANGED: Caps Lock + Escape no longer fires the panic chord. And
-the Secure Input probe kills the `ioreg` it gives up on.
-🔎 WHAT IT WAS, and your own words found it: "I did not mean to hit
-panic." You didn't. Nothing claimed ⇪Esc, so an unclaimed hyper key
-was FORWARDED — re-posted as ⌘⇧⌃⌥ plus the key — and ⌘⇧⌃⌥Esc IS the
-panic chord. One guard stood between them and it was a 0.25-second
-window around an event that arrives late on a busy Mac. Your 14:52:10
-line, `🚨 panic (panic chord) — 2 released, 0 threw`, is it happening.
-🔑 AND "Console shows nothing weird" WAS THE EVIDENCE, not a dead end:
-nothing went wrong. Every step was a feature working.
-
-A. THE HEADLINE — ten seconds, and it is the whole release.
-A1. Press **Caps Lock + Escape** with nothing open.
-    EXPECT: a small "⎋ nothing open to close" and NOTHING else.
-    **A FAIL is the panic alert** — Released / hold released / card
-    closed / Hammerspoon paused. That is the bug, unchanged.
-A2. Open any panel — ⇪/ the cheat sheet will do — and press
-    **Caps Lock + Escape**. EXPECT: the panel closes. That is ⇪Esc's
-    new job.
-A3. Press **⇪⇧Esc**. EXPECT: Hammerspoon pauses, as it always has.
-    Press it again to come back. That key is unchanged.
-A4. Press **⌃⌥⌘⇧Esc** on purpose. EXPECT: the panic alert. The real
-    chord still works — only the accidental route is closed.
-
-B. THE 93 PROCESSES.
-B1. Terminal: `pgrep -fl ioreg | wc -l`. Note the number.
-B2. Use the Mac for a few hours. Run it again.
-    EXPECT: it has NOT climbed into the dozens. Before this it grew
-    by one a minute.
-B3. Console: `_G.secureInputReport()`. If the timeout count is
-    climbing, a new "abandoned ioreg process(es) KILLED" line should
-    be climbing with it. **A timeout count climbing with no kill line
-    is the leak back** — paste it.
-
-C. MUST STILL WORK — this touched the keyboard, so this half matters
-   more than A.
-C1. A spread of ⇪ keys: ⇪T, ⇪D, ⇪N, ⇪3, ⇪X, ⇪4, ⇪space, ⇪V, ⇪/.
-C2. Escape still closes every panel it closed before, on its own.
-C3. ⇪⇧D still opens the diagnostic report — that one RELIES on the
-    forwarding this release did not touch, so it is the check that
-    proves I narrowed the fix rather than breaking the mechanism.
-C4. Type normally for a while. No missed characters, no stray Escape.
-
-D. PASTE BACK, PASS OR FAIL.
-D1. `_G.chordAudit()` — new. On a healthy Mac it finds nothing. If it
-    names a chord, that is a SECOND key with the same hazard and I
-    want it immediately.
-D2. `_G.secureInputReport()` after a day.
-D3. `_G.hyperKeyReport()` — the latch/handover/relay counts.
-
-E. A JUDGEMENT ONLY YOU CAN MAKE.
-E1. ⇪Esc now closes the front panel, and says "nothing open to close"
-    when there is none. Is that little message useful or noise? It is
-    one line either way.
-E2. 🔨 CRUDE OR ELEGANT: by your own account the Mac was unusable —
-    keys doing weird things, the keyboard dead, and no explanation
-    anywhere. My reading is 🔨 CRUDE, and the honest pass count is 1
-    (found and fixed in one pass, from your artefacts). Your tag.
-E3. 📏 The arrow keys moving windows is NOT explained by this and I am
-    not claiming it. ⌃⌥← and ⌃⌥→ are two-modifier chords and the
-    forward makes four, so a forward cannot reach them. If it happens
-    again, the one thing I need is whether the WINDOW moved or the
-    MOUSE POINTER moved — they are different bugs.
 
 
 

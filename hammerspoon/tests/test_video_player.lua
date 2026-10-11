@@ -285,6 +285,15 @@ local function reset()
     vid.door, vid.doorStart, vid.doorWorked = 1, 1, nil
     vid.doorFailed, vid.refused = {}, {}
     vid.gen, vid.plays, vid.externals, vid.forgotten = 0, 0, 0, 0
+    -- 6.348.0's per-session show counters. reset() models a FRESH
+    -- session, so a count that survives it makes the next section
+    -- measure the previous one's refusals (which is how the
+    -- 'recovered' row first went red against correct code).
+    vid.shows, vid.refusedShows = 0, 0
+    vid.recovered, vid.lostShows, vid.noBelt = 0, 0, 0
+    if vid.retryTimer then
+        pcall(function() vid.retryTimer:stop() end) ; vid.retryTimer = nil
+    end
     JS, ALERTS, DEGRADED, TASKS = {}, {}, {}, {}
     SHOW_REFUSES, NO_WEBVIEW, NO_CANVAS = false, false, false
     NO_DRAGLEVEL, NO_DRAGCB = false, false
@@ -502,14 +511,63 @@ reset()
 -- the dependency REFUSING, and on a beta OS the second is the shape
 -- this config keeps meeting.
 SHOW_REFUSES = true
-local before = #WEBVIEWS
 check("🪟 a window macOS refuses to show is NOT recorded as open",
-      vid.show() == false and vid.webview == nil)
-check("🪟 …and the refused object is TORN DOWN — an abandoned webview "
+      vid.webview == nil and (vid.show() or true) and vid.webview == nil)
+-- 🚨 6.348.0 — AND IT IS RETRIED ONCE BEFORE IT IS GIVEN UP ON. His
+-- 2026-10-10 20:45:51 Console carries `-- Loading extension: webview`,
+-- `-- Loading extension: drawing` and the refusal in the SAME SECOND:
+-- the first ⇪⇧, of a session paid two main-thread dylib loads and then
+-- asked AppKit to order a window on screen in the same turn. The retry
+-- is 6.266.0's shape — the CALLER decides, a beat later — so nothing
+-- can be put on screen that this module has stopped tracking.
+check("🪟 …and a retry is armed rather than the window being dropped",
+      vid.retryTimer ~= nil)
+check("🪟 …and it is NOT recorded as open while the retry is in flight",
+      vid.webview == nil)
+-- macOS still says no: the second refusal is a real one.
+runTimers(1)
+check("🪟 a SECOND refusal tears the object down — an abandoned webview "
       .. "keeps its Esc claim",
-      WEBVIEWS[#WEBVIEWS].deleted == true)
+      WEBVIEWS[#WEBVIEWS].deleted == true and vid.webview == nil)
 check("🪟 …and it says so, naming the key to press again",
       anyHas(DEGRADED, "would not put the window on screen"))
+check("🔎 …and the refusal is COUNTED, so 'intermittent' is a number",
+      (tonumber(vid.refusedShows) or 0) >= 1
+      and (tonumber(vid.lostShows) or 0) >= 1)
+
+-- 🔑 THE BRANCH THAT EARNS THE RELEASE: macOS refuses, then allows.
+reset()
+SHOW_REFUSES = true
+vid.show()
+check("🪟 a refused show is still pending, not failed", vid.retryTimer ~= nil)
+SHOW_REFUSES = false
+runTimers(1)
+check("🪟 …and the retry PUTS IT ON SCREEN — the window macOS refused "
+      .. "once is the window he asked for",
+      vid.webview ~= nil)
+check("🪟 …with everything a straight-through show does: the catcher",
+      vid.catcher ~= nil)
+runTimers(1)
+check("⌨️ …and the keyboard",
+      (vid.focus or {}).why and (vid.focus.why):find("took the keys", 1, true) ~= nil,
+      (vid.focus or {}).why)
+check("🔎 …and it is counted as RECOVERED, not as a loss",
+      (tonumber(vid.recovered) or 0) == 1 and (tonumber(vid.lostShows) or 0) == 0)
+
+-- 🚨 A RETRY MUST NOT ACT ON A DECISION SINCE REVERSED (6.266.0). He
+-- can close the window, or press the key again, inside the beat we
+-- waited — and a retry that fires anyway puts a window on screen that
+-- nothing is tracking, which is the 6.266.0 frozen-grid shape exactly.
+reset()
+SHOW_REFUSES = true
+vid.show()
+local pending = vid.retryTimer
+vid.hide()
+check("🪟 closing it cancels the retry in flight", vid.retryTimer == nil)
+SHOW_REFUSES = false
+if pending and pending.fn then pcall(pending.fn) end
+check("🚨 …and even a timer that fires anyway puts NOTHING on screen",
+      vid.webview == nil)
 SHOW_REFUSES = false
 reset()
 NO_WEBVIEW = true
@@ -1048,6 +1106,77 @@ check("🔬 …and the report prints them under the refused doors",
           print = realP
           return table.concat(lines, "\n"):find("macOS said", 1, true) ~= nil
       end)())
+
+
+-- §19 ── the window macOS refused, and the cost it was paying ----------
+out("\n§19 warm pays the dylib loads, and the report counts the refusals\n")
+-- 🚨 BOTH OF THESE EXIST BECAUSE THE MUTATION SWEEP FOUND THEM UNDRIVEN
+-- (6.273.0: when a line no mutation can kill is the release's own fix,
+-- the missing CHECK is the finding). Deleting warm's extension touch —
+-- this release's actual candidate for his refusal — and deleting the
+-- report line he is asked to paste back BOTH passed 162 checks.
+
+-- 🪟 WARM TOUCHES hs.webview AND hs.drawing, so the first ⇪⇧, of a
+-- session is not paying two main-thread dylib loads in the same turn as
+-- the show. His Console has all three lines in one second:
+--     -- Loading extension: webview
+--     -- Loading extension: drawing
+--     ⚠️ Mug Player: macOS would not put the window on screen
+reset()
+do
+    local touched = {}
+    local realW, realD = hs.webview, hs.drawing
+    hs.webview, hs.drawing = nil, nil
+    setmetatable(hs, { __index = function(_, k)
+        if k == "webview" then touched.webview = true ; return realW end
+        if k == "drawing" then touched.drawing = true ; return realD end
+        return nil
+    end })
+    local okW = pcall(function() return M.warm(CORE) end)
+    setmetatable(hs, nil)
+    hs.webview, hs.drawing = realW, realD
+    check("🪟 warm() runs without throwing", okW)
+    check("🪟 …and it TOUCHES hs.webview, so the keypress does not load it",
+          touched.webview == true)
+    check("🪟 …and hs.drawing, which the window level needs",
+          touched.drawing == true)
+end
+-- 🛟 A Mac where touching one of them throws must still warm the store
+-- and must not take the module down with it (IT DEGRADES, IT NEVER
+-- BREAKS) — the flag records which way it went.
+check("🛟 the warm records whether the extensions could be touched",
+      vid.warmed == true)
+
+-- 🔎 THE REPORT COUNTS THEM APART, because "intermittent" is a count and
+-- not a sample (6.274.0) — and because this line is what he pastes back.
+reset()
+local function reportText()
+    local lines = {}
+    local realP = print
+    print = function(x) lines[#lines + 1] = tostring(x) end
+    pcall(_G.mugReport)
+    print = realP
+    return table.concat(lines, "\n")
+end
+check("🔎 a session with no opens says nothing about them",
+      reportText():find("opens  :", 1, true) == nil)
+reset()
+vid.show()
+check("🔎 a straight-through open is counted as one",
+      reportText():find("1 asked · 1 straight through · 0 refused", 1, true) ~= nil,
+      reportText())
+reset()
+SHOW_REFUSES = true
+vid.show()
+SHOW_REFUSES = false
+runTimers(1)
+local txt = reportText()
+check("🔎 a refusal that RECOVERED on the retry says so",
+      txt:find("1 refused by macOS", 1, true) ~= nil
+      and txt:find("1 came up on the retry", 1, true) ~= nil, txt)
+check("🚨 …and it is NOT reported as a loss — those are opposite facts",
+      txt:find("0 refused twice", 1, true) ~= nil, txt)
+reset()
 
 -- ---- the tally ---------------------------------------------------------
 realPrint("")

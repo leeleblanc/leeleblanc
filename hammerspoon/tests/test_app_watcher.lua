@@ -539,12 +539,17 @@ end
 -- an auditor that joins two things can only ever speak about rows that
 -- EXIST, so the missing row needs a different instrument.
 do
-    local h = bootModule()
-    h.relaunch("Transmission")
-    h.quit("Transmission")
-    ok(not h.wasShown(),
-       "🗑 Transmission quitting shows NOTHING — it is off the list on "
-       .. "LL's word, and it quits by itself when a download finishes")
+    for _, app in ipairs({ "Transmission", "IINA" }) do
+        -- 🚨 A FRESH BOOT PER NAME: wasShown() LATCHES, so two names on
+        -- one handle means the second row re-reads the first one's popup
+        -- and proves nothing about its own app (6.212.0).
+        local h = bootModule()
+        h.relaunch(app)
+        h.quit(app)
+        ok(not h.wasShown(),
+           "🗑 " .. app .. " quitting shows NOTHING — off the list on LL's "
+           .. "word, and it quits by itself when its job is done")
+    end
 end
 do
     -- 🚨 A FRESH HANDLE, and that is not tidiness: wasShown() LATCHES for
@@ -568,8 +573,8 @@ end
 -- app, same handle, opposite answers.
 do
     local h = bootModule()
-    h.relaunch("Transmission")
-    h.quit("Transmission")
+    h.relaunch("IINA")
+    h.quit("IINA")
     ok(not h.wasShown(), "…the unwatched one is silent")
     h.quit("Shottr")
     ok(h.wasShown(), "…and a WATCHED app still pops, in the same session")

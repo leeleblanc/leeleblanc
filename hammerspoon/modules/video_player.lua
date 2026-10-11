@@ -913,6 +913,13 @@ document.addEventListener('keydown',function(e){
         local rect, why = vid.placeFor(vid.pos, sf, all)
         vid.posWhy = why
 
+        -- 🪪 ONE TOKEN PER SHOW. The retry below fires a beat later and
+        -- must be able to tell ITS run from a newer one — 6.304.0's
+        -- generation counter, in the smallest place it has ever been
+        -- needed.
+        vid.showToken = (tonumber(vid.showToken) or 0) + 1
+        local token = vid.showToken
+
         local okUc, uc = pcall(hs.webview.usercontent.new, "mugPlayer")
         if not (okUc and uc) then return degrade("could not open the page bridge") end
         vid.uc = uc          -- HELD: collect this and the JS bridge goes quiet
@@ -941,7 +948,6 @@ document.addEventListener('keydown',function(e){
             pcall(function() view:alpha(tonumber(vid.alpha)) end)
         end
         vid.pageReady = false
-        vid.draws = { landed = 0, early = 0 }
         vid.door  = math.max(1, tonumber(vid.doorStart) or 1)
         local base = baseOf()
         pcall(function()
@@ -961,25 +967,90 @@ document.addEventListener('keydown',function(e){
         -- was unreachable and a refused window would have been recorded
         -- as open. The suite's stub refuses by RETURNING FALSE, exactly
         -- as macOS does, which is what made it visible.
+        -- 🪟 EVERYTHING THAT HAPPENS ONCE macOS HAS AGREED, in one place
+        -- so the retry below cannot do half of it. The handle is still
+        -- recorded only after the show has answered (6.326.0).
+        local function landed()
+            vid.webview = view
+            vid.draws = { landed = 0, early = 0 }
+            pcall(function() view:bringToFront(true) end)
+            chaseFocus()
+            vid.startCatcher(rect)
+            if _G.hyperExpectRelease then
+                pcall(_G.hyperExpectRelease, 1.5, "mugPlayer")
+            end
+        end
+
+        vid.shows = (tonumber(vid.shows) or 0) + 1
         local shown = false
         pcall(function() shown = view:show() ~= false end)
-        if not shown then
-            pcall(function() view:delete() end)
-            vid.uc = nil
-            return degrade("macOS would not put the window on screen — "
-                           .. "press " .. KEYLABEL .. " again")
+        if shown then landed() ; return true end
+
+        -- 🚨 macOS REFUSED TO ORDER THE WINDOW ON SCREEN, and his
+        -- 2026-10-10 20:45:51 Console is why this branch grew a retry:
+        --     -- Loading extension: webview
+        --     -- Loading extension: drawing
+        --     ⚠️ Mug Player: macOS would not put the window on screen
+        -- Three lines, ONE SECOND. The first ⇪⇧, of a session pays TWO
+        -- main-thread dylib loads (hs.webview when the bridge is made,
+        -- hs.drawing when the level is set) and then asks AppKit to
+        -- order a window on screen in the same turn. 6.330.0 named lazy
+        -- extension loading as an unmeasured cost on his Mac — his own
+        -- log has them twenty-six seconds apart — and M.warm now pays
+        -- both off the keypress so this turn is cheap. That is aimed at
+        -- a CANDIDATE and is NOT claimed as the cause (6.198.0).
+        -- 🔑 THE RETRY IS THE PART THAT WORKS WHATEVER THE CAUSE, and it
+        -- is 6.266.0's shape rather than 6.56.0's: the caller decides,
+        -- here, so nothing can be put on screen that this module has
+        -- stopped tracking. ONE retry — a second refusal is a real no.
+        vid.refusedShows = (tonumber(vid.refusedShows) or 0) + 1
+        local okT, t = pcall(hs.timer.doAfter, tonumber(vid.retryShowSecs) or 0.12,
+            function()
+                vid.retryTimer = nil
+                -- He may have given up and pressed the key again, or
+                -- closed it, in the beat we waited. A retry that acts on
+                -- a decision since reversed is exactly what 6.266.0 is
+                -- about, so the run has to still be the live one.
+                if vid.webview or vid.showToken ~= token then
+                    pcall(function() view:delete() end) ; return
+                end
+                local ok2 = false
+                pcall(function() ok2 = view:show() ~= false end)
+                if ok2 then
+                    vid.recovered = (tonumber(vid.recovered) or 0) + 1
+                    landed()
+                    return
+                end
+                pcall(function() view:delete() end)
+                vid.uc = nil
+                vid.lostShows = (tonumber(vid.lostShows) or 0) + 1
+                degrade("macOS would not put the window on screen, twice — "
+                        .. "press " .. KEYLABEL .. " again")
+            end)
+        if okT and t then
+            vid.retryTimer = t
+            return true
         end
-        vid.webview = view
-        pcall(function() view:bringToFront(true) end)
-        chaseFocus()
-        vid.startCatcher(rect)
-        if _G.hyperExpectRelease then
-            pcall(_G.hyperExpectRelease, 1.5, "mugPlayer")
-        end
-        return true
+        -- 🛟 A Mac that cannot arm a timer gets the old behaviour rather
+        -- than a window nobody will ever retry (6.255.0's rule: a belt
+        -- that cannot be armed is COUNTED, never silently skipped).
+        vid.noBelt = (tonumber(vid.noBelt) or 0) + 1
+        pcall(function() view:delete() end)
+        vid.uc = nil
+        vid.lostShows = (tonumber(vid.lostShows) or 0) + 1
+        return degrade("macOS would not put the window on screen — "
+                       .. "press " .. KEYLABEL .. " again")
     end
 
     function vid.hide()
+        -- A retry in flight is a window about to be put on screen that
+        -- nobody asked for any more. The token moves too, so a callback
+        -- already running finds its run superseded.
+        vid.showToken = (tonumber(vid.showToken) or 0) + 1
+        if vid.retryTimer then
+            pcall(function() vid.retryTimer:stop() end)
+            vid.retryTimer = nil
+        end
         stopFocusChase()
         vid.stopCatcher()
         if vid.webview then
@@ -1484,6 +1555,28 @@ document.addEventListener('keydown',function(e){
                         and "  ⚠️ NONE — nothing opens this window" or "")
         L[#L + 1] = "   window : " .. (vid.webview and "open" or "closed")
                     .. " · " .. tostring(vid.posWhy)
+        -- 🔎 "INTERMITTENT" IS A COUNT, NOT A SAMPLE (6.274.0). A show
+        -- macOS refused and then allowed is a different fact from one it
+        -- refused twice, and the old report could say neither.
+        do
+            local asked = tonumber(vid.shows) or 0
+            local ref   = tonumber(vid.refusedShows) or 0
+            if asked > 0 then
+                L[#L + 1] = "   opens  : " .. asked .. " asked · "
+                            .. (asked - ref) .. " straight through · "
+                            .. ref .. " refused by macOS"
+                if ref > 0 then
+                    L[#L + 1] = "   ↳ " .. (tonumber(vid.recovered) or 0)
+                                .. " came up on the retry · "
+                                .. (tonumber(vid.lostShows) or 0)
+                                .. " refused twice and were torn down"
+                end
+                if (tonumber(vid.noBelt) or 0) > 0 then
+                    L[#L + 1] = "   ↳ ⚠️ " .. vid.noBelt .. " refusal(s) could"
+                                .. " not arm a retry — no hs.timer on this Mac"
+                end
+            end
+        end
         L[#L + 1] = "   format : plays " .. (function()
             local n = {} ; for k in pairs(vid.exts) do n[#n + 1] = "." .. k end
             table.sort(n) ; return table.concat(n, " ")
@@ -1556,6 +1649,30 @@ function M.warm(core)
     if not vid then return end
     if not vid.enabled then return end
     if not vid.loaded then pcall(vid.loadStore) end
+    -- 🪟 PAY THE DYLIB LOADS HERE, NOT ON HIS KEYPRESS. Hammerspoon
+    -- loads an extension the first time anything touches it, on the
+    -- MAIN THREAD, and on his Mac that is seconds rather than
+    -- milliseconds — his 6.330.0 boot log has `mouse` arriving
+    -- twenty-six seconds after `notify`. So the first ⇪⇧, of a session
+    -- was loading hs.webview (to make the bridge) AND hs.drawing (to
+    -- set the window level) and THEN asking AppKit to order a window on
+    -- screen, all in one turn; his 20:45:51 Console carries all three
+    -- lines in the same second, the third being the refusal.
+    -- 🚨 NAMED AS A CANDIDATE, NOT A CAUSE (6.198.0): this does not
+    -- prove why macOS said no. What it does is take two known pieces of
+    -- main-thread work out of the moment of the show — 6.267.0's move
+    -- applied to Hammerspoon's own library loading, which 6.330.0 wrote
+    -- down and nothing had yet paid.
+    -- 📏 COST, NAMED: a Mac that never presses ⇪⇧, now loads these two
+    -- extensions anyway, seconds after boot, in warm's own pcall. They
+    -- are two of the commonest extensions in this config — six other
+    -- modules draw webviews — so on an ordinary day this moves the cost
+    -- rather than adding it.
+    vid.warmed = pcall(function()
+        local _ = hs.webview and hs.webview.usercontent
+        local _ = hs.drawing and hs.drawing.windowLevels
+        return true
+    end) and true or false
 end
 
 return M

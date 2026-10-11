@@ -3466,6 +3466,42 @@ work Mac.
   · and the cancel-slot check had to drive "created, wired, REFUSED TO
     SHOW" rather than "cannot create" — 6.265.0, fifth time, and the
     refusal is the branch that calls `cancelSelect` on its way out.
+- 🪟 A LAZILY-LOADED EXTENSION IS MAIN-THREAD WORK INSIDE THE KEYPRESS
+  THAT NEEDS IT (6.348.0, modules/video_player.lua — LL: "It doesn't
+  play", with a report reading `last : macOS would not put the window
+  on screen`). His Console names the setting in three lines one second
+  apart — `Loading extension: webview`, `Loading extension: drawing`,
+  then the refusal. Hammerspoon loads an extension the FIRST time
+  anything touches it, on the main thread, and on his Mac that is
+  SECONDS (6.330.0's boot log has `mouse` twenty-six seconds after
+  `notify`). So the first ⇪⇧, of a session loaded two dylibs and then
+  asked AppKit to order a window on screen in the same turn.
+  🔑 M.warm PAYS THEM NOW — 6.267.0's move applied to Hammerspoon's own
+  libraries, which 6.330.0 named and nothing had paid. GENERAL: when a
+  keypress is the FIRST thing in a session to touch an extension, the
+  keypress is paying a dylib load; warm it, and the cost moves off the
+  moment that needs to be cheap.
+  🚨 A CANDIDATE, NOT THE CAUSE (6.198.0), and the same Console carries
+  a cheat-sheet refusal forty minutes earlier — this Mac refuses window
+  shows, which is 6.265.0 · 6.274.0 · 6.314.0's family. So the RETRY is
+  the half that works whatever the cause, and it is 6.266.0's shape and
+  not 6.56.0's: the CALLER decides a beat later, one try, and a second
+  refusal tears the object down. Nothing can be put on screen that this
+  module has stopped tracking.
+  🪪 WITH A TOKEN PER SHOW — 6.304.0's generation counter in the
+  smallest place it has ever been needed. He can close the window or
+  press the key again inside the beat we waited; a retry that fired
+  anyway would be the frozen-grid orphan exactly. hide() moves the
+  token AND stops the timer, and a callback that runs regardless finds
+  its run superseded.
+  🔬 THE SWEEP FOUND THE RELEASE'S OWN FIX UNDRIVEN: deleting warm's
+  extension touch passed 162 checks, as did deleting the report line he
+  is asked to paste back. 6.273.0 — when a line no mutation can kill is
+  the thing the release exists for, the missing CHECK is the finding.
+  The check drives warm with a counting metatable over `hs`.
+  📏 NAMED, NOT SWEPT: every other webview here has the same bare show
+  — music_player, vault, scratch_pad, the screenshot editor,
+  capture_pad, note_pad. One per release, the failing one first.
 - 🗑 A LIST YOU CAN BE REMOVED FROM NEEDS A CHECK FOR THE ABSENCE
   (6.346.0, modules/app_watcher.lua — LL: "Remove Transmission from the
   app close monitor."). One line out of `appMonitorWatchedApps`, and
@@ -5544,7 +5580,7 @@ that must be READ before a new cause is named.
 | "hyper+4 does not have pixel crosshairs" · "it was working before" | modules/screenshots.lua · the selector | 6.264.0 · 6.318.0 | 1 | ask |
 | "it said 0x0 pixels, then jumped a few desktops, then I had to hit escape" | modules/screenshots.lua · the selector's one exit | 6.336.0 · 6.337.0 | 2 | ask |
 | "why OCR hyper+shift+4 works and hyper+4 still does not" | modules/screenshots.lua · ⇪4 re-implementing a system drag | 6.264.0 · 6.265.0 · 6.274.0 · 6.282.0 · 6.318.0 · 6.336.0 · 6.337.0 | 6 | ask |
-| "a Jug Player but for movies" · "nothing plays. Escape doesn't work" | modules/video_player.lua · a webview that plays video | 6.344.0 · 6.345.0 | 2 | ask |
+| "a Jug Player but for movies" · "nothing plays" · "macOS would not put the window on screen" | modules/video_player.lua · a webview that plays video | 6.344.0 · 6.345.0 · 6.348.0 | 3 | ask |
 | "I did not mean to hit panic" · "my keyboard froze" · "Console shows nothing weird" | modules/power_tools.lua · an unclaimed ⇪ key forwarding onto the panic chord | 6.343.0 | 1 | ask |
 | "⌘D says I have five seconds to setup, shows no crosshairs" · "those four screenshot tools run weird" | modules/screenshot_editor.lua · the ⌘D order | 6.255.0 · 6.342.0 | 1 | ask |
 | "once I OCR some text, that text should immediately go onto the clipboard" · "sometimes … it places an image … sometimes the OCR runs" | modules/screenshots.lua · the OCR doors | 6.173.1 · 6.319.0 · 6.341.0 | 2 | ask |
@@ -5666,6 +5702,8 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
+| 6.348.0 | 🪟 a window macOS refuses to put on screen is retried once — and the first ⇪⇧, of a session no longer pays two main-thread library loads | pending |
+| 6.347.0 | 🗑 IINA is off the app close monitor too | pending |
 | 6.346.0 | 🗑 Transmission is off the app close monitor — and the suite can prove a removal for the first time | pending |
 | 6.345.0 | 🚨 the Mug Player plays — hs.json.encode takes a TABLE, and every string in the page's payload was coming back empty | pending |
 | 6.344.0 | 🎬 the Mug Player (⇪⇧,) — drop .mp4 films on a window and watch them with the Mac's own controls | LOSS — LL: "Nothing plays. Escape doesn't work." The payload builder called `hs.json.encode` on a bare film NAME; LuaSkin raises on a non-table, a pcall swallowed it, and every string reached the page as `""` — including the `<video>`'s src → fix 6.345.0 |
@@ -6858,6 +6896,86 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.348.0 verify with LL — 🪟 THE WINDOW macOS REFUSED (KNOWN GROUND)
+  WHAT CHANGED: a window macOS refuses to put on screen is tried ONCE
+  more, a beat later — and the first ⇪⇧, of a session no longer pays
+  two main-thread library loads in the same turn as the show.
+  🔎 YOUR CONSOLE NAMED THIS, and it is a DIFFERENT failure from the
+  black rectangle 6.345.0 fixes. Three lines, one second:
+      20:45:51  -- Loading extension: webview
+      20:45:51  -- Loading extension: drawing
+      20:45:51  ⚠️ Mug Player: macOS would not put the window on screen
+  The window never opened at all. Hammerspoon loads a library the first
+  time anything touches it, on the main thread, and on your Mac that is
+  seconds — your 6.330.0 log has one arriving twenty-six seconds after
+  another. So the first press was loading two of them and then asking
+  macOS to order a window on screen in the same breath.
+  🚨 I AM NOT CLAIMING THAT IS THE CAUSE. The same Console has the
+  cheat sheet refused forty minutes earlier, so this Mac refuses window
+  shows generally. What this does is take two known pieces of work off
+  that moment, and retry once when it still happens.
+
+  A. THE HEADLINE — and the case that matters is the FIRST press.
+  A1. Reload Hammerspoon (⌘⌃R). Wait ten seconds, no keys.
+  A2. Press **⇪⇧,** — the FIRST press of the session.
+      EXPECT: the window. **A FAIL is nothing happening**, and if that
+      is what you get, go straight to D1 — the report now counts it.
+  A3. Watch the Console while you do A2.
+      EXPECT: NO `-- Loading extension: webview` line at that moment.
+      It should have been loaded ten seconds after boot instead. If it
+      still appears on your keypress, the warm did not run and that is
+      the finding.
+  A4. Close and open it a few times. EXPECT: every time.
+
+  B. THE RETRY, which you may never see.
+  B1. If a press ever seems to do nothing and then the window appears a
+      moment later, that IS the retry. Normal.
+  B2. If you get "macOS would not put the window on screen, TWICE",
+      that is two refusals in a row — paste it. It means the retry is
+      working and the refusal is something bigger than a busy turn.
+
+  C. MUST STILL WORK.
+  C1. Everything in the 6.345.0 block — the film plays, names in the
+      deck, Escape closes, ⌘O.
+  C2. ⇪⇧. the Jug Player, ⇪/ the cheat sheet, ⇪3 Hamsidian, ⇪N, ⇪T.
+      Those all draw windows and none of them changed.
+  C3. Boot: All green, 72 modules. Boot time should be unchanged —
+      the two libraries load in warm, seconds AFTER boot, not during.
+
+  D. PASTE BACK, PASS OR FAIL.
+  D1. `_G.mugReport()` — a new line:
+        opens  : 3 asked · 3 straight through · 0 refused by macOS
+      and, if any were refused, one under it saying how many came up on
+      the retry against how many were refused twice. **Those are
+      opposite facts** and the old report could say neither.
+  D2. Still the one I most need: the **way in** line, once a film
+      actually plays.
+
+  E. A JUDGEMENT ONLY YOU CAN MAKE.
+  E1. 📏 COST, NAMED: your Mac now loads hs.webview and hs.drawing a few
+      seconds after every boot even if you never press ⇪⇧,. Six other
+      tools here draw webviews so you were almost certainly paying it
+      anyway — but if boot ever FEELS slower, say so and it comes out.
+  E2. Every other window in this config still has the bare show this
+      release fixed in one place — the music card, Hamsidian, the
+      screenshot editor. If any of THEM ever does nothing on a press,
+      that is the same bug and I will take the same door there.
+  E3. 🔨 CRUDE OR ELEGANT: for the Mug Player this is pass three. Your
+      tag, and I would not argue with 🔨.
+
+- 6.347.0 verify with LL — 🗑 IINA IS OFF THE MONITOR TOO (KNOWN GROUND)
+  WHAT CHANGED: one more name out of the same list. 17 apps watched.
+  A1. Quit IINA. EXPECT: nothing — no popup, no ping.
+  A2. Quit a watched app (Shottr, CotEditor, Word). EXPECT: the popup,
+      exactly as always. That half must be untouched.
+  🔑 IT COST ONE LINE BECAUSE 6.346.0 BUILT THE CHECKS FIRST: the
+  negative case now runs once per removed name, each on its own boot,
+  and putting either name back fails its own row.
+  C1. The eighteen left: 1Password, Alfred, Bartender, CotEditor,
+      Ghostty, Chrome, OneDrive, Defender, Excel, PowerPoint, Word,
+      Outlook, Teams, NordVPN, Rectangle, Shottr, Sublime. Name any
+      others and they go in one line each.
+
 - 6.346.0 verify with LL — 🗑 TRANSMISSION IS OFF THE MONITOR (KNOWN GROUND)
   WHAT CHANGED: Transmission quitting no longer pops the app monitor.
   Your words, one line, 18 apps watched instead of 19.

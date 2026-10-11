@@ -5,6 +5,92 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.348.0 — 🪟 A WINDOW macOS REFUSES IS RETRIED ONCE, AND THE
+  FIRST ⇪⇧, NO LONGER PAYS TWO DYLIB LOADS
+  (modules/video_player.lua)
+
+  LL: "It doesn't play." — and this time the report said something new:
+
+      window : closed · where you put it
+      page   : ⚠️ has NOT said it is ready · 0 draw(s) landed
+      last   : macOS would not put the window on screen — press ⇪⇧, again
+
+  The window never opened AT ALL, which is a different failure from
+  6.345.0's black rectangle. His Console names the setting, and it is
+  the one thing I could not have guessed:
+
+      20:45:51  -- Loading extension: webview
+      20:45:51  -- Loading extension: drawing
+      20:45:51  ⚠️ Mug Player: macOS would not put the window on screen
+
+  THREE LINES, ONE SECOND. Hammerspoon loads an extension the first
+  time anything touches it, on the MAIN THREAD — and on his Mac that is
+  SECONDS, not milliseconds: 6.330.0's boot log has `mouse` arriving
+  twenty-six seconds after `notify`. So the first ⇪⇧, of a session was
+  loading hs.webview (to make the page bridge), then hs.drawing (to set
+  the window level), and THEN asking AppKit to order a window on
+  screen, all inside one keypress.
+
+  🚨 NAMED AS A CANDIDATE, NOT AS THE CAUSE (6.198.0). Nothing here
+  proves why macOS said no, and the same Console carries a cheat-sheet
+  refusal forty minutes earlier — this Mac refuses window shows, which
+  is the 6.265.0 · 6.274.0 · 6.314.0 family. What M.warm does is take
+  two KNOWN pieces of main-thread work out of the moment of the show:
+  6.267.0's move applied to Hammerspoon's own library loading, which
+  6.330.0 wrote down and nothing had yet paid.
+
+  🔑 SO THE RETRY IS THE HALF THAT WORKS WHATEVER THE CAUSE, and it is
+  6.266.0's shape rather than 6.56.0's: the CALLER decides, a beat
+  later, so nothing can be put on screen that this module has stopped
+  tracking. ONE retry — a second refusal is a real no, and the object
+  is torn down (an abandoned webview keeps its Esc claim).
+  🪪 A TOKEN PER SHOW, which is 6.304.0's generation counter in the
+  smallest place it has ever been needed: he can close the window or
+  press the key again inside the beat we waited, and a retry that fires
+  anyway would put a window on screen that nothing is tracking — the
+  frozen-grid shape exactly. hide() moves the token and stops the
+  timer; a timer that fires regardless finds its run superseded and
+  deletes the view instead.
+  🛟 A Mac that cannot arm the timer gets the old behaviour and the
+  miss is COUNTED, never silently skipped (6.255.0).
+
+  🔎 AND THEY ARE COUNTED APART, because "intermittent" is a count and
+  not a sample (6.274.0): asked · straight through · refused, and under
+  a refusal, how many came up on the retry against how many were
+  refused twice. A show that recovered and a show that was lost are
+  opposite facts and the old report could say neither.
+
+  🔬 THE SWEEP FOUND BOTH OF ITS OWN FINDINGS, and one of them was this
+  release's own fix: deleting warm's extension touch, and deleting the
+  report line he is asked to paste back, BOTH passed 162 checks.
+  6.273.0 — when a line no mutation can kill is the thing the release
+  is for, the missing CHECK is the finding. §19 drives warm with a
+  counting metatable over hs and asserts both extensions are touched.
+
+  📏 COST, NAMED: a Mac that never presses ⇪⇧, now loads hs.webview and
+  hs.drawing anyway, seconds after boot, inside warm's own pcall. Six
+  other modules in this config draw webviews, so on an ordinary day
+  this moves the cost rather than adding it.
+  📏 AND NAMED, NOT SWEPT: every other webview in this config has the
+  same bare show — music_player, vault, scratch_pad, the screenshot
+  editor, capture_pad, note_pad. The Mug Player took the door first
+  because it is the one that demonstrably failed. One per release.
+
+NEW IN 6.347.0 — 🗑 IINA IS OFF THE APP CLOSE MONITOR TOO
+  (modules/app_watcher.lua)
+
+  LL: "Remove IINA." Same sentence as 6.346.0's, same reason: a film
+  player is quit when a film ends, and this panel pings until it is
+  answered. 17 apps watched.
+
+  🔑 AND IT COST ONE LINE BECAUSE 6.346.0 BUILT THE CHECKS FIRST. The
+  negative case — an unwatched app quitting shows NOTHING — now runs
+  once per removed name, each on its own boot (wasShown() LATCHES, so
+  two names on one handle means the second row re-reads the first
+  one's popup). Putting either name back fails its own row. That is
+  what a removal looks like when the instrument exists: a one-line
+  edit and a check that already knows how to prove it.
+
 NEW IN 6.346.0 — 🗑 TRANSMISSION IS OFF THE APP CLOSE MONITOR
   (modules/app_watcher.lua)
 

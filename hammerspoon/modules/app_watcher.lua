@@ -50,7 +50,6 @@ function M.setup(core)
     		"CotEditor",
     		"Ghostty",
     		"Google Chrome",
-    		"IINA",
     		"OneDrive",
     		"Microsoft Defender",
     		"Microsoft Excel",
@@ -64,6 +63,10 @@ function M.setup(core)
     		"Shottr",
     		"Sublime",
     }
+    -- 🗑 6.347.0 — IINA IS OFF IT TOO, same sentence, same reason: it
+    -- is a film player, it is quit when a film ends, and 6.346.0's
+    -- checks are what make a second removal cost one line instead of
+    -- a release's worth of doubt. 17 apps.
     -- 🗑 6.346.0 — TRANSMISSION IS OFF THE LIST, on LL's word
     -- ("Remove Transmission from the app close monitor."). It quits
     -- when a download finishes, which is the one app here whose
