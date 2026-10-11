@@ -5,6 +5,142 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.354.0 — 📦 THE BYTES GO THROUGH THE WINDOW, NOT THROUGH A URL
+  (modules/video_player.lua)
+
+  LL, on being offered a queue that hands films to a real player: "No, I
+  want the mug player. Make it work."
+
+  📦 SO THE BYTES STOP TRAVELLING AS A URL. Lua reads the film in
+  bounded chunks and PUSHES each one into the page, which decodes it,
+  hands it straight to the blob store and plays the assembled Blob.
+  Nothing is fetched, nothing is navigated to, and there is no file for
+  WebKit to refuse read access to — which is the only thing either
+  file:// door was ever refused for.
+
+  🔬 AND EVERY PLATFORM FACT IT RESTS ON WAS READ IN THE SOURCE, WITH
+  THE FILE NAMED (6.233.0), because a design built on a remembered fact
+  is what cost this tool six passes:
+    · extensions/webview/libwebview.m — 172,646 bytes — contains
+      `loadFileURL:allowingReadAccessToURL:` ZERO times, and so
+      `allowFileAccessFromFileURLs` and `setURLSchemeHandler:`. There is
+      no further URL to try and no preference to set. That is 6.266.0's
+      rule paid: when every fix so far has changed something inside the
+      same pipeline, the PIPELINE is the variable — stop refining it and
+      route around it.
+    · `hs.webview:html(html, baseURL)` really does take a second
+      argument (libwebview.m:1421-1448), so door 1 was genuinely tested
+      rather than accidentally untested — worth knowing before blaming
+      it.
+    · extensions/base64/libbase64.m encodes with `luaL_tolstring` +
+      `initWithBytes:length:`, so a NUL byte does NOT truncate a chunk.
+      Had it used strlen, every film with a zero byte in it would have
+      arrived scrambled with nothing to see but a decode error.
+
+  🚫 AND THE OBVIOUS ALTERNATIVE WAS MEASURED AND REFUSED, rather than
+  built and then discovered. An `http://127.0.0.1` source served by
+  hs.httpserver looks like the right answer and cannot work: the
+  callback must return the WHOLE body as one Lua string
+  (libhttpserver.m:236-243), `HSHTTPDataResponse : HTTPDataResponse`
+  reports that string's length as the content length
+  (CocoaHTTPServer/HTTPDataResponse.m), and HTTPConnection parses the
+  `Range:` header against THAT and re-slices the body itself
+  (HTTPConnection.m:1159-1165, 1267). So serving a film means holding
+  the entire film in memory — and the callback is `dispatch_sync`'d onto
+  the MAIN THREAD (libhttpserver.m:268-273), which is 6.228.0's cost at
+  its worst. It is named here with its line numbers so the next release
+  does not spend an evening discovering it.
+
+  📐 `vid.loadPlan(size, max, chunk)` is PURE with FOUR answers
+  (6.196.1) — a size the Mac would not give is not a size of 0, and a
+  chunk of 0 is a loader that never finishes rather than one that
+  finishes instantly. The fixture that bites is the pair at
+  `size == max` and `size == max + 1`, where the `>` and the `>=`
+  readings must differ (6.230.0); every other input agrees.
+
+  🚪 EVERY WAY THE READ CAN END GOES THROUGH ONE DOOR, and that is
+  6.304.0's rule in the place where the flag holds an OPEN FILE HANDLE:
+  done, over the ceiling, a refused push, the window closing mid-read, a
+  different film played, a page that threw while assembling. A busy flag
+  released only by SUCCESS is a wedge, and here the wedge leaks a handle.
+
+  🪪 A GENERATION TOKEN kills a turn that lands after he closed the
+  window or played something else (6.348.0 · 6.304.0) — and the handle
+  is still closed on the way out, because the generation stops the next
+  TURN and only the door closes the file.
+
+  🚨 THE DECODE IN THE PAGE IS SYNCHRONOUS ON PURPOSE. Decoding each
+  chunk through `fetch('data:…')` is faster — WebKit does it in C — and
+  it RESOLVES OUT OF ORDER, so two chunks landing the wrong way round is
+  a scrambled film with nothing to see but an error. Order by
+  construction beats order by bookkeeping, and the cost lands on
+  WebKit's thread rather than the Mac's input thread. Each chunk is
+  wrapped in its own Blob at once, so the bytes leave the JS heap every
+  turn instead of the whole film piling up waiting for the end.
+
+  🚨 AND A REDRAW MUST NOT TEAR THE FILM DOWN. This door carries no
+  `src`, and the page's draw has always cleared the video when the
+  payload's src is empty — so every redraw after the film started
+  playing (a selection move, a new history row) would have killed it.
+  The guard is the object URL itself, which exists only once a Blob
+  really is the source; and a URL door taking over DOES drop it, or the
+  film before it plays on underneath and the object URL leaks.
+
+  🚨 THE BYTES DOOR IS NEVER REMEMBERED AS THE DOOR TO START ON. It has
+  no URL, so a film painted straight onto it has nothing to fail and
+  nothing to advance the walker — the loader would never be reached and
+  the NEXT film would simply never play. The cheap URL doors are tried
+  first every time, which also means a macOS that allows file:// again
+  is used the moment it does.
+
+  🔔 PAST THE PER-TURN BUDGET IT TAKES THE DEGRADE DOOR ONCE PER FILM,
+  not once per turn: three hundred alerts is a tool he switches off
+  (6.260.0 · 6.269.0). The turns are COUNTED and printed beside what
+  they bought (6.229.0's yield line), because a budget on the size of
+  one event is not a budget on the cost of a feature.
+
+  📏 THE CEILING IS NAMED RATHER THAN HOPED PAST: the whole film ends up
+  in WebKit's blob store, which is the one cost this door cannot bound
+  away. Above `blobMax` (1.5 GB) the film goes out to a real player and
+  the window SAYS which of the two happened. `blobLoad = false` removes
+  the door entirely and the report says so rather than reading as health.
+
+  🔑 AND THE CODEC QUESTION IS NOW ANSWERED BY ELIMINATION, which is the
+  sharper half of this release. MediaError code 4 means BOTH "could not
+  fetch" and "fetched and cannot decode" — 6.351.0 added `mdls` to tell
+  them apart and the answer never came back, because the drop was broken
+  until 6.352.0 and the third door destroyed the window until 6.353.0.
+  This door cannot be refused for read access, so if the film still will
+  not play once the bytes are INSIDE the window there is no reading
+  explanation left: WebKit cannot decode it, HEVC/x265/AC3/DTS is the
+  usual answer, and no further door can ever help. The report prints
+  that sentence in capitals when it applies, and the ordinary one when
+  it does not.
+
+  🔬 AND THE HARNESS HAD TO BECOME FAITHFUL FIRST — 6.290.0 for the
+  twelfth time, and in three places at once:
+    · the suite's `io.open` read answered the WHOLE body to every call,
+      whatever length it was asked for, and never answered nil. A module
+      that reads a file by the chunk would have looped against it for
+      ever and its EOF branch was unreachable from the gate. It
+      positions, bounds and ends now, exactly as Lua's own does.
+    · `hs.fs.attributes` had no `size`, so the one fact the plan turns
+      on could not exist; and `hs.base64` was absent entirely.
+    · the JS harness had no `atob`, `Blob` or `URL` at all (a vm context
+      gets V8's built-ins but none of Node's globals), and its DOM did
+      not reflect `src` — the page sets the stage with `v.src = …` and a
+      stub that kept property and attribute in two places answered null
+      for a video that was playing.
+  🧪 §22 drains a real chunked read to EOF and asserts the DECODED bytes
+  are the film on the disk, in order — the check a scrambling or
+  truncating bug fails, and one no gentle stub can pass. 28 mutations,
+  28 bites, the restore verified against a SHA.
+
+  📏 The two new stub contracts are WRITTEN DOWN in test_stub_fidelity
+  §7 rather than implied by silence (6.269.0): neither can be a static
+  sentry, because every other suite's whole-file `read` stub is correct
+  and a check there would go red on a healthy tree.
+
 NEW IN 6.353.0 — 🚪 THE WINDOW HANDS THE FILM OUT, AND macOS NAMED WHY
   (modules/video_player.lua)
 

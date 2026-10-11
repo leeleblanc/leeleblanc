@@ -1,4 +1,4 @@
-# TESTING — how to score release 6.353.0
+# TESTING — how to score release 6.354.0
 
 You install ONE archive and it carries several releases. Below are the
 steps for each release this archive is new for, newest first. Run the
@@ -26,6 +26,110 @@ else is a LOSS and I fix it before building further. You are the only
 scorer; I never mark my own.
 
 ---
+
+## 6.354.0
+
+6.354.0 verify with LL — 📦 THE BYTES GO THROUGH THE WINDOW (NEW GROUND)
+WHAT CHANGED: the film is no longer named to the window at all. This
+config reads it off the disk in pieces and hands the pieces to the
+page, which puts them together and plays them.
+🚨 FIRST, AND IT MATTERS MORE THAN ANY STEP BELOW: **YOU ARE STILL ON
+6.351.0.** Your own boot log says so twice — `📌 init.lua ARCHITECTURE
+VERSION: 6.351.0` at 14:58:36 and again at 14:59:16. So the -3001
+error page you photographed is a door that 6.353.0 DELETED three days
+ago and that is still live on your Mac, and ⌘O is still broken there
+too. Install this one and both of those go away before you test
+anything new.
+🔎 WHY THIS SHAPE: both file:// doors are refused on your Mac, and
+there is no third URL to try — I read hs.webview's own source and the
+call that would grant a window read access to a file
+(`loadFileURL:allowingReadAccessToURL:`) is not in it, at all. So the
+pipeline was the problem rather than any one door, and this routes
+around it. I also checked the obvious alternative (a little web server
+on 127.0.0.1) and it cannot work — hs.httpserver has to hand back the
+whole film as one string, in one go, on the main thread. That is
+written down with line numbers so nobody builds it later.
+
+A. THE HEADLINE — one film, and watch the stage.
+A1. ⇪⇧, to open the Mug Player. Drop a film on it, or press ⏎ on one
+    already in the deck.
+A2. EXPECT: the stage says **"⏳ reading the film into the window —
+    N%"**, the percentage climbs, and then the film PLAYS with the
+    Mac's own controls under it.
+    **A FAIL is the percentage sticking**, or the old "is opening in
+    your usual player" message, or a black rectangle.
+A3. Use the controls: the scrubber, volume, full screen,
+    picture-in-picture. They are macOS's own, so they should feel
+    exactly like Safari's.
+A4. Press **space**, then **← →** to seek, **⇧** with them to seek
+    further.
+A5. 🚨 **AND IF IT STILL WILL NOT PLAY, THAT IS AN ANSWER RATHER THAN
+    ANOTHER ROUND.** Go straight to D1: the report now says, in
+    capitals, that the bytes were inside the window and it still would
+    not play — which proves the film is one WebKit cannot decode
+    (HEVC, x265, AC3) and that no further way in can ever help. That
+    is the thing six releases could not establish.
+
+B. HOW LONG IT TAKES, and the one thing to tell me.
+B1. Time it, roughly: a 700 MB film should take a few seconds before
+    it starts. A 2 GB one may take ten or more.
+B2. **While it is reading, does the Mac feel normal?** Move the mouse,
+    drag a Finder window, type somewhere. This reads the film on
+    Hammerspoon's main thread, in small pieces, deliberately — but if
+    the Mac stutters while a film loads, that is a number I can move
+    and I want to know at once.
+B3. If a read ever alerts "⚠️ reading the film is costing N ms a turn",
+    paste it. That is the budget biting and the message carries the
+    settings line that halves the piece size.
+
+C. THE EDGES WORTH ONE MINUTE EACH.
+C1. Close the window **while the percentage is climbing**. EXPECT: it
+    closes at once and nothing is left running. Reopen: ⇪⇧, works.
+C2. With one film loading, press ⏎ on a DIFFERENT film. EXPECT: the
+    first read is abandoned and the second starts from 0%.
+C3. Drop a film over 1.5 GB. EXPECT: it does NOT read — it goes
+    straight to your usual player and says the film is bigger than the
+    window can hold, with both sizes named.
+C4. Drop a .mkv or an .mp3. EXPECT: refused by name with ⌘O offered,
+    exactly as on 6.351.0.
+C5. ⌘O on a film with nothing playing. EXPECT: it opens the row you
+    have SELECTED. That is the 6.353.0 fix you have never run.
+
+D. PASTE BACK, PASS OR FAIL.
+D1. `_G.mugReport()` with the window OPEN. Four lines are new and each
+    answers something that could not be asked before:
+      way in : the bytes through the window, not a URL — this is the
+               one that carried a film
+      bytes  : 1 film(s) read into the window · 1 played · 0 refused
+      ↳ turns: 358 turn(s) carrying 698.4 MB · worst 31 ms
+      ↳ last : read 698.4 MB in 358 turn(s)
+    **`way in` is the whole release.** If it names the bytes door, it
+    works. If `bytes` shows a refusal, `↳ last` says which of five
+    reasons.
+D2. Run it again WHILE a film is loading: the last line becomes
+    `↳ now : reading <film> — 142.0 MB of 698.4 MB in 71 turn(s) so
+    far`, which is how a stalled read is told from a finished one.
+D3. The `codecs :` line, if it appears. See A5.
+
+E. MUST STILL WORK — this touched the stage and the door walker.
+E1. The drop (both ways in), the blue veil, films queuing BY NAME.
+E2. ↑↓, ⏎, ⌫ on a queue row, ⌘1–9, the ✕ on a history row, Escape,
+    and Escape out of full screen leaving the window up.
+E3. Drag the window by its title strip; close and reopen — it is where
+    you left it.
+E4. 🚨 **⇪⇧. the Jug Player** — drop an mp3, it plays. Different
+    module, shared drag reader, and I would want to know immediately.
+E5. Boot: All green, 72 modules. Boot time unchanged.
+
+F. ONE QUESTION, IN PLAIN WORDS.
+F1. While the Mug Player was not working, was your MAC unusable — keys
+    dead, nothing clickable — or did the Mac stay fine and just this
+    one tool not do its job? That is all I need; I keep the record
+    from your answer. (And I am sorry about the 🔨/✨ business — that
+    was private shorthand of mine that I should never have been asking
+    you to decode, especially days apart. It is gone.)
+
+
 
 ## 6.353.0
 
@@ -266,16 +370,6 @@ D2. Writing a hidden file into your film folders — acceptable, or
     would you rather I did not? It is removed every time, but it is
     your folder and I would rather ask.
 D3. 🔨 CRUDE OR ELEGANT: pass four on this tool. Your tag.
-
-
-
-## 6.350.0
-
-6.350.0 verify with LL — 🗑 EXCEL LISTED ONCE (KNOWN GROUND)
-A1. Nothing to press. `Microsoft Excel` was in the watched list twice
-    and is now there once. Quit Excel: EXPECT the popup, exactly one.
-🔑 The sentry asserts the RULE — no app twice — not the name, so the
-next hand-edit that repeats something fails the gate.
 
 
 
