@@ -127,6 +127,18 @@ hs = {
     },
     json = {
         encode = function(v)
+            -- 🔬 6.290.0, AND IT COST A WHOLE RELEASE: LuaSkin declares
+            -- this `checkArgs:LS_TTABLE` and RAISES on anything else, so
+            -- `hs.json.encode("a name")` is an error on a Mac and was a
+            -- happy little string here. video_player's payload builder
+            -- called it on every film name; on his Mac every one came
+            -- back `""` and the window drew a black rectangle, while
+            -- 174 checks and 44 page checks stayed green. A STUB MODELS
+            -- THE PROVIDER'S REFUSALS, and this is the refusal.
+            if type(v) ~= "table" then
+                error("ERROR: incorrect type '" .. type(v)
+                      .. "' for argument 1 (expected table)")
+            end
             local function enc(x)
                 if type(x) == "table" then
                     if #x > 0 then
@@ -902,6 +914,139 @@ check("📋 every row of the card has two columns",
               if type(e) ~= "table" or #e ~= 2 then return false end
           end
           return #M.cheatsheet.entries > 5
+      end)())
+
+
+-- §18 ── the payload's strings, and the defect that drew a black box ----
+out("\n§18 every string the page is handed\n")
+-- 🚨 THE WHOLE OF 6.344.0's FAILURE IS THIS ONE FUNCTION. `jstr` called
+-- `hs.json.encode(tostring(s))` — the only one of twenty such calls in
+-- this config that passes a STRING rather than a table. LuaSkin raises
+-- on a non-table, the pcall caught the raise, and every string in the
+-- payload came back `""`: the film's src (so the <video> was never given
+-- one — a black rectangle with a play button), its name (the header read
+-- "nothing playing" over a queued film), the brand (missing from his
+-- screenshot) and every row's title (the deck drew "1" and "2" with no
+-- names). Five symptoms, one cause, all five in one photograph.
+reset()
+check("🔤 a plain name comes back QUOTED and unchanged",
+      vid.jsonStr("Robin Hood") == '"Robin Hood"')
+check("🔤 a quote and a backslash are escaped",
+      vid.jsonStr('a"b\\c') == '"a\\"b\\\\c"')
+-- The payload is a JS object literal inside a <script>: a film called
+-- "</script>.mp4" must not be able to end the block.
+check("🔒 < > and & cannot close the script block",
+      vid.jsonStr("</script>"):find("<", 1, true) == nil
+      and vid.jsonStr("a&b"):find("&", 1, true) == nil)
+check("🔒 …and the page reads them back as themselves",
+      vid.jsonStr("</script>") == '"\\u003C/script\\u003E"')
+check("🔤 a control character becomes an escape, never a raw byte",
+      vid.jsonStr("a\tb") == '"a\\u0009b"')
+-- 6.237.0's rule the other way up: a name that is already right must not
+-- be "corrected". Bytes above 0x7F are valid UTF-8 in a JSON string.
+check("🔤 UTF-8 is left exactly alone",
+      vid.jsonStr("Amélie — 日本") == '"Amélie — 日本"')
+check("🔤 U+2028 is escaped (a JS string literal could not hold it)",
+      vid.jsonStr("a\226\128\168b") == '"a\\u2028b"')
+check("🔤 nil is an empty string, never the word nil",
+      vid.jsonStr(nil) == '""')
+
+-- 🔬 THE CHECK THAT BITES, and it is functional rather than textual:
+-- drive the REAL payload builder and require the film's own name and
+-- source to be in it. Restore `hs.json.encode(tostring(s))` above and
+-- this goes red, because the stub now refuses a bare string exactly as
+-- LuaSkin does.
+vid.queue = { { path = "/Films/Robin Hood.mp4", title = "Robin Hood" } }
+vid.index, vid.door, vid.gen = 1, 1, 1
+local payload = vid.rowsJson()
+check("🎬 the payload carries the film's NAME",
+      payload:find('"Robin Hood"', 1, true) ~= nil, payload)
+check("🎬 the payload carries a SOURCE for the <video>",
+      payload:find("src:\"\"", 1, true) == nil
+      and payload:find("Robin%%20Hood%.mp4") ~= nil, payload)
+check("🎬 …and the brand, so the header is not blank",
+      payload:find(vid.brand, 1, true) ~= nil)
+-- 🔒 AND THE HARNESS IS FAITHFUL NOW. If this check ever passes, the
+-- stub has gone soft again and §18's others mean nothing (6.313.0: a
+-- sentry over a haystack it did not prove it read measures nothing).
+check("🔬 the gate's hs.json.encode REFUSES a bare string, as LuaSkin does",
+      select(1, pcall(hs.json.encode, "a name")) == false)
+
+-- 🔢 A NUMBER OUT OF A PAGE MESSAGE IS A FLOAT (hs.json decodes every JS
+-- number as a double), so `{i:1}` arrived as 1.0 and his report read
+-- "playing #1.0". The table lookups were right all along; the number he
+-- was shown was not.
+reset()
+vid.queue = { { path = "/F/a.mp4", title = "a" }, { path = "/F/b.mp4", title = "b" } }
+vid.handleMessage({ a = "play", k = "q", i = 1.0 })
+check("🔢 a float row number is an INTEGER by the time it is stored",
+      math.type(vid.index) == "integer", tostring(vid.index))
+check("🔢 …so the report says #1, not #1.0",
+      (function()
+          local lines = {}
+          local realP = print
+          print = function(s) lines[#lines + 1] = tostring(s) end
+          pcall(_G.mugReport)
+          print = realP
+          return table.concat(lines, "\n"):find("#1 ", 1, true) ~= nil
+      end)())
+
+-- ⎋ THE WINDOW HAS THE KEYBOARD, SO THE PAGE HEARS ESC FIRST. The
+-- router claim still covers the window when it is NOT focused; this
+-- covers it when it is, which is every time he has been watching a film.
+reset()
+vid.show()
+check("⎋ the window is open before the key is pressed", vid.webview ~= nil)
+vid.handleMessage({ a = "close" })
+check("⎋ Escape from the page closes the window", vid.webview == nil)
+check("⎋ …and the drop catcher goes with it", vid.catcher == nil)
+
+-- 🔎 THE STORE LINE DESCRIBES THE DISK AS IT IS NOW (6.312.0 one layer
+-- on): the verdict was captured at the LOAD and never moved, so a Mac
+-- that had just queued two films went on reading "no store file yet".
+reset()
+DISK = {}
+vid.storeState = "none"
+vid.queue = { { path = "/F/a.mp4", title = "a" } }
+vid.save()
+for _, t in ipairs(TIMERS) do if not t.stopped and t.fn then t.fn() end end
+check("🔎 a successful save moves the verdict off 'no store file yet'",
+      vid.storeState == "saved", tostring(vid.storeState))
+check("🔎 …and it says so in words, with the bytes",
+      vid.storeVerdict(vid.storeState, vid.storeBytes, 1, 0)
+          :find("written", 1, true) ~= nil)
+-- 🚨 A FAILED SAVE MUST NOT CLAIM ONE. The fixture that bites is a
+-- rename that refuses AFTER a good one, or "saved" sticks for ever.
+RENAME_FAILS = true
+vid.storeState = "none"
+vid.save()
+for _, t in ipairs(TIMERS) do if not t.stopped and t.fn then t.fn() end end
+check("🚨 a REFUSED save leaves the verdict alone",
+      vid.storeState == "none", tostring(vid.storeState))
+RENAME_FAILS = false
+
+-- 🔬 macOS'S OWN WORDS ABOUT A REFUSED DOOR. "the file is not there" and
+-- "WebKit would not let this window read it" are opposite facts and only
+-- the MediaError can tell them apart — which is the measurement this new
+-- ground exists for (6.242.0).
+reset()
+vid.queue = { { path = "/F/a.mp4", title = "a" } }
+vid.index, vid.gen, vid.door = 1, 1, 1
+vid.handleMessage({ a = "srcfail", d = 1, gen = 1, code = 4,
+                    why = "Failed to open media" })
+check("🔬 the refusal keeps macOS's code and its words",
+      tostring(vid.mediaWhy):find("code 4", 1, true) ~= nil
+      and tostring(vid.mediaWhy):find("Failed to open", 1, true) ~= nil,
+      tostring(vid.mediaWhy))
+check("🔬 …and the report prints them under the refused doors",
+      (function()
+          vid.doorFailed["the absolute file URL"] = 1
+          local lines = {}
+          local realP = print
+          print = function(s) lines[#lines + 1] = tostring(s) end
+          pcall(_G.mugReport)
+          print = realP
+          return table.concat(lines, "\n"):find("macOS said", 1, true) ~= nil
       end)())
 
 -- ---- the tally ---------------------------------------------------------

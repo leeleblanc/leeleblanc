@@ -1,4 +1,4 @@
-# TESTING — how to score release 6.344.0
+# TESTING — how to score release 6.345.0
 
 You install ONE archive and it carries several releases. Below are the
 steps for each release this archive is new for, newest first. Run the
@@ -26,6 +26,91 @@ else is a LOSS and I fix it before building further. You are the only
 scorer; I never mark my own.
 
 ---
+
+## 6.345.0
+
+6.345.0 verify with LL — 🚨 THE MUG PLAYER PLAYS (KNOWN GROUND now)
+WHAT CHANGED: films play. ⎋ closes the window. And the deck shows the
+films' NAMES.
+🔎 ONE FUNCTION DID ALL OF IT, and your screenshot is what named it.
+Four things in that picture were blank: no "Mug Player" in the title
+strip, "nothing playing" over a film that was queued, rows reading
+"1" and "2" with no names, and a black stage. Four blanks is not four
+bugs — it is one function that returns a blank. Every string the page
+is handed went through `hs.json.encode`, which on a Mac REFUSES
+anything that is not a table and raises; the error was caught and
+turned into an empty string. The `<video>` was therefore never given
+a film to play, which is the black rectangle, with WebKit's own play
+button sitting on it.
+🔬 AND THE GATE COULD NOT SEE IT: the test harness's fake encoder
+took a bare string happily, so 174 checks and 44 page checks were
+green over a payload no Mac could produce. The harness refuses it now
+exactly as macOS does — and with that one change, the build you
+installed fails ELEVEN checks.
+
+A. THE HEADLINE — a minute.
+A1. Press **⇪⇧,**. EXPECT: the window, and "Mug Player" in blue at
+    the top left. **A FAIL is a blank title strip** — that alone says
+    the fix did not take and nothing below will work.
+A2. Drag two or three .mp4 films onto it.
+    EXPECT: the deck lists them BY NAME — not "1" and "2" — and the
+    header names the one that is playing.
+A3. EXPECT a picture. **This is the step that could not happen
+    before.** If you get a black rectangle with a play button, press
+    it once, then go to D1 — that is new ground answering, and the
+    report now carries macOS's own reason.
+A4. Native controls underneath: scrubber, clock, volume, full screen,
+    picture-in-picture.
+A5. Press **Escape**. EXPECT: the window closes.
+A6. Open it again, put the film FULL SCREEN, press Escape.
+    EXPECT: it leaves full screen and the window STAYS — WebKit owns
+    Esc there, deliberately, or you would be stuck in a full-screen
+    film with no way out. Press Esc again: now it closes.
+
+B. THE REST OF THE DECK.
+B1. ↑ ↓ walk, ⏎ plays, ⌘1–⌘9 play the Nth, ⌫ removes from the queue.
+B2. **space** plays and pauses; **← →** seek, ⇧ with them seeks more.
+B3. ✕ on a 🕘 history row: it vanishes and NOTHING starts playing.
+B4. Let a film run to its end: the next one starts by itself.
+B5. Drag a .mkv or a .mov: refused BY NAME, with ⌘O offered.
+B6. ⌘O on a playing film: it opens in QuickTime.
+B7. A film whose name has an & or an apostrophe in it — those are the
+    characters the escaper exists for. The name must read as itself.
+
+C. MUST STILL WORK.
+C1. **⇪⇧. the Jug Player** — drop an mp3, it plays. Same drag reader.
+C2. ⇪Esc with nothing open still says "⎋ nothing open to close".
+C3. A spread of ⇪ keys: ⇪T, ⇪D, ⇪N, ⇪3, ⇪X, ⇪4, ⇪space, ⇪V, ⇪/.
+C4. Type a comma in any app. EXPECT: a comma.
+
+D. PASTE BACK, PASS OR FAIL.
+D1. `_G.mugReport()` — the whole block. Three lines have changed and
+    each answers something your last report could not:
+    · **way in** — "relative to the film's own folder" or "the
+      absolute file URL" tells me WHICH way in carried the film, and
+      that decides everything built on this next.
+    · **refused** + "↳ macOS said:" — if no door worked, this now
+      carries macOS's own MediaError. "the file is not there" and
+      "WebKit would not let this window read it" are opposite facts
+      and that line is the only thing that can tell them apart.
+    · **store** — should now say "written N bytes", not "no store
+      file yet". It was describing the disk as it was at boot.
+D2. The **queue** line should read "playing #1", not "#1.0".
+
+E. A JUDGEMENT ONLY YOU CAN MAKE.
+E1. **Your answer on sizing is logged and is the NEXT release**: size
+    the window to the film's own shape, like VLC. It needs the page
+    to report the film's dimensions, which it can only do once a film
+    actually loads — so it waits on A3, not on a decision.
+E2. 🔨 CRUDE OR ELEGANT: a brand-new tool that opened a window and
+    played nothing. My reading is that it degraded honestly — the
+    window opened, the queue filled, nothing was lost, and ⌘O always
+    worked — but the tool did not do its one job, and this is its
+    second pass. Your tag.
+E3. Still unanswered from last time, and still only yours: .mp4 only,
+    or add .m4v and .mov? And 🔨/✨ for 6.343.0 and 6.344.0.
+
+
 
 ## 6.344.0
 
@@ -292,75 +377,6 @@ E5. 📏 AND THE OTHER THREE: you said "those four screenshot tools run
     asked `core.has`, which the core table has never carried — so if
     any of them still behaves oddly on this build, that is new
     information and I want it named one at a time.
-
-
-## 6.341.0
-
-6.341.0 verify with LL — 🔁 THE SHOT KEEPS THE CLIPBOARD (KNOWN GROUND)
-WHAT CHANGED: ⇪4 leaves the PICTURE on the clipboard. Always. ⇪⇧4 is
-the OCR door and is untouched.
-🔎 AND "SOMETIMES" WAS THE FEATURE, which is why it felt like a fault.
-6.319.0 put the words of a ⇪4 shot on the clipboard — but only when
-the OCR that NAMES the file happened to find words, only while the
-shot was still the thing on the clipboard, and only within 25
-seconds. A photograph, a diagram, a ⌘C of your own in between: the
-picture stayed. One key, two outcomes, nothing on screen beforehand
-to say which. Your sentence is the whole bug report.
-🚨 AND THE OCR STILL RUNS IN THE BACKGROUND — you asked for that by
-name and nothing about it changed. The shot is still renamed after
-its words, the words still go into the Finder comment and into ⇪O.
-What stops is only the clipboard write.
-
-A. THE HEADLINE — thirty seconds.
-A1. Press ⇪4 and drag over a paragraph of real text.
-A2. Wait five seconds (longer than the OCR takes), then ⌘V somewhere.
-    EXPECT: the PICTURE. **A FAIL is pasting the words** — that is the
-    old behaviour.
-A3. Do it four or five more times over different things — a photo, a
-    dark panel, a page of text, a screenshot of a screenshot.
-    EXPECT: the picture, every single time. The whole point is that
-    it no longer depends on what was in the shot.
-A4. Look at the file in the screenshots folder a few seconds later.
-    EXPECT: it is still RENAMED after its words. If it is not, the
-    reading has been switched off with the writing and that is a real
-    break — tell me at once.
-
-B. THE OTHER DOOR — the one you named.
-B1. Press ⇪⇧4 and drag over some text. EXPECT: "📝 Text copied: …"
-    and ⌘V pastes the WORDS. Unchanged.
-B2. ⇪⇧4 over a QR code. EXPECT: "🔳 Code copied: …". Unchanged.
-B3. ⇪O. EXPECT: the words of the ⇪4 shots from step A are all in the
-    log, and ⏎ on a row copies the full text. That is where the words
-    live now, and it is one keypress.
-
-C. MUST STILL WORK.
-C1. ⇪4's macOS crosshair, the magnifier, SPACE for a window (6.337.0).
-C2. The shot lands in the folder AND on the clipboard, as always.
-C3. ⇪⇧1 opens the editor on it; ⇪⇧5 lists it; ⌘9 sweeps the backlog.
-C4. ⇪5 scrolling capture, ⇪⇧2 window, ⇪⇧3 delayed — all unchanged.
-
-D. PASTE BACK, PASS OR FAIL.
-D1. `_G.screenshotsReport()` — the `clip :` line. Healthy reads
-    "the shot keeps the clipboard — ⇪⇧4 is the OCR door (shipped
-    default since 6.341.0) · N arrival(s) kept the picture this
-    session". **That N is the release working**, not a tally of
-    failures: it counts the shots that would have been swapped before.
-D2. If that line ever says anything about a REFUSED write, paste it.
-
-E. A JUDGEMENT ONLY YOU CAN MAKE.
-E1. Is the picture always right, or do you want the words on SOME ⇪4
-    shots? There is a middle I did not build and will not guess at:
-    swap only when the shot is MOSTLY text. That is a condition
-    again — a sixth invisible predicate — which is the thing this
-    release exists to remove, so say the word if you want it anyway.
-E2. `settings = { screenshots = { textToClipboard = true } }` puts
-    6.319.0's behaviour back exactly. Say so and I change the default
-    rather than leaving you a line to type.
-E3. 🔨 CRUDE OR ELEGANT: nothing broke and nothing was lost — the
-    words were always in ⇪O and in the file name. What it cost was
-    trust in what the key does. My reading is that it degraded, one
-    pass, but it is the second pass on 6.319.0's ask. Your tag.
-
 
 
 ---

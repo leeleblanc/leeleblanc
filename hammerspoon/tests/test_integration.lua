@@ -2720,6 +2720,106 @@ do
 end
 
 -- =====================================================================
+out("\n=== hs.json.encode TAKES A TABLE (6.345.0) ===\n")
+-- =====================================================================
+-- 🚨 THE DEFECT THAT MADE 6.344.0 A BLACK RECTANGLE, closed as a class.
+-- LuaSkin declares `hs.json.encode` as checkArgs:LS_TTABLE and RAISES on
+-- anything else. video_player's payload builder handed it a bare film
+-- NAME inside a pcall, so the raise was swallowed and every string in
+-- the page's payload came back `""` — the film's src (a <video> with no
+-- source: a black rectangle with a play button), its name, the brand and
+-- every row in the deck. Five symptoms, one call.
+--
+-- 🔎 AND IT WAS THE ONLY CALL OF ITS KIND: the other nineteen sites in
+-- this config all pass a TABLE, which is why nothing else had ever hit
+-- it, and why a grep for the SHAPE named it in one line once his report
+-- said the strings were empty.
+--
+-- 🔑 A FUNCTIONAL CHECK ALREADY CATCHES IT IN THAT MODULE (its harness
+-- now refuses a bare string exactly as LuaSkin does — test_video_player
+-- §18), and that is the stronger half. This is the class: the next
+-- module to reach for `hs.json.encode(someString)` fails here instead of
+-- shipping, because a stub somewhere else will not be faithful either.
+--
+-- The needle is only the PROVABLE shapes — a string literal and a
+-- `tostring(...)`. A variable cannot be judged from the text, and a
+-- sentry that guessed would go red on correct code and be switched off
+-- within a week (6.269.0).
+-- =====================================================================
+do
+    -- PURE given a source string, so it is checked in BOTH directions.
+    local function jsonOffenders(src)
+        src = src:gsub("[^\n]*", function(line)
+            if line:match("^%s*%-%-") then return "" end
+            return line
+        end)
+        local out, i = {}, 1
+        while true do
+            local a, b = src:find("hs%.json%.encode", i)
+            if not a then break end
+            i = b + 1
+            -- The argument begins after this call's "(", or after the
+            -- "," when the function is handed to pcall.
+            local rest = src:sub(b + 1, b + 48)
+            local arg = rest:match("^%s*%(%s*(.*)$") or rest:match("^%s*,%s*(.*)$")
+            if arg and (arg:match("^tostring%s*%(") or arg:match('^"')
+                        or arg:match("^'") or arg:match("^%[%[")) then
+                out[#out + 1] = (arg:gsub("\n.*", "")):sub(1, 44)
+            end
+        end
+        return out
+    end
+
+    check("📦 BITES: the exact call 6.344.0 shipped",
+          #jsonOffenders('local o = hs.json.encode(tostring(s or ""))') == 1)
+    check("📦 BITES: a string literal",
+          #jsonOffenders('hs.json.encode("a name")') == 1)
+    check("📦 BITES: the pcall form, where the comma hides the argument",
+          #jsonOffenders('pcall(hs.json.encode, tostring(x))') == 1)
+    check("📦 IS SILENT on a table, which is every real call in this config",
+          #jsonOffenders('hs.json.encode({ queue = q })') == 0
+          and #jsonOffenders('pcall(hs.json.encode, payload)') == 0
+          and #jsonOffenders('hs.json.encode(t, true)') == 0)
+    -- 🚨 AND IT MUST NOT READ ITS OWN EXPLANATION. A comment naming the
+    -- call is prose, not a call site (6.262.0, 6.280.0).
+    check("📦 a COMMENT line naming the call is not a call site",
+          #jsonOffenders('    -- hs.json.encode("a name") raises\n') == 0)
+
+    local files = {}
+    do
+        local p = io.popen('ls "' .. HS .. '"/modules/*.lua "' .. HS
+                           .. '"/core/*.lua 2>/dev/null')
+        if p then
+            for line in p:lines() do files[#files + 1] = line end
+            p:close()
+        end
+    end
+    check("📦 the sentry has files to read (6.313.0 — a sentry over an "
+          .. "empty haystack is green and measures nothing)", #files >= 40, #files)
+
+    local bad, seen = {}, 0
+    for _, path in ipairs(files) do
+        local f = io.open(path, "r")
+        local src = f and f:read("*a") or ""
+        if f then f:close() end
+        local i = 1
+        while true do
+            local a = src:find("hs%.json%.encode", i)
+            if not a then break end
+            seen = seen + 1 ; i = a + 1
+        end
+        for _, o in ipairs(jsonOffenders(src)) do
+            bad[#bad + 1] = path:match("[^/]+$") .. ": " .. o
+        end
+    end
+    check("📦 …and it really found the call sites", seen >= 15, seen)
+    check("🚨 📦 NO MODULE HANDS hs.json.encode SOMETHING THAT IS NOT A "
+          .. "TABLE — LuaSkin raises, a pcall swallows the raise, and the "
+          .. "caller gets an empty string it never asked for",
+          #bad == 0, #bad .. ": " .. table.concat(bad, " | "))
+end
+
+-- =====================================================================
 -- 🔌 NO SUITE INVENTS A CALLING CONVENTION (6.273.0)
 -- =====================================================================
 -- test_anchors.lua carried a hand-written service registry under the

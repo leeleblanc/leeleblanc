@@ -4,8 +4,20 @@
 -- =====================================================================
 -- 10-09-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.344.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.345.0
 -- =====================================================================
+
+-- NEW IN 6.345.0 — 🚨 THE MUG PLAYER PLAYS: hs.json.encode TAKES A
+--   TABLE (modules/video_player.lua). 6.344.0 drew a black rectangle
+--   and ONE function did all of it — the payload builder called
+--   hs.json.encode on a bare film NAME. LuaSkin raises on a non-table,
+--   a pcall swallowed the raise, so EVERY string came back "": the
+--   <video>'s src (hence no picture), the title, the brand, every row.
+--   The escaper is OURS now, pure and gate-proven; the gate's own stub
+--   refuses a bare string as LuaSkin does (6.290.0, eleventh time), and
+--   a sentry closes the class across modules/. ⎋ The page hears Escape
+--   and closes the window (WebKit keeps it in full screen); a refused
+--   door carries macOS's own MediaError; a row number is an integer.
 
 -- NEW IN 6.344.0 — 🎬 THE MUG PLAYER (⇪⇧,): A JUG PLAYER FOR FILMS
 --   (modules/video_player.lua, new). LL: "a Jug Player but for movies.
@@ -17,23 +29,11 @@
 --   lists the ways in, the page reports which carried it, and a film no
 --   door reaches gets a sentence and ⌘O. 🔌 drag.paths is SHARED.
 
--- NEW IN 6.343.0 — 🚨 ⇪Esc WAS FIRING THE PANIC CHORD, AND 93 ioreg
---   PROCESSES WERE PILING UP (power_tools.lua + core/hyper_key.lua +
---   core/capabilities.lua). LL: "I did not mean to hit panic … my
---   keyboard froze. Console shows nothing weird." Nothing claimed ⇪Esc,
---   so §3.12 FORWARDED it as _G.hyperMods + the key — and that is
---   { cmd, shift, ctrl, alt }, i.e. pt.panicMods over pt.panicKey =
---   "escape". Between them stood only a 0.25 s window round a POSTED
---   event (6.218.0's defect) that a loaded thread loses. ⇪Esc is
---   CLAIMED now (a claimed key is never forwarded); _G.chordAudit()
---   names any other such chord whose hyper key is unclaimed.
---   🧟 And the Secure Input belt KILLS the ioreg it gave up on.
-
--- (6.342.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.343.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 cut the inline count to
 --  TWO; a gate check proves every entry here is also in CHANGELOG.md.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.344.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.345.0
 -- =====================================================================
 -- The catalogue that used to sit here moved to GUIDE.md ("What each
 -- tool does") in 6.180.0 — 259 lines of prose inside the orchestrator.
@@ -126,7 +126,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.344.0"
+_G.configVersion = "6.345.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the

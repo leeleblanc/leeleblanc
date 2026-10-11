@@ -375,6 +375,53 @@ console.log("── Mug Player: page JavaScript, executed ──");
         && env.byId.v.style.visibility === "visible");
 }
 
+// ── the payload reaches the glass ─────────────────────────────────────
+// 🚨 THE CHECK 6.344.0 DID NOT HAVE, and it is drawn from HIS screenshot
+// rather than from a theory: the deck showed "1" and "2" with no names,
+// the header read "nothing playing" over a queued film, the brand was
+// missing and the stage was a black rectangle. Every one of those is a
+// string that arrived EMPTY. The page was innocent; the payload was not
+// — so the page suite now asserts that what it draws is not blank.
+{
+  const env = load();
+  const want = rowsObj();
+  check("the deck draws the film's NAME, not just its row number",
+        env.texts["q:1"] === want.q[0].t && (env.texts["q:1"] || "").length > 0,
+        JSON.stringify(env.texts["q:1"]));
+  check("every queue row has a name",
+        want.q.every((r, n) => (env.texts["q:" + (n + 1)] || "").length > 0));
+  check("every history row has a name",
+        want.h.every((r, n) => (env.texts["h:" + (n + 1)] || "").length > 0));
+  check("the header names the film, never 'nothing playing'",
+        env.byId.now.textContent === want.name
+        && env.byId.now.textContent !== "nothing playing");
+  check("the brand is drawn", env.byId.brand.textContent === want.brand
+        && env.byId.brand.textContent.length > 0);
+  // The black rectangle itself: a <video> with no source.
+  check("the <video> is GIVEN a source", (env.byId.v.src || "").length > 0,
+        String(env.byId.v.src));
+  check("…and it was asked to load it", env.byId.v.loads > 0);
+}
+
+// ── ⎋ closes the window, and WebKit keeps it in full screen ───────────
+{
+  const env = load();
+  env.key("Escape");
+  check("Escape asks Lua to close the window",
+        at(env, 0).a === "close", JSON.stringify(env.sent));
+  check("…and it is the only thing that press sent", env.sent.length === 1);
+}
+{
+  // 🪟 A FILM IN FULL SCREEN OWNS ESC. Taking it here would leave him
+  // inside a full-screen film with no way out — a native control this
+  // tool promised and must not quietly remove (6.318.0).
+  const env = load();
+  env.sandbox.document.fullscreenElement = { tag: "video" };
+  env.key("Escape");
+  check("Escape in full screen is WebKit's, and the page sends nothing",
+        env.sent.length === 0, JSON.stringify(env.sent));
+}
+
 console.log(`── test_mug_js: ${pass} passed, ${fail} failed`);
 for (const f of failures) console.log("   ❌ " + f);
 process.exit(fail === 0 ? 0 : 1);

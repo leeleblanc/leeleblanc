@@ -57,7 +57,17 @@ hs = {
   drawing = { windowLevels = { floating = 5 } },
   canvas  = { windowLevels = { dragging = 11 }, new = function() return nil end },
   task    = { new = function() return { start = function() return true end } end },
-  json    = { encode = function(v) return enc(v) end, decode = function() return nil end },
+  -- 🔬 LuaSkin RAISES on a non-table (6.290.0) — see test_video_player
+  -- §18. This dump builds the REAL payload, so a lenient encoder here
+  -- is a page the gate draws and no Mac can.
+  json    = { encode = function(v)
+                if type(v) ~= "table" then
+                  error("ERROR: incorrect type '" .. type(v)
+                        .. "' for argument 1 (expected table)")
+                end
+                return enc(v)
+              end,
+              decode = function() return nil end },
   webview = { usercontent = { new = function() return
                 { setCallback = function() end } end },
               new = function() return nil end },

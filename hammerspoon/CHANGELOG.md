@@ -5,6 +5,97 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.345.0 — 🚨 THE MUG PLAYER PLAYS: `hs.json.encode` TAKES A
+  TABLE, AND A BARE STRING IS NOT ONE (modules/video_player.lua)
+
+  LL, on 6.344.0: "Nothing plays. Escape doesn't work." — with a
+  screenshot of the window open over a black rectangle, a deck reading
+  "1" and "2" with no film names, a header reading "nothing playing"
+  over a queued film, and no brand in the title strip.
+
+  🚨 FOUR SYMPTOMS, ONE CALL. `jstr` — the function every string in the
+  page's payload passes through — was:
+
+      local ok, out = pcall(function()
+          return hs.json.encode(tostring(s or "")) end)
+      if ok and type(out) == "string" then return out end
+      return '""'
+
+  LuaSkin declares `hs.json.encode` as checkArgs:LS_TTABLE and RAISES
+  on anything else. The pcall caught the raise and the fallback did
+  exactly what it was written to do, on EVERY string: the film's `src`
+  (so the <video> was never given a source — the black rectangle, with
+  WebKit's play overlay on it), its `name`, the `brand`, and every
+  row's title. His screenshot carried all four, which is what made the
+  diagnosis a reading rather than a guess.
+
+  🔎 AND IT WAS THE ONLY CALL OF ITS KIND. The other nineteen
+  `hs.json.encode` sites across 72 modules all pass a TABLE — including
+  this module's own STORE writer, four lines away, which is why the
+  queue saved correctly while the page got nothing. A grep for the
+  shape named it in one line once his report said the strings were
+  empty. GENERAL: when one call of a family misbehaves, grep the family
+  before theorising about the caller.
+
+  🔑 SO THE ESCAPER IS OURS, and that is the half that closes the class
+  rather than the instance: `vid.jsonStr` is PURE Lua, proven with no
+  Mac, and a pure function cannot be made gentler by a stub. It quotes,
+  escapes `"` and `\`, turns control characters into \uXXXX, escapes
+  `<` `>` `&` (the payload is a JS object literal inside a <script>, so
+  a film called "</script>.mp4" would end the block) and escapes U+2028
+  and U+2029, which are legal in JSON and were a syntax error in a JS
+  string literal until ES2019. Bytes above 0x7F are left exactly alone:
+  UTF-8 is valid in a JSON string and re-encoding it would be 6.237.0's
+  mistake of correcting a name that was already right.
+
+  🔬 WHY THE GATE WAS GREEN, AND IT IS 6.290.0 FOR THE ELEVENTH TIME:
+  the suite's `hs.json.encode` stub encoded a bare string happily. So
+  174 Lua checks and 44 page checks certified a payload no Mac could
+  produce — the exact shape of 6.273.0's "a stub that invents a calling
+  convention does not merely miss the bug, it CERTIFIES it". Both mug
+  harnesses now RAISE on a non-table exactly as LuaSkin does, and with
+  that one change the 6.344.0 code fails ELEVEN checks, two of them
+  checks that already existed. That is the evidence this release rests
+  on rather than a reading of the API.
+
+  🔒 AND THE CLASS IS CLOSED ACROSS THE CONFIG: a source sentry in
+  test_integration fails any module that hands `hs.json.encode` a
+  string literal or a `tostring(...)`. The needle is only the PROVABLE
+  shapes — a variable cannot be judged from the text, and a sentry that
+  guessed would go red on correct code and be switched off inside a
+  week (6.269.0).
+
+  ⎋ ESCAPE CLOSES THE WINDOW. The router claim (6.344.0) is untouched
+  and still covers the window when it is not focused; the page now
+  hears Escape too, which is the case that matters because this window
+  TAKES the keyboard. Two doors, one `vid.hide` (6.231.0).
+  🪟 EXCEPT IN FULL SCREEN, where WebKit owns Esc: taking it there
+  would leave him inside a full-screen film with no way out — a native
+  control this tool promised and must not quietly remove (6.318.0: when
+  you take a surface over, you inherit everything it was doing).
+
+  🔬 A REFUSED DOOR CARRIES macOS'S OWN WORDS. The page now sends the
+  MediaError's code and message with `srcfail`, and the report prints
+  them under the refused doors. "the file is not there" and "WebKit
+  would not let this window read it" are opposite facts, and only that
+  error can tell them apart — which is the measurement this new ground
+  exists for (6.242.0), and the one that decides whether the next
+  release is a tweak or a different mechanism.
+
+  🔢 A NUMBER OUT OF A PAGE MESSAGE IS A FLOAT. hs.json decodes every
+  JS number as a double, so `{i:1}` arrived as 1.0 and his report read
+  "playing #1.0". Lua normalises a float key with an integral value, so
+  every table lookup was right all along; what was wrong is the number
+  this config showed him. Coerced where it is BORN, not where it is
+  printed.
+
+  🔎 AND THE STORE LINE DESCRIBES THE DISK AS IT IS NOW. The verdict
+  was captured at the LOAD and never moved, so a Mac that had queued
+  two films went on reading "no store file yet" over a store that had
+  just been written — 6.312.0 one layer on. A successful save records
+  what it wrote; a REFUSED save leaves the verdict alone, which is the
+  fixture that bites.
+
 NEW IN 6.344.0 — 🎬 THE MUG PLAYER (⇪⇧,): A JUG PLAYER FOR FILMS
   (modules/video_player.lua, new)
 

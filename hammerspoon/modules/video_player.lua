@@ -422,6 +422,15 @@ function M.setup(core)
         elseif state == "unreadable" then
             return "⚠️ UNREADABLE — the file is there and could not be "
                    .. "decoded; it was left alone"
+        elseif state == "saved" then
+            -- 6.312.0's rule one layer on: the verdict was captured at
+            -- the LOAD and never moved, so a Mac that had queued two
+            -- films went on reading "no store file yet" over a store
+            -- that had just been written. A report must describe the
+            -- disk as it is now, not as it was at boot.
+            return "written " .. (tonumber(bytes) or 0) .. " bytes — "
+                   .. (tonumber(nq) or 0) .. " queued · "
+                   .. (tonumber(nh) or 0) .. " history row(s)"
         elseif state == "read" then
             return "read " .. (tonumber(bytes) or 0) .. " bytes — "
                    .. (tonumber(nq) or 0) .. " queued · "
@@ -524,6 +533,8 @@ function M.setup(core)
                 .. "; your saved queue is untouched")
             return false
         end
+        vid.storeState = "saved"
+        vid.storeBytes = #raw
         return true
     end
 
@@ -545,11 +556,45 @@ function M.setup(core)
     -- (6.231.1). Every name reaches the page as JSON and is written with
     -- textContent in the deck, so nothing here can inject markup — but
     -- the JSON itself must survive an apostrophe, a quote and a <.
-    local function jstr(s)
-        local ok, out = pcall(function() return hs.json.encode(tostring(s or "")) end)
-        if ok and type(out) == "string" then return out end
-        return '""'
+    -- 🚨 `hs.json.encode` TAKES A TABLE, AND A BARE STRING IS NOT ONE
+    -- (6.345.0, and it is the whole of why 6.344.0 drew a black
+    -- rectangle). This function handed it `tostring(s)`: LuaSkin's
+    -- checkArgs RAISES on a non-table, the pcall caught the raise, and
+    -- every string in the payload came back `""` — the film's src, its
+    -- name, the brand, every row in the deck. One defect, five symptoms,
+    -- all five visible in one screenshot of his.
+    -- 🔎 AND IT IS THE ONLY CALL OF ITS KIND: the other nineteen
+    -- hs.json.encode sites in this config all pass a TABLE, which is why
+    -- nothing else has ever hit it. A grep for the shape is what named
+    -- it in one line.
+    -- 🔑 SO THE ESCAPER IS OURS NOW, and that is the half that closes the
+    -- class rather than the instance: a pure Lua function cannot be made
+    -- gentler by a stub (6.290.0 — the gate's fake hs.json encoded a
+    -- bare string happily, which is why 44 page checks were green over a
+    -- payload no Mac could produce), and it is proven with no Mac.
+    function vid.jsonStr(s)
+        local out = tostring(s or "")
+        out = out:gsub("[\\\"]", "\\%0")
+        out = out:gsub("%c", function(c)
+            return string.format("\\u%04X", string.byte(c))
+        end)
+        -- The payload is a JS object literal inside a <script> block, so
+        -- a film called "</script>.mp4" would end it. < > & cost nothing
+        -- to escape and the page reads them back identically.
+        out = out:gsub("[<>&]", function(c)
+            return string.format("\\u%04X", string.byte(c))
+        end)
+        -- U+2028 and U+2029 are legal inside a JSON string and were a
+        -- syntax error inside a JS string literal until ES2019. A file
+        -- may be called anything, so they are escaped rather than hoped
+        -- past. Bytes above 0x7F are otherwise left alone: UTF-8 is
+        -- valid in a JSON string and re-encoding it would be the
+        -- 6.237.0 mistake of correcting a name that was already right.
+        out = out:gsub("\226\128\168", "\\u2028")
+                 :gsub("\226\128\169", "\\u2029")
+        return '"' .. out .. '"'
     end
+    local jstr = vid.jsonStr
 
     -- 🔎 The rows the deck draws, as the page's own payload. A name the
     -- card cannot ENCODE is not an empty queue (6.231.1) — the refusal
@@ -697,6 +742,13 @@ document.addEventListener('keydown',function(e){
  if(e.metaKey&&(e.key==='o'||e.key==='O')){e.preventDefault();
    say({a:'external'});return}
  if(e.metaKey)return;
+ if(e.key==='Escape'){
+   // 🪟 WEBKIT OWNS ESC WHILE THE FILM IS FULL SCREEN. Taking it here
+   // would leave him inside a full-screen film with no way out — a
+   // native control this release promised and must not quietly remove
+   // (6.318.0: when you take a surface over, you inherit what it did).
+   if(document.fullscreenElement||document.webkitFullscreenElement)return;
+   e.preventDefault();say({a:'close'});return}
  if(e.key===' '){e.preventDefault();
    try{v.paused?v.play():v.pause()}catch(err){} return}
  if(e.key==='ArrowDown'){e.preventDefault();say({a:'sel',d:1});return}
@@ -713,7 +765,11 @@ document.addEventListener('keydown',function(e){
    say({a:'srcok',d:S.door,gen:S.gen});
  });
  v.addEventListener('error',function(){
-   say({a:'srcfail',d:S.door,gen:S.gen});
+   // The MediaError is the only thing that can say WHY a door refused,
+   // and it is the fact Lua cannot get any other way.
+   var er=v.error||{};
+   say({a:'srcfail',d:S.door,gen:S.gen,code:(er.code||0),
+        why:(er.message||'')});
  });
  v.addEventListener('ended',function(){say({a:'ended',gen:S.gen})});
  draw();
@@ -1167,6 +1223,20 @@ document.addEventListener('keydown',function(e){
         end)
     end
 
+    -- 🔢 A NUMBER OUT OF A PAGE MESSAGE IS A FLOAT. hs.json decodes
+    -- every JS number as a double, so `{i:1}` arrives as 1.0 and
+    -- `vid.index` printed as "#1.0" in his report. Lua normalises a
+    -- float key with an integral value, so every TABLE lookup was right
+    -- all along — what was wrong is the number this config shows him,
+    -- which is 6.282.0's rule one step earlier: coerce where the value
+    -- is BORN, not where it is printed, or the next reader gets it raw.
+    local function asRow(n)
+        local x = tonumber(n)
+        if not x then return 0 end
+        return math.tointeger(x) or math.floor(x)
+    end
+    vid.asRow = asRow
+
     function vid.handleMessage(body)
         if type(body) ~= "table" then return end
         local a = body.a
@@ -1184,7 +1254,7 @@ document.addEventListener('keydown',function(e){
             -- generation check is 6.304.0's: a late answer about the film
             -- that was playing a moment ago must not speak for this one.
             if tonumber(body.gen) ~= vid.gen then return end
-            local d = tonumber(body.d) or vid.door
+            local d = asRow(body.d) ; if d < 1 then d = vid.door end
             local doors = vid.sourceDoors((vid.queue[vid.index] or {}).path)
             vid.doorWorked = (doors[d] and doors[d].how) or ("door " .. d)
             vid.doorStart  = d
@@ -1193,8 +1263,16 @@ document.addEventListener('keydown',function(e){
 
         elseif a == "srcfail" then
             if tonumber(body.gen) ~= vid.gen then return end
-            local d = tonumber(body.d) or vid.door
+            local d = asRow(body.d) ; if d < 1 then d = vid.door end
             if d ~= vid.door then return end
+            -- 🔬 macOS'S OWN WORDS ABOUT THE REFUSAL. A door that failed
+            -- because the file is not there and one that failed because
+            -- WebKit would not let this window read it are opposite
+            -- facts, and only the MediaError can tell them apart — which
+            -- is the measurement this new ground is for (6.242.0).
+            vid.mediaWhy = "code " .. tostring(asRow(body.code))
+                           .. (body.why and body.why ~= ""
+                               and (" — " .. tostring(body.why)) or "")
             local cur = vid.queue[vid.index]
             if not cur then return end
             local doors = vid.sourceDoors(cur.path)
@@ -1221,6 +1299,17 @@ document.addEventListener('keydown',function(e){
                      .. " _G.mugReport(), which names what was tried.")
             return
 
+        elseif a == "close" then
+            -- ⎋ THE WINDOW HAS THE KEYBOARD, SO THE PAGE HEARS ESC FIRST.
+            -- The escape ROUTER claim below is untouched and still covers
+            -- the window when it is not focused; this covers it when it
+            -- is, which is every time he has just been watching a film.
+            -- Two doors, one `vid.hide` (6.231.0) — and the router's own
+            -- `active()` reads `vid.webview`, so whichever fires first,
+            -- the other finds nothing to close.
+            vid.hide()
+            return
+
         elseif a == "ended" then
             if tonumber(body.gen) ~= vid.gen then return end
             local nxt = (tonumber(vid.index) or 0) + 1
@@ -1228,7 +1317,7 @@ document.addEventListener('keydown',function(e){
             return
 
         elseif a == "play" then
-            local i = tonumber(body.i) or 0
+            local i = asRow(body.i)
             if body.k == "h" then
                 local r = vid.history[i]
                 if r then vid.playPath(r.path) end
@@ -1243,7 +1332,7 @@ document.addEventListener('keydown',function(e){
             -- the same list the page drew — and then EVERY row with that
             -- path goes, or a duplicate survives a command that said it
             -- removed the film.
-            local r = vid.history[tonumber(body.i) or 0]
+            local r = vid.history[asRow(body.i)]
             if not r then return end
             local list, gone = vid.forgetHistory(vid.history, r.path)
             vid.history = list
@@ -1421,6 +1510,9 @@ document.addEventListener('keydown',function(e){
         table.sort(failed)
         if #failed > 0 then
             L[#L + 1] = "   refused: " .. table.concat(failed, " · ")
+            if vid.mediaWhy then
+                L[#L + 1] = "   ↳ macOS said: " .. tostring(vid.mediaWhy)
+            end
         end
         L[#L + 1] = "   store  : " .. vid.storeVerdict(vid.storeState, vid.storeBytes,
                                                        #vid.queue, #vid.history)

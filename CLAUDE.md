@@ -3466,6 +3466,52 @@ work Mac.
   · and the cancel-slot check had to drive "created, wired, REFUSED TO
     SHOW" rather than "cannot create" — 6.265.0, fifth time, and the
     refusal is the branch that calls `cancelSelect` on its way out.
+- 🔌 `hs.json.encode` TAKES A TABLE, AND A BARE STRING IS NOT ONE
+  (6.345.0, modules/video_player.lua — LL on the brand-new Mug Player:
+  "Nothing plays. Escape doesn't work."). 6.344.0 drew a black
+  rectangle, and ONE function did all of it: `jstr`, the function every
+  string in the page's payload passes through, called
+  `hs.json.encode(tostring(s))`. LuaSkin declares that
+  checkArgs:LS_TTABLE and RAISES on anything else; the pcall caught the
+  raise and the fallback returned `""` — for the film's `src` (so the
+  <video> was never given a source), its name, the brand and every row
+  in the deck.
+  🔎 HIS SCREENSHOT CARRIED ALL FOUR, which is what made this a reading
+  rather than a guess: no brand in the title strip, "nothing playing"
+  over a queued film, rows numbered "1" and "2" with no names, and a
+  black stage. Four blanks in one picture is not four bugs — it is one
+  function that returns a blank.
+  🔑 AND IT WAS THE ONLY CALL OF ITS KIND: the other nineteen
+  `hs.json.encode` sites across 72 modules pass a TABLE, including this
+  module's own store writer four lines away — which is why the queue
+  saved correctly while the page got nothing. GENERAL: when one call of
+  a family misbehaves, GREP THE FAMILY before theorising about the
+  caller; the odd one out is the finding.
+  🔬 THE GATE WAS GREEN BECAUSE THE STUB ENCODED A STRING HAPPILY —
+  6.290.0 for the ELEVENTH time, and the costliest since 6.273.0: 174
+  Lua checks and 44 page checks certified a payload no Mac could
+  produce. Both mug harnesses RAISE on a non-table now, and with that
+  one change the shipped code fails ELEVEN checks, two of which already
+  existed. A stub that is gentler than the provider does not merely
+  miss the bug, it CERTIFIES it.
+  🔒 THE ESCAPER IS OURS NOW, and that is what closes the class rather
+  than the instance: `vid.jsonStr` is PURE Lua, so no stub can soften
+  it. It escapes `"` `\`, control characters, `<` `>` `&` (the payload
+  is a JS object literal inside a <script>, so a film called
+  "</script>.mp4" would end the block) and U+2028/U+2029; bytes above
+  0x7F are left alone, because UTF-8 is valid in a JSON string and
+  re-encoding it is 6.237.0's mistake of correcting a name that was
+  already right. A source sentry in test_integration fails any module
+  that hands the encoder a literal or a `tostring(...)` — the PROVABLE
+  shapes only, because a sentry that guessed at a variable would go red
+  on correct code and be switched off inside a week (6.269.0).
+  ⎋ AND A WINDOW THAT TAKES THE KEYBOARD MUST HEAR ESC ITSELF. The
+  escape router's claim is right and was not enough: this window takes
+  the keys, so the page is where the press lands. Two doors, one
+  `vid.hide` (6.231.0) — EXCEPT in full screen, where WebKit owns Esc
+  and taking it would leave him inside a full-screen film with no way
+  out (6.318.0: when you take a surface over, you inherit everything it
+  was doing, including what nobody wrote down).
 - 🪟 A HANDLE RECORDED BEFORE THE WINDOW IS UP IS A HANDLE THAT LIES
   (6.326.0, modules/music_player.lua — LL's own probe:
   `handle : false · window : false · visible : nil · frame : none ·
@@ -5467,7 +5513,7 @@ that must be READ before a new cause is named.
 | "hyper+4 does not have pixel crosshairs" · "it was working before" | modules/screenshots.lua · the selector | 6.264.0 · 6.318.0 | 1 | ask |
 | "it said 0x0 pixels, then jumped a few desktops, then I had to hit escape" | modules/screenshots.lua · the selector's one exit | 6.336.0 · 6.337.0 | 2 | ask |
 | "why OCR hyper+shift+4 works and hyper+4 still does not" | modules/screenshots.lua · ⇪4 re-implementing a system drag | 6.264.0 · 6.265.0 · 6.274.0 · 6.282.0 · 6.318.0 · 6.336.0 · 6.337.0 | 6 | ask |
-| "a Jug Player but for movies" · "once it's stable we will merge the players" | modules/video_player.lua · a webview that plays video | 6.344.0 | 1 | ask |
+| "a Jug Player but for movies" · "nothing plays. Escape doesn't work" | modules/video_player.lua · a webview that plays video | 6.344.0 · 6.345.0 | 2 | ask |
 | "I did not mean to hit panic" · "my keyboard froze" · "Console shows nothing weird" | modules/power_tools.lua · an unclaimed ⇪ key forwarding onto the panic chord | 6.343.0 | 1 | ask |
 | "⌘D says I have five seconds to setup, shows no crosshairs" · "those four screenshot tools run weird" | modules/screenshot_editor.lua · the ⌘D order | 6.255.0 · 6.342.0 | 1 | ask |
 | "once I OCR some text, that text should immediately go onto the clipboard" · "sometimes … it places an image … sometimes the OCR runs" | modules/screenshots.lua · the OCR doors | 6.173.1 · 6.319.0 · 6.341.0 | 2 | ask |
@@ -5589,7 +5635,8 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
-| 6.344.0 | 🎬 the Mug Player (⇪⇧,) — drop .mp4 films on a window and watch them with the Mac's own controls | pending |
+| 6.345.0 | 🚨 the Mug Player plays — hs.json.encode takes a TABLE, and every string in the page's payload was coming back empty | pending |
+| 6.344.0 | 🎬 the Mug Player (⇪⇧,) — drop .mp4 films on a window and watch them with the Mac's own controls | LOSS — LL: "Nothing plays. Escape doesn't work." The payload builder called `hs.json.encode` on a bare film NAME; LuaSkin raises on a non-table, a pcall swallowed it, and every string reached the page as `""` — including the `<video>`'s src → fix 6.345.0 |
 | 6.343.0 | 🚨 ⇪Esc was firing the panic chord — nothing claimed it, so it forwarded onto ⌘⇧⌃⌥Esc | pending |
 | 6.342.0 | 📐 ⌘D drags the area first, then counts down, then shoots it — macOS's own ⇧⌘5 order, on his word | pending |
 | 6.341.0 | 🔁 ⇪4 leaves the picture on the clipboard, always — ⇪⇧4 is the OCR door, and the reading still runs in the background | pending |
@@ -5924,6 +5971,20 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
      win_pin, removed 6.166.0, which held ⇪⇧U — freed then and spent
      again by anchors in 6.180.0. Ask before building.
 
+- 🪟 SIZE THE MUG PLAYER TO THE FILM (2026-10-11, LL, answering the
+  window-size question: "Size Mug Player window to the current movie
+  format like VLC does."). HIS ANSWER, LOGGED, and it is the release
+  after the draft keeper unless he says otherwise. The shape: the page
+  reads `videoWidth`/`videoHeight` on `loadedmetadata` and sends them;
+  Lua resizes the window to that aspect ratio plus the header and the
+  deck, clamped into the screen, and remembers it the way the position
+  is remembered (6.232.0's `placeFor` is the precedent).
+  🚨 IT CANNOT BE BUILT UNTIL A FILM LOADS, and that is not a stall —
+  `loadedmetadata` is the only place those numbers exist, so 6.345.0's
+  `way in` line has to come back positive first. Said to him rather
+  than queued silently.
+  🗳 AND ONE QUESTION IT MUST ASK: a 21:9 film on the Air is a very
+  wide window. Does the aspect ratio win, or a maximum width?
 - 💾 DRAFT KEEPER — ESCALATED BY NAME (2026-10-10, LL: "Escalate draft
   keeper."). It is the NEXT release after the Mug Player, ahead of the
   tool-health timestamps, the ⌘5 veil, the snippet pair, the Hamsidian
@@ -6765,6 +6826,87 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.345.0 verify with LL — 🚨 THE MUG PLAYER PLAYS (KNOWN GROUND now)
+  WHAT CHANGED: films play. ⎋ closes the window. And the deck shows the
+  films' NAMES.
+  🔎 ONE FUNCTION DID ALL OF IT, and your screenshot is what named it.
+  Four things in that picture were blank: no "Mug Player" in the title
+  strip, "nothing playing" over a film that was queued, rows reading
+  "1" and "2" with no names, and a black stage. Four blanks is not four
+  bugs — it is one function that returns a blank. Every string the page
+  is handed went through `hs.json.encode`, which on a Mac REFUSES
+  anything that is not a table and raises; the error was caught and
+  turned into an empty string. The `<video>` was therefore never given
+  a film to play, which is the black rectangle, with WebKit's own play
+  button sitting on it.
+  🔬 AND THE GATE COULD NOT SEE IT: the test harness's fake encoder
+  took a bare string happily, so 174 checks and 44 page checks were
+  green over a payload no Mac could produce. The harness refuses it now
+  exactly as macOS does — and with that one change, the build you
+  installed fails ELEVEN checks.
+
+  A. THE HEADLINE — a minute.
+  A1. Press **⇪⇧,**. EXPECT: the window, and "Mug Player" in blue at
+      the top left. **A FAIL is a blank title strip** — that alone says
+      the fix did not take and nothing below will work.
+  A2. Drag two or three .mp4 films onto it.
+      EXPECT: the deck lists them BY NAME — not "1" and "2" — and the
+      header names the one that is playing.
+  A3. EXPECT a picture. **This is the step that could not happen
+      before.** If you get a black rectangle with a play button, press
+      it once, then go to D1 — that is new ground answering, and the
+      report now carries macOS's own reason.
+  A4. Native controls underneath: scrubber, clock, volume, full screen,
+      picture-in-picture.
+  A5. Press **Escape**. EXPECT: the window closes.
+  A6. Open it again, put the film FULL SCREEN, press Escape.
+      EXPECT: it leaves full screen and the window STAYS — WebKit owns
+      Esc there, deliberately, or you would be stuck in a full-screen
+      film with no way out. Press Esc again: now it closes.
+
+  B. THE REST OF THE DECK.
+  B1. ↑ ↓ walk, ⏎ plays, ⌘1–⌘9 play the Nth, ⌫ removes from the queue.
+  B2. **space** plays and pauses; **← →** seek, ⇧ with them seeks more.
+  B3. ✕ on a 🕘 history row: it vanishes and NOTHING starts playing.
+  B4. Let a film run to its end: the next one starts by itself.
+  B5. Drag a .mkv or a .mov: refused BY NAME, with ⌘O offered.
+  B6. ⌘O on a playing film: it opens in QuickTime.
+  B7. A film whose name has an & or an apostrophe in it — those are the
+      characters the escaper exists for. The name must read as itself.
+
+  C. MUST STILL WORK.
+  C1. **⇪⇧. the Jug Player** — drop an mp3, it plays. Same drag reader.
+  C2. ⇪Esc with nothing open still says "⎋ nothing open to close".
+  C3. A spread of ⇪ keys: ⇪T, ⇪D, ⇪N, ⇪3, ⇪X, ⇪4, ⇪space, ⇪V, ⇪/.
+  C4. Type a comma in any app. EXPECT: a comma.
+
+  D. PASTE BACK, PASS OR FAIL.
+  D1. `_G.mugReport()` — the whole block. Three lines have changed and
+      each answers something your last report could not:
+      · **way in** — "relative to the film's own folder" or "the
+        absolute file URL" tells me WHICH way in carried the film, and
+        that decides everything built on this next.
+      · **refused** + "↳ macOS said:" — if no door worked, this now
+        carries macOS's own MediaError. "the file is not there" and
+        "WebKit would not let this window read it" are opposite facts
+        and that line is the only thing that can tell them apart.
+      · **store** — should now say "written N bytes", not "no store
+        file yet". It was describing the disk as it was at boot.
+  D2. The **queue** line should read "playing #1", not "#1.0".
+
+  E. A JUDGEMENT ONLY YOU CAN MAKE.
+  E1. **Your answer on sizing is logged and is the NEXT release**: size
+      the window to the film's own shape, like VLC. It needs the page
+      to report the film's dimensions, which it can only do once a film
+      actually loads — so it waits on A3, not on a decision.
+  E2. 🔨 CRUDE OR ELEGANT: a brand-new tool that opened a window and
+      played nothing. My reading is that it degraded honestly — the
+      window opened, the queue filled, nothing was lost, and ⌘O always
+      worked — but the tool did not do its one job, and this is its
+      second pass. Your tag.
+  E3. Still unanswered from last time, and still only yours: .mp4 only,
+      or add .m4v and .mov? And 🔨/✨ for 6.343.0 and 6.344.0.
+
 - 6.344.0 verify with LL — 🎬 THE MUG PLAYER (NEW GROUND — expect a round)
   WHAT CHANGED: there is a new tool. **⇪⇧,** opens the Mug Player — a
   Jug Player for films. Drop .mp4 files on it, the first plays, the
