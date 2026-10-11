@@ -1196,7 +1196,13 @@ document.addEventListener('keydown',function(e){
         end
         vid.uc = nil
         vid.pageReady = false
-        vid.dropWhy   = "the window is closed"
+        -- 🔎 `dropWhy` IS NOT OVERWRITTEN HERE, and the mutation sweep is
+        -- what decided it: the report reads `vid.catcher` for the STATE
+        -- now, so this field is free to carry the last REASON — "window
+        -- closed · last: ready" says the catcher was up and fine when the
+        -- window went, where "last: the window is closed" is redundant
+        -- and throws that away. 6.199.0 from the other side: the line no
+        -- mutation could kill was not spare, it was WORSE than nothing.
         return true
     end
 

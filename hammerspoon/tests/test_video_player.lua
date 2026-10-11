@@ -1501,6 +1501,13 @@ vid.hide()
 local closed = reportText()
 check("🔎 a CLOSED window says so about the catcher, not 'ready'",
       closed:find("drop   : window closed", 1, true) ~= nil, closed)
+-- 🔎 AND THE LAST REASON SURVIVES THE CLOSE, which is what the sweep
+-- bought: the STATE is read off the object, so this field is free to
+-- carry how the catcher was DOING when the window went. hide() rewriting
+-- it to "the window is closed" made the line redundant and threw that
+-- away — the mutation that restores that write fails this row.
+check("🔎 …and still says the catcher had been up and fine",
+      closed:find("last: ready", 1, true) ~= nil, closed)
 check("🔎 …and says the page HAD spoken while it was open",
       closed:find("it HAD said it was ready", 1, true) ~= nil, closed)
 -- 🚨 AND THE FOURTH STATE, which is the one that was missing: a page

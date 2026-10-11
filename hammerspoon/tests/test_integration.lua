@@ -1167,6 +1167,28 @@ check("…and numpad_layer really calls it, rather than keeping a private "
     return src ~= nil and src:find("windows.rememberFrame", 1, true) ~= nil
 end)())
 
+-- 🚚 6.352.0 — THE MUG PLAYER'S OWN DROP ASKS FOR THE JUG PLAYER'S
+-- uri-list PARSER, and nothing joined the module that PUBLISHES it to
+-- the module that ASKS. test_video_player provides a stand-in through
+-- the lifted registry — correctly, it is testing its own module — so
+-- deleting the real `core.provide` left its whole suite green while the
+-- shipped page door would have stood down on every Mac. 6.273.0 word
+-- for word: a suite that invents a provider certifies its absence.
+check("🚚 the Jug Player publishes drag.urilist — the ONE uri-list parser "
+      .. "(a second copy is how two players come to disagree about one "
+      .. "drag)", SERVICES["drag.urilist"] == 1,
+      tostring(SERVICES["drag.urilist"]))
+-- 🔗 BOTH SIDES, or this is one-sided and blind to the half that moved
+-- (6.269.0): a published service nobody asks for would pass the check
+-- above for ever.
+check("…and the Mug Player really asks for it, rather than growing a "
+      .. "second copy of the percent-escape rule", (function()
+    local f = io.open(HS .. "/modules/video_player.lua", "r")
+    local src = f and f:read("*a")
+    if f then f:close() end
+    return src ~= nil and src:find("drag.urilist", 1, true) ~= nil
+end)())
+
 -- 🚨 THE NUMBER-PAD TYPO TEST, AND WHY IT CAN ONLY LIVE HERE.
 -- Since 6.49.0 the ⇪⇧ + pad layer binds by SERVICE NAME, resolved at
 -- keypress time. A typo — "focus.tggle" — binds perfectly, does nothing
