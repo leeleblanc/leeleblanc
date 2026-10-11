@@ -61,6 +61,9 @@ end
 -- and it TRUNCATES on "w" because macOS does (6.313.0): a stub that
 -- appended across opens would make the zero-byte window unreachable.
 local DISK, WRITE_FAILS, RENAME_FAILS = {}, false, false
+-- 🕒 the clock the stubbed hs.timer answers with; a test moves it to
+-- make a turn expensive (6.234.0 — the clock is an ARGUMENT).
+CLOCK, CLOCK_STEP = 1000, 0
 io.open = function(path, mode)
     if mode == "w" then
         if WRITE_FAILS then return nil end
@@ -70,7 +73,27 @@ io.open = function(path, mode)
     end
     if DISK[path] == nil then return nil end
     local body = DISK[path]
-    return { read = function() return body end, close = function() end }
+    -- 🔬 6.354.0 — AND THE READ IS FAITHFUL, which 6.290.0 is the ratchet
+    -- for. The old stub answered the WHOLE body to every `read`,
+    -- whatever it was asked for, and never answered nil — so the bytes
+    -- loader, which reads a bounded chunk per turn until EOF, would have
+    -- looped for ever against it and the real EOF branch would have been
+    -- unreachable from the gate. Lua's own file:read(n) returns AT MOST
+    -- n bytes and nil once there are none, and so does this.
+    local pos = 1
+    local f = { close = function() end }
+    function f:read(n)
+        if n == "*a" or n == "a" then
+            local rest = body:sub(pos) ; pos = #body + 1 ; return rest
+        end
+        local want = math.floor(tonumber(n) or 0)
+        if want < 1 then return "" end
+        if pos > #body then return nil end
+        local chunk = body:sub(pos, pos + want - 1)
+        pos = pos + #chunk
+        return chunk
+    end
+    return f
 end
 local realRename, realRemove = os.rename, os.remove
 os.rename = function(a, b)
@@ -91,8 +114,73 @@ hs = {
             function t:stop() self.stopped = true end
             TIMERS[#TIMERS + 1] = t ; return t
         end,
+        -- 🕒 A CLOCK THAT ADVANCES, so the per-turn budget and its 🔔
+        -- door are DRIVEN rather than grepped for. A frozen clock makes
+        -- every turn cost 0 ms, which puts the whole budget out of the
+        -- gate's reach — the shape 6.290.0 is the ratchet against.
+        -- CLOCK_STEP is 0 by default, so nothing else in the suite moves.
+        secondsSinceEpoch = function()
+            local c = CLOCK
+            CLOCK = CLOCK + (CLOCK_STEP or 0)
+            return c
+        end,
     },
-    fs    = { mkdir = function() return true end },
+    fs    = {
+        mkdir = function() return true end,
+        -- 🔬 A SIZE, read off the same virtual disk the reads come from,
+        -- so a film the loader can open is a film it can also measure —
+        -- and a film that is not there answers nil, which is the input
+        -- `loadPlan`'s first branch exists for.
+        attributes = function(path, key)
+            local body = DISK[path]
+            if body == nil then return nil end
+            local a = { size = #body, mode = "file" }
+            if key then return a[key] end
+            return a
+        end,
+    },
+    -- 🔬 BINARY-SAFE, like hs.base64 really is: extensions/base64/
+    -- libbase64.m encodes with luaL_tolstring + initWithBytes:length:,
+    -- so a NUL byte does NOT truncate a chunk. A stub that stopped at a
+    -- NUL would make a scrambled film unreachable from the gate, which
+    -- is the costliest shape 6.290.0 names.
+    base64 = {
+        encode = function(data)
+            local b = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+            local out, n = {}, #data
+            for i = 1, n, 3 do
+                local c1 = data:byte(i) or 0
+                local c2 = data:byte(i + 1)
+                local c3 = data:byte(i + 2)
+                local v = c1 * 65536 + (c2 or 0) * 256 + (c3 or 0)
+                local s1 = b:sub((v >> 18) + 1, (v >> 18) + 1)
+                local s2 = b:sub(((v >> 12) & 63) + 1, ((v >> 12) & 63) + 1)
+                local s3 = c2 and b:sub(((v >> 6) & 63) + 1, ((v >> 6) & 63) + 1) or "="
+                local s4 = c3 and b:sub((v & 63) + 1, (v & 63) + 1) or "="
+                out[#out + 1] = s1 .. s2 .. s3 .. s4
+            end
+            return table.concat(out)
+        end,
+        decode = function(str)
+            local b = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+            local out = {}
+            str = str:gsub("=", "")
+            local bits, acc = 0, 0
+            for i = 1, #str do
+                local c = str:sub(i, i)
+                local idx = b:find(c, 1, true)
+                if idx then
+                    acc = acc * 64 + (idx - 1) ; bits = bits + 6
+                    if bits >= 8 then
+                        bits = bits - 8
+                        out[#out + 1] = string.char((acc >> bits) & 255)
+                        acc = acc & ((1 << bits) - 1)
+                    end
+                end
+            end
+            return table.concat(out)
+        end,
+    },
     alert = { show = function(m) ALERTS[#ALERTS + 1] = tostring(m) end },
     window = {
         focusedWindow = function()
@@ -250,7 +338,15 @@ hs = {
                 if r == nil then return self.rect end
                 self.rect = { x = r.x, y = r.y, w = r.w, h = r.h } ; return self
             end
-            function v:evaluateJavaScript(s) JS[#JS + 1] = s ; return self end
+            function v:evaluateJavaScript(s)
+                -- 🔬 A window macOS has taken away THROWS here, which is
+                -- the only way the loader can learn mid-read that its
+                -- page is gone. A stub that always succeeded would make
+                -- that branch — and the file handle it closes —
+                -- unreachable from the gate (6.290.0).
+                if JS_THROWS then error("the window is gone", 0) end
+                JS[#JS + 1] = s ; return self
+            end
             v.winId = (WIN_SEQ or 0) + 1 ; WIN_SEQ = v.winId
             function v:hswindow()
                 if NO_HSWINDOW then return nil end
@@ -321,6 +417,17 @@ local function reset()
     vid.pageDrops, vid.catchDrops, vid.catchRefused = 0, 0, 0
     vid.handedOff, vid.byHand, vid.handOff = 0, 0, true
     vid.pageSpoke, vid.catcherOn, vid.uriWhy = false, false, nil
+    -- 6.354.0's bytes door, for the same reason a third time: a run
+    -- count, a turn count or a read in flight that survived reset() would
+    -- make the next section measure this one's film — and `load` surviving
+    -- would make a fresh section report a read that is not happening.
+    vid.loadStop(nil)
+    vid.loadRuns, vid.loadTurns, vid.loadWorst = 0, 0, 0
+    vid.loadBytes, vid.blobPlayed, vid.blobFailed, vid.loadSlow = 0, 0, 0, 0
+    vid.loadWhy, vid.blobLoad = "the loader has not been asked yet", true
+    vid.chunkBytes, vid.blobMax = 2 * 1024 * 1024, 1536 * 1024 * 1024
+    vid.slowTurnMs, vid.loadEvery = 120, 0
+    CLOCK, CLOCK_STEP = 1000, 0
     vid.dragSeen, vid.dropReader = "no drag yet this session", nil
     if vid.retryTimer then
         pcall(function() vid.retryTimer:stop() end) ; vid.retryTimer = nil
@@ -329,6 +436,7 @@ local function reset()
     SHOW_REFUSES, NO_WEBVIEW, NO_CANVAS = false, false, false
     NO_DRAGLEVEL, NO_DRAGCB = false, false
     CANVAS_SHOW_REFUSES = false
+    JS_THROWS = false
     CANVAS_REFUSES, TASK_START_REFUSES, NO_TASK = false, false, false
     WRITE_FAILS, RENAME_FAILS = false, false
     if vid.webview then vid.hide() end
@@ -417,13 +525,22 @@ check("🔑 an apostrophe is encoded",
 -- §4 ── the ways in ----------------------------------------------------
 out("\n§4 the doors, in order\n")
 local doors = vid.sourceDoors("/Films/My Film.mp4")
--- 🚪 6.353.0 — TWO, not three. The third was a page written as a FILE
--- beside the film and asked for by file URL, and his Mac answered it
--- with NSURLErrorDomain -3001 ("Cannot open file") — a NAVIGATION
--- error, which unlike MediaError code 4 is not ambiguous. It is gone,
--- and §20 holds the measurement that removed it.
-check("🪟 there are TWO ways in, and more than one is the point",
-      #doors == 2, #doors)
+-- 🚪 6.354.0 — THREE, and the THIRD IS NOT A URL. 6.351.0's third door
+-- was a page written as a FILE beside the film and asked for by file
+-- URL; his Mac answered it with NSURLErrorDomain -3001 ("Cannot open
+-- file"), a NAVIGATION error, which unlike MediaError code 4 is not
+-- ambiguous. That door is gone (§20 holds the measurement) and what
+-- replaces it carries no URL at all.
+check("🪟 there are THREE ways in, and more than one is the point",
+      #doors == 3, #doors)
+check("🪟 …and the LAST one carries no URL — that is the whole point of"
+      .. " it, so a refusal of file:// cannot reach it",
+      doors[3].bytes == true and doors[3].src == ""
+      and doors[3].base == nil,
+      tostring(doors[3].bytes) .. " | " .. tostring(doors[3].src))
+check("🪟 …and the two URL doors are NOT marked as the bytes door, or"
+      .. " the walker would stop rebuilding for a new base URL",
+      doors[1].bytes == nil and doors[2].bytes == nil)
 check("🪟 door 1 is the film's own folder as the base URL",
       doors[1].base == "file:///Films/" and doors[1].src == "My%20Film.mp4",
       tostring(doors[1].base) .. " | " .. tostring(doors[1].src))
@@ -671,8 +788,8 @@ vid.handleMessage({ a = "srcfail", d = 1, gen = vid.gen })
 vid.handleMessage({ a = "srcfail", d = 2, gen = vid.gen })
 check("🚨 with every way in refused the PAGE is told, in words",
       jsHas("fail("))
-check("🚨 …and the door does not run past the last one", vid.door == 2,
-      tostring(vid.door))
+check("🚨 …and the door does not run past the last one",
+      vid.door == #vid.sourceDoors("/F/A.mp4"), tostring(vid.door))
 -- 🚪 6.353.0 — AND THE MESSAGE NO LONGER ASKS HIM TO DIAGNOSE IT. The
 -- old one named both things MediaError code 4 can mean and gave him a
 -- test to tell them apart, which was right while the question was
@@ -681,8 +798,12 @@ check("🚨 …and the door does not run past the last one", vid.door == 2,
 -- film instead of what might be wrong with it.
 check("🚪 …and the page says the film is going to a real player",
       jsHas("is opening in"))
-check("🚪 …naming the error that settled it, so the claim is checkable",
-      jsHas("-3001"))
+-- 🔎 AND IT NAMES WHY THE BYTES DOOR DID NOT CARRY IT EITHER, which is
+-- the fact that makes the sentence actionable: on this harness there is
+-- no film on disk to read, and he must be able to tell that apart from
+-- a film WebKit would not decode.
+check("🚪 …naming why the bytes door did not carry it either",
+      jsHas("the bytes straight") and jsHas("through the window"))
 check("🔬 …and the Mac is asked what the film actually holds",
       vid.codecsFor == "/F/A.mp4" and vid.codecs ~= nil, tostring(vid.codecs))
 
@@ -1252,9 +1373,24 @@ out("\n§20 the third way in — measured, and removed\n")
 -- NAVIGATION error, so unlike MediaError code 4 it is not ambiguous.
 reset()
 local doors = vid.sourceDoors("/Films/My Film.mp4")
-check("🚪 there are TWO ways in now, not three", #doors == 2, #doors)
-check("🚪 …and neither of them is a file this tool writes", (function()
+-- 🚪 THE RULE IS NOT "TWO DOORS" — 6.354.0 added a third. The rule is
+-- that there is no third URL, and nothing in the doors is a file this
+-- tool writes: the shape that destroyed the window was a WRITE followed
+-- by a NAVIGATION, and asserting a COUNT would go red the next time a
+-- door is added while saying nothing about the defect (6.248.0).
+check("🚪 no door is a file this tool writes", (function()
     for _, d in ipairs(doors) do if d.file then return false end end
+    return true
+end)())
+check("🚪 …and every door is EITHER a file:// URL or carries no URL at"
+      .. " all — there is no third thing to navigate to", (function()
+    for _, d in ipairs(doors) do
+        if d.bytes then
+            if d.src ~= "" then return false end
+        elseif not tostring(d.src):find("%.mp4$") then
+            return false
+        end
+    end
     return true
 end)())
 
@@ -1357,7 +1493,7 @@ check("🚪 the last refusal hands the film to a real player",
       vid.externals == 1 and vid.handedOff == 1,
       vid.externals .. "/" .. vid.handedOff)
 check("🚪 …and the page SAYS so rather than showing a dead stage",
-      jsHas("is opening in") and jsHas("-3001"))
+      jsHas("is opening in") and jsHas("through the window"))
 -- 🔌 AND THE SWITCH IS REAL IN BOTH DIRECTIONS (6.228.0/6.259.0).
 reset()
 vid.show()
@@ -1563,6 +1699,365 @@ check("🚪 the report counts the two doors apart",
       reportText():find("2 drop(s) through the window itself", 1, true) ~= nil
       and reportText():find("1 through the catcher underneath", 1, true) ~= nil,
       reportText())
+
+
+-- §22 ── THE BYTES THROUGH THE WINDOW (6.354.0) -----------------------
+out("\n§22 the bytes through the window, not a URL\n")
+
+-- 📦 Drain the read the way the run loop does: loadTurn clears
+-- vid.loadTimer at its top and re-arms at its bottom, so that field
+-- always points at the NEXT pending turn.
+local function runLoad(cap)
+    local n = 0
+    while vid.loadTimer and n < (cap or 2000) do
+        local t = vid.loadTimer
+        n = n + 1
+        if t.stopped or not t.fn then break end
+        t.fn()
+    end
+    return n
+end
+
+-- 📦 What actually reached the page, decoded back into bytes. This is
+-- the check a scrambling or truncating bug fails: the film the window
+-- was handed must be the film on the disk, byte for byte.
+local function blobBytes()
+    local outb = {}
+    for _, js in ipairs(JS) do
+        local b64 = js:match("^blobChunk%('([^']*)'%);$")
+        if b64 then outb[#outb + 1] = hs.base64.decode(b64) end
+    end
+    return table.concat(outb)
+end
+local function jsCount(needle)
+    local n = 0
+    for _, js in ipairs(JS) do
+        if js:find(needle, 1, true) then n = n + 1 end
+    end
+    return n
+end
+
+-- ---- the plan, PURE ---------------------------------------------------
+local okP, whyP = vid.loadPlan(nil, 100, 10)
+check("📐 a size the Mac would not give is not a size of 0",
+      okP == false and whyP:find("would not say", 1, true) ~= nil, whyP)
+local okZ, whyZ = vid.loadPlan(0, 100, 10)
+check("📐 …and a 0-byte film is refused too",
+      okZ == false, whyZ)
+local okC, whyC = vid.loadPlan(100, 1000, 0)
+-- 🚨 TWO REFUSALS THAT SHARE AN ACTION MUST NOT SHARE A SENTENCE
+-- (6.338.0): both stop the read, and only the REASON tells him whether
+-- his Mac could not measure the film or his own settings line broke the
+-- loader. A check on the action alone passes with either branch deleted.
+check("📐 a chunk of 0 is refused, and NOT with the same words",
+      okC == false and whyC ~= whyP and whyC:find("never", 1, true) ~= nil,
+      whyC)
+local okE, whyE, turnsE = vid.loadPlan(100, 100, 10)
+check("📐 a film EXACTLY at the ceiling loads — the ceiling is a `>`",
+      okE == true and turnsE == 10, tostring(okE) .. " " .. tostring(turnsE))
+local okO, whyO = vid.loadPlan(101, 100, 10)
+check("📐 …and one byte over it does not", okO == false, whyO)
+check("📐 …and the refusal carries BOTH sizes, so it is actionable",
+      whyO:find("0.0 MB", 1, true) ~= nil
+      and whyO:find("ceiling", 1, true) ~= nil, whyO)
+local _, _, turnsR = vid.loadPlan(5, 1000, 2)
+check("📐 the turns round UP — 5 bytes in 2s is three turns, not two",
+      turnsR == 3, tostring(turnsR))
+
+-- ---- the whole read, end to end --------------------------------------
+reset()
+DISK = {}
+local FILM = "/F/film.mp4"
+-- seven distinguishable bytes, read two at a time: a chunk dropped,
+-- doubled or delivered out of order cannot survive this.
+DISK[FILM] = "ABCDEFG"
+vid.chunkBytes = 2
+vid.show()
+vid.queue = { { path = FILM, title = "Film" } }
+vid.playIndex(1)
+JS = {}
+vid.handleMessage({ a = "srcfail", d = 1, gen = vid.gen, code = 4 })
+vid.handleMessage({ a = "srcfail", d = 2, gen = vid.gen, code = 4 })
+check("📦 both file URLs refused, so the bytes door takes it",
+      vid.door == 3 and vid.load ~= nil, tostring(vid.door))
+check("📦 …and the film is NOT handed out while the read is in flight",
+      vid.externals == 0 and not jsHas("is opening in"))
+check("📦 the page is told the TOTAL first, so its line is a percentage",
+      jsHas("blobStart(7,"))
+local turns = runLoad()
+check("📦 the read ran to the end and closed its own handle",
+      vid.load == nil and vid.loadTimer == nil, tostring(turns))
+check("📦 …in four turns — three of two bytes and one of one",
+      vid.loadTurns == 4, tostring(vid.loadTurns))
+check("📦 EVERY BYTE ARRIVED, IN ORDER, as the film on the disk",
+      blobBytes() == "ABCDEFG", blobBytes())
+check("📦 …and blobEnd was pushed exactly ONCE, after the last chunk",
+      jsCount("blobEnd();") == 1
+      and JS[#JS]:find("blobEnd", 1, true) ~= nil, JS[#JS])
+check("📦 …and the bytes are counted, so the report can say what they cost",
+      vid.loadBytes == 7 and vid.loadRuns == 1,
+      vid.loadBytes .. "/" .. vid.loadRuns)
+
+-- 🚨 AND A BIGGER CHUNK THAN THE FILM IS ONE TURN, not a loop that
+-- reads an empty string for ever. The faithful read stub is what makes
+-- this provable: it answers nil at EOF the way Lua does.
+reset()
+DISK = { ["/F/tiny.mp4"] = "xyz" }
+vid.chunkBytes = 1024
+vid.show()
+vid.queue = { { path = "/F/tiny.mp4", title = "Tiny" } }
+vid.playIndex(1)
+vid.door = 2
+vid.handleMessage({ a = "srcfail", d = 2, gen = vid.gen, code = 4 })
+runLoad()
+check("📦 a chunk bigger than the film is one turn and one end",
+      vid.loadTurns == 1 and blobBytes() == "xyz"
+      and jsCount("blobEnd();") == 1, tostring(vid.loadTurns))
+
+-- ---- the handle closes on EVERY way the read can end ------------------
+-- 🚪 6.304.0: a busy flag released only by SUCCESS is a wedge, and here
+-- the flag holds an open file handle.
+local function startRead(body)
+    reset()
+    DISK = { ["/F/long.mp4"] = body }
+    vid.chunkBytes = 2
+    vid.show()
+    vid.queue = { { path = "/F/long.mp4", title = "Long" } }
+    vid.playIndex(1)
+    vid.door = 2
+    vid.handleMessage({ a = "srcfail", d = 2, gen = vid.gen, code = 4 })
+end
+
+startRead("ABCDEFGHIJKLMNOP")
+check("📦 the read is in flight", vid.load ~= nil)
+vid.loadTimer.fn()   -- one turn, then he closes the window
+vid.hide()
+check("🚪 closing the window mid-read ends it and closes the handle",
+      vid.load == nil and vid.loadTimer == nil)
+
+startRead("ABCDEFGHIJKLMNOP")
+vid.loadTimer.fn()
+vid.queue[2] = { path = "/F/other.mp4", title = "Other" }
+DISK["/F/other.mp4"] = "zz"
+vid.playIndex(2)
+check("🚪 playing a different film ends the read for the one before it",
+      vid.load == nil)
+
+startRead("ABCDEFGHIJKLMNOP")
+local inFlight = vid.loadTimer
+vid.gen = vid.gen + 1          -- something else claimed the player
+inFlight.fn()
+check("🪪 a turn that lands after the film changed does nothing, and"
+      .. " still closes the handle",
+      vid.load == nil and vid.loadTimer == nil)
+
+startRead("ABCDEFGHIJKLMNOP")
+JS_THROWS = true
+vid.loadTimer.fn()
+check("🚪 a window that has gone away ends the read rather than looping",
+      vid.load == nil and vid.loadTimer == nil)
+check("🔔 …and it takes the degrade door rather than failing in silence",
+      anyHas(DEGRADED, "would not take the film"), DEGRADED[#DEGRADED])
+JS_THROWS = false
+
+-- ---- it either begins or it says why ----------------------------------
+-- 🚨 A MAC THAT CANNOT ARM A TIMER DOES NOT BEGIN, and the film goes
+-- out instead of leaving a window that says it is loading for ever.
+reset()
+DISK = { [FILM] = "ABCDEFG" }
+vid.show()
+vid.queue = { { path = FILM, title = "Film" } }
+vid.playIndex(1)
+local realAfter = hs.timer.doAfter
+hs.timer.doAfter = nil
+vid.door = 2
+vid.handleMessage({ a = "srcfail", d = 2, gen = vid.gen, code = 4 })
+hs.timer.doAfter = realAfter
+check("🚨 no timer = the read never begins, and it SAYS which",
+      vid.load == nil
+      and vid.loadWhy:find("cannot arm a timer", 1, true) ~= nil,
+      vid.loadWhy)
+check("🚨 …and the film goes out rather than sitting on a dead stage",
+      vid.externals == 1 and vid.handedOff == 1)
+
+reset()
+DISK = { [FILM] = "ABCDEFG" }
+vid.show()
+vid.queue = { { path = FILM, title = "Film" } }
+vid.playIndex(1)
+local realB64 = hs.base64
+hs.base64 = nil
+vid.door = 2
+vid.handleMessage({ a = "srcfail", d = 2, gen = vid.gen, code = 4 })
+hs.base64 = realB64
+check("🚨 no hs.base64 = the read never begins, and it SAYS so",
+      vid.load == nil and vid.loadWhy:find("hs.base64", 1, true) ~= nil,
+      vid.loadWhy)
+
+reset()
+DISK = { [FILM] = "ABCDEFG" }
+vid.blobMax = 3
+vid.show()
+vid.queue = { { path = FILM, title = "Film" } }
+vid.playIndex(1)
+vid.door = 2
+vid.handleMessage({ a = "srcfail", d = 2, gen = vid.gen, code = 4 })
+check("📏 a film over the ceiling is refused, with both sizes named",
+      vid.load == nil and vid.loadWhy:find("ceiling", 1, true) ~= nil,
+      vid.loadWhy)
+check("📏 …and THAT film goes out to a real player",
+      vid.externals == 1 and vid.handedOff == 1)
+
+-- 🔌 THE SWITCH IS REAL IN BOTH DIRECTIONS (6.228.0/6.259.0).
+reset()
+DISK = { [FILM] = "ABCDEFG" }
+vid.blobLoad = false
+vid.show()
+vid.queue = { { path = FILM, title = "Film" } }
+vid.playIndex(1)
+vid.door = 2
+vid.handleMessage({ a = "srcfail", d = 2, gen = vid.gen, code = 4 })
+check("🔌 blobLoad = false does not read, and names the line back",
+      vid.load == nil and vid.loadRuns == 0
+      and vid.loadWhy:find("blobLoad = true", 1, true) ~= nil, vid.loadWhy)
+check("🔌 …and the report SAYS it is off rather than reading as healthy",
+      reportText():find("puts the bytes door back", 1, true) ~= nil)
+vid.blobLoad = true
+
+-- ---- the per-turn budget ---------------------------------------------
+-- 🔔 PAST THE BUDGET IT TAKES THE DOOR — ONCE PER FILM, not once per
+-- turn: three hundred alerts is a tool he switches off (6.260.0).
+reset()
+DISK = { ["/F/slow.mp4"] = "ABCDEFGHIJ" }
+vid.chunkBytes, vid.slowTurnMs = 2, 50
+vid.show()
+vid.queue = { { path = "/F/slow.mp4", title = "Slow" } }
+vid.playIndex(1)
+vid.door = 2
+vid.handleMessage({ a = "srcfail", d = 2, gen = vid.gen, code = 4 })
+-- a second between the two clock reads INSIDE each turn: far past 50 ms
+CLOCK_STEP = 1
+local slowTurns = 0
+while vid.loadTimer do
+    local t = vid.loadTimer
+    slowTurns = slowTurns + 1
+    if slowTurns > 20 then break end
+    t.fn()
+end
+CLOCK_STEP = 0
+local said = 0
+for _, d in ipairs(DEGRADED) do
+    if d:find("costing", 1, true) then said = said + 1 end
+end
+check("🔔 a slow read takes the door ONCE, not once per turn",
+      said == 1, tostring(said))
+check("🔔 …and the report counts it and names the budget",
+      vid.loadSlow == 1
+      and reportText():find("crossed 50 ms", 1, true) ~= nil,
+      tostring(vid.loadSlow))
+check("🔔 …and the slow read still DELIVERED the film",
+      blobBytes() == "ABCDEFGHIJ", blobBytes())
+CLOCK, CLOCK_STEP = 1000, 0
+
+-- ---- the door that worked, and the one never remembered --------------
+-- 🚨 THE BYTES DOOR MUST NEVER BECOME THE STARTING DOOR. It carries no
+-- URL, so a film painted straight onto it has nothing to fail and
+-- nothing to advance the walker — the loader would never be reached and
+-- the NEXT film would simply never play. The mutation that drops the
+-- `not won.bytes` guard fails here.
+reset()
+vid.show()
+vid.queue = { { path = FILM, title = "Film" } }
+vid.index, vid.gen, vid.door = 1, 1, 3
+vid.handleMessage({ a = "srcok", d = 3, gen = 1 })
+check("🔑 the bytes door is recorded as the one that carried the film",
+      vid.doorWorked == "the bytes through the window, not a URL",
+      tostring(vid.doorWorked))
+check("🔑 …and it is COUNTED as a film the window really played",
+      vid.blobPlayed == 1, tostring(vid.blobPlayed))
+check("🚨 …but it is NOT remembered as the door to start on",
+      vid.doorStart == 1, tostring(vid.doorStart))
+reset()
+vid.show()
+vid.queue = { { path = FILM, title = "Film" } }
+vid.index, vid.gen, vid.door = 1, 1, 2
+vid.handleMessage({ a = "srcok", d = 2, gen = 1 })
+check("🔑 …while a URL door that works IS remembered",
+      vid.doorStart == 2 and vid.blobPlayed == 0, tostring(vid.doorStart))
+
+-- ---- the page threw while assembling ---------------------------------
+reset()
+DISK = { [FILM] = "ABCDEFG" }
+vid.show()
+vid.queue = { { path = FILM, title = "Film" } }
+vid.playIndex(1)
+vid.door = 2
+vid.handleMessage({ a = "srcfail", d = 2, gen = vid.gen, code = 4 })
+runLoad()
+vid.handleMessage({ a = "blobfail", gen = vid.gen, why = "out of room" })
+check("📦 a page that threw mid-assembly is counted apart from a refusal",
+      vid.blobFailed == 1 and vid.blobPlayed == 0, tostring(vid.blobFailed))
+check("🔔 …takes the degrade door with the page's own words",
+      anyHas(DEGRADED, "out of room"), DEGRADED[#DEGRADED])
+check("🚪 …and the film goes out",
+      vid.externals == 1 and vid.handedOff == 1)
+check("📦 …and a late one about the film before it is ignored",
+      (function()
+          local n = vid.blobFailed
+          vid.handleMessage({ a = "blobfail", gen = vid.gen - 1, why = "late" })
+          return vid.blobFailed == n
+      end)())
+
+-- ---- the report's four states ----------------------------------------
+reset()
+check("🔎 before any film the report says the loader has not been asked",
+      reportText():find("has not been asked for a film yet", 1, true) ~= nil,
+      reportText())
+startRead("ABCDEFGHIJKLMNOP")
+vid.loadTimer.fn()
+check("🔎 a read IN FLIGHT reads as one, with how far it has got",
+      reportText():find("now   : reading", 1, true) ~= nil
+      and reportText():find(" of ", 1, true) ~= nil, reportText())
+runLoad()
+check("🔎 …and a finished read reads as finished, with its turns",
+      reportText():find("1 film(s) read into the window", 1, true) ~= nil
+      and reportText():find("turns :", 1, true) ~= nil, reportText())
+-- 🔑 AND THE CODECS VERDICT SHARPENS BY ELIMINATION: the bytes door
+-- cannot be refused for read access, so a film that still will not play
+-- once the bytes are inside is a DECODE problem and nothing else.
+vid.codecs = "H.264, AAC"
+check("🔑 bytes in and still no play = the report says it is DECODING",
+      reportText():find("STILL WOULD NOT PLAY", 1, true) ~= nil,
+      reportText())
+vid.handleMessage({ a = "srcok", d = 3, gen = vid.gen })
+check("🔑 …and once it plays, that sentence is gone",
+      reportText():find("STILL WOULD NOT PLAY", 1, true) == nil)
+vid.codecs = nil
+reset()
+
+-- ---- the source says what it is --------------------------------------
+local SRC = assert(realOpen(HS .. "/modules/video_player.lua")):read("*a")
+check("🔒 the sentries below really read the module",
+      type(SRC) == "string" and #SRC > 60000, tostring(#(SRC or "")))
+check("🔒 the file handle is closed in ONE place, and that place is the"
+      .. " one door every exit goes through",
+      select(2, SRC:gsub("L%.f:close%(%)", "")) == 1
+      and SRC:find("function vid.loadStop", 1, true) ~= nil)
+-- 🚨 A base64 chunk is A–Z a–z 0–9 + / = and nothing else, so it needs
+-- no escaping — and running three gsubs over two and a half megabytes
+-- every turn is main-thread work for nothing (6.228.0).
+local pushLine = nil
+for line in SRC:gmatch("[^\n]+") do
+    if line:find("blobChunk", 1, true) and line:find("pushJs", 1, true) then
+        pushLine = line
+    end
+end
+check("🔒 the chunk push does not go through jsEscape",
+      pushLine ~= nil and pushLine:find("jsEscape", 1, true) == nil,
+      tostring(pushLine))
+check("🔒 and the loader reads the film by the CHUNK, never whole",
+      SRC:find('L%.f:read%(L%.chunk%)') ~= nil
+      and SRC:find('L%.f:read%("%*a"%)') == nil)
 
 -- ---- the tally ---------------------------------------------------------
 realPrint("")

@@ -535,8 +535,26 @@ local NOT_AUTOMATED = {
                  .. " caller's onCancel — but a suite NEEDS the quiet one for"
                  .. " every check that is not about the belt's first leg, so a"
                  .. " static sentry here would cry wolf on correct tests (6.269.0)" },
+    { "6.354.0", "a stubbed io.open whose `read` ignores its LENGTH and never"
+                 .. " answers nil is gentler than Lua: a module that reads a"
+                 .. " file by the chunk loops for ever against it and its EOF"
+                 .. " branch is unreachable. Not a sentry, deliberately — every"
+                 .. " other suite here reads a whole small store and its"
+                 .. " `read = function() return body end` is CORRECT, so a"
+                 .. " static check would go red on a healthy tree (6.269.0)."
+                 .. " What holds it instead is functional and cannot be"
+                 .. " satisfied by a gentle stub: test_video_player §22 drains"
+                 .. " a real chunked read to EOF, so a read that never ends"
+                 .. " leaves `vid.load` non-nil and fails by name" },
+    { "6.354.0", "a Blob/URL.createObjectURL stub that forgets the BYTES makes"
+                 .. " the bytes door's one claim — that the film reaching the"
+                 .. " window is the film on the disk, in order — a check about"
+                 .. " nothing. test_mug_js models the blob store and asserts"
+                 .. " the assembled bytes; it lives in the page suite because"
+                 .. " nothing in Lua can see a JS Blob" },
 }
-check("the unautomated contracts are listed, not implied", #NOT_AUTOMATED == 10)
+check("the unautomated contracts are listed, not implied", #NOT_AUTOMATED == 12,
+      #NOT_AUTOMATED)
 for _, row in ipairs(NOT_AUTOMATED) do
     out("   · " .. row[1] .. "  " .. row[2] .. "\n")
 end

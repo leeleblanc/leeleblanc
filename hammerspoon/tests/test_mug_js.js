@@ -82,6 +82,13 @@ function makeEnv() {
       style: {}, attrs: {}, loads: 0, paused: true, plays: 0, pauses: 0,
       get innerHTML() { return this._html; },
       set innerHTML(v) { this._html = v; },
+      // 🔬 6.354.0 — `src` IS REFLECTED, as a real DOM reflects it. The
+      // page sets the stage with `v.src = …` (a property) and clears it
+      // with removeAttribute('src'); a stub that kept those in two
+      // different places would answer null for a video that is playing,
+      // which puts the whole bytes door out of the gate's reach.
+      get src() { return this.attrs.src === undefined ? "" : this.attrs.src; },
+      set src(v) { this.attrs.src = String(v); },
       setAttribute(a, v) { this.attrs[a] = v; },
       getAttribute(a) { return a in this.attrs ? this.attrs[a] : null; },
       removeAttribute(a) { delete this.attrs[a]; },
@@ -106,15 +113,64 @@ function makeEnv() {
   for (const id of ["head", "brand", "now", "stage", "v", "msg", "drop", "deck"]) {
     byId[id] = mk(id);
   }
+  // 📦 6.354.0 — THE BLOB STORE, MODELLED RATHER THAN WAVED AT. The
+  // bytes door's whole claim is that the film that reaches the window is
+  // the film on the disk, in order — so the stub has to KEEP the bytes,
+  // in order, or the check that proves it is a check about nothing
+  // (6.290.0). A vm context gets V8's built-ins but none of Node's
+  // globals, so atob, Blob and URL have to be here at all.
+  const blobs = [];
+  const urls  = {};
+  let urlSeq  = 0;
+  const bytesOf = (part) => {
+    if (part && part.__blob) return part.bytes;
+    if (part instanceof Uint8Array) return Array.from(part);
+    if (typeof part === "string") {
+      return Array.from(part, (c) => c.charCodeAt(0) & 255);
+    }
+    return [];
+  };
+  function Blob(parts, opts) {
+    const bytes = [];
+    for (const p of (parts || [])) bytes.push(...bytesOf(p));
+    this.__blob = true;
+    this.bytes = bytes;
+    this.size = bytes.length;
+    this.type = (opts && opts.type) || "";
+    blobs.push(this);
+  }
   const sandbox = {
     document: {
       getElementById: (id) => byId[id] || null,
       addEventListener: (ev, fn) => { listeners.document[ev] = fn; },
     },
     webkit: { messageHandlers: { mugPlayer: { postMessage: (m) => sent.push(m) } } },
+    Uint8Array,
+    Blob,
+    // 🔬 a real decode: a stub that answered the input unchanged would
+    // make a scrambled film unreachable from the gate.
+    atob: (b64) => {
+      const buf = Buffer.from(String(b64), "base64");
+      if (buf.toString("base64").replace(/=+$/, "")
+          !== String(b64).replace(/=+$/, "")) {
+        throw new Error("InvalidCharacterError");
+      }
+      let o = "";
+      for (const b of buf) o += String.fromCharCode(b);
+      return o;
+    },
+    URL: {
+      createObjectURL: (b) => {
+        urlSeq += 1;
+        const u = "blob:mug/" + urlSeq;
+        urls[u] = b;
+        return u;
+      },
+      revokeObjectURL: (u) => { delete urls[u]; },
+    },
   };
   return { sandbox, sent, listeners, byId, texts, scrolledCount: () => scrolled,
-           rowObjs };
+           rowObjs, blobs, urls, liveURLs: () => Object.keys(urls) };
 }
 
 function load() {
@@ -513,6 +569,127 @@ console.log("── Mug Player: page JavaScript, executed ──");
         ev.prevented === false);
   check("…and the page sends nothing at all",
         env.sent.length === 0, JSON.stringify(env.sent));
+}
+
+// =====================================================================
+// 10. THE BYTES THROUGH THE WINDOW (6.354.0)
+// =====================================================================
+// Both file:// doors are refused on his Mac, so the third one carries no
+// URL at all: Lua reads the film in chunks and pushes them here. These
+// checks prove the one thing that claim rests on — the film that reaches
+// the window is the film on the disk, in order.
+{
+  const env = load();
+  const FILM = "ABCDEFGHIJ";          // ten distinguishable bytes
+  const b64 = (s) => Buffer.from(s, "binary").toString("base64");
+  env.call("blobStart(" + FILM.length + ",7);");
+  check("blobStart says what is happening, with a percentage",
+        env.byId.msg.textContent.indexOf("reading the film") !== -1
+        && env.byId.msg.style.display === "flex",
+        env.byId.msg.textContent);
+  check("…and it clears whatever the stage was showing first",
+        env.byId.v.getAttribute("src") === null
+        && env.byId.v.getAttribute("data-src") === null);
+
+  // three chunks, in order, as Lua pushes them
+  env.call("blobChunk('" + b64("ABCD") + "');");
+  check("the progress line climbs with the bytes",
+        env.byId.msg.textContent.indexOf("40%") !== -1,
+        env.byId.msg.textContent);
+  env.call("blobChunk('" + b64("EFGH") + "');");
+  env.call("blobChunk('" + b64("IJ") + "');");
+  check("nothing is posted back while a read is going well",
+        env.sent.length === 0, JSON.stringify(env.sent));
+
+  env.call("blobEnd();");
+  const src = env.byId.v.getAttribute("src");
+  check("blobEnd puts an object URL on the video", /^blob:/.test(String(src)),
+        String(src));
+  check("…and the stage stops saying it is reading",
+        env.byId.msg.style.display === "none");
+  check("…and it plays without being asked twice",
+        env.byId.v.plays === 1 && env.byId.v.loads > 0,
+        env.byId.v.plays + "/" + env.byId.v.loads);
+  // 📦 THE CHECK THE WHOLE DOOR RESTS ON.
+  const got = env.urls[src];
+  const text = got ? got.bytes.map((b) => String.fromCharCode(b)).join("") : "";
+  check("EVERY BYTE IS THERE, IN ORDER, as the film on the disk",
+        text === FILM, text);
+  check("…and the Blob is typed as a film, or WebKit will not play it",
+        got && got.type === "video/mp4", got && got.type);
+
+  // 🚨 THE GUARD THIS RELEASE NEEDED MOST: door 3 carries no `src`, so
+  // every redraw after the film is playing would have torn it down —
+  // a selection move, a new history row, anything.
+  env.draw(ROWS.replace(/src:"[^"]*"/, 'src:""'));
+  check("a redraw does NOT tear the playing film down",
+        env.byId.v.getAttribute("src") === src,
+        String(env.byId.v.getAttribute("src")));
+  check("…and the object URL is still live",
+        env.liveURLs().indexOf(src) !== -1);
+
+  // 📦 …but a URL door taking over DOES drop it, or the old film plays
+  // on under the new one and an object URL leaks.
+  env.draw(ROWS.replace(/src:"[^"]*"/, 'src:"file:///F/next.mp4"'));
+  check("a URL door taking over revokes the object URL",
+        env.liveURLs().indexOf(src) === -1, env.liveURLs().join(","));
+  check("…and the stage is showing the new film",
+        env.byId.v.getAttribute("src") === "file:///F/next.mp4");
+}
+
+// ---- a chunk that cannot be decoded -----------------------------------
+{
+  const env = load();
+  env.call("blobStart(10,7);");
+  env.call("blobChunk('!!! not base64 !!!');");
+  check("a chunk the window cannot decode is REPORTED, not swallowed",
+        env.sent.some((m) => m.a === "blobfail"), JSON.stringify(env.sent));
+  check("…carrying the page's own words, so Lua can say what happened",
+        (env.sent.find((m) => m.a === "blobfail") || {}).why !== undefined);
+  check("…and the generation, so a late one cannot speak for this film",
+        (env.sent.find((m) => m.a === "blobfail") || {}).gen === 7);
+  // and the half-read is abandoned rather than finished with a hole in it
+  env.sent.length = 0;
+  env.call("blobEnd();");
+  check("…and blobEnd after a failed chunk assembles NOTHING",
+        /^blob:/.test(String(env.byId.v.getAttribute("src"))) === false,
+        String(env.byId.v.getAttribute("src")));
+}
+
+// ---- a push with no read in flight ------------------------------------
+{
+  const env = load();
+  env.call("blobChunk('QUJD');");
+  env.call("blobEnd();");
+  // the page has already drawn the payload's own src by now, so the fact
+  // that bites is that NO BLOB appeared — not that the stage is empty.
+  check("a chunk with no read in flight is ignored, and nothing throws",
+        env.sent.length === 0
+        && /^blob:/.test(String(env.byId.v.getAttribute("src"))) === false
+        && env.liveURLs().length === 0,
+        JSON.stringify(env.sent) + " " + env.byId.v.getAttribute("src"));
+}
+
+// ---- a second film, read while the first is playing -------------------
+{
+  const env = load();
+  const b64 = (s) => Buffer.from(s, "binary").toString("base64");
+  env.call("blobStart(3,1);");
+  env.call("blobChunk('" + b64("AAA") + "');");
+  env.call("blobEnd();");
+  const first = env.byId.v.getAttribute("src");
+  env.call("blobStart(3,2);");
+  check("starting a second read revokes the first film's URL",
+        env.liveURLs().indexOf(first) === -1, env.liveURLs().join(","));
+  check("…and clears the stage rather than leaving the old film up",
+        env.byId.v.getAttribute("src") === null);
+  env.call("blobChunk('" + b64("BBB") + "');");
+  env.call("blobEnd();");
+  const second = env.byId.v.getAttribute("src");
+  const got = env.urls[second];
+  check("…and the second film is the second film",
+        got && got.bytes.map((b) => String.fromCharCode(b)).join("") === "BBB",
+        got && got.bytes.join(","));
 }
 
 console.log(`── test_mug_js: ${pass} passed, ${fail} failed`);

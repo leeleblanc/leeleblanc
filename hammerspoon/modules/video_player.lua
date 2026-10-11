@@ -205,6 +205,35 @@ function M.setup(core)
         -- play" is a window that does not work. `false` leaves the
         -- alert and waits for ⌘O.
         handOff    = true,
+        -- 📦 6.354.0 — THE THIRD DOOR IS NOT A URL AT ALL. Both file://
+        -- doors are refused on his Mac and `hs.webview` has no way to
+        -- grant one: `loadFileURL:allowingReadAccessToURL:`,
+        -- `allowFileAccessFromFileURLs` and `setURLSchemeHandler:` each
+        -- appear ZERO times in extensions/webview/libwebview.m (172,646
+        -- bytes, read rather than remembered — 6.233.0). So the bytes
+        -- stop travelling as a URL: Lua reads the film in bounded
+        -- chunks and PUSHES them into the page, which assembles a Blob
+        -- and plays that. Nothing is fetched, nothing is navigated to,
+        -- and there is no file for WebKit to refuse.
+        blobLoad   = true,
+        chunkBytes = 2 * 1024 * 1024,   -- read and pushed per run-loop turn
+        loadEvery  = 0,                 -- the gap between turns, in seconds
+        -- 📏 THE CEILING, NAMED RATHER THAN HOPED PAST: the whole film
+        -- ends up in WebKit's blob store, so this is the one cost the
+        -- loader cannot bound away. Above it the film goes out to a real
+        -- player and the window SAYS which of the two happened.
+        blobMax    = 1536 * 1024 * 1024,
+        slowTurnMs = 120,               -- past this a turn takes the 🔔 door
+        loadTimer  = nil,               -- HELD, its own slot (6.196.1)
+        load       = nil,               -- the read in flight
+        loadRuns   = 0,                 -- films the loader was asked for
+        loadTurns  = 0,
+        loadWorst  = 0,
+        loadBytes  = 0,
+        blobPlayed = 0,
+        blobFailed = 0,
+        loadSlow   = 0,
+        loadWhy    = "the loader has not been asked yet",
         forgotten  = 0,
         pageReady  = false,
         draws      = { landed = 0, early = 0 },
@@ -316,27 +345,69 @@ function M.setup(core)
             { how = "the absolute file URL",
               base = nil,
               src  = "file://" .. vid.encodePath(p) },
-            -- 🚪 AND THERE IS NO THIRD DOOR. 6.351.0 built one — a page
-            -- written as a FILE beside the film, asked for by file URL —
-            -- and said in writing that if it were refused too, three
-            -- doors had answered and the webview is not the surface.
-            -- IT WAS REFUSED, and macOS named it rather than leaving it
-            -- to be read: his screenshot is WebKit's own navigation
-            -- error page, "An Error code: -3001 in NSURLErrorDomain
-            -- occurred during navigation: Cannot open file".
-            -- 🔬 -3001 IS NSURLErrorCannotOpenFile, and it is a
-            -- NAVIGATION error rather than a media one — so unlike
-            -- MediaError code 4 it is NOT ambiguous: the file was not
-            -- read. WKWebView will not load a file:// URL through an
-            -- ordinary request at all; it wants
-            -- loadFileURL:allowingReadAccessToURL:, which hs.webview
-            -- does not expose. So no third URL exists to try.
-            -- 🚨 AND IT DID NOT MERELY FAIL, IT TOOK THE PLAYER WITH IT.
-            -- A refused `view:url()` REPLACES the document, so the deck,
-            -- the queue and every key went with it and the window became
-            -- an error page until it was closed and reopened. A door
-            -- that can destroy the room is worse than no door.
+            -- 📦 AND THE THIRD DOOR IS NOT A URL — THAT IS THE WHOLE
+            -- POINT OF IT. 6.351.0 built a third URL (a page written as
+            -- a FILE beside the film, asked for by file URL) and macOS
+            -- refused it by name: his screenshot is WebKit's own
+            -- navigation error page, "An Error code: -3001 in
+            -- NSURLErrorDomain occurred during navigation: Cannot open
+            -- file". -3001 is NSURLErrorCannotOpenFile and it is a
+            -- NAVIGATION error, so unlike MediaError code 4 it is not
+            -- ambiguous: the file was not read. Worse, a refused
+            -- `view:url()` REPLACES the document, so that door destroyed
+            -- the deck, the queue and every key — it was deleted in
+            -- 6.353.0 and is not coming back.
+            -- 🔬 AND THERE IS NO FOURTH URL TO TRY, read rather than
+            -- believed: `loadFileURL:allowingReadAccessToURL:`,
+            -- `allowFileAccessFromFileURLs` and `setURLSchemeHandler:`
+            -- appear ZERO times in extensions/webview/libwebview.m. So
+            -- every way of NAMING the file is spent, which is 6.266.0's
+            -- rule — when every fix so far has changed something inside
+            -- the same pipeline, the pipeline IS the variable.
+            -- 🚪 `src` IS DELIBERATELY EMPTY and `bytes` is what the
+            -- door-walker reads: this one carries no URL, so advancing
+            -- to it needs no new document and no rebuild. Lua reads the
+            -- film and pushes it in.
+            { how   = "the bytes through the window, not a URL",
+              base  = nil,
+              src   = "",
+              bytes = true },
         }
+    end
+
+    -- 📏 Megabytes, for a sentence a person reads.
+    function vid.mb(n)
+        local b = tonumber(n) or 0
+        return string.format("%.1f MB", b / 1048576)
+    end
+
+    -- 📐 FOUR ANSWERS, AND ONLY ONE LOADS (6.196.1). PURE, so the whole
+    -- rule is proven with no Mac and no film: a size the Mac would not
+    -- give is not a size of 0, and a chunk of 0 is a loader that never
+    -- finishes rather than one that finishes instantly.
+    function vid.loadPlan(size, max, chunk)
+        local s = tonumber(size)
+        local m = tonumber(max) or 0
+        local c = math.floor(tonumber(chunk) or 0)
+        if not s or s <= 0 then
+            return false, "the Mac would not say how big the film is", 0
+        end
+        if c < 1 then
+            return false, "the chunk size is 0 — a loader that never"
+                          .. " finishes", 0
+        end
+        -- 🚨 THE CEILING IS A `>`, NOT A `>=`: a film exactly at the
+        -- ceiling is a film the ceiling allows, and the fixture that
+        -- bites is the pair at size == max and size == max + 1, where
+        -- the two readings must differ (6.230.0).
+        if m > 0 and s > m then
+            return false, "the film is " .. vid.mb(s) .. " and the ceiling"
+                          .. " is " .. vid.mb(m) .. " — more than this"
+                          .. " window can hold", 0
+        end
+        local turns = math.ceil(s / c)
+        return true, "reading " .. vid.mb(s) .. " in " .. turns
+                     .. " turn(s) of " .. vid.mb(c), turns
     end
 
     -- 🕘 PURE: thirty days, ONE ROW PER FILE, newest first. The cap is a
@@ -734,6 +805,53 @@ function fail(t){var m=el('msg');m.textContent=t;m.style.display='flex';
  el('v').style.visibility='hidden'}
 function clearFail(){el('msg').style.display='none';
  el('v').style.visibility='visible'}
+/* 📦 THE BYTES COME THROUGH THE WINDOW (6.354.0). Lua reads the film in
+   chunks and pushes each one here; the page decodes it, hands it
+   straight to the blob store and plays the assembled Blob. Nothing is
+   fetched and nothing is navigated to, so there is no file for WebKit to
+   refuse — which is what both file:// doors were refused for.
+   🚨 THE DECODE IS SYNCHRONOUS ON PURPOSE. An async decode (fetch on a
+   data: URL) is faster in C but resolves OUT OF ORDER, and two chunks
+   landing the wrong way round is a scrambled film with nothing to see
+   but a decode error. Order by construction beats order by bookkeeping.
+   🚨 AND EACH CHUNK IS WRAPPED IN ITS OWN Blob AT ONCE, so the bytes
+   leave the JS heap every turn instead of 700 MB of Uint8Array piling up
+   waiting for the end. */
+var BQ=null,BTOT=0,BGOT=0,BURL=null,BGEN=0;
+function blobDrop(){BQ=null;
+ if(BURL){try{URL.revokeObjectURL(BURL)}catch(e){}BURL=null}}
+function blobStart(t,g){
+ blobDrop();
+ var v=el('v');
+ v.removeAttribute('data-src');v.removeAttribute('src');
+ try{v.load()}catch(e){}
+ BQ=[];BTOT=+t||0;BGOT=0;BGEN=+g||0;
+ fail('⏳ reading the film into the window — 0%');
+}
+function blobChunk(b64){
+ if(!BQ)return;
+ try{
+   var s=atob(b64),n=s.length,u=new Uint8Array(n);
+   for(var i=0;i<n;i++)u[i]=s.charCodeAt(i);
+   BQ.push(new Blob([u]));
+   BGOT+=n;
+   var pc=BTOT>0?Math.floor(BGOT*100/BTOT):0;
+   fail('⏳ reading the film into the window — '+pc+'%');
+ }catch(e){var w=String(e);BQ=null;say({a:'blobfail',gen:BGEN,why:w})}
+}
+function blobEnd(){
+ if(!BQ)return;
+ var parts=BQ;BQ=null;
+ try{
+   var b=new Blob(parts,{type:'video/mp4'});
+   if(BURL){try{URL.revokeObjectURL(BURL)}catch(e){}}
+   BURL=URL.createObjectURL(b);
+   var v=el('v');clearFail();
+   v.setAttribute('data-src','blob');v.src=BURL;
+   try{v.load()}catch(e){}
+   try{v.play()}catch(e){}
+ }catch(e){BURL=null;say({a:'blobfail',gen:BGEN,why:String(e)})}
+}
 function draw(s){
  if(s&&typeof s==='object')S=s;
  var q=(S&&S.q)||[],h=(S&&S.h)||[];
@@ -742,9 +860,17 @@ function draw(s){
  var v=el('v');
  var want=(S&&S.src)||'';
  if(want){ if(v.getAttribute('data-src')!==want){
+    /* 📦 A URL DOOR MEANS A NEW FILM, so any Blob still driving the
+       stage is revoked rather than left to leak an object URL and go on
+       playing the film before it. */
+    blobDrop();
     clearFail(); v.setAttribute('data-src',want); v.src=want;
     try{v.load()}catch(e){} } }
- else { v.removeAttribute('data-src'); v.removeAttribute('src');
+ /* 📦 AN EMPTY src MEANS THE BYTES DOOR, NOT AN EMPTY STAGE. Door 3
+    carries no URL, so every redraw after the Blob is playing would have
+    torn the film down — the guard is `BURL`, which is set only once a
+    Blob really is the source. */
+ else if(!BURL){ v.removeAttribute('data-src'); v.removeAttribute('src');
     try{v.load()}catch(e){} }
  var d=el('deck'),out='';
  out+='<div class="sec">QUEUE — '+q.length+'</div>';
@@ -1152,6 +1278,12 @@ document.addEventListener('keydown',function(e){
         end
         stopFocusChase()
         vid.stopCatcher()
+        -- 📦 A READ IN FLIGHT IS A FILE HANDLE AND A HELD TIMER, and a
+        -- feature holding both owes a teardown to every door that can end
+        -- it (6.256.0). Without this, closing the window mid-read leaves
+        -- the handle open and the next turn pushing into a webview that
+        -- has been deleted.
+        vid.loadStop("the window was closed mid-read")
         if vid.webview then
             pcall(function() vid.webview:delete() end)
             vid.webview = nil
@@ -1367,6 +1499,10 @@ document.addEventListener('keydown',function(e){
         -- 6.304.0 — a GENERATION, so a late message about the film that
         -- was playing a moment ago cannot bump the door for this one.
         vid.gen      = vid.gen + 1
+        -- 📦 AND THE READ FOR THE FILM BEFORE IT ENDS HERE. The
+        -- generation already stops its next TURN, but the file handle is
+        -- only closed by going through the one door (6.304.0).
+        vid.loadStop("a different film was played")
         vid.door     = math.max(1, tonumber(vid.doorStart) or 1)
         vid.plays    = vid.plays + 1
         noteHistoryNow(t.path)
@@ -1537,6 +1673,250 @@ document.addEventListener('keydown',function(e){
         return true
     end
 
+    -- =================================================================
+    -- 📦 THE BYTES THROUGH THE WINDOW (6.354.0)
+    -- =================================================================
+    -- Lua reads the film in bounded chunks and pushes each one into the
+    -- page, which assembles a Blob and plays that. No URL, no fetch, no
+    -- navigation — so there is nothing for WebKit to refuse read access
+    -- to, which is what both file:// doors were refused for.
+
+    -- 📦 A base64 chunk needs NO escaping — it is A–Z a–z 0–9 + / = and
+    -- nothing else — so it deliberately does not go through jsEscape:
+    -- three gsubs over two and a half megabytes, every turn, on the main
+    -- thread (6.228.0). It answers whether the push went, because
+    -- evaluateJavaScript on a window macOS has taken away throws.
+    local function pushJs(js)
+        local ok = false
+        pcall(function()
+            vid.webview:evaluateJavaScript(js)
+            ok = true
+        end)
+        return ok
+    end
+    vid.pushJs = pushJs
+
+    local loadTurn   -- forward: it re-arms itself
+
+    -- 🚪 EVERY WAY THE READ CAN END COMES THROUGH HERE, and that is
+    -- 6.304.0's rule: a busy flag released only by SUCCESS is a wedge.
+    -- The file handle is closed on all of them — done, too big, a
+    -- refused push, the window closing, a new film, a page that threw.
+    function vid.loadStop(why)
+        if vid.loadTimer then
+            pcall(function() vid.loadTimer:stop() end)
+            vid.loadTimer = nil
+        end
+        local L = vid.load
+        vid.load = nil
+        if L and L.f then pcall(function() L.f:close() end) end
+        if why then vid.loadWhy = why end
+        return L ~= nil
+    end
+
+    loadTurn = function()
+        vid.loadTimer = nil
+        local L = vid.load
+        if not L then return end
+        -- 🪪 A GENERATION, so a turn that lands after he closed the
+        -- window or played something else is a turn about a film nobody
+        -- is waiting for (6.304.0 · 6.348.0).
+        if L.gen ~= vid.gen or not vid.webview then
+            return vid.loadStop("the film changed while it was being read")
+        end
+        local t0 = (hs.timer and hs.timer.secondsSinceEpoch
+                    and hs.timer.secondsSinceEpoch()) or 0
+        local okR, piece = pcall(function() return L.f:read(L.chunk) end)
+        if not okR then
+            vid.loadStop("the film could not be read: " .. tostring(piece))
+            vid.blobFailed = vid.blobFailed + 1
+            pushJs("blobDrop();")
+            return degrade("the film could not be read off the disk")
+        end
+        if piece == nil or #piece == 0 then
+            -- 📦 EVERY BYTE IS IN. The page assembles and plays.
+            local turns, sent = L.turns, L.sent
+            local okE = pushJs("blobEnd();")
+            vid.loadStop("read " .. vid.mb(sent) .. " in " .. turns
+                         .. " turn(s)")
+            if not okE then
+                vid.blobFailed = vid.blobFailed + 1
+                return degrade("the window would not take the last of the"
+                               .. " film")
+            end
+            return true
+        end
+        local okB, b64 = pcall(function() return hs.base64.encode(piece) end)
+        if not (okB and type(b64) == "string" and #b64 > 0) then
+            vid.loadStop("this Mac could not encode the film for the window")
+            vid.blobFailed = vid.blobFailed + 1
+            pushJs("blobDrop();")
+            return degrade("this Mac could not encode the film for the"
+                           .. " window")
+        end
+        if not pushJs("blobChunk('" .. b64 .. "');") then
+            vid.loadStop("the window would not take the film")
+            vid.blobFailed = vid.blobFailed + 1
+            return degrade("the window would not take the film")
+        end
+        L.sent   = L.sent + #piece
+        L.turns  = L.turns + 1
+        vid.loadTurns = vid.loadTurns + 1
+        vid.loadBytes = vid.loadBytes + #piece
+        local ms = (t0 > 0) and
+            (((hs.timer and hs.timer.secondsSinceEpoch
+               and hs.timer.secondsSinceEpoch()) or t0) - t0) * 1000 or 0
+        if ms > (tonumber(vid.loadWorst) or 0) then vid.loadWorst = ms end
+        -- 🔔 PAST THE BUDGET IT TAKES THE DOOR, ONCE PER FILM rather than
+        -- once per turn: a tool that shouts three hundred times is a tool
+        -- he switches off (6.260.0).
+        if ms > (tonumber(vid.slowTurnMs) or 120) and not L.said then
+            L.said = true
+            vid.loadSlow = vid.loadSlow + 1
+            degrade(string.format("reading the film is costing %d ms a turn"
+                    .. " on the main thread — settings = { video_player ="
+                    .. " { chunkBytes = %d } } reads less at a time",
+                    math.floor(ms), math.floor((tonumber(vid.chunkBytes)
+                    or 2097152) / 2)))
+        end
+        if not (hs.timer and hs.timer.doAfter) then
+            vid.loadStop("this Mac would not arm a timer mid-read")
+            vid.blobFailed = vid.blobFailed + 1
+            pushJs("blobDrop();")
+            return degrade("this Mac stopped arming timers while the film"
+                           .. " was being read")
+        end
+        local okT, tm = pcall(hs.timer.doAfter,
+                              tonumber(vid.loadEvery) or 0, loadTurn)
+        if not (okT and tm) then
+            vid.loadStop("this Mac would not arm a timer mid-read")
+            vid.blobFailed = vid.blobFailed + 1
+            pushJs("blobDrop();")
+            return degrade("this Mac stopped arming timers while the film"
+                           .. " was being read")
+        end
+        vid.loadTimer = tm
+        return true
+    end
+    vid.loadTurnOnce = function() return loadTurn() end
+
+    -- 📦 IT EITHER BEGINS OR IT SAYS WHY — never half.
+    function vid.loadStart(row)
+        local path = row and row.path
+        if type(path) ~= "string" or path == "" then
+            vid.loadWhy = "there is no film to read"
+            return false
+        end
+        if not vid.blobLoad then
+            vid.loadWhy = "switched off — settings = { video_player ="
+                          .. " { blobLoad = true } } turns it back on"
+            return false
+        end
+        vid.loadStop(nil)
+        if not (hs.base64 and hs.base64.encode) then
+            vid.loadWhy = "this Mac has no hs.base64, so the bytes cannot"
+                          .. " be handed to the window"
+            return false
+        end
+        -- 🚨 A MAC THAT CANNOT ARM A TIMER DOES NOT BEGIN. A read that
+        -- starts and cannot continue leaves a handle open and a window
+        -- claiming to be loading for ever; a film that goes straight out
+        -- to a real player is the honest answer (6.255.0's rule, in the
+        -- place where the cost is his film rather than a screenshot).
+        if not (hs.timer and hs.timer.doAfter) then
+            vid.loadWhy = "this Mac cannot arm a timer, so the film is"
+                          .. " not read in pieces at all"
+            return false
+        end
+        local size = nil
+        if hs.fs and hs.fs.attributes then
+            local okA, a = pcall(hs.fs.attributes, path)
+            if okA and type(a) == "table" then size = tonumber(a.size) end
+        end
+        local ok, why, turns = vid.loadPlan(size, vid.blobMax, vid.chunkBytes)
+        if not ok then
+            vid.loadWhy = why
+            return false
+        end
+        local okO, f = pcall(io.open, path, "rb")
+        if not (okO and f) then
+            vid.loadWhy = "the film would not open for reading"
+            return false
+        end
+        vid.load = { path = path, f = f, size = size, sent = 0, turns = 0,
+                     chunk = math.floor(tonumber(vid.chunkBytes) or 2097152),
+                     gen = vid.gen, said = false }
+        vid.loadRuns = vid.loadRuns + 1
+        vid.loadWhy  = why
+        -- 📣 THE PAGE IS TOLD THE TOTAL FIRST, so its progress line is a
+        -- percentage rather than a spinner, and so a read that stalls is
+        -- visible rather than looking like a window that does nothing.
+        if not pushJs("blobStart(" .. tostring(size) .. ","
+                      .. tostring(vid.gen) .. ");") then
+            vid.loadStop("the window would not start the read")
+            return false
+        end
+        local okT, tm = pcall(hs.timer.doAfter,
+                              tonumber(vid.loadEvery) or 0, loadTurn)
+        if not (okT and tm) then
+            vid.loadStop("this Mac would not arm the read")
+            pushJs("blobDrop();")
+            return false
+        end
+        vid.loadTimer = tm
+        return true
+    end
+
+    -- 🚪 EVERY WAY IN HAS BEEN REFUSED — ONE ANSWER, TWO CALLERS
+    -- (6.231.0). A film whose doors all failed and a film the page threw
+    -- on while assembling it are different events with the same honest
+    -- ending, and two copies of this is how they come to disagree about
+    -- what he is told.
+    local function everyDoorRefused(cur)
+        if not cur then return end
+        vid.askCodecs(cur.path)
+        -- 🚨 EVERY WAY IN REFUSED, AND IT SAYS SO IN WORDS. This is
+        -- the state this release exists to make legible rather than
+        -- a black rectangle: it names the film, says macOS refused
+        -- the window read access, and gives the key that opens it
+        -- anyway.
+        -- 🚨 AND IT NO LONGER ASSERTS A CAUSE IT HAS NOT MEASURED.
+        -- The old sentence said "macOS would not let this window
+        -- read" it, which is ONE of the two things code 4 means —
+        -- the other is that WebKit read it perfectly well and cannot
+        -- decode what is inside. A message that picks a side is a
+        -- message that sends the next release the wrong way
+        -- (6.320.0: a refusal he cannot act on is a defect even when
+        -- the refusal is right).
+        vid.lastWhy = "no way in worked for " .. tostring(cur.path)
+                      .. " — macOS said " .. tostring(vid.mediaWhy)
+        -- 🚪 AND THE FILM GOES OUT RATHER THAN STOPPING HERE. Both
+        -- remaining doors have been refused, there is no third (its
+        -- own -3001 is why), and a window whose only answer is "it
+        -- would not play" is a window that does not work. The film
+        -- he asked for opens in a player that CAN read his disk.
+        if vid.handOff then
+            vid.openExternal(cur.path, true)
+            tellPage("fail", "▶︎ " .. (cur.title or "") .. " is opening in"
+                     .. " your usual player.  Every way in was refused"
+                     .. " — both file URLs, and the bytes straight"
+                     .. " through the window (" .. tostring(vid.loadWhy)
+                     .. ").  macOS said " .. tostring(vid.mediaWhy)
+                     .. ".  _G.mugReport() names what the file holds —"
+                     .. " if it is HEVC or AC3, no door will ever help."
+                     .. "  settings = { video_player = { handOff = false } }"
+                     .. " leaves it here instead.")
+            return
+        end
+        tellPage("fail", "⚠️ " .. (cur.title or "") .. " would not play,"
+                 .. " and every way in was refused — both file URLs,"
+                 .. " and the bytes straight through the window ("
+                 .. tostring(vid.loadWhy) .. ").  ⌘O opens it in"
+                 .. " your usual player, from the row you have"
+                 .. " selected.  _G.mugReport() names the codecs.")
+        return
+    end
+
     function vid.handleMessage(body)
         if type(body) ~= "table" then return end
         local a = body.a
@@ -1563,10 +1943,33 @@ document.addEventListener('keydown',function(e){
             if tonumber(body.gen) ~= vid.gen then return end
             local d = asRow(body.d) ; if d < 1 then d = vid.door end
             local doors = vid.sourceDoors((vid.queue[vid.index] or {}).path)
-            vid.doorWorked = (doors[d] and doors[d].how) or ("door " .. d)
-            vid.doorStart  = d
+            local won = doors[d]
+            vid.doorWorked = (won and won.how) or ("door " .. d)
+            if won and won.bytes then vid.blobPlayed = vid.blobPlayed + 1 end
+            -- 🚨 ONLY A DOOR THAT CARRIES A URL IS REMEMBERED AS THE ONE
+            -- TO START ON. The bytes door has no `src`, so starting
+            -- there would paint an empty stage with nothing to fail and
+            -- nothing to advance the walker — the loader would never be
+            -- reached and the next film would simply never play. The
+            -- cheap doors are tried first every time, which also means a
+            -- macOS that allows file:// again is used the moment it does.
+            if won and not won.bytes then vid.doorStart = d end
             vid.save()
             return
+
+        elseif a == "blobfail" then
+            -- 📦 THE PAGE THREW WHILE THE FILM WAS BEING ASSEMBLED. That
+            -- is a DIFFERENT fact from a MediaError: the bytes arrived
+            -- and WebKit could not make a Blob of them, or ran out of
+            -- room. Counted apart, named in the report, and the film
+            -- goes out the same way (6.196.1).
+            if asRow(body.gen) ~= vid.gen then return end
+            vid.loadStop("the window threw while assembling the film: "
+                         .. tostring(body.why or "no reason given"))
+            vid.blobFailed = vid.blobFailed + 1
+            degrade("the window could not hold the film — "
+                    .. tostring(body.why or "no reason given"))
+            return everyDoorRefused(vid.queue[vid.index])
 
         elseif a == "srcfail" then
             if tonumber(body.gen) ~= vid.gen then return end
@@ -1586,12 +1989,26 @@ document.addEventListener('keydown',function(e){
             local name = (doors[d] and doors[d].how) or ("door " .. d)
             vid.doorFailed[name] = (tonumber(vid.doorFailed[name]) or 0) + 1
             if d < #doors then
-                -- Try the next way in. A new base URL needs a new
-                -- document, so this is a full rebuild — nothing is
-                -- playing at this moment, so nothing is lost.
                 vid.door = d + 1
-                vid.paint(true)
-                return
+                local nxt = doors[vid.door]
+                if nxt and nxt.bytes then
+                    -- 📦 THE BYTES DOOR CHANGES NO DOCUMENT, so it needs
+                    -- no rebuild — and not rebuilding is what makes it
+                    -- safe to start the read HERE: the page has just
+                    -- spoken to us, so it demonstrably exists, where a
+                    -- rebuild would race the read against a document
+                    -- WebKit has not parsed yet (6.238.0).
+                    vid.render()
+                    if vid.loadStart(cur) then return end
+                    -- It would not start, and `loadWhy` says which of the
+                    -- five reasons. Fall through: the film goes out.
+                else
+                    -- A new base URL needs a new document, so this is a
+                    -- full rebuild — nothing is playing at this moment,
+                    -- so nothing is lost.
+                    vid.paint(true)
+                    return
+                end
             end
             -- 🔬 AND THE REPORT ASKS THE MAC WHAT THE FILM ACTUALLY IS.
             -- MediaError code 4 is MEDIA_ERR_SRC_NOT_SUPPORTED, and it
@@ -1601,44 +2018,7 @@ document.addEventListener('keydown',function(e){
             -- way in, the other needs a different player and no door
             -- will ever help. `mdls` is on every Mac and answers it
             -- outright, off the main thread.
-            vid.askCodecs(cur.path)
-            -- 🚨 EVERY WAY IN REFUSED, AND IT SAYS SO IN WORDS. This is
-            -- the state this release exists to make legible rather than
-            -- a black rectangle: it names the film, says macOS refused
-            -- the window read access, and gives the key that opens it
-            -- anyway.
-            -- 🚨 AND IT NO LONGER ASSERTS A CAUSE IT HAS NOT MEASURED.
-            -- The old sentence said "macOS would not let this window
-            -- read" it, which is ONE of the two things code 4 means —
-            -- the other is that WebKit read it perfectly well and cannot
-            -- decode what is inside. A message that picks a side is a
-            -- message that sends the next release the wrong way
-            -- (6.320.0: a refusal he cannot act on is a defect even when
-            -- the refusal is right).
-            vid.lastWhy = "no way in worked for " .. tostring(cur.path)
-                          .. " — macOS said " .. tostring(vid.mediaWhy)
-            -- 🚪 AND THE FILM GOES OUT RATHER THAN STOPPING HERE. Both
-            -- remaining doors have been refused, there is no third (its
-            -- own -3001 is why), and a window whose only answer is "it
-            -- would not play" is a window that does not work. The film
-            -- he asked for opens in a player that CAN read his disk.
-            if vid.handOff then
-                vid.openExternal(cur.path, true)
-                tellPage("fail", "▶︎ " .. (cur.title or "") .. " is opening in"
-                         .. " your usual player.  This window cannot read"
-                         .. " films off the disk — three ways in have now"
-                         .. " been refused, the last one by macOS itself"
-                         .. " (NSURLErrorDomain -3001, cannot open file) —"
-                         .. " so it keeps the queue and hands the film out."
-                         .. "  settings = { video_player = { handOff = false } }"
-                         .. " leaves it here instead.")
-                return
-            end
-            tellPage("fail", "⚠️ " .. (cur.title or "") .. " would not play,"
-                     .. " and every way in was refused.  ⌘O opens it in"
-                     .. " your usual player, from the row you have"
-                     .. " selected.  _G.mugReport() names the codecs.")
-            return
+            return everyDoorRefused(cur)
 
         elseif a == "close" then
             -- ⎋ THE WINDOW HAS THE KEYBOARD, SO THE PAGE HEARS ESC FIRST.
@@ -1901,10 +2281,25 @@ document.addEventListener('keydown',function(e){
             or "⏳ no film has loaded yet, so nothing has been measured")
         if vid.codecs then
             L[#L + 1] = "   codecs : " .. tostring(vid.codecs)
-            L[#L + 1] = "   ↳ H.264/AAC and no door works = this window "
-                        .. "cannot READ the file.  HEVC, x265, AC3, DTS or "
-                        .. "nothing at all = WebKit cannot DECODE it, and "
-                        .. "no way in will ever fix that."
+            -- 🔑 AND THE BYTES DOOR SETTLES IT BY ELIMINATION, which is
+            -- the sharper half of this release: that door carries no URL
+            -- and fetches nothing, so it CANNOT be refused for read
+            -- access. If the film still will not play once the bytes are
+            -- inside the window, there is no reading explanation left —
+            -- WebKit cannot decode it, and no further door can ever help.
+            if (tonumber(vid.loadRuns) or 0) > 0
+               and (tonumber(vid.blobPlayed) or 0) == 0 then
+                L[#L + 1] = "   ↳ THE BYTES WERE INSIDE THE WINDOW AND IT "
+                            .. "STILL WOULD NOT PLAY, so this is not about "
+                            .. "reading the disk: WebKit cannot DECODE this "
+                            .. "film.  HEVC, x265, AC3 or DTS is the usual "
+                            .. "answer, and no way in will ever fix it."
+            else
+                L[#L + 1] = "   ↳ H.264/AAC and no door works = this window "
+                            .. "cannot READ the file.  HEVC, x265, AC3, DTS or "
+                            .. "nothing at all = WebKit cannot DECODE it, and "
+                            .. "no way in will ever fix that."
+            end
         end
         local failed = {}
         for k, n in pairs(vid.doorFailed) do failed[#failed + 1] = k .. " ×" .. n end
@@ -1913,6 +2308,48 @@ document.addEventListener('keydown',function(e){
             L[#L + 1] = "   refused: " .. table.concat(failed, " · ")
             if vid.mediaWhy then
                 L[#L + 1] = "   ↳ macOS said: " .. tostring(vid.mediaWhy)
+            end
+        end
+        -- 📦 THE BYTES DOOR, COUNTED APART FROM THE URLs (6.229.0): a
+        -- film the loader READ is a different fact from one it played,
+        -- and the turns it cost are printed beside what they bought.
+        -- 🔎 AND A READ IN FLIGHT IS ITS OWN STATE: "nothing has been
+        -- read" and "a film is being read right now" must not print the
+        -- same words (6.196.1), because the second is what he is looking
+        -- at while the stage says a percentage.
+        do
+            local runs = tonumber(vid.loadRuns) or 0
+            if runs == 0 and not vid.load then
+                L[#L + 1] = "   bytes  : the loader has not been asked for a"
+                            .. " film yet"
+            else
+                L[#L + 1] = "   bytes  : " .. runs .. " film(s) read into the"
+                            .. " window · " .. (tonumber(vid.blobPlayed) or 0)
+                            .. " played · " .. (tonumber(vid.blobFailed) or 0)
+                            .. " refused"
+                if (tonumber(vid.loadTurns) or 0) > 0 then
+                    L[#L + 1] = string.format(
+                        "   ↳ turns : %d turn(s) carrying %s · worst %d ms",
+                        vid.loadTurns, vid.mb(vid.loadBytes),
+                        math.floor(tonumber(vid.loadWorst) or 0))
+                end
+                if (tonumber(vid.loadSlow) or 0) > 0 then
+                    L[#L + 1] = "   ↳ ⚠️ " .. vid.loadSlow .. " read(s) crossed "
+                                .. tostring(vid.slowTurnMs) .. " ms a turn on"
+                                .. " the main thread"
+                end
+            end
+            if vid.load then
+                L[#L + 1] = "   ↳ now   : reading " .. vid.titleOf(vid.load.path)
+                            .. " — " .. vid.mb(vid.load.sent) .. " of "
+                            .. vid.mb(vid.load.size) .. " in " .. vid.load.turns
+                            .. " turn(s) so far"
+            else
+                L[#L + 1] = "   ↳ last  : " .. tostring(vid.loadWhy)
+            end
+            if not vid.blobLoad then
+                L[#L + 1] = "   ↳ OFF   : settings = { video_player ="
+                            .. " { blobLoad = true } } puts the bytes door back"
             end
         end
         L[#L + 1] = "   store  : " .. vid.storeVerdict(vid.storeState, vid.storeBytes,
@@ -2038,6 +2475,10 @@ function M.warm(core)
     vid.warmed = pcall(function()
         local _ = hs.webview and hs.webview.usercontent
         local _ = hs.drawing and hs.drawing.windowLevels
+        -- 📦 AND hs.base64 FOR THE SAME REASON (6.354.0): the bytes door
+        -- touches it for the first time in the middle of a read, which
+        -- is the one moment that must be cheap.
+        local _ = hs.base64 and hs.base64.encode
         return true
     end) and true or false
 end
