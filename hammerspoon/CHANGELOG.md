@@ -92,13 +92,22 @@ NEW IN 6.352.0 — 🚚 THE DROP HAS TWO DOORS, AND IT HAD ONE
     · and the two doors are COUNTED APART, so his next report says
       which one carried the drop rather than that there was one.
 
-  📏 NAMED, NOT FIXED: "but there's nothing now" is NOT explained by
-  this release and is not claimed to be. With three films queued and
-  nothing playing the page should draw the brand, "nothing playing" and
-  the deck — and whether it did cannot be recovered from a report taken
-  after the window closed. That is what the fourth state above exists
-  to answer, and the one thing asked of him is a report taken with the
-  window STILL OPEN.
+  📏 "BUT THERE'S NOTHING NOW" — MEASURED, AND IT IS NOT A SECOND BUG.
+  The page HTML is BYTE-FOR-BYTE IDENTICAL between 6.348.0 and 6.351.0:
+  6,936 bytes, extracted from both commits and compared, not read. And
+  6.348.0 is the build whose screenshot showed the brand, the film's
+  name and three NAMED deck rows. So the page that drew correctly is the
+  same page, and nothing 6.351.0 added touches it — door 3, writeStage,
+  clearStage and askCodecs are all Lua-side.
+  🔑 WHICH READS HIS TWO SENTENCES AS ONE. His report says `queue : 3
+  film(s) · nothing playing`, `played : 0 this session`, and not one
+  door attempted. The window appears; the stage is black because nothing
+  is playing; nothing is playing because he could not drop a film onto
+  it. One cause, and it is the one this release fixes.
+  📏 STILL NOT PROVEN, so the fourth page state ships anyway and the
+  verify block asks for ONE report taken with the window OPEN — that
+  line now tells a page whose script ran from one that never spoke, and
+  it is the only thing that could say otherwise.
 
   🧪 27 Lua checks and 13 page checks. The fixture that bites is the
   one input where claiming and standing down must differ (6.230.0):

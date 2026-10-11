@@ -82,18 +82,30 @@ B3. The `page :` line now has four states. With the window OPEN it
     did not run, which is the other half of "there's nothing now" and
     I cannot see it from here.
 
-C. "BUT THERE'S NOTHING NOW" — I have NOT fixed this and I am not
-   pretending to. Saying it plainly.
-C1. With three films queued and nothing playing, the window should
-    draw "Mug Player" top left, "nothing playing" beside it, and a
-    deck listing your films by name. Open it and tell me which of
-    those four you can see.
-C2. The report you sent was taken after you closed the window, and
-    closing it wiped the two lines that would have answered this —
-    which is mine, not yours, and is fixed in this release (the `page`
-    line now tells "closed, and its page HAD run" apart from "its page
-    never once spoke"). So: **one report with the window open** and I
-    will know.
+C. "BUT THERE'S NOTHING NOW" — AND I MEASURED IT RATHER THAN GUESSING.
+🔎 THE PAGE IS BYTE-FOR-BYTE IDENTICAL between 6.348.0 and 6.351.0 —
+6,936 bytes, pulled out of both commits and compared. And 6.348.0 is
+the build whose screenshot showed the brand, the film's name and three
+NAMED rows. So the window is drawing the same page that drew
+correctly, and everything 6.351.0 added is Lua-side.
+🔑 WHICH READS YOUR TWO SENTENCES AS ONE: the window appears, the
+stage is black because nothing is playing, and nothing is playing
+because you could not drop a film onto it. Your report agrees — 3
+films queued, nothing playing, 0 played this session, not one way in
+even attempted. So I expect the drop fixing this to fix both halves.
+C1. Open it with films queued and nothing playing, and tell me which
+    of these four you can see: "Mug Player" top left · "nothing
+    playing" beside it · your films listed BY NAME in the deck ·
+    anything at all on the black stage.
+    If the first three are there, "nothing" was the stage and the drop
+    is the whole story. If they are NOT there, the page's script is
+    dying on your Mac and that is a different and bigger release — so
+    this one answer decides the next one.
+C2. The report you sent was taken after you closed the window, which
+    wiped the two lines that would have answered this. That is mine,
+    not yours, and it is fixed here: the `page` line now tells
+    "closed, and its page HAD run" apart from "its page never once
+    spoke". **One report with the window open** settles it.
 
 D. MUST STILL WORK — the drop touches the window, so this half
    matters more than A.
