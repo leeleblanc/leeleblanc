@@ -1711,6 +1711,51 @@ check("calendar.format is published for other modules",
       _G.service.call("calendar.format", aug7) == "08-07-26")
 
 -- =====================================================================
+-- 🗓 6.349.0 — ⇪⇧0 OPENS ON TODAY
+-- =====================================================================
+-- LL: "Seems I have to arrow forward the date … Why do I have to arrow
+-- on to it?" He is right, and the comment beside the old line promised
+-- exactly what the code did not do: "refreshed on every open, so a
+-- panel left alone overnight comes back on the right day", sitting
+-- beside `cal.cursor = cal.cursor or cal.today`, which KEEPS the old
+-- cursor and resets it only once it has drifted more than a YEAR. A
+-- comment claiming a guard that does not exist (6.269.0's rule about a
+-- comment that claims a check — grep for the check).
+-- 🔑 PURE, with the clock as an ARGUMENT (6.234.0), so every edge is
+-- proven with no Mac and no waiting for midnight.
+do
+    local today = os.time({ year = 2026, month = 10, day = 11, hour = 12 })
+    local yest  = os.time({ year = 2026, month = 10, day = 10, hour = 12 })
+    local far   = today - 400 * 86400
+    local function why(...) return select(2, cal.openCursor(...)) end
+
+    check("🗓 a first open lands on today",
+          cal.openCursor(nil, today, 365, false) == today)
+    check("🗓 …and says so rather than leaving it to be guessed",
+          why(nil, today, 365, false):find("nothing was open", 1, true) ~= nil)
+    -- THE ONE HE REPORTED: the panel was left on yesterday last night.
+    check("🚨 🗓 a cursor left on YESTERDAY opens on TODAY",
+          cal.openCursor(yest, today, 365, false) == today)
+    check("🗓 …and the reason names the switch, not just the day",
+          why(yest, today, 365, false):find("keepPlace is off", 1, true) ~= nil)
+    -- 6.254.0's shape: the old behaviour is a switch, not a deletion.
+    check("🗓 keepPlace = true puts you back where you were",
+          cal.openCursor(yest, today, 365, true) == yest)
+    check("🗓 …and even then a cursor outside the range comes home",
+          cal.openCursor(far, today, 365, true) == today)
+    check("🗓 …saying which of the two reasons it was",
+          why(far, today, 365, true):find("outside the", 1, true) ~= nil
+          and why(yest, today, 365, true):find("where you left it", 1, true) ~= nil)
+    -- 🚨 THE FIXTURE THAT BITES is yesterday with keepPlace OFF: every
+    -- other input agrees with the old code (6.230.0).
+    check("🗓 today stays today under either switch",
+          cal.openCursor(today, today, 365, false) == today
+          and cal.openCursor(today, today, 365, true) == today)
+end
+
+
+
+-- =====================================================================
 -- 🗓 6.244.0 — THE PANEL IS AS TALL AS WHAT IS IN IT
 -- =====================================================================
 -- LL, with two screenshots: "I don't know why we made such a large empty

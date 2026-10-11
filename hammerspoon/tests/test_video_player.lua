@@ -116,9 +116,13 @@ hs = {
     task = {
         new = function(bin, cb, args)
             if NO_TASK then error("no hs.task", 0) end
-            local t = { bin = bin, args = args }
+            -- 🔬 THE CALLBACK IS KEPT. Without it a task's ANSWER is
+            -- unreachable from the gate and the whole callback body is
+            -- untestable — 6.304.0, where the Secure Input probe's body
+            -- had never once been run by a suite.
+            local t = { bin = bin, args = args, cb = cb }
             function t:start()
-                TASKS[#TASKS + 1] = { bin = bin, args = args }
+                TASKS[#TASKS + 1] = { bin = bin, args = args, cb = cb }
                 if TASK_START_REFUSES then return false end
                 return self
             end
@@ -215,6 +219,14 @@ hs = {
             -- mechanism deleted (6.290.0).
             function v:html(h, base)
                 self.htmlText = h ; self.baseURL = base
+                self.loads = (self.loads or 0) + 1 ; return self
+            end
+            -- 🚪 DOOR 3 LOADS BY URL, NOT BY STRING, and that is the
+            -- whole of what it tests — so the stub records it APART
+            -- from :html(). A stub that aliased the two would make the
+            -- door pass with the mechanism deleted (6.290.0).
+            function v:url(u)
+                self.urlLoaded = u
                 self.loads = (self.loads or 0) + 1 ; return self
             end
             function v:show()
@@ -385,7 +397,8 @@ check("🔑 an apostrophe is encoded",
 -- §4 ── the ways in ----------------------------------------------------
 out("\n§4 the doors, in order\n")
 local doors = vid.sourceDoors("/Films/My Film.mp4")
-check("🪟 there are two ways in, and more than one is the point", #doors == 2)
+check("🪟 there are THREE ways in, and more than one is the point",
+      #doors == 3, #doors)
 check("🪟 door 1 is the film's own folder as the base URL",
       doors[1].base == "file:///Films/" and doors[1].src == "My%20Film.mp4",
       tostring(doors[1].base) .. " | " .. tostring(doors[1].src))
@@ -631,11 +644,24 @@ vid.queue = { { path = "/F/A.mp4", title = "A" } }
 vid.playIndex(1)
 vid.handleMessage({ a = "srcfail", d = 1, gen = vid.gen })
 vid.handleMessage({ a = "srcfail", d = 2, gen = vid.gen })
+vid.handleMessage({ a = "srcfail", d = 3, gen = vid.gen })
 check("🚨 with every way in refused the PAGE is told, in words",
       jsHas("fail(") and jsHas("QuickTime"))
 check("🚨 …and it names the report that says what was tried",
       jsHas("_G.mugReport()"))
-check("🚨 …and the door does not run past the last one", vid.door == 2)
+check("🚨 …and the door does not run past the last one", vid.door == 3,
+      tostring(vid.door))
+-- 🚨 6.351.0 — AND THE MESSAGE NO LONGER PICKS A SIDE. MediaError code
+-- 4 means BOTH "could not fetch it" and "fetched it and cannot decode
+-- it", and the old sentence asserted the first. A message that picks
+-- one sends the next release the wrong way, and he is the only person
+-- who can run the test that separates them.
+check("🚨 …and it names BOTH things code 4 can mean",
+      jsHas("cannot read the file") and jsHas("cannot decode"))
+check("🚨 …and gives him the one test that tells them apart",
+      jsHas("a film you know Safari can play"))
+check("🔬 …and the Mac is asked what the film actually holds",
+      vid.codecsFor == "/F/A.mp4" and vid.codecs ~= nil, tostring(vid.codecs))
 
 -- §11 ── the drop ------------------------------------------------------
 out("\n§11 the drop, through the shared reader\n")
@@ -1177,6 +1203,138 @@ check("🔎 a refusal that RECOVERED on the retry says so",
 check("🚨 …and it is NOT reported as a loss — those are opposite facts",
       txt:find("0 refused twice", 1, true) ~= nil, txt)
 reset()
+
+
+-- §20 ── door three: a page written beside the film ---------------------
+out("\n§20 the third way in, and the file it writes\n")
+-- 🚪 HIS 2026-10-11 REPORT REFUSED BOTH EARLIER DOORS with MediaError
+-- code 4, so a page handed to WebKit as a STRING cannot reach a film on
+-- his disk whichever URL it is given. What is left is a page that IS a
+-- file, in the film's own folder, asked for by file URL — a different
+-- WebKit code path, and whether it may read the folder beside it is
+-- what this door MEASURES rather than assumes (6.233.0).
+reset()
+DISK = {}
+local d3 = vid.sourceDoors("/Films/My Film.mp4")[3]
+check("🚪 door 3 writes beside the film, not into our own folder",
+      d3 and d3.file == "/Films/" .. vid.stageName, tostring(d3 and d3.file))
+check("🚪 …and asks for the film as a neighbour, by name",
+      d3 and d3.src == "My%20Film.mp4" and d3.base == nil)
+
+reset()
+DISK = {}
+vid.show()
+vid.queue = { { path = "/Films/My Film.mp4", title = "My Film" } }
+vid.index, vid.door = 1, 3
+vid.paint(true)
+check("🚪 the page is WRITTEN to disk beside the film",
+      DISK["/Films/" .. vid.stageName] ~= nil)
+check("🚪 …and it is a real page, not an empty file",
+      (DISK["/Films/" .. vid.stageName] or ""):find("<video", 1, true) ~= nil)
+check("🚪 …and WebKit is asked for it by URL, not handed a string",
+      (vid.webview.urlLoaded or ""):find(vid.stageName, 1, true) ~= nil,
+      tostring(vid.webview.urlLoaded))
+
+-- 🧹 IT IS NEVER LEFT BEHIND. His films live in folders he looks at.
+vid.hide()
+check("🧹 closing the window removes the page it wrote",
+      DISK["/Films/" .. vid.stageName] == nil)
+check("🧹 …and nothing is left pointing at it", vid.stagePath == nil)
+
+reset()
+DISK = {}
+vid.show()
+vid.queue = { { path = "/Films/My Film.mp4", title = "A" },
+              { path = "/Other/Second.mp4", title = "B" } }
+vid.index, vid.door = 1, 3
+vid.paint(true)
+vid.index = 2
+vid.paint(true)
+check("🧹 a new film takes the old page with it — never two on disk",
+      DISK["/Films/" .. vid.stageName] == nil
+      and DISK["/Other/" .. vid.stageName] ~= nil)
+vid.hide()
+
+-- 🚨 THE CHECK THAT MATTERS MORE THAN THE FEATURE. This code calls
+-- os.remove on a path built from a film's folder. A bug in that folder
+-- is a deleted FILM, which is the one failure here with no way back
+-- (6.280.0's rule, in a module that touches his files).
+reset()
+DISK = { ["/Films/My Film.mp4"] = "a film" }
+vid.stagePath = "/Films/My Film.mp4"
+check("🚨 clearStage REFUSES a path that is not our own stage file",
+      vid.clearStage() == false and DISK["/Films/My Film.mp4"] == "a film")
+vid.stagePath = "/Films/" .. vid.stageName .. ".bak"
+DISK["/Films/" .. vid.stageName .. ".bak"] = "x"
+check("🚨 …and refuses one that merely CONTAINS the name",
+      vid.clearStage() == false
+      and DISK["/Films/" .. vid.stageName .. ".bak"] == "x")
+vid.stagePath = nil
+check("🚨 …and a nil path removes nothing and does not throw",
+      vid.clearStage() == false)
+
+-- 🛟 A FOLDER THAT WILL NOT TAKE A FILE IS NOT A WEBKIT REFUSAL. Read-
+-- only media, a disk that is full: the door could not be OPENED, and
+-- saying "macOS refused to read it" there blames the wrong thing.
+reset()
+DISK = {}
+WRITE_FAILS = true
+vid.show()
+vid.queue = { { path = "/Films/My Film.mp4", title = "A" } }
+vid.index, vid.door = 1, 3
+check("🛟 a folder that refuses the page makes the door answer false",
+      vid.paint(true) == false)
+check("🛟 …and it says WHY, in its own words",
+      tostring(vid.stageWhy):find("would not take", 1, true) ~= nil
+      or tostring(vid.stageWhy):find("could not be written", 1, true) ~= nil,
+      tostring(vid.stageWhy))
+WRITE_FAILS = false
+
+-- 🔬 WHAT IS THIS FILM, ACTUALLY — the line that decides the next
+-- release. MediaError code 4 is returned BOTH when WebKit could not
+-- fetch the file and when it fetched it and cannot decode the codec.
+-- Those are opposite facts with opposite fixes.
+reset()
+vid.codecs, vid.codecsFor = nil, nil
+vid.queue = { { path = "/F/film.mp4", title = "film" } }
+vid.index, vid.gen, vid.door = 1, 1, 1
+check("🔬 the Mac is asked, in a task, off the main thread",
+      vid.askCodecs("/F/film.mp4") == true and #TASKS > 0)
+local function lastTask() return TASKS[#TASKS] or { args = {} } end
+check("🔬 …with mdls and the file, and nothing else",
+      lastTask().bin == "/usr/bin/mdls"
+      and lastTask().args[#lastTask().args] == "/F/film.mp4",
+      tostring(lastTask().bin))
+check("🔬 …once per film, not once per refusal",
+      vid.askCodecs("/F/film.mp4") == false)
+-- The answer, and the report must carry it.
+if lastTask().cb then
+    lastTask().cb(0, 'kMDItemCodecs = (\n    "HEVC",\n    "AC3"\n)', "")
+end
+check("🔬 the codecs it answered are kept",
+      tostring(vid.codecs):find("HEVC", 1, true) ~= nil, tostring(vid.codecs))
+do
+    local lines = {}
+    local realP = print
+    print = function(x) lines[#lines + 1] = tostring(x) end
+    pcall(_G.mugReport)
+    print = realP
+    local txt = table.concat(lines, "\n")
+    check("🔬 …and the report prints them with what they MEAN",
+          txt:find("codecs :", 1, true) ~= nil
+          and txt:find("cannot DECODE", 1, true) ~= nil, txt)
+end
+-- 🛟 A Mac that cannot run mdls says so rather than leaving the line
+-- blank — "could not ask" and "there is nothing to say" are different
+-- facts (6.196.1).
+reset()
+vid.codecs, vid.codecsFor = nil, nil
+TASK_START_REFUSES = true
+vid.askCodecs("/F/other.mp4")
+check("🛟 a refused mdls is SAID, never silent",
+      tostring(vid.codecs):find("could not ask", 1, true) ~= nil,
+      tostring(vid.codecs))
+TASK_START_REFUSES = false
 
 -- ---- the tally ---------------------------------------------------------
 realPrint("")

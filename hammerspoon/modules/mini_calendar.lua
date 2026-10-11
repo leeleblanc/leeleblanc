@@ -93,6 +93,11 @@ function M.setup(core)
     cal.inkFaint    = { red = 0.490, green = 0.498, blue = 0.537 }  -- #7d7f89
     cal.weekStart   = 2         -- 1 = Sunday, 2 = Monday (matches Itsycal)
     cal.rangeDays   = 365       -- how far the cursor may travel either way
+    -- 🗓 6.349.0 — ⇪⇧0 OPENS ON TODAY. LL: "Seems I have to arrow
+    -- forward the date … Why do I have to arrow on to it?" He is
+    -- right, and the comment beside the old line promised exactly
+    -- what the code did not do. `keepPlace = true` restores it.
+    cal.keepPlace   = false     -- reopen where you left the cursor?
     cal.menuBar     = true      -- show the date next to the clock
     cal.menuFormat  = "%a %-d"  -- "Thu 6" — %-d is handled below for portability
     cal.anchor      = "topRight"-- "topRight" (under the clock) or "center"
@@ -140,6 +145,40 @@ function M.setup(core)
     local function todayNoon()
         local t = os.date("*t")
         return noon(t.year, t.month, t.day)
+    end
+
+    -- 🗓 WHICH DAY ⇪⇧0 OPENS ON — PURE, so the whole rule is proven with
+    -- no Mac and no clock of its own (the clock is an ARGUMENT, 6.234.0).
+    --
+    -- 🚨 AND THE COMMENT THAT USED TO SIT HERE PROMISED THE OPPOSITE OF
+    -- WHAT THE CODE DID. It read "refreshed on every open, so a panel
+    -- left alone overnight comes back on the right day" — beside
+    -- `cal.cursor = cal.cursor or cal.today`, which KEEPS yesterday's
+    -- cursor and only ever resets it when the cursor has drifted more
+    -- than a YEAR away. So the panel came back on the wrong day and the
+    -- line next to it said it would not. LL: "Seems I have to arrow
+    -- forward the date … Why do I have to arrow on to it?"
+    -- 🔑 ⇪⇧0 IS A GLANCE AT THE DATE, so today is what it opens on, and
+    -- the old behaviour is a switch rather than a deletion (6.254.0's
+    -- shape). FOUR ANSWERS (6.196.1), because "I kept your place" and "I
+    -- went back to today" are different facts and the report says which.
+    -- 📏 COST, NAMED: with keepPlace off, an Esc you did not mean costs
+    -- you the day you had arrowed to. That is the trade, and it is the
+    -- right way round — the common case is wanting today.
+    function cal.openCursor(prev, today, rangeDays, keep)
+        if not prev then return today, "today — nothing was open before" end
+        if not keep then
+            if prev == today then return today, "today" end
+            return today, "today — the cursor was on another day and "
+                          .. "keepPlace is off"
+        end
+        local days = math.abs((prev - today) / 86400)
+        if days > (tonumber(rangeDays) or 365) then
+            return today, "today — where you left it is outside the "
+                          .. tostring(rangeDays) .. "-day range"
+        end
+        if prev == today then return today, "today" end
+        return prev, "where you left it (keepPlace is on)"
     end
 
     local function daysInMonth(y, m)
@@ -641,13 +680,10 @@ function M.setup(core)
         if not cal.enabled then return end
         if cal.canvas then cal.hide() return end
 
-        cal.today  = todayNoon()          -- refreshed on every open, so a
-        cal.cursor = cal.cursor or cal.today   -- panel left alone overnight
-        cal.atEdge = false                -- comes back on the right day
-        if not sameDay(cal.cursor, cal.today) then
-            local within = math.abs(cal.cursor - cal.today) <= cal.rangeDays * 86400
-            if not within then cal.cursor = cal.today end
-        end
+        cal.today  = todayNoon()          -- refreshed on every open
+        cal.cursor, cal.cursorWhy =
+            cal.openCursor(cal.cursor, cal.today, cal.rangeDays, cal.keepPlace)
+        cal.atEdge = false
 
         local f = frameFor()
         -- 🗓 6.244.0 — what it GOT, in its own fields. The clamped size

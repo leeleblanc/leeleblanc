@@ -57,12 +57,17 @@ function M.setup(core)
     		"Microsoft Word",
     		"Microsoft Outlook",
     		"Microsoft Teams",
-    		"Microsoft Excel",
     		"NordVPN",
     		"Rectangle",
     		"Shottr",
     		"Sublime",
     }
+    -- 🗑 6.350.0 — AND MICROSOFT EXCEL IS LISTED ONCE. LL: "Tidy it
+    -- up." It was harmless — the second pass finds the app already
+    -- recorded as gone, so there was never a second popup — but it is
+    -- a list he reads. A source sentry in test_app_watcher refuses a
+    -- repeat now, because the next hand-edit is the one that adds a
+    -- name already there and nothing would have said so.
     -- 🗑 6.347.0 — IINA IS OFF IT TOO, same sentence, same reason: it
     -- is a film player, it is quit when a film ends, and 6.346.0's
     -- checks are what make a second removal cost one line instead of

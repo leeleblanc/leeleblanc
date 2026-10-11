@@ -4,32 +4,31 @@
 -- =====================================================================
 -- 10-09-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.348.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.351.0
 -- =====================================================================
 
--- NEW IN 6.348.0 — 🪟 A WINDOW macOS REFUSES IS RETRIED ONCE, AND THE
---   FIRST ⇪⇧, NO LONGER PAYS TWO DYLIB LOADS (video_player.lua). His
---   20:45:51 Console: `Loading extension: webview`, `Loading
---   extension: drawing`, `macOS would not put the window on screen` —
---   three lines, ONE SECOND. The first press of a session loaded both
---   extensions on the main thread and then asked AppKit to order a
---   window on screen in the same turn. M.warm pays them now (6.267.0
---   applied to Hammerspoon's own libraries, which 6.330.0 named and
---   nothing had paid). 🚨 A CANDIDATE, NOT THE CAUSE (6.198.0) — so the
---   retry is the half that works regardless, 6.266.0's shape: the
---   CALLER decides a beat later, one try, counted in the report.
+-- NEW IN 6.351.0 — 🚪 A THIRD WAY IN, AND THE QUESTION macOS'S ERROR
+--   CANNOT ANSWER (video_player.lua). Both earlier doors refused his
+--   film with MediaError code 4, so a page handed to WebKit as a
+--   STRING cannot reach a film on his disk. Door 3 writes the page as
+--   a FILE beside the film and asks for it by file URL — a different
+--   code path, measured rather than believed (6.233.0).
+--   🔬 AND CODE 4 MEANS TWO OPPOSITE THINGS: could not fetch it, or
+--   fetched it and cannot decode it. The alert no longer picks one,
+--   and `mdls` now names the film's codecs in the report — H.264 with
+--   no door working is a READ problem; HEVC or AC3 is a DECODE one
+--   that no way in will ever fix.
 
--- NEW IN 6.347.0 — 🗑 IINA IS OFF THE APP CLOSE MONITOR TOO
---   (app_watcher.lua). LL: "Remove IINA." Same sentence as 6.346.0's
---   and the same reason — a film player is quit when a film ends, and
---   this panel pings until it is answered. 17 apps. 6.346.0's two
---   negative checks are what make a second removal cost one line.
+-- NEW IN 6.350.0 — 🗑 MICROSOFT EXCEL IS LISTED ONCE (app_watcher.lua).
+--   LL: "Tidy it up." Harmless — the second pass found the app already
+--   recorded as gone — and invisible to every functional check, so the
+--   sentry asserts the RULE (no app twice) rather than the name.
 
--- (6.346.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.349.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 cut the inline count to
 --  TWO; a gate check proves every entry here is also in CHANGELOG.md.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.348.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.351.0
 -- =====================================================================
 -- The catalogue that used to sit here moved to GUIDE.md ("What each
 -- tool does") in 6.180.0 — 259 lines of prose inside the orchestrator.
@@ -122,7 +121,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.348.0"
+_G.configVersion = "6.351.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the

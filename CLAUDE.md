@@ -3466,6 +3466,51 @@ work Mac.
   · and the cancel-slot check had to drive "created, wired, REFUSED TO
     SHOW" rather than "cannot create" — 6.265.0, fifth time, and the
     refusal is the branch that calls `cancelSelect` on its way out.
+- 🔬 ONE ERROR CODE, TWO OPPOSITE CAUSES, OPPOSITE FIXES (6.351.0,
+  modules/video_player.lua — LL: "It doesn't play", with a report
+  reading `refused: relative to the film's own folder ×1 · the
+  absolute file URL ×1` and `↳ macOS said: code 4`).
+  🚨 MEDIA_ERR_SRC_NOT_SUPPORTED IS RETURNED BOTH when WebKit could not
+  FETCH the file and when it fetched it and cannot DECODE what is
+  inside. One needs a different way in; the other needs a different
+  player and NO door will ever fix it. The old alert asserted the
+  first — "macOS would not let this window read" — which is a message
+  that picks a side, and a side picked wrong sends the next release
+  into a month of doors for a file that was simply HEVC.
+  🔑 SO THE MAC IS ASKED WHAT THE FILE ACTUALLY IS: `mdls -name
+  kMDItemCodecs` is on every Mac, one task off the main thread, once
+  per film. The report prints the answer WITH WHAT IT MEANS, which is
+  the half that makes it a diagnosis rather than a field. GENERAL, and
+  it is this release's own: WHEN AN ERROR CODE IS AMBIGUOUS, THE
+  RELEASE IS THE THING THAT DISAMBIGUATES IT — not a better guess, and
+  not a message that commits to one reading. And the one-minute test
+  only HE can run goes in the message (play a film Safari can play).
+  🚪 THE THIRD DOOR SHIPPED BESIDE IT, because it costs nothing if the
+  answer is codecs: doors 1 and 2 differ only in the URL, and the
+  document is handed to WebKit as a STRING either way, so door 3 writes
+  the page as a FILE beside the film and asks for it by file URL. If
+  that is refused too, three doors have answered and the webview is not
+  the surface — which DECIDES the next release instead of leaving it
+  open.
+  🚨 AND A MODULE THAT CALLS os.remove ON A PATH BUILT FROM HIS FOLDERS
+  OWES TWO CHECKS, NOT ONE: `clearStage` refuses a path that is not
+  exactly our one dot-file name, and refuses one that merely CONTAINS
+  it. A bug in that folder is a DELETED FILM, the one failure in this
+  module with no way back (6.280.0). Both bite.
+- 🗓 A COMMENT THAT PROMISES WHAT THE LINE BESIDE IT DOES NOT DO
+  (6.349.0, modules/mini_calendar.lua — LL: "Seems I have to arrow
+  forward the date … Why do I have to arrow on to it?"). The code read
+  `cal.cursor = cal.cursor or cal.today`, and the comment ON THE SAME
+  LINE read "refreshed on every open, so a panel left alone overnight
+  comes back on the right day". It does the opposite: it keeps the old
+  cursor and resets it only once it has drifted more than a YEAR.
+  🔑 6.269.0's rule — when a comment claims a behaviour, GREP FOR THE
+  BEHAVIOUR. A comment is not a check, and a comment that describes
+  the intention rather than the code is worse than none, because it
+  stops the next reader looking.
+  📏 ⇪⇧0 is a GLANCE AT THE DATE, so today is what it opens on;
+  `cal.openCursor` is PURE with the clock as an argument and four
+  answers, and `keepPlace = true` is the way back (6.254.0).
 - 🪟 A LAZILY-LOADED EXTENSION IS MAIN-THREAD WORK INSIDE THE KEYPRESS
   THAT NEEDS IT (6.348.0, modules/video_player.lua — LL: "It doesn't
   play", with a report reading `last : macOS would not put the window
@@ -5580,7 +5625,8 @@ that must be READ before a new cause is named.
 | "hyper+4 does not have pixel crosshairs" · "it was working before" | modules/screenshots.lua · the selector | 6.264.0 · 6.318.0 | 1 | ask |
 | "it said 0x0 pixels, then jumped a few desktops, then I had to hit escape" | modules/screenshots.lua · the selector's one exit | 6.336.0 · 6.337.0 | 2 | ask |
 | "why OCR hyper+shift+4 works and hyper+4 still does not" | modules/screenshots.lua · ⇪4 re-implementing a system drag | 6.264.0 · 6.265.0 · 6.274.0 · 6.282.0 · 6.318.0 · 6.336.0 · 6.337.0 | 6 | ask |
-| "a Jug Player but for movies" · "nothing plays" · "macOS would not put the window on screen" | modules/video_player.lua · a webview that plays video | 6.344.0 · 6.345.0 · 6.348.0 | 3 | ask |
+| "a Jug Player but for movies" · "nothing plays" · "macOS would not put the window on screen" | modules/video_player.lua · a webview that plays video | 6.344.0 · 6.345.0 · 6.348.0 · 6.351.0 | 4 | ask |
+| "I have to arrow forward the date … why do I have to arrow on to it?" | modules/mini_calendar.lua · the cursor on open | 6.349.0 | 1 | ask |
 | "I did not mean to hit panic" · "my keyboard froze" · "Console shows nothing weird" | modules/power_tools.lua · an unclaimed ⇪ key forwarding onto the panic chord | 6.343.0 | 1 | ask |
 | "⌘D says I have five seconds to setup, shows no crosshairs" · "those four screenshot tools run weird" | modules/screenshot_editor.lua · the ⌘D order | 6.255.0 · 6.342.0 | 1 | ask |
 | "once I OCR some text, that text should immediately go onto the clipboard" · "sometimes … it places an image … sometimes the OCR runs" | modules/screenshots.lua · the OCR doors | 6.173.1 · 6.319.0 · 6.341.0 | 2 | ask |
@@ -5702,10 +5748,13 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
-| 6.348.0 | 🪟 a window macOS refuses to put on screen is retried once — and the first ⇪⇧, of a session no longer pays two main-thread library loads | pending |
+| 6.351.0 | 🚪 a third way into the Mug Player, and `mdls` answers the question macOS's error code cannot | pending |
+| 6.350.0 | 🗑 Microsoft Excel is listed once in the app close monitor | pending |
+| 6.349.0 | 🗓 ⇪⇧0 opens on today — the comment beside the line had promised that for years | pending |
+| 6.348.0 | 🪟 a window macOS refuses to put on screen is retried once — and the first ⇪⇧, of a session no longer pays two main-thread library loads | **WIN** — LL's own report: `opens : 2 asked · 2 straight through · 0 refused by macOS`, and his Console loads hs.webview during warm rather than on the keypress |
 | 6.347.0 | 🗑 IINA is off the app close monitor too | pending |
-| 6.346.0 | 🗑 Transmission is off the app close monitor — and the suite can prove a removal for the first time | pending |
-| 6.345.0 | 🚨 the Mug Player plays — hs.json.encode takes a TABLE, and every string in the page's payload was coming back empty | pending |
+| 6.346.0 | 🗑 Transmission is off the app close monitor — and the suite can prove a removal for the first time | **WIN** — LL: "Quit Transmission and worked just fine" |
+| 6.345.0 | 🚨 the Mug Player plays — hs.json.encode takes a TABLE, and every string in the page's payload was coming back empty | **WIN** — his screenshot: the brand, the film's name in the header and three films by name in the deck, all of which were empty on 6.344.0 |
 | 6.344.0 | 🎬 the Mug Player (⇪⇧,) — drop .mp4 films on a window and watch them with the Mac's own controls | LOSS — LL: "Nothing plays. Escape doesn't work." The payload builder called `hs.json.encode` on a bare film NAME; LuaSkin raises on a non-table, a pcall swallowed it, and every string reached the page as `""` — including the `<video>`'s src → fix 6.345.0 |
 | 6.343.0 | 🚨 ⇪Esc was firing the panic chord — nothing claimed it, so it forwarded onto ⌘⇧⌃⌥Esc | pending |
 | 6.342.0 | 📐 ⌘D drags the area first, then counts down, then shoots it — macOS's own ⇧⌘5 order, on his word | pending |
@@ -6896,6 +6945,83 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.351.0 verify with LL — 🚪 THE THIRD WAY IN (NEW GROUND — measured)
+  WHAT CHANGED: one more way to get a film into the window, and the
+  report now says what the film actually IS.
+  ✅ FIRST, WHAT YOUR LAST REPORT PROVED, because two releases landed:
+  `opens : 2 asked · 2 straight through · 0 refused` — 6.348.0 fixed
+  the window being refused. And your screenshot shows the brand, the
+  film's name in the header and three films by name in the deck —
+  6.345.0 fixed the payload. What is left is the film itself.
+  🔬 AND THE HONEST PART: MediaError code 4 means TWO opposite things.
+  WebKit returns it when it could not READ the file, and when it read
+  it fine and cannot DECODE what is inside. My old message asserted
+  the first. It might be the second — a "2026 1080p" download is very
+  often HEVC/x265 with AC3 audio, which Safari may refuse outright.
+  No door will ever fix that one.
+
+  A. THE HEADLINE — and step A2 is worth more than A1.
+  A1. ⇪⇧, and drop the same film. EXPECT: either it plays (door 3
+      worked), or the same message — but reworded, naming BOTH causes.
+  A2. 🚨 **DROP A FILM YOU KNOW SAFARI CAN PLAY.** Anything ordinary —
+      something from a phone, a .mp4 off a website, an old h.264 file.
+      **This single test decides everything.**
+      · It PLAYS → the mechanism works and your Robin Hood file is a
+        codec. Nothing here is broken; the fix is a different player
+        or a converted file.
+      · It does NOT play → the window cannot read any local film, and
+        three doors have now said so. The Mug Player becomes a
+        controller — the deck and queue stay, ⏎ hands the film to
+        QuickTime or VLC — and I will build that instead.
+  A3. `_G.mugReport()` — the new **codecs** line names what the Mac
+      says is inside the file, with what it means underneath. PASTE IT.
+
+  B. THE FILE IT WRITES — worth knowing about.
+  B1. Door 3 writes a hidden `.mug-stage.html` INTO THE FILM'S OWN
+      FOLDER and deletes it when the window closes. Check your
+      Desktop/new_dl folder with ⌘⇧. (show hidden files) after closing
+      the player: **it must not be there.**
+  B2. If the folder is read-only the door says so and does not blame
+      macOS for refusing the film — a different line in the report.
+
+  C. MUST STILL WORK.
+  C1. The deck names, Escape, ⌘O, space, ↑↓, ⏎, ⌘1–9, the ✕.
+  C2. ⇪⇧. the Jug Player.
+
+  D. A JUDGEMENT ONLY YOU CAN MAKE.
+  D1. **If A2 says codecs**, what do you want? Convert on the fly with
+      ffmpeg (slow, needs a binary), or make ⏎ hand anything the window
+      cannot play straight to VLC/QuickTime and keep the Mug Player as
+      the queue? I would build the second.
+  D2. Writing a hidden file into your film folders — acceptable, or
+      would you rather I did not? It is removed every time, but it is
+      your folder and I would rather ask.
+  D3. 🔨 CRUDE OR ELEGANT: pass four on this tool. Your tag.
+
+- 6.350.0 verify with LL — 🗑 EXCEL LISTED ONCE (KNOWN GROUND)
+  A1. Nothing to press. `Microsoft Excel` was in the watched list twice
+      and is now there once. Quit Excel: EXPECT the popup, exactly one.
+  🔑 The sentry asserts the RULE — no app twice — not the name, so the
+  next hand-edit that repeats something fails the gate.
+
+- 6.349.0 verify with LL — 🗓 ⇪⇧0 OPENS ON TODAY (KNOWN GROUND)
+  WHAT CHANGED: the calendar opens on today, every time.
+  🔎 AND THE COMMENT BESIDE THE OLD LINE PROMISED EXACTLY THAT while
+  the code did the opposite — it kept whatever day you last arrowed to
+  and only gave up after a year's drift. You were right.
+  A1. ⇪⇧0. EXPECT today, filled. Esc.
+  A2. ⇪⇧0, press → three times (now on the 14th), Esc, ⇪⇧0 again.
+      EXPECT **today** — not the 14th. That is the whole release.
+  A3. Look at today's date while the cursor is elsewhere: it keeps its
+      ring. That part was already right and is untouched.
+  B1. ←→ a day, ↑↓ a week, [ ] a month, T back to today, click to copy,
+      Esc — all unchanged.
+  C1. 🗳 If you would rather it DID reopen where you left it:
+      `settings = { mini_calendar = { keepPlace = true } }`. Say the
+      word and I will change the default instead of leaving you a line.
+  C2. 📏 NAMED: mini_calendar still has no suite of its own — these
+      checks live in test_features with the calendar's others.
+
 - 6.348.0 verify with LL — 🪟 THE WINDOW macOS REFUSED (KNOWN GROUND)
   WHAT CHANGED: a window macOS refuses to put on screen is tried ONCE
   more, a beat later — and the first ⇪⇧, of a session no longer pays

@@ -5,6 +5,107 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.351.0 — 🚪 A THIRD WAY IN, AND THE QUESTION macOS'S ERROR
+  CANNOT ANSWER (modules/video_player.lua)
+
+  LL: "It doesn't play." — and this time the report measured it:
+
+      opens  : 2 asked · 2 straight through · 0 refused by macOS
+      refused: relative to the film's own folder ×1 ·
+               the absolute file URL ×1
+      ↳ macOS said: code 4
+
+  So 6.345.0 and 6.348.0 both landed — the window opens every time now
+  and the page draws with the film's name, the brand and the deck all
+  correct, which is visible in his screenshot. What is left is the
+  film, and BOTH doors were refused.
+
+  🚪 DOOR THREE IS THE LAST ONE A WEBVIEW HAS. Doors 1 and 2 differ
+  only in the URL the <video> is given; the document itself is handed
+  to WebKit as a STRING either way. Door 3 writes the page as a FILE
+  in the film's own folder and asks for it with `view:url(...)` — a
+  different WebKit code path, and whether a document loaded FROM a
+  file may read the folder beside it is the thing this measures. If it
+  is also refused, three doors have answered and the webview is not
+  the surface, which DECIDES the next release rather than leaving it
+  open (6.233.0: a platform fact that decides an architecture is
+  measured, never remembered).
+
+  🧹 THE FILE IS OURS AND IS NEVER LEFT BEHIND: one dot-file name,
+  removed when the window closes, when the film changes, and before it
+  is written again. 🚨 AND clearStage REFUSES ANY PATH THAT IS NOT
+  EXACTLY OURS — it calls os.remove on a path built from a film's
+  folder, and a bug there is a DELETED FILM, which is the one failure
+  in this module with no way back (6.280.0). Two checks, one for a
+  path that is a film and one for a path that merely CONTAINS our
+  name, and both bite.
+  🛟 A folder that will not take a file is NOT a WebKit refusal: the
+  door says it could not be opened, in its own words, rather than
+  blaming macOS for a read-only disk.
+
+  🔬 AND THE REAL FINDING IS THAT CODE 4 MEANS TWO OPPOSITE THINGS.
+  MEDIA_ERR_SRC_NOT_SUPPORTED is what WebKit returns when it could not
+  FETCH the file AND when it fetched it and cannot DECODE what is
+  inside. One needs a different way in; the other needs a different
+  player and NO door will ever fix it. The old alert asserted the
+  first — "macOS would not let this window read" — which is a message
+  that picks a side and sends the next release the wrong way (6.320.0:
+  a refusal he cannot act on is a defect even when it is right).
+  🔑 SO THE MAC IS ASKED WHAT THE FILM IS. `mdls -name kMDItemCodecs`
+  is on every Mac, costs one task off the main thread (6.228.0), runs
+  once per film and not once per refusal, and the report prints the
+  answer WITH WHAT IT MEANS: H.264/AAC and no door working is a READ
+  problem; HEVC, x265, AC3 or DTS is a DECODE one. A "2026 1080p"
+  download is as likely to be one as the other, and guessing would
+  have cost a release either way.
+  📏 AND THE ONE-MINUTE TEST GOES IN THE MESSAGE, because he is the
+  only person who can run it: play a film Safari can play. If that one
+  plays, his does not and never will.
+
+NEW IN 6.350.0 — 🗑 MICROSOFT EXCEL IS LISTED ONCE
+  (modules/app_watcher.lua)
+
+  LL: "Tidy it up." It was in `appMonitorWatchedApps` twice. Harmless
+  — the second pass finds the app already recorded as gone, so there
+  was never a second popup — and therefore invisible to every
+  functional check, because a duplicate changes no behaviour at all.
+
+  🔑 SO THE SENTRY ASSERTS THE RULE, NOT THE NAME (6.276.0): a check
+  for "Excel appears once" is true until the next hand-edit puts
+  something else in twice. It reads the list out of the module's own
+  source — so it cannot drift from what ships — asserts it really
+  found the list (6.313.0: a sentry over an empty haystack is green
+  and measures nothing), and fails on any repeat.
+
+NEW IN 6.349.0 — 🗓 ⇪⇧0 OPENS ON TODAY
+  (modules/mini_calendar.lua)
+
+  LL: "Seems I have to arrow forward the date … Why do I have to arrow
+  on to it?"
+
+  🚨 AND THE COMMENT BESIDE THE LINE PROMISED THE OPPOSITE OF WHAT THE
+  CODE DID. It read "refreshed on every open, so a panel left alone
+  overnight comes back on the right day" — sitting beside
+  `cal.cursor = cal.cursor or cal.today`, which KEEPS the old cursor
+  and resets it only once it has drifted more than a YEAR. So the
+  panel came back on whatever day he last arrowed to, and the line
+  next to it said it would not. 6.269.0's rule about a comment that
+  claims a check: grep for the check.
+
+  🔑 ⇪⇧0 IS A GLANCE AT THE DATE, so today is what it opens on.
+  `cal.openCursor(prev, today, rangeDays, keep)` is PURE with the
+  clock as an ARGUMENT (6.234.0) and FOUR answers (6.196.1) — nothing
+  was open before · today, because keepPlace is off · where you left
+  it · today, because where you left it is outside the range. The old
+  behaviour is a SWITCH rather than a deletion (6.254.0).
+  🧪 The fixture that bites is yesterday with keepPlace OFF: every
+  other input agrees with the old code (6.230.0).
+  📏 COST, NAMED: with keepPlace off, an Esc you did not mean costs
+  the day you had arrowed to.
+  📏 AND NAMED, NOT FIXED: mini_calendar still has no suite of its own
+  — these checks live in test_features, which is where the calendar's
+  others already are.
+
 NEW IN 6.348.0 — 🪟 A WINDOW macOS REFUSES IS RETRIED ONCE, AND THE
   FIRST ⇪⇧, NO LONGER PAYS TWO DYLIB LOADS
   (modules/video_player.lua)

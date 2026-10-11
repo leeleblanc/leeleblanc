@@ -531,6 +531,36 @@ do
     _G.typingInjection = nil
 end
 
+-- 22. NO APP IS LISTED TWICE -----------------------------------------
+-- 🗑 6.350.0 — LL: "Tidy it up." Microsoft Excel was in the watched list
+-- twice. Harmless (the second pass finds the app already recorded as
+-- gone, so no second popup) and invisible to every functional check,
+-- because a duplicate changes no behaviour at all.
+-- 🔑 SO THE SENTRY ASSERTS THE RULE RATHER THAN THE NAME (6.276.0): a
+-- check for "Excel appears once" is true until the next hand-edit puts
+-- something else in twice. This reads the list out of the module's own
+-- source, so it cannot drift from what ships.
+do
+    local f = io.open(HS .. "/modules/app_watcher.lua", "r")
+    local src = f and f:read("*a") or ""
+    if f then f:close() end
+    local block = src:match("appMonitorWatchedApps%s*=%s*{(.-)\n%s*}")
+    ok(block ~= nil and #block > 50,
+       "🗑 the sentry found the watched-apps list (without it it proves "
+       .. "nothing — 6.313.0)", tostring(block and #block))
+    local seen, dupes, n = {}, {}, 0
+    for name in (block or ""):gmatch('"([^"]+)"') do
+        n = n + 1
+        if seen[name] then dupes[#dupes + 1] = name end
+        seen[name] = true
+    end
+    ok(n >= 10, "🗑 …and it really read the names", n)
+    ok(#dupes == 0, "🗑 no app is watched twice", table.concat(dupes, " · "))
+    ok(seen["Transmission"] == nil and seen["IINA"] == nil,
+       "🗑 …and neither of the two he asked me to remove is back")
+end
+
+
 -- 20. AN APP THAT IS NOT ON THE LIST IS IGNORED -----------------------
 -- 🚨 THE SUITE HAD NEVER DRIVEN THIS, in nineteen tests, which is why
 -- 6.346.0 had to add it before it could remove a name: every check here

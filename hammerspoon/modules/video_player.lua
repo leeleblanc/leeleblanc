@@ -298,6 +298,25 @@ function M.setup(core)
             { how = "the absolute file URL",
               base = nil,
               src  = "file://" .. vid.encodePath(p) },
+            -- 🚪 DOOR THREE, AND IT IS THE LAST ONE A WEBVIEW HAS. His
+            -- 2026-10-11 report refused both of the above with
+            -- MediaError code 4, so a page handed to WebKit as a STRING
+            -- cannot reach a film on his disk whichever URL it is given.
+            -- What is left is to give WebKit a page that IS a file, in
+            -- the film's OWN folder, and let it ask for a neighbour:
+            -- `view:url("file://…/.mug-stage.html")` rather than
+            -- `view:html(...)`. A document loaded from a file URL is a
+            -- different code path in WebKit from one loaded from a
+            -- string, and whether that path is allowed to read the
+            -- folder beside it is the thing this release MEASURES. It
+            -- is not a belief about the API (6.233.0) — if it is also
+            -- refused, three doors have answered and the webview is not
+            -- the surface, which decides the next release rather than
+            -- leaving it open.
+            { how  = "a page written beside the film, loaded as a file URL",
+              file = dir .. "/" .. vid.stageName,
+              base = nil,
+              src  = vid.encodePath(base) },
         }
     end
 
@@ -445,6 +464,12 @@ function M.setup(core)
     -- cross-Mac data, and 6.229.0 priced a write into a watched cloud
     -- folder in main-thread wake-ups.
     -- =================================================================
+
+    -- The dot-file door 3 writes into the film's own folder, and
+    -- removes again the moment the window closes or the film changes.
+    -- A dot-file so Finder does not show it, and ONE name so there can
+    -- never be a second one left behind.
+    vid.stageName = ".mug-stage.html"
 
     vid.dir = (core.homeDir or os.getenv("HOME") or "")
               .. "/Library/Application Support/Hammerspoon/mug"
@@ -805,6 +830,40 @@ document.addEventListener('keydown',function(e){
         return d and d.base or nil
     end
 
+    -- 🧹 THE STAGE FILE IS OURS AND IS NEVER LEFT BEHIND. It is removed
+    -- when the window closes, when the film changes and before it is
+    -- written again — and it is only ever removed if the path ends in
+    -- our own one name, so a bug in `dir` can never delete a film.
+    function vid.clearStage()
+        local p = vid.stagePath
+        vid.stagePath = nil
+        if type(p) ~= "string" then return false end
+        if not p:find(vid.stageName, 1, true) then return false end
+        if p:sub(-#vid.stageName) ~= vid.stageName then return false end
+        local okRm = pcall(function() os.remove(p) end)
+        return okRm
+    end
+
+    -- Answers the path it wrote, or nil AND WHY — a door that cannot be
+    -- opened must say so rather than reading as a door that failed.
+    function vid.writeStage(path, html)
+        vid.clearStage()
+        if type(path) ~= "string" or path == "" then
+            return nil, "no folder to write the page into"
+        end
+        local f = io.open(path, "w")
+        if not f then
+            return nil, "the film's folder would not take a file"
+        end
+        local okW = pcall(function() f:write(html) ; f:close() end)
+        if not okW then
+            pcall(function() os.remove(path) end)
+            return nil, "the page could not be written beside the film"
+        end
+        vid.stagePath = path
+        return path
+    end
+
     -- `full` rebuilds the document, which is the ONLY way the page's base
     -- URL can change — and the base URL is the film's own folder, so a
     -- new film and a new door both need one. Everything else (a queue
@@ -815,6 +874,31 @@ document.addEventListener('keydown',function(e){
         if not view then return false end
         if full then
             vid.pageReady = false
+            -- 🚪 DOOR 3 IS A DIFFERENT LOADING MECHANISM, not a different
+            -- URL: the page is written to disk beside the film and
+            -- WebKit is asked for it by file URL.
+            local cur  = vid.queue[vid.index]
+            local door = cur and vid.sourceDoors(cur.path)[vid.door]
+            if door and door.file then
+                local wrote, why = vid.writeStage(door.file, buildHtml())
+                if wrote then
+                    pcall(function()
+                        view:url("file://" .. vid.encodePath(wrote))
+                    end)
+                    return true
+                end
+                -- A door that could not be OPENED is not a door that was
+                -- refused by WebKit: it is counted and named separately,
+                -- or the report blames macOS for a read-only folder.
+                vid.stageWhy = why
+                vid.doorFailed["a page written beside the film (" ..
+                               tostring(why) .. ")"] =
+                    (tonumber(vid.doorFailed["a page written beside the film ("
+                        .. tostring(why) .. ")"]) or 0) + 1
+                vid.lastWhy = "the page could not be written beside the film — "
+                              .. tostring(why)
+                return false
+            end
             local base = baseOf()
             -- 🚪 DOOR 1 PASSES A BASE URL. A Hammerspoon whose :html()
             -- takes one argument ignores it, the relative src fails, and
@@ -1043,6 +1127,7 @@ document.addEventListener('keydown',function(e){
     end
 
     function vid.hide()
+        vid.clearStage()
         -- A retry in flight is a window about to be put on screen that
         -- nobody asked for any more. The token moves too, so a callback
         -- already running finds its run superseded.
@@ -1308,6 +1393,49 @@ document.addEventListener('keydown',function(e){
     end
     vid.asRow = asRow
 
+    -- 🔬 WHAT IS THIS FILM, ACTUALLY? Asked only when every door has
+    -- refused, once per film, in a HELD task off the main thread
+    -- (6.228.0). It changes nothing — it is the line that decides
+    -- whether the next release is another door or a different player.
+    function vid.askCodecs(path)
+        if type(path) ~= "string" or path == "" then return false end
+        if vid.codecsFor == path then return false end
+        vid.codecsFor = path
+        vid.codecs = "asking the Mac what this file holds…"
+        if not (hs.task and hs.task.new) then
+            vid.codecs = "could not ask — no hs.task on this Mac"
+            return false
+        end
+        local okN, t = pcall(hs.task.new, "/usr/bin/mdls",
+            function(code, out)
+                local text = tostring(out or "")
+                local got = {}
+                for v in text:gmatch('"([^"]+)"') do got[#got + 1] = v end
+                if code == 0 and #got > 0 then
+                    vid.codecs = table.concat(got, " · ")
+                else
+                    vid.codecs = "mdls answered nothing (exit "
+                                 .. tostring(code) .. ")"
+                end
+            end,
+            { "-name", "kMDItemCodecs", "-name", "kMDItemMediaTypes", path })
+        if not (okN and t) then
+            vid.codecs = "could not ask — mdls would not start"
+            return false
+        end
+        -- 🪜 HELD in its own slot (6.196.1): a task nothing references is
+        -- collected, and a collected task never calls back.
+        vid.codecTask = t
+        local started = false
+        pcall(function() started = t:start() ~= false end)
+        if not started then
+            vid.codecs = "could not ask — macOS refused to start mdls"
+            vid.codecTask = nil
+            return false
+        end
+        return true
+    end
+
     function vid.handleMessage(body)
         if type(body) ~= "table" then return end
         local a = body.a
@@ -1357,17 +1485,39 @@ document.addEventListener('keydown',function(e){
                 vid.paint(true)
                 return
             end
+            -- 🔬 AND THE REPORT ASKS THE MAC WHAT THE FILM ACTUALLY IS.
+            -- MediaError code 4 is MEDIA_ERR_SRC_NOT_SUPPORTED, and it
+            -- is returned BOTH when WebKit could not fetch the file and
+            -- when it fetched it and cannot decode the codec. Those are
+            -- opposite facts with opposite fixes — one needs a different
+            -- way in, the other needs a different player and no door
+            -- will ever help. `mdls` is on every Mac and answers it
+            -- outright, off the main thread.
+            vid.askCodecs(cur.path)
             -- 🚨 EVERY WAY IN REFUSED, AND IT SAYS SO IN WORDS. This is
             -- the state this release exists to make legible rather than
             -- a black rectangle: it names the film, says macOS refused
             -- the window read access, and gives the key that opens it
             -- anyway.
-            vid.lastWhy = "macOS would not let this window read "
-                          .. tostring(cur.path)
-            tellPage("fail", "⚠️ macOS would not let this window read "
-                     .. (cur.title or "") .. ".  Every way in was refused."
-                     .. "  Press ⌘O to open it in QuickTime — and send me"
-                     .. " _G.mugReport(), which names what was tried.")
+            -- 🚨 AND IT NO LONGER ASSERTS A CAUSE IT HAS NOT MEASURED.
+            -- The old sentence said "macOS would not let this window
+            -- read" it, which is ONE of the two things code 4 means —
+            -- the other is that WebKit read it perfectly well and cannot
+            -- decode what is inside. A message that picks a side is a
+            -- message that sends the next release the wrong way
+            -- (6.320.0: a refusal he cannot act on is a defect even when
+            -- the refusal is right).
+            vid.lastWhy = "no way in worked for " .. tostring(cur.path)
+                          .. " — macOS said " .. tostring(vid.mediaWhy)
+            tellPage("fail", "⚠️ " .. (cur.title or "") .. " would not play,"
+                     .. " and every way in was refused.  That means ONE of"
+                     .. " two things: this window cannot read the file, or"
+                     .. " WebKit cannot decode what is inside it."
+                     .. "  ⌘O opens it in QuickTime."
+                     .. "  Then try a film you know Safari can play — if"
+                     .. " THAT one plays, this one is a codec and no"
+                     .. " amount of fixing will help it."
+                     .. "  _G.mugReport() now names the codecs.")
             return
 
         elseif a == "close" then
@@ -1598,6 +1748,16 @@ document.addEventListener('keydown',function(e){
         L[#L + 1] = "   way in : " .. (vid.doorWorked
             and (vid.doorWorked .. " — this is the one that carried a film")
             or "⏳ no film has loaded yet, so nothing has been measured")
+        if vid.codecs then
+            L[#L + 1] = "   codecs : " .. tostring(vid.codecs)
+            L[#L + 1] = "   ↳ H.264/AAC and no door works = this window "
+                        .. "cannot READ the file.  HEVC, x265, AC3, DTS or "
+                        .. "nothing at all = WebKit cannot DECODE it, and "
+                        .. "no way in will ever fix that."
+        end
+        if vid.stageWhy then
+            L[#L + 1] = "   stage  : ⚠️ " .. tostring(vid.stageWhy)
+        end
         local failed = {}
         for k, n in pairs(vid.doorFailed) do failed[#failed + 1] = k .. " ×" .. n end
         table.sort(failed)
