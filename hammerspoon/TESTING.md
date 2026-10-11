@@ -1,4 +1,4 @@
-# TESTING — how to score release 6.352.0
+# TESTING — how to score release 6.353.0
 
 You install ONE archive and it carries several releases. Below are the
 steps for each release this archive is new for, newest first. Run the
@@ -26,6 +26,82 @@ else is a LOSS and I fix it before building further. You are the only
 scorer; I never mark my own.
 
 ---
+
+## 6.353.0
+
+6.353.0 verify with LL — 🚪 THE WINDOW HANDS THE FILM OUT (KNOWN GROUND)
+WHAT CHANGED: the Mug Player stops trying to play films it cannot read
+and hands them to a player that can. And ⌘O works.
+✅ FIRST, WHAT YOUR SCREENSHOTS SETTLED, because two questions closed
+without another round. The DROP WORKS — the veil appears, six films
+are in your deck BY NAME, two are in the history. And "there's
+nothing now" is answered: your own screenshot shows "Mug Player" in
+blue, "nothing playing" beside it and every film named. The page was
+never the fault. "Nothing" was the black stage, because nothing
+would play.
+🚪 AND YOUR OTHER SCREENSHOT IS THE ANSWER TO THE WHOLE TOOL. That
+error page is not mine — it is WebKit's: "Error code: -3001 in
+NSURLErrorDomain … Cannot open file". That is a NAVIGATION error on a
+file this config had JUST WRITTEN, so unlike the earlier code 4 it is
+not ambiguous: the file was there and WebKit would not read it.
+6.351.0 said in writing that a third refusal decides this. It did.
+🚨 AND IT WAS WORSE THAN A FAILURE: a refused navigation REPLACES the
+page, so the deck, the queue and every key went with it and you were
+left looking at an error page. That is why the window seemed to die.
+Door 3 is deleted — it cannot work, and it could destroy the window.
+
+A. THE HEADLINE — a minute, and it should just play now.
+A1. ⇪⇧, and drop a film, or press ⏎ on one already in the deck.
+    EXPECT: a moment of black, then **the film opens in your usual
+    player** (IINA/QuickTime/VLC — whatever .mp4 opens with), and the
+    Mug Player says so on the stage.
+    **A FAIL is the error page coming back**, or nothing happening.
+A2. Read what the window says while it hands over. It should name
+    the film and the -3001 error, so the claim is checkable.
+A3. **⌘O on a film with nothing playing.** EXPECT: it opens the row
+    you have SELECTED. It used to say "nothing is playing" — that is
+    the bug you reported.
+A4. ⌘O with the queue EMPTY. EXPECT: "there is nothing in the queue
+    to open". That is the case that should still refuse.
+
+B. MUST STILL WORK — this touched the queue's own window.
+B1. The drop, both ways: the veil, films queuing by name.
+B2. .mkv and .mp3 still refused BY NAME with ⌘O offered — you
+    confirmed both on 6.352.0 and neither may have moved.
+B3. ↑↓, ⏎, ⌫ on a queue row, the ✕ on a history row, Escape.
+B4. 🚨 **⇪⇧. the Jug Player** — drop an mp3, it plays. You asked for
+    exactly this and I am asking you to check it again, because this
+    release touched the module beside it.
+B5. Check your film folders: there must be NO hidden `.mug-stage.html`
+    anywhere (⌘⇧. shows hidden files). That file is gone, and so is
+    every line that could delete one.
+
+C. PASTE BACK, PASS OR FAIL.
+C1. `_G.mugReport()` with the window OPEN. Two new lines:
+      exits  : 2 handed out because no way in worked · 1 you opened
+               yourself
+      ↳ ⌘O would open: <film> — the row you have selected
+    That second line says what ⌘O would do RIGHT NOW, so a wrong
+    answer is visible before you press it.
+C2. The `refused:` line should now name TWO ways in, never three.
+
+D. A JUDGEMENT ONLY YOU CAN MAKE.
+D1. **Is the automatic hand-off right?** A film that will not play in
+    the window now opens in your player WITHOUT you pressing
+    anything. The alternative is it stops and waits for ⌘O, which is
+    `settings = { video_player = { handOff = false } }`. I shipped
+    automatic because a window whose only answer is "it would not
+    play" does not work — but it is your taste and I will change the
+    default on one word.
+D2. **Is this still the tool you want?** It is now a queue, a
+    history and a drop target that hands films to a real player. If
+    what you wanted was a window that PLAYS them, three ways in have
+    been refused and the honest answer is that a Hammerspoon webview
+    cannot — the next step would be a different surface entirely, and
+    that is a much bigger release I will not start unasked.
+D3. 🔨 CRUDE OR ELEGANT: pass six on this tool. Your tag.
+
+
 
 ## 6.352.0
 
@@ -200,28 +276,6 @@ A1. Nothing to press. `Microsoft Excel` was in the watched list twice
     and is now there once. Quit Excel: EXPECT the popup, exactly one.
 🔑 The sentry asserts the RULE — no app twice — not the name, so the
 next hand-edit that repeats something fails the gate.
-
-
-
-## 6.349.0
-
-6.349.0 verify with LL — 🗓 ⇪⇧0 OPENS ON TODAY (KNOWN GROUND)
-WHAT CHANGED: the calendar opens on today, every time.
-🔎 AND THE COMMENT BESIDE THE OLD LINE PROMISED EXACTLY THAT while
-the code did the opposite — it kept whatever day you last arrowed to
-and only gave up after a year's drift. You were right.
-A1. ⇪⇧0. EXPECT today, filled. Esc.
-A2. ⇪⇧0, press → three times (now on the 14th), Esc, ⇪⇧0 again.
-    EXPECT **today** — not the 14th. That is the whole release.
-A3. Look at today's date while the cursor is elsewhere: it keeps its
-    ring. That part was already right and is untouched.
-B1. ←→ a day, ↑↓ a week, [ ] a month, T back to today, click to copy,
-    Esc — all unchanged.
-C1. 🗳 If you would rather it DID reopen where you left it:
-    `settings = { mini_calendar = { keepPlace = true } }`. Say the
-    word and I will change the default instead of leaving you a line.
-C2. 📏 NAMED: mini_calendar still has no suite of its own — these
-    checks live in test_features with the calendar's others.
 
 
 

@@ -4,8 +4,20 @@
 -- =====================================================================
 -- 10-09-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.352.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.353.0
 -- =====================================================================
+
+-- NEW IN 6.353.0 — 🚪 THE WINDOW HANDS THE FILM OUT (video_player.lua).
+--   Three ways in have now been refused, and macOS NAMED the third:
+--   "Error code: -3001 in NSURLErrorDomain … Cannot open file". That
+--   is a NAVIGATION error, so unlike MediaError 4 it is not ambiguous
+--   — the file was not read. 6.351.0 said in writing that a third
+--   refusal decides this, so door 3 is DELETED: it cannot work, and a
+--   refused navigation REPLACED the player with an error page, taking
+--   the deck and every key with it. The film goes to a real player
+--   instead, and ⌘O works from the SELECTED row — it read `vid.index`
+--   alone, which is 0 whenever nothing has started, so the way out was
+--   dead exactly where it was needed.
 
 -- NEW IN 6.352.0 — 🚚 THE DROP HAS TWO DOORS (video_player.lua).
 --   LL: "I can't drag and drop a file on it." It had ONE way in — a
@@ -16,23 +28,11 @@
 --   gets its own handler, the catcher is the belt, the two are COUNTED
 --   APART, and the report stops reading as health about a closed window.
 
--- NEW IN 6.351.0 — 🚪 A THIRD WAY IN, AND THE QUESTION macOS'S ERROR
---   CANNOT ANSWER (video_player.lua). Both earlier doors refused his
---   film with MediaError code 4, so a page handed to WebKit as a
---   STRING cannot reach a film on his disk. Door 3 writes the page as
---   a FILE beside the film and asks for it by file URL — a different
---   code path, measured rather than believed (6.233.0).
---   🔬 AND CODE 4 MEANS TWO OPPOSITE THINGS: could not fetch it, or
---   fetched it and cannot decode it. The alert no longer picks one,
---   and `mdls` now names the film's codecs in the report — H.264 with
---   no door working is a READ problem; HEVC or AC3 is a DECODE one
---   that no way in will ever fix.
-
--- (6.350.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.351.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 cut the inline count to
 --  TWO; a gate check proves every entry here is also in CHANGELOG.md.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.352.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.353.0
 -- =====================================================================
 -- The catalogue that used to sit here moved to GUIDE.md ("What each
 -- tool does") in 6.180.0 — 259 lines of prose inside the orchestrator.
@@ -125,7 +125,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.352.0"
+_G.configVersion = "6.353.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the

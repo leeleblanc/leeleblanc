@@ -319,6 +319,7 @@ local function reset()
     -- pageSpoke that survived made a page which had never spoken report
     -- as a window that was merely closed.
     vid.pageDrops, vid.catchDrops, vid.catchRefused = 0, 0, 0
+    vid.handedOff, vid.byHand, vid.handOff = 0, 0, true
     vid.pageSpoke, vid.catcherOn, vid.uriWhy = false, false, nil
     vid.dragSeen, vid.dropReader = "no drag yet this session", nil
     if vid.retryTimer then
@@ -416,8 +417,13 @@ check("🔑 an apostrophe is encoded",
 -- §4 ── the ways in ----------------------------------------------------
 out("\n§4 the doors, in order\n")
 local doors = vid.sourceDoors("/Films/My Film.mp4")
-check("🪟 there are THREE ways in, and more than one is the point",
-      #doors == 3, #doors)
+-- 🚪 6.353.0 — TWO, not three. The third was a page written as a FILE
+-- beside the film and asked for by file URL, and his Mac answered it
+-- with NSURLErrorDomain -3001 ("Cannot open file") — a NAVIGATION
+-- error, which unlike MediaError code 4 is not ambiguous. It is gone,
+-- and §20 holds the measurement that removed it.
+check("🪟 there are TWO ways in, and more than one is the point",
+      #doors == 2, #doors)
 check("🪟 door 1 is the film's own folder as the base URL",
       doors[1].base == "file:///Films/" and doors[1].src == "My%20Film.mp4",
       tostring(doors[1].base) .. " | " .. tostring(doors[1].src))
@@ -663,22 +669,20 @@ vid.queue = { { path = "/F/A.mp4", title = "A" } }
 vid.playIndex(1)
 vid.handleMessage({ a = "srcfail", d = 1, gen = vid.gen })
 vid.handleMessage({ a = "srcfail", d = 2, gen = vid.gen })
-vid.handleMessage({ a = "srcfail", d = 3, gen = vid.gen })
 check("🚨 with every way in refused the PAGE is told, in words",
-      jsHas("fail(") and jsHas("QuickTime"))
-check("🚨 …and it names the report that says what was tried",
-      jsHas("_G.mugReport()"))
-check("🚨 …and the door does not run past the last one", vid.door == 3,
+      jsHas("fail("))
+check("🚨 …and the door does not run past the last one", vid.door == 2,
       tostring(vid.door))
--- 🚨 6.351.0 — AND THE MESSAGE NO LONGER PICKS A SIDE. MediaError code
--- 4 means BOTH "could not fetch it" and "fetched it and cannot decode
--- it", and the old sentence asserted the first. A message that picks
--- one sends the next release the wrong way, and he is the only person
--- who can run the test that separates them.
-check("🚨 …and it names BOTH things code 4 can mean",
-      jsHas("cannot read the file") and jsHas("cannot decode"))
-check("🚨 …and gives him the one test that tells them apart",
-      jsHas("a film you know Safari can play"))
+-- 🚪 6.353.0 — AND THE MESSAGE NO LONGER ASKS HIM TO DIAGNOSE IT. The
+-- old one named both things MediaError code 4 can mean and gave him a
+-- test to tell them apart, which was right while the question was
+-- open. -3001 closed it: the third door's NAVIGATION error says the
+-- file was not READ, so the window is told what is happening to the
+-- film instead of what might be wrong with it.
+check("🚪 …and the page says the film is going to a real player",
+      jsHas("is opening in"))
+check("🚪 …naming the error that settled it, so the claim is checkable",
+      jsHas("-3001"))
 check("🔬 …and the Mac is asked what the film actually holds",
       vid.codecsFor == "/F/A.mp4" and vid.codecs ~= nil, tostring(vid.codecs))
 
@@ -841,11 +845,24 @@ check("🚪 ⌘O opens the film with /usr/bin/open",
       #TASKS == 1 and TASKS[1].bin == "/usr/bin/open"
       and TASKS[1].args[1] == "/F/a.mp4")
 check("🚪 …and it is counted", vid.externals == 1)
+-- 🚪 6.353.0 — THIS CHECK USED TO ASSERT THE BUG. "with nothing playing
+-- it says so" is exactly what LL met ("⌘+o just says nothing is
+-- playing") with six films in the deck, and the way out is needed most
+-- on the Mac where no film can start. An EMPTY queue is the case that
+-- should still refuse.
+reset()
+vid.show()
+vid.queue = { { path = "/F/a.mp4", title = "A" } }
+vid.index, vid.sel, vid.selList = 0, 1, "queue"
+vid.handleMessage({ a = "external" })
+check("🚪 ⌘O with nothing playing opens the SELECTED film",
+      #TASKS == 1 and TASKS[1].args[1] == "/F/a.mp4", #TASKS)
 reset()
 vid.show()
 vid.handleMessage({ a = "external" })
-check("🚪 with nothing playing it says so rather than opening nothing",
-      #TASKS == 0 and anyHas(ALERTS, "nothing is playing"))
+check("🚪 …and an EMPTY queue is what refuses, naming why",
+      #TASKS == 0 and anyHas(ALERTS, "nothing in the queue"),
+      ALERTS[#ALERTS])
 -- 🔬 hs.task refusing — 6.304.0's shape, which a pcall does NOT catch.
 reset()
 vid.show()
@@ -1224,114 +1241,143 @@ check("🚨 …and it is NOT reported as a loss — those are opposite facts",
 reset()
 
 
--- §20 ── door three: a page written beside the film ---------------------
-out("\n§20 the third way in, and the file it writes\n")
--- 🚪 HIS 2026-10-11 REPORT REFUSED BOTH EARLIER DOORS with MediaError
--- code 4, so a page handed to WebKit as a STRING cannot reach a film on
--- his disk whichever URL it is given. What is left is a page that IS a
--- file, in the film's own folder, asked for by file URL — a different
--- WebKit code path, and whether it may read the folder beside it is
--- what this door MEASURES rather than assumes (6.233.0).
+-- §20 ── THE THIRD WAY IN WAS MEASURED, AND IS GONE (6.353.0) ----------
+out("\n§20 the third way in — measured, and removed\n")
+-- 🚪 6.351.0 BUILT A THIRD DOOR and said in writing that if it were
+-- refused too, three doors had answered and the webview is not the
+-- surface. IT WAS REFUSED, and macOS named it rather than leaving it to
+-- be read: his screenshot is WebKit's own navigation error page, "An
+-- Error code: -3001 in NSURLErrorDomain occurred during navigation:
+-- Cannot open file". -3001 is NSURLErrorCannotOpenFile and it is a
+-- NAVIGATION error, so unlike MediaError code 4 it is not ambiguous.
 reset()
-DISK = {}
-local d3 = vid.sourceDoors("/Films/My Film.mp4")[3]
-check("🚪 door 3 writes beside the film, not into our own folder",
-      d3 and d3.file == "/Films/" .. vid.stageName, tostring(d3 and d3.file))
-check("🚪 …and asks for the film as a neighbour, by name",
-      d3 and d3.src == "My%20Film.mp4" and d3.base == nil)
+local doors = vid.sourceDoors("/Films/My Film.mp4")
+check("🚪 there are TWO ways in now, not three", #doors == 2, #doors)
+check("🚪 …and neither of them is a file this tool writes", (function()
+    for _, d in ipairs(doors) do if d.file then return false end end
+    return true
+end)())
 
+-- 🚨 AND IT DID NOT MERELY FAIL, IT TOOK THE PLAYER WITH IT: a refused
+-- `view:url()` REPLACES the document, so the deck, the queue and every
+-- key went with it. Nothing in the draw path may navigate.
 reset()
 DISK = {}
 vid.show()
 vid.queue = { { path = "/Films/My Film.mp4", title = "My Film" } }
-vid.index, vid.door = 1, 3
-vid.paint(true)
-check("🚪 the page is WRITTEN to disk beside the film",
-      DISK["/Films/" .. vid.stageName] ~= nil)
-check("🚪 …and it is a real page, not an empty file",
-      (DISK["/Films/" .. vid.stageName] or ""):find("<video", 1, true) ~= nil)
-check("🚪 …and WebKit is asked for it by URL, not handed a string",
-      (vid.webview.urlLoaded or ""):find(vid.stageName, 1, true) ~= nil,
-      tostring(vid.webview.urlLoaded))
+vid.index = 1
+vid.door  = 1 ; vid.paint(true)
+vid.door  = 2 ; vid.paint(true)
+check("🚨 no way in NAVIGATES — the page is only ever handed over as a "
+      .. "string, so a film that will not load cannot destroy the window",
+      vid.webview.urlLoaded == nil, tostring(vid.webview.urlLoaded))
+check("🧹 …and nothing was written into the film's folder", (function()
+    for k in pairs(DISK) do
+        if tostring(k):find("/Films/", 1, true) then return false end
+    end
+    return true
+end)())
 
--- 🧹 IT IS NEVER LEFT BEHIND. His films live in folders he looks at.
-vid.hide()
-check("🧹 closing the window removes the page it wrote",
-      DISK["/Films/" .. vid.stageName] == nil)
-check("🧹 …and nothing is left pointing at it", vid.stagePath == nil)
-
-reset()
-DISK = {}
-vid.show()
-vid.queue = { { path = "/Films/My Film.mp4", title = "A" },
-              { path = "/Other/Second.mp4", title = "B" } }
-vid.index, vid.door = 1, 3
-vid.paint(true)
-vid.index = 2
-vid.paint(true)
-check("🧹 a new film takes the old page with it — never two on disk",
-      DISK["/Films/" .. vid.stageName] == nil
-      and DISK["/Other/" .. vid.stageName] ~= nil)
-vid.hide()
-
--- 🚨 THE CHECK THAT MATTERS MORE THAN THE FEATURE. This code calls
--- os.remove on a path built from a film's folder. A bug in that folder
--- is a deleted FILM, which is the one failure here with no way back
--- (6.280.0's rule, in a module that touches his files).
-reset()
-DISK = { ["/Films/My Film.mp4"] = "a film" }
-vid.stagePath = "/Films/My Film.mp4"
-check("🚨 clearStage REFUSES a path that is not our own stage file",
-      vid.clearStage() == false and DISK["/Films/My Film.mp4"] == "a film")
-vid.stagePath = "/Films/" .. vid.stageName .. ".bak"
-DISK["/Films/" .. vid.stageName .. ".bak"] = "x"
-check("🚨 …and refuses one that merely CONTAINS the name",
-      vid.clearStage() == false
-      and DISK["/Films/" .. vid.stageName .. ".bak"] == "x")
-vid.stagePath = nil
-check("🚨 …and a nil path removes nothing and does not throw",
-      vid.clearStage() == false)
-
--- 🛟 A FOLDER THAT WILL NOT TAKE A FILE IS NOT A WEBKIT REFUSAL. Read-
--- only media, a disk that is full: the door could not be OPENED, and
--- saying "macOS refused to read it" there blames the wrong thing.
-reset()
-DISK = {}
-WRITE_FAILS = true
-vid.show()
-vid.queue = { { path = "/Films/My Film.mp4", title = "A" } }
-vid.index, vid.door = 1, 3
-check("🛟 a folder that refuses the page makes the door answer false",
-      vid.paint(true) == false)
-check("🛟 …and it says WHY, in its own words",
-      tostring(vid.stageWhy):find("would not take", 1, true) ~= nil
-      or tostring(vid.stageWhy):find("could not be written", 1, true) ~= nil,
-      tostring(vid.stageWhy))
-WRITE_FAILS = false
-
--- 🔬 WHAT IS THIS FILM, ACTUALLY — the line that decides the next
--- release. MediaError code 4 is returned BOTH when WebKit could not
--- fetch the file and when it fetched it and cannot decode the codec.
--- Those are opposite facts with opposite fixes.
-reset()
-vid.codecs, vid.codecsFor = nil, nil
-vid.queue = { { path = "/F/film.mp4", title = "film" } }
-vid.index, vid.gen, vid.door = 1, 1, 1
-check("🔬 the Mac is asked, in a task, off the main thread",
-      vid.askCodecs("/F/film.mp4") == true and #TASKS > 0)
-local function lastTask() return TASKS[#TASKS] or { args = {} } end
-check("🔬 …with mdls and the file, and nothing else",
-      lastTask().bin == "/usr/bin/mdls"
-      and lastTask().args[#lastTask().args] == "/F/film.mp4",
-      tostring(lastTask().bin))
-check("🔬 …once per film, not once per refusal",
-      vid.askCodecs("/F/film.mp4") == false)
--- The answer, and the report must carry it.
-if lastTask().cb then
-    lastTask().cb(0, 'kMDItemCodecs = (\n    "HEVC",\n    "AC3"\n)', "")
+-- 🚨 THE SENTRY THAT MATTERS MORE THAN THE FEATURE. The deleted door
+-- needed os.remove on a path built from a folder full of HIS FILMS —
+-- the one failure in this module with no way back (6.280.0). It was
+-- guarded twice and proven twice; the safest version of that code is
+-- the version that does not exist, and this keeps it from coming back
+-- without those guards.
+do
+    local f = assert(realOpen(HS .. "/modules/video_player.lua"))
+    local srcTxt = f:read("a") ; f:close()
+    -- 🚨 THE RULE, NOT THE NAME. The first version of this banned
+    -- `os.remove` outright and went red on correct code: the store's
+    -- temp-then-rename (6.313.0) legitimately removes its OWN temp file
+    -- in Application Support. 6.321.0 wrote this down and I broke it in
+    -- the next module — a sentry that bans a NAME expires the moment
+    -- the name has an honest use.
+    local removes = 0
+    for call in srcTxt:gmatch("os%.remove%(([^%)]*)%)") do
+        removes = removes + 1
+        check("🚨 os.remove takes the store's own temp file, never a path "
+              .. "built from a film's folder — got " .. call,
+              call == "tmp")
+    end
+    check("🚨 …and the store's two removes are still there, so this "
+          .. "sentry is reading a real haystack (6.313.0)", removes == 2,
+          removes)
+    check("🚨 …and writes no file beside a film",
+          srcTxt:find("writeStage", 1, true) == nil
+          and srcTxt:find("stageName", 1, true) == nil)
+    -- 🔎 AND THE COMMENT EXPLAINING WHY MUST SURVIVE, or the sentry can
+    -- be satisfied by deleting the reason (6.280.0).
+    check("🚨 …and the source says why it must stay that way",
+          srcTxt:find("no way back", 1, true) ~= nil)
 end
-check("🔬 the codecs it answered are kept",
-      tostring(vid.codecs):find("HEVC", 1, true) ~= nil, tostring(vid.codecs))
+
+-- 🚪 THE WAY OUT MUST WORK WHEN NOTHING IS PLAYING — THAT IS WHEN IT IS
+-- NEEDED. LL: "⌘+o just says nothing is playing", with six films in the
+-- deck and a row highlighted. 6.265.0's shape exactly: the right answer
+-- one branch away, unreachable.
+reset()
+local Q = { { path = "/F/a.mp4", title = "A" }, { path = "/F/b.mp4", title = "B" },
+            { path = "/F/c.mp4", title = "C" } }
+local t, why = vid.exitPick(2, Q, "queue", 3)
+check("🚪 a film that IS playing wins", t.title == "B"
+      and why:find("playing", 1, true) ~= nil, why)
+t, why = vid.exitPick(0, Q, "queue", 3)
+check("🚪 nothing playing → the row he has SELECTED", t.title == "C"
+      and why:find("selected", 1, true) ~= nil, why)
+-- 🔎 A SELECTION IN THE HISTORY IS NOT A QUEUE ROW, and reading it as
+-- one opens the wrong film — the fixture that bites, because every
+-- other input agrees (6.230.0).
+t, why = vid.exitPick(0, Q, "history", 2)
+check("🚪 a HISTORY selection does not name a queue row — the first "
+      .. "film is the honest answer", t.title == "A"
+      and why:find("first", 1, true) ~= nil, why)
+t, why = vid.exitPick(0, {}, "queue", 1)
+check("🚪 an empty queue answers nil AND why, never a crash",
+      t == nil and why:find("nothing in the queue", 1, true) ~= nil, why)
+
+reset()
+vid.show()
+vid.queue = { { path = "/F/one.mp4", title = "One" } }
+vid.index, vid.sel, vid.selList = 0, 1, "queue"
+check("🚪 ⌘O with nothing playing opens the selected film",
+      vid.openExternal() == true and vid.externals == 1)
+check("🚪 …and says WHICH row it took, so a wrong one is visible",
+      anyHas(ALERTS, "the row you have selected"), ALERTS[#ALERTS])
+
+-- 🚪 AND WHEN EVERY WAY IN IS REFUSED, THE FILM GOES OUT. A window
+-- whose only answer is "it would not play" is a window that does not
+-- work, and three doors have answered on his Mac.
+reset()
+vid.show()
+vid.queue = { { path = "/F/film.mp4", title = "Film" } }
+vid.index, vid.door, vid.gen = 1, 2, vid.gen
+vid.handleMessage({ a = "srcfail", d = 2, gen = vid.gen, code = 4, why = "" })
+check("🚪 the last refusal hands the film to a real player",
+      vid.externals == 1 and vid.handedOff == 1,
+      vid.externals .. "/" .. vid.handedOff)
+check("🚪 …and the page SAYS so rather than showing a dead stage",
+      jsHas("is opening in") and jsHas("-3001"))
+-- 🔌 AND THE SWITCH IS REAL IN BOTH DIRECTIONS (6.228.0/6.259.0).
+reset()
+vid.show()
+vid.handOff = false
+vid.queue = { { path = "/F/film.mp4", title = "Film" } }
+vid.index, vid.door = 1, 2
+vid.handleMessage({ a = "srcfail", d = 2, gen = vid.gen, code = 4, why = "" })
+check("🔌 handOff = false leaves the film here and names ⌘O",
+      vid.externals == 0 and vid.handedOff == 0 and jsHas("⌘O opens it"))
+vid.handOff = true
+
+-- 🔎 COUNTED APART (6.229.0): a film HE sent out and one this tool sent
+-- out because nothing would play are different facts.
+reset()
+vid.show()
+vid.queue = { { path = "/F/one.mp4", title = "One" } }
+vid.index, vid.sel, vid.selList = 1, 1, "queue"
+vid.door = 2
+vid.openExternal()
+vid.handleMessage({ a = "srcfail", d = 2, gen = vid.gen, code = 4, why = "" })
 do
     local lines = {}
     local realP = print
@@ -1339,21 +1385,14 @@ do
     pcall(_G.mugReport)
     print = realP
     local txt = table.concat(lines, "\n")
-    check("🔬 …and the report prints them with what they MEAN",
-          txt:find("codecs :", 1, true) ~= nil
-          and txt:find("cannot DECODE", 1, true) ~= nil, txt)
+    check("🔎 the report counts the two ways out apart",
+          txt:find("1 handed out because", 1, true) ~= nil
+          and txt:find("1 you opened yourself", 1, true) ~= nil, txt)
+    check("🔎 …and says what ⌘O would open RIGHT NOW",
+          txt:find("⌘O would open:", 1, true) ~= nil, txt)
+    check("🔎 …and no longer carries a stage line at all",
+          txt:find("stage  :", 1, true) == nil, txt)
 end
--- 🛟 A Mac that cannot run mdls says so rather than leaving the line
--- blank — "could not ask" and "there is nothing to say" are different
--- facts (6.196.1).
-reset()
-vid.codecs, vid.codecsFor = nil, nil
-TASK_START_REFUSES = true
-vid.askCodecs("/F/other.mp4")
-check("🛟 a refused mdls is SAID, never silent",
-      tostring(vid.codecs):find("could not ask", 1, true) ~= nil,
-      tostring(vid.codecs))
-TASK_START_REFUSES = false
 
 -- §21 ── THE TWO DOORS (6.352.0) ----------------------------------------
 -- 🚚 HIS REPORT: "I can't drag and drop a file on it." This tool had ONE

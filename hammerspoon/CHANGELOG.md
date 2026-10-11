@@ -5,6 +5,105 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.353.0 — 🚪 THE WINDOW HANDS THE FILM OUT, AND macOS NAMED WHY
+  (modules/video_player.lua)
+
+  LL, with two screenshots: "Yes the blue veil appears the screenshot
+  error code message… Mug yes, refused to play .mkv files. Mug yes
+  refused to play .mp3. ⌘+o just says nothing is playing. Jug player is
+  fine."
+
+  ✅ FIRST, WHAT THOSE SCREENSHOTS SETTLE, because two open questions
+  close here and neither needed another round:
+    · 6.352.0's DROP WORKS. The veil appears, his deck carries six films
+      BY NAME and the history holds two. The second door landed.
+    · "BUT THERE'S NOTHING NOW" IS ANSWERED, and the byte-for-byte
+      measurement was right: his window draws "Mug Player" in blue,
+      "nothing playing" beside it, every film named, and the ✕ on each
+      history row. The page was never the fault. "Nothing" was the
+      black stage — because nothing would play.
+
+  🚪 AND THE THIRD DOOR ANSWERED TOO, IN macOS'S OWN WORDS. His first
+  screenshot is not our message; it is WebKit's navigation error page:
+
+      An Error code: -3001 in NSURLErrorDomain occurred during
+      navigation:  Description: Cannot open file
+
+  🔬 -3001 IS NSURLErrorCannotOpenFile, AND IT IS NOT AMBIGUOUS. Doors
+  1 and 2 answered MediaError code 4, which 6.351.0 established means
+  BOTH "could not fetch it" and "fetched it and cannot decode it" —
+  which is why that release shipped an instrument instead of a fix.
+  This is a NAVIGATION error on a file THIS CONFIG HAD JUST WRITTEN:
+  the file was there and WebKit would not read it. WKWebView does not
+  load a file:// URL through an ordinary request at all; it wants
+  loadFileURL:allowingReadAccessToURL:, which hs.webview does not
+  expose. There is no fourth URL to try.
+  🔑 6.351.0 WROTE THE CONDITION DOWN AND IT IS MET: "if it is also
+  refused, three doors have answered and the webview is not the
+  surface, which DECIDES the next release rather than leaving it open."
+  This is that release, and the decision was made by his Mac.
+
+  🚨 AND DOOR 3 DID NOT MERELY FAIL — IT TOOK THE PLAYER WITH IT. A
+  refused `view:url()` REPLACES the document, so the deck, the queue,
+  the history and every key went with it and the window became an error
+  page until it was closed and reopened. That is a door that can
+  destroy the room, and it is the worst thing 6.351.0 shipped.
+  GENERAL: a way in that NAVIGATES is not a way in, it is a gamble with
+  the whole surface — a fallback may only ever add, never replace.
+
+  🗑 SO IT IS DELETED, not switched off (6.261.0): the third door, the
+  stage file, `writeStage`, `clearStage` and the name they were built
+  around. Nothing in this module writes into his film folders now, and
+  nothing removes from them. 6.351.0 guarded that `os.remove` twice and
+  proved both guards, and the guards were right — but the safest
+  version of code that can delete a film is the version that does not
+  exist. A source sentry keeps it out.
+
+  🚪 THE FILM GOES OUT INSTEAD. Both remaining doors still try, because
+  a film that plays in the window is better than one that does not; but
+  when they are refused, the film opens in a player that CAN read his
+  disk, named on the page, with `handOff = false` leaving it here.
+  A window whose only answer is "it would not play" is a window that
+  does not work.
+
+  🚪 AND ⌘O WAS DEAD EXACTLY WHERE IT WAS NEEDED. "⌘+o just says
+  nothing is playing", with six films in the deck and a row
+  highlighted: it read `vid.index` alone, and `vid.index` is 0 until a
+  film STARTS — which on a Mac where no film can start is always. So
+  the escape hatch this tool has advertised since 6.344.0 could not be
+  reached on the only Mac that needed it. 6.265.0's shape, third time:
+  the right answer one branch away, unreachable.
+  🔑 `vid.exitPick` is PURE and answers the row AND why — the film
+  playing · the row he has selected · the first in the queue · nothing
+  at all — and the alert SAYS which it took, so a wrong one is visible
+  rather than silent. The fixture that bites is a selection in the
+  HISTORY, which is not a queue row and would open the wrong film;
+  every other input agrees (6.230.0).
+
+  🔎 COUNTED APART (6.229.0): a film HE sent out with ⌘O and one this
+  tool sent out because nothing would play are different facts, and the
+  report's `exits :` line keeps them so.
+  🚨 AND THE FIRST VERSION OF THAT LINE PRINTED "-1 you opened
+  yourself" — a derived number, `externals - handedOff`, the moment the
+  two drifted. Caught by its own new check. Both are counted DIRECTLY
+  at the one door now, so there is nothing to subtract and nothing to
+  disagree. 6.230.0's rule about a division that did not happen,
+  dressed as a measurement.
+
+  🧪 AND SEVEN CHECKS WENT RED ON CORRECT CODE, which is 6.248.0 for
+  the seventh time and is the honest cost of changing a decision: six
+  asserted the WORDS of a message this release replaced, or the door
+  COUNT, and one — "with nothing playing it says so rather than opening
+  nothing" — asserted the BUG. They ask the new rule now.
+  🚨 And the release's own `os.remove` sentry banned the NAME and went
+  red on the store's temp-then-rename (6.313.0), which legitimately
+  removes its own temp file in Application Support. 6.321.0 wrote that
+  rule down — a sentry that bans a NAME expires the first time the name
+  has an honest use — and I broke it in the next module. It walks every
+  `os.remove` and requires each to take the store's temp file, and
+  asserts there are still two so it cannot pass over an empty haystack
+  (6.313.0).
+
 NEW IN 6.352.0 — 🚚 THE DROP HAS TWO DOORS, AND IT HAD ONE
   (modules/video_player.lua + modules/music_player.lua)
 

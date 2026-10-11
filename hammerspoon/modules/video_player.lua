@@ -196,7 +196,15 @@ function M.setup(core)
         pageSpoke  = false,          -- the page said ready at least once
         refused    = {},             -- { path=, why= } — named, never silent
         plays      = 0,
-        externals  = 0,              -- how many went out to QuickTime
+        externals  = 0,              -- how many went out to a real player
+        handedOff  = 0,              -- …of those, how many this tool DECIDED
+        byHand     = 0,              -- …and how many he opened with ⌘O
+        -- 🚪 6.353.0 — WHEN EVERY WAY IN HAS BEEN REFUSED, THE FILM GOES
+        -- OUT. Three doors have answered on his Mac and the webview is
+        -- not the surface, so a window that can only say "it would not
+        -- play" is a window that does not work. `false` leaves the
+        -- alert and waits for ⌘O.
+        handOff    = true,
         forgotten  = 0,
         pageReady  = false,
         draws      = { landed = 0, early = 0 },
@@ -308,25 +316,26 @@ function M.setup(core)
             { how = "the absolute file URL",
               base = nil,
               src  = "file://" .. vid.encodePath(p) },
-            -- 🚪 DOOR THREE, AND IT IS THE LAST ONE A WEBVIEW HAS. His
-            -- 2026-10-11 report refused both of the above with
-            -- MediaError code 4, so a page handed to WebKit as a STRING
-            -- cannot reach a film on his disk whichever URL it is given.
-            -- What is left is to give WebKit a page that IS a file, in
-            -- the film's OWN folder, and let it ask for a neighbour:
-            -- `view:url("file://…/.mug-stage.html")` rather than
-            -- `view:html(...)`. A document loaded from a file URL is a
-            -- different code path in WebKit from one loaded from a
-            -- string, and whether that path is allowed to read the
-            -- folder beside it is the thing this release MEASURES. It
-            -- is not a belief about the API (6.233.0) — if it is also
-            -- refused, three doors have answered and the webview is not
-            -- the surface, which decides the next release rather than
-            -- leaving it open.
-            { how  = "a page written beside the film, loaded as a file URL",
-              file = dir .. "/" .. vid.stageName,
-              base = nil,
-              src  = vid.encodePath(base) },
+            -- 🚪 AND THERE IS NO THIRD DOOR. 6.351.0 built one — a page
+            -- written as a FILE beside the film, asked for by file URL —
+            -- and said in writing that if it were refused too, three
+            -- doors had answered and the webview is not the surface.
+            -- IT WAS REFUSED, and macOS named it rather than leaving it
+            -- to be read: his screenshot is WebKit's own navigation
+            -- error page, "An Error code: -3001 in NSURLErrorDomain
+            -- occurred during navigation: Cannot open file".
+            -- 🔬 -3001 IS NSURLErrorCannotOpenFile, and it is a
+            -- NAVIGATION error rather than a media one — so unlike
+            -- MediaError code 4 it is NOT ambiguous: the file was not
+            -- read. WKWebView will not load a file:// URL through an
+            -- ordinary request at all; it wants
+            -- loadFileURL:allowingReadAccessToURL:, which hs.webview
+            -- does not expose. So no third URL exists to try.
+            -- 🚨 AND IT DID NOT MERELY FAIL, IT TOOK THE PLAYER WITH IT.
+            -- A refused `view:url()` REPLACES the document, so the deck,
+            -- the queue and every key went with it and the window became
+            -- an error page until it was closed and reopened. A door
+            -- that can destroy the room is worse than no door.
         }
     end
 
@@ -479,7 +488,6 @@ function M.setup(core)
     -- removes again the moment the window closes or the film changes.
     -- A dot-file so Finder does not show it, and ONE name so there can
     -- never be a second one left behind.
-    vid.stageName = ".mug-stage.html"
 
     vid.dir = (core.homeDir or os.getenv("HOME") or "")
               .. "/Library/Application Support/Hammerspoon/mug"
@@ -882,39 +890,13 @@ document.addEventListener('keydown',function(e){
         return d and d.base or nil
     end
 
-    -- 🧹 THE STAGE FILE IS OURS AND IS NEVER LEFT BEHIND. It is removed
-    -- when the window closes, when the film changes and before it is
-    -- written again — and it is only ever removed if the path ends in
-    -- our own one name, so a bug in `dir` can never delete a film.
-    function vid.clearStage()
-        local p = vid.stagePath
-        vid.stagePath = nil
-        if type(p) ~= "string" then return false end
-        if not p:find(vid.stageName, 1, true) then return false end
-        if p:sub(-#vid.stageName) ~= vid.stageName then return false end
-        local okRm = pcall(function() os.remove(p) end)
-        return okRm
-    end
-
-    -- Answers the path it wrote, or nil AND WHY — a door that cannot be
-    -- opened must say so rather than reading as a door that failed.
-    function vid.writeStage(path, html)
-        vid.clearStage()
-        if type(path) ~= "string" or path == "" then
-            return nil, "no folder to write the page into"
-        end
-        local f = io.open(path, "w")
-        if not f then
-            return nil, "the film's folder would not take a file"
-        end
-        local okW = pcall(function() f:write(html) ; f:close() end)
-        if not okW then
-            pcall(function() os.remove(path) end)
-            return nil, "the page could not be written beside the film"
-        end
-        vid.stagePath = path
-        return path
-    end
+    -- 🧹 AND THIS MODULE NO LONGER WRITES ANYTHING INTO HIS FILM
+    -- FOLDERS, nor removes anything from them. 6.351.0's stage file
+    -- needed `os.remove` on a path built from a folder full of his
+    -- films — the one failure here with no way back (6.280.0) — and it
+    -- was guarded twice and proven twice. The guards were right and the
+    -- DOOR they protected is gone, so the safest version of that code
+    -- is the version that does not exist. A source sentry keeps it out.
 
     -- `full` rebuilds the document, which is the ONLY way the page's base
     -- URL can change — and the base URL is the film's own folder, so a
@@ -926,31 +908,12 @@ document.addEventListener('keydown',function(e){
         if not view then return false end
         if full then
             vid.pageReady = false
-            -- 🚪 DOOR 3 IS A DIFFERENT LOADING MECHANISM, not a different
-            -- URL: the page is written to disk beside the film and
-            -- WebKit is asked for it by file URL.
-            local cur  = vid.queue[vid.index]
-            local door = cur and vid.sourceDoors(cur.path)[vid.door]
-            if door and door.file then
-                local wrote, why = vid.writeStage(door.file, buildHtml())
-                if wrote then
-                    pcall(function()
-                        view:url("file://" .. vid.encodePath(wrote))
-                    end)
-                    return true
-                end
-                -- A door that could not be OPENED is not a door that was
-                -- refused by WebKit: it is counted and named separately,
-                -- or the report blames macOS for a read-only folder.
-                vid.stageWhy = why
-                vid.doorFailed["a page written beside the film (" ..
-                               tostring(why) .. ")"] =
-                    (tonumber(vid.doorFailed["a page written beside the film ("
-                        .. tostring(why) .. ")"]) or 0) + 1
-                vid.lastWhy = "the page could not be written beside the film — "
-                              .. tostring(why)
-                return false
-            end
+            -- 🚨 NOTHING HERE NAVIGATES. 6.351.0's door 3 called
+            -- `view:url()`, and a refused navigation REPLACES the
+            -- document — so a door that failed took the deck, the queue
+            -- and every key with it and left an error page behind. The
+            -- page is only ever handed to WebKit as a STRING now, which
+            -- cannot destroy the room even when the film will not load.
             local base = baseOf()
             -- 🚪 DOOR 1 PASSES A BASE URL. A Hammerspoon whose :html()
             -- takes one argument ignores it, the relative src fails, and
@@ -1179,7 +1142,6 @@ document.addEventListener('keydown',function(e){
     end
 
     function vid.hide()
-        vid.clearStage()
         -- A retry in flight is a window about to be put on screen that
         -- nobody asked for any more. The token moves too, so a callback
         -- already running finds its run superseded.
@@ -1465,15 +1427,41 @@ document.addEventListener('keydown',function(e){
 
     -- 🚪 THE WAY OUT, and it is not a consolation prize: a film macOS
     -- will not let this window read is still a film he wants to watch.
-    function vid.openExternal()
-        local t = vid.queue[vid.index]
-        if not t then say("nothing is playing") return false end
+    -- 🚪 THE WAY OUT MUST WORK WHEN NOTHING IS PLAYING — THAT IS WHEN
+    -- IT IS NEEDED (6.265.0's shape: the right answer one branch away,
+    -- unreachable). LL: "⌘+o just says nothing is playing", with six
+    -- films in the deck and a row highlighted. It read `vid.index`
+    -- alone, and `vid.index` is 0 whenever no film has started — which
+    -- on a Mac where no film CAN start is always. `pick` is PURE and
+    -- answers the row AND why, so the gate proves the fallback order
+    -- with no window.
+    function vid.exitPick(index, queue, selList, sel)
+        local i = tonumber(index) or 0
+        if queue[i] then return queue[i], "the film that is playing" end
+        if selList == "queue" then
+            local s = tonumber(sel) or 0
+            if queue[s] then return queue[s], "the row you have selected" end
+        end
+        if queue[1] then return queue[1], "the first film in the queue" end
+        return nil, "there is nothing in the queue to open"
+    end
+
+    function vid.openExternal(path, auto)
+        local t, why
+        if type(path) == "string" and path ~= "" then
+            t, why = { path = path, title = vid.titleOf(path) }, "this film"
+        else
+            t, why = vid.exitPick(vid.index, vid.queue, vid.selList, vid.sel)
+        end
+        if not t then say(why) return false, why end
         vid.externals = vid.externals + 1
+        if auto then vid.handedOff = vid.handedOff + 1
+        else vid.byHand = vid.byHand + 1 end
         local ok = pcall(function()
             hs.task.new("/usr/bin/open", nil, { t.path }):start()
         end)
         if not ok then return degrade("could not hand the film to macOS") end
-        say("opened in your default player — " .. (t.title or ""))
+        say("opened in your player — " .. (t.title or "") .. " (" .. why .. ")")
         return true
     end
 
@@ -1629,15 +1617,27 @@ document.addEventListener('keydown',function(e){
             -- the refusal is right).
             vid.lastWhy = "no way in worked for " .. tostring(cur.path)
                           .. " — macOS said " .. tostring(vid.mediaWhy)
+            -- 🚪 AND THE FILM GOES OUT RATHER THAN STOPPING HERE. Both
+            -- remaining doors have been refused, there is no third (its
+            -- own -3001 is why), and a window whose only answer is "it
+            -- would not play" is a window that does not work. The film
+            -- he asked for opens in a player that CAN read his disk.
+            if vid.handOff then
+                vid.openExternal(cur.path, true)
+                tellPage("fail", "▶︎ " .. (cur.title or "") .. " is opening in"
+                         .. " your usual player.  This window cannot read"
+                         .. " films off the disk — three ways in have now"
+                         .. " been refused, the last one by macOS itself"
+                         .. " (NSURLErrorDomain -3001, cannot open file) —"
+                         .. " so it keeps the queue and hands the film out."
+                         .. "  settings = { video_player = { handOff = false } }"
+                         .. " leaves it here instead.")
+                return
+            end
             tellPage("fail", "⚠️ " .. (cur.title or "") .. " would not play,"
-                     .. " and every way in was refused.  That means ONE of"
-                     .. " two things: this window cannot read the file, or"
-                     .. " WebKit cannot decode what is inside it."
-                     .. "  ⌘O opens it in QuickTime."
-                     .. "  Then try a film you know Safari can play — if"
-                     .. " THAT one plays, this one is a codec and no"
-                     .. " amount of fixing will help it."
-                     .. "  _G.mugReport() now names the codecs.")
+                     .. " and every way in was refused.  ⌘O opens it in"
+                     .. " your usual player, from the row you have"
+                     .. " selected.  _G.mugReport() names the codecs.")
             return
 
         elseif a == "close" then
@@ -1906,9 +1906,6 @@ document.addEventListener('keydown',function(e){
                         .. "nothing at all = WebKit cannot DECODE it, and "
                         .. "no way in will ever fix that."
         end
-        if vid.stageWhy then
-            L[#L + 1] = "   stage  : ⚠️ " .. tostring(vid.stageWhy)
-        end
         local failed = {}
         for k, n in pairs(vid.doorFailed) do failed[#failed + 1] = k .. " ×" .. n end
         table.sort(failed)
@@ -1985,7 +1982,21 @@ document.addEventListener('keydown',function(e){
         L[#L + 1] = "            one physical key is how they come to disagree."
                     .. "  With the film focused macOS routes them to it anyway."
         L[#L + 1] = "   played : " .. vid.plays .. " this session · "
-                    .. vid.externals .. " handed to QuickTime"
+                    .. vid.externals .. " opened in a real player"
+        -- 🚪 COUNTED APART (6.229.0): a film HE sent out with ⌘O and one
+        -- this tool sent out because every way in was refused are
+        -- different facts, and a sum of them says nothing about whether
+        -- the window can play anything at all.
+        L[#L + 1] = "   exits  : " .. vid.handedOff .. " handed out because"
+                    .. " no way in worked · " .. vid.byHand
+                    .. " you opened yourself"
+                    .. (vid.handOff and "" or
+                        "  ⚠️ the hand-off is OFF (settings)")
+        do
+            local t, pw = vid.exitPick(vid.index, vid.queue, vid.selList, vid.sel)
+            L[#L + 1] = "   ↳ ⌘O would open: "
+                        .. (t and ((t.title or t.path) .. " — " .. pw) or pw)
+        end
         L[#L + 1] = "   last   : " .. tostring(vid.lastWhy)
         print(table.concat(L, "\n"))
         return true

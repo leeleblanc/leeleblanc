@@ -3466,6 +3466,54 @@ work Mac.
   · and the cancel-slot check had to drive "created, wired, REFUSED TO
     SHOW" rather than "cannot create" — 6.265.0, fifth time, and the
     refusal is the branch that calls `cancelSelect` on its way out.
+- 🚪 A FALLBACK THAT NAVIGATES IS NOT A FALLBACK — IT IS A GAMBLE WITH
+  THE WHOLE SURFACE (6.353.0, modules/video_player.lua — LL's
+  screenshot of WebKit's own error page: "An Error code: -3001 in
+  NSURLErrorDomain occurred during navigation: Cannot open file").
+  🔬 -3001 IS NSURLErrorCannotOpenFile, on a file THIS CONFIG HAD JUST
+  WRITTEN, and it is a NAVIGATION error — so unlike MediaError code 4
+  (which 6.351.0 established means BOTH "could not fetch" and "fetched
+  and cannot decode") it is NOT ambiguous: the file was not read.
+  WKWebView will not load a `file://` URL through an ordinary request;
+  it wants `loadFileURL:allowingReadAccessToURL:`, which hs.webview does
+  not expose. 6.351.0 wrote the condition down — "if it is also refused,
+  three doors have answered and the webview is not the surface, which
+  DECIDES the next release" — and his Mac met it.
+  🚨 AND THE DOOR DID NOT MERELY FAIL, IT TOOK THE ROOM WITH IT. A
+  refused `view:url()` REPLACES the document, so the deck, the queue,
+  the history and every key went with it and the window became an error
+  page until it was closed and reopened. GENERAL, and it is the one to
+  carry: A FALLBACK MAY ONLY EVER ADD, NEVER REPLACE. Before adding a
+  way in that NAVIGATES, ask what the surface looks like when it is
+  refused — a `view:html()` that fails leaves the page standing; a
+  `view:url()` that fails destroys it.
+  🗑 DELETED, NOT SWITCHED OFF (6.261.0), and with it the stage file,
+  `writeStage` and `clearStage`. 6.351.0 guarded that `os.remove` twice
+  and proved both guards, and they were right — but the safest version
+  of code that can delete one of his films is the version that does not
+  exist.
+  🚪 AND THE WAY OUT WAS DEAD EXACTLY WHERE IT WAS NEEDED (LL: "⌘+o
+  just says nothing is playing", with six films in the deck and a row
+  highlighted). `openExternal` read `vid.index` alone, and `vid.index`
+  is 0 until a film STARTS — so on the only Mac where no film can
+  start, the escape hatch this tool had advertised since 6.344.0 could
+  never be reached. 6.265.0's shape for the THIRD time: the right
+  answer one branch away, unreachable. GENERAL: when a feature exists
+  for the case where everything else failed, drive it WITH everything
+  else failed — a check that exercises it on a healthy path proves
+  nothing about the path it is for.
+  🔎 `vid.exitPick` is PURE and answers the row AND why, and the alert
+  SAYS which it took so a wrong one is visible. The fixture that bites
+  is a selection in the HISTORY, which is not a queue row (6.230.0).
+  🚨 AND THE REPORT'S FIRST VERSION PRINTED "-1 you opened yourself" —
+  `externals - handedOff`, the moment the two counters drifted. Both
+  are counted DIRECTLY at the one door now. 6.230.0's rule about a
+  division that did not happen, dressed as a measurement.
+  🚨 AND THE SENTRY BANNED A NAME THAT HAS AN HONEST USE, which 6.321.0
+  wrote down and I broke in the very next module: "no os.remove in this
+  file" went red on the store's temp-then-rename (6.313.0). It walks
+  every call and requires each to take the store's own temp file, and
+  asserts there are still two so it cannot pass over an empty haystack.
 - 🚚 A FEATURE WITH ONE DOOR THAT macOS CAN REFUSE IS A FEATURE WITH
   NONE (6.352.0, modules/video_player.lua — LL: "Mug player appears.
   But there's nothing now. I can't drag and drop a file on it. I had an
@@ -5696,7 +5744,7 @@ that must be READ before a new cause is named.
 | "hyper+4 does not have pixel crosshairs" · "it was working before" | modules/screenshots.lua · the selector | 6.264.0 · 6.318.0 | 1 | ask |
 | "it said 0x0 pixels, then jumped a few desktops, then I had to hit escape" | modules/screenshots.lua · the selector's one exit | 6.336.0 · 6.337.0 | 2 | ask |
 | "why OCR hyper+shift+4 works and hyper+4 still does not" | modules/screenshots.lua · ⇪4 re-implementing a system drag | 6.264.0 · 6.265.0 · 6.274.0 · 6.282.0 · 6.318.0 · 6.336.0 · 6.337.0 | 6 | ask |
-| "a Jug Player but for movies" · "nothing plays" · "macOS would not put the window on screen" · "I can't drag and drop a file on it" | modules/video_player.lua · a webview that plays video | 6.344.0 · 6.345.0 · 6.348.0 · 6.351.0 · 6.352.0 | 5 | ask |
+| "a Jug Player but for movies" · "nothing plays" · "macOS would not put the window on screen" · "I can't drag and drop a file on it" | modules/video_player.lua · a webview that plays video | 6.344.0 · 6.345.0 · 6.348.0 · 6.351.0 · 6.352.0 · 6.353.0 | 6 | ask |
 | "I have to arrow forward the date … why do I have to arrow on to it?" | modules/mini_calendar.lua · the cursor on open | 6.349.0 | 1 | ask |
 | "I did not mean to hit panic" · "my keyboard froze" · "Console shows nothing weird" | modules/power_tools.lua · an unclaimed ⇪ key forwarding onto the panic chord | 6.343.0 | 1 | ask |
 | "⌘D says I have five seconds to setup, shows no crosshairs" · "those four screenshot tools run weird" | modules/screenshot_editor.lua · the ⌘D order | 6.255.0 · 6.342.0 | 1 | ask |
@@ -5819,7 +5867,8 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
-| 6.352.0 | 🚚 the Mug Player's drop has two doors — it had one, and a canvas macOS refused was recorded as "ready" | pending |
+| 6.353.0 | 🚪 three ways in have been refused, the last by macOS itself — the window keeps the queue and hands the film to a real player | pending |
+| 6.352.0 | 🚚 the Mug Player's drop has two doors — it had one, and a canvas macOS refused was recorded as "ready" | pending — and his screenshots show it WORKING: the veil appears, six films are in the deck BY NAME and two are in the history. Not his win sentence, so not scored |
 | 6.351.0 | 🚪 a third way into the Mug Player, and `mdls` answers the question macOS's error code cannot | pending |
 | 6.350.0 | 🗑 Microsoft Excel is listed once in the app close monitor | pending |
 | 6.349.0 | 🗓 ⇪⇧0 opens on today — the comment beside the line had promised that for years | pending |
@@ -6176,6 +6225,19 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   than queued silently.
   🗳 AND ONE QUESTION IT MUST ASK: a 21:9 film on the Air is a very
   wide window. Does the aspect ratio win, or a maximum width?
+- ✂️ THE SNIPPET PICKER DOES NOT PUT THE RECENT ONES AT THE TOP
+  (2026-10-11, LL: "My most recently chose snippets are not at the
+  top."). LOGGED, NOT BUILT — one change per release, and the Mug
+  Player was the live defect. NOT DIAGNOSED EITHER, deliberately: the
+  ⇪⇧S picker's order could be the pack order, alphabetical, or a
+  recency list that is written and never read (6.277.0's exact shape,
+  twice in this config already). ASK FOR THE ARTEFACT FIRST (6.201.0)
+  — `_G.snippetsReport()` if it has one, and whether the order is
+  stable across a reload — before touching the sort. 🔑 AND CHECK
+  WHETHER THE RECENCY ALREADY EXISTS: 6.317.0 · 6.321.0 · 6.335.0 were
+  all "the instrument was not the gap, the DOOR was", three releases
+  running in one module. Grep for a written-and-unread recents list
+  before building a new one.
 - 💾 DRAFT KEEPER — ESCALATED BY NAME (2026-10-10, LL: "Escalate draft
   keeper."). It is the NEXT release after the Mug Player, ahead of the
   tool-health timestamps, the ⌘5 veil, the snippet pair, the Hamsidian
@@ -7017,6 +7079,78 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.353.0 verify with LL — 🚪 THE WINDOW HANDS THE FILM OUT (KNOWN GROUND)
+  WHAT CHANGED: the Mug Player stops trying to play films it cannot read
+  and hands them to a player that can. And ⌘O works.
+  ✅ FIRST, WHAT YOUR SCREENSHOTS SETTLED, because two questions closed
+  without another round. The DROP WORKS — the veil appears, six films
+  are in your deck BY NAME, two are in the history. And "there's
+  nothing now" is answered: your own screenshot shows "Mug Player" in
+  blue, "nothing playing" beside it and every film named. The page was
+  never the fault. "Nothing" was the black stage, because nothing
+  would play.
+  🚪 AND YOUR OTHER SCREENSHOT IS THE ANSWER TO THE WHOLE TOOL. That
+  error page is not mine — it is WebKit's: "Error code: -3001 in
+  NSURLErrorDomain … Cannot open file". That is a NAVIGATION error on a
+  file this config had JUST WRITTEN, so unlike the earlier code 4 it is
+  not ambiguous: the file was there and WebKit would not read it.
+  6.351.0 said in writing that a third refusal decides this. It did.
+  🚨 AND IT WAS WORSE THAN A FAILURE: a refused navigation REPLACES the
+  page, so the deck, the queue and every key went with it and you were
+  left looking at an error page. That is why the window seemed to die.
+  Door 3 is deleted — it cannot work, and it could destroy the window.
+
+  A. THE HEADLINE — a minute, and it should just play now.
+  A1. ⇪⇧, and drop a film, or press ⏎ on one already in the deck.
+      EXPECT: a moment of black, then **the film opens in your usual
+      player** (IINA/QuickTime/VLC — whatever .mp4 opens with), and the
+      Mug Player says so on the stage.
+      **A FAIL is the error page coming back**, or nothing happening.
+  A2. Read what the window says while it hands over. It should name
+      the film and the -3001 error, so the claim is checkable.
+  A3. **⌘O on a film with nothing playing.** EXPECT: it opens the row
+      you have SELECTED. It used to say "nothing is playing" — that is
+      the bug you reported.
+  A4. ⌘O with the queue EMPTY. EXPECT: "there is nothing in the queue
+      to open". That is the case that should still refuse.
+
+  B. MUST STILL WORK — this touched the queue's own window.
+  B1. The drop, both ways: the veil, films queuing by name.
+  B2. .mkv and .mp3 still refused BY NAME with ⌘O offered — you
+      confirmed both on 6.352.0 and neither may have moved.
+  B3. ↑↓, ⏎, ⌫ on a queue row, the ✕ on a history row, Escape.
+  B4. 🚨 **⇪⇧. the Jug Player** — drop an mp3, it plays. You asked for
+      exactly this and I am asking you to check it again, because this
+      release touched the module beside it.
+  B5. Check your film folders: there must be NO hidden `.mug-stage.html`
+      anywhere (⌘⇧. shows hidden files). That file is gone, and so is
+      every line that could delete one.
+
+  C. PASTE BACK, PASS OR FAIL.
+  C1. `_G.mugReport()` with the window OPEN. Two new lines:
+        exits  : 2 handed out because no way in worked · 1 you opened
+                 yourself
+        ↳ ⌘O would open: <film> — the row you have selected
+      That second line says what ⌘O would do RIGHT NOW, so a wrong
+      answer is visible before you press it.
+  C2. The `refused:` line should now name TWO ways in, never three.
+
+  D. A JUDGEMENT ONLY YOU CAN MAKE.
+  D1. **Is the automatic hand-off right?** A film that will not play in
+      the window now opens in your player WITHOUT you pressing
+      anything. The alternative is it stops and waits for ⌘O, which is
+      `settings = { video_player = { handOff = false } }`. I shipped
+      automatic because a window whose only answer is "it would not
+      play" does not work — but it is your taste and I will change the
+      default on one word.
+  D2. **Is this still the tool you want?** It is now a queue, a
+      history and a drop target that hands films to a real player. If
+      what you wanted was a window that PLAYS them, three ways in have
+      been refused and the honest answer is that a Hammerspoon webview
+      cannot — the next step would be a different surface entirely, and
+      that is a much bigger release I will not start unasked.
+  D3. 🔨 CRUDE OR ELEGANT: pass six on this tool. Your tag.
+
 - 6.352.0 verify with LL — 🚚 THE DROP HAS TWO DOORS (KNOWN GROUND)
   WHAT CHANGED: you can drag films onto the window again — and this time
   there are TWO ways in, so one of them failing no longer costs the

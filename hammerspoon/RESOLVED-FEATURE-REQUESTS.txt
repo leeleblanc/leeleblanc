@@ -1,5 +1,5 @@
 ========================================================================
-RESOLVED FEATURE REQUESTS — Hammerspoon config 6.352.0
+RESOLVED FEATURE REQUESTS — Hammerspoon config 6.353.0
 Every feature and how to use it. Generated from the modules' own
 cheat sheets (the rows ⇪/ draws), so it is never out of date.
 ⇪ = Caps Lock held (the hyper key). ⇪⇧X = Caps Lock + Shift + X.
@@ -807,6 +807,7 @@ In the Console, _G.<tool>Report() prints any tool's own report.
 
 📜 RELEASE INDEX — newest first, one line per release (the full story of each is in CHANGELOG.md)
 ------------------------------------------------------------------------
+  6.353.0  🚪 THE WINDOW HANDS THE FILM OUT, AND macOS NAMED WHY
   6.352.0  🚚 THE DROP HAS TWO DOORS, AND IT HAD ONE
   6.351.0  🚪 A THIRD WAY IN, AND THE QUESTION macOS'S ERROR
   6.350.0  🗑 MICROSOFT EXCEL IS LISTED ONCE
