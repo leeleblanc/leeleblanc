@@ -1,4 +1,4 @@
-# TESTING — how to score release 6.345.0
+# TESTING — how to score release 6.346.0
 
 You install ONE archive and it carries several releases. Below are the
 steps for each release this archive is new for, newest first. Run the
@@ -26,6 +26,56 @@ else is a LOSS and I fix it before building further. You are the only
 scorer; I never mark my own.
 
 ---
+
+## 6.346.0
+
+6.346.0 verify with LL — 🗑 TRANSMISSION IS OFF THE MONITOR (KNOWN GROUND)
+WHAT CHANGED: Transmission quitting no longer pops the app monitor.
+Your words, one line, 18 apps watched instead of 19.
+🚨 AND THE REAL WORK IS THAT THE REMOVAL IS PROVABLE. The suite had
+nineteen tests and every one of them quit a WATCHED app — so a list
+with one name taken out and a list nobody consults looked the same to
+the gate. Two checks drive the negative case now, and putting the
+name back fails them.
+
+A. THE HEADLINE — needs a download to finish, or just quit it.
+A1. Quit Transmission (⌘Q, or let a download finish and let it go).
+    EXPECT: NOTHING. No popup, no ping, no sound.
+    **A FAIL is the panel appearing** — that is the bug, unchanged.
+A2. Quit a watched app — Shottr, CotEditor, Ghostty, Word.
+    EXPECT: the popup, pinging as always, with Spawn / End and Esc.
+    That half must be untouched; if it is gone, this release broke
+    the monitor rather than trimming it.
+A3. Answer that popup (Esc, or a button). EXPECT: unchanged.
+
+B. MUST STILL WORK.
+B1. Quit two watched apps in a row. EXPECT: one popup, then the next
+    behind it — the queue is unchanged.
+B2. ⇪R to reload, then quit a watched app again. EXPECT: the popup.
+B3. Nothing else in this release touches anything else.
+
+C. A JUDGEMENT ONLY YOU CAN MAKE.
+C1. **Is anything else on that list quitting by itself?** The other
+    eighteen are 1Password, Alfred, Bartender, CotEditor, Ghostty,
+    Google Chrome, IINA, OneDrive, Microsoft Defender, Excel,
+    PowerPoint, Word, Outlook, Teams, NordVPN, Rectangle, Shottr,
+    Sublime. IINA is the one I would ask about — it is a film player
+    and you have a film player now. Name any others and they go in
+    one line.
+C2. 📏 THE LIST CARRIES "Microsoft Excel" TWICE. It is harmless — the
+    second pass finds the app already recorded as gone, so there is
+    no second popup — and it is your list, so I have reported it
+    rather than tidying it. Say the word and it goes.
+C3. 📏 AND IT IS NOT A SETTINGS LINE: that list is a local inside the
+    module, so putting an app BACK is a one-line release rather than
+    something you could type. Said plainly rather than pretending
+    there is a knob.
+C4. 🔨 CRUDE OR ELEGANT: nothing was broken — this is a list you
+    wanted shorter. My reading is that it does not belong in the
+    ledger as a problem at all. Correct me if the popup was actually
+    getting in your way.
+
+
 
 ## 6.345.0
 
@@ -276,107 +326,6 @@ E3. 📏 The arrow keys moving windows is NOT explained by this and I am
     again, the one thing I need is whether the WINDOW moved or the
     MOUSE POINTER moved — they are different bugs.
 
-
-
-## 6.342.0
-
-6.342.0 verify with LL — 📐 ⌘D DRAGS THE AREA FIRST (KNOWN GROUND)
-WHAT CHANGED: ⌘D in the screenshot editor is macOS's ⇧⌘5 order now —
-the editor gets out of the way, you DRAG the area you want, then you
-get five seconds to arrange the screen, then THAT rectangle lands on
-the shot. Your ask, in your words.
-🔎 AND 6.255.0 WAS NOT BROKEN, which is worth saying first: hide ·
-count five seconds · shoot the WHOLE screen · land it on the shot is
-exactly what that release built, with no selector and no crosshairs by
-design. What you described is a different ORDER, and you were right
-that it is the better one.
-🚪 OUR SELECTOR, NOT macOS's — so you get the crosshairs and the live
-W × H, and ⌘5 "repeat area" gets the rectangle for free. macOS's own
-`-i` crosshair cannot tell us where you dragged, which is why ⇪4 lost
-"repeat area" in 6.337.0 and why this one could not use it.
-
-A. THE HEADLINE — thirty seconds.
-A1. ⇪⇧1 on any screenshot to open the editor.
-A2. Press ⌘D (or the ⏲ Area +5s button in the right rail).
-    EXPECT: the editor DISAPPEARS, and a moment later the crosshairs
-    and the live size box appear over your desktop.
-    **A FAIL is the old behaviour — no crosshairs, five seconds, and
-    then the whole desktop landing on the shot.**
-A3. Drag a rectangle around something and let go.
-    EXPECT: an alert reading "📐 1280 × 720 in 5 seconds — set it
-    up…", naming the rectangle you just dragged.
-A4. Use those five seconds: open a menu, hover something, put a
-    dialog up.
-    EXPECT: after five seconds the editor comes back with THAT
-    rectangle on the shot as a movable image. Drag it, scale it by its
-    corner, ⌘Z takes it off.
-A5. 🔎 LOOK AT THE PICTURE: the editor must NOT be in it, even though
-    you dragged over where it was sitting. If it IS in there, the
-    settle beat is too short on your Mac and that is a number, not a
-    release — tell me.
-
-B. THE ONE THAT PROTECTS YOU FROM A LOST WINDOW.
-B1. Press ⌘D and then press Esc on the selector instead of dragging.
-    EXPECT: the editor comes straight back, with an alert reading
-    "📐 Nothing captured — the selection was cancelled. The editor is
-    back." No warning, no error, nothing in the Console.
-    **A FAIL is the editor staying hidden** — that is the thing this
-    release had to build a second belt for, and I want to know at once.
-B2. Press ⌘D and then click once without dragging (a tiny drag).
-    EXPECT: "📐 Nothing captured — that drag measured 0 × 0", and the
-    editor is back.
-B3. Press ⌘D and then just leave it. Walk away for two minutes.
-    EXPECT: the selector goes by itself and the editor comes back.
-    That is the long belt, and ninety seconds is deliberately generous
-    — if it feels too long, say so and it is a number.
-
-C. MUST STILL WORK — this touched the window that hides itself, so
-   this half matters more than A.
-C1. ⌘F (🖥 Full screen) — unchanged: the editor blinks out, the whole
-    screen is taken, the editor comes back with it on the shot.
-C2. ⌘A (📸 Add capture) — unchanged: drag an area and it lands AT
-    ONCE, no countdown. That is what ⌘A is for.
-C3. ⌘O (🖼 Load shot) and ⌘V (📋 Paste image) — unchanged.
-C4. ⇪4 — unchanged: macOS's own crosshair, as of 6.337.0.
-C5. ⇪5 scrolling capture — our selector, with crosshairs and the live
-    size. This is the OTHER caller of the thing I changed, so it is the
-    one most likely to have broken: drag over a scrolling page and
-    check you get a stitched shot.
-C6. The nine drawing tools, ⌘Z, Esc, ⌘⏎ Save & copy.
-
-D. PASTE BACK, PASS OR FAIL.
-D1. `_G.screenshotEditorReport()` — there is a new `⌘D :` line saying
-    what the key does now, with a cancel count beside it. If it does
-    NOT say "drag an area", the release did not take.
-D2. `_G.screenshotsReport()` — a new `region :` line:
-      region  : 3 asked — 2 your rectangle · 1 cancelled · 0 fell back
-                to the whole screen
-    **If "fell back to the whole screen" is ever a number**, paste it:
-    that Mac could not draw our selector, you got the old shape, and
-    the line under it names macOS's reason.
-D3. If it ever says "⚠️ N of them shot AT ONCE", paste that too — that
-    Mac would not arm the countdown, so you had no time to set up.
-
-E. A JUDGEMENT ONLY YOU CAN MAKE.
-E1. Five seconds, between the drag and the shot. Right for what you
-    use it for, or should it be longer now that you have already spent
-    time choosing the rectangle? It is `delaySecs`, a number, not a
-    release — say a number and I will change the default.
-E2. Ninety seconds is how long the selector may sit open before the
-    editor comes back by itself. Too long? Too short?
-E3. "⏲ Area +5s" is the button's new label, with the order spelled out
-    on hover. Does the label read right to you, or would you rather it
-    said something else?
-E4. 🔨 CRUDE OR ELEGANT: nothing was broken and nothing was lost —
-    ⌘D did exactly what it was built to do and the editor always came
-    back. My reading is that this is a SHAPE you had never been asked
-    about, not a defect, so I have logged it as one pass and your
-    sentence as the symptom. Your tag.
-E5. 📏 AND THE OTHER THREE: you said "those four screenshot tools run
-    weird". ⌘A, ⌘F and ⌘O were all unreachable until 6.339.0 — a guard
-    asked `core.has`, which the core table has never carried — so if
-    any of them still behaves oddly on this build, that is new
-    information and I want it named one at a time.
 
 
 ---

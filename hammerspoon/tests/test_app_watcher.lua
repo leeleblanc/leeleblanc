@@ -531,6 +531,51 @@ do
     _G.typingInjection = nil
 end
 
+-- 20. AN APP THAT IS NOT ON THE LIST IS IGNORED -----------------------
+-- 🚨 THE SUITE HAD NEVER DRIVEN THIS, in nineteen tests, which is why
+-- 6.346.0 had to add it before it could remove a name: every check here
+-- quits a WATCHED app, so nothing could tell a list with one name
+-- removed from a list that was never consulted at all. 6.269.0's rule —
+-- an auditor that joins two things can only ever speak about rows that
+-- EXIST, so the missing row needs a different instrument.
+do
+    local h = bootModule()
+    h.relaunch("Transmission")
+    h.quit("Transmission")
+    ok(not h.wasShown(),
+       "🗑 Transmission quitting shows NOTHING — it is off the list on "
+       .. "LL's word, and it quits by itself when a download finishes")
+end
+do
+    -- 🚨 A FRESH HANDLE, and that is not tidiness: wasShown() LATCHES for
+    -- the life of a boot, so asking it a second time after a popup has
+    -- already appeared measures the FIRST quit again. The mutation that
+    -- put Transmission back failed this row too, which is how the
+    -- piggyback showed up (6.212.0: assert what is unique to the branch).
+    -- An app nobody has ever named must be ignored on its own evidence,
+    -- or this check is about one string rather than about the list.
+    local h = bootModule()
+    h.relaunch("SomeAppNobodyWatches")
+    h.quit("SomeAppNobodyWatches")
+    ok(not h.wasShown(), "an app that was never on the list shows nothing")
+end
+
+-- 21. ...AND THE LIST IS STILL CONSULTED ------------------------------
+-- 🚨 THE OTHER HALF, or test 20 passes just as happily with the whole
+-- watcher disconnected (6.273.0: when a fix lands on a line no mutation
+-- can kill, the missing CHECK is the finding). The fixture that bites is
+-- the two run back to back in ONE boot: a watched app and an unwatched
+-- app, same handle, opposite answers.
+do
+    local h = bootModule()
+    h.relaunch("Transmission")
+    h.quit("Transmission")
+    ok(not h.wasShown(), "…the unwatched one is silent")
+    h.quit("Shottr")
+    ok(h.wasShown(), "…and a WATCHED app still pops, in the same session")
+end
+
+
 -- run-tests.sh greps for this exact shape and adds its own "✅ <suite> —"
 -- prefix, so print the counts BARE. Decorating them here prints the name
 -- twice in the runner's output.

@@ -5,6 +5,50 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.346.0 — 🗑 TRANSMISSION IS OFF THE APP CLOSE MONITOR
+  (modules/app_watcher.lua)
+
+  LL, 2026-10-11: "Remove Transmission from the app close monitor."
+
+  Done — `appMonitorWatchedApps` holds 18 apps now instead of 19. It is
+  the right one to drop: Transmission QUITS BY ITSELF when a download
+  finishes, and this panel never gives up (6.16.21 removed the
+  auto-dismiss on purpose, so that an app quitting while he is away is
+  still there when he comes back). An app that ends its own session on
+  its own schedule is the worst possible member of a list like that —
+  the popup is correct, pinging, and about nothing.
+
+  🚨 AND THE SUITE COULD NOT HAVE PROVEN A REMOVAL, which is the half
+  worth a release. Nineteen tests, every one of them quitting a WATCHED
+  app and asserting the popup appears. Nothing anywhere drove the
+  negative case, so a list with one name taken out and a list that is
+  never consulted at all read identically to the gate — and a removal
+  nothing can check is a removal that can be silently undone by the
+  next edit. 6.269.0's rule in a new place: an auditor that works by
+  joining two things can only ever speak about rows that EXIST, so the
+  MISSING row needs a different instrument.
+
+  Two now: an unwatched app quitting must show NOTHING, and a watched
+  app must still pop IN THE SAME SESSION. The second is not decoration
+  — without it the first passes just as happily with the whole watcher
+  disconnected (6.273.0).
+
+  🧪 AND THE FIRST DRAFT PIGGYBACKED. `wasShown()` LATCHES for the life
+  of a boot, so asking it twice after one popup has appeared measures
+  the FIRST quit again — the mutation that puts Transmission back
+  failed a row that was supposed to be about a different app entirely,
+  which is how it showed up. The two checks run on separate boots now.
+  6.212.0: assert what is unique to the branch.
+
+  📏 NAMED, NOT FIXED: the list still carries "Microsoft Excel" twice.
+  It is harmless — the second pass finds the app already recorded as
+  gone, so no second popup — and it is his list, so it is reported
+  rather than quietly tidied.
+
+  📏 AND IT IS NOT A SETTINGS LINE: this list is a local inside setup(),
+  so putting an app back is a one-line release rather than an override
+  he could type. Said plainly rather than pretending there is a knob.
+
 NEW IN 6.345.0 — 🚨 THE MUG PLAYER PLAYS: `hs.json.encode` TAKES A
   TABLE, AND A BARE STRING IS NOT ONE (modules/video_player.lua)
 

@@ -976,7 +976,7 @@ CREATED AUTOMATICALLY (never make these yourself):
 Seventy-five Lua suites, 11,087 checks, plus five more that run the Capture
 Pad's, the screenshot editor's, unified search's, the vault's and the
 music player's page JavaScript under `node` for a further 709 —
-**12,012 checks over eighty-four stages** in
+**12,016 checks over eighty-four stages** in
 all. Every Lua stage runs with `lua5.4` on any machine — no Mac required,
 they stub the `hs` API:
 

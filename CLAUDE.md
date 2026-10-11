@@ -3466,6 +3466,37 @@ work Mac.
   · and the cancel-slot check had to drive "created, wired, REFUSED TO
     SHOW" rather than "cannot create" — 6.265.0, fifth time, and the
     refusal is the branch that calls `cancelSelect` on its way out.
+- 🗑 A LIST YOU CAN BE REMOVED FROM NEEDS A CHECK FOR THE ABSENCE
+  (6.346.0, modules/app_watcher.lua — LL: "Remove Transmission from the
+  app close monitor."). One line out of `appMonitorWatchedApps`, and
+  the right one: Transmission QUITS BY ITSELF when a download finishes,
+  and 6.16.21 deliberately removed this panel's auto-dismiss so that an
+  app quitting while he is away is still there when he returns. An app
+  that ends its own session on its own schedule is the worst possible
+  member of a list like that — the popup is correct, pinging, and about
+  nothing.
+  🚨 AND THE SUITE COULD NOT HAVE PROVEN THE REMOVAL. Nineteen tests,
+  every one of them quitting a WATCHED app and asserting the popup
+  appears; nothing anywhere drove the negative case. So a list with one
+  name taken out and a list that is never consulted at all read
+  IDENTICALLY to the gate, and a removal nothing can check is one the
+  next edit can silently undo. 6.269.0's rule in a new costume — an
+  auditor that works by JOINING two things can only ever speak about
+  rows that exist, so the MISSING row needs its own instrument.
+  🔑 TWO CHECKS, NOT ONE: an unwatched app quitting shows NOTHING, and
+  a watched app still pops IN THE SAME SESSION. Without the second the
+  first passes with the whole watcher disconnected (6.273.0). GENERAL:
+  whenever a release takes a name OUT of a list, the check it owes is
+  the negative one, and it owes a positive one beside it or it has
+  proved the feature is dead rather than that the name is gone.
+  🧪 AND THE FIRST DRAFT PIGGYBACKED: `wasShown()` LATCHES for the life
+  of a boot, so asking it twice after one popup measures the FIRST quit
+  again — the mutation that puts the name back failed a row about a
+  different app entirely, which is how it showed up. Separate boots
+  now (6.212.0: assert what is unique to the branch).
+  📏 NAMED, NOT FIXED: the list still carries "Microsoft Excel" twice.
+  Harmless (the second pass finds the app already recorded as gone), it
+  is HIS list, and it is reported rather than quietly tidied.
 - 🔌 `hs.json.encode` TAKES A TABLE, AND A BARE STRING IS NOT ONE
   (6.345.0, modules/video_player.lua — LL on the brand-new Mug Player:
   "Nothing plays. Escape doesn't work."). 6.344.0 drew a black
@@ -5635,6 +5666,7 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
+| 6.346.0 | 🗑 Transmission is off the app close monitor — and the suite can prove a removal for the first time | pending |
 | 6.345.0 | 🚨 the Mug Player plays — hs.json.encode takes a TABLE, and every string in the page's payload was coming back empty | pending |
 | 6.344.0 | 🎬 the Mug Player (⇪⇧,) — drop .mp4 films on a window and watch them with the Mac's own controls | LOSS — LL: "Nothing plays. Escape doesn't work." The payload builder called `hs.json.encode` on a bare film NAME; LuaSkin raises on a non-table, a pcall swallowed it, and every string reached the page as `""` — including the `<video>`'s src → fix 6.345.0 |
 | 6.343.0 | 🚨 ⇪Esc was firing the panic chord — nothing claimed it, so it forwarded onto ⌘⇧⌃⌥Esc | pending |
@@ -6826,6 +6858,52 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.346.0 verify with LL — 🗑 TRANSMISSION IS OFF THE MONITOR (KNOWN GROUND)
+  WHAT CHANGED: Transmission quitting no longer pops the app monitor.
+  Your words, one line, 18 apps watched instead of 19.
+  🚨 AND THE REAL WORK IS THAT THE REMOVAL IS PROVABLE. The suite had
+  nineteen tests and every one of them quit a WATCHED app — so a list
+  with one name taken out and a list nobody consults looked the same to
+  the gate. Two checks drive the negative case now, and putting the
+  name back fails them.
+
+  A. THE HEADLINE — needs a download to finish, or just quit it.
+  A1. Quit Transmission (⌘Q, or let a download finish and let it go).
+      EXPECT: NOTHING. No popup, no ping, no sound.
+      **A FAIL is the panel appearing** — that is the bug, unchanged.
+  A2. Quit a watched app — Shottr, CotEditor, Ghostty, Word.
+      EXPECT: the popup, pinging as always, with Spawn / End and Esc.
+      That half must be untouched; if it is gone, this release broke
+      the monitor rather than trimming it.
+  A3. Answer that popup (Esc, or a button). EXPECT: unchanged.
+
+  B. MUST STILL WORK.
+  B1. Quit two watched apps in a row. EXPECT: one popup, then the next
+      behind it — the queue is unchanged.
+  B2. ⇪R to reload, then quit a watched app again. EXPECT: the popup.
+  B3. Nothing else in this release touches anything else.
+
+  C. A JUDGEMENT ONLY YOU CAN MAKE.
+  C1. **Is anything else on that list quitting by itself?** The other
+      eighteen are 1Password, Alfred, Bartender, CotEditor, Ghostty,
+      Google Chrome, IINA, OneDrive, Microsoft Defender, Excel,
+      PowerPoint, Word, Outlook, Teams, NordVPN, Rectangle, Shottr,
+      Sublime. IINA is the one I would ask about — it is a film player
+      and you have a film player now. Name any others and they go in
+      one line.
+  C2. 📏 THE LIST CARRIES "Microsoft Excel" TWICE. It is harmless — the
+      second pass finds the app already recorded as gone, so there is
+      no second popup — and it is your list, so I have reported it
+      rather than tidying it. Say the word and it goes.
+  C3. 📏 AND IT IS NOT A SETTINGS LINE: that list is a local inside the
+      module, so putting an app BACK is a one-line release rather than
+      something you could type. Said plainly rather than pretending
+      there is a knob.
+  C4. 🔨 CRUDE OR ELEGANT: nothing was broken — this is a list you
+      wanted shorter. My reading is that it does not belong in the
+      ledger as a problem at all. Correct me if the popup was actually
+      getting in your way.
+
 - 6.345.0 verify with LL — 🚨 THE MUG PLAYER PLAYS (KNOWN GROUND now)
   WHAT CHANGED: films play. ⎋ closes the window. And the deck shows the
   films' NAMES.

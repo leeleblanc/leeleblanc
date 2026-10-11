@@ -4,8 +4,18 @@
 -- =====================================================================
 -- 10-09-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.345.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.346.0
 -- =====================================================================
+
+-- NEW IN 6.346.0 — 🗑 TRANSMISSION IS OFF THE APP CLOSE MONITOR
+--   (modules/app_watcher.lua). LL: "Remove Transmission from the app
+--   close monitor." It quits by itself when a download finishes, the
+--   worst shape for a list whose panel never gives up (6.16.21). 18 now.
+--   🚨 AND THE SUITE COULD NOT HAVE PROVEN A REMOVAL: nineteen tests,
+--   every one quitting a WATCHED app, so a list with one name taken
+--   out read the same as a list nobody consults. Two checks drive the
+--   negative case now (6.269.0 — a join says nothing about a MISSING
+--   row), and putting the name back fails them.
 
 -- NEW IN 6.345.0 — 🚨 THE MUG PLAYER PLAYS: hs.json.encode TAKES A
 --   TABLE (modules/video_player.lua). 6.344.0 drew a black rectangle
@@ -19,21 +29,11 @@
 --   and closes the window (WebKit keeps it in full screen); a refused
 --   door carries macOS's own MediaError; a row number is an integer.
 
--- NEW IN 6.344.0 — 🎬 THE MUG PLAYER (⇪⇧,): A JUG PLAYER FOR FILMS
---   (modules/video_player.lua, new). LL: "a Jug Player but for movies.
---   Once it's stable we will merge them." .mp4, his scope. A <video
---   controls> stage — scrubber, clock, volume, full screen and PiP all
---   WebKit's OWN — over a queue and 30 days of history.
---   🪟 NEW GROUND, SAID: nothing here has played video in a webview, so
---   whether one reads a film off disk is UNMEASURED. vid.sourceDoors
---   lists the ways in, the page reports which carried it, and a film no
---   door reaches gets a sentence and ⌘O. 🔌 drag.paths is SHARED.
-
--- (6.343.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.344.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 cut the inline count to
 --  TWO; a gate check proves every entry here is also in CHANGELOG.md.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.345.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.346.0
 -- =====================================================================
 -- The catalogue that used to sit here moved to GUIDE.md ("What each
 -- tool does") in 6.180.0 — 259 lines of prose inside the orchestrator.
@@ -126,7 +126,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.345.0"
+_G.configVersion = "6.346.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the

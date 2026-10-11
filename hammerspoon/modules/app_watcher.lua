@@ -63,8 +63,22 @@ function M.setup(core)
     		"Rectangle",
     		"Shottr",
     		"Sublime",
-    		"Transmission",
     }
+    -- 🗑 6.346.0 — TRANSMISSION IS OFF THE LIST, on LL's word
+    -- ("Remove Transmission from the app close monitor."). It quits
+    -- when a download finishes, which is the one app here whose
+    -- quitting is ordinary rather than worth a popup that pings
+    -- until it is answered (6.16.21 — this panel never gives up by
+    -- design, so an app that quits on its own schedule is the worst
+    -- possible member of the list).
+    -- 🔑 THE REMOVAL IS PROVEN, NOT ASSUMED: test_app_watcher now
+    -- drives a quit for an app that is NOT on this list and requires
+    -- SILENCE. Until 6.346.0 the suite had only ever driven a WATCHED
+    -- app, so nothing could tell a list with one name removed from a
+    -- list that was never consulted — which is 6.269.0's rule about
+    -- an auditor that can only speak about rows that exist.
+    -- 📏 NOT a settings line: this list is a local inside setup(), so
+    -- putting an app back is a one-line release. Say the word.
     -- 6.16.21: no more auto-dismiss — if you're away when an app quits, a
     -- popup that gives up after 30s means you'd never know. It now stays
     -- up, pinging gently, until you actually respond (a button, or Esc).
