@@ -1,4 +1,4 @@
-# TESTING — how to score release 6.351.0
+# TESTING — how to score release 6.352.0
 
 You install ONE archive and it carries several releases. Below are the
 steps for each release this archive is new for, newest first. Run the
@@ -26,6 +26,103 @@ else is a LOSS and I fix it before building further. You are the only
 scorer; I never mark my own.
 
 ---
+
+## 6.352.0
+
+6.352.0 verify with LL — 🚚 THE DROP HAS TWO DOORS (KNOWN GROUND)
+WHAT CHANGED: you can drag films onto the window again — and this time
+there are TWO ways in, so one of them failing no longer costs the
+feature.
+🚚 AND YOU ARE RIGHT ABOUT THE RULE. What I found is not a line that
+moved; it is worse. **This tool has only ever had ONE way in.** The
+Jug Player's page has carried its own drag handlers since 6.233.0 and
+reads the drag's file list itself; the Mug Player's page has NEVER had
+one — I checked the whole history of that file and there is not a
+single one. Its entire drop was a transparent canvas sitting under the
+window.
+🪟 AND THAT CANVAS'S "did it open?" ANSWER WAS BEING THROWN AWAY. When
+macOS refuses to put it on screen — which your Mac measurably does; it
+is why 6.348.0 exists — the code recorded it as "ready" anyway. A
+canvas that is not on screen catches nothing. So the report told you
+the drop was fine about a door that did not exist.
+
+A. THE HEADLINE — a minute.
+A1. ⇪⇧, to open the window.
+A2. Drag two or three .mp4 films onto it from Finder.
+    EXPECT: the window goes blue with "drop .mp4 films here" as the
+    pointer crosses it, and on the drop the films queue and the first
+    one starts loading.
+    **A FAIL is the drag doing nothing, or the file landing behind the
+    window** — that is the bug, unchanged.
+A3. Drag a film with an apostrophe or an & in its name.
+    EXPECT: it queues, named correctly. Those are the characters the
+    shared parser exists for.
+A4. Drag a .mkv or a photo.
+    EXPECT: refused BY NAME, with ⌘O offered. Unchanged.
+
+B. PASTE BACK, PASS OR FAIL — and please run this one WITH THE WINDOW
+   STILL OPEN. That is the whole reason last round cost us a release.
+B1. With the window open and after a drop: `_G.mugReport()`.
+    Two lines are new and they are what I need:
+      drop   : catcher up · the window's own handler: live · 2 file(s)
+               dropped — carried by the window's own handler
+      ↳ doors : 2 drop(s) through the window itself · 0 through the
+               catcher underneath
+    **That second line is the release.** It says which door carried
+    your drop. If "through the window itself" is the number that
+    moved, the new door is working; if the catcher's is, the old one
+    was fine and something else was wrong — and either answer is
+    useful.
+B2. If it ever reads **⚠️ macOS refused the catcher N time(s)**, paste
+    it. That is the refusal being caught instead of recorded as
+    "ready", and it is the thing that was silent before.
+B3. The `page :` line now has four states. With the window OPEN it
+    should read `ready`. **If it reads "⚠️ OPEN and has NOT said it is
+    ready", paste the whole report** — that means the page's script
+    did not run, which is the other half of "there's nothing now" and
+    I cannot see it from here.
+
+C. "BUT THERE'S NOTHING NOW" — I have NOT fixed this and I am not
+   pretending to. Saying it plainly.
+C1. With three films queued and nothing playing, the window should
+    draw "Mug Player" top left, "nothing playing" beside it, and a
+    deck listing your films by name. Open it and tell me which of
+    those four you can see.
+C2. The report you sent was taken after you closed the window, and
+    closing it wiped the two lines that would have answered this —
+    which is mine, not yours, and is fixed in this release (the `page`
+    line now tells "closed, and its page HAD run" apart from "its page
+    never once spoke"). So: **one report with the window open** and I
+    will know.
+
+D. MUST STILL WORK — the drop touches the window, so this half
+   matters more than A.
+D1. ⇪⇧. the **Jug Player** — drop an mp3 on it, it plays. This release
+    published one of its functions as a shared service, so if music
+    drops break, this did it and I want to know at once.
+D2. ⌫ on a queue row still REMOVES that film from the queue, and ⌫ on
+    a history row still forgets it. **This is the one I would most
+    like you to check**: the page's file drop and the ⌫ key had to be
+    given different names, and if they had collided, dropping films
+    onto the window would DELETE one instead.
+D3. ↑↓, ⏎, space, ⌘1–9, ⌘O, Escape, the ✕ on a history row.
+D4. Drag the window by its title strip; close and reopen — it is where
+    you left it.
+
+E. A JUDGEMENT ONLY YOU CAN MAKE.
+E1. The blue "drop .mp4 films here" veil — does it appear reliably now
+    as the drag crosses the window? It is drawn by the page for the
+    page's door and by Lua for the catcher's, so a veil that appears
+    only sometimes is itself a finding.
+E2. 📏 NAMED, NOT SWEPT: the **Jug Player's** catcher has the identical
+    unread-show bug. It has two doors so it survives it, which is why
+    it is not fixed here — one change per release, the failing one
+    first. Say if you would rather I did both.
+E3. 🔨 CRUDE OR ELEGANT: the window opened, nothing was lost, and ⌘O
+    always worked — but the one thing you were trying to do did not,
+    and this is pass five on this tool. Your tag.
+
+
 
 ## 6.351.0
 
@@ -113,77 +210,6 @@ C1. 🗳 If you would rather it DID reopen where you left it:
     word and I will change the default instead of leaving you a line.
 C2. 📏 NAMED: mini_calendar still has no suite of its own — these
     checks live in test_features with the calendar's others.
-
-
-
-## 6.348.0
-
-6.348.0 verify with LL — 🪟 THE WINDOW macOS REFUSED (KNOWN GROUND)
-WHAT CHANGED: a window macOS refuses to put on screen is tried ONCE
-more, a beat later — and the first ⇪⇧, of a session no longer pays
-two main-thread library loads in the same turn as the show.
-🔎 YOUR CONSOLE NAMED THIS, and it is a DIFFERENT failure from the
-black rectangle 6.345.0 fixes. Three lines, one second:
-    20:45:51  -- Loading extension: webview
-    20:45:51  -- Loading extension: drawing
-    20:45:51  ⚠️ Mug Player: macOS would not put the window on screen
-The window never opened at all. Hammerspoon loads a library the first
-time anything touches it, on the main thread, and on your Mac that is
-seconds — your 6.330.0 log has one arriving twenty-six seconds after
-another. So the first press was loading two of them and then asking
-macOS to order a window on screen in the same breath.
-🚨 I AM NOT CLAIMING THAT IS THE CAUSE. The same Console has the
-cheat sheet refused forty minutes earlier, so this Mac refuses window
-shows generally. What this does is take two known pieces of work off
-that moment, and retry once when it still happens.
-
-A. THE HEADLINE — and the case that matters is the FIRST press.
-A1. Reload Hammerspoon (⌘⌃R). Wait ten seconds, no keys.
-A2. Press **⇪⇧,** — the FIRST press of the session.
-    EXPECT: the window. **A FAIL is nothing happening**, and if that
-    is what you get, go straight to D1 — the report now counts it.
-A3. Watch the Console while you do A2.
-    EXPECT: NO `-- Loading extension: webview` line at that moment.
-    It should have been loaded ten seconds after boot instead. If it
-    still appears on your keypress, the warm did not run and that is
-    the finding.
-A4. Close and open it a few times. EXPECT: every time.
-
-B. THE RETRY, which you may never see.
-B1. If a press ever seems to do nothing and then the window appears a
-    moment later, that IS the retry. Normal.
-B2. If you get "macOS would not put the window on screen, TWICE",
-    that is two refusals in a row — paste it. It means the retry is
-    working and the refusal is something bigger than a busy turn.
-
-C. MUST STILL WORK.
-C1. Everything in the 6.345.0 block — the film plays, names in the
-    deck, Escape closes, ⌘O.
-C2. ⇪⇧. the Jug Player, ⇪/ the cheat sheet, ⇪3 Hamsidian, ⇪N, ⇪T.
-    Those all draw windows and none of them changed.
-C3. Boot: All green, 72 modules. Boot time should be unchanged —
-    the two libraries load in warm, seconds AFTER boot, not during.
-
-D. PASTE BACK, PASS OR FAIL.
-D1. `_G.mugReport()` — a new line:
-      opens  : 3 asked · 3 straight through · 0 refused by macOS
-    and, if any were refused, one under it saying how many came up on
-    the retry against how many were refused twice. **Those are
-    opposite facts** and the old report could say neither.
-D2. Still the one I most need: the **way in** line, once a film
-    actually plays.
-
-E. A JUDGEMENT ONLY YOU CAN MAKE.
-E1. 📏 COST, NAMED: your Mac now loads hs.webview and hs.drawing a few
-    seconds after every boot even if you never press ⇪⇧,. Six other
-    tools here draw webviews so you were almost certainly paying it
-    anyway — but if boot ever FEELS slower, say so and it comes out.
-E2. Every other window in this config still has the bare show this
-    release fixed in one place — the music card, Hamsidian, the
-    screenshot editor. If any of THEM ever does nothing on a press,
-    that is the same bug and I will take the same door there.
-E3. 🔨 CRUDE OR ELEGANT: for the Mug Player this is pass three. Your
-    tag, and I would not argue with 🔨.
 
 
 

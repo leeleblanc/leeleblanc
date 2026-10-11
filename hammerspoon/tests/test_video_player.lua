@@ -42,6 +42,11 @@ NO_WEBVIEW, NO_CANVAS, SHOW_REFUSES = false, false, false
 CANVAS_REFUSES = false
 NO_HSWINDOW, REFUSE_FOCUS           = false, false
 NO_DRAGLEVEL, NO_DRAGCB             = false, false
+-- 🔬 CREATED, WIRED, REFUSED TO SHOW — 6.265.0's shape for the FIFTH
+-- time, and the one this catcher was blind to: hs.canvas:show() THROWS
+-- when AppKit will not order the window on screen, and the old code
+-- discarded that answer and recorded the catcher as "ready".
+CANVAS_SHOW_REFUSES                 = false
 TASK_START_REFUSES, NO_TASK         = false, false
 
 local realOpen  = io.open
@@ -190,7 +195,13 @@ hs = {
                 end
                 self.dragFn = fn ; return self
             end
-            function c:show() self.shown = true ; return self end
+            function c:show()
+                if CANVAS_SHOW_REFUSES then
+                    error("NSInternalInconsistencyException: "
+                          .. "containingWindowWillOrderOnScreen:", 0)
+                end
+                self.shown = true ; return self
+            end
             function c:delete() self.deleted = true ; return self end
             function c:frame(r) if r then self.rect = r end return self.rect end
             setmetatable(c, { __newindex = function(t, k, v) rawset(t, k, v) end })
@@ -303,12 +314,20 @@ local function reset()
     -- 'recovered' row first went red against correct code).
     vid.shows, vid.refusedShows = 0, 0
     vid.recovered, vid.lostShows, vid.noBelt = 0, 0, 0
+    -- 6.352.0's two doors, for the same reason: a pageDrops that survived
+    -- reset made the next section read the previous one's drop, and a
+    -- pageSpoke that survived made a page which had never spoken report
+    -- as a window that was merely closed.
+    vid.pageDrops, vid.catchDrops, vid.catchRefused = 0, 0, 0
+    vid.pageSpoke, vid.catcherOn, vid.uriWhy = false, false, nil
+    vid.dragSeen, vid.dropReader = "no drag yet this session", nil
     if vid.retryTimer then
         pcall(function() vid.retryTimer:stop() end) ; vid.retryTimer = nil
     end
     JS, ALERTS, DEGRADED, TASKS = {}, {}, {}, {}
     SHOW_REFUSES, NO_WEBVIEW, NO_CANVAS = false, false, false
     NO_DRAGLEVEL, NO_DRAGCB = false, false
+    CANVAS_SHOW_REFUSES = false
     CANVAS_REFUSES, TASK_START_REFUSES, NO_TASK = false, false, false
     WRITE_FAILS, RENAME_FAILS = false, false
     if vid.webview then vid.hide() end
@@ -1335,6 +1354,169 @@ check("🛟 a refused mdls is SAID, never silent",
       tostring(vid.codecs):find("could not ask", 1, true) ~= nil,
       tostring(vid.codecs))
 TASK_START_REFUSES = false
+
+-- §21 ── THE TWO DOORS (6.352.0) ----------------------------------------
+-- 🚚 HIS REPORT: "I can't drag and drop a file on it." This tool had ONE
+-- way in — a canvas catcher under the window — where the Jug Player has
+-- had two since 6.233.0, and this project's own rule says two ("both
+-- doors end in takeDrop"). A canvas macOS refuses to put on screen then
+-- costs the whole feature.
+out("\n§21 the two doors into the drop\n")
+
+-- 🪟 A HANDLE RECORDED BEFORE THE WINDOW IS UP IS A HANDLE THAT LIES
+-- (6.326.0). This is the branch the old code could not take: created,
+-- wired, and REFUSED TO SHOW.
+reset()
+CANVAS_SHOW_REFUSES = true
+vid.show()
+check("🪟 a catcher macOS REFUSED is not recorded as ready",
+      vid.catcher == nil and vid.catcherOn == false,
+      tostring(vid.dropWhy))
+check("🪟 …it is counted", vid.catchRefused == 1, vid.catchRefused)
+check("🪟 …the canvas is torn down, never left orphaned",
+      CANVASES[#CANVASES].deleted == true)
+check("🪟 …and it takes the 🔔 door, naming macOS",
+      anyHas(DEGRADED, "would not put the drop catcher on screen"))
+-- 🔑 AND IT IS NO LONGER THE WHOLE FEATURE, which is the release: the
+-- window's own handler is still live, and the message SAYS so.
+check("🔑 …and says the window's own handler is the way in meanwhile",
+      anyHas(DEGRADED, "own drop handler"))
+CANVAS_SHOW_REFUSES = false
+
+-- …and the ordinary path still records the claim only once it is true.
+reset()
+vid.show()
+check("🪟 a catcher macOS accepted IS recorded",
+      vid.catcher ~= nil and vid.catcherOn == true and vid.catchRefused == 0)
+
+-- 🚪 THE PAGE'S OWN DOOR. The page is handed a drag's text/uri-list and
+-- nothing else — WebKit never gives a page a file's path.
+reset()
+REG.service.provide("drag.urilist", function(t)
+    local o = {}
+    for line in (tostring(t) .. "\n"):gmatch("([^\r\n]*)[\r\n]") do
+        local u = line:match("^file://(/.*)$")
+        if u then o[#o + 1] = (u:gsub("%%(%x%x)",
+            function(h) return string.char(tonumber(h, 16)) end)) end
+    end
+    return o
+end)
+vid.show()
+check("🚪 the page door reads as LIVE once the shared parser is there",
+      vid.pageDoorLive() == true)
+vid.handleMessage({ a = "filedrop",
+                    uri = "file:///F/Ain%27t%20It.mp4\nfile:///F/two.mkv\n",
+                    names = { "Ain't It.mp4", "two.mkv" } })
+check("🚪 a drop through the window itself queues the film",
+      #vid.queue == 1 and vid.queue[1].path == "/F/Ain't It.mp4",
+      vid.queue[1] and vid.queue[1].path)
+check("🚪 …with the percent-escapes undone by the ONE shared parser",
+      vid.queue[1] and vid.queue[1].path:find("%%") == nil)
+check("🚪 …the .mkv refused by name, as the catcher's door does",
+      #vid.refused == 1 and vid.refused[1].path == "/F/two.mkv")
+check("🚪 …and the film started", vid.index == 1)
+-- 🚪 COUNTED APART (6.229.0): a feature with two doors must say which
+-- one is carrying it, or the next report cannot name the one that broke.
+check("🚪 …and the PAGE's door is counted, not the catcher's",
+      vid.pageDrops == 1 and vid.catchDrops == 0,
+      vid.pageDrops .. "/" .. vid.catchDrops)
+
+-- 🔎 A DROP WITH NO uri-list IS NAMED, NEVER SWALLOWED (6.231.0).
+reset()
+vid.show()
+vid.handleMessage({ a = "filedrop", uri = "", names = { "Robin Hood.mp4" } })
+check("🔎 a drop carrying no file URL is NAMED, with what it did carry",
+      #vid.queue == 0 and anyHas(ALERTS, "Robin Hood.mp4"),
+      vid.dragSeen)
+check("🔎 …and it does not count as a drop the page carried",
+      vid.pageDrops == 0)
+
+-- 🚨 THE FIXTURE THAT BITES, and it is the only input where the two
+-- implementations must differ (6.230.0): with no shared parser the page
+-- must NOT claim the drag, or it takes every drop away from the catcher
+-- underneath and does nothing with it — strictly worse than one door.
+reset()
+REG.service.registry["drag.urilist"] = nil
+vid.show()
+check("🚨 with no shared parser the page door stands DOWN",
+      vid.pageDoorLive() == false)
+local pay = vid.rowsJson()
+check("🚨 …and the page is BUILT not to claim a drag (pd:false)",
+      pay:find("pd:false", 1, true) ~= nil, pay:sub(-120))
+vid.handleMessage({ a = "filedrop", uri = "file:///F/one.mp4\n" })
+check("🚨 …and a drop that reaches Lua anyway is named, not swallowed",
+      #vid.queue == 0 and tostring(vid.uriWhy):find("not loaded", 1, true) ~= nil,
+      tostring(vid.uriWhy))
+REG.service.provide("drag.urilist", function() return {} end)
+
+-- 🚨 'filedrop', NEVER 'drop'. In this page 'drop' is the ⌫ key, which
+-- REMOVES a film from the queue — so one shared name would make dropping
+-- films onto the window DELETE one instead (6.272.0's ✕-before-the-row,
+-- in a message name). A source sentry, because the page is where it is
+-- decided and a functional check cannot see a name that is not sent.
+do
+    local f = assert(realOpen(HS .. "/modules/video_player.lua"))
+    local srcTxt = f:read("a") ; f:close()
+    -- 🚨 AND THE WINDOW ENDS AT THE LISTENER'S OWN BOUNDARY (6.263.0).
+    -- The first version of this sentry searched the WHOLE file for
+    -- `a:'drop'` and went red on correct code, because ⌫ legitimately
+    -- sends exactly that — a sentry that forbids a string which must
+    -- exist is one that gets switched off in a week (6.269.0). The rule
+    -- is about what the DROP LISTENER sends, so that is the haystack.
+    local at = srcTxt:find("addEventListener('drop'", 1, true)
+    check("🚚 the page has a drop listener to read at all", at ~= nil)
+    local body = at and srcTxt:sub(at, (srcTxt:find("\n});", at, true) or at))
+                     or ""
+    check("🚨 the drop listener sends 'filedrop'",
+          body:find("a:'filedrop'", 1, true) ~= nil, body)
+    check("🚨 …and never 'drop', which is ⌫ and REMOVES a film",
+          body:find("a:'drop'", 1, true) == nil, body)
+    check("🚨 …and ⌫ still sends 'drop', which this must not have taken",
+          srcTxt:find("say({a:'drop'})", 1, true) ~= nil)
+    check("🚚 the page registers its own drag listeners at all",
+          srcTxt:find("addEventListener('dragover'", 1, true) ~= nil
+          and srcTxt:find("addEventListener('drop'", 1, true) ~= nil)
+end
+
+-- 🔎 THE REPORT SURVIVES THE WINDOW CLOSING, which is what cost this
+-- diagnosis: `dropWhy` was set to "ready" when the catcher was created
+-- and nothing cleared it, so the line read as health about a catcher
+-- that had been DELETED — and hide() resets pageReady, so "closed and it
+-- had spoken" and "never once spoke" printed the same ⚠️.
+local function reportText()
+    local lines = {}
+    local realP = print
+    print = function(x) lines[#lines + 1] = tostring(x) end
+    pcall(_G.mugReport)
+    print = realP
+    return table.concat(lines, "\n")
+end
+reset()
+vid.show()
+vid.handleMessage({ a = "ready" })
+check("🔎 an OPEN window with a live page reads 'ready' and 'catcher up'",
+      reportText():find("catcher up", 1, true) ~= nil
+      and reportText():find("page   : ready", 1, true) ~= nil)
+vid.hide()
+local closed = reportText()
+check("🔎 a CLOSED window says so about the catcher, not 'ready'",
+      closed:find("drop   : window closed", 1, true) ~= nil, closed)
+check("🔎 …and says the page HAD spoken while it was open",
+      closed:find("it HAD said it was ready", 1, true) ~= nil, closed)
+-- 🚨 AND THE FOURTH STATE, which is the one that was missing: a page
+-- that has NEVER spoken must not read like one that has.
+reset()
+local never = reportText()
+check("🚨 a page that never once spoke reads as a FAULT, not as closed",
+      never:find("NEVER once said", 1, true) ~= nil, never)
+-- 🚪 and the doors line, which is what his next report answers with.
+reset()
+vid.show()
+vid.pageDrops, vid.catchDrops = 2, 1
+check("🚪 the report counts the two doors apart",
+      reportText():find("2 drop(s) through the window itself", 1, true) ~= nil
+      and reportText():find("1 through the catcher underneath", 1, true) ~= nil,
+      reportText())
 
 -- ---- the tally ---------------------------------------------------------
 realPrint("")

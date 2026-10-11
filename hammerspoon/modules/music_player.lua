@@ -2667,6 +2667,12 @@ say({a:'ready'});
     -- is the lift CLAUDE.md already called for when the OCR tag path hit
     -- the identical inode bug.
     core.provide("drag.paths",   function(pb) return mp.dropPaths(pb) end)
+    -- 🚚 6.352.0 — THE SAME PARSER, FOR THE MUG PLAYER'S OWN PAGE. A page
+    -- is handed a drag's text/uri-list and nothing else; the rule that the
+    -- percent-escapes belong to the URL and not to a plain POSIX path is
+    -- 6.237.0's knowledge, and a second copy of it in the other module is
+    -- how the two come to disagree about one drag (6.231.0).
+    core.provide("drag.urilist", function(t) return mp.pathsFromURIList(t) end)
 
     core.provide("music.show",   function() return mp.show() end)
     core.provide("music.hide",   function() mp.hide() return true end)

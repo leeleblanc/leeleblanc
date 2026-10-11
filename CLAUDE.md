@@ -3466,6 +3466,62 @@ work Mac.
   · and the cancel-slot check had to drive "created, wired, REFUSED TO
     SHOW" rather than "cannot create" — 6.265.0, fifth time, and the
     refusal is the branch that calls `cancelSelect` on its way out.
+- 🚚 A FEATURE WITH ONE DOOR THAT macOS CAN REFUSE IS A FEATURE WITH
+  NONE (6.352.0, modules/video_player.lua — LL: "Mug player appears.
+  But there's nothing now. I can't drag and drop a file on it. I had an
+  explicit directive that's him don't introduce errors so he didn't
+  have to come back and fix those").
+  🚚 AND IT HAD ONLY EVER HAD ONE. The Jug Player's page carries
+  `dragover`/`dragleave`/`drop` and reads the drag's `text/uri-list`;
+  the Mug Player's page carries NONE — `git log -S'dragover'` over that
+  file is EMPTY — and its `dropShow()` is called only from Lua, by the
+  canvas catcher. So its whole drop was one canvas under the window.
+  🔑 THE RULE WAS ALREADY WRITTEN, IN THIS FILE, AND READ ONE STEP TOO
+  FAR. 6.233.0 says "hs.webview has no drag-and-drop of any kind" —
+  which is about the Lua API — and the very next sentence says "Both
+  doors — the catcher and the page's own handler — end in
+  `mp.takeDrop`." video_player.lua's own comment kept the first half
+  ("hs.canvas is the only thing that can accept a dragged file") and
+  concluded the PAGE needed no handler. GENERAL, and it is the costly
+  half: WHEN A DURABLE NOTE CORRECTS A BELIEF, THE CORRECTION HAS A
+  SCOPE — quote the sentence that names the SHAPE (two doors), not only
+  the one that names the mechanism, or the next tool built from it
+  ships with half the design.
+  🪟 AND THE ONE DOOR'S SHOW WAS NEVER READ, which is what turns one
+  into none: `pcall(function() cv:show() end)` threw the answer away and
+  recorded `catcher = cv ; dropWhy = "ready"` regardless. hs.canvas's
+  show THROWS when AppKit refuses to order the window on screen, and
+  this Mac is measurably one that refuses (6.265.0 · 6.274.0 · 6.314.0 ·
+  6.348.0). 6.326.0's rule — a published handle is a CLAIM about the
+  world, written after the world agrees — was paid for `mp.show` and
+  never for the CATCHER, in either module. NAMED, NOT SWEPT: the Jug
+  Player has the identical shape and is its own release.
+  🚨 THE SECOND DOOR'S CLAIM IS CONDITIONAL, and this is the part that
+  is easy to get wrong and expensive: `preventDefault()` is what makes a
+  window ACCEPT a drag, and accepting it TAKES the drag from the catcher
+  underneath. A page whose reader is absent would swallow every drop and
+  do nothing — strictly worse than the one door. So the decision comes
+  off a MEASURED fact (`_G.service.has("drag.urilist")`), rides in the
+  payload as `pd`, and is read at event time; with no reader the page
+  stands down. GENERAL: before adding a door that CLAIMS an event, ask
+  what happens to the existing door when the new one claims and then
+  cannot deliver.
+  🚨 'filedrop', NEVER 'drop' — in that page `drop` is already ⌫, which
+  REMOVES a film, so one shared name would make dropping films DELETE
+  one (6.272.0's ✕-before-the-row, in a message name). And the sentry
+  for it was WRONG BEFORE THE CODE WAS: it searched the whole file and
+  went red on correct code, because ⌫ legitimately sends `a:'drop'`.
+  The window ends at the listener's own boundary (6.263.0).
+  🔎 AND THE REPORT IS WHY THIS COST A ROUND. He took it after closing
+  the window — the obvious thing to do — and every line that mattered
+  was stale or wiped: `drop : ready` was a string written when the
+  catcher was CREATED, about a canvas since deleted (6.308.0), and
+  hide() resets `pageReady`, so "closed, its page ran perfectly" and
+  "its page never once spoke" printed the same ⚠️ (6.196.1). GENERAL,
+  and it generalises past this module: ANY REPORT LINE ABOUT A PANEL
+  OWES A CLOSED-WINDOW STATE, because the person will run the report
+  after closing it — a diagnostic that only tells the truth while the
+  surface is up is a diagnostic nobody can collect.
 - 🔬 ONE ERROR CODE, TWO OPPOSITE CAUSES, OPPOSITE FIXES (6.351.0,
   modules/video_player.lua — LL: "It doesn't play", with a report
   reading `refused: relative to the film's own folder ×1 · the
@@ -5625,7 +5681,7 @@ that must be READ before a new cause is named.
 | "hyper+4 does not have pixel crosshairs" · "it was working before" | modules/screenshots.lua · the selector | 6.264.0 · 6.318.0 | 1 | ask |
 | "it said 0x0 pixels, then jumped a few desktops, then I had to hit escape" | modules/screenshots.lua · the selector's one exit | 6.336.0 · 6.337.0 | 2 | ask |
 | "why OCR hyper+shift+4 works and hyper+4 still does not" | modules/screenshots.lua · ⇪4 re-implementing a system drag | 6.264.0 · 6.265.0 · 6.274.0 · 6.282.0 · 6.318.0 · 6.336.0 · 6.337.0 | 6 | ask |
-| "a Jug Player but for movies" · "nothing plays" · "macOS would not put the window on screen" | modules/video_player.lua · a webview that plays video | 6.344.0 · 6.345.0 · 6.348.0 · 6.351.0 | 4 | ask |
+| "a Jug Player but for movies" · "nothing plays" · "macOS would not put the window on screen" · "I can't drag and drop a file on it" | modules/video_player.lua · a webview that plays video | 6.344.0 · 6.345.0 · 6.348.0 · 6.351.0 · 6.352.0 | 5 | ask |
 | "I have to arrow forward the date … why do I have to arrow on to it?" | modules/mini_calendar.lua · the cursor on open | 6.349.0 | 1 | ask |
 | "I did not mean to hit panic" · "my keyboard froze" · "Console shows nothing weird" | modules/power_tools.lua · an unclaimed ⇪ key forwarding onto the panic chord | 6.343.0 | 1 | ask |
 | "⌘D says I have five seconds to setup, shows no crosshairs" · "those four screenshot tools run weird" | modules/screenshot_editor.lua · the ⌘D order | 6.255.0 · 6.342.0 | 1 | ask |
@@ -5748,6 +5804,7 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
+| 6.352.0 | 🚚 the Mug Player's drop has two doors — it had one, and a canvas macOS refused was recorded as "ready" | pending |
 | 6.351.0 | 🚪 a third way into the Mug Player, and `mdls` answers the question macOS's error code cannot | pending |
 | 6.350.0 | 🗑 Microsoft Excel is listed once in the app close monitor | pending |
 | 6.349.0 | 🗓 ⇪⇧0 opens on today — the comment beside the line had promised that for years | pending |
@@ -6945,6 +7002,99 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.352.0 verify with LL — 🚚 THE DROP HAS TWO DOORS (KNOWN GROUND)
+  WHAT CHANGED: you can drag films onto the window again — and this time
+  there are TWO ways in, so one of them failing no longer costs the
+  feature.
+  🚚 AND YOU ARE RIGHT ABOUT THE RULE. What I found is not a line that
+  moved; it is worse. **This tool has only ever had ONE way in.** The
+  Jug Player's page has carried its own drag handlers since 6.233.0 and
+  reads the drag's file list itself; the Mug Player's page has NEVER had
+  one — I checked the whole history of that file and there is not a
+  single one. Its entire drop was a transparent canvas sitting under the
+  window.
+  🪟 AND THAT CANVAS'S "did it open?" ANSWER WAS BEING THROWN AWAY. When
+  macOS refuses to put it on screen — which your Mac measurably does; it
+  is why 6.348.0 exists — the code recorded it as "ready" anyway. A
+  canvas that is not on screen catches nothing. So the report told you
+  the drop was fine about a door that did not exist.
+
+  A. THE HEADLINE — a minute.
+  A1. ⇪⇧, to open the window.
+  A2. Drag two or three .mp4 films onto it from Finder.
+      EXPECT: the window goes blue with "drop .mp4 films here" as the
+      pointer crosses it, and on the drop the films queue and the first
+      one starts loading.
+      **A FAIL is the drag doing nothing, or the file landing behind the
+      window** — that is the bug, unchanged.
+  A3. Drag a film with an apostrophe or an & in its name.
+      EXPECT: it queues, named correctly. Those are the characters the
+      shared parser exists for.
+  A4. Drag a .mkv or a photo.
+      EXPECT: refused BY NAME, with ⌘O offered. Unchanged.
+
+  B. PASTE BACK, PASS OR FAIL — and please run this one WITH THE WINDOW
+     STILL OPEN. That is the whole reason last round cost us a release.
+  B1. With the window open and after a drop: `_G.mugReport()`.
+      Two lines are new and they are what I need:
+        drop   : catcher up · the window's own handler: live · 2 file(s)
+                 dropped — carried by the window's own handler
+        ↳ doors : 2 drop(s) through the window itself · 0 through the
+                 catcher underneath
+      **That second line is the release.** It says which door carried
+      your drop. If "through the window itself" is the number that
+      moved, the new door is working; if the catcher's is, the old one
+      was fine and something else was wrong — and either answer is
+      useful.
+  B2. If it ever reads **⚠️ macOS refused the catcher N time(s)**, paste
+      it. That is the refusal being caught instead of recorded as
+      "ready", and it is the thing that was silent before.
+  B3. The `page :` line now has four states. With the window OPEN it
+      should read `ready`. **If it reads "⚠️ OPEN and has NOT said it is
+      ready", paste the whole report** — that means the page's script
+      did not run, which is the other half of "there's nothing now" and
+      I cannot see it from here.
+
+  C. "BUT THERE'S NOTHING NOW" — I have NOT fixed this and I am not
+     pretending to. Saying it plainly.
+  C1. With three films queued and nothing playing, the window should
+      draw "Mug Player" top left, "nothing playing" beside it, and a
+      deck listing your films by name. Open it and tell me which of
+      those four you can see.
+  C2. The report you sent was taken after you closed the window, and
+      closing it wiped the two lines that would have answered this —
+      which is mine, not yours, and is fixed in this release (the `page`
+      line now tells "closed, and its page HAD run" apart from "its page
+      never once spoke"). So: **one report with the window open** and I
+      will know.
+
+  D. MUST STILL WORK — the drop touches the window, so this half
+     matters more than A.
+  D1. ⇪⇧. the **Jug Player** — drop an mp3 on it, it plays. This release
+      published one of its functions as a shared service, so if music
+      drops break, this did it and I want to know at once.
+  D2. ⌫ on a queue row still REMOVES that film from the queue, and ⌫ on
+      a history row still forgets it. **This is the one I would most
+      like you to check**: the page's file drop and the ⌫ key had to be
+      given different names, and if they had collided, dropping films
+      onto the window would DELETE one instead.
+  D3. ↑↓, ⏎, space, ⌘1–9, ⌘O, Escape, the ✕ on a history row.
+  D4. Drag the window by its title strip; close and reopen — it is where
+      you left it.
+
+  E. A JUDGEMENT ONLY YOU CAN MAKE.
+  E1. The blue "drop .mp4 films here" veil — does it appear reliably now
+      as the drag crosses the window? It is drawn by the page for the
+      page's door and by Lua for the catcher's, so a veil that appears
+      only sometimes is itself a finding.
+  E2. 📏 NAMED, NOT SWEPT: the **Jug Player's** catcher has the identical
+      unread-show bug. It has two doors so it survives it, which is why
+      it is not fixed here — one change per release, the failing one
+      first. Say if you would rather I did both.
+  E3. 🔨 CRUDE OR ELEGANT: the window opened, nothing was lost, and ⌘O
+      always worked — but the one thing you were trying to do did not,
+      and this is pass five on this tool. Your tag.
+
 - 6.351.0 verify with LL — 🚪 THE THIRD WAY IN (NEW GROUND — measured)
   WHAT CHANGED: one more way to get a film into the window, and the
   report now says what the film actually IS.

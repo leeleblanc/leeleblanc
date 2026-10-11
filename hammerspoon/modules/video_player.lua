@@ -184,6 +184,16 @@ function M.setup(core)
         dropWhy    = "not opened yet",
         dragSeen   = "no drag yet this session",
         dropReader = nil,
+        -- 🚚 6.352.0 — THE TWO DOORS, COUNTED APART. A drop that arrives
+        -- through the page and one that arrives through the canvas
+        -- underneath are different facts, and a report that sums them
+        -- cannot say which door is carrying the feature (6.229.0).
+        pageDrops  = 0,
+        catchDrops = 0,
+        uriWhy     = nil,            -- why the page's own door cannot read
+        catcherOn  = false,          -- macOS AGREED to put the catcher up
+        catchRefused = 0,            -- and how often it would not
+        pageSpoke  = false,          -- the page said ready at least once
         refused    = {},             -- { path=, why= } — named, never silent
         plays      = 0,
         externals  = 0,              -- how many went out to QuickTime
@@ -650,6 +660,15 @@ function M.setup(core)
                .. ",sl:" .. jstr(vid.selList) .. ",sr:" .. tostring(vid.sel)
                .. ",src:" .. jstr(src) .. ",how:" .. jstr(how)
                .. ",door:" .. tostring(vid.door)
+               -- 🚪 WHETHER THE PAGE MAY CLAIM A DRAG AT ALL. The page's
+               -- own handler must preventDefault() to receive a drop, and
+               -- that claim TAKES the drag away from the catcher
+               -- underneath — so a page whose reader is absent would
+               -- swallow every drop and do nothing, which is worse than
+               -- the single door this release is fixing. The decision is
+               -- made from a measured fact, here, and baked into the
+               -- document the page is built from.
+               .. ",pd:" .. tostring(vid.pageDoorLive())
                .. ",gen:" .. tostring(vid.gen)
                .. ",name:" .. jstr(cur and (cur.title or vid.titleOf(cur.path)) or "")
                .. ",brand:" .. jstr(vid.brand) .. "}"
@@ -759,6 +778,39 @@ el('deck').addEventListener('click',function(e){
 });
 el('head').addEventListener('mousedown',function(e){
  if(e.button===0&&!e.metaKey)say({a:'dragStart'});
+});
+/* 🚚 THE WINDOW'S OWN DROP (6.352.0), and the Jug Player has had it since
+   6.233.0. A DROPPED FILE'S PATH DOES NOT COME FROM dataTransfer.files —
+   WebKit never hands a page a File's path, so .name is a name and nothing
+   openable. It comes from text/uri-list, which Finder fills with file://
+   URLs, and the percent-escapes are undone on the Lua side by the one
+   parser both players share.
+   🚨 AND THE CLAIM IS CONDITIONAL. preventDefault() is what makes this
+   window accept a drag, and accepting it TAKES it from the catcher
+   underneath — so with no reader in Lua this handler stands down and lets
+   the canvas have it. A door that claims a drop it cannot read is worse
+   than no door. */
+document.addEventListener('dragover',function(e){
+ if(!(S&&S.pd))return;
+ e.preventDefault();dropShow(true);
+});
+document.addEventListener('dragleave',function(e){
+ if(e.target===document||e.relatedTarget===null)dropShow(false);
+});
+document.addEventListener('drop',function(e){
+ if(!(S&&S.pd))return;
+ e.preventDefault();dropShow(false);
+ var uri='';
+ try{uri=e.dataTransfer.getData('text/uri-list')||''}catch(x){}
+ if(!uri){try{uri=e.dataTransfer.getData('text/plain')||''}catch(x){}}
+ var names=[];
+ try{for(var i=0;i<(e.dataTransfer.files||[]).length;i++)
+   names.push(e.dataTransfer.files[i].name)}catch(x){}
+ // 🚨 'filedrop', NEVER 'drop' — in THIS page 'drop' is the ⌫ key, which
+ // REMOVES a film from the queue. One shared name and dropping films onto
+ // the window would delete one instead (6.272.0's ✕-before-the-row, in a
+ // message name).
+ say({a:'filedrop',uri:uri,names:names});
 });
 document.addEventListener('keydown',function(e){
  var v=el('v');
@@ -1144,6 +1196,7 @@ document.addEventListener('keydown',function(e){
         end
         vid.uc = nil
         vid.pageReady = false
+        vid.dropWhy   = "the window is closed"
         return true
     end
 
@@ -1164,6 +1217,7 @@ document.addEventListener('keydown',function(e){
             pcall(function() vid.catcher:delete() end)
             vid.catcher = nil
         end
+        vid.catcherOn = false
     end
 
     function vid.moveCatcher(f)
@@ -1224,8 +1278,10 @@ document.addEventListener('keydown',function(e){
                         local pb = type(details) == "table"
                                    and details.pasteboard or nil
                         local paths, how = vid.readDrag(pb)
-                        vid.dropReader = how
-                        vid.dragSeen = #paths .. " file(s) dropped on the window"
+                        vid.dropReader  = how
+                        vid.catchDrops  = vid.catchDrops + 1
+                        vid.dragSeen = #paths .. " file(s) dropped — carried by"
+                                       .. " the catcher underneath"
                         vid.takeDrop(paths)
                     end)
                     if not okR then
@@ -1242,9 +1298,28 @@ document.addEventListener('keydown',function(e){
             pcall(function() cv:delete() end)
             return degrade(vid.dropWhy)
         end
-        pcall(function() cv:show() end)
-        vid.catcher = cv
-        vid.dropWhy = "ready"
+        -- 🪟 A HANDLE RECORDED BEFORE THE WINDOW IS UP IS A HANDLE THAT
+        -- LIES (6.326.0). hs.canvas:show() THROWS when AppKit refuses to
+        -- order the window on screen, and this Mac is measurably one that
+        -- refuses (6.265.0 · 6.274.0 · 6.314.0 · 6.348.0) — so discarding
+        -- that answer recorded a catcher which is NOT on screen as
+        -- "ready", and a canvas that is not up catches nothing. The report
+        -- then said the drop was fine about a door that did not exist.
+        local okS = pcall(function() cv:show() end)
+        if not okS then
+            vid.catchRefused = vid.catchRefused + 1
+            vid.catcherOn    = false
+            pcall(function() cv:delete() end)
+            vid.dropWhy = "macOS would not put the drop catcher on screen"
+            -- 🔑 AND IT IS NO LONGER THE WHOLE FEATURE: the window's own
+            -- handler is the other door, which is the point of this
+            -- release rather than a consolation.
+            return degrade(vid.dropWhy .. " — the window's own drop handler"
+                           .. " is the way in while that lasts")
+        end
+        vid.catcher   = cv
+        vid.catcherOn = true
+        vid.dropWhy   = "ready"
         return true
     end
 
@@ -1266,6 +1341,38 @@ document.addEventListener('keydown',function(e){
         local paths, how = _G.service.call("drag.paths", pb)
         if type(paths) ~= "table" then return {}, tostring(how or "nothing readable") end
         return paths, tostring(how or "?")
+    end
+
+    -- 🔌 ONE PARSER, TWO CALLERS (6.231.0). `drag.urilist` is the Jug
+    -- Player's own `mp.pathsFromURIList`, published as a service in this
+    -- release beside `drag.paths`: the rule that the percent-escapes
+    -- belong to the URL and NOT to a plain POSIX path (which may legally
+    -- hold a % — "50%25 off.mp4" is a real file name) is 6.237.0's
+    -- knowledge and a second copy of it here is how the two come to
+    -- disagree about the same drag.
+    function vid.pageDoorLive()
+        return not not (_G.service and _G.service.has
+                        and _G.service.has("drag.urilist"))
+    end
+
+    -- 🔎 ITS ABSENCE IS AN ANSWER, NOT A CRASH: with no reader the page
+    -- never claims the drag at all (`pd` in the payload), so the catcher
+    -- underneath keeps the feature and the report says which door is
+    -- carrying it. IT DEGRADES, IT NEVER BREAKS.
+    function vid.uriPaths(text)
+        if not vid.pageDoorLive() then
+            vid.uriWhy = "the shared uri-list reader is not loaded (it lives "
+                         .. "in the Jug Player's module) — the window's own "
+                         .. "drop stands down and the catcher underneath takes "
+                         .. "the drag"
+            return {}, "no reader"
+        end
+        vid.uriWhy = nil
+        local ok, paths = pcall(_G.service.call, "drag.urilist", text)
+        if not (ok and type(paths) == "table") then
+            return {}, "nothing readable"
+        end
+        return paths, "text/uri-list"
     end
 
     -- =================================================================
@@ -1446,6 +1553,13 @@ document.addEventListener('keydown',function(e){
             -- blind pushes, because a page that has never spoken reads as
             -- a fault, not as health.
             vid.pageReady = true
+            -- 🔎 AND IT IS REMEMBERED PAST THE CLOSE. hide() resets
+            -- pageReady, so "closed, and it had spoken" and "never once
+            -- spoke" printed the same ⚠️ — which is 6.196.1 inside the one
+            -- line that says whether this window's page runs at all, and
+            -- it is why a report taken after closing the window could not
+            -- answer that question.
+            vid.pageSpoke = true
             return
 
         elseif a == "srcok" then
@@ -1577,6 +1691,37 @@ document.addEventListener('keydown',function(e){
             else
                 vid.playIndex(vid.sel)
             end
+            return
+
+        elseif a == "filedrop" then
+            -- 🚚 THE WINDOW'S OWN DOOR. The page cannot read a path, so it
+            -- hands over the drag's text/uri-list verbatim and Lua turns it
+            -- into paths through the one parser both players share.
+            local paths, how = vid.uriPaths(body.uri)
+            vid.dropReader = how
+            if #paths == 0 then
+                -- 🔎 A DROP WITH NO uri-list IS NAMED, NEVER SWALLOWED
+                -- (6.231.0): dataTransfer.files gives NAMES only, so the
+                -- names are what the message can honestly report.
+                local names = {}
+                if type(body.names) == "table" then
+                    for _, n in ipairs(body.names) do
+                        names[#names + 1] = tostring(n)
+                    end
+                end
+                vid.dragSeen = "a drop arrived with no file URLs in it"
+                                .. (#names > 0 and (" — " .. table.concat(names, ", "))
+                                    or "")
+                say(#names > 0
+                    and ("macOS did not hand over the path for "
+                         .. table.concat(names, ", "))
+                    or "nothing in that drop was a file")
+                return
+            end
+            vid.pageDrops = vid.pageDrops + 1
+            vid.dragSeen  = #paths .. " file(s) dropped — carried by the"
+                            .. " window's own handler"
+            vid.takeDrop(paths)
             return
 
         elseif a == "drop" then
@@ -1770,9 +1915,38 @@ document.addEventListener('keydown',function(e){
         L[#L + 1] = "   store  : " .. vid.storeVerdict(vid.storeState, vid.storeBytes,
                                                        #vid.queue, #vid.history)
         L[#L + 1] = "   ↳ " .. vid.storeFile .. "  (LOCAL — never OneDrive)"
-        L[#L + 1] = "   drop   : " .. tostring(vid.dropWhy)
+        -- 🔎 IT ASKS THE OBJECT, NEVER A STRING IT WROTE EARLIER
+        -- (6.308.0). `dropWhy` was set to "ready" when the catcher was
+        -- created and nothing cleared it, so this line read as health
+        -- about a catcher that had been deleted — which is what made a
+        -- report taken after closing the window unreadable.
+        local dropState
+        if vid.catcher and vid.catcherOn then
+            dropState = "catcher up"
+        elseif vid.webview then
+            dropState = "⚠️ NO catcher under an OPEN window — "
+                        .. tostring(vid.dropWhy)
+        else
+            dropState = "window closed · last: " .. tostring(vid.dropWhy)
+        end
+        L[#L + 1] = "   drop   : " .. dropState
+                    .. " · the window's own handler: "
+                    .. (vid.pageDoorLive() and "live" or "⚠️ STOOD DOWN")
                     .. " · " .. tostring(vid.dragSeen)
                     .. (vid.dropReader and (" · read by " .. vid.dropReader) or "")
+        -- 🚪 THE TWO DOORS, COUNTED APART. A feature with one door that
+        -- macOS can refuse is what this release exists to end, and the
+        -- only way to know which one is carrying it is to count them
+        -- separately (6.229.0's rule about what a number BUYS).
+        L[#L + 1] = "   ↳ doors : " .. vid.pageDrops
+                    .. " drop(s) through the window itself · "
+                    .. vid.catchDrops .. " through the catcher underneath"
+                    .. (vid.catchRefused > 0
+                        and ("  ⚠️ macOS refused the catcher "
+                             .. vid.catchRefused .. " time(s)") or "")
+        if vid.uriWhy then
+            L[#L + 1] = "   ↳ " .. tostring(vid.uriWhy)
+        end
         if #vid.refused > 0 then
             L[#L + 1] = "   not played:"
             for i = 1, math.min(#vid.refused, 5) do
@@ -1780,8 +1954,24 @@ document.addEventListener('keydown',function(e){
                             .. " — " .. vid.refused[i].why
             end
         end
-        L[#L + 1] = "   page   : " .. (vid.pageReady and "ready" or "⚠️ has NOT said"
-                    .. " it is ready") .. " · " .. vid.draws.landed
+        -- 🔎 FOUR STATES, AND THE FOURTH IS THE ONE THAT WAS MISSING
+        -- (6.196.1). hide() resets pageReady, so a report taken after
+        -- closing the window printed the same ⚠️ whether the page had run
+        -- perfectly or had never once spoken — and those are opposite
+        -- facts about the window he is telling me is empty.
+        local pageState
+        if vid.pageReady then
+            pageState = "ready"
+        elseif vid.webview then
+            pageState = "⚠️ OPEN and has NOT said it is ready — its script "
+                        .. "did not reach its last line"
+        elseif vid.pageSpoke then
+            pageState = "window closed · it HAD said it was ready while open"
+        else
+            pageState = "⚠️ window closed, and it has NEVER once said it is "
+                        .. "ready this session"
+        end
+        L[#L + 1] = "   page   : " .. pageState .. " · " .. vid.draws.landed
                     .. " draw(s) landed · " .. vid.draws.early .. " pushed early"
         L[#L + 1] = "   keyboard: " .. tostring((vid.focus or {}).why or "not asked")
         L[#L + 1] = "   ⏯ keys : NOT taken here, deliberately — the Jug Player"

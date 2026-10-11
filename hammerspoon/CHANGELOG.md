@@ -5,6 +5,112 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.352.0 — 🚚 THE DROP HAS TWO DOORS, AND IT HAD ONE
+  (modules/video_player.lua + modules/music_player.lua)
+
+  LL: "Mug player appears. But there's nothing now. I can't drag and
+  drop a file on it… I had an explicit directive that's him don't
+  introduce errors so he didn't have to come back and fix those."
+
+  He is right to quote the rule back. And the finding is not a
+  regression in the sense of a line that moved — it is worse than
+  that: THIS TOOL HAS ONLY EVER HAD ONE WAY IN, where its own sibling
+  has had two since 6.233.0 and where the durable rule in CLAUDE.md
+  says two, in those words: "Both doors — the catcher and the page's
+  own handler — end in `mp.takeDrop`."
+
+  🚚 WHAT THE SOURCE SAYS, read rather than guessed. The Jug Player's
+  page carries `dragover` / `dragleave` / `drop` listeners and reads
+  the drag's `text/uri-list`. The Mug Player's page carries NONE:
+  `git log -S'dragover' -- modules/video_player.lua` is EMPTY. Its
+  `dropShow()` is defined and its only callers are in Lua — the canvas
+  catcher telling the page to light up. So the Mug Player's drop is one
+  canvas under the window, and nothing else.
+
+  🪟 AND THAT CANVAS'S SHOW WAS NEVER READ, which is what turns one
+  door into none. `pcall(function() cv:show() end)` discarded its
+  answer and then ran `vid.catcher = cv ; vid.dropWhy = "ready"`
+  unconditionally. hs.canvas:show() THROWS when AppKit refuses to
+  order the window on screen — and this Mac is measurably one that
+  refuses: 6.265.0 was a LOSS for exactly that, 6.274.0 counted three
+  refused alerts in eight hours of his own Console, 6.314.0 was a
+  refused chooser, and 6.348.0 exists because macOS refused THIS
+  window. So a catcher that is not on screen was recorded as ready, and
+  a canvas that is not up catches nothing.
+  🔑 6.326.0's RULE, WHICH THIS PROJECT WROTE ABOUT THE OTHER PLAYER
+  AND DID NOT SWEEP: a published handle is a CLAIM about the world, so
+  it is written after the world agrees, never before. That release
+  fixed `mp.show` for the music card; the CATCHER in both modules kept
+  the old shape. Named here, fixed here in the Mug Player, and NOT
+  swept in the Jug Player — one change per release, the failing one
+  first.
+
+  🚪 SO THE RELEASE IS THE SECOND DOOR. The page gets the Jug Player's
+  handler: `dragover` claims the drag, `drop` hands Lua the drag's
+  `text/uri-list` verbatim, and Lua turns it into paths. Both doors end
+  in `vid.takeDrop`, which is the rule being paid rather than quoted.
+  🔌 ONE PARSER, TWO CALLERS (6.231.0): `mp.pathsFromURIList` is
+  published as `drag.urilist` beside 6.344.0's `drag.paths`. The rule
+  that the percent-escapes belong to the URL and NOT to a plain POSIX
+  path — "50%25 off.mp4" is a real file name — is 6.237.0's knowledge,
+  and a second copy of it in this module is how the two come to
+  disagree about one drag.
+
+  🚨 AND THE CLAIM IS CONDITIONAL, which is the part that is easy to
+  get wrong and expensive. `preventDefault()` is what makes this window
+  ACCEPT a drag, and accepting it TAKES the drag away from the catcher
+  underneath. So a page whose reader is absent would swallow every drop
+  and do nothing with it — strictly worse than the single door this
+  release is fixing. The decision is made from a MEASURED fact
+  (`_G.service.has("drag.urilist")`), baked into the document as `pd`,
+  and read at event time; with no reader the page stands down and the
+  canvas keeps the feature. IT DEGRADES, IT NEVER BREAKS.
+
+  🚨 'filedrop', NEVER 'drop'. In THIS page `drop` is already the ⌫
+  key, which REMOVES a film from the queue. One shared message name and
+  dropping films onto the window would DELETE one instead — 6.272.0's
+  ✕-before-the-row, in a message name. A source sentry holds it, and
+  its first version was WRONG BEFORE THE CODE WAS: it searched the
+  whole file for `a:'drop'` and went red on correct code, because ⌫
+  legitimately sends exactly that. The window now ends at the
+  listener's own boundary (6.263.0) and a third check asserts ⌫ still
+  has its name.
+
+  🔎 AND THE REPORT IS WHY THIS DIAGNOSIS COST A ROUND, so it is fixed
+  in the same release. His report was taken after closing the window,
+  which is the obvious thing to do, and every line that mattered had
+  been wiped or was stale:
+    · `drop : ready` — `dropWhy` was set when the catcher was CREATED
+      and nothing cleared it, so the line read as health about a
+      canvas that had been deleted. It asks the OBJECT now (6.308.0:
+      never infer health from the absence of a complaint).
+    · `page : ⚠️ has NOT said it is ready` — hide() resets `pageReady`,
+      so "closed, and its page had run perfectly" and "its page has
+      never once spoken" printed the SAME ⚠️. Those are opposite facts
+      about the window he is telling me is empty. FOUR STATES now, and
+      the fourth is the one that was missing (6.196.1).
+    · and the two doors are COUNTED APART, so his next report says
+      which one carried the drop rather than that there was one.
+
+  📏 NAMED, NOT FIXED: "but there's nothing now" is NOT explained by
+  this release and is not claimed to be. With three films queued and
+  nothing playing the page should draw the brand, "nothing playing" and
+  the deck — and whether it did cannot be recovered from a report taken
+  after the window closed. That is what the fourth state above exists
+  to answer, and the one thing asked of him is a report taken with the
+  window STILL OPEN.
+
+  🧪 27 Lua checks and 13 page checks. The fixture that bites is the
+  one input where claiming and standing down must differ (6.230.0):
+  `S.pd = false`, where an unconditional `preventDefault()` passes
+  every other check. 🔬 And the DUMP HARNESS had to become faithful
+  first (6.290.0): its `_G.service.has` answered false for everything,
+  so the new door would have stood down in every dump and the JS suite
+  could not have driven one line of it — which is precisely the shape
+  that certified 6.344.0's bug. 🧪 The suite's own `reset()` convention
+  then caught three counters of mine that survived a fresh session,
+  which is 6.346.0's lesson working.
+
 NEW IN 6.351.0 — 🚪 A THIRD WAY IN, AND THE QUESTION macOS'S ERROR
   CANNOT ANSWER (modules/video_player.lua)
 

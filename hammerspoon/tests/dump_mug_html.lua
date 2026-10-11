@@ -73,7 +73,35 @@ hs = {
               new = function() return nil end },
 }
 _G.diag = { say = function() end, warn = function() end, err = function() end }
-_G.service = { has = function() return false end, call = function() return nil end }
+-- 🔬 THE STUB MODELS THE PROVIDER, OR THE NEW DOOR IS UNREACHABLE FROM
+-- THE GATE (6.290.0). `has` answered false for everything, so 6.352.0's
+-- page-side drop handler would have stood down in every dump and the
+-- JS suite could not have driven one line of it — which is exactly the
+-- shape that certified 6.344.0's bug. It answers for the real services
+-- this module asks about, and the uri-list reader is the Jug Player's
+-- own parser rather than a lenient copy of it.
+local SERVICES = {
+  ["drag.urilist"] = function(text)
+    local out = {}
+    if type(text) ~= "string" then return out end
+    for line in (text .. "\n"):gmatch("([^\r\n]*)[\r\n]") do
+      line = line:match("^%s*(.-)%s*$")
+      if line ~= "" and line:sub(1, 1) ~= "#" then
+        local u = line:match("^file://(/.*)$")
+        local p = u or (line:sub(1, 1) == "/" and line or nil)
+        if u then
+          p = p:gsub("%%(%x%x)", function(h) return string.char(tonumber(h, 16)) end)
+        end
+        if p and p ~= "" then out[#out + 1] = p end
+      end
+    end
+    return out
+  end,
+}
+_G.service = {
+  has  = function(n) return SERVICES[n] ~= nil end,
+  call = function(n, ...) if SERVICES[n] then return SERVICES[n](...) end end,
+}
 
 local CORE = {
   homeDir = "/Users/lee",

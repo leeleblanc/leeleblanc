@@ -135,6 +135,26 @@ function load() {
   env.headDown = (o) => (env.listeners.el["head:mousedown"] || (() => {}))(
     Object.assign({ button: 0, metaKey: false }, o || {}));
   env.video = (ev) => (env.listeners.el["v:" + ev] || (() => {}))({});
+  // 🚚 The window's own drop door (6.352.0). `prevented` is the fact that
+  // decides everything: preventDefault() is what makes this window ACCEPT
+  // a drag, and accepting it takes the drag away from the canvas catcher
+  // underneath — so a handler that claims without reading is worse than
+  // no handler at all.
+  env.drag = (name, o) => {
+    const ev = Object.assign(
+      { target: env.sandbox.document, relatedTarget: null,
+        prevented: false, preventDefault() { this.prevented = true; } },
+      o || {});
+    const fn = env.listeners.document[name];
+    if (fn) fn(ev);
+    return ev;
+  };
+  env.fileDrop = (uri, names) => env.drag("drop", {
+    dataTransfer: {
+      getData: (t) => (t === "text/uri-list" ? (uri || "") : ""),
+      files: (names || []).map((n) => ({ name: n })),
+    },
+  });
   return env;
 }
 
@@ -419,6 +439,79 @@ console.log("── Mug Player: page JavaScript, executed ──");
   env.sandbox.document.fullscreenElement = { tag: "video" };
   env.key("Escape");
   check("Escape in full screen is WebKit's, and the page sends nothing",
+        env.sent.length === 0, JSON.stringify(env.sent));
+}
+
+// =====================================================================
+// 9. THE WINDOW'S OWN DROP (6.352.0) — the door this page never had
+// =====================================================================
+// 🚚 The Jug Player has had both doors since 6.233.0 — the canvas catcher
+// underneath AND the page's own handler — and this page was built with
+// only the catcher. A canvas macOS refuses to put on screen then costs
+// the whole feature, which is "I can't drag and drop a file on it".
+{
+  const env = load();
+  check("the page registers its own dragover/dragleave/drop handlers",
+        !!env.listeners.document.dragover && !!env.listeners.document.dragleave
+        && !!env.listeners.document.drop);
+
+  env.sent.length = 0;
+  const over = env.drag("dragover");
+  check("dragover CLAIMS the drag, or this window is skipped by it",
+        over.prevented === true);
+  check("…and the veil is shown while it is over the window",
+        env.byId.drop.style.display === "flex");
+  env.drag("dragleave");
+  check("dragleave hides the veil", env.byId.drop.style.display === "none");
+
+  env.sent.length = 0;
+  const ev = env.fileDrop(
+    "file:///F/Simon%20%26%20Garfunkel.mp4\nfile:///F/Two.mp4\n",
+    ["Simon & Garfunkel.mp4", "Two.mp4"]);
+  check("a drop claims the event", ev.prevented === true);
+  check("…and hides the veil", env.byId.drop.style.display === "none");
+  // 🚨 THE CHECK THAT MATTERS MOST. In THIS page 'drop' is the ⌫ key,
+  // which REMOVES a film from the queue — so naming the file drop 'drop'
+  // would make dropping films onto the window DELETE one instead. The
+  // name is the whole safety of it (6.272.0's ✕-before-the-row, in a
+  // message name).
+  check("the file drop is sent as 'filedrop', NEVER as 'drop'",
+        at(env, 0).a === "filedrop", JSON.stringify(env.sent));
+  check("…and it carries the drag's text/uri-list verbatim",
+        (at(env, 0).uri || "").indexOf("file:///F/Simon%20%26%20Garfunkel.mp4") === 0,
+        JSON.stringify(at(env, 0).uri));
+  check("…and exactly one message was sent", env.sent.length === 1);
+}
+{
+  // 🔎 A DROP WITH NO uri-list IS NAMED, NEVER SWALLOWED (6.231.0):
+  // dataTransfer.files hands a page NAMES only — never a path — so the
+  // names are what the message can honestly report, and Lua says so.
+  const env = load();
+  env.sent.length = 0;
+  env.fileDrop("", ["Robin Hood.mp4"]);
+  check("a drop with no file URLs still reports what it saw",
+        at(env, 0).a === "filedrop" && at(env, 0).uri === ""
+        && (at(env, 0).names || [])[0] === "Robin Hood.mp4",
+        JSON.stringify(env.sent));
+}
+{
+  // 🚨 THE FIXTURE THAT BITES, and it is the only input where claiming
+  // and standing down must differ (6.230.0). With no uri-list reader in
+  // Lua the page MUST NOT claim the drag: an unconditional
+  // preventDefault() would take every drop away from the catcher
+  // underneath and then do nothing with it — strictly worse than the one
+  // door this release is fixing. `pd` is read at EVENT time, so the
+  // suite moves it the way a Mac without the Jug Player would.
+  const env = load();
+  env.call("S.pd=false;");
+  env.sent.length = 0;
+  const over = env.drag("dragover");
+  check("with no reader, dragover does NOT claim the drag",
+        over.prevented === false);
+  const ev = env.fileDrop("file:///F/One.mp4\n", ["One.mp4"]);
+  check("…and the drop is left to the catcher underneath",
+        ev.prevented === false);
+  check("…and the page sends nothing at all",
         env.sent.length === 0, JSON.stringify(env.sent));
 }
 

@@ -4,8 +4,17 @@
 -- =====================================================================
 -- 10-09-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.351.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.352.0
 -- =====================================================================
+
+-- NEW IN 6.352.0 — 🚚 THE DROP HAS TWO DOORS (video_player.lua).
+--   LL: "I can't drag and drop a file on it." It had ONE way in — a
+--   canvas under the window — where the Jug Player has had two since
+--   6.233.0 and this project's own rule says two. And that canvas's
+--   :show() was never READ, so one macOS refused was recorded as
+--   "ready" (6.326.0) and the whole feature went with it. The page
+--   gets its own handler, the catcher is the belt, the two are COUNTED
+--   APART, and the report stops reading as health about a closed window.
 
 -- NEW IN 6.351.0 — 🚪 A THIRD WAY IN, AND THE QUESTION macOS'S ERROR
 --   CANNOT ANSWER (video_player.lua). Both earlier doors refused his
@@ -19,16 +28,11 @@
 --   no door working is a READ problem; HEVC or AC3 is a DECODE one
 --   that no way in will ever fix.
 
--- NEW IN 6.350.0 — 🗑 MICROSOFT EXCEL IS LISTED ONCE (app_watcher.lua).
---   LL: "Tidy it up." Harmless — the second pass found the app already
---   recorded as gone — and invisible to every functional check, so the
---   sentry asserts the RULE (no app twice) rather than the name.
-
--- (6.349.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.350.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 cut the inline count to
 --  TWO; a gate check proves every entry here is also in CHANGELOG.md.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.351.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.352.0
 -- =====================================================================
 -- The catalogue that used to sit here moved to GUIDE.md ("What each
 -- tool does") in 6.180.0 — 259 lines of prose inside the orchestrator.
@@ -121,7 +125,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.351.0"
+_G.configVersion = "6.352.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the
