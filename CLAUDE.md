@@ -3466,6 +3466,58 @@ work Mac.
   · and the cancel-slot check had to drive "created, wired, REFUSED TO
     SHOW" rather than "cannot create" — 6.265.0, fifth time, and the
     refusal is the branch that calls `cancelSelect` on its way out.
+- 📏 A BOUND YOU TYPED IS A BOUND THAT WILL BE WRONG (6.355.0,
+  modules/video_player.lua — LL, on the release built to make films
+  play: "Handed off successfully.... but that's not what I want. · Mac
+  stays fine · Nothing played in Mug.").
+  🔎 AND THE REFUSAL WAS MINE, WHICH HIS OWN REPORT SAID IN THREE LINES
+  nobody had to interpret: the window read "the film is 2300.6 MB and
+  the ceiling is 1536.0 MB", the report read "bytes : the loader has
+  not been asked for a film yet", and the codecs line read "H.264 ·
+  MPEG-4 AAC". The third door — the one 6.354.0 exists for — never ran,
+  and the film it turned away is in the one format WebKit certainly can
+  decode. 6.354.0's elimination answered, and the answer was arithmetic.
+  🔑 GENERAL, AND IT IS THE ONE TO CARRY: when a feature's only bound is
+  a NUMBER, ask what the number is a proxy FOR and measure that instead.
+  1536 MB was standing in for "memory this Mac has", which is a thing
+  `hs.host.vmStat()` answers in one call — so the literal was never a
+  decision, it was a guess wearing a decision's clothes. A measured
+  bound also explains itself: the report says the ceiling AND where the
+  number came from, so a film that is genuinely too big is readable as
+  his Mac rather than as my arithmetic.
+  🚨 AND IT FAILS TO THE FLOOR, NEVER TO 0. A Mac that will not say how
+  much memory it has must not produce a ceiling of 0 — that reads as a
+  perfectly valid number, refuses every film ever offered, and blames
+  the film while doing it. 6.338.0's rule (a parser that fails into a
+  valid-looking number is worse than one that throws), in the place
+  where the cost is a tool that never works.
+  🛟 A RETURN THAT MEANS ACCEPTED IS NOT A RETURN THAT MEANS DELIVERED —
+  6.299.0, asked of our own page for the first time.
+  `hs.webview:evaluateJavaScript` hands WebKit a completion handler and
+  RETURNS AT ONCE (extensions/webview/libwebview.m:1688-1725, read with
+  the file named). So a loader that re-arms on a clock pushes faster
+  than the window can swallow, and a 2.3 GB film is hundreds of chunks
+  queued into IPC buffers ON TOP OF the blob they are being assembled
+  into. The next turn is armed by the COMPLETION now — one chunk in
+  flight, ever — with a belt armed BEFORE the push in its own slot
+  (6.246.0 · 6.196.1) and a SEQUENCE, because a completion landing
+  after the belt fired, or after he played something else, would start
+  a second read into a dead one (6.304.0 one scale down). GENERAL:
+  before pacing anything on a platform call, read whether its return
+  means the work HAPPENED or merely that it was accepted.
+  🚨 AND `dA and pcall(dA, ...)` TRUNCATED pcall TO ONE VALUE, so the
+  timer was thrown away and every chunk read as "this Mac would not arm
+  a timer" — 6.179.0, in the branch that re-arms the read, written by
+  the person who keeps writing the rule down. A branch, never an `and`
+  chain. The suite found it on the first run.
+  🚫 A STATIC SENTRY ON THE COMPLETION WAS WRITTEN AND TAKEN OUT AGAIN:
+  "every evaluateJavaScript stub takes a second argument" went red on
+  test_vault.lua, whose module never passes one, and a guard that fails
+  on correct code is switched off inside a week (6.269.0 · 6.273.0). It
+  is a written-down row now, and what holds the contract is FUNCTIONAL
+  — §23 fires the completion to arm the next turn, so a stub that drops
+  it leaves the read stopped after one chunk and fails by name.
+
 - 📦 A DOOR THAT CANNOT BE REFUSED FOR REASON X TURNS X INTO AN
   ANSWERABLE QUESTION (6.354.0, modules/video_player.lua — LL, on being
   offered a queue that hands films out: "No, I want the mug player. Make
@@ -5842,7 +5894,7 @@ that must be READ before a new cause is named.
 | "hyper+4 does not have pixel crosshairs" · "it was working before" | modules/screenshots.lua · the selector | 6.264.0 · 6.318.0 | 1 | ask |
 | "it said 0x0 pixels, then jumped a few desktops, then I had to hit escape" | modules/screenshots.lua · the selector's one exit | 6.336.0 · 6.337.0 | 2 | ask |
 | "why OCR hyper+shift+4 works and hyper+4 still does not" | modules/screenshots.lua · ⇪4 re-implementing a system drag | 6.264.0 · 6.265.0 · 6.274.0 · 6.282.0 · 6.318.0 · 6.336.0 · 6.337.0 | 6 | ask |
-| "a Jug Player but for movies" · "nothing plays" · "macOS would not put the window on screen" · "I can't drag and drop a file on it" · "make it work" | modules/video_player.lua · a webview that plays video | 6.344.0 · 6.345.0 · 6.348.0 · 6.351.0 · 6.352.0 · 6.353.0 · 6.354.0 | 7 | ask |
+| "a Jug Player but for movies" · "nothing plays" · "macOS would not put the window on screen" · "I can't drag and drop a file on it" · "make it work" · "nothing played in Mug" | modules/video_player.lua · a webview that plays video | 6.344.0 · 6.345.0 · 6.348.0 · 6.351.0 · 6.352.0 · 6.353.0 · 6.354.0 · 6.355.0 | 8 | degraded — his words, 2026-10-11: "Mac stays fine" |
 | "I have to arrow forward the date … why do I have to arrow on to it?" | modules/mini_calendar.lua · the cursor on open | 6.349.0 | 1 | ask |
 | "I did not mean to hit panic" · "my keyboard froze" · "Console shows nothing weird" | modules/power_tools.lua · an unclaimed ⇪ key forwarding onto the panic chord | 6.343.0 | 1 | ask |
 | "⌘D says I have five seconds to setup, shows no crosshairs" · "those four screenshot tools run weird" | modules/screenshot_editor.lua · the ⌘D order | 6.255.0 · 6.342.0 | 1 | ask |
@@ -5965,6 +6017,7 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
+| 6.355.0 | 📏 the ceiling that refused his film was a number I typed — it is measured off the Mac now, and the page sets the read's pace | pending |
 | 6.354.0 | 📦 the film is read off the disk and handed to the window in pieces — no URL, so there is nothing for WebKit to refuse | pending |
 | 6.353.0 | 🚪 three ways in have been refused, the last by macOS itself — the window keeps the queue and hands the film to a real player | pending |
 | 6.352.0 | 🚚 the Mug Player's drop has two doors — it had one, and a canvas macOS refused was recorded as "ready" | pending — and his screenshots show it WORKING: the veil appears, six films are in the deck BY NAME and two are in the history. Not his win sentence, so not scored |
@@ -7178,6 +7231,52 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.355.0 verify with LL — 📏 THE CEILING THAT REFUSED YOUR FILM
+  WHAT CHANGED: your film was never read. The window's own message said
+  so — "the film is 2300.6 MB and the ceiling is 1536.0 MB" — and that
+  1536 was a number I typed, not anything your Mac said. It is measured
+  off your Mac now.
+  🔎 AND YOUR REPORT CLOSED THE CODEC QUESTION. It read `codecs : H.264
+  · MPEG-4 AAC`, which is the one combination WebKit certainly can
+  decode. So nothing is wrong with the film, nothing is wrong with the
+  format, and six releases of doors were not the problem on this one.
+
+  A. THE HEADLINE — the same film, the same key.
+  A1. ⇪⇧, and press ⏎ on The.Death.Of.Robin.Hood.
+      EXPECT: "⏳ reading the film into the window — N%", climbing, then
+      it PLAYS with the Mac's own controls.
+      **A FAIL is the hand-off message again** — if you get it, read
+      what it says about the ceiling now and paste that line.
+  A2. Time it roughly, and watch the percentage move. A film this size
+      is hundreds of pieces; the number should climb steadily, not stick.
+  A3. While it reads, use the Mac — move a window, type somewhere.
+      EXPECT: normal. This is the half I most want your word on.
+  A4. Once it plays: the scrubber, volume, full screen, ← → to seek.
+
+  B. PASTE BACK — three lines are new and each answers something.
+  B1. `_G.mugReport()`:
+      · `ceiling:` — the number AND where it came from. It should name
+        a share of your Mac's memory, not a number I chose.
+      · `↳ pace :` — how many pieces the window CONFIRMED it took. The
+        loader waits for each one now instead of firing them off blind.
+      · `↳ clock :` — how long the whole read took, wall clock. That is
+        the number that decides whether the pieces need to be bigger.
+  B2. If `↳ pace` ever carries "⚠️ N never answered", paste it — that is
+      the window going silent, which used to hang the read for ever.
+
+  C. MUST STILL WORK.
+  C1. A small film: still plays, faster.
+  C2. .mkv and .mp3 still refused by name with ⌘O offered.
+  C3. ⌘O, Escape, ↑↓, ⏎, ⌫, the ✕ on a history row, the drop.
+  C4. ⇪⇧. the Jug Player — drop an mp3, it plays.
+
+  D. WHAT IS STILL TRUE, so it is not a surprise.
+  D1. The whole film sits in the window's memory while it plays. That is
+      the one cost this way in cannot avoid, and it is why there is a
+      ceiling at all — it is just your Mac's number now instead of mine.
+  D2. If a film is still too big, the message names both sizes and ⌘O
+      opens it in a real player, as before.
+
 - 6.354.0 verify with LL — 📦 THE BYTES GO THROUGH THE WINDOW (NEW GROUND)
   WHAT CHANGED: the film is no longer named to the window at all. This
   config reads it off the disk in pieces and hands the pieces to the

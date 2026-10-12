@@ -5,6 +5,114 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.355.0 — 📏 THE CEILING WAS MINE, AND THE PAGE SETS THE PACE
+  (modules/video_player.lua)
+
+  LL, on 6.354.0: "Handed off successfully.... but that's not what I
+  want. · Mac stays fine · Nothing played in Mug."
+
+  🔎 HIS REPORT NAMED IT, AND IT WAS NOT macOS. Three lines together:
+  the window said "the film is 2300.6 MB and the ceiling is 1536.0 MB
+  — more than this window can hold"; the report said "bytes : the
+  loader has not been asked for a film yet"; and the codecs line said
+  "H.264 · MPEG-4 AAC". So both file URLs were refused by WebKit, as
+  established, and the THIRD door — the one 6.354.0 exists for — was
+  refused by a number I typed. The film it turned away is in the one
+  format WebKit certainly can decode.
+
+  🔑 SO THE ELIMINATION 6.354.0 BUILT HAS ANSWERED, and the answer is
+  the opposite of a codec: there is no reading explanation and no
+  decoding explanation left. What is left is arithmetic.
+
+  📏 THE CEILING IS A MEASUREMENT NOW, NOT A LITERAL. The whole film
+  ends up in WebKit's blob store, so memory IS the bound — which makes
+  it a thing to ASK the Mac rather than guess at. `vid.ceilingFor` is
+  PURE with four answers, and the first is the one that matters: a Mac
+  that will not say how much memory it has gets the FLOOR, never 0.
+  0 reads as a perfectly valid ceiling and refuses every film ever
+  offered, while blaming the film — 6.338.0's rule, in the place where
+  the cost is a tool that never works and tells him it is his fault.
+  `hs.host.vmStat()` answers `memSize`, physical memory in bytes
+  (extensions/host/libhost.m:99 and :189, from sysctl HW_MEMSIZE), and
+  returns NOTHING at all when that sysctl fails (libhost.m:142-149),
+  which is exactly the input the first branch exists for. Read in the
+  source with the file named (6.233.0), not remembered.
+
+  🚪 ONE DOOR, THREE CALLERS (6.231.0): `vid.maxBytes` is what the
+  plan, the refusal sentence and the report all ask, so they cannot
+  disagree about what the ceiling is — and a `blobMax` number still
+  wins, so the knob is real and the gate drives both. Asked once per
+  session, because physical memory does not move and two answers that
+  differed would be two instruments contradicting each other (6.338.0).
+
+  🛟 AND THE LOADER STOPS PUSHING ON A CLOCK, which is the half that
+  makes a multi-gigabyte read safe rather than merely allowed.
+  `hs.webview:evaluateJavaScript` RETURNS BEFORE THE SCRIPT RUNS: it
+  hands WebKit a completion handler and returns at once
+  (extensions/webview/libwebview.m:1688-1725). So the return means
+  ACCEPTED and never DELIVERED — 6.299.0's rule, which this project
+  wrote about an Asana POST and had not asked of its own page. Arming
+  the next turn on a timer therefore pushes faster than the window can
+  swallow: at 6.354.0's shape a 2.3 GB film is hundreds of chunks
+  queued into IPC buffers ON TOP OF the blob they are being assembled
+  into. The next turn is armed by the COMPLETION now, so exactly one
+  chunk is ever in flight.
+
+  🪪 WITH A BELT AND A SEQUENCE. The belt is armed BEFORE the push
+  (6.246.0; the check asserts the ORDER — 6.220.0), in its own held
+  slot (6.196.1), because a window that goes silent would otherwise
+  hang the read for ever with a file handle open. The sequence is
+  6.304.0's generation problem one scale down: a completion that lands
+  after the belt has fired, or after he has played something else, is
+  about a chunk nobody is waiting for, and running it would start a
+  second read into a dead one. Both guards are DRIVEN rather than
+  read — the duplicate answer and the stale-film answer are separate
+  fixtures, because at the first chunk of each film the sequences
+  match and only the generation can tell them apart (6.230.0).
+
+  🚨 AND `dA and pcall(dA, ...)` TRUNCATED pcall TO ONE VALUE, so the
+  timer object was thrown away and every chunk read as "this Mac would
+  not arm a timer mid-read" — the read died after one chunk. 6.179.0's
+  read-three-values rule, broken in the branch that re-arms the read,
+  by the person who keeps writing it down. The suite found it on the
+  first run; a branch, never an `and` chain.
+
+  📏 chunkBytes 2 MB → 8 MB, which is only safe BECAUSE of the pacing,
+  and is named rather than smuggled: it quarters the round trips on a
+  film this size, the Lua-side hold stays far under `slowTurnMs`, and
+  the 🔔 door that already names the settings line to halve it is what
+  catches a Mac where 8 MB is too much.
+
+  🔬 THE HARNESS HAD TO BECOME FAITHFUL FIRST (6.290.0, thirteenth
+  time), in two places. The webview stub's `evaluateJavaScript` took
+  ONE argument, so the completion the loader now paces on did not
+  exist in the gate — and a stub that called it INLINE would be wrong
+  in the other direction, running the next turn inside the current one
+  so the loader recursed instead of pacing. It queues it and the drain
+  fires it, which is what the main queue does. And there was no
+  `hs.host` at all, so the measured branch of the ceiling was
+  unreachable and every run would have taken the floor.
+
+  🚫 A STATIC SENTRY ON THE COMPLETION WAS WRITTEN AND TAKEN OUT AGAIN
+  (6.273.0's shape): "every evaluateJavaScript stub must take a second
+  argument" went red on test_vault.lua, whose module never passes one,
+  and a guard that fails on correct code is switched off inside a week
+  (6.269.0). It is a written-down row in test_stub_fidelity §7 now,
+  and what holds the contract is functional and needs no maintenance:
+  §23 fires the completion to arm the next turn, so a stub that drops
+  it leaves the read stopped after one chunk and fails by name.
+
+  🧪 273 → 307 checks. 25 mutations, 20 bit on the first sweep; all
+  five survivors were MISSING CHECKS and not spare lines (6.273.0) —
+  the two settle guards, a belt left ticking after a read ended any
+  other way than by an ack, the no-belt shout, and a read clock that
+  was asserted to be a number rather than a number above zero.
+
+  📏 COST, NAMED: the whole film is still in WebKit's blob store while
+  it plays, and that is the one thing this door cannot bound away. The
+  cap exists for TIME rather than memory, and says so.
+
+```text
 NEW IN 6.354.0 — 📦 THE BYTES GO THROUGH THE WINDOW, NOT THROUGH A URL
   (modules/video_player.lua)
 

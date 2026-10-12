@@ -2210,8 +2210,25 @@ check("🛟 …and the whole film still arrives, in order",
       blobBytes() == "ABCDEFGH" and vid.load == nil, blobBytes())
 check("🛟 …one confirmation per chunk, counted for the report",
       vid.acks == 4 and jsCount("blobEnd();") == 1, tostring(vid.acks))
+-- ⏱ A CLOCK THAT IS ALWAYS 0 IS NOT A CLOCK. He is being asked how long
+-- a 2.3 GB film takes before it starts, so the number has to be real.
 check("🛟 …and the read's own wall clock is recorded",
-      type(vid.loadMs) == "number")
+      type(vid.loadMs) == "number" and vid.loadMs == 0,
+      tostring(vid.loadMs))
+reset()
+DISK["/f/slowclk.mp4"] = "ABCDEFGH"
+vid.chunkBytes = 2
+vid.show()
+vid.queue = { { path = "/f/slowclk.mp4", title = "clk" } }
+vid.playIndex(1) ; vid.door = 2
+vid.handleMessage({ a = "srcfail", d = 2, gen = vid.gen, code = 4 })
+CLOCK_STEP = 1
+runLoad()
+CLOCK_STEP = 0
+check("⏱ a read that took time reports the time it took",
+      vid.loadMs > 0 and reportText():find("the last whole read took",
+                                           1, true) ~= nil,
+      tostring(vid.loadMs))
 
 -- 🚨 A WINDOW THAT GOES SILENT MUST NOT HANG THE READ with a file handle
 -- open. The belt is the only thing that can end it, and it is DRIVEN
@@ -2246,6 +2263,66 @@ local before = vid.acks
 fireAck()
 check("🪪 a late answer after the belt starts nothing and counts nothing",
       vid.acks == before and vid.load == nil and vid.loadTimer == nil)
+
+-- 🪪 A DUPLICATE ANSWER MUST NOT ARM A SECOND TURN. Two turns in flight
+-- is the queued-IPC failure this release exists to stop, reached by a
+-- different road — so the sequence guard is driven, not read.
+reset()
+DISK["/f/dup.mp4"] = "ABCDEFGH"
+vid.chunkBytes = 2
+vid.show()
+vid.queue = { { path = "/f/dup.mp4", title = "dup" } }
+vid.playIndex(1) ; vid.door = 2
+vid.handleMessage({ a = "srcfail", d = 2, gen = vid.gen, code = 4 })
+vid.loadTimer.fn()
+local again = JS_ACKS[1]
+fireAck()
+local armed1 = vid.loadTimer
+again()
+check("🪪 the same answer twice arms ONE turn and counts ONE piece",
+      vid.acks == 1 and vid.loadTimer == armed1, tostring(vid.acks))
+
+-- 🪪 AND AN ANSWER ABOUT A FILM HE HAS MOVED ON FROM. Both reads are on
+-- their first chunk, so the sequence matches and only the GENERATION
+-- can tell them apart — the fixture where the two guards must differ
+-- (6.230.0).
+reset()
+DISK["/f/a.mp4"], DISK["/f/b.mp4"] = "ABCD", "WXYZ"
+vid.chunkBytes = 2
+vid.show()
+vid.queue = { { path = "/f/a.mp4", title = "a" }, { path = "/f/b.mp4", title = "b" } }
+vid.playIndex(1) ; vid.door = 2
+vid.handleMessage({ a = "srcfail", d = 2, gen = vid.gen, code = 4 })
+vid.loadTimer.fn()
+local staleA = table.remove(JS_ACKS, 1)
+vid.playIndex(2) ; vid.door = 2
+vid.handleMessage({ a = "srcfail", d = 2, gen = vid.gen, code = 4 })
+vid.loadTimer.fn()
+local armedB = vid.loadTimer
+staleA()
+check("🪪 an answer about the film he moved on from does nothing",
+      vid.acks == 0 and vid.loadTimer == armedB, tostring(vid.acks))
+fireAck()
+check("🪪 …and the film he is on carries on normally",
+      vid.acks == 1 and vid.load ~= nil)
+
+-- 🛟 A READ ENDED BY ANYTHING ELSE MUST TAKE ITS BELT WITH IT. The ack
+-- path stops the belt itself, so only an end that is NOT an ack — he
+-- closed the window, he played something else — can leave one ticking
+-- into the next film's read (6.304.0's wedge, one door along).
+reset()
+DISK["/f/stop.mp4"] = "ABCDEFGH"
+vid.chunkBytes = 2
+vid.show()
+vid.queue = { { path = "/f/stop.mp4", title = "stop" } }
+vid.playIndex(1) ; vid.door = 2
+vid.handleMessage({ a = "srcfail", d = 2, gen = vid.gen, code = 4 })
+vid.loadTimer.fn()
+local belt = vid.ackTimer
+vid.loadStop("he closed it")
+check("🛟 a read ended any other way stops its belt, and drops the slot",
+      belt ~= nil and belt.stopped == true and vid.ackTimer == nil,
+      tostring(belt and belt.stopped))
 
 -- 📏 A Mac that cannot arm the belt still reads, and the miss is counted
 -- rather than assumed away (6.304.0).

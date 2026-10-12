@@ -1,4 +1,4 @@
-# TESTING — how to score release 6.354.0
+# TESTING — how to score release 6.355.0
 
 You install ONE archive and it carries several releases. Below are the
 steps for each release this archive is new for, newest first. Run the
@@ -26,6 +26,56 @@ else is a LOSS and I fix it before building further. You are the only
 scorer; I never mark my own.
 
 ---
+
+## 6.355.0
+
+6.355.0 verify with LL — 📏 THE CEILING THAT REFUSED YOUR FILM
+WHAT CHANGED: your film was never read. The window's own message said
+so — "the film is 2300.6 MB and the ceiling is 1536.0 MB" — and that
+1536 was a number I typed, not anything your Mac said. It is measured
+off your Mac now.
+🔎 AND YOUR REPORT CLOSED THE CODEC QUESTION. It read `codecs : H.264
+· MPEG-4 AAC`, which is the one combination WebKit certainly can
+decode. So nothing is wrong with the film, nothing is wrong with the
+format, and six releases of doors were not the problem on this one.
+
+A. THE HEADLINE — the same film, the same key.
+A1. ⇪⇧, and press ⏎ on The.Death.Of.Robin.Hood.
+    EXPECT: "⏳ reading the film into the window — N%", climbing, then
+    it PLAYS with the Mac's own controls.
+    **A FAIL is the hand-off message again** — if you get it, read
+    what it says about the ceiling now and paste that line.
+A2. Time it roughly, and watch the percentage move. A film this size
+    is hundreds of pieces; the number should climb steadily, not stick.
+A3. While it reads, use the Mac — move a window, type somewhere.
+    EXPECT: normal. This is the half I most want your word on.
+A4. Once it plays: the scrubber, volume, full screen, ← → to seek.
+
+B. PASTE BACK — three lines are new and each answers something.
+B1. `_G.mugReport()`:
+    · `ceiling:` — the number AND where it came from. It should name
+      a share of your Mac's memory, not a number I chose.
+    · `↳ pace :` — how many pieces the window CONFIRMED it took. The
+      loader waits for each one now instead of firing them off blind.
+    · `↳ clock :` — how long the whole read took, wall clock. That is
+      the number that decides whether the pieces need to be bigger.
+B2. If `↳ pace` ever carries "⚠️ N never answered", paste it — that is
+    the window going silent, which used to hang the read for ever.
+
+C. MUST STILL WORK.
+C1. A small film: still plays, faster.
+C2. .mkv and .mp3 still refused by name with ⌘O offered.
+C3. ⌘O, Escape, ↑↓, ⏎, ⌫, the ✕ on a history row, the drop.
+C4. ⇪⇧. the Jug Player — drop an mp3, it plays.
+
+D. WHAT IS STILL TRUE, so it is not a surprise.
+D1. The whole film sits in the window's memory while it plays. That is
+    the one cost this way in cannot avoid, and it is why there is a
+    ceiling at all — it is just your Mac's number now instead of mine.
+D2. If a film is still too big, the message names both sizes and ⌘O
+    opens it in a real player, as before.
+
+
 
 ## 6.354.0
 
@@ -313,63 +363,6 @@ E2. 📏 NAMED, NOT SWEPT: the **Jug Player's** catcher has the identical
 E3. 🔨 CRUDE OR ELEGANT: the window opened, nothing was lost, and ⌘O
     always worked — but the one thing you were trying to do did not,
     and this is pass five on this tool. Your tag.
-
-
-
-## 6.351.0
-
-6.351.0 verify with LL — 🚪 THE THIRD WAY IN (NEW GROUND — measured)
-WHAT CHANGED: one more way to get a film into the window, and the
-report now says what the film actually IS.
-✅ FIRST, WHAT YOUR LAST REPORT PROVED, because two releases landed:
-`opens : 2 asked · 2 straight through · 0 refused` — 6.348.0 fixed
-the window being refused. And your screenshot shows the brand, the
-film's name in the header and three films by name in the deck —
-6.345.0 fixed the payload. What is left is the film itself.
-🔬 AND THE HONEST PART: MediaError code 4 means TWO opposite things.
-WebKit returns it when it could not READ the file, and when it read
-it fine and cannot DECODE what is inside. My old message asserted
-the first. It might be the second — a "2026 1080p" download is very
-often HEVC/x265 with AC3 audio, which Safari may refuse outright.
-No door will ever fix that one.
-
-A. THE HEADLINE — and step A2 is worth more than A1.
-A1. ⇪⇧, and drop the same film. EXPECT: either it plays (door 3
-    worked), or the same message — but reworded, naming BOTH causes.
-A2. 🚨 **DROP A FILM YOU KNOW SAFARI CAN PLAY.** Anything ordinary —
-    something from a phone, a .mp4 off a website, an old h.264 file.
-    **This single test decides everything.**
-    · It PLAYS → the mechanism works and your Robin Hood file is a
-      codec. Nothing here is broken; the fix is a different player
-      or a converted file.
-    · It does NOT play → the window cannot read any local film, and
-      three doors have now said so. The Mug Player becomes a
-      controller — the deck and queue stay, ⏎ hands the film to
-      QuickTime or VLC — and I will build that instead.
-A3. `_G.mugReport()` — the new **codecs** line names what the Mac
-    says is inside the file, with what it means underneath. PASTE IT.
-
-B. THE FILE IT WRITES — worth knowing about.
-B1. Door 3 writes a hidden `.mug-stage.html` INTO THE FILM'S OWN
-    FOLDER and deletes it when the window closes. Check your
-    Desktop/new_dl folder with ⌘⇧. (show hidden files) after closing
-    the player: **it must not be there.**
-B2. If the folder is read-only the door says so and does not blame
-    macOS for refusing the film — a different line in the report.
-
-C. MUST STILL WORK.
-C1. The deck names, Escape, ⌘O, space, ↑↓, ⏎, ⌘1–9, the ✕.
-C2. ⇪⇧. the Jug Player.
-
-D. A JUDGEMENT ONLY YOU CAN MAKE.
-D1. **If A2 says codecs**, what do you want? Convert on the fly with
-    ffmpeg (slow, needs a binary), or make ⏎ hand anything the window
-    cannot play straight to VLC/QuickTime and keep the Mug Player as
-    the queue? I would build the second.
-D2. Writing a hidden file into your film folders — acceptable, or
-    would you rather I did not? It is removed every time, but it is
-    your folder and I would rather ask.
-D3. 🔨 CRUDE OR ELEGANT: pass four on this tool. Your tag.
 
 
 

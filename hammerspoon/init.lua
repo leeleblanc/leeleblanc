@@ -4,36 +4,36 @@
 -- =====================================================================
 -- 10-11-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.354.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.355.0
 -- =====================================================================
+
+-- NEW IN 6.355.0 — 📏 THE CEILING WAS MINE (video_player.lua). His
+--   film is 2300.6 MB and 6.354.0 TYPED a ceiling of 1536 MB, so the
+--   loader was never asked and every way in read as refused — while
+--   the codecs line said H.264/AAC, the most decodable pair there is.
+--   The ceiling is asked of the Mac now (hs.host.vmStat); one that
+--   cannot answer gets the FLOOR, never 0. 🛟 AND THE PAGE SETS THE
+--   PACE: evaluateJavaScript RETURNS BEFORE THE SCRIPT RUNS
+--   (libwebview.m:1688-1725), so re-arming on a clock queued chunks
+--   into IPC faster than the window could take them. The next turn is
+--   armed by the completion — one chunk in flight, ever, with a belt.
 
 -- NEW IN 6.354.0 — 📦 THE BYTES GO THROUGH THE WINDOW (video_player.lua).
 --   LL: "Make it work." Both file:// doors are refused and there is no
 --   third URL — libwebview.m has loadFileURL:allowingReadAccessToURL:
 --   ZERO times, read not remembered. So the bytes stop travelling as a
---   URL: Lua reads the film in bounded chunks and PUSHES them in, and
---   the page assembles a Blob — nothing fetched, nothing navigated to,
---   no file for WebKit to refuse. (hs.httpserver was measured and
---   refused too: one Lua string per body, and CocoaHTTPServer re-slices
---   it.) 🔑 AND THE CODEC QUESTION IS ANSWERED BY ELIMINATION — this
---   door cannot be refused for READ access, so a film that still will
---   not play is a DECODE problem, and the report says exactly that.
+--   URL: Lua reads the film in chunks and PUSHES them in, and the page
+--   assembles a Blob — nothing fetched, no file for WebKit to refuse.
+--   (hs.httpserver was measured and refused: one Lua string per body.)
+--   🔑 THE CODEC QUESTION IS ANSWERED BY ELIMINATION — this door cannot
+--   be refused for READ access, so a film that still will not play is a
+--   DECODE problem, and the report says exactly that.
 
--- NEW IN 6.353.0 — 🚪 THE WINDOW HANDS THE FILM OUT (video_player.lua).
---   Three ways in have now been refused, and macOS NAMED the third:
---   "Error code: -3001 in NSURLErrorDomain … Cannot open file". That
---   is a NAVIGATION error, so unlike MediaError 4 it is not ambiguous
---   — the file was not read. 6.351.0 said a third refusal decides it,
---   so door 3 is DELETED: a refused navigation REPLACED the player
---   with an error page, taking the deck and every key with it. And ⌘O
---   works from the SELECTED row — it read `vid.index` alone, which is
---   0 before anything starts: dead exactly where it was needed.
-
--- (6.352.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.353.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 cut the inline count to
 --  TWO; a gate check proves every entry here is also in CHANGELOG.md.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.354.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.355.0
 -- =====================================================================
 -- The catalogue that used to sit here moved to GUIDE.md ("What each
 -- tool does") in 6.180.0 — 259 lines of prose inside the orchestrator.
@@ -126,7 +126,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.354.0"
+_G.configVersion = "6.355.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the
