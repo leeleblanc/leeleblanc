@@ -216,14 +216,34 @@ function M.setup(core)
         -- and plays that. Nothing is fetched, nothing is navigated to,
         -- and there is no file for WebKit to refuse.
         blobLoad   = true,
-        chunkBytes = 2 * 1024 * 1024,   -- read and pushed per run-loop turn
+        chunkBytes = 8 * 1024 * 1024,   -- read and pushed per turn
         loadEvery  = 0,                 -- the gap between turns, in seconds
-        -- 📏 THE CEILING, NAMED RATHER THAN HOPED PAST: the whole film
-        -- ends up in WebKit's blob store, so this is the one cost the
-        -- loader cannot bound away. Above it the film goes out to a real
-        -- player and the window SAYS which of the two happened.
-        blobMax    = 1536 * 1024 * 1024,
+        -- 📏 6.355.0 — THE CEILING IS ASKED OF THE MAC, NOT TYPED.
+        -- 6.354.0 wrote 1536 MB and his first real film was 2300.6 MB, so
+        -- the loader was never asked and every way in read as refused.
+        -- The whole film ends up in WebKit's blob store, so memory IS the
+        -- bound — which makes it a thing to MEASURE rather than guess.
+        -- `blobMax` nil means "ask"; a number still overrides, so the
+        -- knob is real and the gate drives both.
+        blobMax    = nil,
+        blobShare  = 1 / 3,             -- of this Mac's physical memory
+        blobFloor  = 3 * 1024 * 1024 * 1024,
+        blobCap    = 8 * 1024 * 1024 * 1024,
         slowTurnMs = 120,               -- past this a turn takes the 🔔 door
+        -- 🛟 6.355.0 — THE PAGE SAYS WHEN IT HAS TAKEN A CHUNK.
+        -- `evaluateJavaScript` RETURNS BEFORE THE SCRIPT RUNS (read in
+        -- extensions/webview/libwebview.m:1688-1725 — it hands WebKit a
+        -- completion handler and returns at once), so re-arming on a
+        -- clock pushes faster than the window can swallow: a 2.3 GB film
+        -- is 288 chunks queued into IPC buffers on top of the blob. The
+        -- next turn is armed from the COMPLETION, so exactly one chunk
+        -- is ever in flight. This belt covers a completion that never
+        -- arrives, in its own held slot (6.196.1).
+        ackSecs    = 20,
+        ackTimer   = nil,
+        acks       = 0,
+        ackLate    = 0,
+        ackNoBelt  = 0,
         loadTimer  = nil,               -- HELD, its own slot (6.196.1)
         load       = nil,               -- the read in flight
         loadRuns   = 0,                 -- films the loader was asked for
@@ -234,6 +254,9 @@ function M.setup(core)
         blobFailed = 0,
         loadSlow   = 0,
         loadWhy    = "the loader has not been asked yet",
+        loadMs     = 0,                 -- wall clock of the last whole read
+        ceilBytes  = nil,               -- worked out once, then kept
+        ceilWhy    = "the ceiling has not been asked for yet",
         forgotten  = 0,
         pageReady  = false,
         draws      = { landed = 0, early = 0 },
@@ -379,6 +402,55 @@ function M.setup(core)
     function vid.mb(n)
         local b = tonumber(n) or 0
         return string.format("%.1f MB", b / 1048576)
+    end
+
+    -- 📏 THE CEILING IS A MEASUREMENT (6.355.0). PURE, four
+    -- answers, and the one that matters is the FIRST: a Mac that will
+    -- not say how much memory it has gets the FLOOR, never 0 — a parser
+    -- that fails into a valid-looking number refuses every film and
+    -- reads as "your film is too big" (6.338.0).
+    function vid.ceilingFor(mem, share, floorB, capB)
+        local m  = tonumber(mem)
+        local sh = tonumber(share) or (1 / 3)
+        local fl = math.floor(tonumber(floorB) or 0)
+        local cp = math.floor(tonumber(capB) or 0)
+        if not m or m <= 0 then
+            return fl, "this Mac would not say how much memory it has, so"
+                       .. " the floor of " .. vid.mb(fl) .. " stands"
+        end
+        local want = math.floor(m * sh)
+        if cp > 0 and want > cp then
+            return cp, vid.mb(cp) .. " — the cap, because past it the"
+                       .. " reading takes longer than opening a real player"
+        end
+        if want < fl then
+            return fl, vid.mb(fl) .. " — the floor, which is more than a"
+                       .. " share of this Mac's " .. vid.mb(m)
+        end
+        return want, vid.mb(want) .. " — a share of this Mac's "
+                     .. vid.mb(m) .. " of memory"
+    end
+
+    -- 🚪 ONE DOOR, THREE CALLERS (6.231.0): the plan, the refusal
+    -- sentence and the report all ask this, so they cannot disagree about
+    -- what the ceiling is. Asked once per session — physical memory does
+    -- not move — and a `blobMax` number still wins, so the knob is real.
+    function vid.maxBytes()
+        local set = tonumber(vid.blobMax)
+        if set and set > 0 then
+            vid.ceilBytes = math.floor(set)
+            vid.ceilWhy   = vid.mb(set) .. " — your own settings line"
+            return vid.ceilBytes
+        end
+        if vid.ceilBytes then return vid.ceilBytes end
+        local mem = nil
+        if hs.host and hs.host.vmStat then
+            local ok, t = pcall(hs.host.vmStat)
+            if ok and type(t) == "table" then mem = tonumber(t.memSize) end
+        end
+        vid.ceilBytes, vid.ceilWhy =
+            vid.ceilingFor(mem, vid.blobShare, vid.blobFloor, vid.blobCap)
+        return vid.ceilBytes
     end
 
     -- 📐 FOUR ANSWERS, AND ONLY ONE LOADS (6.196.1). PURE, so the whole
@@ -1686,10 +1758,18 @@ document.addEventListener('keydown',function(e){
     -- three gsubs over two and a half megabytes, every turn, on the main
     -- thread (6.228.0). It answers whether the push went, because
     -- evaluateJavaScript on a window macOS has taken away throws.
-    local function pushJs(js)
+    -- 🛟 A PUSH THAT RETURNS IS A PUSH THAT WAS ACCEPTED, NOT ONE
+    -- THAT LANDED (6.299.0, and read in libwebview.m:1688-1725). `done`
+    -- is optional, so every existing caller is unchanged; the loader is
+    -- the one that waits.
+    local function pushJs(js, done)
         local ok = false
         pcall(function()
-            vid.webview:evaluateJavaScript(js)
+            if done then
+                vid.webview:evaluateJavaScript(js, done)
+            else
+                vid.webview:evaluateJavaScript(js)
+            end
             ok = true
         end)
         return ok
@@ -1706,6 +1786,10 @@ document.addEventListener('keydown',function(e){
         if vid.loadTimer then
             pcall(function() vid.loadTimer:stop() end)
             vid.loadTimer = nil
+        end
+        if vid.ackTimer then
+            pcall(function() vid.ackTimer:stop() end)
+            vid.ackTimer = nil
         end
         local L = vid.load
         vid.load = nil
@@ -1736,9 +1820,11 @@ document.addEventListener('keydown',function(e){
         if piece == nil or #piece == 0 then
             -- 📦 EVERY BYTE IS IN. The page assembles and plays.
             local turns, sent = L.turns, L.sent
+            local secs = (L.at and L.at > 0 and t0 > 0) and (t0 - L.at) or 0
+            vid.loadMs = secs * 1000
             local okE = pushJs("blobEnd();")
-            vid.loadStop("read " .. vid.mb(sent) .. " in " .. turns
-                         .. " turn(s)")
+            vid.loadStop(string.format("read %s in %d turn(s) over %.1f s",
+                                       vid.mb(sent), turns, secs))
             if not okE then
                 vid.blobFailed = vid.blobFailed + 1
                 return degrade("the window would not take the last of the"
@@ -1754,7 +1840,62 @@ document.addEventListener('keydown',function(e){
             return degrade("this Mac could not encode the film for the"
                            .. " window")
         end
-        if not pushJs("blobChunk('" .. b64 .. "');") then
+        -- 🛟 ARMED BEFORE THE ASK (6.246.0; the check asserts the
+        -- ORDER — 6.220.0), in its own held slot (6.196.1), with a
+        -- SEQUENCE so a completion that lands after the belt has fired
+        -- is about a chunk nobody is waiting for (6.304.0).
+        local dA  = hs.timer and hs.timer.doAfter
+        L.seq     = (L.seq or 0) + 1
+        local seq, gen = L.seq, L.gen
+        local function settle(late)
+            local C = vid.load
+            if not C or C.gen ~= gen or C.waiting ~= seq then return false end
+            C.waiting = nil
+            if vid.ackTimer then
+                pcall(function() vid.ackTimer:stop() end)
+                vid.ackTimer = nil
+            end
+            if late then
+                vid.ackLate   = vid.ackLate + 1
+                vid.blobFailed = vid.blobFailed + 1
+                vid.loadStop("the window never said it had taken a piece of"
+                             .. " the film")
+                pushJs("blobDrop();")
+                degrade("the window stopped taking the film")
+                return false
+            end
+            vid.acks = vid.acks + 1
+            return true
+        end
+        L.waiting = seq
+        if dA then
+            local okA, atm = pcall(dA, tonumber(vid.ackSecs) or 20,
+                                   function() settle(true) end)
+            vid.ackTimer = (okA and atm) or nil
+        end
+        -- 📏 A MAC THAT CANNOT ARM THE BELT STILL READS, and the
+        -- miss is COUNTED rather than assumed away (6.304.0).
+        if not vid.ackTimer then vid.ackNoBelt = (vid.ackNoBelt or 0) + 1 end
+        local okP = pushJs("blobChunk('" .. b64 .. "');", function()
+            if not settle(false) then return end
+            -- 🚨 `dA and pcall(...)` TRUNCATES pcall TO ONE VALUE, so
+            -- the timer object is thrown away and every chunk reads as
+            -- "this Mac would not arm a timer" — 6.179.0, in the branch
+            -- that re-arms the read. Branch, never an `and` chain.
+            local okN, ntm = false, nil
+            if dA then
+                okN, ntm = pcall(dA, tonumber(vid.loadEvery) or 0, loadTurn)
+            end
+            if not (okN and ntm) then
+                vid.loadStop("this Mac would not arm a timer mid-read")
+                vid.blobFailed = vid.blobFailed + 1
+                pushJs("blobDrop();")
+                return degrade("this Mac stopped arming timers while the"
+                               .. " film was being read")
+            end
+            vid.loadTimer = ntm
+        end)
+        if not okP then
             vid.loadStop("the window would not take the film")
             vid.blobFailed = vid.blobFailed + 1
             return degrade("the window would not take the film")
@@ -1779,23 +1920,16 @@ document.addEventListener('keydown',function(e){
                     math.floor(ms), math.floor((tonumber(vid.chunkBytes)
                     or 2097152) / 2)))
         end
-        if not (hs.timer and hs.timer.doAfter) then
+        -- 🚪 THE NEXT TURN IS ARMED BY THE COMPLETION ABOVE, never
+        -- here: one chunk in flight, ever. A Mac with no hs.timer at all
+        -- is refused at loadStart, so there is nothing to fall back to.
+        if not dA then
             vid.loadStop("this Mac would not arm a timer mid-read")
             vid.blobFailed = vid.blobFailed + 1
             pushJs("blobDrop();")
             return degrade("this Mac stopped arming timers while the film"
                            .. " was being read")
         end
-        local okT, tm = pcall(hs.timer.doAfter,
-                              tonumber(vid.loadEvery) or 0, loadTurn)
-        if not (okT and tm) then
-            vid.loadStop("this Mac would not arm a timer mid-read")
-            vid.blobFailed = vid.blobFailed + 1
-            pushJs("blobDrop();")
-            return degrade("this Mac stopped arming timers while the film"
-                           .. " was being read")
-        end
-        vid.loadTimer = tm
         return true
     end
     vid.loadTurnOnce = function() return loadTurn() end
@@ -1833,7 +1967,8 @@ document.addEventListener('keydown',function(e){
             local okA, a = pcall(hs.fs.attributes, path)
             if okA and type(a) == "table" then size = tonumber(a.size) end
         end
-        local ok, why, turns = vid.loadPlan(size, vid.blobMax, vid.chunkBytes)
+        local ok, why, turns = vid.loadPlan(size, vid.maxBytes(),
+                                            vid.chunkBytes)
         if not ok then
             vid.loadWhy = why
             return false
@@ -1844,8 +1979,10 @@ document.addEventListener('keydown',function(e){
             return false
         end
         vid.load = { path = path, f = f, size = size, sent = 0, turns = 0,
-                     chunk = math.floor(tonumber(vid.chunkBytes) or 2097152),
-                     gen = vid.gen, said = false }
+                     chunk = math.floor(tonumber(vid.chunkBytes) or 8388608),
+                     gen = vid.gen, said = false, seq = 0, waiting = nil,
+                     at = (hs.timer and hs.timer.secondsSinceEpoch
+                           and hs.timer.secondsSinceEpoch()) or 0 }
         vid.loadRuns = vid.loadRuns + 1
         vid.loadWhy  = why
         -- 📣 THE PAGE IS TOLD THE TOTAL FIRST, so its progress line is a
@@ -2317,6 +2454,15 @@ document.addEventListener('keydown',function(e){
         -- read" and "a film is being read right now" must not print the
         -- same words (6.196.1), because the second is what he is looking
         -- at while the stage says a percentage.
+        -- 📏 THE CEILING, AND WHERE THE NUMBER CAME FROM (6.355.0). It
+        -- is printed whether or not a film was refused, because the one
+        -- time it matters is the moment a film is too big and he wants
+        -- to know whether that was his Mac or my arithmetic.
+        do
+            local cap = vid.maxBytes()
+            L[#L + 1] = "   ceiling: " .. vid.mb(cap) .. " — "
+                        .. tostring(vid.ceilWhy)
+        end
         do
             local runs = tonumber(vid.loadRuns) or 0
             if runs == 0 and not vid.load then
@@ -2338,6 +2484,23 @@ document.addEventListener('keydown',function(e){
                                 .. tostring(vid.slowTurnMs) .. " ms a turn on"
                                 .. " the main thread"
                 end
+                -- 🔎 THE PACING, COUNTED: a chunk the window CONFIRMED is
+                -- a different fact from one that was merely accepted
+                -- (6.299.0), and a belt that fired is the window having
+                -- stopped taking the film.
+                L[#L + 1] = "   ↳ pace  : " .. (tonumber(vid.acks) or 0)
+                            .. " piece(s) the window confirmed"
+                            .. ((tonumber(vid.ackLate) or 0) > 0
+                                and (" · ⚠️ " .. vid.ackLate
+                                     .. " never answered in "
+                                     .. tostring(vid.ackSecs) .. " s")
+                                or "")
+                if (tonumber(vid.ackNoBelt) or 0) > 0 then
+                    L[#L + 1] = "   ↳ ⚠️ " .. vid.ackNoBelt .. " piece(s) went"
+                                .. " out with NO belt — this Mac would not"
+                                .. " arm one, so a silent window would hang"
+                                .. " the read"
+                end
             end
             if vid.load then
                 L[#L + 1] = "   ↳ now   : reading " .. vid.titleOf(vid.load.path)
@@ -2346,6 +2509,11 @@ document.addEventListener('keydown',function(e){
                             .. " turn(s) so far"
             else
                 L[#L + 1] = "   ↳ last  : " .. tostring(vid.loadWhy)
+            end
+            if (tonumber(vid.loadMs) or 0) > 0 then
+                L[#L + 1] = string.format(
+                    "   ↳ clock : the last whole read took %.1f s",
+                    (tonumber(vid.loadMs) or 0) / 1000)
             end
             if not vid.blobLoad then
                 L[#L + 1] = "   ↳ OFF   : settings = { video_player ="

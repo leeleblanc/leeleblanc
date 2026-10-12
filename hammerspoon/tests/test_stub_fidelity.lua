@@ -507,6 +507,7 @@ do
 end
 
 -- =====================================================================
+-- =====================================================================
 out("\n=== 7. 📏 NAMED, NOT AUTOMATED — the gap, written down ===\n")
 -- =====================================================================
 -- 🚨 A COMMENT CLAIMING A GUARD THAT DOES NOT EXIST is worse than no
@@ -517,6 +518,21 @@ out("\n=== 7. 📏 NAMED, NOT AUTOMATED — the gap, written down ===\n")
 -- Each is real, each cost a release, and each needs a running Mac or a
 -- per-module join that would cry wolf:
 local NOT_AUTOMATED = {
+    { "6.355.0", "hs.host.vmStat() returns NOTHING when sysctl fails"
+                 .. " (libhost.m:142-149) — one suite needs it, and a"
+                 .. " sweep would cry wolf on the seventy that do not" },
+    { "6.355.0", "hs.webview:evaluateJavaScript takes a SECOND argument"
+                 .. " and returns BEFORE the script runs"
+                 .. " (libwebview.m:1688-1725), so a stub that ignores it"
+                 .. " hides the film loader's pacing. A static sentry was"
+                 .. " WRITTEN AND TAKEN OUT AGAIN: it went red on"
+                 .. " test_vault.lua, whose module never passes one, and a"
+                 .. " guard that fails on correct code is switched off"
+                 .. " inside a week (6.269.0 · 6.273.0). What holds it is"
+                 .. " functional and needs no maintenance —"
+                 .. " test_video_player §23 fires the completion to arm"
+                 .. " the next turn, so a stub that drops it leaves the"
+                 .. " read stopped after one chunk and fails by name" },
     { "6.218.0", "hs.eventtap.keyStrokes POSTS — the keys come back through our own taps" },
     { "6.233.0", "hs.webview has NO drag-and-drop; hs.canvas is the only drop target" },
     { "6.235.0", "a throw inside a dragging callback is a SILENCE" },
@@ -553,7 +569,7 @@ local NOT_AUTOMATED = {
                  .. " the assembled bytes; it lives in the page suite because"
                  .. " nothing in Lua can see a JS Blob" },
 }
-check("the unautomated contracts are listed, not implied", #NOT_AUTOMATED == 12,
+check("the unautomated contracts are listed, not implied", #NOT_AUTOMATED == 14,
       #NOT_AUTOMATED)
 for _, row in ipairs(NOT_AUTOMATED) do
     out("   · " .. row[1] .. "  " .. row[2] .. "\n")

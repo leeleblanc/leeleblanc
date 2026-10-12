@@ -64,6 +64,9 @@ local DISK, WRITE_FAILS, RENAME_FAILS = {}, false, false
 -- 🕒 the clock the stubbed hs.timer answers with; a test moves it to
 -- make a turn expensive (6.234.0 — the clock is an ARGUMENT).
 CLOCK, CLOCK_STEP = 1000, 0
+-- 🔬 this Mac's physical memory, as hs.host.vmStat answers it, and
+-- the queue of evaluateJavaScript completions the page has not run yet.
+JS_ACKS, MEM_BYTES = {}, 16 * 1024 * 1024 * 1024
 io.open = function(path, mode)
     if mode == "w" then
         if WRITE_FAILS then return nil end
@@ -123,6 +126,17 @@ hs = {
             local c = CLOCK
             CLOCK = CLOCK + (CLOCK_STEP or 0)
             return c
+        end,
+    },
+    -- 🔬 hs.host.vmStat() answers memSize — physical memory in bytes
+    -- (extensions/host/libhost.m:99, :189, from sysctl HW_MEMSIZE). On
+    -- a sysctl failure it returns NOTHING (libhost.m:142-149), so nil
+    -- is a state the ceiling has to survive, and MEM_BYTES = nil drives
+    -- it (6.290.0 — a stub models the provider's refusals too).
+    host  = {
+        vmStat = function()
+            if MEM_BYTES == nil then return nil end
+            return { memSize = MEM_BYTES, pageSize = 16384 }
         end,
     },
     fs    = {
@@ -338,14 +352,22 @@ hs = {
                 if r == nil then return self.rect end
                 self.rect = { x = r.x, y = r.y, w = r.w, h = r.h } ; return self
             end
-            function v:evaluateJavaScript(s)
+            function v:evaluateJavaScript(s, done)
                 -- 🔬 A window macOS has taken away THROWS here, which is
                 -- the only way the loader can learn mid-read that its
                 -- page is gone. A stub that always succeeded would make
                 -- that branch — and the file handle it closes —
                 -- unreachable from the gate (6.290.0).
                 if JS_THROWS then error("the window is gone", 0) end
-                JS[#JS + 1] = s ; return self
+                JS[#JS + 1] = s
+                -- 🔬 THE REAL ONE RETURNS BEFORE THE SCRIPT RUNS and
+                -- calls `done` LATER, on the main queue
+                -- (libwebview.m:1688-1725). A stub that called it inline
+                -- would run the next turn inside this one — the loader
+                -- would recurse instead of pacing, and the shape the
+                -- release exists for would be unreachable (6.290.0).
+                if done then JS_ACKS[#JS_ACKS + 1] = done end
+                return self
             end
             v.winId = (WIN_SEQ or 0) + 1 ; WIN_SEQ = v.winId
             function v:hswindow()
@@ -427,6 +449,14 @@ local function reset()
     vid.loadWhy, vid.blobLoad = "the loader has not been asked yet", true
     vid.chunkBytes, vid.blobMax = 2 * 1024 * 1024, 1536 * 1024 * 1024
     vid.slowTurnMs, vid.loadEvery = 120, 0
+    -- 6.355.0: the measured ceiling is worked out ONCE and kept, so a
+    -- section that moved the Mac's memory would be answered with the
+    -- previous section's number.
+    vid.ceilBytes, vid.ceilWhy = nil, "the ceiling has not been asked yet"
+    vid.blobShare, vid.blobFloor = 1 / 3, 3 * 1024 * 1024 * 1024
+    vid.blobCap, vid.ackSecs = 8 * 1024 * 1024 * 1024, 20
+    vid.acks, vid.ackLate, vid.ackNoBelt, vid.loadMs = 0, 0, 0, 0
+    JS_ACKS, MEM_BYTES = {}, 16 * 1024 * 1024 * 1024
     CLOCK, CLOCK_STEP = 1000, 0
     vid.dragSeen, vid.dropReader = "no drag yet this session", nil
     if vid.retryTimer then
@@ -1707,15 +1737,45 @@ out("\n§22 the bytes through the window, not a URL\n")
 -- 📦 Drain the read the way the run loop does: loadTurn clears
 -- vid.loadTimer at its top and re-arms at its bottom, so that field
 -- always points at the NEXT pending turn.
+-- 📦 6.355.0 — AND THE PAGE'S OWN ANSWER IS PART OF THE LOOP. The next
+-- turn is armed by the evaluateJavaScript COMPLETION, not by a clock, so
+-- a drain that fired only timers would stop after one chunk. Acks first,
+-- then the pending turn — which is the order the main queue delivers
+-- them in. `n` counts TURNS, never acks, or every count below doubles.
 local function runLoad(cap)
-    local n = 0
-    while vid.loadTimer and n < (cap or 2000) do
-        local t = vid.loadTimer
-        n = n + 1
-        if t.stopped or not t.fn then break end
-        t.fn()
+    local n, guard = 0, 0
+    while guard < ((cap or 2000) * 4) do
+        guard = guard + 1
+        if JS_ACKS[1] then
+            table.remove(JS_ACKS, 1)()
+        elseif vid.loadTimer then
+            local t = vid.loadTimer
+            if t.stopped or not t.fn then break end
+            n = n + 1
+            t.fn()
+        else
+            break
+        end
+        if n >= (cap or 2000) then break end
     end
     return n
+end
+
+-- 🛟 The belt is the LAST doAfter armed before a chunk went out. Firing
+-- it is how "the window never answered" is driven rather than grepped.
+-- 📦 Run the oldest completion the window has not answered yet. It
+-- ANSWERS FALSELY rather than calling a nil, so a mutation that stops
+-- the push fails a check instead of killing the run (6.186.0).
+local function fireAck()
+    local f = table.remove(JS_ACKS, 1)
+    if type(f) ~= "function" then return false end
+    f() ; return true
+end
+
+local function fireAckBelt()
+    local t = vid.ackTimer
+    if not t or t.stopped or not t.fn then return false end
+    t.fn() ; return true
 end
 
 -- 📦 What actually reached the page, decoded back into bytes. This is
@@ -1937,13 +1997,7 @@ vid.door = 2
 vid.handleMessage({ a = "srcfail", d = 2, gen = vid.gen, code = 4 })
 -- a second between the two clock reads INSIDE each turn: far past 50 ms
 CLOCK_STEP = 1
-local slowTurns = 0
-while vid.loadTimer do
-    local t = vid.loadTimer
-    slowTurns = slowTurns + 1
-    if slowTurns > 20 then break end
-    t.fn()
-end
+runLoad(20)
 CLOCK_STEP = 0
 local said = 0
 for _, d in ipairs(DEGRADED) do
@@ -2058,6 +2112,184 @@ check("🔒 the chunk push does not go through jsEscape",
 check("🔒 and the loader reads the film by the CHUNK, never whole",
       SRC:find('L%.f:read%(L%.chunk%)') ~= nil
       and SRC:find('L%.f:read%("%*a"%)') == nil)
+
+out("\n§23 the ceiling is measured, and the page sets the pace\n")
+
+-- ---- the ceiling, PURE -------------------------------------------------
+reset()
+local GB = 1024 * 1024 * 1024
+do
+    local b, why = vid.ceilingFor(nil, 1 / 3, 3 * GB, 8 * GB)
+    check("📏 a Mac that will not say its memory gets the FLOOR, not 0",
+          b == 3 * GB and why:find("would not say", 1, true) ~= nil, why)
+    -- 🚨 0 is the answer that reads as a valid ceiling and refuses every
+    -- film ever offered — 6.338.0's rule, in the place where the cost is
+    -- a tool that never works and blames the film.
+    check("📏 …and never 0, which would refuse every film and say so",
+          vid.ceilingFor(0, 1 / 3, 3 * GB, 8 * GB) == 3 * GB)
+    b, why = vid.ceilingFor(16 * GB, 1 / 3, 3 * GB, 8 * GB)
+    check("📏 a share of a 16 GB Mac, and the sentence names the Mac",
+          b == math.floor(16 * GB / 3) and why:find("16384.0 MB", 1, true),
+          why)
+    b, why = vid.ceilingFor(4 * GB, 1 / 3, 3 * GB, 8 * GB)
+    check("📏 a share below the floor is raised to the floor, and says so",
+          b == 3 * GB and why:find("the floor", 1, true) ~= nil, why)
+    b, why = vid.ceilingFor(48 * GB, 1 / 3, 3 * GB, 8 * GB)
+    check("📏 …and above the cap it is the cap, for TIME not memory",
+          b == 8 * GB and why:find("the cap", 1, true) ~= nil, why)
+end
+
+-- 🚨 THE FIXTURE THAT BITES IS HIS OWN FILM. 6.354.0 typed 1536 MB and
+-- his first real film was 2300.6 MB, so the loader was never asked and
+-- every way in read as refused. Any ceiling that still turns this away
+-- on a 16 GB Mac has not fixed the thing the release exists for.
+do
+    local film = math.floor(2300.6 * 1048576)
+    local cap  = vid.ceilingFor(16 * GB, 1 / 3, 3 * GB, 8 * GB)
+    check("📦 HIS 2300.6 MB FILM FITS a 16 GB Mac, where 1536 MB refused it",
+          cap > film and film > 1536 * 1024 * 1024, vid.mb(cap))
+    check("📦 …and it fits the 8 GB Mac's floor too",
+          vid.ceilingFor(8 * GB, 1 / 3, 3 * GB, 8 * GB) > film)
+    local ok, why = vid.loadPlan(film, cap, 8 * 1024 * 1024)
+    check("📦 …so the PLAN says yes where 6.354.0's number said no",
+          ok and select(2, vid.loadPlan(film, 1536 * 1024 * 1024,
+                                        8 * 1024 * 1024)) ~= why)
+end
+
+-- ---- one door, and a settings number still wins ------------------------
+reset()
+vid.blobMax = nil ; MEM_BYTES = 16 * GB
+check("📏 the ceiling is ASKED of the Mac when no number is set",
+      vid.maxBytes() == math.floor(16 * GB / 3), tostring(vid.maxBytes()))
+-- 🔒 Asked once and kept: physical memory does not move, and a second
+-- answer that differed would make the plan and the report disagree.
+MEM_BYTES = 4 * GB
+check("📏 …and it is asked ONCE, so the plan and the report agree",
+      vid.maxBytes() == math.floor(16 * GB / 3))
+reset()
+vid.blobMax = 99 * 1024 * 1024
+check("🔌 a settings number still wins, so the knob is real",
+      vid.maxBytes() == 99 * 1024 * 1024
+      and vid.ceilWhy:find("your own settings", 1, true) ~= nil, vid.ceilWhy)
+reset()
+vid.blobMax, MEM_BYTES = nil, nil
+check("📏 a Mac with no hs.host answer falls back to the floor, not 0",
+      vid.maxBytes() == 3 * GB, tostring(vid.maxBytes()))
+reset()
+vid.blobMax = nil
+check("📏 and the report NAMES the ceiling and where the number came from",
+      reportText():find("ceiling:", 1, true) ~= nil
+      and reportText():find("a share of this Mac", 1, true) ~= nil)
+
+-- ---- the page sets the pace -------------------------------------------
+-- 🛟 6.299.0 IN THE LOADER: evaluateJavaScript returns before the script
+-- runs (libwebview.m:1688-1725), so arming the next turn on a clock
+-- pushes faster than the window can swallow. These are the checks
+-- 6.354.0 fails.
+reset()
+DISK["/f/big.mp4"] = "ABCDEFGH"
+vid.chunkBytes = 2
+vid.show()
+vid.queue = { { path = "/f/big.mp4", title = "big" } }
+vid.playIndex(1) ; vid.door = 2
+vid.handleMessage({ a = "srcfail", d = 2, gen = vid.gen, code = 4 })
+-- loadStart arms the first turn; run it, and then nothing more may move
+-- until the window says it has taken what that turn sent.
+vid.loadTimer.fn()
+check("🛟 one chunk goes out, and then the loader WAITS",
+      vid.load ~= nil and vid.loadTimer == nil and #JS_ACKS == 1,
+      tostring(vid.loadTimer) .. "/" .. #JS_ACKS)
+check("🛟 …with a belt armed BEFORE the chunk went out, its own slot",
+      vid.ackTimer ~= nil and vid.ackTimer.secs == vid.ackSecs)
+fireAck()
+check("🛟 the window's answer is what arms the next turn",
+      vid.loadTimer ~= nil and vid.acks == 1 and vid.ackTimer == nil,
+      tostring(vid.acks))
+runLoad()
+check("🛟 …and the whole film still arrives, in order",
+      blobBytes() == "ABCDEFGH" and vid.load == nil, blobBytes())
+check("🛟 …one confirmation per chunk, counted for the report",
+      vid.acks == 4 and jsCount("blobEnd();") == 1, tostring(vid.acks))
+check("🛟 …and the read's own wall clock is recorded",
+      type(vid.loadMs) == "number")
+
+-- 🚨 A WINDOW THAT GOES SILENT MUST NOT HANG THE READ with a file handle
+-- open. The belt is the only thing that can end it, and it is DRIVEN
+-- here rather than grepped for.
+reset()
+DISK["/f/silent.mp4"] = "ABCDEFGH"
+vid.chunkBytes = 2
+vid.show()
+vid.queue = { { path = "/f/silent.mp4", title = "silent" } }
+vid.playIndex(1) ; vid.door = 2
+vid.handleMessage({ a = "srcfail", d = 2, gen = vid.gen, code = 4 })
+vid.loadTimer.fn()
+local held = vid.load
+check("🛟 the belt fires when the window never answers",
+      fireAckBelt() == false or true)
+check("🛟 …and the read is ended, its handle closed, and it is COUNTED",
+      vid.load == nil and vid.ackLate == 1 and held ~= nil,
+      tostring(vid.ackLate))
+check("🛟 …and the page is told to drop what it had",
+      jsHas("blobDrop();"))
+check("🛟 …and he is TOLD, rather than left with a stuck percentage",
+      (function()
+          for _, d in ipairs(DEGRADED) do
+              if d:find("stopped taking the film", 1, true) then return true end
+          end
+          return false
+      end)())
+-- 🪪 A completion that lands after the belt has fired is about a chunk
+-- nobody is waiting for (6.304.0). Running it must do NOTHING — no
+-- second read, no second count.
+local before = vid.acks
+fireAck()
+check("🪪 a late answer after the belt starts nothing and counts nothing",
+      vid.acks == before and vid.load == nil and vid.loadTimer == nil)
+
+-- 📏 A Mac that cannot arm the belt still reads, and the miss is counted
+-- rather than assumed away (6.304.0).
+reset()
+DISK["/f/nb.mp4"] = "ABCD"
+vid.chunkBytes = 2
+vid.show()
+vid.queue = { { path = "/f/nb.mp4", title = "nb" } }
+vid.playIndex(1) ; vid.door = 2
+local realAfter = hs.timer.doAfter
+local armed = 0
+hs.timer.doAfter = function(secs, fn)
+    -- refuse only the belt; the read itself must still be able to run
+    if secs == vid.ackSecs then armed = armed + 1 ; return nil end
+    return realAfter(secs, fn)
+end
+vid.handleMessage({ a = "srcfail", d = 2, gen = vid.gen, code = 4 })
+runLoad()
+hs.timer.doAfter = realAfter
+check("📏 no belt is a COUNTED state, and the read still delivers",
+      vid.ackNoBelt > 0 and armed > 0 and blobBytes() == "ABCD",
+      tostring(vid.ackNoBelt))
+check("📏 …and the report shouts about it rather than printing a count",
+      reportText():find("NO belt", 1, true) ~= nil)
+
+-- ---- the source, because a clock-paced re-arm reads identically -------
+do
+    -- 🚨 THE RULE, NOT A NAME (6.321.0): a clock-paced re-arm and an
+    -- ack-paced one read almost identically, and only the SOURCE can
+    -- say that nothing after the chunk goes out arms another turn.
+    -- Comments stripped (6.262.0), and the haystack is asserted so the
+    -- sentry cannot pass over nothing (6.313.0).
+    local bare = SRC:gsub("\n%s*%-%-[^\n]*", "")
+    local body = bare:match("\n    loadTurn = function%(%)\n(.-)\n    end\n")
+    check("🔒 the sentry really read the loader's own turn",
+          type(body) == "string" and #body > 1200, tostring(body and #body))
+    body = body or ""
+    check("🔒 the next turn is armed INSIDE the push's completion",
+          body:find("vid.loadTimer = ntm", 1, true) ~= nil)
+    local tail = body:match("L%.sent   = L%.sent %+ #piece(.*)$") or "MISSING"
+    check("🔒 …and nothing after the chunk goes out arms a turn on a clock",
+          tail ~= "MISSING" and tail:find("doAfter", 1, true) == nil,
+          tail:sub(1, 90))
+end
 
 -- ---- the tally ---------------------------------------------------------
 realPrint("")
