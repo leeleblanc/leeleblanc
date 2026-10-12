@@ -4,36 +4,31 @@
 -- =====================================================================
 -- 10-11-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.355.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.358.0
 -- =====================================================================
 
--- NEW IN 6.355.0 — 📏 THE CEILING WAS MINE (video_player.lua). His
---   film is 2300.6 MB and 6.354.0 TYPED a ceiling of 1536 MB, so the
---   loader was never asked and every way in read as refused — while
---   the codecs line said H.264/AAC, the most decodable pair there is.
---   The ceiling is asked of the Mac now (hs.host.vmStat); one that
---   cannot answer gets the FLOOR, never 0. 🛟 AND THE PAGE SETS THE
---   PACE: evaluateJavaScript RETURNS BEFORE THE SCRIPT RUNS
---   (libwebview.m:1688-1725), so re-arming on a clock queued chunks
---   into IPC faster than the window could take them. The next turn is
---   armed by the completion — one chunk in flight, ever, with a belt.
+-- NEW IN 6.358.0 — 🖥 ⌃⌘F FILLS THE SCREEN (video_player.lua). LL:
+--   "I need Mug Player to change from fully full-screen Back to its
+--   small window size." macOS's OWN full screen is not reachable —
+--   hs.webview.windowMasks has no fullScreen entry and this window is
+--   borderless (libwebview.m:2533-2562, read not remembered) — so ⌃⌘F
+--   RESIZES it, both ways, carrying the frame he left rather than
+--   recomputing a default, and the drop catcher goes with it.
 
--- NEW IN 6.354.0 — 📦 THE BYTES GO THROUGH THE WINDOW (video_player.lua).
---   LL: "Make it work." Both file:// doors are refused and there is no
---   third URL — libwebview.m has loadFileURL:allowingReadAccessToURL:
---   ZERO times, read not remembered. So the bytes stop travelling as a
---   URL: Lua reads the film in chunks and PUSHES them in, and the page
---   assembles a Blob — nothing fetched, no file for WebKit to refuse.
---   (hs.httpserver was measured and refused: one Lua string per body.)
---   🔑 THE CODEC QUESTION IS ANSWERED BY ELIMINATION — this door cannot
---   be refused for READ access, so a film that still will not play is a
---   DECODE problem, and the report says exactly that.
+-- NEW IN 6.357.0 — ☁️ THE BYTES HAVE TO BE HERE FIRST (video_player.lua).
+--   His 72-second frozen Mac and stall-guard relaunch: a film still in
+--   OneDrive. Reading a cloud placeholder HYDRATES it (6.281.0), and
+--   this loader reads on the MAIN THREAD, so the first read blocks
+--   until the download reaches it. hs.fs.attributes answers `blocks`
+--   as well as `size` (libfs.m:683-688, :734-737) — a placeholder
+--   carries the full size with nothing allocated. Refused, NAMED, and
+--   counted. It fails OPEN where `blocks` is absent.
 
--- (6.353.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.356.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 cut the inline count to
 --  TWO; a gate check proves every entry here is also in CHANGELOG.md.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.355.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.358.0
 -- =====================================================================
 -- The catalogue that used to sit here moved to GUIDE.md ("What each
 -- tool does") in 6.180.0 — 259 lines of prose inside the orchestrator.
@@ -126,7 +121,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.355.0"
+_G.configVersion = "6.358.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the

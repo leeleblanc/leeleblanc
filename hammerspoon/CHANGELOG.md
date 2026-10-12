@@ -5,6 +5,161 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.358.0 — 🖥 ⌃⌘F FILLS THE SCREEN, AND COMES BACK TO THE SIZE
+  HE HAD (modules/video_player.lua)
+
+  LL: "I need Mug Player to change from fully full-screen Back to its
+  small window size. Now we see in the screen shot, so that's all it
+  needs to go is from window size. We see in the screen shot to the
+  Mac window size of command+ctrl+f."
+
+  🔬 AND macOS'S OWN FULL SCREEN IS NOT REACHABLE FROM HERE, checked
+  in the source rather than designed around (6.233.0).
+  `hs.webview.windowMasks` carries borderless · titled · closable ·
+  miniaturizable · resizable · texturedBackground · fullSizeContentView
+  · utility · nonactivating · HUD — extensions/webview/libwebview.m:
+  2533-2562 — and there is NO fullScreen among them. This window is
+  created with no masks at all (borderless), and the module asks for
+  `fullScreenAuxiliary`, which is AppKit's behaviour for a window that
+  ACCOMPANIES a full-screen window rather than becoming one. So ⌃⌘F
+  here RESIZES the window to the screen, which is what he asked for in
+  both directions — and the report SAYS which it did, with the line
+  number, rather than letting it look like macOS full screen that
+  half-worked. 🔑 GENERAL: when a platform fact closes the obvious
+  implementation, record it where the next release will read it —
+  6.354.0 wrote that about hs.httpserver and it is the same rule here.
+
+  🔑 THE SMALL FRAME IS CARRIED, NEVER RECOMPUTED. "Back to its small
+  window size" has to mean the size and the spot he left, not a freshly
+  centred default; recomputing is how a window he had placed comes back
+  somewhere else. `vid.fillPlan(cur, sf, small, gap)` is PURE with FOUR
+  answers (6.196.1) — fill · back to the size you had it · no screen to
+  answer about · the window would not say how big it is — and the last
+  two REFUSE rather than guessing a frame. 🧪 The fixture that bites
+  the carried frame is one he both MOVED and RESIZED: a small frame
+  that happens to equal a freshly computed default agrees with a
+  recompute, so only a frame at 17,23 641×409 can tell them apart
+  (6.230.0).
+
+  🚨 THE DROP CATCHER GOES WITH IT. The catcher IS the drop area
+  (6.352.0), and one left at the old frame is a dead zone over the old
+  spot and no drop at the new one — its own mutation.
+
+  🚨 AND A CLOSED WINDOW HAS NOTHING TO COME BACK TO: `vid.small` is
+  cleared in hide(), or the first ⌃⌘F of the NEXT session would
+  "return" the window to a frame from the last one instead of filling
+  the screen. Its own check, driven across a close and a reopen.
+
+  🔒 THE PAGE'S KEY IS CLAIMED BEFORE THE PLAIN-⌘ BAIL. That handler
+  returns on every ⌘ chord the page does not claim, so a ⌃⌘F added
+  after it is silently dead — a feature that looks built. A source
+  sentry asserts the ORDER of the two, and a second asserts it asks for
+  ctrl as well so plain ⌘F is left to the app.
+
+  🧪 15 mutations, 15 bit.
+
+NEW IN 6.357.0 — ☁️ THE BYTES HAVE TO BE ON THIS MAC BEFORE THEY CAN BE
+  READ (modules/video_player.lua)
+
+  LL, with a 72-second frozen Mac in his own Console — `🧊 Hammerspoon
+  HUNG for 72 s at 2026-10-12 04:05:48 and was relaunched by the stall
+  guard` — and his own reading of it: "I think was because Blackhawk
+  Down was in OneDrive. Because it did give me the spinning beach
+  ball. It did play Robinhood from the desktop."
+
+  🔎 HE IS RIGHT, AND THE MECHANISM IS ONE THIS CONFIG ALREADY PAID
+  FOR ONCE. 6.281.0 found that READING a dehydrated cloud placeholder
+  HYDRATES it, and a hydration is a download. 6.354.0's loader reads
+  the film on the MAIN THREAD, so the first `:read()` on a placeholder
+  blocks until OneDrive has fetched that far — 6.228.0's cost measured
+  in minutes instead of milliseconds, which is what the stall guard
+  killed. The contrast in his own sentence is the control: the film on
+  the Desktop played, the film in OneDrive froze the Mac.
+
+  🔬 CHECKED IN THE SOURCE, WITH THE FILE NAMED (6.233.0):
+  `hs.fs.attributes` returns BOTH `size` (st_size, the logical size)
+  and `blocks` (st_blocks, the 512-byte blocks actually ALLOCATED) —
+  extensions/fs/libfs.m:679-688 and the field table at :734-737. A
+  cloud placeholder carries the full logical size with almost nothing
+  allocated behind it, and that difference is the only thing on this
+  Mac that can tell the two apart BEFORE the read blocks.
+
+  🗳 AND THE DEFAULT IS CHOSEN AGAINST THE DAMAGE THIS CHECK CAN DO
+  (6.319.0). Refusing a film that IS local costs him one keypress —
+  the message names ⌘O and a real player opens it. Reading one that is
+  NOT costs a frozen Mac and a killed Hammerspoon. So where `blocks`
+  is PRESENT and short it refuses; where `blocks` is ABSENT it reads
+  anyway, because an hs.fs that cannot answer must not turn every film
+  away. `vid.onDisk(size, blocks, floor, frac)` is PURE, and a file
+  under the floor is never refused — it cannot stall long enough to
+  matter.
+
+  🚨 THE REFUSAL GETS ITS OWN SENTENCE. The generic one blames WebKit
+  and the codec, which for a placeholder is exactly the wrong story,
+  and a message that picks the wrong side sends the next release
+  hunting a decode fault — 6.351.0's own rule, paid here. It names the
+  film, says the bytes are not here yet, says nothing is wrong with
+  the film or the player, and says ⏎ plays it once OneDrive has
+  finished.
+
+  🔎 THREE STATES in the report (6.196.1): no film asked for yet · the
+  last film's bytes were here · ⚠️ NOT HERE. "Not asked yet" reading as
+  "NOT HERE" is the lie this line exists to prevent, and the mutation
+  that deletes the first branch is what proved the check was asserting
+  the WORDS rather than the STATE (6.248.0).
+
+  🔬 THE STUB HAD NO `blocks` AT ALL (6.290.0, thirteenth time), so the
+  one field the rule turns on could not exist in the gate and every
+  film would have read "this Mac does not report it" — the refusal
+  branch was unreachable. The fs stub answers `blocks` now, driven by
+  a CLOUD table, and a NO_BLOCKS switch drives the fail-open path.
+
+  🧪 12 mutations, 12 bit. 🚨 AND THE SWEEP HARNESS ITSELF WAS FIXED
+  mid-release: a failing check can print raw film bytes, which crashed
+  the harness's text decode WITH A MUTATION STILL IN THE TREE. It
+  reads bytes and restores in a `finally` now, SHA-verified either way
+  — 6.239.0's rule, which this project wrote and then broke.
+
+NEW IN 6.356.0 — 🗑 WINDOW RETURN IS OFF, ON HIS WORD
+  (modules/window_return.lua)
+
+  LL: "I guess it's causing me to do my application windows making
+  them jump around the screen. Suspend this feature for now. Period,
+  comment it out, period. We'll return to it in the future."
+
+  🗑 NOTHING IS DELETED (6.254.0's shape): every line is here, every
+  monitor layout he has already captured stays in hs.settings, the
+  report SAYS they are kept, and one settings line brings it back.
+  6.261.0's correction applies to the question of deletion — keeping
+  everything is right for a DOOR and wrong for a tool he does not
+  want — and this is explicitly "we'll return to it", so it is a door.
+
+  🔌 THE RELEASE'S REAL WORK IS THAT THE SWITCH IS REAL IN BOTH
+  DIRECTIONS. The wiring moved out of setup() into `M.warm`, because
+  init.lua applies a profile's `settings` AFTER setup returns — a
+  module that STARTS its watchers in setup can only ever be STOPPED by
+  an override, never started (6.228.0, and 6.259.0 is the release that
+  made exactly this move for exactly this reason). With OFF as the
+  default the broken direction is the useful one, so a removal that
+  did not move the wiring would be a removal with no way back.
+
+  🔎 OFF IS OFF, NOT MADE-AND-HIDDEN — no screen watcher, no snapshot
+  timer, no held first timer, ASSERTED against those very fields
+  rather than claimed in a comment; and "enabled" is not "running", so
+  a Mac that turned it on and never warmed reads as a FAULT (6.196.1).
+  The module had NO REPORT AT ALL, which is why "is it moving my
+  windows?" could only be answered by watching them move:
+  `_G.windowReturnReport()` names the switch, whether it is running,
+  what it is holding, and how many layouts are remembered.
+
+  🚨 AND THE SUITE'S ACCESSIBILITY SECTION HAD TO TURN THE SWITCH ON
+  FIRST, or it passes for the wrong reason: with the shipped default
+  it would start nothing whatever Accessibility said, and the check
+  would be about 6.356.0 rather than about Accessibility (6.273.0).
+  🧪 A test HELPER answers falsely rather than calling a nil `M.warm`,
+  so the mutation that deletes warm fails a check instead of killing
+  the run (6.186.0). 6 mutations, 6 bit.
+
 NEW IN 6.355.0 — 📏 THE CEILING WAS MINE, AND THE PAGE SETS THE PACE
   (modules/video_player.lua)
 

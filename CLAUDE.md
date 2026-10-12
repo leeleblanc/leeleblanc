@@ -4394,6 +4394,69 @@ work Mac.
   that read "the second failure in the streak is silent" was asserting
   the BUG; it asserts the rule now (6.248.0, fifth time).
 
+- ☁️ A FILE'S SIZE IS NOT ITS PRESENCE (6.357.0, modules/video_player.lua
+  — LL, with a 72-second frozen Mac and a stall-guard relaunch in his own
+  Console: "I think was because Blackhawk Down was in OneDrive. Because
+  it did give me the spinning beach ball. It did play Robinhood from the
+  desktop"). His two sentences are a CONTROLLED PAIR and he ran it
+  himself: same build, same key, two films — the local one played, the
+  cloud one froze the Mac.
+  🔎 READING A DEHYDRATED PLACEHOLDER HYDRATES IT — 6.281.0 found that
+  about OCR and it was never carried to anything else. 6.354.0's loader
+  reads the film on the MAIN THREAD, so the first `:read()` blocks until
+  the download reaches it: 6.228.0's cost in minutes rather than
+  milliseconds, which is what the stall guard killed.
+  🔬 `hs.fs.attributes` ANSWERS `blocks` AS WELL AS `size` —
+  extensions/fs/libfs.m:679-688, field table :734-737, read not
+  remembered. A placeholder carries the full logical size with almost
+  nothing allocated, and that difference is the ONLY thing on the Mac
+  that can separate them before the read blocks. GENERAL, past this
+  module: when a check has to happen BEFORE an expensive operation, the
+  fact it needs is usually already in a stat nobody read.
+  🗳 THE DEFAULT IS CHOSEN AGAINST THE DAMAGE THE CHECK CAN DO (6.319.0):
+  refusing a local film costs one keypress; reading a cloud one costs a
+  frozen Mac. So `blocks` present and short REFUSES, `blocks` absent
+  READS — an hs.fs that cannot answer must not turn every film away.
+  🚨 AND THE REFUSAL GETS ITS OWN SENTENCE. The generic one blames WebKit
+  and the codec, which for a placeholder is the wrong story and would
+  send the next release hunting a decode fault (6.351.0's own rule).
+
+- 🖥 A WINDOW MASK THAT DOES NOT EXIST IS A DESIGN THAT CANNOT (6.358.0,
+  modules/video_player.lua — LL: "I need Mug Player to change from fully
+  full-screen Back to its small window size … to the Mac window size of
+  command+ctrl+f"). `hs.webview.windowMasks` carries borderless · titled
+  · closable · miniaturizable · resizable · texturedBackground ·
+  fullSizeContentView · utility · nonactivating · HUD —
+  extensions/webview/libwebview.m:2533-2562 — and NO fullScreen; this
+  window is created with no masks at all, and the module asks for
+  `fullScreenAuxiliary`, which is AppKit's behaviour for a window that
+  ACCOMPANIES a full-screen one rather than becoming one. So ⌃⌘F RESIZES
+  the window, both ways, and the report says so WITH THE LINE NUMBER
+  rather than letting it look like macOS full screen that half-worked.
+  🔑 THE FRAME IS CARRIED, NEVER RECOMPUTED: "back to its small window
+  size" means the size and spot he left. The fixture that bites is one he
+  both MOVED and RESIZED — a frame equal to a freshly centred default
+  agrees with a recompute (6.230.0).
+  🚨 A CLOSED WINDOW HAS NOTHING TO COME BACK TO, or the next session's
+  first press shrinks to last session's frame. 🚨 And the page's key is
+  claimed BEFORE the plain-⌘ bail, which returns on every ⌘ chord the
+  page does not claim — added after it, the key is silently dead.
+
+- 🗑 A FEATURE THAT MOVES HIS WINDOWS IS OFF THE MOMENT HE SAYS SO
+  (6.356.0, modules/window_return.lua — LL: "I guess it's causing me to
+  do my application windows making them jump around the screen. Suspend
+  this feature for now. Period, comment it out, period. We'll return to
+  it in the future"). `wr.enabled = false`, nothing deleted, every
+  captured layout kept and SAID to be kept.
+  🔌 THE RELEASE'S REAL WORK IS THAT THE SWITCH IS REAL IN BOTH
+  DIRECTIONS — the wiring moved to `M.warm`, because settings land after
+  setup and a module that STARTS watchers in setup can only ever be
+  stopped, never started (6.228.0 · 6.259.0, which made the same move for
+  the same reason). With OFF as the default the broken direction is the
+  useful one, so a removal that did not move the wiring has no way back.
+  GENERAL: whenever a release switches a module OFF by default, check
+  WHERE its wiring runs in the same commit.
+
 ## Module contract
 
 Each module: `M = {name, order, family, cheatsheet}` plus `M.setup(core)`.
@@ -5809,7 +5872,7 @@ THE METHOD, when something breaks after a stacked zip:
    6.216.0 6f06071 · 6.217.0 a475bef · 6.218.0 41b002b · 6.219.0 862c177
    · 6.220.0 ac3975e · 6.221.0 ead07d9 · 6.222.0 1842ca7 · 6.223.0
    86ac82b · 6.224.0 67957ea · 6.225.0 98434fe · 6.226.0 304f1f9 ·
-   6.227.0 14e953a · 6.228.0 2aa3dfe · 6.229.0 a1318e1 · 6.230.0 0740c07 · 6.231.0 c1921af · 6.231.1 5a5c298 · 6.232.0 1ca3f6f · 6.233.0 2328c8c · 6.234.0 57f78d0 · 6.235.0 52e5b21 · 6.236.0 34cff8b · 6.236.1 fdce771 · 6.237.0 adf9256 · 6.238.0 3adad4f · 6.239.0 3adad4f (one commit, two releases) · 6.240.0 8f44bec · 6.241.0 dce517e · 6.242.0 1a1dab0 · 6.243.0 8fba04f · 6.244.0 9320906 · 6.245.0 9c1a8b1 · 6.246.0 1400abd · 6.247.0 3b92e99 · 6.248.0 e4e3a03 · 6.249.0 e4edc3f · 6.250.0 c267c1b · 6.251.0 f7b0d57 · 6.252.0 6307253 · 6.253.0 ef20313 · 6.254.0 14493e5 · 6.255.0 d371b34 · 6.256.0 3c29888 · 6.257.0 7f55d2b · 6.258.0 10d2250 · 6.259.0 2bcda06 · 6.260.0 f16e286 · 6.261.0 8680504 · 6.262.0 595dc2e · 6.263.0 014ddf6 · 6.264.0 5e41879 · 6.265.0 f0c487c · 6.266.0 9135f7b · 6.267.0 a621a60 · 6.268.0 c2e513f · 6.269.0 f6552ea (078cece is the same release before the report was corrected) · 6.270.0 b8eda88 · 6.271.0 b8edbe1 · 6.272.0 881a91b · 6.273.0 56b0d2b · 6.274.0 c6e9b6b · 6.275.0 9cebe19 · 6.276.0 3db904e · 6.277.0 c6632a1 · 6.278.0 6c1fe75 · 6.279.0 a6241f5 · 6.280.0 893b40b · 6.281.0 5611a4a · 6.282.0 11dc992 · 6.283.0 3fa417f · 6.284.0 a8f3df4 · 6.285.0 70d118b · 6.286.0 fa93f1b · 6.287.0 39b9dba · 6.288.0 8508186 · 6.289.0 83f5296 · 6.290.0 6daee50 · 6.291.0 aec4561 · 6.292.0 c89c65f · 6.293.0 10c9410 · 6.294.0 0aeebdc · 6.295.0 641c45c (52c1b2b adds the check its own mutation sweep found missing) · 6.296.0 e82ad95 (8bd970b adds the cross-file sentry) · 6.297.0 dacb791 (1604d55 hardens the suite) · 6.298.0 f77c47e (fe109ff adds the two checks its sweep found missing) · 6.299.0 bdc6855 (c587502 the same) · 6.300.0 8ab4802 (cc8b7f9 the same) · 6.301.0 dcff776 · 6.302.0 b465418 (e287164 the mutation sweep's own two findings) · 6.303.0 f5d89e1 · 6.304.0 b8b1b51 (7cf3d9b is the release; b8b1b51 adds the mutation sweep's own four findings) · 6.305.0 b1aa974 (f478dc8 is the release; b1aa974 adds the mutation sweep's own four findings) · 6.306.0 cf14689 · 6.307.0–6.310.0 10c6a87 (one commit, four releases — the four live in four different modules, so a break still names its version by which tool it is in) · 6.311.0 82e52f8 (c7cd4de adds the mutation sweep's own two findings) · 6.312.0 4ad18dc · 6.313.0 c09cb78 (the ceremony for both is the commit after; the code is in those two) · 6.314.0 9ee6a76 (0a363e9 is the ceremony and the mutation sweep's own finding) · 6.315.0 a9394e4 · 6.316.0 cb411aa (8ee2228 adds the mutation sweep's own findings) · 6.317.0 2d2f1e1 (07d5fa5 the same) · 6.318.0 4e95bd2 (366d17f the same) · 6.319.0 8ef0bbe (6c9a7f7, 865ba74, c6f23ef, b448bd1, 99cfafc and c4994f6 are the mutation sweep's own six findings — the third of them is the real one) · 6.320.0 and 6.321.0 ddf6310 (one commit, two releases — the `..` guard and the bin it unblocked) · 6.322.0 fd3d91e (b6b39e5 is the faithful degrade stub it needed) · 6.323.0 44b027a (3602db5 makes its fallback reachable) · 6.324.0 524ae1f · 6.325.0 06c731b (0c0f890 adds the door's own checks) · 6.326.0 1363050 · 6.327.0 e26f17f (6c7e2e9 drives the delete-time forget) · 6.328.0 c4b6fe3 · 6.329.0 029f5de · 6.330.0 7bc13f3 (981c1b7 makes a label that cannot be built a bare epoch rather than a dead pulse) · 6.331.0 4471793 · 6.332.0 7ea10d9 (a1715c9 the sweep's own two findings) · 6.333.0 c57ba35 · 6.334.0 and 6.335.0 212b1ac (one commit, two releases — the readout fix is in write_ledger, the bin in vault, so a break still names its version by which tool it is in) · 6.336.0 0a71d7f · 6.337.0 14c39a9 (191e708 adds the mutation sweep's own finding — the call site choosing between areaPlan's two native sentences was driven by nothing) · 6.338.0 c84b846 (12 of 12 mutations bit on the first sweep) · 6.339.0 06552b7 (de8ef9b and 2261996 are the mutation sweep's own findings — a BITES fixture that re-implemented the rule and so proved a copy of it, and a fixture that DIED instead of failing) · 6.340.0 e8c7371 · 6.341.0 c6a3be7 · 6.342.0 2d4774b (e07e67a adds the mutation sweep's own four findings — the unkillable `picked` guard the BELT never set, and `ok and why or …` with a nil-able b, which the 6.308.0 sentry cannot see) · 6.343.0 c04378a · 6.344.0 0c9680b (34 mutations, 3 survivors, all three missing CHECKS rather than spare lines) · 6.345.0 cf31e59 (be8b224 is the archive; 11 of 11 mutations bit, and restoring 6.344.0's `jstr` fails ELEVEN checks — two of them checks that already existed, which is the measurement this release rests on) · 6.346.0 2c2abdf (putting the name back fails the two checks the release had to add before it could take it out) · 6.347.0 and 6.348.0 9b2f0f8 (one commit, two releases — IINA is in app_watcher and the window retry is in video_player, so a break still names its version by which tool it is in; 10 of 12 mutations bit on the first sweep and both survivors were MISSING CHECKS, one of them on this release's own fix) · 6.349.0, 6.350.0 and 6.351.0 3bbb548 (one commit, three releases — the calendar, app_watcher and video_player, so a break still names its version by which tool it is in; 13 of 13 mutations bit, including both guards on the os.remove that could otherwise delete a film) · 6.352.0 1e8f200 (d116573 adds the mutation sweep's own two findings — the hide() write that was WORSE than its absence, and the cross-file join nothing had made between the module that publishes drag.urilist and the module that asks; 15 of 17 bit first, 17 of 17 after) · 6.353.0 27c85b7 (4da2536 is the GUIDE total and the sweep; 288f73a is the archive; 10 of 10 mutations bit) · 6.354.0 e33f420 (the code; 28 of 28 mutations bit, and the harness had to become faithful in THREE places before any of them could — a read that ignored its length, a missing file size, and a JS context with no Blob, atob or URL at all)) · 6.355.0 f9e3f49 (the code; 5ca89da the ceremony, d4ce8a6 the archive; 25 of 25 mutations bit, and the five that survived the first sweep were all MISSING CHECKS — the two settle guards, a belt left ticking after a read ended any other way, the no-belt shout, and a read clock asserted to be a number rather than a number above zero.
+   6.227.0 14e953a · 6.228.0 2aa3dfe · 6.229.0 a1318e1 · 6.230.0 0740c07 · 6.231.0 c1921af · 6.231.1 5a5c298 · 6.232.0 1ca3f6f · 6.233.0 2328c8c · 6.234.0 57f78d0 · 6.235.0 52e5b21 · 6.236.0 34cff8b · 6.236.1 fdce771 · 6.237.0 adf9256 · 6.238.0 3adad4f · 6.239.0 3adad4f (one commit, two releases) · 6.240.0 8f44bec · 6.241.0 dce517e · 6.242.0 1a1dab0 · 6.243.0 8fba04f · 6.244.0 9320906 · 6.245.0 9c1a8b1 · 6.246.0 1400abd · 6.247.0 3b92e99 · 6.248.0 e4e3a03 · 6.249.0 e4edc3f · 6.250.0 c267c1b · 6.251.0 f7b0d57 · 6.252.0 6307253 · 6.253.0 ef20313 · 6.254.0 14493e5 · 6.255.0 d371b34 · 6.256.0 3c29888 · 6.257.0 7f55d2b · 6.258.0 10d2250 · 6.259.0 2bcda06 · 6.260.0 f16e286 · 6.261.0 8680504 · 6.262.0 595dc2e · 6.263.0 014ddf6 · 6.264.0 5e41879 · 6.265.0 f0c487c · 6.266.0 9135f7b · 6.267.0 a621a60 · 6.268.0 c2e513f · 6.269.0 f6552ea (078cece is the same release before the report was corrected) · 6.270.0 b8eda88 · 6.271.0 b8edbe1 · 6.272.0 881a91b · 6.273.0 56b0d2b · 6.274.0 c6e9b6b · 6.275.0 9cebe19 · 6.276.0 3db904e · 6.277.0 c6632a1 · 6.278.0 6c1fe75 · 6.279.0 a6241f5 · 6.280.0 893b40b · 6.281.0 5611a4a · 6.282.0 11dc992 · 6.283.0 3fa417f · 6.284.0 a8f3df4 · 6.285.0 70d118b · 6.286.0 fa93f1b · 6.287.0 39b9dba · 6.288.0 8508186 · 6.289.0 83f5296 · 6.290.0 6daee50 · 6.291.0 aec4561 · 6.292.0 c89c65f · 6.293.0 10c9410 · 6.294.0 0aeebdc · 6.295.0 641c45c (52c1b2b adds the check its own mutation sweep found missing) · 6.296.0 e82ad95 (8bd970b adds the cross-file sentry) · 6.297.0 dacb791 (1604d55 hardens the suite) · 6.298.0 f77c47e (fe109ff adds the two checks its sweep found missing) · 6.299.0 bdc6855 (c587502 the same) · 6.300.0 8ab4802 (cc8b7f9 the same) · 6.301.0 dcff776 · 6.302.0 b465418 (e287164 the mutation sweep's own two findings) · 6.303.0 f5d89e1 · 6.304.0 b8b1b51 (7cf3d9b is the release; b8b1b51 adds the mutation sweep's own four findings) · 6.305.0 b1aa974 (f478dc8 is the release; b1aa974 adds the mutation sweep's own four findings) · 6.306.0 cf14689 · 6.307.0–6.310.0 10c6a87 (one commit, four releases — the four live in four different modules, so a break still names its version by which tool it is in) · 6.311.0 82e52f8 (c7cd4de adds the mutation sweep's own two findings) · 6.312.0 4ad18dc · 6.313.0 c09cb78 (the ceremony for both is the commit after; the code is in those two) · 6.314.0 9ee6a76 (0a363e9 is the ceremony and the mutation sweep's own finding) · 6.315.0 a9394e4 · 6.316.0 cb411aa (8ee2228 adds the mutation sweep's own findings) · 6.317.0 2d2f1e1 (07d5fa5 the same) · 6.318.0 4e95bd2 (366d17f the same) · 6.319.0 8ef0bbe (6c9a7f7, 865ba74, c6f23ef, b448bd1, 99cfafc and c4994f6 are the mutation sweep's own six findings — the third of them is the real one) · 6.320.0 and 6.321.0 ddf6310 (one commit, two releases — the `..` guard and the bin it unblocked) · 6.322.0 fd3d91e (b6b39e5 is the faithful degrade stub it needed) · 6.323.0 44b027a (3602db5 makes its fallback reachable) · 6.324.0 524ae1f · 6.325.0 06c731b (0c0f890 adds the door's own checks) · 6.326.0 1363050 · 6.327.0 e26f17f (6c7e2e9 drives the delete-time forget) · 6.328.0 c4b6fe3 · 6.329.0 029f5de · 6.330.0 7bc13f3 (981c1b7 makes a label that cannot be built a bare epoch rather than a dead pulse) · 6.331.0 4471793 · 6.332.0 7ea10d9 (a1715c9 the sweep's own two findings) · 6.333.0 c57ba35 · 6.334.0 and 6.335.0 212b1ac (one commit, two releases — the readout fix is in write_ledger, the bin in vault, so a break still names its version by which tool it is in) · 6.336.0 0a71d7f · 6.337.0 14c39a9 (191e708 adds the mutation sweep's own finding — the call site choosing between areaPlan's two native sentences was driven by nothing) · 6.338.0 c84b846 (12 of 12 mutations bit on the first sweep) · 6.339.0 06552b7 (de8ef9b and 2261996 are the mutation sweep's own findings — a BITES fixture that re-implemented the rule and so proved a copy of it, and a fixture that DIED instead of failing) · 6.340.0 e8c7371 · 6.341.0 c6a3be7 · 6.342.0 2d4774b (e07e67a adds the mutation sweep's own four findings — the unkillable `picked` guard the BELT never set, and `ok and why or …` with a nil-able b, which the 6.308.0 sentry cannot see) · 6.343.0 c04378a · 6.344.0 0c9680b (34 mutations, 3 survivors, all three missing CHECKS rather than spare lines) · 6.345.0 cf31e59 (be8b224 is the archive; 11 of 11 mutations bit, and restoring 6.344.0's `jstr` fails ELEVEN checks — two of them checks that already existed, which is the measurement this release rests on) · 6.346.0 2c2abdf (putting the name back fails the two checks the release had to add before it could take it out) · 6.347.0 and 6.348.0 9b2f0f8 (one commit, two releases — IINA is in app_watcher and the window retry is in video_player, so a break still names its version by which tool it is in; 10 of 12 mutations bit on the first sweep and both survivors were MISSING CHECKS, one of them on this release's own fix) · 6.349.0, 6.350.0 and 6.351.0 3bbb548 (one commit, three releases — the calendar, app_watcher and video_player, so a break still names its version by which tool it is in; 13 of 13 mutations bit, including both guards on the os.remove that could otherwise delete a film) · 6.352.0 1e8f200 (d116573 adds the mutation sweep's own two findings — the hide() write that was WORSE than its absence, and the cross-file join nothing had made between the module that publishes drag.urilist and the module that asks; 15 of 17 bit first, 17 of 17 after) · 6.353.0 27c85b7 (4da2536 is the GUIDE total and the sweep; 288f73a is the archive; 10 of 10 mutations bit) · 6.354.0 e33f420 (the code; 28 of 28 mutations bit, and the harness had to become faithful in THREE places before any of them could — a read that ignored its length, a missing file size, and a JS context with no Blob, atob or URL at all)) · 6.355.0 f9e3f49 (the code; 5ca89da the ceremony, d4ce8a6 the archive; 25 of 25 mutations bit, and the five that survived the first sweep were all MISSING CHECKS — the two settle guards, a belt left ticking after a read ended any other way, the no-belt shout, and a read clock asserted to be a number rather than a number above zero. · 6.356.0, 6.357.0 and 6.358.0 6d453b4 (one commit, three releases — Window Return is its own module, and the Mug Player's two share no code, so a break still names its version by which behaviour fails: windows moving on their own is 6.356.0, a film refused for being in the cloud is 6.357.0, ⌃⌘F is 6.358.0; 6 of 6 · 12 of 12 · 15 of 15 mutations bit, and the SWEEP HARNESS itself was fixed mid-release — a failing check can print raw film bytes, which crashed its text decode WITH A MUTATION STILL IN THE TREE; it reads bytes and restores in a finally now, SHA-verified either way, which is 6.239.0's own rule broken by the project that wrote it).
    Keep this list current: one line per release, appended at ceremony
    time.
 4. A BISECT IS AN OPTION, NOT THE FIRST MOVE — it costs him an install
@@ -5894,7 +5957,9 @@ that must be READ before a new cause is named.
 | "hyper+4 does not have pixel crosshairs" · "it was working before" | modules/screenshots.lua · the selector | 6.264.0 · 6.318.0 | 1 | ask |
 | "it said 0x0 pixels, then jumped a few desktops, then I had to hit escape" | modules/screenshots.lua · the selector's one exit | 6.336.0 · 6.337.0 | 2 | ask |
 | "why OCR hyper+shift+4 works and hyper+4 still does not" | modules/screenshots.lua · ⇪4 re-implementing a system drag | 6.264.0 · 6.265.0 · 6.274.0 · 6.282.0 · 6.318.0 · 6.336.0 · 6.337.0 | 6 | ask |
-| "a Jug Player but for movies" · "nothing plays" · "macOS would not put the window on screen" · "I can't drag and drop a file on it" · "make it work" · "nothing played in Mug" | modules/video_player.lua · a webview that plays video | 6.344.0 · 6.345.0 · 6.348.0 · 6.351.0 · 6.352.0 · 6.353.0 · 6.354.0 · 6.355.0 | 8 | degraded — his words, 2026-10-11: "Mac stays fine" |
+| "a Jug Player but for movies" · "nothing plays" · "macOS would not put the window on screen" · "I can't drag and drop a file on it" · "make it work" · "nothing played in Mug" | modules/video_player.lua · a webview that plays video | 6.344.0 · 6.345.0 · 6.348.0 · 6.351.0 · 6.352.0 · 6.353.0 · 6.354.0 · 6.355.0 · 6.358.0 | 9 | degraded — his words, 2026-10-11: "Mac stays fine"; **6.355.0 PLAYED a film from the Desktop (2026-10-12)** |
+| "spinning beach ball" · a 72-second freeze · "it did play Robinhood from the desktop" | modules/video_player.lua · reading a OneDrive placeholder on the main thread | 6.357.0 | 1 | unusable while it lasted — the stall guard killed and relaunched Hammerspoon |
+| "my application windows jump around the screen" | modules/window_return.lua | 6.356.0 | 1 | degraded — switched off on his word |
 | "I have to arrow forward the date … why do I have to arrow on to it?" | modules/mini_calendar.lua · the cursor on open | 6.349.0 | 1 | ask |
 | "I did not mean to hit panic" · "my keyboard froze" · "Console shows nothing weird" | modules/power_tools.lua · an unclaimed ⇪ key forwarding onto the panic chord | 6.343.0 | 1 | ask |
 | "⌘D says I have five seconds to setup, shows no crosshairs" · "those four screenshot tools run weird" | modules/screenshot_editor.lua · the ⌘D order | 6.255.0 · 6.342.0 | 1 | ask |
@@ -6017,6 +6082,9 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
+| 6.358.0 | 🖥 ⌃⌘F fills the Mug Player's window and puts it back the size you had it | pending |
+| 6.357.0 | ☁️ a film still in OneDrive is refused instead of freezing the Mac for 72 seconds | pending |
+| 6.356.0 | 🗑 Window Return is off — nothing watches your monitors, nothing moves your windows | pending |
 | 6.355.0 | 📏 the ceiling that refused his film was a number I typed — it is measured off the Mac now, and the page sets the read's pace | pending |
 | 6.354.0 | 📦 the film is read off the disk and handed to the window in pieces — no URL, so there is nothing for WebKit to refuse | pending |
 | 6.353.0 | 🚪 three ways in have been refused, the last by macOS itself — the window keeps the queue and hands the film to a real player | pending |
@@ -6136,6 +6204,68 @@ next boot announced it (LL: "fortunately hammerspoon caught itself"). LL is on
 built. The work Mac's storm report is still owed, on 6.215.0 now.
 
 ## Open items — update as they move
+
+- 📥 HIS 2026-10-12 REPORT — WHAT WAS BUILT AND WHAT IS TRIAGED.
+  BUILT: Window Return off (6.356.0, his direct order), the OneDrive
+  freeze (6.357.0), ⌃⌘F (6.358.0). The rest, each measured where a grep
+  could answer it and NOT built — one change per release:
+  ✅ ANSWERED, NO WORK: **a snippet is what he picks from the picker,
+     not a typed trigger** — "A snippet is one that is not an expansion
+     but like an emoji that is picked from the picker Panel." That
+     settles the one question blocking snippet recency (the store
+     records a PICK, never a typed expansion), so that release is
+     unblocked and is next unless he says otherwise. It still needs
+     `_G.snippetsReport()`, which does not exist (his Console: "attempt
+     to call a nil value").
+  🔎 ⇪J — "Nothing to append." MEASURED, AND THE MESSAGE IS HONEST:
+     quick_append.lua:258 says it when the clipboard holds no TEXT, and
+     he had just taken a screenshot, so the clipboard held an image.
+     The question for him is whether ⇪J should append the image's PATH
+     or its OCR text — both exist in this config — rather than refusing.
+  🔎 ⇪\ — "just splits two windows … doesn't give me the most recent
+     nine documents." MEASURED: ⇪\ is window_arranger, "Split two most
+     recent windows side-by-side", and has never been anything else
+     (modules/window_arranger.lua:20). The recent-DOCUMENTS tool is
+     ⇪⇧W; ⇪0 is the app/document search. Nothing is broken — the key he
+     wants is a different key, and it is worth asking whether he wants
+     ⇪⇧\ (unclaimed) to be the documents list.
+  🖱 MOUSE GRID — "too much work to get to a specific element … boxes
+     are too wide." HIS OWN SUGGESTION IS THE RIGHT ONE and this config
+     has the measurement for it already: 6.242.0's `_G.groundReport()`
+     counts the front window's CLICKABLE elements and how long asking
+     cost, per app. That number decides between (a) a denser grid, which
+     is a settings line (`grid.cols`/`grid.rows`), and (b) real click
+     hints over buttons and fields, which is the long-queued ⇪X feature
+     and is expensive on the main thread (6.228.0). ASK FOR THE REPORT
+     FROM CHROME, ASANA AND FINDER before choosing — it is per app.
+  🔗 ANCHORS — "a message that says create a new note first … after I
+     open Hamsidian it looks fine." READ, NOT PROVEN: that is 6.340.0's
+     shape in ⇪⇧U. The notes index is built when Hamsidian OPENS, so
+     before the first open `anchors` has no rows to offer and says so
+     honestly — the same "not yet" and "there is nothing" collision,
+     one module along. 6.340.0 fixed it on the SURFACE and did not sweep
+     the modules that READ that index. Its own release; the fix is the
+     third state in the picker, not a scan at boot.
+  🖼 SCREENSHOT EDITOR — "I needed a tool that allows me to crop it"
+     and "the editor window is growing too big … 80% of the largest
+     screenshot size … but not shrink down so much that the tools are
+     not usable." TWO releases, not one: a CROP tool is new drawing and
+     a new saved rectangle; the SIZING is `ed.windowSizeFor`, which
+     6.270.0 already taught to reserve the rails — a ceiling at 80% of
+     the screen and a floor at the rail height is the same function.
+     The sizing is the cheap half and should go first.
+  🔢 COUNT THE SELECTION — "I think it's counting the punctuation."
+     It does: characters are characters, and words split on whitespace,
+     so "end." is one word and four characters plus a full stop. Ask
+     what he expected before changing anything — a count that silently
+     drops punctuation is wrong for most of what he counts.
+  🎙 FOCUS MODE — "when I put it in focus mode I have the need to come
+     out of focus mode so that my microphone unmutes." NOT OURS, as far
+     as a grep can tell: nothing in this config touches the microphone
+     or mutes audio input. macOS Focus does not either. The likeliest
+     owner is the meeting app (Teams/Zoom) or Superwhisper. Ask which
+     app is muted before looking further.
+
 
 - 🧊 THE 73-SECOND LOCKUP IS INSTRUMENTED, NOT DIAGNOSED (2026-10-04,
   LL: "Hammerspoon locks not after a few hours period … I couldn't even
@@ -7241,6 +7371,116 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.358.0 verify with LL — 🖥 ⌃⌘F FILLS THE SCREEN (KNOWN GROUND)
+  WHAT CHANGED: ⌃⌘F in the Mug Player fills the screen, and pressing it
+  again puts the window back exactly where and how big it was.
+  🔬 AND macOS'S OWN FULL SCREEN IS NOT REACHABLE, said plainly rather
+  than half-built: Hammerspoon's webview has no fullScreen window mask
+  at all (I read the list — libwebview.m:2533-2562) and this window is
+  borderless. So ⌃⌘F resizes it. It looks the same; it is not the same
+  thing, and the report says which.
+
+  A. THE HEADLINE — twenty seconds.
+  A1. ⇪⇧, then ⌃⌘F. EXPECT: the window fills the screen.
+  A2. ⌃⌘F again. EXPECT: back to the size AND the spot you had it.
+  A3. Move the window somewhere odd first, then A1 and A2.
+      EXPECT: it comes back to THAT spot, not to the middle.
+  A4. Fill it, then drag a film onto it. EXPECT: the drop still works
+      anywhere on the window — the drop area moves with it.
+  A5. Fill it, close it, reopen it, press ⌃⌘F.
+      EXPECT: it FILLS. **A FAIL is it shrinking** to last session's
+      frame.
+
+  B. MUST STILL WORK.
+  B1. Plain ⌘F does whatever it did before — this key asks for ⌃ too.
+  B2. ⌘O, space, ↑↓, ⏎, ⌘1–9, ⌫, Escape, the ✕ on a history row.
+  B3. The film's own full-screen button in the controls is macOS's and
+      is untouched; Escape leaves it with the window still up.
+
+  C. PASTE BACK.
+  C1. `_G.mugReport()` — a new `size   :` line and a `↳ ⌃⌘F  :` count.
+
+  D. A JUDGEMENT ONLY YOU CAN MAKE.
+  D1. Filled means edge to edge with no gap. Want a margin? It is a
+      number: `settings = { video_player = { fillGap = 20 } }`.
+  D2. Is ⌃⌘F the right key, now that it is not macOS's full screen?
+
+- 6.357.0 verify with LL — ☁️ A FILM STILL IN THE CLOUD (KNOWN GROUND)
+  WHAT CHANGED: the Mug Player checks that a film's bytes are actually
+  on this Mac before it reads them, and refuses with a clear message if
+  they are not.
+  🔎 YOUR READING WAS RIGHT AND YOU PROVED IT YOURSELF. Robin Hood from
+  the Desktop played; Black Hawk Down from OneDrive beach-balled. Same
+  build, same key, one difference. Your Console has the rest: `🧊
+  Hammerspoon HUNG for 72 s at 2026-10-12 04:05:48 and was relaunched
+  by the stall guard`. Reading a OneDrive placeholder makes macOS
+  download it first, and this loader reads on the main thread — so the
+  first read froze everything until the download caught up.
+
+  A. THE HEADLINE — needs a film that is in OneDrive and NOT downloaded.
+     In Finder a cloud-only file shows a ☁ next to it.
+  A1. ⇪⇧, and press ⏎ on that film.
+      EXPECT: no freeze. A message naming the film, saying the bytes
+      are not here yet, how much of it is, and that nothing is wrong
+      with the film or the player.
+      **A FAIL is a beach ball.** If you get one, that is the guard not
+      firing and I want `_G.mugReport()` the moment you have the Mac
+      back.
+  A2. Right-click that film in Finder → Download Now. Wait for the ☁
+      to go.
+  A3. ⏎ on it again. EXPECT: it reads and plays, as Robin Hood did.
+
+  B. MUST STILL WORK — the guard must not cost you a film.
+  B1. Play a film from the Desktop. EXPECT: unchanged.
+  B2. Play a film from OneDrive that IS fully downloaded.
+      EXPECT: it plays. **A refusal here is the serious failure** —
+      paste the report, the line names both numbers.
+
+  C. PASTE BACK.
+  C1. `_G.mugReport()` — a new `on disk:` line with three states, and a
+      `↳ cloud :` count when anything was refused.
+
+  D. A JUDGEMENT ONLY YOU CAN MAKE.
+  D1. Right now a cloud film is handed to your usual player, which
+      streams it while OneDrive downloads. Is that what you want, or
+      should it just refuse and wait? `settings = { video_player =
+      { handOff = false } }` is the second.
+  D2. 90% of the file has to be local before it reads. If a film you
+      know is downloaded gets refused, send me the line — the numbers
+      in it are the evidence and the threshold is one value.
+
+- 6.356.0 verify with LL — 🗑 WINDOW RETURN IS OFF (KNOWN GROUND)
+  WHAT CHANGED: nothing watches your monitors and nothing moves your
+  windows. Your word, done.
+
+  A. THE HEADLINE.
+  A1. Use the Mac normally for a day — dock, undock, move windows.
+      EXPECT: NOTHING of yours ever moves on its own. That is the
+      whole release.
+  A2. Console: `_G.windowReturnReport()`. EXPECT:
+        switch : OFF — the shipped default since 6.356.0, on your own word
+        running: no — switched off …
+        holding: nothing — no watcher, no timer
+        layouts: N monitor setup(s) remembered — kept, never cleared …
+      **If `holding:` ever names a watcher or a timer, paste it** —
+      that is off-but-still-running, which is the thing this had to
+      avoid.
+  A3. ⇪/ and search `window return`. EXPECT the card title says OFF.
+
+  B. NOTHING WAS LOST.
+  B1. That `layouts:` count is what it captured before today. It is
+      still in hs.settings and switching this off did not touch it.
+  B2. `settings = { window_return = { enabled = true } }` brings it
+      back — and it really does start, which is the part that needed
+      building: it used to be startable only at boot.
+  B3. `_G.windowsBack()` still puts windows back by hand if you ever
+      want it once.
+
+  C. A JUDGEMENT ONLY YOU CAN MAKE.
+  C1. If windows are STILL jumping with this off, that is a different
+      tool and I want to know — the candidates are window_move (⌘-drag)
+      and mouse_follows. One sentence about when it happens is enough.
+
 - 6.355.0 verify with LL — 📏 THE CEILING THAT REFUSED YOUR FILM
   WHAT CHANGED: your film was never read. The window's own message said
   so — "the film is 2300.6 MB and the ceiling is 1536.0 MB" — and that

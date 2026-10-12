@@ -1,5 +1,5 @@
 ========================================================================
-RESOLVED FEATURE REQUESTS — Hammerspoon config 6.355.0
+RESOLVED FEATURE REQUESTS — Hammerspoon config 6.358.0
 Every feature and how to use it. Generated from the modules' own
 cheat sheets (the rows ⇪/ draws), so it is never out of date.
 ⇪ = Caps Lock held (the hyper key). ⇪⇧X = Caps Lock + Shift + X.
@@ -28,13 +28,13 @@ In the Console, _G.<tool>Report() prints any tool's own report.
   headers   The pad / editor / search bars drag with a bare click-hold too
   check     _G.windowMoveReport() — why a panel refused to be grabbed
 
-🔁 WINDOW RETURN (automatic — dock back in, windows go back)   [modules/window_return.lua]
-  auto      Remembers where windows sit for EACH monitor setup (every 30s)
-  auto      When a setup returns — dock back in — scattered windows snap back
-  scope     The visible Space only; macOS Spaces are never touched
-  match     By window id, then exact app+title — an unmatched window is left alone
+🔁 WINDOW RETURN (OFF — it is not moving any window)   [modules/window_return.lua]
+  off       Suspended on your word in 6.356.0 — nothing watches, nothing moves
+  back on   settings = { window_return = { enabled = true } }
   _G.windowsBack() Console: put them back right now, by hand
-  off       wr.enabled = false in modules/window_return.lua's EDIT HERE
+  _G.windowReturnReport() Console: the switch, what is running, what is held
+  kept      Every monitor layout already captured is still remembered
+  when on   Remembers where windows sit for EACH monitor setup; a setup returning snaps them back
 
 👀 APP PEEK   [modules/app_peek.lua]
   ⇪P      Hide frontmost app — press again to bring back
@@ -637,6 +637,7 @@ In the Console, _G.<tool>Report() prints any tool's own report.
   ✕       On a 🕘 history row: forget that film (the file is not touched)
   ⌘O      Open the film playing now in QuickTime — the way out when
             macOS will not let this window read it
+  ⌃⌘F   Fill the screen — press it again for the size you had it at
   drag      Move the window: grab its title strip — or ⌘-drag anywhere on it
   ⏯ ⏮ ⏭ NOT taken here, deliberately: the Jug Player holds them, and two
             tools on one physical key is how they come to disagree (6.291.0)
@@ -807,6 +808,9 @@ In the Console, _G.<tool>Report() prints any tool's own report.
 
 📜 RELEASE INDEX — newest first, one line per release (the full story of each is in CHANGELOG.md)
 ------------------------------------------------------------------------
+  6.358.0  🖥 ⌃⌘F FILLS THE SCREEN, AND COMES BACK TO THE SIZE
+  6.357.0  ☁️ THE BYTES HAVE TO BE ON THIS MAC BEFORE THEY CAN BE
+  6.356.0  🗑 WINDOW RETURN IS OFF, ON HIS WORD
   6.355.0  📏 THE CEILING WAS MINE, AND THE PAGE SETS THE PACE
   6.354.0  📦 THE BYTES GO THROUGH THE WINDOW, NOT THROUGH A URL
   6.353.0  🚪 THE WINDOW HANDS THE FILM OUT, AND macOS NAMED WHY
