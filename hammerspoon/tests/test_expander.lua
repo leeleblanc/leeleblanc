@@ -80,13 +80,112 @@ hs = {
     mkdir = function(p) mkdirp(p); return true end,
   },
   json = {
-    -- Deliberately NOT a full JSON parser: it only has to read what
-    -- Alfred writes, and every field it reads is asserted below against
-    -- a file this suite wrote from the real format.
+    -- Deliberately NOT a full JSON parser FOR THE ALFRED PATH: that half
+    -- only has to read what Alfred writes, and every field it reads is
+    -- asserted below against a file this suite wrote from the real
+    -- format.
+    --
+    -- 🚨 6.359.0 — AND IT HAD TO GROW A REAL ONE FOR EVERYTHING ELSE.
+    -- The recent queue is the first thing in this module to round-trip a
+    -- store of its OWN shape through hs.json, and against the Alfred-only
+    -- stub `encode({recent=…})` produced nonsense and `decode` handed back
+    -- `{}` — so the save/load pair would have "passed" while writing a
+    -- file no Mac could read. That is 6.69.0's failure exactly: a stub
+    -- more forgiving (or less) than the API it stands in for ratifies my
+    -- idea of the API instead of testing the code.
+    --
+    -- 📏 TWO FIDELITIES THAT MATTER HERE, both taken from the extension's
+    -- own behaviour rather than from memory:
+    --   · hs.json.decode RAISES on input that is not JSON — it does not
+    --     return nil — which is why text_expander pcalls it, and why the
+    --     "unreadable" state exists at all. This errors too.
+    --   · an empty Lua table encodes as `{}`, not `[]`, so a store saved
+    --     with nothing in it reads back as an empty OBJECT. The module
+    --     must survive that, and it does: ipairs over it yields nothing.
     decode = function(s)
       local obj = {}
       local inner = s:match('"alfredsnippet"%s*:%s*(%b{})')
-      if not inner then return obj end
+      if not inner then
+        -- ---- a real, small JSON reader --------------------------------
+        local i = 1
+        local function skip()
+          while true do
+            local c = s:sub(i, i)
+            if c == " " or c == "\t" or c == "\n" or c == "\r" then i = i + 1
+            else return end
+          end
+        end
+        local value
+        local function str()
+          i = i + 1                      -- past the opening quote
+          local b = {}
+          while true do
+            local c = s:sub(i, i)
+            if c == "" then error("unterminated string in JSON") end
+            if c == '"' then i = i + 1; return table.concat(b) end
+            if c == "\\" then
+              local e = s:sub(i + 1, i + 1)
+              local m = { n = "\n", t = "\t", r = "\r", b = "\b", f = "\f",
+                          ['"'] = '"', ["\\"] = "\\", ["/"] = "/" }
+              if m[e] then b[#b + 1] = m[e]; i = i + 2
+              elseif e == "u" then
+                b[#b + 1] = utf8.char(tonumber(s:sub(i + 2, i + 5), 16) or 63)
+                i = i + 6
+              else error("bad escape in JSON") end
+            else b[#b + 1] = c; i = i + 1 end
+          end
+        end
+        function value()
+          skip()
+          local c = s:sub(i, i)
+          if c == "" then error("JSON ended early") end
+          if c == '"' then return str() end
+          if c == "{" then
+            i = i + 1
+            local t = {}
+            skip()
+            if s:sub(i, i) == "}" then i = i + 1; return t end
+            while true do
+              skip()
+              if s:sub(i, i) ~= '"' then error("object key is not a string") end
+              local k = str()
+              skip()
+              if s:sub(i, i) ~= ":" then error("object key with no colon") end
+              i = i + 1
+              t[k] = value()
+              skip()
+              local d = s:sub(i, i)
+              i = i + 1
+              if d == "}" then return t end
+              if d ~= "," then error("bad object in JSON") end
+            end
+          end
+          if c == "[" then
+            i = i + 1
+            local t = {}
+            skip()
+            if s:sub(i, i) == "]" then i = i + 1; return t end
+            while true do
+              t[#t + 1] = value()
+              skip()
+              local d = s:sub(i, i)
+              i = i + 1
+              if d == "]" then return t end
+              if d ~= "," then error("bad array in JSON") end
+            end
+          end
+          if s:sub(i, i + 3) == "true"  then i = i + 4; return true  end
+          if s:sub(i, i + 4) == "false" then i = i + 5; return false end
+          if s:sub(i, i + 3) == "null"  then i = i + 4; return nil   end
+          local n = s:match("^%-?%d+%.?%d*[eE]?[%+%-]?%d*", i)
+          if n and n ~= "" then i = i + #n; return tonumber(n) end
+          error("unreadable JSON at byte " .. i)
+        end
+        local v = value()
+        skip()
+        if i <= #s then error("trailing bytes after the JSON value") end
+        return v
+      end
       local a = {}
       for k, v in inner:gmatch('"(%w+)"%s*:%s*"(.-)"%s*[,}]') do
         -- \r as well as \n: two of LL's snippets carry Windows line
@@ -98,6 +197,36 @@ hs = {
       return obj
     end,
     encode = function(t)
+      if type(t) == "table" and t.alfredsnippet == nil then
+        -- ---- a real, small JSON writer --------------------------------
+        local function enc(v)
+          local ty = type(v)
+          if ty == "number"  then return tostring(v) end
+          if ty == "boolean" then return tostring(v) end
+          if ty == "string"  then
+            return '"' .. v:gsub('[%c"\\]', function(c)
+              local m = { ['"'] = '\\"', ["\\"] = "\\\\", ["\n"] = "\\n",
+                          ["\r"] = "\\r", ["\t"] = "\\t" }
+              return m[c] or string.format("\\u%04x", c:byte())
+            end) .. '"'
+          end
+          if ty ~= "table" then error("cannot encode a " .. ty) end
+          if #v > 0 then
+            local b = {}
+            for _, x in ipairs(v) do b[#b + 1] = enc(x) end
+            return "[" .. table.concat(b, ",") .. "]"
+          end
+          -- 🚨 AN EMPTY TABLE IS AN OBJECT, which is what hs.json does —
+          -- getting this backwards would hide a store that saved nothing.
+          local ks = {}
+          for k in pairs(v) do ks[#ks + 1] = tostring(k) end
+          table.sort(ks)
+          local b = {}
+          for _, k in ipairs(ks) do b[#b + 1] = enc(k) .. ":" .. enc(v[k]) end
+          return "{" .. table.concat(b, ",") .. "}"
+        end
+        return enc(t)
+      end
       local a = t.alfredsnippet or {}
       return string.format(
         '{"alfredsnippet":{"snippet":"%s","uid":"%s","name":"%s","keyword":"%s"}}',
@@ -203,6 +332,13 @@ local PROVIDED, HYPER = {}, {}
 local CALLS = {}       -- 6.156.0: every core.call — the preview pane services
 local core = {
   logsDir = TMP,
+  -- 🚨 6.359.0 — THE RECENT QUEUE'S STORE HANGS OFF core.homeDir, and a
+  -- harness that left this nil wrote into the REAL
+  -- ~/Library/Application Support on whatever machine ran the suite. It
+  -- did, once, before this line existed. A test that touches the
+  -- developer's own home is a test that passes differently on the second
+  -- run.
+  homeDir = TMP,
   provide = function(n, fn) PROVIDED[n] = fn end,
   call    = function(n, ...) CALLS[#CALLS + 1] = { n = n, args = { ... } }; return true end,
   hyperAddShortcut = function(mods, key, fn, src)
@@ -1890,9 +2026,27 @@ return {
     if r.header then order[#order + 1] = r.text end
   end
 
-  check("the pinned collection is the FIRST section on the list",
-    order[1] and order[1]:find("TEXTPANDERS", 1, true) ~= nil,
+  -- 🕘 6.359.0 — the recent queue sits ABOVE the pinned collection, so
+  -- "first" is now "first of the library's own collections". The rank
+  -- this check exists to prove is unchanged: textpanders still beats
+  -- every pack that sorts before it alphabetically.
+  local libOrder = {}
+  for _, t in ipairs(order) do
+    if not t:find("RECENT", 1, true) then libOrder[#libOrder + 1] = t end
+  end
+  check("the pinned collection is the first of the LIBRARY'S sections",
+    libOrder[1] and libOrder[1]:find("TEXTPANDERS", 1, true) ~= nil,
     table.concat(order, " | "))
+  check("🕘 …and the recent queue is above even that — rank 0 beats a pin",
+    order[1] and order[1]:find("RECENT", 1, true) ~= nil,
+    table.concat(order, " | "))
+  check("🕘 …and the rank it carries sorts above EVERY other section's, so "
+     .. "folding these rows into the main sort one day still puts them "
+     .. "first (the position is structural today; the rank is the promise)",
+    exp.rankRecent < 1
+    and exp.rankRecent < exp.rankOwn
+    and exp.rankRecent < exp.rankShipped
+    and exp.rankRecent < exp.rankAction, tostring(exp.rankRecent))
   check("🚨 …ahead of packs that beat it alphabetically. ComposeKey and "
      .. "Emoji_Pack both sort before textpanders, which is exactly why "
      .. "one flat A–Z buried the eighty snippets LL wrote",
@@ -2208,6 +2362,571 @@ check("the render canvas is never shown (source sentry)",
     local src = io.open(HS .. "/modules/text_expander.lua"):read("a")
     return src:find("iconCanvas:show", 1, true) == nil
            and src:find("iconCanvas:elementAttribute", 1, true) ~= nil
+  end)())
+
+
+-- =====================================================================
+-- 🕘 THE RECENT QUEUE (6.359.0)
+--
+-- LL, twice: "My most recently chose snippets are not at the top" ·
+-- "Nothing selected moves to the top of the 'recent' as I call it,
+-- queue". The grep that had to come first said `recent`, `lastUsed`,
+-- `usedAt`, `mru` and `bumpTo` appeared ZERO times in the module — so
+-- nothing was written and nothing went unread, and this is a BUILD.
+--
+-- 🚨 THE ONE RULE THE WHOLE RELEASE RESTS ON, and it is his word: a
+-- snippet counts as used when it is PICKED from ⇪⇧S, never when its
+-- trigger is typed. There is a behavioural check and a source sentry
+-- for it below, because a day's typing would bury the handful he
+-- chooses by hand and the queue would become a list of his habits.
+-- =====================================================================
+out("\n--- 🕘 the recent queue: the pure order ---\n")
+
+exp.recent, exp.sections = true, true
+os.remove(exp.recentFile)
+exp.recentRows = {}
+exp.load()
+
+check("exp.recentKey: a snippet WITH a trigger is its trigger",
+  exp.recentKey("gg1", "Greeting") == "t" .. "gg1", exp.recentKey("gg1", "Greeting"))
+check("…and one WITHOUT is its name — the only handle a chooser-only snippet has",
+  exp.recentKey("", "💯 :100:") == "n" .. "💯 :100:", exp.recentKey("", "💯 :100:"))
+check("🔑 the two namespaces cannot collide: \"t\"..x never equals \"n\"..y",
+  exp.recentKey("x", "ignored") ~= exp.recentKey("", "x"))
+
+local function keys(list)
+  local k = {}
+  for _, r in ipairs(list) do k[#k + 1] = exp.recentKey(r.trigger, r.name) end
+  return table.concat(k, ",")
+end
+
+check("a pick lands at the FRONT of an empty queue",
+  keys(exp.noteRecent({}, { trigger = "a", name = "A" }, 100, 50)) == "ta")
+check("a second pick goes above the first",
+  keys(exp.noteRecent(exp.noteRecent({}, { trigger = "a", name = "A" }, 100, 50),
+                      { trigger = "b", name = "B" }, 101, 50)) == "tb,ta")
+check("🚨 the SAME snippet picked again MOVES — it is never listed twice "
+   .. "(this is the bump, and it is the whole feature)",
+  (function()
+    local l = exp.noteRecent({}, { trigger = "a", name = "A" }, 100, 50)
+    l = exp.noteRecent(l, { trigger = "b", name = "B" }, 101, 50)
+    l = exp.noteRecent(l, { trigger = "a", name = "A" }, 102, 50)
+    return keys(l) == "ta,tb", keys(l)
+  end)())
+check("🚨 the cap keeps the NEWEST — dropping from the front would forget "
+   .. "exactly what he just picked",
+  (function()
+    local l = {}
+    for i = 1, 6 do l = exp.noteRecent(l, { trigger = "t" .. i, name = "" }, 100 + i, 3) end
+    return keys(l) == "tt6,tt5,tt4", keys(l)
+  end)())
+check("the cap is never below 1, whatever it is handed",
+  #exp.noteRecent({ { trigger = "a" } }, { trigger = "b" }, 1, 0) == 1)
+check("a row with NEITHER a trigger nor a name is dropped, not stored as a "
+   .. "blank key that would swallow every other blank",
+  keys(exp.noteRecent({ { trigger = "", name = "" } },
+                      { trigger = "", name = "" }, 100, 50)) == "")
+check("a chooser-only row survives and keys by its name",
+  keys(exp.noteRecent({}, { trigger = "", name = "💯" }, 100, 50)) == "n💯")
+check("the time is carried on the row that was just picked",
+  exp.noteRecent({}, { trigger = "a", name = "A", at = 42 }, 100, 50)[1].at == 42)
+check("…and a row with no time at all reads as 0 rather than throwing",
+  exp.noteRecent({ { trigger = "b", name = "B" } },
+                 { trigger = "a", name = "A" }, 100, 50)[2].at == 0)
+check("nil in either place is survivable — a store that is not a list, and "
+   .. "a call with nothing picked (which is how loadRecent re-caps)",
+  (function()
+    local ok1 = pcall(exp.noteRecent, nil, nil, 1, 5)
+    local l = exp.noteRecent({ { trigger = "a" }, { trigger = "b" } }, nil, 1, 1)
+    return ok1 and keys(l) == "ta", keys(l)
+  end)())
+
+out("\n--- 🕘 the store: local, bounded, and written the safe way ---\n")
+
+exp.recentRows = exp.noteRecent({}, { trigger = "gg1", name = "Greeting" }, os.time(), exp.recentMax)
+check("saveRecent writes the file", exp.saveRecent() == true
+  and io.open(exp.recentFile, "r") ~= nil)
+check("🔒 …and leaves no .tmp behind: the write is temp-then-rename (6.313.0)",
+  io.open(exp.recentFile .. ".tmp", "r") == nil)
+check("loadRecent reads it back, in order, and says so",
+  (function()
+    exp.recentRows = {}
+    exp.loadRecent()
+    return exp.recentState == "read" and keys(exp.recentRows) == "tgg1",
+           exp.recentState .. " / " .. keys(exp.recentRows)
+  end)())
+check("🔎 no store at all is \"none\" — the ordinary state before his first "
+   .. "pick, and it must not read the same as a broken one",
+  (function()
+    os.remove(exp.recentFile)
+    exp.loadRecent()
+    return exp.recentState == "none" and #exp.recentRows == 0, exp.recentState
+  end)())
+check("🔎 a ZERO-BYTE store is \"zero\", never \"read\" — io.open(w) truncates "
+   .. "before it writes a byte, so this is the shape a crash leaves",
+  (function()
+    write(exp.recentFile, "")
+    exp.loadRecent()
+    return exp.recentState == "zero", exp.recentState
+  end)())
+check("🔎 JSON that is not ours is \"unreadable\", and nothing is trusted from it",
+  (function()
+    write(exp.recentFile, '{"queue":[1,2,3]}')
+    exp.loadRecent()
+    return exp.recentState == "unreadable" and #exp.recentRows == 0, exp.recentState
+  end)())
+check("🔎 …and so is a file that is not JSON at all",
+  (function()
+    write(exp.recentFile, "not json {{{")
+    exp.loadRecent()
+    return exp.recentState == "unreadable", exp.recentState
+  end)())
+check("🚨 A FAILED SAVE COSTS THE SAVE, NEVER THE THING SAVED: with the "
+   .. "store pointed at a directory that does not exist the write refuses "
+   .. "and the real store on disk is untouched",
+  (function()
+    os.remove(exp.recentFile)
+    exp.recentRows = exp.noteRecent({}, { trigger = "keepme", name = "K" }, os.time(), 50)
+    exp.saveRecent()
+    local good = exp.recentFile
+    exp.recentFile = TMP .. "/no/such/dir/recent.json"
+    local refused = exp.saveRecent()
+    exp.recentFile = good
+    exp.recentRows = {}
+    exp.loadRecent()
+    return refused == false and keys(exp.recentRows) == "tkeepme", keys(exp.recentRows)
+  end)())
+check("🚨 …and so does a failed RENAME, which is the other half of the write "
+   .. "and needs its own staging: the temp file lands, the move onto the "
+   .. "store fails, and the queue in memory is still his",
+  (function()
+    -- a DIRECTORY where the store should be. The write to <path>.tmp
+    -- succeeds and os.rename onto a non-empty directory does not, which
+    -- is the only way to reach that branch without a full disk.
+    local good = exp.recentFile
+    local dirPath = TMP .. "/blocked.json"
+    mkdirp(dirPath)
+    write(dirPath .. "/occupant", "x")
+    exp.recentFile = dirPath
+    exp.recentRows = exp.noteRecent({}, { trigger = "survivor", name = "S" }, os.time(), 50)
+    local refused = exp.saveRecent()
+    local left = io.open(dirPath .. ".tmp", "r")
+    if left then left:close() end
+    exp.recentFile = good
+    return refused == false
+       and keys(exp.recentRows) == "tsurvivor"
+       and left == nil, tostring(refused) .. " / " .. keys(exp.recentRows)
+  end)())
+check("the store is LOCAL — under Application Support, never the OneDrive "
+   .. "Logs folder the shared stores live in",
+  exp.recentFile:find("Application Support/Hammerspoon/snippets", 1, true) ~= nil
+  and exp.recentFile:find("CloudStorage", 1, true) == nil, exp.recentFile)
+
+out("\n--- 🕘 the picker: picked moves to the top, typed does not ---\n")
+
+local function openPicker(section)
+  exp.show(section)
+  return CHOOSERS[#CHOOSERS]
+end
+local function rowOf(c, trigger)
+  for _, r in ipairs(c.rows_ or {}) do
+    if not (r.header or r.toggle or r.back) and r.trigger == trigger then return r end
+  end
+end
+local function recentRowsOf(c)
+  local got = {}
+  for _, r in ipairs(c.rows_ or {}) do
+    if r.recent and not r.header then got[#got + 1] = r.trigger end
+  end
+  return got
+end
+local function headingOf(c, needle)
+  for i, r in ipairs(c.rows_ or {}) do
+    if r.header and tostring(r.text):find(needle, 1, true) then return i, r end
+  end
+end
+
+os.remove(exp.recentFile)
+exp.recentRows = {}
+local c = openPicker()
+check("with nothing picked yet there is no 🕘 section — an empty queue draws "
+   .. "no heading rather than an empty one",
+  headingOf(c, "RECENT") == nil and #recentRowsOf(c) == 0)
+
+c = openPicker()
+c.cb(rowOf(c, "gg1"))
+check("picking a snippet records it", keys(exp.recentRows) == "tgg1", keys(exp.recentRows))
+check("…and it is written through to disk on the pick, not at quit",
+  (function()
+    local f = io.open(exp.recentFile, "r")
+    if not f then return false end
+    local raw = f:read("a") ; f:close()
+    return raw:find("gg1", 1, true) ~= nil
+  end)())
+
+c = openPicker()
+local hi = headingOf(c, "RECENT")
+check("🕘 the section is now THERE, and it is the first heading on the list",
+  hi ~= nil and (function()
+    for i, r in ipairs(c.rows_) do
+      if r.header then return i == hi end
+    end
+  end)(), tostring(hi))
+check("…and the snippet he picked is the row under it",
+  recentRowsOf(c)[1] == "gg1", table.concat(recentRowsOf(c), ","))
+
+c.cb(rowOf(c, ";bd"))
+c = openPicker()
+check("🚨 THE MOST RECENT IS FIRST — the thing he asked for twice",
+  recentRowsOf(c)[1] == ";bd" and recentRowsOf(c)[2] == "gg1",
+  table.concat(recentRowsOf(c), ","))
+c.cb(rowOf(c, "gg1"))
+c = openPicker()
+check("re-picking one already in the queue MOVES it to the top and does not "
+   .. "leave a second copy behind",
+  #recentRowsOf(c) == 2 and recentRowsOf(c)[1] == "gg1" and recentRowsOf(c)[2] == ";bd",
+  table.concat(recentRowsOf(c), ","))
+
+check("🚨 A TYPED TRIGGER IS NOT RECORDED — his rule, and the one the whole "
+   .. "store depends on: thousands of expansions a day would bury the "
+   .. "handful he picks by hand",
+  (function()
+    local was = keys(exp.recentRows)
+    typeStr(" ;bd ")
+    return keys(exp.recentRows) == was, was .. "  ->  " .. keys(exp.recentRows)
+  end)())
+check("🔒 …AND THERE IS EXACTLY ONE CALL TO THE RECORDER IN THE MODULE, at "
+   .. "the picker's own inject. The typed path injects in three other "
+   .. "places (a settled ambiguity, a trailing character, a plain "
+   .. "trigger) and none of them may ever grow one — source sentry, "
+   .. "because the behavioural check above can only prove the path it "
+   .. "walks",
+  (function()
+    local src = io.open(HS .. "/modules/text_expander.lua"):read("a")
+    local n = 0
+    for _ in src:gmatch("exp%.noteUse%s*[,(]") do n = n + 1 end
+    -- one definition + one call
+    local before = src:match("(.-)\n%s*pcall%(exp%.noteUse")
+    -- the window is the comment block between the two, not a guess: the
+    -- check is "the recorder's nearest preceding inject is the PICKER's",
+    -- and the picker's is the only one whose arguments are row.snip.
+    local near = before:sub(-1200)
+    return n == 2 and near:find("row.snip", 1, true) ~= nil
+           and near:find("q.snip", 1, true) == nil
+           and near:find("p.snip", 1, true) == nil, tostring(n)
+  end)())
+
+c = openPicker()
+check("a 🕘 row carries the SAME pick as its twin in the collection, so it "
+   .. "inserts the same snippet — one snippet, one place for a bug",
+  (function()
+    local rec, own
+    for _, r in ipairs(c.rows_) do
+      if not (r.header or r.toggle or r.back) and r.trigger == "gg1" then
+        if r.recent then rec = r else own = r end
+      end
+    end
+    return rec and own and rec.pick == own.pick and rec ~= own
+  end)())
+check("…and picking the 🕘 copy inserts the snippet, exactly as its twin does",
+  (function()
+    KEYSTROKES = {}
+    local rec
+    for _, r in ipairs(c.rows_) do
+      if r.recent and not r.header and r.trigger == "gg1" then rec = r break end
+    end
+    c.cb(rec)
+    return PASTED > 0 or #KEYSTROKES > 0
+  end)())
+
+check("the section draws at most exp.recentShow rows, however long the store is",
+  (function()
+    local l = {}
+    for _, t in ipairs({ "gg1", ";bd", ";mp3" }) do
+      l = exp.noteRecent(l, { trigger = t, name = t }, os.time(), exp.recentMax)
+    end
+    exp.recentRows = l
+    local was = exp.recentShow
+    exp.recentShow = 2
+    local cc = openPicker()
+    local n = #recentRowsOf(cc)
+    exp.recentShow = was
+    return n == 2, tostring(n)
+  end)())
+
+check("🔎 A STORED ROW THE LIBRARY NO LONGER HAS is SKIPPED in the picker and "
+   .. "COUNTED for the report — a pack that is merely absent this morning "
+   .. "is the commonest reason, so it is not pruned",
+  (function()
+    exp.recentRows = exp.noteRecent(exp.recentRows,
+                                    { trigger = "no-such-trigger", name = "gone" },
+                                    os.time(), exp.recentMax)
+    local cc = openPicker()
+    for _, t in ipairs(recentRowsOf(cc)) do
+      if t == "no-such-trigger" then return false, "it was drawn" end
+    end
+    return exp.recentStale == 1, "stale = " .. tostring(exp.recentStale)
+  end)())
+check("…and the store still holds it, so the pack coming back brings it back",
+  keys(exp.recentRows):find("tno%-such%-trigger") ~= nil)
+
+check("🚨 A KEYWORD-LESS SNIPPET IS RECORDED BY ITS NAME, and it is the only "
+   .. "row in the picker whose identity is not its trigger. Alfred ships "
+   .. "them and ⇪⇧S is the ONLY way to reach one — so if any snippet "
+   .. "belongs in a recent queue it is this one",
+  (function()
+    exp.recentRows = {}
+    -- keyword-less, the way a pack ships one: no trigger at all, so the
+    -- picker is the only door to it. Appended the way load() builds the
+    -- list rather than written into exp.snippets, which is keyed by the
+    -- trigger this snippet does not have.
+    exp.chooserOnly[#exp.chooserOnly + 1] =
+      { text = "no keyword here", name = "Keywordless", source = "test" }
+    local cc = openPicker()
+    local kw
+    for _, r in ipairs(cc.rows_) do
+      if not (r.header or r.toggle or r.back) and r.trigger == ""
+         and r.fullName == "Keywordless" then kw = r break end
+    end
+    if not kw then return false, "the fixture has no keyword-less snippet" end
+    cc.cb(kw)
+    if keys(exp.recentRows) ~= "n" .. kw.fullName then
+      return false, keys(exp.recentRows) .. " (wanted n" .. kw.fullName .. ")"
+    end
+    -- …and it comes back on the next open, under the heading
+    local nn = openPicker()
+    for _, r in ipairs(nn.rows_) do
+      if r.recent and not r.header and r.fullName == kw.fullName then return true end
+    end
+    return false, "it was recorded and did not come back"
+  end)())
+
+out("\n--- 🕘 the duplicate earns its place only at rest ---\n")
+
+exp.recentRows = exp.noteRecent({}, { trigger = "gg1", name = "Greeting" }, os.time(), 50)
+c = openPicker()
+check("with nothing typed, both copies are on the list",
+  (function()
+    local n = 0
+    for _, r in ipairs(exp.filter(c.rows_, "")) do
+      if r.trigger == "gg1" then n = n + 1 end
+    end
+    return n == 2, tostring(n)
+  end)())
+check("🔍 …and the moment he types, the 🕘 copy is dropped: searching \"gg1\" "
+   .. "and getting it twice is a list that makes him check which is which",
+  (function()
+    local n = 0
+    for _, r in ipairs(exp.filter(c.rows_, "gg1")) do
+      if r.trigger == "gg1" then n = n + 1 end
+    end
+    return n == 1, tostring(n)
+  end)())
+
+out("\n--- 🕘 ⏎ on the heading, and the two off switches ---\n")
+
+exp.recentRows = exp.noteRecent({}, { trigger = "gg1", name = "Greeting" }, os.time(), 50)
+local nc = openPicker(exp.recentName)
+check("⏎ on the 🕘 heading narrows to the recent rows ALONE — the whole "
+   .. "library must not print under it",
+  (function()
+    local other = 0
+    for _, r in ipairs(nc.rows_) do
+      if not (r.header or r.back) and not r.recent then other = other + 1 end
+    end
+    return other == 0 and #recentRowsOf(nc) == 1, tostring(other)
+  end)())
+check("…with the way back at the top, like every other narrowed view",
+  nc.rows_[1] and nc.rows_[1].back == true)
+check("🚨 …AND A COLLECTION SOMEBODY NAMES \"🕘 recent\" CANNOT HIJACK THAT "
+   .. "VIEW. This is what makes the guard load-bearing rather than "
+   .. "decorative: the row test inside the loop is `r.sect == section`, "
+   .. "and a pack whose folder carries the queue's own name passes it",
+  (function()
+    exp.snippets["imposter1"] = { text = "x", name = "Imposter",
+                                  source = exp.recentName }
+    exp.count = exp.count + 1
+    exp.buildIndex()
+    local cc = openPicker(exp.recentName)
+    local seen = false
+    for _, r in ipairs(cc.rows_) do
+      if r.trigger == "imposter1" then seen = true end
+    end
+    exp.snippets["imposter1"] = nil
+    exp.count = exp.count - 1
+    exp.buildIndex()
+    return not seen
+  end)())
+check("🗂 the 🕘 heading says what it IS, and the rank-0 branch has to be "
+   .. "tested BEFORE the pinned one to manage it: with one collection "
+   .. "pinned, `rank <= #sectionOrder` is `0 <= 1` — true — and the queue "
+   .. "would introduce itself as \"yours — pinned first\"",
+  (function()
+    local cc = openPicker()
+    local _, h = headingOf(cc, "RECENT")
+    return h and tostring(h.subText):find("you picked here", 1, true) ~= nil,
+           h and h.subText
+  end)())
+check("🔒 the store is written to a DIFFERENT path and renamed into place — "
+   .. "io.open(w) truncates before it writes a byte, so writing straight "
+   .. "at the store is the zero-byte failure with extra steps (source "
+   .. "sentry: a mid-write failure cannot be staged from here)",
+  (function()
+    local s = io.open(HS .. "/modules/text_expander.lua"):read("a")
+    local body = s:match("function exp%.saveRecent%(%)(.-)\n    end\n")
+    return body ~= nil
+       and body:find('local tmp = exp.recentFile .. ".tmp"', 1, true) ~= nil
+       and body:find("os.rename(tmp, exp.recentFile)", 1, true) ~= nil
+       and body:find('io.open(tmp, "w")', 1, true) ~= nil
+       and body:find('io.open(exp.recentFile, "w")', 1, true) == nil
+  end)())
+check("🕘 warm() REALLY READS THE STORE — driven, not grepped. The sentry "
+   .. "this replaced matched its own needle inside a COMMENT, which is "
+   .. "the one way a sentry fails: a needle that can only match itself "
+   .. "can never fail (E3's shape, found by this release's own sweep)",
+  (function()
+    exp.recentRows = exp.noteRecent({}, { trigger = "fromdisk", name = "D" }, os.time(), 50)
+    exp.saveRecent()
+    exp.recentRows, exp.recentState = {}, "unread"
+    mod.warm()
+    return keys(exp.recentRows) == "tfromdisk" and exp.recentState == "read",
+           exp.recentState .. " / " .. keys(exp.recentRows)
+  end)())
+check("…and it is warm() that does it, not setup(): a read at setup is a tax "
+   .. "every keypress of the boot pays (6.267.0). The comments come out "
+   .. "before this looks.",
+  (function()
+    local s = io.open(HS .. "/modules/text_expander.lua"):read("a")
+    local bare = s:gsub("%-%-[^\n]*", "")
+    local warm = bare:match("function M%.warm%(%)(.-)\n    end\n")
+    return warm ~= nil and warm:find("loadRecent", 1, true) ~= nil
+  end)())
+
+check("✏️ exp.recent = false: no section, and nothing is recorded either",
+  (function()
+    -- a REAL trigger in the queue first: the checks above leave a stale
+    -- one behind, and a stale row draws nothing, so without this the
+    -- section would be absent for the wrong reason and this check would
+    -- pass while proving nothing.
+    exp.recentRows = exp.noteRecent({}, { trigger = "gg1", name = "Greeting" },
+                                    os.time(), 50)
+    if #recentRowsOf(openPicker()) ~= 1 then return false, "fixture" end
+    exp.recent = false
+    local cc = openPicker()
+    local drew = headingOf(cc, "RECENT") ~= nil
+    local was = keys(exp.recentRows)
+    exp.noteUse(";mp3", { name = "mp3" })
+    local same = keys(exp.recentRows) == was
+    exp.recent = true
+    return (not drew) and same
+  end)())
+check("✏️ exp.sections = false: the flat A–Z list stays flat — nine unlabelled "
+   .. "duplicates at the top of it would be neither thing it promises",
+  (function()
+    exp.sections = false
+    local cc = openPicker()
+    local n = #recentRowsOf(cc)
+    for _, r in ipairs(cc.rows_) do if r.header then n = n + 100 end end
+    exp.sections = true
+    return n == 0, tostring(n)
+  end)())
+
+check("🚨 THE LIST DOES NOT MOVE UNDER HIS HAND: a pick made while the panel "
+   .. "is up leaves the rows on screen exactly as they were — a list that "
+   .. "renumbers between opening it and pressing ⏎ is 6.272.0's defect in "
+   .. "the one place he is aiming at a row",
+  (function()
+    exp.recentRows = exp.noteRecent({}, { trigger = "gg1", name = "G" }, os.time(), 50)
+    local cc = openPicker()
+    local before = {}
+    for i, r in ipairs(cc.rows_) do before[i] = r end
+    cc.cb(rowOf(cc, ";bd"))          -- records ;bd above gg1
+    if #cc.rows_ ~= #before then return false, "the row count changed" end
+    for i, r in ipairs(cc.rows_) do
+      if before[i] ~= r then return false, "row " .. i .. " was replaced" end
+    end
+    -- and the NEXT open is where the new order shows up
+    local nn = openPicker()
+    return recentRowsOf(nn)[1] == ";bd", table.concat(recentRowsOf(nn), ",")
+  end)())
+
+out("\n--- 📋 _G.snippetsReport() — the instrument this module never had ---\n")
+
+check("🚨 it EXISTS. His Console, the day the recency was scoped: "
+   .. "_G.snippetsReport() → \"attempt to call a nil value\"",
+  type(_G.snippetsReport) == "function")
+
+local function reportText()
+  local said = {}
+  local realPrint = print
+  print = function(s) said[#said + 1] = tostring(s) end
+  local ok, err = pcall(_G.snippetsReport)
+  print = realPrint
+  return ok and table.concat(said, "\n") or ("THREW: " .. tostring(err))
+end
+
+check("it does not throw, and it names the library's size",
+  (function()
+    local t = reportText()
+    return t:find("SNIPPETS", 1, true) and t:find("trigger(s)", 1, true), t:sub(1, 90)
+  end)())
+check("it prints the recent queue, newest first, with the time of each pick",
+  (function()
+    local t = reportText()
+    return t:find("recent :", 1, true) ~= nil
+           and t:find("1%. %s*;bd") ~= nil, t
+  end)())
+check("🔑 it PRINTS THE RULE — a reader must not have to go and find out "
+   .. "that a typed trigger is not counted",
+  (function()
+    local t = reportText()
+    return t:find("NOT recorded", 1, true) ~= nil
+  end)())
+check("🔎 an EMPTY queue says WHICH empty — \"no store yet\" is a different "
+   .. "fact from a zero-byte file, and only one of them is fine",
+  (function()
+    os.remove(exp.recentFile)
+    exp.recentRows = {} ; exp.loadRecent()
+    local none = reportText()
+    write(exp.recentFile, "")
+    exp.loadRecent()
+    local zero = reportText()
+    write(exp.recentFile, "{{{")
+    exp.loadRecent()
+    local bad = reportText()
+    return none:find("no store yet", 1, true)
+       and zero:find("ZERO BYTES", 1, true)
+       and bad:find("could not be read", 1, true)
+       and none ~= zero and zero ~= bad
+  end)())
+check("…and \"off\" is its own word too, never silence",
+  (function()
+    exp.recent = false
+    local t = reportText()
+    exp.recent = true
+    return t:find("recent : OFF", 1, true) ~= nil, t
+  end)())
+check("the stale count is reported when there is one, and not invented when "
+   .. "there is not",
+  (function()
+    os.remove(exp.recentFile)
+    exp.recentRows = exp.noteRecent({}, { trigger = "gg1", name = "G" }, os.time(), 50)
+    exp.recentStale = 0
+    local clean = reportText()
+    exp.recentStale = 2
+    local dirty = reportText()
+    exp.recentStale = 0
+    return clean:find("no longer has", 1, true) == nil
+       and dirty:find("2 row%(s%) name a snippet") ~= nil
+  end)())
+check("📋 the cheat sheet carries both doors — the queue and the report",
+  (function()
+    local saw = { recent = false, report = false }
+    for _, e in ipairs(mod.cheatsheet.entries) do
+      if e[1] == "recent" then saw.recent = true end
+      if e[1] == "report" then saw.report = true end
+    end
+    return saw.recent and saw.report
   end)())
 
 out(("\n%d passed, %d failed\n\n"):format(pass, fail))

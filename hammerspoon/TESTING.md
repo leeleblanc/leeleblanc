@@ -1,4 +1,4 @@
-# TESTING — how to score release 6.358.0
+# TESTING — how to score release 6.359.0
 
 You install ONE archive and it carries several releases. Below are the
 steps for each release this archive is new for, newest first. Run the
@@ -26,6 +26,70 @@ else is a LOSS and I fix it before building further. You are the only
 scorer; I never mark my own.
 
 ---
+
+## 6.359.0
+
+6.359.0 verify with LL — 🕘 THE SNIPPET PICKER REMEMBERS (NEW GROUND)
+WHAT CHANGED: the snippets you PICK from ⇪⇧S now come back at the top
+of it, newest first, under a 🕘 RECENT heading. You asked for this
+twice. Nothing was recording picks before — I grepped the module for
+five different names for a recency store and found none of them, so
+this is a build and not a setting I had missed.
+🔑 THE ONE RULE, AND IT IS YOUR ANSWER: a snippet counts as used when
+you PICK it from the picker. A trigger you TYPE is not counted, on
+purpose — you fire thousands of those a day and they would bury the
+handful you choose by hand within the hour.
+
+A. THE HEADLINE — a minute.
+A1. ⇪⇧S. EXPECT: no 🕘 section yet — nothing has been picked on this
+    Mac. An empty queue draws no heading rather than an empty one.
+A2. Pick any snippet. ⇪⇧S again.
+    EXPECT: 🕘 RECENT at the very top, that snippet under it.
+A3. Pick a different one. ⇪⇧S again.
+    EXPECT: the NEW one is first, the previous one second.
+A4. Pick the FIRST one again. ⇪⇧S again.
+    EXPECT: it moves back to the top and there is still only ONE of
+    it. **A FAIL is two copies.**
+A5. Now TYPE one of your triggers (`;bd`, `gg1` — whatever you use).
+    ⇪⇧S. EXPECT: the queue has NOT changed. That is the rule above
+    working. If a typed trigger shows up here, tell me — it means the
+    recorder is on the wrong road.
+
+B. MUST STILL WORK.
+B1. The pause row is still the first row, above the 🕘 heading.
+B2. Your pinned collection (textpanders) is still the first of the
+    LIBRARY's sections, under the queue.
+B3. ⏎ on a collection heading still narrows to that collection, and
+    ◂ All snippets still comes back.
+B4. ⏎ on the 🕘 heading narrows to the recent list alone.
+B5. Type to search. EXPECT: ONE row per snippet — the 🕘 copy steps
+    out of the way while you are searching. Clear the box and both
+    are back.
+B6. A snippet picked from the 🕘 section inserts exactly what its
+    twin lower down inserts.
+B7. The ⇪V preview pane still follows the rows, 🕘 rows included.
+
+C. PASTE BACK.
+C1. `_G.snippetsReport()` — it EXISTS now. Last time you ran it your
+    Console said "attempt to call a nil value". I want the whole
+    block: the library line, the `recent :` line, the numbered rows
+    and the `store  :` path.
+C2. Run it once BEFORE you pick anything. EXPECT: `no store yet —
+    nothing has been picked on this Mac`. That wording is deliberate:
+    an empty queue has to say WHICH empty.
+
+D. A JUDGEMENT ONLY YOU CAN MAKE.
+D1. NINE rows. I took that number from your own words about ⇪\ ("the
+    most recent nine documents"). Too many? Too few? It is one line:
+    `settings = { expander = { recentShow = 5 } }`.
+D2. The queue keeps 200 and never forgets by AGE — a snippet you
+    reach for once a quarter stays. Is that right, or would you
+    rather it aged out?
+D3. Should the 🕘 rows be a COPY (what they are — the snippet is also
+    still in its own collection) or should picking one MOVE it out of
+    its collection? Copy is what I built, so your packs stay complete.
+
+
 
 ## 6.358.0
 
@@ -146,56 +210,6 @@ C. A JUDGEMENT ONLY YOU CAN MAKE.
 C1. If windows are STILL jumping with this off, that is a different
     tool and I want to know — the candidates are window_move (⌘-drag)
     and mouse_follows. One sentence about when it happens is enough.
-
-
-
-## 6.355.0
-
-6.355.0 verify with LL — 📏 THE CEILING THAT REFUSED YOUR FILM
-WHAT CHANGED: your film was never read. The window's own message said
-so — "the film is 2300.6 MB and the ceiling is 1536.0 MB" — and that
-1536 was a number I typed, not anything your Mac said. It is measured
-off your Mac now.
-🔎 AND YOUR REPORT CLOSED THE CODEC QUESTION. It read `codecs : H.264
-· MPEG-4 AAC`, which is the one combination WebKit certainly can
-decode. So nothing is wrong with the film, nothing is wrong with the
-format, and six releases of doors were not the problem on this one.
-
-A. THE HEADLINE — the same film, the same key.
-A1. ⇪⇧, and press ⏎ on The.Death.Of.Robin.Hood.
-    EXPECT: "⏳ reading the film into the window — N%", climbing, then
-    it PLAYS with the Mac's own controls.
-    **A FAIL is the hand-off message again** — if you get it, read
-    what it says about the ceiling now and paste that line.
-A2. Time it roughly, and watch the percentage move. A film this size
-    is hundreds of pieces; the number should climb steadily, not stick.
-A3. While it reads, use the Mac — move a window, type somewhere.
-    EXPECT: normal. This is the half I most want your word on.
-A4. Once it plays: the scrubber, volume, full screen, ← → to seek.
-
-B. PASTE BACK — three lines are new and each answers something.
-B1. `_G.mugReport()`:
-    · `ceiling:` — the number AND where it came from. It should name
-      a share of your Mac's memory, not a number I chose.
-    · `↳ pace :` — how many pieces the window CONFIRMED it took. The
-      loader waits for each one now instead of firing them off blind.
-    · `↳ clock :` — how long the whole read took, wall clock. That is
-      the number that decides whether the pieces need to be bigger.
-B2. If `↳ pace` ever carries "⚠️ N never answered", paste it — that is
-    the window going silent, which used to hang the read for ever.
-
-C. MUST STILL WORK.
-C1. A small film: still plays, faster.
-C2. .mkv and .mp3 still refused by name with ⌘O offered.
-C3. ⌘O, Escape, ↑↓, ⏎, ⌫, the ✕ on a history row, the drop.
-C4. ⇪⇧. the Jug Player — drop an mp3, it plays.
-
-D. WHAT IS STILL TRUE, so it is not a surprise.
-D1. The whole film sits in the window's memory while it plays. That is
-    the one cost this way in cannot avoid, and it is why there is a
-    ceiling at all — it is just your Mac's number now instead of mine.
-D2. If a film is still too big, the message names both sizes and ⌘O
-    opens it in a real player, as before.
 
 
 

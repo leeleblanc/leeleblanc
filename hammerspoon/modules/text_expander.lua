@@ -86,6 +86,8 @@ local M = {
             { "add",   "_G.snippetAdd(\"gg1\", \"text\") in the Console" },
             { "import", "_G.snippetsImport() — finds .alfredsnippets in ~/Downloads" },
             { "list",  "_G.snippetsList() — every trigger, in the Console" },
+            { "recent", "The last nine you PICKED sit at the top of ⇪⇧S — a trigger you type is not counted" },
+            { "report", "_G.snippetsReport() — the library, the recent queue and its store" },
             { "{cursor}", "In a snippet: where the caret lands afterwards" },
             { "{clipboard}", "In a snippet: whatever is on the clipboard" },
             { "{date} {time}", "In a snippet: today, and now" },
@@ -176,6 +178,39 @@ function M.setup(core)
     -- indistinguishable from them by any structural test. Only you can
     -- say it is yours, so you say it here.
     exp.sectionOrder  = { "textpanders" }
+    -- 🕘 6.359.0 — THE RECENT QUEUE, AND IT IS A BUILD RATHER THAN A FIX
+    -- (LL, twice: "My most recently chose snippets are not at the top" ·
+    -- "Nothing selected moves to the top of the 'recent' as I call it,
+    -- queue"). The grep that had to come first was run before a line was
+    -- written: `recent`, `lastUsed`, `usedAt`, `mru` and `bumpTo` appear
+    -- ZERO times in this file at 6.358.0. So nothing was being written
+    -- and nothing was going unread — the order was whatever the scan
+    -- produced, and always had been. That matters because it is NOT
+    -- 6.277.0's shape, and the two have opposite fixes.
+    --
+    -- 🔑 WHAT COUNTS AS "USED" IS A PICK FROM THIS PICKER, NEVER A TYPED
+    -- TRIGGER — his word, and the release waited on it: "A snippet is one
+    -- that is not an expansion but like an emoji that is picked from the
+    -- picker Panel." It is also the only reading that works. A typed
+    -- expansion fires thousands of times a day through exp.expand(); the
+    -- handful he reaches for BY HAND would be buried under `;d` and `gg1`
+    -- inside an hour, and the queue he is asking for would be a list of
+    -- his own typing habits instead. The recorder is therefore wired to
+    -- the CHOOSER CALLBACK and to nothing else, and there is a sentry
+    -- below that fails if it is ever reached from the tap.
+    exp.recent      = true   -- false = the 6.358.0 order, and nothing recorded
+    -- ✏️ How many rows the 🕘 section draws. NINE is his own number for a
+    -- recent list (2026-10-12, on ⇪\: "the most recent nine documents"),
+    -- and it is one settings line:
+    --     settings = { expander = { recentShow = 5 } }
+    exp.recentShow  = 9
+    -- 📏 How many the STORE keeps. Bounded, like the music player's
+    -- history (6.315.0) — but by COUNT ALONE, with no age cutoff, and
+    -- that is a deliberate difference: a track you have not played in
+    -- thirty days is gone from a listening history and nobody minds, and
+    -- a snippet he reaches for every quarter is the one he will never
+    -- remember the trigger for. Age is the wrong axis for this list.
+    exp.recentMax   = 200
     exp.bufferMax     = 64        -- characters of typing kept in memory
     exp.maxChars      = 2000      -- a snippet longer than this is REFUSED
     exp.wordStartOnly = true      -- see the 🧨 note in the header
@@ -1611,6 +1646,164 @@ function M.setup(core)
         return src, s.own and exp.rankOwn or exp.rankShipped
     end
 
+    -- 🕘 ---- THE RECENT QUEUE (6.359.0) ----------------------------------
+    -- Rank 0, so the section sits above even a pinned collection. The
+    -- constant is named rather than written as a literal at the two sites
+    -- that compare against it, because a heading's wording is chosen by
+    -- rank and a bare 0 there reads as "no rank".
+    exp.rankRecent = 0
+    exp.recentName = "🕘 recent"
+
+    -- 🔑 WHAT IDENTIFIES A SNIPPET, and it is not one field. A snippet
+    -- with a trigger IS its trigger — exp.snippets is keyed by it, and a
+    -- collision is already refused at load. A CHOOSER-ONLY snippet has no
+    -- trigger at all (its pack shipped it keyword-less), so the only
+    -- handle on it is its name. Two namespaces, one string, and the "t"
+    -- and "n" prefixes keep them apart by construction: "t" .. anything
+    -- can never equal "n" .. anything.
+    -- 📏 THIS STRING IS NEVER WRITTEN TO DISK. The store holds the trigger
+    -- and the name in their own fields; this is built from them on read.
+    -- An encoding invented for a key is one more format to get wrong, and
+    -- the music player's store (6.315.0) carries its fields plainly for
+    -- the same reason.
+    function exp.recentKey(trigger, name)
+        trigger = tostring(trigger or "")
+        if trigger ~= "" then return "t" .. trigger end
+        return "n" .. tostring(name or "")
+    end
+
+    -- PURE, and the music player's noteHistory is the precedent it is
+    -- written against (6.315.0): a row goes on the front, the same row is
+    -- removed from wherever it was, and the tail falls off the end. Pure
+    -- because the ORDER is the whole feature and a function that also
+    -- touched disk could only be proven through a file.
+    -- 🚨 THE CAP KEEPS THE NEWEST. `table.remove(out)` with no index takes
+    -- the LAST element — the oldest — which is the only direction that can
+    -- be right here. Dropping from the front would make the queue forget
+    -- exactly what he just picked.
+    function exp.noteRecent(list, row, now, max)
+        local out = {}
+        now = tonumber(now) or 0
+        max = math.max(1, math.floor(tonumber(max) or 200))
+        local head
+        if type(row) == "table" then
+            local t, n = tostring(row.trigger or ""), tostring(row.name or "")
+            -- A row with neither is not a snippet. It is dropped rather
+            -- than stored as "" — a blank key would swallow every other
+            -- blank key and the queue would hold one permanent ghost.
+            if t ~= "" or n ~= "" then
+                head = { trigger = t, name = n, at = tonumber(row.at) or now }
+                out[1] = head
+            end
+        end
+        local headKey = head and exp.recentKey(head.trigger, head.name) or nil
+        for _, r in ipairs(type(list) == "table" and list or {}) do
+            if type(r) == "table" then
+                local t, n = tostring(r.trigger or ""), tostring(r.name or "")
+                if t ~= "" or n ~= "" then
+                    local k = exp.recentKey(t, n)
+                    if k ~= headKey then
+                        out[#out + 1] = { trigger = t, name = n,
+                                          at = tonumber(r.at) or 0 }
+                    end
+                end
+            end
+        end
+        while #out > max do table.remove(out) end
+        return out
+    end
+
+    -- 📁 THE STORE IS LOCAL, DELIBERATELY — the music player's reasoning
+    -- (6.315.0) and not a shortcut. What he picked on the Air last night
+    -- is not what the work Mac should open with, and a queue synced
+    -- through OneDrive would make every pick a cloud write on the main
+    -- thread's heels.
+    exp.recentDir  = (core.homeDir or os.getenv("HOME") or "")
+                     .. "/Library/Application Support/Hammerspoon/snippets"
+    exp.recentFile = exp.recentDir .. "/recent.json"
+    exp.recentRows  = {}        -- newest first, in memory
+    -- 🔎 FOUR STATES, NOT TWO (6.196.1), because "cannot be checked" must
+    -- never read as "all clear": read · none (no file yet — the ordinary
+    -- state before the first pick) · zero (a file of no bytes) ·
+    -- unreadable (there is JSON there and it is not ours). The report
+    -- below prints the word, so an empty queue always says WHICH empty.
+    exp.recentState = "unread"
+    -- Counted on every open, so the report can say "nine drawn, two the
+    -- library no longer has" rather than leaving a short list unexplained.
+    exp.recentStale, exp.recentShown = 0, 0
+
+    function exp.loadRecent()
+        exp.recentRows, exp.recentState = {}, "none"
+        if not exp.recent then exp.recentState = "off" ; return end
+        local f = io.open(exp.recentFile, "r")
+        if not f then return end
+        local raw = f:read("*a") ; f:close()
+        if not raw or raw == "" then exp.recentState = "zero" ; return end
+        local ok, data = pcall(hs.json.decode, raw)
+        if not (ok and type(data) == "table" and type(data.recent) == "table") then
+            exp.recentState = "unreadable"
+            return
+        end
+        exp.recentRows  = exp.noteRecent(data.recent, nil, os.time(), exp.recentMax)
+        exp.recentState = "read"
+    end
+
+    function exp.saveRecent()
+        if not exp.recent then return false end
+        pcall(function() hs.fs.mkdir(exp.recentDir) end)
+        local ok, raw = pcall(function()
+            return hs.json.encode({ recent = exp.recentRows })
+        end)
+        if not (ok and type(raw) == "string") then
+            warn("the recent queue could not be encoded — nothing was written")
+            return false
+        end
+        -- 🔒 TEMP FILE, THEN RENAME (6.313.0 / 6.199.0 / 6.307.0).
+        -- io.open(path, "w") truncates before it writes a byte, so a crash
+        -- inside that window leaves a ZERO-BYTE store — which reads back
+        -- as "nothing picked yet" and is then cemented by the next save.
+        -- This queue is small and he can rebuild it by using the picker,
+        -- so the cost is lower than the music player's; the shape is the
+        -- same because the failure is the same and writing it two ways is
+        -- how one of them stays wrong.
+        local tmp = exp.recentFile .. ".tmp"
+        local fh = io.open(tmp, "w")
+        if not fh then
+            warn("could not write " .. exp.recentFile)
+            return false
+        end
+        local wrote = pcall(function() fh:write(raw) ; fh:close() end)
+        if not wrote then
+            pcall(function() os.remove(tmp) end)
+            warn("the recent queue could not be written — the saved one is untouched")
+            return false
+        end
+        local moved, why = os.rename(tmp, exp.recentFile)
+        if not moved then
+            -- A failed save costs the SAVE, never the thing saved.
+            pcall(function() os.remove(tmp) end)
+            warn("could not replace " .. exp.recentFile .. " — " .. tostring(why)
+                 .. "; the saved queue is untouched")
+            return false
+        end
+        return true
+    end
+
+    -- 🖐 THE ONE RECORDER, AND IT IS REACHED FROM THE CHOOSER CALLBACK
+    -- ALONE. See the ✏️ block above for why a typed trigger must not come
+    -- through here; there is a source sentry in the suite that fails if
+    -- exp.expand ever grows a call to it.
+    function exp.noteUse(trigger, s)
+        if not exp.recent then return false end
+        local name = type(s) == "table" and tostring(s.name or "") or ""
+        exp.recentRows = exp.noteRecent(exp.recentRows,
+                                        { trigger = trigger, name = name,
+                                          at = os.time() },
+                                        os.time(), exp.recentMax)
+        exp.saveRecent()
+        return true
+    end
+
     -- The heading row. It says what the section is as well as what it is
     -- called, because "textpanders" and "ComposeKey" are both just folder
     -- names until something tells you which one you wrote.
@@ -1635,7 +1828,14 @@ function M.setup(core)
     -- hits first. The body being searchable is new too.
     local function sectionHeader(name, rank, n, members)
         local what
-        if rank <= #(exp.sectionOrder or {}) then what = "yours — pinned first"
+        -- 🕘 6.359.0 — RANK 0 IS TESTED FIRST, and it has to be: the
+        -- pinned-collection branch below is `rank <= #sectionOrder`, and
+        -- with one collection pinned that is `0 <= 1` — true. The recent
+        -- queue would have introduced itself as "yours — pinned first",
+        -- which is the one thing it is not.
+        if rank == exp.rankRecent then
+            what = "the last " .. tostring(n) .. " you picked here"
+        elseif rank <= #(exp.sectionOrder or {}) then what = "yours — pinned first"
         elseif rank == exp.rankOwn      then what = "yours — imported or written by you"
         elseif rank == exp.rankAction   then what = "modules that borrowed a trigger"
         else                                 what = "shipped with the config"
@@ -1657,7 +1857,17 @@ function M.setup(core)
         if #words == 0 then return choices end
         local strong, weak = {}, {}
         for _, r in ipairs(choices) do
-            if not (r.header or r.toggle or r.back) then
+            -- 🕘 6.359.0 — A RECENT ROW IS THE SAME SNIPPET SEEN TWICE, and
+            -- the duplicate earns its place only while the panel is at
+            -- rest. Searching "sig" and getting the signature twice is a
+            -- list that looks wrong and makes him check which one is
+            -- which; the recent queue is a LANDING aid for the picker he
+            -- just opened, which is exactly the complaint. With no words
+            -- typed this function returns `choices` untouched above, so
+            -- the resting list keeps both.
+            if r.recent then
+                -- dropped: its twin in its own collection is still here
+            elseif not (r.header or r.toggle or r.back) then
                 local name = tostring(r.text or ""):lower()
                 local trig = tostring(r.trigger or ""):lower()
                 local sect = tostring(r.sect or ""):lower()
@@ -1789,7 +1999,85 @@ function M.setup(core)
                 image   = img,
             }
         end
+        -- 🕘 ---- THE RECENT QUEUE, SNAPSHOTTED (6.359.0) ------------------
+        -- 🚨 A SNAPSHOT, AND THAT IS THE WHOLE RULE HE IS OWED: "it must
+        -- never reorder under his hand mid-session". These rows are built
+        -- ONCE here, land in `choices`, and `choices` is the upvalue the
+        -- filter and the pane read for as long as the panel is up. The
+        -- recorder runs in the chooser's COMPLETION callback, which macOS
+        -- fires on dismiss — so the list on screen cannot move between him
+        -- opening it and pressing ⏎. A list that renumbers under an aimed
+        -- keystroke is 6.272.0's defect in the one place he is aiming.
+        local recentShown = 0
+        -- 🗂 AND IT FOLLOWS exp.sections, because it IS one. That flag is
+        -- documented as "one flat A–Z list, as before" — a rollback to the
+        -- pre-6.157.0 look — and a flat list with nine unlabelled
+        -- duplicates at the top of it would be neither thing. `exp.recent
+        -- = false` is the switch for this feature; `exp.sections = false`
+        -- is the switch for every section, this one included.
+        if exp.recent and exp.sections
+           and (section == nil or section == exp.recentName) then
+            -- 🔎 RESOLVE, DO NOT TRUST. A stored row names a snippet that
+            -- may no longer exist — a pack deleted, a trigger renamed, a
+            -- OneDrive folder not back yet. The queue is NOT pruned when
+            -- that happens: a pack that is merely absent this morning is
+            -- the commonest reason, and forgetting his order to tidy up
+            -- after a cloud folder is the wrong trade. Unresolvable rows
+            -- are skipped here and COUNTED for the report instead.
+            local byKey = {}
+            for _, r in ipairs(rows) do
+                local k = exp.recentKey(r.trigger, r.fullName)
+                if byKey[k] == nil then byKey[k] = r end
+            end
+            exp.recentStale = 0
+            local want = math.max(0, math.floor(tonumber(exp.recentShow) or 9))
+            local picked = {}
+            for _, q in ipairs(exp.recentRows or {}) do
+                local k = exp.recentKey(q.trigger, q.name)
+                local r = byKey[k]
+                if not r then
+                    exp.recentStale = exp.recentStale + 1
+                elseif #picked < want then
+                    -- A SHALLOW COPY, sharing `pick`. The row is the same
+                    -- snippet seen twice, so it must insert the same
+                    -- thing: a second entry in `picks` would be two names
+                    -- for one snippet and a second place for a bug to
+                    -- live. Only the grouping fields differ.
+                    local c = {}
+                    for kk, vv in pairs(r) do c[kk] = vv end
+                    c.sect, c.rank, c.recent = exp.recentName, exp.rankRecent, true
+                    picked[#picked + 1] = c
+                end
+            end
+            if #picked > 0 then
+                recentShown = #picked
+                if exp.sections then
+                    local m = {}
+                    for _, c in ipairs(picked) do
+                        m[#m + 1] = string.format("%-14s %s",
+                                                  c.trigger ~= "" and c.trigger or "—",
+                                                  c.fullName)
+                    end
+                    choices[#choices + 1] =
+                        sectionHeader(exp.recentName, exp.rankRecent, #picked, m)
+                end
+                for _, c in ipairs(picked) do choices[#choices + 1] = c end
+            end
+        end
+
         local cur
+        -- 🕘 The narrowed RECENT view has no second half: ⏎ on its heading
+        -- means "only these", exactly as it does on every other heading.
+        -- 📏 WHAT THIS GUARD REALLY DOES, measured by the release's own
+        -- mutation sweep rather than assumed: the row test inside the loop
+        -- is `r.sect == section`, and no library row's section is the
+        -- queue's name — so removing this changes nothing for any snippet
+        -- LL actually has, and the sweep said so by surviving. It is kept
+        -- for the two things it DOES do: it saves walking two thousand
+        -- rows to add none, and it is the only thing standing between the
+        -- narrowed view and a collection somebody names "🕘 recent",
+        -- which WOULD pass that test. There is a check for the imposter.
+        if section ~= exp.recentName then
         for _, r in ipairs(rows) do
             if section == nil or r.sect == section then
                 if exp.sections and r.sect ~= cur then
@@ -1800,6 +2088,8 @@ function M.setup(core)
                 choices[#choices + 1] = r
             end
         end
+        end
+        exp.recentShown = recentShown
 
         local okC, chooser = pcall(hs.chooser.new, function(choice)
             if not choice then return end
@@ -1820,6 +2110,13 @@ function M.setup(core)
             if not (row and row.snip) then return end
             -- Nothing to delete: this is an insert, not a replacement.
             exp.inject(row.trigger or "", row.snip, 0)
+            -- 🕘 6.359.0 — AND THIS IS THE ONLY PLACE A PICK IS RECORDED.
+            -- AFTER the insert, never before: the store write is disk work
+            -- on the main thread (6.228.0) and his text must not wait
+            -- behind it. pcall because IT DEGRADES, IT NEVER BREAKS — a
+            -- full disk may cost him the memory of this pick and must
+            -- never cost him the snippet.
+            pcall(exp.noteUse, row.trigger or "", row.snip)
         end)
         if not (okC and chooser) then
             warn("could not open the snippet chooser")
@@ -1889,6 +2186,83 @@ function M.setup(core)
     end
     _G.snippetAdd     = function(t, x, n) return exp.add(t, x, n) end
     _G.snippetsList   = function() return exp.list() end
+
+    -- 📋 6.359.0 — THE REPORT THIS MODULE NEVER HAD. His Console, asked
+    -- for it the day the recency was scoped: `_G.snippetsReport()` →
+    -- "attempt to call a nil value". Nineteen hundred snippets, the
+    -- picker he reaches for daily, and nothing could be asked of it —
+    -- 6.196.1 in a module with no instrument at all. It ships WITH the
+    -- recency rather than after it, because a queue whose order he cannot
+    -- inspect is a second thing to take on faith.
+    -- 📏 WHAT THE WORDING HAS TO DO: an empty queue must always say WHICH
+    -- empty. "none" (no file — the ordinary state before his first pick),
+    -- "zero" (a file of no bytes), "unreadable" (JSON that is not ours)
+    -- and "off" are four different facts and only one of them is fine.
+    -- "Cannot be checked" must never read as "all clear".
+    function _G.snippetsReport()
+        local L = {}
+        local function line(s) L[#L + 1] = s end
+        line("✂️ SNIPPETS " .. tostring(_G.configVersion or "")
+             .. " — expansion is " .. (exp.enabled and "ON" or "OFF")
+             .. " · ⇪⇧S opens the picker")
+        line(string.format("   library: %d trigger(s) · %d chooser-only · %d trie node(s)"
+                           .. " · loaded in %.0f ms",
+                           exp.count or 0, #(exp.chooserOnly or {}),
+                           exp.indexNodes or 0, (exp.loadSecs or 0) * 1000))
+        line("   ↳ bundled from " .. tostring(exp.bundledFrom or "nothing")
+             .. " · " .. #(exp.problems or {}) .. " problem(s)")
+        for i = 1, math.min(3, #(exp.problems or {})) do
+            line("     ⚠️ " .. tostring(exp.problems[i]))
+        end
+        if not exp.recent then
+            line("   recent : OFF — settings = { expander = { recent = true } } turns it on")
+        else
+            local rows  = exp.recentRows or {}
+            local state = tostring(exp.recentState or "unread")
+            local said  = ({
+                read       = "read from disk",
+                none       = "no store yet — nothing has been picked on this Mac",
+                zero       = "⚠️ the store is ZERO BYTES — it is being treated as empty",
+                unreadable = "⚠️ the store is there and could not be read as ours",
+                unread     = "⚠️ not read yet — warm() has not run",
+            })[state] or state
+            line(string.format("   recent : %d row(s) · cap %d · %s",
+                               #rows, exp.recentMax or 0, said))
+            if #rows == 0 then
+                line("   ↳ pick a snippet from ⇪⇧S and it lands at the top of this list;"
+                     .. " a trigger you TYPE is deliberately not counted")
+            else
+                for i = 1, math.min(tonumber(exp.recentShow) or 9, #rows) do
+                    local r = rows[i]
+                    line(string.format("     %d. %-14s %s   ·   %s", i,
+                                       (r.trigger ~= "" and r.trigger or "—"),
+                                       tostring(r.name or ""),
+                                       r.at and os.date("%Y-%m-%d %H:%M", r.at) or "no time"))
+                end
+            end
+            if (exp.recentStale or 0) > 0 then
+                line("   ↳ ⚠️ " .. exp.recentStale .. " row(s) name a snippet this library"
+                     .. " no longer has — skipped in the picker, kept in the store"
+                     .. " (a pack that is merely absent comes back)")
+            end
+            line("   store  : " .. tostring(exp.recentFile))
+            local f = io.open(exp.recentFile, "r")
+            if f then
+                local raw = f:read("*a") ; f:close()
+                line("   ↳ " .. #(raw or "") .. " bytes on disk")
+            else
+                line("   ↳ not on disk yet — it is written by the first pick, not at boot")
+            end
+        end
+        -- 🔑 THE RULE, PRINTED. It is the one question the release had to
+        -- ask him and the answer decides everything above; a reader of
+        -- this report should not have to go and find that out.
+        line("   counts : a PICK from ⇪⇧S. A trigger you type expands and is"
+             .. " NOT recorded — thousands a day would bury the handful you"
+             .. " choose by hand.")
+        print(table.concat(L, "\n"))
+        return exp
+    end
     _G.textExpander   = exp
     M.exp    = exp
     M.config = exp
@@ -1918,6 +2292,10 @@ function M.setup(core)
 
     function M.warm()
         exp.load()               -- 6.161.0: …and the pictures, sliced, after the words
+        -- 🕘 6.359.0 — the queue is read HERE and not in setup(): a file
+        -- read at setup is a tax every keypress of the boot pays
+        -- (6.267.0), and nothing can pick a snippet before warm anyway.
+        pcall(exp.loadRecent)
         exp.status = exp.count > 0
             and string.format("ON (%d triggers, ⇪⇧S to search)", exp.count)
             or  "ON (no snippets yet — run _G.snippetsImport() in the Console)"

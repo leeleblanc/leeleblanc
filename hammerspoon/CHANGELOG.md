@@ -5,6 +5,121 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.359.0 — 🕘 THE SNIPPET PICKER REMEMBERS WHAT HE PICKED, AND IT
+  IS A BUILD RATHER THAN A FIX (modules/text_expander.lua)
+
+  LL, twice — 2026-10-11: "My most recently chose snippets are not at
+  the top." 2026-10-12: "Nothing selected moves to the top of the
+  'recent' as I call it, queue."
+
+  🔎 THE GREP RAN BEFORE A LINE WAS WRITTEN, and it decided what kind of
+  release this is. `recent`, `lastUsed`, `usedAt`, `mru` and `bumpTo`
+  appear ZERO times in text_expander.lua at 6.358.0. So nothing was
+  being written and nothing was going unread: the order was whatever the
+  directory scan produced, and always had been. That matters because it
+  is NOT 6.277.0's shape — a store that is written and then ignored —
+  and the two have opposite fixes. One is an afternoon of reading; this
+  is a build.
+
+  🔑 WHAT COUNTS AS "USED" IS A PICK, NEVER A TYPED TRIGGER, and the
+  release waited on his word for it: "A snippet is one that is not an
+  expansion but like an emoji that is picked from the picker Panel."
+  It is also the only reading that survives contact with his Mac. A
+  typed expansion fires through the event tap thousands of times a day;
+  the handful he reaches for BY HAND would be under `;d` and `gg1`
+  within the hour, and the queue he asked for would be a list of his
+  typing habits instead. So the recorder is wired to the CHOOSER
+  CALLBACK and to nothing else — one call site in a file with four
+  inject paths — and there is a source sentry that fails if any of the
+  other three ever grows one, beside the behavioural check that types
+  `;bd` and proves the queue did not move.
+
+  🚨 A SNAPSHOT, BECAUSE HE IS AIMING AT A ROW. The rows are built once
+  per open and land in the `choices` upvalue the filter and the preview
+  pane read for as long as the panel is up; the recorder runs in the
+  completion callback, which macOS fires on dismiss. So the list cannot
+  renumber between him opening it and pressing ⏎ — 6.272.0's defect in
+  the one place it would cost him the wrong snippet.
+
+  🗂 RANK 0, ABOVE EVEN A PINNED COLLECTION — and the heading's branch
+  for it is tested FIRST, which is not a style choice: the pinned test
+  below it is `rank <= #sectionOrder`, and with textpanders pinned that
+  is `0 <= 1`, true. The queue would have introduced itself as "yours —
+  pinned first", which is the one thing it is not.
+
+  👁 THE DUPLICATE EARNS ITS PLACE ONLY AT REST. A 🕘 row is the same
+  snippet seen twice (a shallow copy sharing its `pick`, so both insert
+  the same thing), which is right for the list he just opened and wrong
+  the moment he searches: typing "sig" and getting the signature twice
+  is a list that makes him check which one is which. The filter drops
+  the recent copies as soon as there is a query, and returns the resting
+  list untouched when there is not.
+
+  📏 THE STORE IS LOCAL AND BOUNDED BY COUNT ALONE. Local for the music
+  player's reason (6.315.0): what he picked on the Air last night is not
+  what the work Mac should open with. Bounded by count and NOT by age,
+  which is a deliberate difference from that precedent — a track unplayed
+  for thirty days is gone from a listening history and nobody minds; a
+  snippet he reaches for every quarter is exactly the one whose trigger
+  he will never remember. Temp-then-rename (6.313.0), because io.open(w)
+  truncates before it writes a byte and a crash in that window leaves a
+  zero-byte store that reads back as "nothing picked".
+
+  🔎 A ROW THE LIBRARY NO LONGER HAS IS SKIPPED, NOT PRUNED. The
+  commonest reason a snippet is missing this morning is a OneDrive
+  folder that has not come back yet, and forgetting his order to tidy up
+  after a cloud mount is the wrong trade. The picker skips them, the
+  report counts them, and the pack coming back brings them with it.
+
+  📋 AND `_G.snippetsReport()` SHIPS WITH IT, NOT AFTER IT. His Console,
+  the day this was scoped: "attempt to call a nil value". Nineteen
+  hundred snippets, the picker he reaches for daily, and nothing could
+  be asked of it — 6.196.1 in a module that had no instrument at all. An
+  empty queue now always says WHICH empty: no store yet (the ordinary
+  state before his first pick) · zero bytes · JSON that is not ours ·
+  off. "Cannot be checked" must never read as "all clear". The report
+  also PRINTS THE RULE, so nobody has to go and find out that a typed
+  trigger is not counted.
+
+  🧪 THE HARNESS HAD TO BECOME FAITHFUL FIRST, and that is the finding
+  worth keeping. This is the first thing in the module to round-trip a
+  store of its own shape through hs.json, and the suite's stub was
+  Alfred-only: `encode({recent=…})` produced nonsense and `decode` handed
+  back `{}`. The save/load pair would have passed while writing a file
+  no Mac could read — 6.69.0's failure exactly, a stub that ratifies my
+  idea of the API instead of testing the code. It has a real parser and
+  a real writer now, with hs.json's two behaviours that matter taken
+  from the extension rather than from memory: decode RAISES on bad input
+  (which is why the module pcalls it and why "unreadable" exists), and
+  an empty table encodes as `{}`, not `[]`.
+
+  🚨 AND THE HARNESS WAS WRITING INTO A REAL HOME. core.homeDir was nil
+  in the stub, so the store landed in the machine's own
+  ~/Library/Application Support the first time the suite ran. A test
+  that touches the developer's home is a test that passes differently on
+  the second run; it is pointed at the temp tree now.
+
+  🔎 ONE GUARD THE SWEEP PROVED REDUNDANT, AND IT IS KEPT WITH THE TRUTH
+  WRITTEN BESIDE IT: skipping the library loop in the narrowed 🕘 view
+  changes nothing for any snippet LL has, because the row test inside it
+  already excludes them. It stays because it saves walking two thousand
+  rows to add none — and because it is the only thing between that view
+  and a collection somebody names "🕘 recent", which WOULD pass that
+  test. There is now a check for the imposter, which is what makes the
+  line load-bearing rather than decorative.
+
+  🧪 28 mutations, 28 bit. The six that survived the first sweep were
+  five MISSING CHECKS and one equivalent mutation, and they are named
+  rather than quietly fixed: a failed RENAME (the other half of the
+  write, which needed a directory staged where the store should be), a
+  keyword-less snippet picked from the picker (the only row whose
+  identity is its NAME and not its trigger — nothing had ever picked
+  one), warm() actually reading the store (the sentry it replaced
+  matched its own needle inside a COMMENT — E3's shape, found by this
+  release in its own code), the rank's ordering promise, and the
+  imposter collection above. The equivalent one was `out[1] = head`
+  against an empty table.
+
 NEW IN 6.358.0 — 🖥 ⌃⌘F FILLS THE SCREEN, AND COMES BACK TO THE SIZE
   HE HAD (modules/video_player.lua)
 

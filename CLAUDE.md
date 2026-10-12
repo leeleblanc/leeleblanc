@@ -6082,6 +6082,7 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
+| 6.359.0 | 🕘 the snippets you PICK come back at the top of ⇪⇧S, newest first — and `_G.snippetsReport()` exists | pending |
 | 6.358.0 | 🖥 ⌃⌘F fills the Mug Player's window and puts it back the size you had it | pending |
 | 6.357.0 | ☁️ a film still in OneDrive is refused instead of freezing the Mac for 72 seconds | pending |
 | 6.356.0 | 🗑 Window Return is off — nothing watches your monitors, nothing moves your windows | pending |
@@ -6207,9 +6208,11 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
 
 - 📥 HIS 2026-10-12 REPORT — WHAT WAS BUILT AND WHAT IS TRIAGED.
   BUILT: Window Return off (6.356.0, his direct order), the OneDrive
-  freeze (6.357.0), ⌃⌘F (6.358.0). The rest, each measured where a grep
-  could answer it and NOT built — one change per release:
-  ✅ ANSWERED, NO WORK: **a snippet is what he picks from the picker,
+  freeze (6.357.0), ⌃⌘F (6.358.0), AND THE SNIPPET RECENCY (6.359.0 —
+  the queue and the report together). The rest, each measured where a
+  grep could answer it and NOT built — one change per release:
+  ✅ ANSWERED, AND SPENT ON 6.359.0: **a snippet is what he picks from
+     the picker,
      not a typed trigger** — "A snippet is one that is not an expansion
      but like an emoji that is picked from the picker Panel." That
      settles the one question blocking snippet recency (the store
@@ -6238,6 +6241,27 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
      hints over buttons and fields, which is the long-queued ⇪X feature
      and is expensive on the main thread (6.228.0). ASK FOR THE REPORT
      FROM CHROME, ASANA AND FINDER before choosing — it is per app.
+     🚩 AND THIS NOTE WAS WRONG ABOUT THE SETTING, corrected by reading
+     the module (2026-10-12): there is no `grid.cols` or `grid.rows`
+     anywhere in mouse_grid.lua. The density knobs are `grid.alphabet`
+     and `grid.labelLength` — nine home-row keys, three deep, 729 cells
+     today — and both are already documented as one settings line at
+     mouse_grid.lua:206-211. The repository wins over the queue.
+     🚨 MORE IMPORTANT: DENSER HAS BEEN TRIED AND HE REJECTED IT. 6.176.0
+     went to sixteen keys and 4,096 cells (~30 pt) and his answer was
+     "HOLY SHIT! The grid is insane. Way too small."; 6.184.0 put the
+     home row back. So (a) is not an untried option, it is a repeat of a
+     measured loss, and the groundReport number has to be good before it
+     is offered again.
+     🔎 AND THE CONFIG ALREADY HAS THREE LAYERS OF PRECISION PAST THE
+     GRID, which is the thing to check before building a fourth: the
+     SNAP (6.181.0) puts the pointer on any control whose frame contains
+     the landing point, so a cell wider than a button still lands on it;
+     the HALVE (6.192.0 / 6.252.0) splits the landed box with a letter in
+     each half; and the arrows accelerate on a hold (6.195.0). If "too
+     much work" is still true WITH those, the answer is hints (A9), not
+     a denser grid — ASK HIM WHICH OF THE THREE HE IS ACTUALLY USING, in
+     the same breath as the report.
   🔗 ANCHORS — "a message that says create a new note first … after I
      open Hamsidian it looks fine." READ, NOT PROVEN: that is 6.340.0's
      shape in ⇪⇧U. The notes index is built when Hamsidian OPENS, so
@@ -6299,6 +6323,37 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   `_G.stallGuardReport()`), which now carries `in flight: <shortcut>`
   beside the kill, and the full Console around it. `(none)` is as useful
   as a name: it rules out every ⇪ shortcut in one line.
+  ✅ AND IT HAPPENED AGAIN, AND THE BREADCRUMB ANSWERED (2026-10-12, his
+  Console): `🧊 Hammerspoon HUNG for 73 s at 2026-10-12 17:48:02 and was
+  relaunched by the stall guard (relaunched: stalled 73s, killed
+  pid=8896, in flight: nothing was marked)`. 6.330.0 paid for itself on
+  its first real stall. THE SAME 73 SECONDS as 2026-10-04, to the
+  second, which is itself worth noting — a duration that repeats exactly
+  smells like a timeout somewhere rather than a random hang.
+  🔑 WHAT "NOTHING WAS MARKED" RULES OUT, EXACTLY, and it is worth being
+  precise because the rest depends on it: `_G.inFlightMark` has ONE
+  caller in the whole config — init.lua:2077, the ⇪ dispatcher
+  (hs-stall-guard.sh:166 writes that wording when the heartbeat's label
+  slot is empty). So it rules out ALL 109 ⇪ SHORTCUTS and NOTHING ELSE.
+  Timers, watchers, the event taps, a pathwatcher callback and
+  Hammerspoon's own lazy dylib loads are none of them marked, so they
+  are all still standing.
+  🔎 AND HIS CONSOLE SHOWS THE UNMEASURED CANDIDATE AGAIN, in the very
+  boot that followed: `🧭 … 0.21s` at 17:48:03 and then `sound`,
+  `menubar`, `webview`, `drawing`, `base64`, `canvas` at 17:48:05,
+  `notify` at 17:48:06, and `mouse` at **17:48:21** — eighteen seconds
+  after a boot that reported a fifth of a second. Each
+  `-- Loading extension:` line is a dylib load on the MAIN THREAD, paid
+  by whatever keystroke touches that extension first. That is the same
+  shape the 2026-10-04 log showed over forty-two seconds, and it is now
+  the only named candidate the breadcrumb has NOT ruled out.
+  🚨 IT IS STILL NOT THE CAUSE, and saying so is the point (6.198.0): a
+  41-ms `mouse` load and a 73-second hang are the same shape at wildly
+  different scales, and nothing in this config times those lines. 🗳 THE
+  RELEASE THAT WOULD SETTLE IT is the one already named — require the
+  extensions in `M.warm` and TIME each require, so the cost is paid once,
+  off the keypress, WITH A NUMBER. It is a release of its own, and the
+  measurement comes before the fix: time them first, then decide.
 
 - 🔒 "Unable to fetch NSRunningApplication for pid: 830" — AND THE FIRST
   SECURE-INPUT READING IS NEVER ANNOUNCED (2026-10-09, his Console,
@@ -6507,6 +6562,20 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   than queued silently.
   🗳 AND ONE QUESTION IT MUST ASK: a 21:9 film on the Air is a very
   wide window. Does the aspect ratio win, or a maximum width?
+- ✅ ✂️ THE SNIPPET PICKER'S RECENCY — **SHIPPED AS 6.359.0**, with
+  `_G.snippetsReport()` in the same release. The queue is a 🕘 section at
+  rank 0, snapshotted at open; a PICK counts and a typed trigger does
+  not (his word); the store is local, capped by COUNT with no age
+  cutoff, and written temp-then-rename. 28 of 28 mutations bit, and
+  five of the six first-sweep survivors were MISSING CHECKS — among
+  them a sentry that matched its own needle inside a comment, which is
+  E3's shape found by this release in its own code. ⏳ PENDING on the
+  scoreboard until he says it just worked; the three questions its
+  verify block asks him are the row count (nine), whether the queue
+  should age out, and whether a picked snippet should be COPIED to the
+  top or MOVED there. The original note is kept below, because what it
+  measured is what made the release a build rather than a fix:
+
 - ✂️ THE SNIPPET PICKER HAS NO RECENCY AT ALL — MEASURED, AND IT IS A
   BUILD RATHER THAN A FIX (2026-10-11 and again 2026-10-12, LL: "My
   most recently chose snippets are not at the top" · "Nothing selected
@@ -7371,6 +7440,66 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.359.0 verify with LL — 🕘 THE SNIPPET PICKER REMEMBERS (NEW GROUND)
+  WHAT CHANGED: the snippets you PICK from ⇪⇧S now come back at the top
+  of it, newest first, under a 🕘 RECENT heading. You asked for this
+  twice. Nothing was recording picks before — I grepped the module for
+  five different names for a recency store and found none of them, so
+  this is a build and not a setting I had missed.
+  🔑 THE ONE RULE, AND IT IS YOUR ANSWER: a snippet counts as used when
+  you PICK it from the picker. A trigger you TYPE is not counted, on
+  purpose — you fire thousands of those a day and they would bury the
+  handful you choose by hand within the hour.
+
+  A. THE HEADLINE — a minute.
+  A1. ⇪⇧S. EXPECT: no 🕘 section yet — nothing has been picked on this
+      Mac. An empty queue draws no heading rather than an empty one.
+  A2. Pick any snippet. ⇪⇧S again.
+      EXPECT: 🕘 RECENT at the very top, that snippet under it.
+  A3. Pick a different one. ⇪⇧S again.
+      EXPECT: the NEW one is first, the previous one second.
+  A4. Pick the FIRST one again. ⇪⇧S again.
+      EXPECT: it moves back to the top and there is still only ONE of
+      it. **A FAIL is two copies.**
+  A5. Now TYPE one of your triggers (`;bd`, `gg1` — whatever you use).
+      ⇪⇧S. EXPECT: the queue has NOT changed. That is the rule above
+      working. If a typed trigger shows up here, tell me — it means the
+      recorder is on the wrong road.
+
+  B. MUST STILL WORK.
+  B1. The pause row is still the first row, above the 🕘 heading.
+  B2. Your pinned collection (textpanders) is still the first of the
+      LIBRARY's sections, under the queue.
+  B3. ⏎ on a collection heading still narrows to that collection, and
+      ◂ All snippets still comes back.
+  B4. ⏎ on the 🕘 heading narrows to the recent list alone.
+  B5. Type to search. EXPECT: ONE row per snippet — the 🕘 copy steps
+      out of the way while you are searching. Clear the box and both
+      are back.
+  B6. A snippet picked from the 🕘 section inserts exactly what its
+      twin lower down inserts.
+  B7. The ⇪V preview pane still follows the rows, 🕘 rows included.
+
+  C. PASTE BACK.
+  C1. `_G.snippetsReport()` — it EXISTS now. Last time you ran it your
+      Console said "attempt to call a nil value". I want the whole
+      block: the library line, the `recent :` line, the numbered rows
+      and the `store  :` path.
+  C2. Run it once BEFORE you pick anything. EXPECT: `no store yet —
+      nothing has been picked on this Mac`. That wording is deliberate:
+      an empty queue has to say WHICH empty.
+
+  D. A JUDGEMENT ONLY YOU CAN MAKE.
+  D1. NINE rows. I took that number from your own words about ⇪\ ("the
+      most recent nine documents"). Too many? Too few? It is one line:
+      `settings = { expander = { recentShow = 5 } }`.
+  D2. The queue keeps 200 and never forgets by AGE — a snippet you
+      reach for once a quarter stays. Is that right, or would you
+      rather it aged out?
+  D3. Should the 🕘 rows be a COPY (what they are — the snippet is also
+      still in its own collection) or should picking one MOVE it out of
+      its collection? Copy is what I built, so your packs stay complete.
+
 - 6.358.0 verify with LL — 🖥 ⌃⌘F FILLS THE SCREEN (KNOWN GROUND)
   WHAT CHANGED: ⌃⌘F in the Mug Player fills the screen, and pressing it
   again puts the window back exactly where and how big it was.

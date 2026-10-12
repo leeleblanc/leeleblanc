@@ -1,5 +1,5 @@
 ========================================================================
-RESOLVED FEATURE REQUESTS — Hammerspoon config 6.358.0
+RESOLVED FEATURE REQUESTS — Hammerspoon config 6.359.0
 Every feature and how to use it. Generated from the modules' own
 cheat sheets (the rows ⇪/ draws), so it is never out of date.
 ⇪ = Caps Lock held (the hyper key). ⇪⇧X = Caps Lock + Shift + X.
@@ -431,6 +431,8 @@ In the Console, _G.<tool>Report() prints any tool's own report.
   add       _G.snippetAdd("gg1", "text") in the Console
   import    _G.snippetsImport() — finds .alfredsnippets in ~/Downloads
   list      _G.snippetsList() — every trigger, in the Console
+  recent    The last nine you PICKED sit at the top of ⇪⇧S — a trigger you type is not counted
+  report    _G.snippetsReport() — the library, the recent queue and its store
   {cursor}  In a snippet: where the caret lands afterwards
   {clipboard} In a snippet: whatever is on the clipboard
   {date} {time} In a snippet: today, and now
@@ -808,6 +810,7 @@ In the Console, _G.<tool>Report() prints any tool's own report.
 
 📜 RELEASE INDEX — newest first, one line per release (the full story of each is in CHANGELOG.md)
 ------------------------------------------------------------------------
+  6.359.0  🕘 THE SNIPPET PICKER REMEMBERS WHAT HE PICKED, AND IT
   6.358.0  🖥 ⌃⌘F FILLS THE SCREEN, AND COMES BACK TO THE SIZE
   6.357.0  ☁️ THE BYTES HAVE TO BE ON THIS MAC BEFORE THEY CAN BE
   6.356.0  🗑 WINDOW RETURN IS OFF, ON HIS WORD

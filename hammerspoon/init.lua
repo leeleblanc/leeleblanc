@@ -2,10 +2,21 @@
 -- * Working VERSION *
 -- =====================================================================
 -- =====================================================================
--- 10-11-26 using Claude          ← EDITED date. Bumped with every release.
+-- 10-12-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.358.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.359.0
 -- =====================================================================
+
+-- NEW IN 6.359.0 — 🕘 THE SNIPPET PICKER REMEMBERS WHAT HE PICKED
+--   (text_expander.lua). LL, twice: "My most recently chose snippets
+--   are not at the top." The grep came first: `recent`, `lastUsed`,
+--   `usedAt`, `mru`, `bumpTo` — ZERO hits. Nothing was written and
+--   nothing went unread, so this is a BUILD, not 6.277.0's shape.
+--   A 🕘 section at rank 0, snapshotted at open so it cannot renumber
+--   under an aimed ⏎. USED = PICKED FROM ⇪⇧S, never a typed trigger
+--   (his word; thousands a day would bury the handful he chooses).
+--   Local store, temp-then-rename. And `_G.snippetsReport()`, which
+--   his Console answered with "attempt to call a nil value".
 
 -- NEW IN 6.358.0 — 🖥 ⌃⌘F FILLS THE SCREEN (video_player.lua). LL:
 --   "I need Mug Player to change from fully full-screen Back to its
@@ -15,20 +26,11 @@
 --   RESIZES it, both ways, carrying the frame he left rather than
 --   recomputing a default, and the drop catcher goes with it.
 
--- NEW IN 6.357.0 — ☁️ THE BYTES HAVE TO BE HERE FIRST (video_player.lua).
---   His 72-second frozen Mac and stall-guard relaunch: a film still in
---   OneDrive. Reading a cloud placeholder HYDRATES it (6.281.0), and
---   this loader reads on the MAIN THREAD, so the first read blocks
---   until the download reaches it. hs.fs.attributes answers `blocks`
---   as well as `size` (libfs.m:683-688, :734-737) — a placeholder
---   carries the full size with nothing allocated. Refused, NAMED, and
---   counted. It fails OPEN where `blocks` is absent.
-
--- (6.356.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.357.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 cut the inline count to
 --  TWO; a gate check proves every entry here is also in CHANGELOG.md.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.358.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.359.0
 -- =====================================================================
 -- The catalogue that used to sit here moved to GUIDE.md ("What each
 -- tool does") in 6.180.0 — 259 lines of prose inside the orchestrator.
@@ -121,7 +123,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.358.0"
+_G.configVersion = "6.359.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the
