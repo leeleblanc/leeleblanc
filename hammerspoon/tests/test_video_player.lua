@@ -23,6 +23,8 @@ local HS = (arg and arg[1]) or os.getenv("HAMMERSPOON_DIR")
 local pass, fail, failures = 0, 0, {}
 SCREENS = { { x = 0, y = 0, w = 1440, h = 900 } }
 
+local CLOUD, NO_BLOCKS = {}, false
+
 local function check(label, cond, extra)
     if cond then pass = pass + 1
     else fail = fail + 1
@@ -149,6 +151,15 @@ hs = {
             local body = DISK[path]
             if body == nil then return nil end
             local a = { size = #body, mode = "file" }
+            -- CLOUD[path] = the bytes actually allocated locally; absent
+            -- means fully downloaded, which is the ordinary case.
+            if NO_BLOCKS then
+                a.blocks = nil
+            else
+                local have = CLOUD[path]
+                if have == nil then have = #body end
+                a.blocks = math.ceil(have / 512)
+            end
             if key then return a[key] end
             return a
         end,
@@ -456,6 +467,18 @@ local function reset()
     vid.blobShare, vid.blobFloor = 1 / 3, 3 * 1024 * 1024 * 1024
     vid.blobCap, vid.ackSecs = 8 * 1024 * 1024 * 1024, 20
     vid.acks, vid.ackLate, vid.ackNoBelt, vid.loadMs = 0, 0, 0, 0
+    -- 6.357.0's cloud guard, for the same reason: a refusal count or a
+    -- verdict that survived reset() would make a fresh section report
+    -- the previous one's placeholder.
+    vid.cloudRefused, vid.diskOK = 0, nil
+    vid.diskWhy = "no film has been asked for yet"
+    vid.cloudFloor, vid.cloudFrac = 4 * 1024 * 1024, 0.9
+    -- 6.358.0: a `small` frame that survived reset() would make the
+    -- next section's first ⌃⌘F SHRINK the window to this one's frame
+    -- instead of filling the screen.
+    vid.small, vid.fills, vid.fillGap = nil, 0, 0
+    vid.fillWhy = "⌃⌘F has not been pressed this session"
+    CLOUD, NO_BLOCKS = {}, false
     JS_ACKS, MEM_BYTES = {}, 16 * 1024 * 1024 * 1024
     CLOCK, CLOCK_STEP = 1000, 0
     vid.dragSeen, vid.dropReader = "no drag yet this session", nil
@@ -2366,6 +2389,315 @@ do
     check("🔒 …and nothing after the chunk goes out arms a turn on a clock",
           tail ~= "MISSING" and tail:find("doAfter", 1, true) == nil,
           tail:sub(1, 90))
+end
+
+
+-- =======================================================================
+out("\n§24 the bytes have to be on this Mac first\n")
+-- =======================================================================
+-- ☁️ LL, on a 72-second frozen Mac and a stall-guard relaunch: "I think
+-- was because Blackhawk Down was in OneDrive. Because it did give me the
+-- spinning beach ball." He is right. The loader reads on the MAIN
+-- THREAD, and reading a cloud placeholder makes macOS download it first.
+
+local MB = 1024 * 1024
+
+-- ---- PURE: four answers, and only one refuses ------------------------
+do
+    local okL, whyL = vid.onDisk(100 * MB, (100 * MB) / 512, 4 * MB, 0.9)
+    check("☁️ a film whose bytes are all here reads", okL and
+          whyL:find("is on this Mac", 1, true) ~= nil, whyL)
+
+    local okC, whyC = vid.onDisk(2300 * MB, 16, 4 * MB, 0.9)
+    check("☁️ a placeholder is REFUSED, naming both sizes",
+          okC == false and whyC:find("still in the cloud", 1, true) ~= nil
+          and whyC:find("2300", 1, true) ~= nil, whyC)
+
+    -- 🚨 FAILS OPEN WHERE IT CANNOT TELL. An hs.fs that does not report
+    -- `blocks` must not turn EVERY film away — that would be the guard
+    -- costing the whole feature rather than one stall.
+    local okN, whyN = vid.onDisk(2300 * MB, nil, 4 * MB, 0.9)
+    check("☁️ a Mac that will not say how much is local reads anyway",
+          okN and whyN:find("does not report", 1, true) ~= nil, whyN)
+
+    local okS = vid.onDisk(nil, 0, 4 * MB, 0.9)
+    check("☁️ a size the Mac would not give reads anyway", okS)
+
+    -- a tiny file cannot stall long enough to matter, so it is never
+    -- refused however little of it is allocated
+    check("☁️ a file under the floor is never refused",
+          (vid.onDisk(1 * MB, 0, 4 * MB, 0.9)) == true)
+
+    -- 🧪 THE FIXTURE THAT BITES is the PAIR at the boundary: every other
+    -- input agrees whatever the fraction is (6.230.0).
+    local size = 100 * MB
+    local atOK = vid.onDisk(size, (size * 0.9) / 512, 4 * MB, 0.9)
+    local under = vid.onDisk(size, (size * 0.89) / 512, 4 * MB, 0.9)
+    check("☁️ exactly at the fraction reads, just under refuses",
+          atOK == true and under == false,
+          tostring(atOK) .. "/" .. tostring(under))
+
+    -- the fraction is a config value the gate MOVES, so a number typed
+    -- into the rule twice cannot pass (6.239.0)
+    check("☁️ …and the fraction is the rule, not a literal",
+          vid.onDisk(size, (size * 0.5) / 512, 4 * MB, 0.4) == true
+          and vid.onDisk(size, (size * 0.5) / 512, 4 * MB, 0.6) == false)
+end
+
+-- ---- driven: a placeholder never reaches the read --------------------
+do
+    reset()
+    local body = string.rep("X", 64)
+    DISK  = { ["/F/cloud.mp4"] = body }
+    CLOUD = { ["/F/cloud.mp4"] = 0 }     -- nothing allocated locally
+    vid.cloudFloor = 16                   -- 64 bytes is "big" for this test
+    vid.chunkBytes = 8
+    vid.show()
+    vid.queue = { { path = "/F/cloud.mp4", title = "Cloud" } }
+    vid.playIndex(1)
+    vid.door = 2
+    JS = {}
+    vid.handleMessage({ a = "srcfail", d = 2, gen = vid.gen, code = 4 })
+    check("☁️ the read never starts on a placeholder", vid.load == nil)
+    check("☁️ …and it is counted, not swallowed",
+          (tonumber(vid.cloudRefused) or 0) == 1 and vid.diskOK == false)
+    check("☁️ …and not one byte was handed to the window",
+          jsCount("blobChunk(") == 0)
+
+    -- 🚨 THE MESSAGE IS THE RELEASE. The generic refusal blames WebKit
+    -- and the codec, which for a placeholder is the wrong story and
+    -- would send the next release hunting a decode fault (6.351.0).
+    local said = table.concat(JS, "\n")
+    check("☁️ the page is told it is the CLOUD, not the codec",
+          said:find("not on this", 1, true) ~= nil
+          and said:find("OneDrive", 1, true) ~= nil
+          and said:find("Nothing is wrong with the film", 1, true) ~= nil,
+          said:sub(1, 160))
+    check("☁️ …and it says what to press once it has downloaded",
+          said:find("plays it here", 1, true) ~= nil)
+    vid.hide()
+end
+
+-- ---- driven: the NEGATIVE case, or the guard proves nothing ----------
+-- 6.346.0's rule: a check that something is refused passes with the whole
+-- feature disconnected. The local film must still read.
+do
+    reset()
+    local body = string.rep("Y", 64)
+    DISK  = { ["/F/local.mp4"] = body }   -- CLOUD empty = fully downloaded
+    vid.cloudFloor = 16
+    vid.chunkBytes = 8
+    vid.show()
+    vid.queue = { { path = "/F/local.mp4", title = "Local" } }
+    vid.playIndex(1)
+    vid.door = 2
+    vid.handleMessage({ a = "srcfail", d = 2, gen = vid.gen, code = 4 })
+    check("☁️ a film that IS here still reads", vid.load ~= nil
+          and (tonumber(vid.cloudRefused) or 0) == 0 and vid.diskOK == true)
+    runLoad(40)
+    check("☁️ …all the way to the end, byte for byte", blobBytes() == body)
+    vid.hide()
+end
+
+-- ---- driven: no `blocks` at all, so it reads ------------------------
+do
+    reset()
+    DISK = { ["/F/nob.mp4"] = string.rep("Z", 64) }
+    CLOUD = { ["/F/nob.mp4"] = 0 }
+    NO_BLOCKS = true                      -- an hs.fs that cannot answer
+    vid.cloudFloor = 16
+    vid.chunkBytes = 8
+    vid.show()
+    vid.queue = { { path = "/F/nob.mp4", title = "NoBlocks" } }
+    vid.playIndex(1)
+    vid.door = 2
+    vid.handleMessage({ a = "srcfail", d = 2, gen = vid.gen, code = 4 })
+    check("☁️ with no `blocks` field the read goes ahead", vid.load ~= nil)
+    vid.hide()
+    NO_BLOCKS = false
+end
+
+-- ---- the report's three states ---------------------------------------
+do
+    reset()
+    -- 🚨 AND IT MUST NOT CARRY THE ⚠️. Asserting the WORDS alone passes
+    -- when the not-asked branch is deleted, because the refusal branch
+    -- prints the same sentence behind a warning — "not asked yet" read
+    -- as "NOT HERE" is 6.196.1 inside the line built to keep it.
+    do
+        local t0 = reportText()
+        check("🔎 before any film the on-disk line says NOT ASKED",
+              t0:find("on disk: ⏳ no film has been asked for yet", 1, true) ~= nil
+              and t0:find("on disk: ⚠️", 1, true) == nil, t0:sub(1, 160))
+    end
+
+    DISK  = { ["/F/c2.mp4"] = string.rep("X", 64) }
+    CLOUD = { ["/F/c2.mp4"] = 0 }
+    vid.cloudFloor, vid.chunkBytes = 16, 8
+    vid.show()
+    vid.queue = { { path = "/F/c2.mp4", title = "C2" } }
+    vid.playIndex(1)
+    vid.door = 2
+    vid.handleMessage({ a = "srcfail", d = 2, gen = vid.gen, code = 4 })
+    local t = reportText()
+    check("🔎 a refused film reads ⚠️ NOT HERE, never as health",
+          t:find("on disk: ⚠️ NOT HERE", 1, true) ~= nil, t:sub(1, 200))
+    check("🔎 …and the cloud count names the 72-second freeze it prevents",
+          t:find("refused for being in the cloud", 1, true) ~= nil
+          and t:find("72 s", 1, true) ~= nil)
+    vid.hide()
+end
+
+
+-- =======================================================================
+out("\n§25 ⌃⌘F fills the screen, and comes back to the size he had\n")
+-- =======================================================================
+-- 🖥 LL: "I need Mug Player to change from fully full-screen Back to its
+-- small window size … to the Mac window size of command+ctrl+f."
+-- macOS's OWN full screen is not reachable — hs.webview.windowMasks has
+-- no fullScreen entry (libwebview.m:2533-2562) and this window is
+-- borderless — so ⌃⌘F RESIZES the window, both ways.
+
+-- ---- PURE: three answers ---------------------------------------------
+do
+    local sf  = { x = 0, y = 0, w = 1440, h = 900 }
+    local cur = { x = 100, y = 80, w = 880, h = 660 }
+
+    local big, why1 = vid.fillPlan(cur, sf, nil, 0)
+    check("🖥 with no small frame kept, it FILLS the screen",
+          big and big.w == 1440 and big.h == 900 and big.x == 0 and big.y == 0
+          and why1:find("filling", 1, true) ~= nil, why1)
+
+    local back, why2 = vid.fillPlan({ x = 0, y = 0, w = 1440, h = 900 }, sf, cur, 0)
+    check("🖥 with one kept, it goes back to EXACTLY that frame",
+          back and back.x == 100 and back.y == 80
+          and back.w == 880 and back.h == 660
+          and why2:find("back to the size you had it", 1, true) ~= nil, why2)
+
+    local none, why3 = vid.fillPlan(cur, nil, nil, 0)
+    check("🖥 no screen to answer about is its own answer, not a guess",
+          none == nil and why3:find("no screen", 1, true) ~= nil, why3)
+
+    local nf, why4 = vid.fillPlan(nil, sf, nil, 0)
+    check("🖥 a window that will not say its size is refused, not filled",
+          nf == nil and why4:find("would not say", 1, true) ~= nil, why4)
+
+    -- the gap is the rule, not a literal (6.239.0)
+    local g = vid.fillPlan(cur, sf, nil, 12)
+    check("🖥 the gap is read, not typed in twice",
+          g and g.x == 12 and g.y == 12 and g.w == 1416 and g.h == 876)
+
+    -- 🧪 THE FIXTURE THAT BITES the carried frame: a small frame whose
+    -- size happens to equal a freshly computed default would agree with
+    -- a recompute, so the one that separates them is a frame he MOVED
+    -- and RESIZED (6.230.0).
+    local moved = { x = 17, y = 23, w = 641, h = 409 }
+    local b2 = vid.fillPlan({ x = 0, y = 0, w = 1440, h = 900 }, sf, moved, 0)
+    check("🖥 …and it is HIS frame, not a recomputed default",
+          b2 and b2.x == 17 and b2.y == 23 and b2.w == 641 and b2.h == 409)
+end
+
+-- ---- driven: both directions, and the catcher comes too --------------
+do
+    reset()
+    vid.show()
+    vid.webview:frame({ x = 100, y = 80, w = 880, h = 660 })
+    vid.moveCatcher({ x = 100, y = 80, w = 880, h = 660 })
+
+    check("🖥 ⌃⌘F from the page fills the screen", (function()
+        vid.handleMessage({ a = "fill" })
+        local f = vid.webview:frame()
+        return f.w == 1440 and f.h == 900 and f.x == 0 and f.y == 0
+    end)(), vid.fillWhy)
+
+    -- 🚨 THE DROP AREA IS THE WINDOW'S. One left at the old frame is a
+    -- dead zone over the old spot and no drop at the new one.
+    check("🖥 …and the drop catcher went with it",
+          vid.catcher ~= nil and vid.catcher:frame().w == 1440,
+          vid.catcher and vid.catcher:frame().w)
+
+    check("🖥 ⌃⌘F again comes back to the size he had", (function()
+        vid.handleMessage({ a = "fill" })
+        local f = vid.webview:frame()
+        return f.x == 100 and f.y == 80 and f.w == 880 and f.h == 660
+    end)(), vid.fillWhy)
+    check("🖥 …and the catcher came back with it",
+          vid.catcher ~= nil and vid.catcher:frame().w == 880)
+    check("🖥 a third press fills again — the flag is cleared on the way back",
+          (function()
+        vid.handleMessage({ a = "fill" })
+        return vid.webview:frame().w == 1440
+    end)())
+    check("🖥 …and every press is counted", (tonumber(vid.fills) or 0) == 3)
+    vid.hide()
+end
+
+-- ---- a closed window has nothing to come back to ---------------------
+do
+    reset()
+    vid.show()
+    vid.webview:frame({ x = 100, y = 80, w = 880, h = 660 })
+    vid.handleMessage({ a = "fill" })
+    check("🖥 filled, then closed", vid.small == nil or true)
+    vid.hide()
+    check("🖥 closing the window forgets the frame to come back to",
+          vid.small == nil)
+    vid.show()
+    vid.webview:frame({ x = 10, y = 10, w = 500, h = 400 })
+    vid.handleMessage({ a = "fill" })
+    check("🖥 …so the next session's first ⌃⌘F FILLS, never shrinks",
+          vid.webview:frame().w == 1440, vid.webview:frame().w)
+    vid.hide()
+end
+
+-- ---- with no window, and the report ----------------------------------
+do
+    reset()
+    -- the report is read FIRST: toggleFill writes `fillWhy`, so asking
+    -- afterwards measures this test's own press rather than a fresh Mac
+    check("🔎 the report says the size, and that macOS full screen is not it",
+          (function()
+        local t = reportText()
+        return t:find("size   : its own window", 1, true) ~= nil
+           and t:find("libwebview.m:2533-2562", 1, true) ~= nil
+           and t:find("⌃⌘F has not been pressed", 1, true) ~= nil
+    end)(), (reportText():match("size   :[^\n]*") or "NO size LINE"))
+
+    local ok, why = vid.toggleFill()
+    check("🖥 ⌃⌘F with no window answers false AND why",
+          ok == false and tostring(why):find("no window", 1, true) ~= nil, why)
+    check("🔎 …and that refusal reaches the report, not just the caller",
+          (reportText():find("no window is open", 1, true)) ~= nil)
+
+    vid.show()
+    vid.webview:frame({ x = 100, y = 80, w = 880, h = 660 })
+    vid.handleMessage({ a = "fill" })
+    check("🔎 …and while filled it names the size it will go back to",
+          (function()
+        local t = reportText()
+        return t:find("filling the screen", 1, true) ~= nil
+           and t:find("880 × 660", 1, true) ~= nil
+    end)(), reportText():sub(1, 220))
+    vid.hide()
+end
+
+-- ---- the page really sends it ----------------------------------------
+do
+    -- 🔒 A HANDLER WITH NO KEY TO DRIVE IT IS A FEATURE THAT LOOKS BUILT
+    -- (6.273.0). The page's ⌃⌘F must be read BEFORE the metaKey bail,
+    -- which returns on every ⌘ chord the page does not claim.
+    local bare = SRC:gsub("\n%s*%-%-[^\n]*", "")
+    local body = bare:match("addEventListener%('keydown'(.-)\n%}%);")
+    check("🔒 the sentry really read the page's keydown",
+          type(body) == "string" and #body > 400, tostring(body and #body))
+    body = body or ""
+    local fillAt = body:find("a:'fill'", 1, true)
+    local bailAt = body:find("if(e.metaKey)return;", 1, true)
+    check("🔒 ⌃⌘F is claimed BEFORE the plain-⌘ bail, or it is dead",
+          fillAt ~= nil and bailAt ~= nil and fillAt < bailAt,
+          tostring(fillAt) .. "/" .. tostring(bailAt))
+    check("🔒 …and it asks for ctrl as well, so plain ⌘F is left alone",
+          body:match("e%.metaKey&&e%.ctrlKey&&%(e%.key==='f'") ~= nil)
 end
 
 -- ---- the tally ---------------------------------------------------------

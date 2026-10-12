@@ -124,6 +124,12 @@ local DOCKED = { screen("UUID-A", 0, 0, 1512, 982), screen("UUID-B", 1512, 0, 25
 local LAPTOP = { screen("UUID-A", 0, 0, 1512, 982) }
 SCREENS = DOCKED
 
+local function warm(m)
+    if type(m) ~= "table" or type(m.warm) ~= "function" then return false end
+    local ok = pcall(m.warm)
+    return ok
+end
+
 local M = dofile(HS .. "/modules/window_return.lua")
 check("module loads and has setup()", type(M.setup) == "function")
 check("filed under the windows family", M.family == "windows")
@@ -138,9 +144,53 @@ M.setup(CORE)
 local wr = _G.windowReturn
 check("module table exported", type(wr) == "table")
 check("_G.windowsBack is published", type(_G.windowsBack) == "function")
+
+-- 🗑 6.356.0 — OFF IS THE SHIPPED DEFAULT, and off means NOTHING RUNS.
+-- Asserted against the fields themselves (6.259.0): a switched-off
+-- module that still holds a watcher or a timer is made-and-hidden, not
+-- off, and that reads identically from outside.
+check("the switch ships OFF", wr.enabled == false)
+check("setup alone starts nothing — the wiring is in warm()",
+      wr.watcher == nil and wr.snapTimer == nil and wr.firstTimer == nil)
+check("…and warm() with the switch off STILL starts nothing", (function()
+    if not warm(M) then return false end
+    return wr.started == false and wr.watcher == nil and wr.snapTimer == nil
+end)())
+check("the report says OFF, names nothing held, and keeps the layouts",
+      (function()
+    local got = {}
+    local realPrint = print
+    _G.print = function(x) got[#got + 1] = tostring(x) end
+    _G.windowReturnReport()
+    _G.print = realPrint
+    local t = table.concat(got, "\n")
+    return t:find("switch : OFF", 1, true) ~= nil
+       and t:find("holding: nothing", 1, true) ~= nil
+       and t:find("monitor setup(s) remembered", 1, true) ~= nil
+       -- the promise he needs: switching it off keeps what it captured
+       and t:find("kept, never cleared", 1, true) ~= nil
+end)())
+
+-- 🔌 AND THE SWITCH IS REAL IN BOTH DIRECTIONS. init.lua applies a
+-- profile's settings AFTER setup returns, so a module that started its
+-- watchers in setup could only ever be STOPPED by an override and never
+-- started (6.228.0). This is that override, applied the way init.lua
+-- applies it, followed by warm.
+wr.enabled = true
+check("the switch turned ON starts it", warm(M) and wr.started == true)
 check("the screen watcher is up", wr.watcher ~= nil and wr.watcher.started == true)
 check("snapshot cadence timer is HELD (an unreferenced timer never fires)",
       wr.snapTimer ~= nil and wr.snapTimer.every == true)
+check("…and the report now reads running, naming what it holds", (function()
+    local got = {}
+    local realPrint = print
+    _G.print = function(x) got[#got + 1] = tostring(x) end
+    _G.windowReturnReport()
+    _G.print = realPrint
+    local t = table.concat(got, "\n")
+    return t:find("running: yes", 1, true) ~= nil
+       and t:find("screen watcher", 1, true) ~= nil
+end)())
 
 -- =====================================================================
 out("2. the signature — sorted, order-blind\n")
@@ -343,8 +393,24 @@ AX = false
 ALERTS = {}
 local M3 = dofile(HS .. "/modules/window_return.lua")
 M3.setup(CORE)
+-- 🚨 THE SWITCH IS TURNED ON FIRST, or this section passes for the wrong
+-- reason: with the shipped default it would start nothing whatever
+-- Accessibility said, and the check would be about 6.356.0 rather than
+-- about Accessibility (6.273.0 — a check that cannot fail is missing).
+M3.wr.enabled = true
+check("warm() exists to be driven here", warm(M3))
 check("no watcher and no timers without Accessibility",
       M3.wr.watcher == nil and M3.wr.snapTimer == nil)
+check("…and it is a FAULT in the report, not health", (function()
+    local got = {}
+    local realPrint = print
+    _G.print = function(x) got[#got + 1] = tostring(x) end
+    _G.windowReturnReport()
+    _G.print = realPrint
+    local t = table.concat(got, "\n")
+    return t:find("⚠️ WANTED but NOT running", 1, true) ~= nil
+       and t:find("Accessibility", 1, true) ~= nil
+end)())
 check("_G.windowsBack still answers instead of silently failing", (function()
     local n = _G.windowsBack()
     for _, a in ipairs(ALERTS) do

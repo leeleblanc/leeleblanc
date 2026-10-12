@@ -124,6 +124,7 @@ local M = {
             { "✕",       "On a 🕘 history row: forget that film (the file is not touched)" },
             { "⌘O",      "Open the film playing now in QuickTime — the way out when" },
             { "",        "macOS will not let this window read it" },
+            { "⌃⌘F",     "Fill the screen — press it again for the size you had it at" },
             { "drag",    "Move the window: grab its title strip — or ⌘-drag anywhere on it" },
             { "⏯ ⏮ ⏭",   "NOT taken here, deliberately: the Jug Player holds them, and two" },
             { "",        "tools on one physical key is how they come to disagree (6.291.0)" },
@@ -229,6 +230,16 @@ function M.setup(core)
         blobShare  = 1 / 3,             -- of this Mac's physical memory
         blobFloor  = 3 * 1024 * 1024 * 1024,
         blobCap    = 8 * 1024 * 1024 * 1024,
+        -- ☁️ 6.357.0 — the cloud-placeholder guard. A film under the
+        -- floor cannot stall the read long enough to matter; above it,
+        -- less than `cloudFrac` of the bytes allocated locally means the
+        -- rest is still in the cloud.
+        cloudFloor = 4 * 1024 * 1024,
+        cloudFrac  = 0.9,
+        fillGap    = 0,                -- points left around a filled window
+        small      = nil,              -- the frame to come back to, while filled
+        fills      = 0,
+        fillWhy    = "⌃⌘F has not been pressed this session",
         slowTurnMs = 120,               -- past this a turn takes the 🔔 door
         -- 🛟 6.355.0 — THE PAGE SAYS WHEN IT HAS TAKEN A CHUNK.
         -- `evaluateJavaScript` RETURNS BEFORE THE SCRIPT RUNS (read in
@@ -252,6 +263,9 @@ function M.setup(core)
         loadBytes  = 0,
         blobPlayed = 0,
         blobFailed = 0,
+        cloudRefused = 0,              -- films refused for being in the cloud
+        diskOK     = nil,              -- nil = not asked yet (6.196.1)
+        diskWhy    = "no film has been asked for yet",
         loadSlow   = 0,
         loadWhy    = "the loader has not been asked yet",
         loadMs     = 0,                 -- wall clock of the last whole read
@@ -482,6 +496,60 @@ function M.setup(core)
                      .. " turn(s) of " .. vid.mb(c), turns
     end
 
+    -- ☁️ PURE: ARE THE BYTES ACTUALLY ON THIS MAC? (6.357.0 — LL, on a
+    -- 72-second frozen Mac and a stall-guard relaunch: "I think was
+    -- because Blackhawk Down was in OneDrive. Because it did give me the
+    -- spinning beach ball." He is right, and the mechanism is one this
+    -- config already paid for once: 6.281.0 found that READING a
+    -- dehydrated cloud placeholder HYDRATES it, and a hydration is a
+    -- download. The loader reads the film on the MAIN THREAD, so the
+    -- first `:read()` on a placeholder blocks until OneDrive has fetched
+    -- that far — which is 6.228.0's cost measured in minutes instead of
+    -- milliseconds, and it is what the stall guard killed.
+    --
+    -- 🔬 CHECKED IN THE SOURCE, WITH THE FILE NAMED (6.233.0):
+    -- `hs.fs.attributes` returns BOTH `size` (st_size, the logical size)
+    -- and `blocks` (st_blocks, the 512-byte blocks actually ALLOCATED) —
+    -- extensions/fs/libfs.m:679-688 and the field table at :734-737. A
+    -- cloud placeholder carries the full logical size with almost
+    -- nothing allocated behind it, and that difference is the only thing
+    -- on this Mac that can tell the two apart before the read blocks.
+    --
+    -- 🗳 AND THE DEFAULT IS CHOSEN AGAINST THE DAMAGE THIS CHECK CAN DO
+    -- (6.319.0). Refusing a film that IS local costs him one keypress —
+    -- the message names ⌘O and a real player opens it. Reading one that
+    -- is NOT costs a frozen Mac and a killed Hammerspoon. So where
+    -- `blocks` is PRESENT and short, it refuses; where `blocks` is
+    -- ABSENT it reads anyway, because an hs.fs that cannot answer must
+    -- not turn every film away.
+    function vid.onDisk(size, blocks, floorB, frac)
+        local s = tonumber(size)
+        local b = tonumber(blocks)
+        local fl = tonumber(floorB) or 4194304
+        local fr = tonumber(frac) or 0.9
+        if not s or s <= 0 then
+            return true, "the Mac would not say how big the film is, so"
+                         .. " the read goes ahead"
+        end
+        if not b then
+            return true, "this Mac does not report how much of the film"
+                         .. " is stored locally, so the read goes ahead"
+        end
+        local have = b * 512
+        if s < fl then
+            return true, "small enough that a cloud download could not"
+                         .. " stall the read"
+        end
+        if have >= s * fr then
+            return true, vid.mb(have) .. " of " .. vid.mb(s)
+                         .. " is on this Mac"
+        end
+        return false, "only " .. vid.mb(have) .. " of this film's "
+                      .. vid.mb(s) .. " is on this Mac — the rest is"
+                      .. " still in the cloud, and reading it here would"
+                      .. " freeze the Mac until it downloaded"
+    end
+
     -- 🕘 PURE: thirty days, ONE ROW PER FILE, newest first. The cap is a
     -- BOUND and not the rule — days decide what is kept, and the cap only
     -- stops a runaway list, keeping the NEWEST (its own check, because
@@ -584,6 +652,47 @@ function M.setup(core)
         -- A spot on a screen he is not on is DROPPED, never dragged onto
         -- one it was never on (6.196.0's rule for the cheat sheet).
         return base, "centred — the remembered spot is on no screen now"
+    end
+
+    -- 🖥 PURE: FILL THE SCREEN, OR GO BACK TO THE SIZE HE CHOSE
+    -- (6.358.0 — LL: "I need Mug Player to change from fully full-screen
+    -- Back to its small window size … to the Mac window size of
+    -- command+ctrl+f").
+    --
+    -- 🔬 AND macOS'S OWN FULL SCREEN IS NOT REACHABLE FROM HERE, checked
+    -- in the source rather than designed around (6.233.0):
+    -- `hs.webview.windowMasks` carries borderless · titled · closable ·
+    -- miniaturizable · resizable · texturedBackground ·
+    -- fullSizeContentView · utility · nonactivating · HUD —
+    -- extensions/webview/libwebview.m:2533-2562 — and there is NO
+    -- fullScreen among them. This window is created with no masks at
+    -- all (borderless), and the module asks for `fullScreenAuxiliary`,
+    -- which is AppKit's behaviour for a window that ACCOMPANIES a
+    -- full-screen window rather than becoming one. So ⌃⌘F here RESIZES
+    -- the window to the screen, which is what he asked for in both
+    -- directions, and the report says which it did rather than letting
+    -- it look like macOS full screen that half-worked.
+    --
+    -- 🔑 THE SMALL FRAME IS CARRIED, NEVER RECOMPUTED. Coming back to
+    -- "its small window size" has to mean the size and spot he left,
+    -- not a freshly centred default — recomputing is how a window he
+    -- had placed comes back somewhere else.
+    function vid.fillPlan(cur, sf, small, gap)
+        local g = math.max(0, tonumber(gap) or 0)
+        if type(sf) ~= "table" or not (tonumber(sf.w) and tonumber(sf.h)) then
+            return nil, "there is no screen to answer about"
+        end
+        if type(small) == "table" and tonumber(small.w) and tonumber(small.h) then
+            return { x = tonumber(small.x) or sf.x, y = tonumber(small.y) or sf.y,
+                     w = tonumber(small.w), h = tonumber(small.h) },
+                   "back to the size you had it"
+        end
+        if type(cur) ~= "table" or not (tonumber(cur.w) and tonumber(cur.h)) then
+            return nil, "the window would not say how big it is"
+        end
+        return { x = sf.x + g, y = sf.y + g,
+                 w = math.max(1, sf.w - g * 2), h = math.max(1, sf.h - g * 2) },
+               "filling the screen"
     end
 
     -- 🔎 PURE: WHAT THE STORE IS, IN WORDS, and "not yet" is one of them
@@ -1024,6 +1133,11 @@ document.addEventListener('keydown',function(e){
    say({a:'play',k:'q',i:+e.key});return}
  if(e.metaKey&&(e.key==='o'||e.key==='O')){e.preventDefault();
    say({a:'external'});return}
+ // 🖥 ⌃⌘F fills the screen and comes back. It is read BEFORE the
+ // metaKey bail below, which returns on every ⌘ chord this page does
+ // not claim — put after it, this key would be silently dead.
+ if(e.metaKey&&e.ctrlKey&&(e.key==='f'||e.key==='F')){e.preventDefault();
+   say({a:'fill'});return}
  if(e.metaKey)return;
  if(e.key==='Escape'){
    // 🪟 WEBKIT OWNS ESC WHILE THE FILM IS FULL SCREEN. Taking it here
@@ -1350,6 +1464,10 @@ document.addEventListener('keydown',function(e){
         end
         stopFocusChase()
         vid.stopCatcher()
+        -- 🖥 A CLOSED WINDOW HAS NOTHING TO COME BACK TO. Left set, the
+        -- first ⌃⌘F of the next session would "return" the window to a
+        -- frame from the last one instead of filling the screen.
+        vid.small = nil
         -- 📦 A READ IN FLIGHT IS A FILE HANDLE AND A HELD TIMER, and a
         -- feature holding both owes a teardown to every door that can end
         -- it (6.256.0). Without this, closing the window mid-read leaves
@@ -1396,6 +1514,52 @@ document.addEventListener('keydown',function(e){
         if vid.catcher and type(f) == "table" then
             pcall(function() vid.catcher:frame(f) end)
         end
+    end
+
+    -- 🖥 ⌃⌘F — one door, both directions, and the catcher comes with it
+    -- (a drop area left at the old frame is a dead zone over the old
+    -- spot and no drop at the new one).
+    function vid.toggleFill()
+        if not vid.webview then
+            vid.fillWhy = "no window is open"
+            return false, vid.fillWhy
+        end
+        local okF, cur = pcall(function() return vid.webview:frame() end)
+        if not (okF and type(cur) == "table") then
+            vid.fillWhy = "the window would not say how big it is"
+            return false, vid.fillWhy
+        end
+        local screen = (core.resolveBaseScreen and core.resolveBaseScreen())
+                       or (hs.screen and hs.screen.mainScreen
+                           and hs.screen.mainScreen())
+        local sf = nil
+        if screen then
+            local okS, f = pcall(function() return screen:frame() end)
+            if okS then sf = f end
+        end
+        local want, why = vid.fillPlan(cur, sf, vid.small, vid.fillGap)
+        if not want then
+            vid.fillWhy = why
+            return false, why
+        end
+        -- Remember the small frame BEFORE filling, or there is nothing
+        -- to come back to; forget it on the way back, or the next ⌃⌘F
+        -- would "return" instead of filling.
+        if vid.small then
+            vid.small = nil
+        else
+            vid.small = { x = cur.x, y = cur.y, w = cur.w, h = cur.h }
+        end
+        local okW = pcall(function() vid.webview:frame(want) end)
+        if not okW then
+            vid.small = nil
+            vid.fillWhy = "macOS refused to resize the window"
+            return false, vid.fillWhy
+        end
+        vid.moveCatcher(want)
+        vid.fills   = (tonumber(vid.fills) or 0) + 1
+        vid.fillWhy = why
+        return true, why
     end
 
     function vid.startCatcher(rect)
@@ -1962,10 +2126,27 @@ document.addEventListener('keydown',function(e){
                           .. " not read in pieces at all"
             return false
         end
-        local size = nil
+        local size, blocks = nil, nil
         if hs.fs and hs.fs.attributes then
             local okA, a = pcall(hs.fs.attributes, path)
-            if okA and type(a) == "table" then size = tonumber(a.size) end
+            if okA and type(a) == "table" then
+                size   = tonumber(a.size)
+                blocks = tonumber(a.blocks)
+            end
+        end
+        -- ☁️ ASKED BEFORE THE FIRST READ, because the first read is the
+        -- one that blocks. A refusal here is NAMED and counted, never a
+        -- silent hand-off — he said plainly that handing off is not what
+        -- he wants, so the message has to say what happened and what to
+        -- press.
+        local onIt, diskWhy = vid.onDisk(size, blocks, vid.cloudFloor,
+                                         vid.cloudFrac)
+        vid.diskWhy = diskWhy
+        vid.diskOK  = onIt
+        if not onIt then
+            vid.cloudRefused = (vid.cloudRefused or 0) + 1
+            vid.loadWhy = diskWhy
+            return false
         end
         local ok, why, turns = vid.loadPlan(size, vid.maxBytes(),
                                             vid.chunkBytes)
@@ -2032,6 +2213,19 @@ document.addEventListener('keydown',function(e){
         -- own -3001 is why), and a window whose only answer is "it
         -- would not play" is a window that does not work. The film
         -- he asked for opens in a player that CAN read his disk.
+        if vid.diskOK == false then
+            if vid.handOff then vid.openExternal(cur.path, true) end
+            tellPage("fail", "☁️ " .. (cur.title or "") .. " is not on this"
+                     .. " Mac yet — " .. tostring(vid.diskWhy) .. "."
+                     .. ((vid.handOff and "  It is opening in your usual"
+                          .. " player, which streams it while OneDrive"
+                          .. " downloads it.") or "  ⌘O opens it in your"
+                          .. " usual player.")
+                     .. "  Once OneDrive has finished, ⏎ plays it here."
+                     .. "  Nothing is wrong with the film and nothing is"
+                     .. " wrong with the player.")
+            return
+        end
         if vid.handOff then
             vid.openExternal(cur.path, true)
             tellPage("fail", "▶︎ " .. (cur.title or "") .. " is opening in"
@@ -2272,6 +2466,10 @@ document.addEventListener('keydown',function(e){
             vid.save() ; vid.render()
             return
 
+        elseif a == "fill" then
+            vid.toggleFill()
+            return
+
         elseif a == "external" then
             vid.openExternal()
             return
@@ -2459,9 +2657,44 @@ document.addEventListener('keydown',function(e){
         -- time it matters is the moment a film is too big and he wants
         -- to know whether that was his Mac or my arithmetic.
         do
+            if vid.small then
+                L[#L + 1] = "   size   : filling the screen — ⌃⌘F puts it"
+                            .. " back to " .. math.floor(vid.small.w or 0)
+                            .. " × " .. math.floor(vid.small.h or 0)
+            else
+                L[#L + 1] = "   size   : its own window — ⌃⌘F fills the"
+                            .. " screen (macOS full screen is not"
+                            .. " reachable: hs.webview has no fullScreen"
+                            .. " mask, libwebview.m:2533-2562)"
+            end
+            L[#L + 1] = "   ↳ ⌃⌘F  : " .. (tonumber(vid.fills) or 0)
+                        .. " press(es) this session — last: "
+                        .. tostring(vid.fillWhy)
+        end
+        do
             local cap = vid.maxBytes()
             L[#L + 1] = "   ceiling: " .. vid.mb(cap) .. " — "
                         .. tostring(vid.ceilWhy)
+        end
+        -- ☁️ THREE STATES (6.196.1): never asked · the bytes are here ·
+        -- they are not. "Not asked yet" must never read as "it is fine",
+        -- because that is the sentence a frozen Mac would have printed.
+        do
+            local cr = tonumber(vid.cloudRefused) or 0
+            if vid.diskOK == nil then
+                L[#L + 1] = "   on disk: ⏳ no film has been asked for yet"
+            elseif vid.diskOK then
+                L[#L + 1] = "   on disk: the last film's bytes were here — "
+                            .. tostring(vid.diskWhy)
+            else
+                L[#L + 1] = "   on disk: ⚠️ NOT HERE — " .. tostring(vid.diskWhy)
+            end
+            if cr > 0 then
+                L[#L + 1] = "   ↳ cloud : " .. cr .. " film(s) refused for"
+                            .. " being in the cloud — reading one on the"
+                            .. " main thread is what froze the Mac for 72 s"
+                            .. " on 2026-10-12"
+            end
         end
         do
             local runs = tonumber(vid.loadRuns) or 0

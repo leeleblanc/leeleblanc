@@ -61,14 +61,14 @@ local M = {
     order  = 6.6,
     family = "windows",
     cheatsheet = {
-        title = "🔁 WINDOW RETURN (automatic — dock back in, windows go back)",
+        title = "🔁 WINDOW RETURN (OFF — it is not moving any window)",
         entries = {
-            { "auto",   "Remembers where windows sit for EACH monitor setup (every 30s)" },
-            { "auto",   "When a setup returns — dock back in — scattered windows snap back" },
-            { "scope",  "The visible Space only; macOS Spaces are never touched" },
-            { "match",  "By window id, then exact app+title — an unmatched window is left alone" },
+            { "off",    "Suspended on your word in 6.356.0 — nothing watches, nothing moves" },
+            { "back on","settings = { window_return = { enabled = true } }" },
             { "_G.windowsBack()", "Console: put them back right now, by hand" },
-            { "off",    "wr.enabled = false in modules/window_return.lua's EDIT HERE" },
+            { "_G.windowReturnReport()", "Console: the switch, what is running, what is held" },
+            { "kept",   "Every monitor layout already captured is still remembered" },
+            { "when on","Remembers where windows sit for EACH monitor setup; a setup returning snaps them back" },
         },
     },
 }
@@ -77,7 +77,21 @@ function M.setup(core)
     local wr = {}
 
     -- ✏️ EDIT HERE ---------------------------------------------------------
-    wr.enabled      = true
+    -- 🗑 6.356.0 — OFF ON HIS WORD. LL: "I guess it's causing me to do my
+    -- application windows making them jump around the screen. Suspend
+    -- this feature for now. Period, comment it out, period. We'll return
+    -- to it in the future." Nothing is deleted (6.254.0's shape): every
+    -- line is here, the layouts he has already captured stay in
+    -- hs.settings, and `settings = { window_return = { enabled = true } }`
+    -- brings it back. 🔌 THE SWITCH IS REAL IN BOTH DIRECTIONS because
+    -- the wiring moved to M.warm — init.lua applies a profile's settings
+    -- AFTER setup returns, so a module that STARTS its watchers in setup
+    -- can only ever be STOPPED by an override, never started (6.228.0,
+    -- and 6.259.0 is the release that made the same move for the same
+    -- reason). With OFF as the default the broken direction is the
+    -- useful one, so a removal that did not move the wiring would be a
+    -- removal with no way back.
+    wr.enabled      = false
     wr.snapshotSecs = 30     -- how often the current setup's layout is refreshed
     wr.sweepStep    = 0.05   -- pause between apps inside one snapshot sweep
     wr.slowAppMs    = 250    -- an app slower than this gets named in the console
@@ -350,22 +364,98 @@ function M.setup(core)
 
     _G.windowsBack = function() return wr.restore(false) end
 
-    if wr.enabled and axOK then
+    -- 🔎 THREE STATES, AND "enabled" IS NOT "running" (6.196.1). A Mac
+    -- that turned the switch on and never warmed must read as a FAULT,
+    -- not as health, and OFF must be assertable rather than claimed:
+    -- `wr.started` is written where the watchers really start.
+    wr.started  = false
+    wr.startWhy = "warm() has not run yet"
+
+    function wr.start()
+        if wr.started then return true, "already running" end
+        if not wr.enabled then
+            wr.startWhy = "switched off — settings = { window_return ="
+                          .. " { enabled = true } } brings it back"
+            return false, wr.startWhy
+        end
+        if not axOK then
+            -- capabilities.lua already reports what Accessibility being
+            -- off costs; this just keeps the by-hand command honest.
+            wr.startWhy = "Accessibility not granted — other apps'"
+                          .. " windows cannot be moved on this Mac"
+            say("off — Accessibility not granted, other apps' windows can't move")
+            _G.windowsBack = function()
+                hs.alert.show("🔁 Window Return is off — Accessibility is not"
+                              .. " granted on this Mac (see ⇪⇧D)")
+                return 0
+            end
+            return false, wr.startWhy
+        end
         wr.watcher = hs.screen.watcher.new(function() wr.screensChanged() end)
         wr.watcher:start()
         -- first snapshot waits out the boot rush, then the quiet cadence
         wr.firstTimer = hs.timer.doAfter(15, function() wr.snapshot() end)
         wr.snapTimer  = hs.timer.doEvery(wr.snapshotSecs, function() wr.snapshot() end)
+        wr.started  = true
+        wr.startWhy = "watching"
         say("watching — " .. (next(wr.layouts) and "layouts loaded" or "no layouts yet"))
-    elseif wr.enabled then
-        -- capabilities.lua already reports what Accessibility being off
-        -- costs; this just keeps the by-hand command honest.
-        say("off — Accessibility not granted, other apps' windows can't move")
-        _G.windowsBack = function()
-            hs.alert.show("🔁 Window Return is off — Accessibility is not"
-                          .. " granted on this Mac (see ⇪⇧D)")
-            return 0
+        return true, wr.startWhy
+    end
+
+    -- 🚨 OFF IS OFF, NOT MADE-AND-HIDDEN (6.259.0): with the switch off
+    -- there is no screen watcher, no snapshot timer and no held first
+    -- timer — asserted by the suite against these very fields, never
+    -- claimed in a comment.
+    function wr.stop()
+        if wr.watcher then pcall(function() wr.watcher:stop() end) end
+        for _, k in ipairs({ "firstTimer", "snapTimer", "sweepTimer",
+                             "settleTimer", "stepTimer" }) do
+            if wr[k] then pcall(function() wr[k]:stop() end) end
+            wr[k] = nil
         end
+        wr.watcher  = nil
+        wr.started  = false
+        wr.startWhy = "stopped"
+        return true
+    end
+
+    function M.warm() pcall(wr.start) end
+
+    -- 🔎 THE MODULE HAD NO REPORT AT ALL, which is why "is it moving my
+    -- windows?" could only be answered by watching them move.
+    _G.windowReturnReport = function()
+        local L = { "🔁 WINDOW RETURN" }
+        if not wr.enabled then
+            L[#L + 1] = "   switch : OFF — the shipped default since"
+                        .. " 6.356.0, on your own word"
+            L[#L + 1] = "   back on: settings = { window_return ="
+                        .. " { enabled = true } }"
+        else
+            L[#L + 1] = "   switch : ON — settings = { window_return ="
+                        .. " { enabled = false } } switches it off"
+        end
+        if wr.started then
+            L[#L + 1] = "   running: yes — watching for a monitor change"
+        elseif wr.enabled then
+            L[#L + 1] = "   running: ⚠️ WANTED but NOT running — " .. tostring(wr.startWhy)
+        else
+            L[#L + 1] = "   running: no — " .. tostring(wr.startWhy)
+        end
+        -- Asserted, not claimed: a switched-off module that still holds a
+        -- watcher or a timer is the thing this line exists to catch.
+        local held = {}
+        if wr.watcher   then held[#held + 1] = "screen watcher" end
+        if wr.snapTimer then held[#held + 1] = "snapshot timer" end
+        if wr.firstTimer then held[#held + 1] = "first-snapshot timer" end
+        L[#L + 1] = (#held == 0)
+            and "   holding: nothing — no watcher, no timer"
+            or  ("   holding: " .. table.concat(held, " · "))
+        local n = 0
+        for _ in pairs(wr.layouts or {}) do n = n + 1 end
+        L[#L + 1] = "   layouts: " .. n .. " monitor setup(s) remembered"
+                    .. " — kept, never cleared by switching this off"
+        L[#L + 1] = "   by hand: _G.windowsBack() puts them back right now"
+        print(table.concat(L, "\n"))
     end
 
     _G.windowReturn = wr
