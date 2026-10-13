@@ -2,10 +2,20 @@
 -- * Working VERSION *
 -- =====================================================================
 -- =====================================================================
--- 10-12-26 using Claude          ← EDITED date. Bumped with every release.
+-- 10-13-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.359.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.360.0
 -- =====================================================================
+
+-- NEW IN 6.360.0 — 🗑 THE GRID ARROWS STOP ACCELERATING
+--   (mouse_grid.lua). LL: "Take the grid arrow acceleration away."
+--   6.172.1 and 6.195.0 built the climb on his OWN earlier asks, so
+--   this is a premise expiring (6.311.0), not code that was wrong.
+--   DELETED, not switched off: accelFor, its run state and all four
+--   nudgeAccel* knobs. A hold repeats at nudgeStep, like an arrow in
+--   a text box. 📏 COST: 8 pt a repeat, not up to 64 — the long haul
+--   is the grid's job again. nudgeStep is NOT raised to buy it back;
+--   that returns the overshoot with it, and it is his call.
 
 -- NEW IN 6.359.0 — 🕘 THE SNIPPET PICKER REMEMBERS WHAT HE PICKED
 --   (text_expander.lua). LL, twice: "My most recently chose snippets
@@ -18,19 +28,11 @@
 --   Local store, temp-then-rename. And `_G.snippetsReport()`, which
 --   his Console answered with "attempt to call a nil value".
 
--- NEW IN 6.358.0 — 🖥 ⌃⌘F FILLS THE SCREEN (video_player.lua). LL:
---   "I need Mug Player to change from fully full-screen Back to its
---   small window size." macOS's OWN full screen is not reachable —
---   hs.webview.windowMasks has no fullScreen entry and this window is
---   borderless (libwebview.m:2533-2562, read not remembered) — so ⌃⌘F
---   RESIZES it, both ways, carrying the frame he left rather than
---   recomputing a default, and the drop catcher goes with it.
-
--- (6.357.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.358.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 cut the inline count to
 --  TWO; a gate check proves every entry here is also in CHANGELOG.md.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.359.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.360.0
 -- =====================================================================
 -- The catalogue that used to sit here moved to GUIDE.md ("What each
 -- tool does") in 6.180.0 — 259 lines of prose inside the orchestrator.
@@ -123,7 +125,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.359.0"
+_G.configVersion = "6.360.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the

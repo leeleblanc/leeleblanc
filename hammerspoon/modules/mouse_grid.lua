@@ -153,7 +153,7 @@ local M = {
             { "⎋",        "Cancel — the pointer does not move" },
             { "-- after it lands --", "" },
             { "space",    "Left click · ⇧space right click · 2 double click" },
-            { "↑↓←→",     "Tap nudges 8pt; HOLD and it jumps 32pt at once (four taps' worth) and climbs to 64pt · with ⇧ nudge 1pt for a tight target" },
+            { "↑↓←→",     "Nudge 8pt a press — HOLD it and it repeats at that same 8pt, like an arrow in a text box (the old climb to 64pt is gone, 6.360.0) · with ⇧ nudge 1pt for a tight target" },
             { "two keys", "After you land, the box is drawn SPLIT IN HALF with a letter in each side (the first two of the alphabet — the badge names them). Press one and that half is kept, the pointer goes to its middle, and it splits again — two or three presses narrow a big cell onto a small button" },
             { "⎋",        "Done — leave the pointer where it is" },
             { "⇪⇧L",      "Find the pointer — three white rings pulse out from it, again and again, for 5 s" },
@@ -308,21 +308,21 @@ function M.setup(core)
     grid.landedMode  = true
     grid.nudgeStep   = 8            -- arrows, in points
     grid.nudgeFine   = 1            -- ⇧ + arrows
-    -- 🏃 6.172.1 — HOLD AN ARROW AND IT SPEEDS UP. LL: "the arrow keys …
-    -- do not make enough jumps … cover more ground by holding the key
-    -- down." Repeats arriving within nudgeAccelWindow of each other count
-    -- as one hold; every nudgeAccelEvery repeats the step doubles, up to
-    -- nudgeAccelMax × nudgeStep (8 → 64 pt). A tap is still one plain
-    -- step, and a pause resets the run — fine placement is unchanged.
-    -- 6.195.0 — LL: "holding arrow down should jump 4 arrow key presses."
-    -- So the FIRST repeat of a hold is already nudgeAccelFirst (4) steps
-    -- — 32 pt — instead of crawling through 8 → 16 → 32. A TAP is still
-    -- one plain 8 pt step and ⇧+arrow is still 1 pt: only a HELD key
-    -- accelerates, which is the whole distinction LL is asking about.
-    grid.nudgeAccelFirst  = 4
-    grid.nudgeAccelEvery  = 3
-    grid.nudgeAccelMax    = 8
-    grid.nudgeAccelWindow = 0.25    -- seconds between repeats that still count as a hold
+    -- 🗑 6.360.0 — A HELD ARROW DOES NOT ACCELERATE (LL: "Take the grid
+    -- arrow acceleration away."). 6.172.1 built the climb and 6.195.0 made
+    -- its first repeat four steps, BOTH on his own earlier asks ("the
+    -- arrow keys … do not make enough jumps … cover more ground by holding
+    -- the key down"). So this is a premise expiring rather than code that
+    -- was wrong — 6.311.0's rule — and his word closes it without an
+    -- argument. DELETED, NOT SWITCHED OFF (6.261.0: keeping everything is
+    -- right for a door and wrong for behaviour he does not want):
+    -- nudgeAccelFirst/Every/Max/Window and grid.accelFor are gone, so a
+    -- hold repeats at nudgeStep — what an arrow in a text box does.
+    -- 📏 COST, NAMED: crossing a 4K display by arrow is 8 pt a repeat
+    -- rather than up to 64, so the long haul belongs to the grid again and
+    -- the arrows are for the last few points. A bigger nudgeStep would buy
+    -- that distance back AND the overshoot with it, which is the likeliest
+    -- reason the climb was unwanted — so it is NOT raised here on a guess.
 
     -- 🚨 Watchdogs. Neither of these is a nicety.
     grid.timeoutSecs = 12           -- overlay up, nothing typed
@@ -1867,15 +1867,18 @@ function M.setup(core)
                 and "not bound yet — they are claimed on the first landing"
                 or tostring(bound.why))
         end
-        -- 6.195.0 — what a HELD arrow actually does, in points, because
-        -- "the arrows are too slow" has now been the report twice and the
-        -- numbers behind it were nowhere in the report.
+        -- 🗑 6.360.0 — what a HELD arrow does, in points. It used to climb
+        -- (8 → 32 → 64) and LL asked for the climb to go, so a hold repeats
+        -- at the SAME step as a tap. The line still prints the numbers,
+        -- because "the arrows are too slow" was the report twice and the
+        -- numbers behind it were nowhere in the report either time — and
+        -- it says there is no acceleration rather than leaving a reader to
+        -- infer it from a line that stopped mentioning one (6.196.1).
         out[#out + 1] = string.format(
-            "   nudge   : tap %d pt · ⇧ %d pt · HOLD %d pt (first repeat, "
-            .. "nudgeAccelFirst) rising to %d pt",
+            "   nudge   : tap %d pt · ⇧ %d pt · HOLD repeats at %d pt — "
+            .. "no acceleration, on his word (6.360.0)",
             math.floor(num(grid.nudgeStep, 8)), math.floor(num(grid.nudgeFine, 1)),
-            math.floor(num(grid.nudgeStep, 8) * num(grid.nudgeAccelFirst, 4)),
-            math.floor(num(grid.nudgeStep, 8) * num(grid.nudgeAccelMax, 8)))
+            math.floor(num(grid.nudgeStep, 8)))
         -- 🌓 6.248.0 — the two washes, named, because "the grid is too
         -- dark" and "the grid does not get out of the way" are different
         -- complaints about different numbers.
@@ -2029,31 +2032,16 @@ function M.setup(core)
     -- If the badge can't be redrawn it tears the overlay down rather than
     -- capturing keys invisibly — which holds on the hundredth repeat
     -- exactly as it does on the first.
-    -- 6.172.1 — the multiplier for THIS call of a held arrow: 1 on a tap
-    -- or after a pause, doubling every nudgeAccelEvery repeats of one hold.
-    grid.accelRun = { key = nil, at = 0, n = 0 }
-    function grid.accelFor(key)
-        local now = 0
-        pcall(function() now = hs.timer.secondsSinceEpoch() end)
-        local r = grid.accelRun
-        if r.key == key and (now - r.at) <= (grid.nudgeAccelWindow or 0.25) then r.n = r.n + 1
-        else r.key, r.n = key, 0 end
-        r.at = now
-        -- 🚨 r.n IS THE REPEAT COUNT, and 0 means a TAP — it must stay a
-        -- plain single step or fine placement by tapping is gone. Every
-        -- repeat after that starts at nudgeAccelFirst and doubles every
-        -- nudgeAccelEvery, capped at nudgeAccelMax.
-        if r.n <= 0 then return 1 end
-        local first = math.max(1, tonumber(grid.nudgeAccelFirst) or 4)
-        local every = math.max(1, tonumber(grid.nudgeAccelEvery) or 3)
-        local mult  = first * 2 ^ math.floor((r.n - 1) / every)
-        return math.min(mult, math.max(1, tonumber(grid.nudgeAccelMax) or 8))
-    end
+    -- 🗑 6.360.0 — ONE PLAIN STEP PER PRESS **AND** PER REPEAT. The
+    -- multiplier that used to sit here (grid.accelFor, with its own run
+    -- state) is deleted outright; see nudgeStep above for why and for what
+    -- it costs. A held arrow is still the repeatfn — it repeats, it just
+    -- does not climb — and 6.247.0's rule still governs what it may do on
+    -- the way: it MOVES the overlay, it never rebuilds it.
     local dirs = { up = { 0, -1 }, down = { 0, 1 }, left = { -1, 0 }, right = { 1, 0 } }
     for key, d in pairs(dirs) do
         local coarse = function()
-            local step = grid.nudgeStep * grid.accelFor(key)
-            nudge(d[1] * step, d[2] * step)
+            nudge(d[1] * grid.nudgeStep, d[2] * grid.nudgeStep)
         end
         local fine = function()
             nudge(d[1] * grid.nudgeFine, d[2] * grid.nudgeFine)

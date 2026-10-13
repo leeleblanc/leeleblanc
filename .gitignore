@@ -75,4 +75,21 @@ hammerspoon*.tar.gz
 # with no archive in it and nothing saying so. MOVE THIS LINE IN THE
 # SAME COMMIT THAT BUILDS THE ARCHIVE, exactly as the previous one is
 # deleted there (ONE AT A TIME, above).
-!hammerspoon6.359.0.tar.gz
+!hammerspoon6.360.0.tar.gz
+#
+# 🔗 6.360.0 — AND THE LINK HANDED OVER IS PINNED TO THE COMMIT, NEVER THE
+# BRANCH. These two rules are each right alone and lethal together: the
+# previous archive is DELETED in the same commit (ONE AT A TIME, above),
+# and a `raw/<branch>/…` URL resolves to whatever is at the branch tip
+# NOW. So every release's download link died the moment the next release
+# shipped. MEASURED on 6.358.0, whose archive was built, verified and
+# committed at 3946bc3 and which he never received:
+#     raw/claude/focused-rubin-i2xnu5/hammerspoon6.358.0.tar.gz → 404
+#     raw/3946bc3/hammerspoon6.358.0.tar.gz → 200, 3,267,238 bytes
+# 🚨 AND THE 404 IS NOT EMPTY — GitHub answers it with 264,474 bytes of
+# HTML, so a browser that saves it produces a file of a plausible SIZE
+# that is not an archive. That is a third mechanism behind "the zip is
+# empty", after a bad build and a viewer limit.
+#     git rev-parse HEAD     ← after committing the archive
+#     https://github.com/leeleblanc/leeleblanc/raw/<that sha>/hammerspoonX.Y.Z.tar.gz
+# A commit SHA cannot move, so the link outlives every later release.

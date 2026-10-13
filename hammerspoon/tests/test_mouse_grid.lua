@@ -768,37 +768,44 @@ landKey("up"); checkInv("nudged up")
 check("↑ nudges by nudgeStep", math.abs(MOUSE_AT.y - (landedAt.y - grid.nudgeStep)) < 0.01,
       MOUSE_AT.y)
 do
-    -- 6.172.1 — a HELD arrow accelerates; a tap after a pause is one step
-    -- 6.195.0 — LL: "holding arrow down should jump 4 arrow key presses."
-    -- The very FIRST repeat of a hold is nudgeAccelFirst steps, not one.
-    -- Mutation-proof: with the old `2 ^ floor(n/every)` this reads 8, and
-    -- with `first` applied to the tap as well the check below reads 32.
+    -- 🗑 6.360.0 — A HELD ARROW NO LONGER ACCELERATES. LL: "Take the
+    -- grid arrow acceleration away." 6.172.1 and 6.195.0 both built the
+    -- climb on his own earlier asks, so this is a premise expiring rather
+    -- than a bug, and the checks that proved the climb are REPLACED rather
+    -- than deleted — a release that takes behaviour out owes the negative
+    -- case (6.346.0) or the gate cannot tell "it was removed" from "the
+    -- arrows are disconnected".
+    -- 🚨 SO THE HOLD IS DRIVEN, not just the tap: with grid.accelFor put
+    -- back, the twenty-repeat check below reads 1,184 pt instead of 160 and
+    -- fails by name. A suite that asserted only a single press would have
+    -- passed with the climb still in.
     local y0 = MOUSE_AT.y
     landKey("up")                              -- repeat 1 of the same hold
-    check("6.195.0: the FIRST repeat of a hold is nudgeAccelFirst steps",
-          math.abs((y0 - MOUSE_AT.y) - grid.nudgeAccelFirst * grid.nudgeStep) < 0.01,
-          y0 - MOUSE_AT.y)
+    check("6.360.0: the FIRST repeat of a hold is one plain step",
+          math.abs((y0 - MOUSE_AT.y) - grid.nudgeStep) < 0.01, y0 - MOUSE_AT.y)
     y0 = MOUSE_AT.y
-    for _ = 1, 2 do landKey("up") end          -- repeats 2,3 — still ×first
-    check("6.195.0: it holds that speed for nudgeAccelEvery repeats",
-          math.abs((y0 - MOUSE_AT.y) - 2 * grid.nudgeAccelFirst * grid.nudgeStep) < 0.01,
-          y0 - MOUSE_AT.y)
+    for _ = 1, 20 do landKey("up") end         -- one long, unbroken hold
+    check("6.360.0: twenty repeats of ONE hold move twenty plain steps — "
+          .. "the step never climbs",
+          math.abs((y0 - MOUSE_AT.y) - 20 * grid.nudgeStep) < 0.01, y0 - MOUSE_AT.y)
     y0 = MOUSE_AT.y
-    landKey("up")                              -- repeat 4 → doubles again
-    check("6.195.0: and doubles from there",
-          math.abs((y0 - MOUSE_AT.y) - 2 * grid.nudgeAccelFirst * grid.nudgeStep) < 0.01,
-          y0 - MOUSE_AT.y)
-    for _ = 1, 40 do landKey("up") end
+    landKey("up")                              -- deep into the hold
+    check("6.360.0: and the repeat after that is still one plain step",
+          math.abs((y0 - MOUSE_AT.y) - grid.nudgeStep) < 0.01, y0 - MOUSE_AT.y)
+    NOW = NOW + 1                              -- a pause, which used to reset a run
     y0 = MOUSE_AT.y; landKey("up")
-    check("6.172.1: the step caps at nudgeAccelMax × nudgeStep",
-          math.abs((y0 - MOUSE_AT.y) - grid.nudgeAccelMax * grid.nudgeStep) < 0.01, y0 - MOUSE_AT.y)
-    NOW = NOW + 1                              -- a pause: the run resets
-    y0 = MOUSE_AT.y; landKey("up")
-    check("6.172.1: after a pause a press is one plain step again",
+    check("6.360.0: a press after a pause is one plain step, as it always was",
           math.abs((y0 - MOUSE_AT.y) - grid.nudgeStep) < 0.01, y0 - MOUSE_AT.y)
     y0 = MOUSE_AT.x; landKey("left")
-    check("6.172.1: a different arrow starts its own run at one step",
+    check("6.360.0: a different arrow is one plain step too",
           math.abs((y0 - MOUSE_AT.x) - grid.nudgeStep) < 0.01, y0 - MOUSE_AT.x)
+    -- 🔒 AND THE KNOBS GO WITH IT. A `nudgeAccelFirst` left on the table
+    -- is a number nobody reads and a settings line that silently does
+    -- nothing — 6.199.0's dead guard, wearing a setting's clothes.
+    check("6.360.0: no acceleration setting or function survives on the module",
+          grid.nudgeAccelFirst == nil and grid.nudgeAccelEvery == nil
+          and grid.nudgeAccelMax == nil and grid.nudgeAccelWindow == nil
+          and grid.accelFor == nil and grid.accelRun == nil)
     -- put the pointer back where the next checks expect it
     grid.state.point = { x = landedAt.x, y = landedAt.y - grid.nudgeStep }
     MOUSE_AT.x, MOUSE_AT.y = landedAt.x, landedAt.y - grid.nudgeStep
@@ -1507,6 +1514,24 @@ local mutations = {
             return n == 0
         end,
     },
+    {
+        -- 🗑 6.360.0 — PUT THE CLIMB BACK. A DELETION is the change a
+        -- gate is least able to see: a module with the acceleration taken
+        -- out and a module whose arrows never fire both pass any check that
+        -- taps once (6.346.0, learned taking a name out of a list). So the
+        -- mutation restores a climbing step and the probe HOLDS the key.
+        name  = "a held arrow accelerates again",
+        from  = '            nudge(d[1] * grid.nudgeStep, d[2] * grid.nudgeStep)',
+        to    = '            grid._mAccel = (grid._mAccel or 0) + 1\n'
+             .. '            local step = grid.nudgeStep * math.min(8, 2 ^ grid._mAccel)\n'
+             .. '            nudge(d[1] * step, d[2] * step)',
+        probe = function()
+            setScreens(ONE); grid.show(false); typeLabel("aaa")
+            local y0 = MOUSE_AT.y
+            for _ = 1, 20 do landKey("up") end
+            return math.abs((y0 - MOUSE_AT.y) - 20 * grid.nudgeStep) < 0.01
+        end,
+    },
 }
 
 for _, mut in ipairs(mutations) do
@@ -1637,6 +1662,35 @@ grid.enabled = false
 check("grid.enabled = false refuses to open", grid.show(false) == false)
 checkInv("disabled")
 grid.enabled = true
+
+-- =====================================================================
+out("\n=== 9b. 🗑 6.360.0: the acceleration is GONE from the source ===\n")
+-- =====================================================================
+-- LL: "Take the grid arrow acceleration away." The behavioural checks in
+-- §5 prove a hold does not climb TODAY; this proves nothing is left in
+-- the file to climb with tomorrow. 6.268.0's rule for a deletion: sentry
+-- the CLASS, not the one line — a `nudgeAccelFirst` that comes back as a
+-- settings key nobody reads is a knob that silently does nothing.
+do
+    -- 🚨 COMMENTS STRIPPED (6.262.0). The block explaining WHY the climb
+    -- went necessarily names it, so a sentry over the raw text goes red on
+    -- a healthy tree and gets switched off inside a week (6.269.0).
+    local body = src:gsub("%-%-[^\n]*", "")
+    for _, gone in ipairs({ "accelFor", "accelRun", "nudgeAccelFirst",
+                            "nudgeAccelEvery", "nudgeAccelMax",
+                            "nudgeAccelWindow" }) do
+        check("6.360.0: no `" .. gone .. "` survives in the code",
+              body:find(gone, 1, true) == nil)
+    end
+    -- 🔒 AND THE STRIP MUST NOT HAVE EATEN THE HAYSTACK (6.313.0): a
+    -- sentry over "" is green and measures nothing.
+    check("6.360.0: the stripped source is still the module",
+          #body > 20000 and body:find("grid.nudgeStep", 1, true) ~= nil, #body)
+    -- 📏 AND THE EXPLANATION STAYS. A sentry that can be satisfied by
+    -- deleting the comment that explains it is a sentry with no memory.
+    check("6.360.0: the source still says why the climb went",
+          src:find("Take the grid", 1, true) ~= nil)
+end
 
 -- =====================================================================
 out("\n=== 10. Work-Mac safety: nothing here needs admin ===\n")
@@ -2860,9 +2914,33 @@ do
 
     loadModule()
     local rep0 = _G.mouseGridReport()
-    check("the report's nudge line names the HELD speed, not just the tap",
-          rep0:find("nudge") and rep0:find("HOLD 32 pt", 1, true)
-          and rep0:find("tap 8 pt", 1, true), rep0:match("   nudge   :[^\n]*"))
+    -- 🗑 6.360.0 — THIS CHECK USED TO ASSERT "HOLD 32 pt", the literal
+    -- the climb produced, so it went red on the release that removed the
+    -- climb with nothing to say about it (6.248.0, seventh time). It asks
+    -- the RULE now: the line carries every number the module really uses,
+    -- read off the config rather than typed in twice, AND it says out loud
+    -- that there is no acceleration — a line that merely stopped
+    -- mentioning one would leave a reader to infer it (6.196.1).
+    do
+        local nl = rep0:match("   nudge   :[^\n]*") or ""
+        check("the report's nudge line is read off the config, not retyped",
+              nl:find("tap " .. math.floor(grid.nudgeStep) .. " pt", 1, true)
+              and nl:find("⇧ " .. math.floor(grid.nudgeFine) .. " pt", 1, true)
+              and nl:find("HOLD repeats at " .. math.floor(grid.nudgeStep) .. " pt",
+                          1, true), nl)
+        check("...and SAYS a held arrow does not accelerate",
+              nl:find("no acceleration", 1, true) ~= nil, nl)
+        -- 🚨 THE FIXTURE THAT BITES moves nudgeStep to a number this Mac
+        -- has never shipped: asserting the shipped 8 passes when the number
+        -- is typed into the format string twice (6.239.0).
+        local was = grid.nudgeStep
+        grid.nudgeStep = 23
+        local moved = _G.mouseGridReport():match("   nudge   :[^\n]*") or ""
+        check("...and the drawing FOLLOWS the config when it moves",
+              moved:find("tap 23 pt", 1, true)
+              and moved:find("HOLD repeats at 23 pt", 1, true), moved)
+        grid.nudgeStep = was
+    end
     check("the report's split line names the two keys and the floor",
           rep0:find("split", 1, true) and rep0:find(K1 .. " / " .. K2, 1, true)
           and rep0:find(tostring(grid.halveMin), 1, true),

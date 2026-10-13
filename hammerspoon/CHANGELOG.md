@@ -5,6 +5,107 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.360.0 — 🗑 THE GRID ARROWS STOP ACCELERATING, AND THE DELIVERY
+  LINK STOPS DYING (modules/mouse_grid.lua, .gitignore)
+
+  LL, 2026-10-13: "Take the grid arrow acceleration away."
+
+  🗑 DONE, AND WITHOUT AN ARGUMENT, WHICH IS THE POINT. Holding an arrow
+  in landed mode used to climb: 8 pt on a tap, 32 pt on the first repeat
+  of a hold, doubling to 64. That climb is 6.172.1 and 6.195.0, and BOTH
+  were built on his own earlier asks — "the arrow keys … do not make
+  enough jumps … cover more ground by holding the key down", then
+  "holding arrow down should jump 4 arrow key presses". So the honest
+  reading is 6.311.0's: a scope set by one of his answers has a shelf
+  life, and when it expires the answer is to re-ask and obey, not to
+  defend the decision it produced by quoting him back at himself.
+
+  🗑 DELETED, NOT SWITCHED OFF. 6.261.0 drew that line and it decides
+  here: keeping everything is right for a DOOR and wrong for behaviour
+  he does not want. `grid.accelFor`, its run-state table and all four
+  `nudgeAccel*` settings are gone from the file. A knob left behind
+  would be a number nobody reads and a settings line that silently does
+  nothing — 6.199.0's dead guard wearing a setting's clothes. A held
+  arrow is still the repeatfn, so it still repeats; it just does not
+  climb, which is what an arrow in a text box does.
+
+  📏 COST, NAMED AND NOT PAPERED OVER: crossing a 4K display by arrow is
+  now 8 pt a repeat rather than up to 64, so the long haul belongs to
+  the grid again and the arrows are for the last few points. The obvious
+  compensation — raise `nudgeStep` — is NOT applied, because the most
+  likely reason the climb was unwanted is that it OVERSHOOTS, and a
+  bigger step buys the distance back and the overshoot with it. That is
+  his call, asked rather than guessed (6.267.0: a default that is wrong
+  is changed and shipped, but a decision that is genuinely his taste is
+  asked).
+
+  🧪 THE CHECKS ARE THE RELEASE, because a DELETION is the change a gate
+  is least able to see: a module with the acceleration removed and a
+  module whose arrows never fire read IDENTICALLY to any check that taps
+  once. 6.346.0 learned that taking a name out of a list, and it applies
+  unchanged here. So the four checks that proved the climb are REPLACED
+  by checks that HOLD the key — twenty repeats of one unbroken hold must
+  move exactly twenty plain steps — plus the positive case beside them
+  (a tap, a pause, a different arrow, ⇧ fine) so the suite cannot pass
+  by proving the arrows are dead.
+
+  🔒 AND A SOURCE SENTRY CLOSES THE CLASS, comments stripped (6.262.0 —
+  the block explaining why the climb went necessarily names it, so a
+  sentry over raw text goes red on a healthy tree and is switched off
+  inside a week). It asserts it READ something (6.313.0: a sentry over
+  an empty haystack is green and measures nothing) and that the
+  explanation still exists, so it cannot be satisfied by deleting the
+  comment that justifies it.
+
+  🧪 MUTATION-PROVEN IN BOTH DIRECTIONS. Five mutations, five bites. The
+  one worth recording: a climb reintroduced under a DIFFERENT NAME
+  (`grid.runN`) walks past every string sentry and still fails five
+  behavioural checks by name, printing 1,280 pt where 160 was wanted.
+  That is the measurement that says the suite tests the BEHAVIOUR rather
+  than the spelling.
+
+  🧪 AND ONE EXISTING CHECK ASSERTED THE OLD LITERAL — 6.248.0 for the
+  seventh time. "the report's nudge line names the HELD speed" matched
+  the string "HOLD 32 pt", so it went red on the release that removed
+  the 32 with nothing to say about the change it existed to prove. It
+  asks the RULE now: every number in that line is read off the config,
+  and the fixture MOVES `nudgeStep` to 23 — a value this Mac has never
+  shipped — and requires the drawing to follow (6.239.0). Asserting the
+  shipped 8 passes when the number is typed into the format string
+  twice.
+
+  🔎 AND THE REPORT SAYS THERE IS NO ACCELERATION rather than merely
+  stopping mentioning one. A line that went quiet about a behaviour
+  leaves a reader to infer whether it is gone or broken, which is
+  6.196.1 in the instrument.
+
+  🚨 THE DELIVERY HALF, AND IT IS NOT A SIDE NOTE — IT IS WHY HE NEVER
+  SAW 6.356.0, 6.357.0 OR 6.358.0. His Downloads folder holds
+  hammerspoon6.351.0, 6.354.0 and 6.355.0 and nothing after. The archive
+  for 6.358.0 WAS built, verified and committed (3946bc3, 3,267,238
+  bytes). What killed it is the interaction of two rules written months
+  apart, neither wrong on its own:
+    · "ONE AT A TIME: the previous release's archive is deleted in the
+      same commit", so the working tree carries exactly one (6.263.0);
+    · the download URL handed over is pinned to the BRANCH.
+  A branch URL resolves to whatever is at the branch tip NOW. So the
+  moment 6.359.0's archive commit landed, the 6.358.0 link stopped
+  resolving — MEASURED, not reasoned:
+      raw/<branch>/hammerspoon6.358.0.tar.gz → HTTP 404
+      raw/3946bc3/hammerspoon6.358.0.tar.gz → HTTP 200, 3,267,238 bytes
+  🔑 AND THE 404 IS NOT EMPTY, which is the sharp half: GitHub answers it
+  with 264,474 bytes of HTML. A browser or a downloader that saves that
+  produces a FILE, of a plausible size, that is not an archive. Six
+  "empty archive" reports are in this file's history and two of them
+  were already a viewer rather than the bytes; this is a third
+  mechanism that produces the same symptom from a third direction.
+  🔑 THE RULE, and it generalises past archives: A LINK PINNED TO A
+  MOVING REF IS A LINK WITH AN EXPIRY DATE NOBODY WROTE DOWN. Pin a
+  delivery to the IMMUTABLE name — a commit SHA, a tag, a content hash —
+  and the link outlives the next release. The .gitignore recipe now says
+  so where the archive is built, and every link handed over from here
+  carries the SHA.
+
 NEW IN 6.359.0 — 🕘 THE SNIPPET PICKER REMEMBERS WHAT HE PICKED, AND IT
   IS A BUILD RATHER THAN A FIX (modules/text_expander.lua)
 

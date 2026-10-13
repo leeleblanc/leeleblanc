@@ -405,6 +405,62 @@ work Mac.
      GENERAL: when a partial delivery makes an honest guard complain,
      the guard is the evidence the delivery was partial — ship the
      missing half, never silence the guard.
+  🔗 6.360.0 — AND THE LINK ITSELF HAD AN EXPIRY DATE NOBODY WROTE
+     DOWN (2026-10-13, his Downloads folder: hammerspoon6.351.0,
+     6.354.0 and 6.355.0 and NOTHING AFTER — "I wasn't given 6.358.0.
+     So not on me." He is right, and the mechanism is mine).
+     🔎 TWO RULES IN THIS FILE, EACH CORRECT ALONE, LETHAL TOGETHER:
+     "ONE AT A TIME: the previous release's archive is deleted in the
+     same commit" (6.263.0), and a download URL pinned to the BRANCH.
+     A branch URL resolves to the branch tip NOW — so the instant the
+     NEXT release's archive commit lands, the link handed over for THIS
+     one stops resolving. Every release has been shipping a link with a
+     fuse on it, and 6.356.0–6.358.0 are the three that were inside the
+     window when it burned. MEASURED, not reasoned:
+         raw/<branch>/hammerspoon6.358.0.tar.gz → HTTP 404
+         raw/3946bc3/hammerspoon6.358.0.tar.gz → 200, 3,267,238 bytes
+     🚨 AND THE 404 IS NOT EMPTY, which is the half that matters: GitHub
+     answers it with 264,474 BYTES OF HTML. A browser or a downloader
+     that saves that produces a FILE, of a plausible size, that is not
+     an archive — a third mechanism for "the zip is empty", after a bad
+     build (6.260.0–6.265.0) and a viewer limit (6.281.0). Any future
+     report of an unopenable download is checked against THIS first.
+     🔑 THE RULE, and it generalises past archives: **A LINK PINNED TO A
+     MOVING REF IS A LINK WITH AN EXPIRY DATE NOBODY WROTE DOWN.** Pin
+     every delivery to an IMMUTABLE name — a commit SHA, a tag, a
+     content hash — and say the SHA in the message beside the byte
+     count, so a dead link is distinguishable from a bad build. The
+     .gitignore recipe carries it where the archive is built.
+     📏 AND "HIS RUNNING CONFIG IS N" IS NOT "HE DID NOT INSTALL N+1".
+     I read his Console's `6.355.0` stamp and told him three releases
+     were "not loaded yet", which is true and which he could do nothing
+     with — the field that separates "he did not install it" from "it
+     never reached him" is whether the ARCHIVE arrived, and his
+     Downloads folder answers it in one screenshot. 6.263.0's own rule
+     ("find the field that separates them BEFORE saying either out
+     loud") broken in the direction that costs him the most.
+
+- 🗿 A MEASURED REJECTION IS EVIDENCE ABOUT ONE IMPLEMENTATION, NEVER A
+  VETO ON THE PROBLEM (6.360.0, LL: "And yes, holy shit I did say that.
+  Because the grid was fucking ridiculous. Be cool if you could recommend
+  something useful. Are diamonds better? A Jackson Pollock type overlay?
+  Help me out here." — after I quoted his own 6.176.0 words, "HOLY SHIT!
+  The grid is insane. Way too small.", as the reason not to make the grid
+  denser).
+  🔑 THE QUOTE WAS ACCURATE AND THE USE OF IT WAS WRONG. He said it
+  because 4,096 cells WAS ridiculous; what it measures is that one
+  implementation failed, and it says nothing about whether the problem is
+  worth solving. Handing a person their own sentence back as the reason
+  to do nothing turns their evidence into an argument against them, and
+  it is the opposite of what a measurement is for — it reads as being
+  managed rather than helped, which is exactly how he described it.
+  🎯 WHAT IT OWES INSTEAD, every time: name what the rejection RULED OUT,
+  then RECOMMEND — with the reasoning visible, so he can overrule the
+  reasoning rather than only the conclusion. A past "no" narrows the
+  search; it never ends it. GENERAL, past this project: when someone
+  objects to a thing they once asked for, the decision has expired
+  (6.311.0) and the answer is a proposal, not a citation.
+
 - ❓ EVERY QUESTION FOR HIM GOES IN ONE LIST AT THE END (2026-10-09, LL:
   "Please start grouping as all your questions as a list at the end. I am
   missing them as they are buried in your replies."). He is right, and it
@@ -5982,6 +6038,8 @@ that must be READ before a new cause is named.
 | a picker throws `NSInternalInconsistencyException` instead of opening | init.lua `showPopup` · the AppKit remote-view family | 6.56.0 · 6.274.0 · 6.314.0 | 3 | ask |
 | "can't use the arrow keys to move thru the history list" | modules/music_player.lua · the card's cursor | 6.315.0 | 1 | ask |
 | "⇪⇧L needs to be more obvious" | modules/mouse_grid.lua | 6.167.0 · 6.195.0 · 6.310.0 | 3 | ask |
+| "too much work to get to a specific element" · "boxes are too wide" · "take the grid arrow acceleration away" | modules/mouse_grid.lua · the aiming cost, not the cell shape | 6.176.0 · 6.181.0 · 6.184.0 · 6.192.0 · 6.195.0 · 6.252.0 · 6.360.0 | 7 | degraded — the grid always worked; what it cost was keystrokes |
+| "I wasn't given 6.358.0" — a release that never reached his Downloads | delivery · a link pinned to the BRANCH, dying when the next release ships | 6.360.0 | 1 | 🔨 crude — three releases he could not install |
 | "can only be accessible via full keyboard" · "I can't tell if that key combo is taken" | modules/music_player.lua · the key registry | 6.276.0 · 6.311.0 | 1 | ask |
 | "Hammerspoon locks" · "I couldn't even click on anything" · 73 s, then it crashed | core/ · the main thread · modules/stall_guard.lua | 6.208.0 · 6.324.0 · 6.330.0 | 0 (instrumented, not fixed) | ask |
 | "I couldn't get any of that text back while the note remained blank" | modules/vault.lua · ⌘Z and the save path | 6.322.0 · 6.323.0 | 1 | ask |
@@ -6082,6 +6140,7 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
+| 6.360.0 | 🗑 a held grid arrow stops speeding up — 8 pt a repeat, like an arrow in a text box | pending |
 | 6.359.0 | 🕘 the snippets you PICK come back at the top of ⇪⇧S, newest first — and `_G.snippetsReport()` exists | pending |
 | 6.358.0 | 🖥 ⌃⌘F fills the Mug Player's window and puts it back the size you had it | pending |
 | 6.357.0 | ☁️ a film still in OneDrive is refused instead of freezing the Mac for 72 seconds | pending |
@@ -6208,9 +6267,19 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
 
 - 📥 HIS 2026-10-12 REPORT — WHAT WAS BUILT AND WHAT IS TRIAGED.
   BUILT: Window Return off (6.356.0, his direct order), the OneDrive
-  freeze (6.357.0), ⌃⌘F (6.358.0), AND THE SNIPPET RECENCY (6.359.0 —
-  the queue and the report together). The rest, each measured where a
-  grep could answer it and NOT built — one change per release:
+  freeze (6.357.0), ⌃⌘F (6.358.0), THE SNIPPET RECENCY (6.359.0 — the
+  queue and the report together), and the grid arrows (6.360.0, his
+  2026-10-13 order).
+  🚨 AND THREE OF THOSE NEVER REACHED HIM, which reframes the whole
+  batch: his Downloads folder on 2026-10-13 holds 6.351.0, 6.354.0 and
+  6.355.0 and nothing after. 6.356.0–6.358.0 were built, gated,
+  archived and committed, and the LINK died when 6.359.0 shipped — see
+  the 🔗 hard rule. So "he is three releases behind" was never about
+  him, and reading his Console's version stamp as if it were is the
+  error 6.263.0 already forbids. Every link from here carries a commit
+  SHA, which cannot move.
+  The rest, each measured where a grep could answer it and NOT built —
+  one change per release:
   ✅ ANSWERED, AND SPENT ON 6.359.0: **a snippet is what he picks from
      the picker,
      not a typed trigger** — "A snippet is one that is not an expansion
@@ -6233,35 +6302,73 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
      wants is a different key, and it is worth asking whether he wants
      ⇪⇧\ (unclaimed) to be the documents list.
   🖱 MOUSE GRID — "too much work to get to a specific element … boxes
-     are too wide." HIS OWN SUGGESTION IS THE RIGHT ONE and this config
-     has the measurement for it already: 6.242.0's `_G.groundReport()`
-     counts the front window's CLICKABLE elements and how long asking
-     cost, per app. That number decides between (a) a denser grid, which
-     is a settings line (`grid.cols`/`grid.rows`), and (b) real click
-     hints over buttons and fields, which is the long-queued ⇪X feature
-     and is expensive on the main thread (6.228.0). ASK FOR THE REPORT
-     FROM CHROME, ASANA AND FINDER before choosing — it is per app.
-     🚩 AND THIS NOTE WAS WRONG ABOUT THE SETTING, corrected by reading
-     the module (2026-10-12): there is no `grid.cols` or `grid.rows`
-     anywhere in mouse_grid.lua. The density knobs are `grid.alphabet`
-     and `grid.labelLength` — nine home-row keys, three deep, 729 cells
-     today — and both are already documented as one settings line at
-     mouse_grid.lua:206-211. The repository wins over the queue.
-     🚨 MORE IMPORTANT: DENSER HAS BEEN TRIED AND HE REJECTED IT. 6.176.0
-     went to sixteen keys and 4,096 cells (~30 pt) and his answer was
-     "HOLY SHIT! The grid is insane. Way too small."; 6.184.0 put the
-     home row back. So (a) is not an untried option, it is a repeat of a
-     measured loss, and the groundReport number has to be good before it
-     is offered again.
-     🔎 AND THE CONFIG ALREADY HAS THREE LAYERS OF PRECISION PAST THE
-     GRID, which is the thing to check before building a fourth: the
-     SNAP (6.181.0) puts the pointer on any control whose frame contains
-     the landing point, so a cell wider than a button still lands on it;
-     the HALVE (6.192.0 / 6.252.0) splits the landed box with a letter in
-     each half; and the arrows accelerate on a hold (6.195.0). If "too
-     much work" is still true WITH those, the answer is hints (A9), not
-     a denser grid — ASK HIM WHICH OF THE THREE HE IS ACTUALLY USING, in
-     the same breath as the report.
+     are too wide", and 2026-10-13: "Be cool if you could recommend
+     something useful. Are diamonds better? A Jackson Pollock type
+     overlay? Help me out here."
+     🗿 FIRST, THE CORRECTION I OWE HIM, and it is a rule now (see the
+     🗿 hard rule above): quoting his own "HOLY SHIT! The grid is insane"
+     back at him was using his evidence against him. What 6.176.0 proved
+     is that FOUR THOUSAND CELLS failed. It proves nothing about whether
+     the problem is worth solving, and he is right that a citation is not
+     a recommendation.
+     📐 THE ARITHMETIC THAT ACTUALLY SETTLES IT, which nobody had written
+     down. Cells = `#alphabet ^ labelLength`, and `planScreen` already
+     aims for SQUARE cells (`cols = sqrt(share * w/h)`) — so "too wide"
+     is not an aspect-ratio fault, the cells really are square. It means
+     TOO BIG. Today: 9 home-row keys, 3 deep = 729 cells → ~45 pt on the
+     Air panel, ~71 pt on the 4K. A toolbar button is 28–40 pt. So the
+     cell is about twice the target, every time.
+     🚨 AND DENSER CANNOT FIX IT, for a reason that is arithmetic rather
+     than taste: 4,096 cells is ~30 pt on the Air, and a THREE-CHARACTER
+     label is not legible in a 30 pt box. THE LABEL IS THE BINDING
+     CONSTRAINT, not the idea — which is exactly what he saw in 6.176.0
+     and why his reaction was correct.
+     🎯 SO THE RECOMMENDATION IS TO SHORTEN THE LABEL, NOT THE CELL:
+     **`alphabet = "abcdefghijklmnopqrstuvwxyz"`, `labelLength = 2`.**
+     26² = 676 cells — within 4% of today's 729, so the boxes stay the
+     size he has already accepted — but **TWO keystrokes instead of
+     three**, and a two-character label is WIDER-SPACED in the same box,
+     so it reads better rather than worse. That is a third of the typing
+     removed for no loss anywhere, and it is the cheapest real answer to
+     "too much work".
+     📏 ITS ONE COST, NAMED: the letters are the whole keyboard rather
+     than the home row, so two reaches replace three home-row taps. That
+     is the trade, and it is his to judge.
+     📐 AND A SECOND STEP IF HE WANTS SMALLER BOXES TOO: 36 characters
+     (a–z plus 0–9) squared = 1,296 cells → ~34 pt on the Air, ~53 pt on
+     the 4K, still two keystrokes. A 2-char label at 34 pt has the same
+     room per character as a 3-char label at 51 pt, so it is PLAUSIBLY
+     readable where 6.176.0 was not — but that is a guess about his eyes
+     on his display and is offered as one.
+     🚫 HIS TWO SUGGESTIONS, ANSWERED STRAIGHT, because "help me out
+     here" deserves a yes or a no rather than a maybe:
+       · DIAMONDS — no. A diamond lattice has the same cell COUNT and the
+         same label length, so it is the same keystrokes and the same
+         area; it only changes which direction the error points. And the
+         eye reads labels along ROWS, so staggered rows are slower to
+         scan, not faster.
+       · A POLLOCK SCATTER — no, and it is the more interesting no. The
+         one virtue of a lattice is that the label near a target is
+         PREDICTABLE: you glance at the row, not the screen. Scatter
+         destroys that and turns every landing into a visual search.
+       🔑 BOTH are about the SHAPE of the grid, and the shape is not what
+       costs him anything. The cost is KEYSTROKES, which is why the
+       answer above shortens the label instead.
+     🎯 AND THE REAL ANSWER, WHICH IS ITS OWN RELEASE: click hints over
+     the actual controls (Vimium's shape) — 1–2 keystrokes, landing ON
+     the element rather than near it. It is NEW GROUND and it is main-
+     thread AX work (6.228.0), so the first release is the probe:
+     `gp.axCount` in ground_probe.lua already walks the front window
+     bounded and TIMES it. 🔑 THE SHAPE THAT AVOIDS ASKING HIM TO RUN
+     ANYTHING: make the MEASUREMENT the feature — ⇪X tries hints with a
+     hard time budget and falls straight back to the grid when the walk
+     is too slow or finds nothing, and the report counts which happened
+     PER APP. He uses it; the number arrives by itself. That is 6.242.0's
+     report, paid without a homework assignment.
+     📏 AND THE THREE PRECISION LAYERS STAY whatever is chosen: SNAP
+     (6.181.0 — lands on a control whose frame contains the point, which
+     is why a cell wider than a button still works), the two-letter SPLIT
+     (6.252.0), and the arrows (6.360.0 — no longer accelerating).
   🔗 ANCHORS — "a message that says create a new note first … after I
      open Hamsidian it looks fine." READ, NOT PROVEN: that is 6.340.0's
      shape in ⇪⇧U. The notes index is built when Hamsidian OPENS, so
@@ -7440,6 +7547,54 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.360.0 verify with LL — 🗑 THE GRID ARROWS STOP ACCELERATING (KNOWN GROUND)
+  WHAT CHANGED: holding an arrow after the grid lands no longer speeds
+  up. Every repeat is the same 8 pt, like holding an arrow in a text box.
+  🗑 AND IT IS DELETED, NOT SWITCHED OFF — there is no setting to turn it
+  back on, because a knob nobody reads is a line that silently does
+  nothing. One word and it comes back as a release.
+
+  A. THE HEADLINE — twenty seconds.
+  A1. ⇪X, type three letters to land. Now HOLD an arrow for two seconds.
+      EXPECT: a steady crawl at one speed. **A FAIL is it taking off**
+      after the first repeat — that is the old behaviour.
+  A2. Hold it long enough to cross a good part of the screen, then stop.
+      EXPECT: the pointer is where you expected, not past it. That
+      overshoot is my guess at WHY you wanted this gone — if it was a
+      different reason, D1.
+  A3. TAP an arrow once. EXPECT: 8 pt, exactly as before — unchanged.
+  A4. ⇧+arrow. EXPECT: 1 pt, unchanged.
+
+  B. MUST STILL WORK — this touched the handler every arrow goes through.
+  B1. Land, then nudge with all four arrows. The yellow box and the
+      crosshair badge follow the pointer.
+  B2. Land near a screen EDGE and hold an arrow into it. EXPECT: it stops
+      at the edge and the overlay is still drawn correctly.
+  B3. Land, nudge, then press space. EXPECT: it clicks where you NUDGED
+      to, not the original cell centre.
+  B4. The two-letter split after landing, ⌫, ⎋, and ⇪⇧X's
+      click-on-arrival are all untouched — worth one pass each.
+  B5. ⇪⇧L (find the pointer) is unchanged.
+
+  C. PASTE BACK.
+  C1. `_G.mouseGridReport()` — the `nudge   :` line now reads
+      `tap 8 pt · ⇧ 1 pt · HOLD repeats at 8 pt — no acceleration, on his
+      word (6.360.0)`. If it still mentions a climb, the release did not
+      take.
+  C2. The `cells   :` line in the same report — the REAL cell size on the
+      Mac you are sitting at. I want that number from BOTH screens; it is
+      the input to D2 and I have been reasoning about it from arithmetic
+      rather than from your display.
+
+  D. A JUDGEMENT ONLY YOU CAN MAKE.
+  D1. WHY did you want it gone? "It overshot" and "it was erratic" and "I
+      never hold the key" are three different answers and only the first
+      means `nudgeStep` could safely go UP (12 or 16 pt a repeat) to get
+      the distance back. I did NOT raise it on a guess.
+  D2. See the 🖱 MOUSE GRID item in Open items for the two-keystroke
+      proposal and its arithmetic. It needs one word from you, not a
+      report.
+
 - 6.359.0 verify with LL — 🕘 THE SNIPPET PICKER REMEMBERS (NEW GROUND)
   WHAT CHANGED: the snippets you PICK from ⇪⇧S now come back at the top
   of it, newest first, under a 🕘 RECENT heading. You asked for this

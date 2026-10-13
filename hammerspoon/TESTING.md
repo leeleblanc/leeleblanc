@@ -1,4 +1,4 @@
-# TESTING — how to score release 6.359.0
+# TESTING — how to score release 6.360.0
 
 You install ONE archive and it carries several releases. Below are the
 steps for each release this archive is new for, newest first. Run the
@@ -26,6 +26,58 @@ else is a LOSS and I fix it before building further. You are the only
 scorer; I never mark my own.
 
 ---
+
+## 6.360.0
+
+6.360.0 verify with LL — 🗑 THE GRID ARROWS STOP ACCELERATING (KNOWN GROUND)
+WHAT CHANGED: holding an arrow after the grid lands no longer speeds
+up. Every repeat is the same 8 pt, like holding an arrow in a text box.
+🗑 AND IT IS DELETED, NOT SWITCHED OFF — there is no setting to turn it
+back on, because a knob nobody reads is a line that silently does
+nothing. One word and it comes back as a release.
+
+A. THE HEADLINE — twenty seconds.
+A1. ⇪X, type three letters to land. Now HOLD an arrow for two seconds.
+    EXPECT: a steady crawl at one speed. **A FAIL is it taking off**
+    after the first repeat — that is the old behaviour.
+A2. Hold it long enough to cross a good part of the screen, then stop.
+    EXPECT: the pointer is where you expected, not past it. That
+    overshoot is my guess at WHY you wanted this gone — if it was a
+    different reason, D1.
+A3. TAP an arrow once. EXPECT: 8 pt, exactly as before — unchanged.
+A4. ⇧+arrow. EXPECT: 1 pt, unchanged.
+
+B. MUST STILL WORK — this touched the handler every arrow goes through.
+B1. Land, then nudge with all four arrows. The yellow box and the
+    crosshair badge follow the pointer.
+B2. Land near a screen EDGE and hold an arrow into it. EXPECT: it stops
+    at the edge and the overlay is still drawn correctly.
+B3. Land, nudge, then press space. EXPECT: it clicks where you NUDGED
+    to, not the original cell centre.
+B4. The two-letter split after landing, ⌫, ⎋, and ⇪⇧X's
+    click-on-arrival are all untouched — worth one pass each.
+B5. ⇪⇧L (find the pointer) is unchanged.
+
+C. PASTE BACK.
+C1. `_G.mouseGridReport()` — the `nudge   :` line now reads
+    `tap 8 pt · ⇧ 1 pt · HOLD repeats at 8 pt — no acceleration, on his
+    word (6.360.0)`. If it still mentions a climb, the release did not
+    take.
+C2. The `cells   :` line in the same report — the REAL cell size on the
+    Mac you are sitting at. I want that number from BOTH screens; it is
+    the input to D2 and I have been reasoning about it from arithmetic
+    rather than from your display.
+
+D. A JUDGEMENT ONLY YOU CAN MAKE.
+D1. WHY did you want it gone? "It overshot" and "it was erratic" and "I
+    never hold the key" are three different answers and only the first
+    means `nudgeStep` could safely go UP (12 or 16 pt a repeat) to get
+    the distance back. I did NOT raise it on a guess.
+D2. See the 🖱 MOUSE GRID item in Open items for the two-keystroke
+    proposal and its arithmetic. It needs one word from you, not a
+    report.
+
+
 
 ## 6.359.0
 
@@ -174,42 +226,6 @@ D1. Right now a cloud film is handed to your usual player, which
 D2. 90% of the file has to be local before it reads. If a film you
     know is downloaded gets refused, send me the line — the numbers
     in it are the evidence and the threshold is one value.
-
-
-
-## 6.356.0
-
-6.356.0 verify with LL — 🗑 WINDOW RETURN IS OFF (KNOWN GROUND)
-WHAT CHANGED: nothing watches your monitors and nothing moves your
-windows. Your word, done.
-
-A. THE HEADLINE.
-A1. Use the Mac normally for a day — dock, undock, move windows.
-    EXPECT: NOTHING of yours ever moves on its own. That is the
-    whole release.
-A2. Console: `_G.windowReturnReport()`. EXPECT:
-      switch : OFF — the shipped default since 6.356.0, on your own word
-      running: no — switched off …
-      holding: nothing — no watcher, no timer
-      layouts: N monitor setup(s) remembered — kept, never cleared …
-    **If `holding:` ever names a watcher or a timer, paste it** —
-    that is off-but-still-running, which is the thing this had to
-    avoid.
-A3. ⇪/ and search `window return`. EXPECT the card title says OFF.
-
-B. NOTHING WAS LOST.
-B1. That `layouts:` count is what it captured before today. It is
-    still in hs.settings and switching this off did not touch it.
-B2. `settings = { window_return = { enabled = true } }` brings it
-    back — and it really does start, which is the part that needed
-    building: it used to be startable only at boot.
-B3. `_G.windowsBack()` still puts windows back by hand if you ever
-    want it once.
-
-C. A JUDGEMENT ONLY YOU CAN MAKE.
-C1. If windows are STILL jumping with this off, that is a different
-    tool and I want to know — the candidates are window_move (⌘-drag)
-    and mouse_follows. One sentence about when it happens is enough.
 
 
 
