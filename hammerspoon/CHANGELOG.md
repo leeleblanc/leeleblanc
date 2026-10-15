@@ -72,6 +72,13 @@ now. The digit 1 is deliberately NOT in the set — it carries a flag
 and a foot and is nothing like a bare stroke — and that is a
 judgement, named, not an omission.
 
+🧪 9 OF 9 MUTATIONS BIT, and two of them are the ones worth keeping:
+a label TYPED as "⇪I" instead of built from KEY is EQUIVALENT today and
+fails the moment the literal moves (which is the drift this shape
+exists to stop), and dropping the sentry's COMBO restriction turns the
+gate RED on a healthy tree — the measurement above, re-proven as a
+check rather than left as a note.
+
 🧪 AND THE CHECK THAT BITES IS THE ONE THAT MOVES THE LITERAL. Every
 check on the card's wording passes against a label that was TYPED, so
 the suite reads the module's own source, rewrites `local KEY = "i"` to

@@ -521,6 +521,20 @@ do
               e[1] ~= "⇪I" and e[1] ~= "⇪⇧I", e[1])
     end
     check("6.361.0: …and the panel row moved with it", sawQ)
+
+    -- 🔑 AND THE BINDING FOLLOWS THE SAME LITERAL. `rd.key = "i"` typed
+    -- by hand is EQUIVALENT today and drifts the day the key moves —
+    -- which is the whole shape 6.239.0 exists for: a card that still
+    -- says ⇪I over a binding that is somewhere else.
+    TASKS, ALERTS, HYPER, OPENED, PASTED = {}, {}, {}, {}, {}
+    WEBVIEWS, CLAIMS = {}, {}
+    other.setup(CORE)
+    check("6.361.0: moving KEY moves the BINDING too, not just the card",
+          HYPER["|q"] ~= nil and HYPER["shift|q"] ~= nil
+          and HYPER["|i"] == nil,
+          (HYPER["|q"] and "q bound" or "q NOT bound")
+          .. (HYPER["|i"] and " · i still bound" or ""))
+    mod, rd = freshModule()   -- put the real module back for anything after
 end
 
 
