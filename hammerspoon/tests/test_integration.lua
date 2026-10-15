@@ -893,6 +893,55 @@ do
           .. "no combos to check", audited >= 30, audited .. " combos audited")
 end
 
+-- 🔤 6.361.0 — A KEY YOU CANNOT READ IS A KEY NOBODY CAN PRESS, and
+-- the audit above is structurally blind to it: it joins a combo to its
+-- owner, so a row whose key is PERFECTLY attributed and merely
+-- unreadable sails through. LL, on ⇪I: "hyper+| spilts two recent
+-- windows … it says it is for Recent Documents. Is it not?" It is —
+-- and core/cheatsheet.lua sets no `textFont`, so the system face draws
+-- a capital I as a bare vertical stroke. The only vertical bar on a
+-- Mac keyboard is the backslash key, which §0.4 maps to the window
+-- split. Both cards honest; the tool unreachable for 267 releases.
+--
+-- 🔎 MEASURED AGAINST THE HEALTHY TREE FIRST (6.269.0). A first version
+-- looked at every token and caught three PROSE key columns — "url",
+-- "all", "asdfghjkl" — which would have cried wolf and been switched
+-- off inside a week. It looks only at COMBOS now. The digit 1 is
+-- deliberately NOT in the set: it carries a flag and a foot in the
+-- system face and is nothing like a bare stroke.
+do
+    local MODS = { "⇪", "⌘", "⌥", "⌃", "⇧" }
+    local CONFUSABLE = { I = true, l = true, ["|"] = true }
+    local bad, looked = {}, 0
+    for _, g in ipairs(_G.moduleCheatsheets or {}) do
+        for _, e in ipairs(g.entries or {}) do
+            local keyCol = type(e) == "table" and tostring(e[1] or "") or ""
+            local desc   = type(e) == "table" and tostring(e[2] or "") or ""
+            for token in keyCol:gmatch("[^%s\194\183]+") do
+                local isCombo = false
+                for _, m in ipairs(MODS) do
+                    if token:find(m, 1, true) then isCombo = true end
+                end
+                if isCombo and CONFUSABLE[token:sub(-1)] then
+                    looked = looked + 1
+                    if not desc:find("LETTER", 1, true) then
+                        bad[#bad + 1] = token .. " on "
+                            .. tostring(g.source or "?") .. "'s sheet"
+                    end
+                end
+            end
+        end
+    end
+    check("🔤 A CHEAT-SHEET KEY THAT IS A BARE VERTICAL STROKE NAMES ITS "
+          .. "LETTER IN THE DESCRIPTION — the key column stays a pure combo "
+          .. "so 6.196.0's audit keeps auditing it, and the letter goes "
+          .. "where the audit never looks",
+          #bad == 0, #bad > 0 and table.concat(bad, " · ") or nil)
+    check("...and it really found a confusable key to look at — a sentry "
+          .. "over an empty haystack is green and measures nothing (6.313.0)",
+          looked >= 2, looked .. " confusable key(s) walked")
+end
+
 -- 🔎 6.294.0 — AND A KEY WITH NO ROW AT ALL IS THE OTHER BLIND SIDE.
 --
 -- The audit above joins a card's key column to the module that bound the

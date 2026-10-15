@@ -1,4 +1,4 @@
-# TESTING — how to score release 6.360.0
+# TESTING — how to score release 6.361.0
 
 You install ONE archive and it carries several releases. Below are the
 steps for each release this archive is new for, newest first. Run the
@@ -26,6 +26,70 @@ else is a LOSS and I fix it before building further. You are the only
 scorer; I never mark my own.
 
 ---
+
+## 6.361.0
+
+6.361.0 verify with LL — 🔤 THE KEY YOU COULD NOT READ (KNOWN GROUND)
+WHAT CHANGED: the Recent Documents card now tells you which key it
+means, in words, where you are already looking.
+🔎 AND YOU WERE RIGHT TO PUSH BACK — just not about the key. The card
+says **⇪I, the LETTER I**, and it has opened Recent Documents since
+6.93.0. I asked the registry rather than my notes this time: the
+collision auditor loads the real config and answers `|i → recent
+documents`. So the tool was there the whole time.
+🔤 WHAT WAS WRONG IS THE FONT. core/cheatsheet.lua sets no typeface at
+all, so every row draws in the system face — and a capital I there has
+no serifs. It is a bare vertical stroke, identical to a pipe. You read
+"⇪|", and the only vertical bar on a Mac keyboard is the backslash key,
+which §0.4 maps to the window arranger's split. Both cards were telling
+the truth and you still could not get there. 267 releases, lost to a
+letter.
+
+A. THE HEADLINE — twenty seconds.
+A1. Press ⇪/ and search `recent`.
+    EXPECT the card title to read **📂 RECENT DOCUMENTS (⇪I — the LETTER
+    I, between U and O)** and the first row to say, in words, that it is
+    the letter I and NOT the \| key beside Return.
+    **A FAIL is the bare "(⇪I)" you photographed.**
+A2. Now press it: Caps Lock + the **I** key, between U and O.
+    EXPECT a panel of your nine most recently opened documents, then
+    everything else you actually work on, searchable by name, folder,
+    date and extension.
+    This is almost certainly the first time you have seen it.
+A3. ⇪⇧I (same key, add shift). EXPECT a re-scan and what it has learned.
+A4. In the panel: ⏎ opens · ⌘⏎ reveals in Finder · ⌥⏎ copies the path
+    · ⌘1–⌘9 open a numbered recent · type to search · Esc closes.
+
+B. MUST STILL WORK — the key you actually pressed is untouched.
+B1. ⇪\ (Caps Lock + the \| key). EXPECT two recent windows side by side,
+    exactly as before. It did nothing wrong and nothing changed.
+B2. ⇪⇧W — still the activity tracker's documents list. That is a
+    different tool and both keys stay.
+B3. ⇪/ still filters, scrolls and closes on Esc.
+
+C. PASTE BACK.
+C1. `_G.recentDocsReport()` — there is a new first line:
+      key     : ⇪I — the LETTER I, between U and O  ·  ⇪⇧I re-scans
+    so the Console answers "which key is this?" without the card.
+C2. The `entries :` line under it. If it reads "cache only — no scan
+    finished yet" more than a minute after a boot, Spotlight is not
+    answering and THAT is a real finding — paste it.
+
+D. A JUDGEMENT ONLY YOU CAN MAKE.
+D1. **Is ⇪I the right key at all?** You have never been able to use it,
+    so you have no habit to protect. I did NOT move it on a guess. If
+    you would rather it were somewhere you will reach for — ⇪⇧\ (the
+    pipe, which is genuinely unclaimed) or a letter — say which and it
+    moves in one line.
+D2. **Should I set a font on the whole cheat sheet?** That closes this
+    at the source for every row at once — no card could ever print an
+    unreadable key again — and it restyles the sheet you already like.
+    Your taste, and its own release. I have NOT done it.
+D3. 🔨 While this was broken, was the Mac unusable, or did it just not
+    do the thing? My reading is the second — nothing failed, a tool was
+    simply unreachable — but the tag is yours.
+
+
 
 ## 6.360.0
 
@@ -178,54 +242,6 @@ D. A JUDGEMENT ONLY YOU CAN MAKE.
 D1. Filled means edge to edge with no gap. Want a margin? It is a
     number: `settings = { video_player = { fillGap = 20 } }`.
 D2. Is ⌃⌘F the right key, now that it is not macOS's full screen?
-
-
-
-## 6.357.0
-
-6.357.0 verify with LL — ☁️ A FILM STILL IN THE CLOUD (KNOWN GROUND)
-WHAT CHANGED: the Mug Player checks that a film's bytes are actually
-on this Mac before it reads them, and refuses with a clear message if
-they are not.
-🔎 YOUR READING WAS RIGHT AND YOU PROVED IT YOURSELF. Robin Hood from
-the Desktop played; Black Hawk Down from OneDrive beach-balled. Same
-build, same key, one difference. Your Console has the rest: `🧊
-Hammerspoon HUNG for 72 s at 2026-10-12 04:05:48 and was relaunched
-by the stall guard`. Reading a OneDrive placeholder makes macOS
-download it first, and this loader reads on the main thread — so the
-first read froze everything until the download caught up.
-
-A. THE HEADLINE — needs a film that is in OneDrive and NOT downloaded.
-   In Finder a cloud-only file shows a ☁ next to it.
-A1. ⇪⇧, and press ⏎ on that film.
-    EXPECT: no freeze. A message naming the film, saying the bytes
-    are not here yet, how much of it is, and that nothing is wrong
-    with the film or the player.
-    **A FAIL is a beach ball.** If you get one, that is the guard not
-    firing and I want `_G.mugReport()` the moment you have the Mac
-    back.
-A2. Right-click that film in Finder → Download Now. Wait for the ☁
-    to go.
-A3. ⏎ on it again. EXPECT: it reads and plays, as Robin Hood did.
-
-B. MUST STILL WORK — the guard must not cost you a film.
-B1. Play a film from the Desktop. EXPECT: unchanged.
-B2. Play a film from OneDrive that IS fully downloaded.
-    EXPECT: it plays. **A refusal here is the serious failure** —
-    paste the report, the line names both numbers.
-
-C. PASTE BACK.
-C1. `_G.mugReport()` — a new `on disk:` line with three states, and a
-    `↳ cloud :` count when anything was refused.
-
-D. A JUDGEMENT ONLY YOU CAN MAKE.
-D1. Right now a cloud film is handed to your usual player, which
-    streams it while OneDrive downloads. Is that what you want, or
-    should it just refuse and wait? `settings = { video_player =
-    { handOff = false } }` is the second.
-D2. 90% of the file has to be local before it reads. If a film you
-    know is downloaded gets refused, send me the line — the numbers
-    in it are the evidence and the threshold is one value.
 
 
 

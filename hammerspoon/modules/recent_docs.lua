@@ -1,5 +1,6 @@
 -- =====================================================================
--- MODULE: RECENT DOCUMENTS (⇪I) — the nine you just had open, then
+-- MODULE: RECENT DOCUMENTS (⇪I — the LETTER I) — the nine you just
+-- had open, then
 -- everything else you actually work on. 6.93.0
 -- =====================================================================
 -- LL: "find recent documents that I've opened … populate the first nine
@@ -50,18 +51,46 @@
 -- and query as a POSITIONAL argument — nothing is interpolated into the
 -- script, which is what keeps "$time.now(…)" and spaced paths safe.
 
+-- 🔤 6.361.0 — A CAPITAL I IS A BARE VERTICAL STROKE, AND THIS
+-- CARD SET NO FONT (LL, reading this very card: "hyper+| spilts two
+-- recent windows … it says it is for Recent Documents. Is it not?").
+-- IT IS, AND IT ALWAYS HAS BEEN — ⇪I, the LETTER I, bound since 6.93.0
+-- and live in the registry as `|i → recent documents`. The defect is
+-- typographic and it is in core/cheatsheet.lua: `textFont` appears
+-- ZERO times in that file, so every row draws in the system face,
+-- where a capital I has no serifs and cannot be told from a pipe. The
+-- only vertical bar on a Mac keyboard is the backslash key — which
+-- §0.4 maps to the window split, correctly, on its own card. SO BOTH
+-- CARDS WERE HONEST AND THE TOOL WAS STILL UNREACHABLE, for 267
+-- releases, because the key could not be read.
+-- 🔑 THE KEY COLUMN STAYS A PURE COMBO (6.196.0 — a word in it makes
+-- the 6.196.0 auditor read the row as a POINTER and stop auditing it),
+-- so the letter is named in the DESCRIPTION, which is free text and
+-- which the auditor never reads. And it names the PHYSICAL key, not
+-- just the letter: "between U and O" needs no font at all.
+-- 🏷 ONE LITERAL, EVERY SURFACE (6.311.0): the title, both rows, the
+-- binding and the report all read KEY, at LOAD time — a label built in
+-- setup() is a label the generated feature list never sees.
+local KEY    = "i"
+local LETTER = "the LETTER " .. KEY:upper() .. ", between U and O"
+local function keyLabel(shift)
+    return (shift and "⇪⇧" or "⇪") .. KEY:upper()
+end
+
 local M = {
     name  = "Recent Documents",
     order = 11.5,
     family = "files",
     cheatsheet = {
-        title = "📂 RECENT DOCUMENTS (⇪I)",
+        title = "📂 RECENT DOCUMENTS (" .. keyLabel(false) .. " — " .. LETTER .. ")",
         entries = {
-            { "⇪I",     "The 9 last-opened documents, then every type you work in" },
+            { keyLabel(false), LETTER .. ", NOT the \\| key beside Return — that one "
+                               .. "splits two windows. The 9 last-opened documents, "
+                               .. "then every type you work in" },
             { "⌘1–⌘9",  "Open a numbered recent directly" },
             { "type",   "Search name · folder · date · extension — @tag pins a type · old names still match (⇪F renames)" },
             { "⏎",      "OPEN the document (⌘⏎ reveal in Finder · ⌥⏎ copy path)" },
-            { "⇪⇧I",    "Re-scan now + what's been learned" },
+            { keyLabel(true), "Re-scan now + what's been learned — " .. LETTER },
             { "drag",   "Header moves it — and it REOPENS where you left it" },
             { "Esc",    "Close (the cheat sheet always closes after it)" },
         },
@@ -74,7 +103,7 @@ function M.setup(core)
 
     -- ✏️ EDIT HERE ---------------------------------------------------------
     rd.enabled   = true
-    rd.key       = "i"       -- ⇪I panel · ⇪⇧I re-scan + report
+    rd.key       = KEY       -- the module-level literal: ⇪I panel · ⇪⇧I re-scan
     rd.days      = 30        -- how far back "recently opened" reaches
     rd.seedDays  = 14        -- merely-MODIFIED window, seed types only
     rd.cap       = 400       -- most files fetched per scan, per query
@@ -97,8 +126,10 @@ function M.setup(core)
     -- — it did, in LL's Console ("recent_docs-…csv has SHRUNK — 49.7 KB
     -- at boot, 48.8 KB now"). Told here, by the module that knows.
     _G.rewrittenFiles = _G.rewrittenFiles or {}
-    _G.rewrittenFiles[rd.csvFile]   = "the ⇪I cache — rewritten after every Spotlight scan"
-    _G.rewrittenFiles[rd.typesFile] = "the ⇪I learned-types list — rewritten on every learn"
+    _G.rewrittenFiles[rd.csvFile]   = "the " .. keyLabel(false)
+        .. " cache — rewritten after every Spotlight scan"
+    _G.rewrittenFiles[rd.typesFile] = "the " .. keyLabel(false)
+        .. " learned-types list — rewritten on every learn"
     -- SEED groups: shown even merely-modified. csv sits with Excel;
     -- txt/lua are LL's 6.93.0 additions — everything else is learned.
     rd.groups = {
@@ -547,7 +578,8 @@ scan M "$modq"
                     if how == "manual" then
                         pcall(function()
                             hs.alert.show("📂 Recent Documents could not scan — "
-                                          .. "is Spotlight on? ⇪⇧I retries")
+                                          .. "is Spotlight on? "
+                                          .. keyLabel(true) .. " retries")
                         end)
                     end
                     return
@@ -1081,6 +1113,8 @@ if (q.focus) q.focus();
             "   tracker : " .. (rd.trackerOn
                 and "⇪F log joined — old names are searchable"
                 or "not running — old-name search unavailable"),
+            "   key     : " .. keyLabel(false) .. " — " .. LETTER
+                .. "  ·  " .. keyLabel(true) .. " re-scans",
             "   cache   : " .. rd.csvFile,
         }
         local learned = {}

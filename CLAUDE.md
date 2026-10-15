@@ -526,6 +526,44 @@ work Mac.
   📏 A COMMENT IN A MODULE IS NOT AUTHORITY EITHER: menu_search.lua said
   "⇪⇧. is the network tools" and net_tools is ⇪6, and has been since it
   was written.
+- 🔤 A KEY NAMED IN A GLYPH HE CANNOT MAP TO A PHYSICAL KEY IS A KEY
+  THAT HAS NOT BEEN NAMED (6.361.0, modules/recent_docs.lua — LL, reading
+  the card itself: "hyper+| spilts two recent windows … it says it is for
+  Recent Documents. Is it not?").
+  🔎 IT IS, AND IT ALWAYS HAS BEEN. ⇪I has opened Recent Documents since
+  6.93.0, and the registry says so in one line — `|i → recent documents`,
+  dumped from test_integration's collision auditor, which loads the REAL
+  config. The defect is TYPOGRAPHIC and it lives in a third file:
+  `textFont` appears ZERO times in core/cheatsheet.lua, so every row draws
+  in the system face, where a capital I has no serifs and is a bare
+  vertical stroke. He read "⇪|" — and the only vertical bar on a Mac
+  keyboard is the backslash key, which §0.4 maps to the window split, on
+  its own card, correctly. BOTH CARDS WERE HONEST AND THE TOOL WAS STILL
+  UNREACHABLE for 267 releases.
+  🔑 GENERAL, AND IT IS THE ONE TO CARRY: every rule in this file about
+  cheat sheets asks whether a row is TRUE — 6.181.0 (a stale key IS a
+  broken feature), 6.196.0 (the audit joining a combo to its owner),
+  6.276.0 (a 🆓 row that cannot be verified fails closed), 6.294.0 (a bound
+  key printed on no card). NOT ONE ASKS WHETHER IT CAN BE READ, and the
+  6.196.0 audit is blind to this by construction, because the row was
+  perfectly attributed. **When a tool goes unused, check that its key is
+  LEGIBLE before checking that it is correct.**
+  🔑 AND THE FIX IS SHAPED BY THE AUDIT, not around it: a word in the KEY
+  COLUMN makes 6.196.0 read the row as a POINTER and stop auditing it, so
+  readability bought there costs the check that catches a stale key. The
+  letter is named in the DESCRIPTION, which is free text the audit never
+  reads — and it names the PHYSICAL key, which needs no font at all ("the
+  LETTER I, between U and O, NOT the \| key beside Return"). One literal,
+  every surface (6.311.0), built at LOAD time.
+  🔎 MEASURED AGAINST THE HEALTHY TREE FIRST (6.269.0): the sentry's first
+  version caught three PROSE key columns — "url", "all", "asdfghjkl" —
+  and would have been switched off inside a week. It looks only at COMBOS
+  now, and the digit 1 is deliberately out of the set (a flag and a foot,
+  nothing like a bare stroke) — named as a judgement, not an omission.
+  📏 NAMED, NOT FIXED: core/cheatsheet.lua still sets no font. Setting one
+  closes the class at the source for every row at once AND restyles the
+  whole sheet, which is his taste and its own release.
+
 - IT DEGRADES, IT NEVER BREAKS (6.177.0, LL: "build it so it degrades
   gracefully and nothing breaks — and that's the same for all our code
   going forward. It must work on my home Mac and my work Mac."). Every
@@ -6038,7 +6076,8 @@ that must be READ before a new cause is named.
 | a picker throws `NSInternalInconsistencyException` instead of opening | init.lua `showPopup` · the AppKit remote-view family | 6.56.0 · 6.274.0 · 6.314.0 | 3 | ask |
 | "can't use the arrow keys to move thru the history list" | modules/music_player.lua · the card's cursor | 6.315.0 | 1 | ask |
 | "⇪⇧L needs to be more obvious" | modules/mouse_grid.lua | 6.167.0 · 6.195.0 · 6.310.0 | 3 | ask |
-| "too much work to get to a specific element" · "boxes are too wide" · "take the grid arrow acceleration away" | modules/mouse_grid.lua · the aiming cost, not the cell shape | 6.176.0 · 6.181.0 · 6.184.0 · 6.192.0 · 6.195.0 · 6.252.0 · 6.360.0 | 7 | degraded — the grid always worked; what it cost was keystrokes |
+| "too much work to get to a specific element" · "boxes are too wide" · "take the grid arrow acceleration away" | modules/mouse_grid.lua · the aiming cost, not the cell shape | 6.176.0 · 6.181.0 · 6.184.0 · 6.192.0 · 6.195.0 · 6.252.0 · 6.360.0 | 7 | **solved on his word (2026-10-15): "The grid is so much better."** |
+| "hyper+| spilts two recent windows … it says it is for Recent Documents" | modules/recent_docs.lua · core/cheatsheet.lua sets no font, so a capital I reads as a pipe | 6.361.0 | 1 | degraded — nothing broke; the tool was simply unreachable for 267 releases |
 | "I wasn't given 6.358.0" — a release that never reached his Downloads | delivery · a link pinned to the BRANCH, dying when the next release ships | 6.360.0 | 1 | 🔨 crude — three releases he could not install |
 | "can only be accessible via full keyboard" · "I can't tell if that key combo is taken" | modules/music_player.lua · the key registry | 6.276.0 · 6.311.0 | 1 | ask |
 | "Hammerspoon locks" · "I couldn't even click on anything" · 73 s, then it crashed | core/ · the main thread · modules/stall_guard.lua | 6.208.0 · 6.324.0 · 6.330.0 | 0 (instrumented, not fixed) | ask |
@@ -6140,7 +6179,8 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
-| 6.360.0 | 🗑 a held grid arrow stops speeding up — 8 pt a repeat, like an arrow in a text box | pending |
+| 6.361.0 | 🔤 the card stops printing a key you cannot read — ⇪I is the LETTER I, and it has opened Recent Documents since 6.93.0 | pending |
+| 6.360.0 | 🗑 a held grid arrow stops speeding up — 8 pt a repeat, like an arrow in a text box | **WIN** — LL, 2026-10-15: "The grid is so much better." |
 | 6.359.0 | 🕘 the snippets you PICK come back at the top of ⇪⇧S, newest first — and `_G.snippetsReport()` exists | pending |
 | 6.358.0 | 🖥 ⌃⌘F fills the Mug Player's window and puts it back the size you had it | pending |
 | 6.357.0 | ☁️ a film still in OneDrive is refused instead of freezing the Mac for 72 seconds | pending |
@@ -7547,6 +7587,66 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.361.0 verify with LL — 🔤 THE KEY YOU COULD NOT READ (KNOWN GROUND)
+  WHAT CHANGED: the Recent Documents card now tells you which key it
+  means, in words, where you are already looking.
+  🔎 AND YOU WERE RIGHT TO PUSH BACK — just not about the key. The card
+  says **⇪I, the LETTER I**, and it has opened Recent Documents since
+  6.93.0. I asked the registry rather than my notes this time: the
+  collision auditor loads the real config and answers `|i → recent
+  documents`. So the tool was there the whole time.
+  🔤 WHAT WAS WRONG IS THE FONT. core/cheatsheet.lua sets no typeface at
+  all, so every row draws in the system face — and a capital I there has
+  no serifs. It is a bare vertical stroke, identical to a pipe. You read
+  "⇪|", and the only vertical bar on a Mac keyboard is the backslash key,
+  which §0.4 maps to the window arranger's split. Both cards were telling
+  the truth and you still could not get there. 267 releases, lost to a
+  letter.
+
+  A. THE HEADLINE — twenty seconds.
+  A1. Press ⇪/ and search `recent`.
+      EXPECT the card title to read **📂 RECENT DOCUMENTS (⇪I — the LETTER
+      I, between U and O)** and the first row to say, in words, that it is
+      the letter I and NOT the \| key beside Return.
+      **A FAIL is the bare "(⇪I)" you photographed.**
+  A2. Now press it: Caps Lock + the **I** key, between U and O.
+      EXPECT a panel of your nine most recently opened documents, then
+      everything else you actually work on, searchable by name, folder,
+      date and extension.
+      This is almost certainly the first time you have seen it.
+  A3. ⇪⇧I (same key, add shift). EXPECT a re-scan and what it has learned.
+  A4. In the panel: ⏎ opens · ⌘⏎ reveals in Finder · ⌥⏎ copies the path
+      · ⌘1–⌘9 open a numbered recent · type to search · Esc closes.
+
+  B. MUST STILL WORK — the key you actually pressed is untouched.
+  B1. ⇪\ (Caps Lock + the \| key). EXPECT two recent windows side by side,
+      exactly as before. It did nothing wrong and nothing changed.
+  B2. ⇪⇧W — still the activity tracker's documents list. That is a
+      different tool and both keys stay.
+  B3. ⇪/ still filters, scrolls and closes on Esc.
+
+  C. PASTE BACK.
+  C1. `_G.recentDocsReport()` — there is a new first line:
+        key     : ⇪I — the LETTER I, between U and O  ·  ⇪⇧I re-scans
+      so the Console answers "which key is this?" without the card.
+  C2. The `entries :` line under it. If it reads "cache only — no scan
+      finished yet" more than a minute after a boot, Spotlight is not
+      answering and THAT is a real finding — paste it.
+
+  D. A JUDGEMENT ONLY YOU CAN MAKE.
+  D1. **Is ⇪I the right key at all?** You have never been able to use it,
+      so you have no habit to protect. I did NOT move it on a guess. If
+      you would rather it were somewhere you will reach for — ⇪⇧\ (the
+      pipe, which is genuinely unclaimed) or a letter — say which and it
+      moves in one line.
+  D2. **Should I set a font on the whole cheat sheet?** That closes this
+      at the source for every row at once — no card could ever print an
+      unreadable key again — and it restyles the sheet you already like.
+      Your taste, and its own release. I have NOT done it.
+  D3. 🔨 While this was broken, was the Mac unusable, or did it just not
+      do the thing? My reading is the second — nothing failed, a tool was
+      simply unreachable — but the tag is yours.
+
 - 6.360.0 verify with LL — 🗑 THE GRID ARROWS STOP ACCELERATING (KNOWN GROUND)
   WHAT CHANGED: holding an arrow after the grid lands no longer speeds
   up. Every repeat is the same 8 pt, like holding an arrow in a text box.

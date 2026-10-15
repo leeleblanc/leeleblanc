@@ -460,6 +460,70 @@ check("the fallback walk finds the fresh file, skips hidden and ancient",
 check("the report names the learned list and the tracker state",
       _G.recentDocsReport():find("tracker", 1, true) ~= nil)
 
+-- =======================================================================
+out("9) 🔤 6.361.0 — the key is READABLE, and it is BUILT not typed\n")
+-- =======================================================================
+-- LL, reading this very card: "hyper+| spilts two recent windows … it
+-- says it is for Recent Documents. Is it not?" It is — ⇪I has been
+-- bound since 6.93.0 — but core/cheatsheet.lua sets no font, so a
+-- capital I draws as a bare vertical stroke and reads as a pipe. The
+-- only vertical bar on the keyboard is the backslash key, which §0.4
+-- maps to the window split. Both cards honest, the tool unreachable.
+do
+    local cs = mod.cheatsheet
+    check("6.361.0: the card's TITLE names the letter",
+          cs.title:find("LETTER I", 1, true) ~= nil, cs.title)
+
+    -- 🔑 THE KEY COLUMN STAYS A PURE COMBO — 6.196.0's auditor reads a
+    -- word in it as a POINTER and stops auditing the row, so naming the
+    -- letter there would cost the audit that catches a stale key.
+    local row1, rowS
+    for _, e in ipairs(cs.entries) do
+        if e[1] == "⇪I"  then row1 = e end
+        if e[1] == "⇪⇧I" then rowS = e end
+    end
+    check("6.361.0: the panel row is still keyed by the bare combo ⇪I",
+          row1 ~= nil and row1[1] == "⇪I")
+    check("6.361.0: …and its DESCRIPTION names the letter",
+          row1 ~= nil and row1[2]:find("LETTER I", 1, true) ~= nil,
+          row1 and row1[2])
+    check("6.361.0: …and it names the key he actually pressed, so the "
+          .. "mistake is answered where he makes it",
+          row1 ~= nil and row1[2]:find("splits two windows", 1, true) ~= nil)
+    check("6.361.0: the re-scan row is keyed ⇪⇧I and names the letter too",
+          rowS ~= nil and rowS[2]:find("LETTER I", 1, true) ~= nil)
+    check("6.361.0: the report names the key, so the Console answers "
+          .. "\"which key is this?\" without the sheet",
+          _G.recentDocsReport():find("LETTER I", 1, true) ~= nil)
+end
+
+-- 🏷 BUILT, NOT TYPED (6.311.0 / 6.239.0): move the module's own
+-- literal and require every surface to follow. A typed "⇪I" passes
+-- every check above and fails this one — which is the mutation that
+-- matters, because a typed label is exactly how the title and the row
+-- come to disagree the next time the key moves.
+do
+    local f = assert(io.open(HS .. "/modules/recent_docs.lua", "r"))
+    local src = f:read("a") ; f:close()
+    check("6.361.0: the suite really read the module",
+          #src > 20000 and src:find("local KEY", 1, true) ~= nil, #src)
+    local moved, n = src:gsub('local KEY%s*=%s*"i"', 'local KEY = "q"', 1)
+    check("6.361.0: …and the literal is a single module-level KEY", n == 1, n)
+    local other = assert(load(moved, "recent_docs(KEY=q)"))()
+    check("6.361.0: moving KEY moves the card's TITLE",
+          other.cheatsheet.title:find("⇪Q", 1, true) ~= nil
+          and other.cheatsheet.title:find("LETTER Q", 1, true) ~= nil,
+          other.cheatsheet.title)
+    local sawQ = false
+    for _, e in ipairs(other.cheatsheet.entries) do
+        if e[1] == "⇪Q" then sawQ = true end
+        check("6.361.0: no row still carries the OLD key after the move",
+              e[1] ~= "⇪I" and e[1] ~= "⇪⇧I", e[1])
+    end
+    check("6.361.0: …and the panel row moved with it", sawQ)
+end
+
+
 os.remove(TMPA) ; os.remove(TMPB)
 out(string.format("\n%d passed, %d failed\n", pass, fail))
 os.exit(fail == 0 and 0 or 1)

@@ -5,6 +5,92 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.361.0 — 🔤 THE CHEAT SHEET STOPS PRINTING A KEY HE CANNOT READ
+
+LL, reading this very card and quoting it back: "hyper+| spilts two
+recent windows. Read that again. Then fix it per the cheat sheet, not
+your own answer, it says it is for Recent Documents. Is it not?"
+
+IT IS, AND IT ALWAYS HAS BEEN. ⇪I has opened Recent Documents since
+6.93.0 and the live registry says so in one line — `|i → recent
+documents`, dumped from test_integration's collision auditor, which
+loads the REAL config. ⇪⇧I is there beside it. Nothing is broken,
+nothing is stale, and the card is telling the exact truth.
+
+🔤 THE DEFECT IS TYPOGRAPHIC, AND IT IS IN A FILE NEITHER OF US WAS
+LOOKING AT. `textFont` appears ZERO times in core/cheatsheet.lua, so
+every row on that sheet draws in the system face — where a capital I
+has no serifs and is a bare vertical stroke, indistinguishable from a
+pipe. He read "⇪|". The only vertical bar on a Mac keyboard is the
+backslash key. §0.4's migration map sends ⇪\ to the window arranger's
+split (`["alt+ctrl+v"] = { {}, "\\" }`), and the arranger's own card
+says so correctly. SO BOTH CARDS WERE HONEST AND THE TOOL WAS STILL
+UNREACHABLE — for 267 releases, by a font.
+
+🔑 GENERAL, AND IT IS THE ONE TO CARRY: A CARD THAT NAMES A KEY IN A
+GLYPH THE READER CANNOT MAP TO A PHYSICAL KEY IS A CARD THAT HAS NOT
+NAMED IT. Every rule this project has about cheat sheets is about
+whether a row is TRUE — 6.181.0 (a stale key IS a broken feature),
+6.196.0 (the audit that joins a combo to its owner), 6.276.0 (a 🆓 row
+that cannot be verified fails closed), 6.294.0 (a bound key printed on
+no card). Not one of them asks whether the row can be READ, and the
+6.196.0 audit is structurally blind to this by construction: the row
+was perfectly attributed. When a tool goes unused, check that its key
+is legible before checking that it is correct.
+
+🔑 THE KEY COLUMN STAYS A PURE COMBO, and that is the constraint the
+fix is shaped by rather than a detail. 6.196.0's auditor reads a key
+column containing a WORD as a POINTER at another tool and stops
+auditing the row — so "⇪I (the letter I)" in the key column would buy
+readability by giving up the check that catches a stale key. The
+letter is named in the DESCRIPTION, which is free text and which the
+audit never reads. And it names the PHYSICAL key, which needs no font
+at all: "the LETTER I, between U and O, NOT the \| key beside Return
+— that one splits two windows". The mistake is answered where he
+makes it.
+
+🏷 ONE LITERAL, EVERY SURFACE (6.311.0, and for the same reason): a
+module-level `KEY` with `keyLabel()` and `LETTER` built from it at LOAD
+time, read by the card's title, both rows, the binding, the two write-
+ledger descriptions, the no-Spotlight alert and a new `key :` line in
+`_G.recentDocsReport()`. At load time, not in setup() — 6.311.0 shipped
+a blank key column into the generated feature list by building the
+label in setup(), because tools/build-feature-list.lua reads
+`M.cheatsheet` from a chunk it never sets up.
+
+🔒 THE GATE SENTRY CLOSES THE CLASS, not the instance: any module's
+cheat-sheet key column whose COMBO ends in a confusable glyph (I, l,
+|) must have a description naming the LETTER. Two rows match today,
+both recent_docs', and a third shipped in six months fails by name.
+
+🔎 MEASURED AGAINST THE HEALTHY TREE FIRST (6.269.0), and it earned
+its place: the first version looked at every token and caught three
+PROSE key columns — "url" (Activity Tracker), "all" (Key Caster),
+"asdfghjkl" (Mouse Grid). A sentry that goes red on correct code is a
+sentry that is switched off inside a week. It looks only at COMBOS
+now. The digit 1 is deliberately NOT in the set — it carries a flag
+and a foot and is nothing like a bare stroke — and that is a
+judgement, named, not an omission.
+
+🧪 AND THE CHECK THAT BITES IS THE ONE THAT MOVES THE LITERAL. Every
+check on the card's wording passes against a label that was TYPED, so
+the suite reads the module's own source, rewrites `local KEY = "i"` to
+`"q"`, loads that chunk and requires the title AND both rows to follow
+— and asserts no row still carries the old key (6.239.0). It asserts
+it really read the module first, because a sentry over an empty
+haystack is green and measures nothing (6.313.0).
+
+📏 NAMED, NOT FIXED, so it is not a surprise later:
+  · core/cheatsheet.lua still sets NO font. Setting one would close
+    this class at the source for every row at once, and it restyles
+    the whole sheet — which is its own release and his taste, not a
+    thing to smuggle in under a two-row fix.
+  · the panel's own in-page HTML still types "⇪⇧I re-scans". Whoever
+    reads that line is already inside the panel, so the key is not
+    what is in their way. Every string on the way IN is built.
+  · ⇪\ is untouched. It did exactly what its own card says.
+
+```text
 NEW IN 6.360.0 — 🗑 THE GRID ARROWS STOP ACCELERATING, AND THE DELIVERY
   LINK STOPS DYING (modules/mouse_grid.lua, .gitignore)
 

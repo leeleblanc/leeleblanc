@@ -1,5 +1,5 @@
 ========================================================================
-RESOLVED FEATURE REQUESTS — Hammerspoon config 6.360.0
+RESOLVED FEATURE REQUESTS — Hammerspoon config 6.361.0
 Every feature and how to use it. Generated from the modules' own
 cheat sheets (the rows ⇪/ draws), so it is never out of date.
 ⇪ = Caps Lock held (the hyper key). ⇪⇧X = Caps Lock + Shift + X.
@@ -368,12 +368,12 @@ In the Console, _G.<tool>Report() prints any tool's own report.
   Enter     Copy row  ·  90-day history
   check     _G.fileTrackerReport() — what it watches, and what it costs your mouse
 
-📂 RECENT DOCUMENTS (⇪I)   [modules/recent_docs.lua]
-  ⇪I      The 9 last-opened documents, then every type you work in
+📂 RECENT DOCUMENTS (⇪I — the LETTER I, between U and O)   [modules/recent_docs.lua]
+  ⇪I      the LETTER I, between U and O, NOT the \| key beside Return — that one splits two windows. The 9 last-opened documents, then every type you work in
   ⌘1–⌘9 Open a numbered recent directly
   type      Search name · folder · date · extension — @tag pins a type · old names still match (⇪F renames)
   ⏎       OPEN the document (⌘⏎ reveal in Finder · ⌥⏎ copy path)
-  ⇪⇧I   Re-scan now + what's been learned
+  ⇪⇧I   Re-scan now + what's been learned — the LETTER I, between U and O
   drag      Header moves it — and it REOPENS where you left it
   Esc       Close (the cheat sheet always closes after it)
 
@@ -810,6 +810,7 @@ In the Console, _G.<tool>Report() prints any tool's own report.
 
 📜 RELEASE INDEX — newest first, one line per release (the full story of each is in CHANGELOG.md)
 ------------------------------------------------------------------------
+  6.361.0  🔤 THE CHEAT SHEET STOPS PRINTING A KEY HE CANNOT READ
   6.360.0  🗑 THE GRID ARROWS STOP ACCELERATING, AND THE DELIVERY
   6.359.0  🕘 THE SNIPPET PICKER REMEMBERS WHAT HE PICKED, AND IT
   6.358.0  🖥 ⌃⌘F FILLS THE SCREEN, AND COMES BACK TO THE SIZE

@@ -2,10 +2,22 @@
 -- * Working VERSION *
 -- =====================================================================
 -- =====================================================================
--- 10-13-26 using Claude          ← EDITED date. Bumped with every release.
+-- 10-15-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.360.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.361.0
 -- =====================================================================
+
+-- NEW IN 6.361.0 — 🔤 THE CARD STOPS PRINTING A KEY HE CANNOT READ
+--   (recent_docs.lua). LL, on this very card: "hyper+| spilts two
+--   recent windows … it says it is for Recent Documents. Is it not?"
+--   IT IS — ⇪I since 6.93.0, live in the registry as `|i`. The defect
+--   is typographic: core/cheatsheet.lua names no `textFont`, so a
+--   capital I draws as a bare stroke and reads as a pipe — and the
+--   only vertical bar on the keyboard is \, which §0.4 maps to the
+--   window split. Both cards honest, the tool unreachable. The key
+--   column stays a pure combo (6.196.0); the LETTER is named in the
+--   description, where the audit never looks. A gate sentry holds the
+--   class, 6.311.0's one-literal rule the label.
 
 -- NEW IN 6.360.0 — 🗑 THE GRID ARROWS STOP ACCELERATING
 --   (mouse_grid.lua). LL: "Take the grid arrow acceleration away."
@@ -17,22 +29,11 @@
 --   is the grid's job again. nudgeStep is NOT raised to buy it back;
 --   that returns the overshoot with it, and it is his call.
 
--- NEW IN 6.359.0 — 🕘 THE SNIPPET PICKER REMEMBERS WHAT HE PICKED
---   (text_expander.lua). LL, twice: "My most recently chose snippets
---   are not at the top." The grep came first: `recent`, `lastUsed`,
---   `usedAt`, `mru`, `bumpTo` — ZERO hits. Nothing was written and
---   nothing went unread, so this is a BUILD, not 6.277.0's shape.
---   A 🕘 section at rank 0, snapshotted at open so it cannot renumber
---   under an aimed ⏎. USED = PICKED FROM ⇪⇧S, never a typed trigger
---   (his word; thousands a day would bury the handful he chooses).
---   Local store, temp-then-rename. And `_G.snippetsReport()`, which
---   his Console answered with "attempt to call a nil value".
-
--- (6.358.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.359.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 cut the inline count to
 --  TWO; a gate check proves every entry here is also in CHANGELOG.md.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.360.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.361.0
 -- =====================================================================
 -- The catalogue that used to sit here moved to GUIDE.md ("What each
 -- tool does") in 6.180.0 — 259 lines of prose inside the orchestrator.
@@ -125,7 +126,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.360.0"
+_G.configVersion = "6.361.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the
