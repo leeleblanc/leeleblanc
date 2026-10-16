@@ -2,10 +2,19 @@
 -- * Working VERSION *
 -- =====================================================================
 -- =====================================================================
--- 10-15-26 using Claude          ← EDITED date. Bumped with every release.
+-- 10-16-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.361.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.362.0
 -- =====================================================================
+
+-- NEW IN 6.362.0 — 🔤 THE CHEAT SHEET HAS A FONT
+--   (core/cheatsheet.lua). LL: "And the fonts". `textFont` appeared
+--   ZERO times in that file, so every row drew in the system face,
+--   where a capital I is a bare stroke. Menlo: on every Mac since
+--   10.6, and telling I from l from 1 from | is what a coding face
+--   is FOR. 📏 Name and advance width are ONE table — the wrap
+--   counts CHARACTERS, so a name set without the width runs the rows
+--   off the column. `cheatsheet = { face = false }` is the way back.
 
 -- NEW IN 6.361.0 — 🔤 THE CARD STOPS PRINTING A KEY HE CANNOT READ
 --   (recent_docs.lua). LL, on this very card: "hyper+| spilts two
@@ -19,21 +28,11 @@
 --   description, where the audit never looks. A gate sentry holds the
 --   class, 6.311.0's one-literal rule the label.
 
--- NEW IN 6.360.0 — 🗑 THE GRID ARROWS STOP ACCELERATING
---   (mouse_grid.lua). LL: "Take the grid arrow acceleration away."
---   6.172.1 and 6.195.0 built the climb on his OWN earlier asks, so
---   this is a premise expiring (6.311.0), not code that was wrong.
---   DELETED, not switched off: accelFor, its run state and all four
---   nudgeAccel* knobs. A hold repeats at nudgeStep, like an arrow in
---   a text box. 📏 COST: 8 pt a repeat, not up to 64 — the long haul
---   is the grid's job again. nudgeStep is NOT raised to buy it back;
---   that returns the overshoot with it, and it is his call.
-
--- (6.359.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.360.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 cut the inline count to
 --  TWO; a gate check proves every entry here is also in CHANGELOG.md.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.361.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.362.0
 -- =====================================================================
 -- The catalogue that used to sit here moved to GUIDE.md ("What each
 -- tool does") in 6.180.0 — 259 lines of prose inside the orchestrator.
@@ -126,7 +125,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.361.0"
+_G.configVersion = "6.362.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the

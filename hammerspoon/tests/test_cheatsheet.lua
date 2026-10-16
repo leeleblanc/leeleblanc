@@ -2195,5 +2195,89 @@ do
   check("§6.288.0 ran all of its checks (" .. ran .. " of 20+)", ran >= 20, ran)
 end
 
+-- =======================================================================
+-- 🔤 6.362.0 — THE SHEET NAMES A FONT, AND THE WRAP MOVES WITH IT
+-- =======================================================================
+-- LL: "oh shit! It's the 'I' key", and then "And the fonts". Until this
+-- release `textFont` appeared ZERO times in core/cheatsheet.lua, so a
+-- capital I drew as a bare stroke and he spent 267 releases pressing the
+-- \| key beside Return and getting the window split.
+do
+  local before = pass + fail
+
+  check("6.362.0: the sheet ships naming a face",
+        type(CS.face) == "table" and CS.faceName() == "Menlo", CS.faceName())
+  check("6.362.0: …and its advance width comes with it, in the same table",
+        CS.faceWidth() == 0.60, CS.faceWidth())
+
+  -- 🏷 EVERY text element, not most of them: a title in one face over
+  -- rows in another is the drift this one table exists to stop.
+  CS.show()
+  local texts, faced = 0, 0
+  for _, e in ipairs(drawn or {}) do
+    if e.type == "text" then
+      texts = texts + 1
+      if e.textFont == "Menlo" then faced = faced + 1 end
+    end
+  end
+  check("6.362.0: EVERY text element the sheet draws carries the face",
+        texts > 10 and faced == texts, faced .. " of " .. texts)
+
+  -- 📏 MOVE THE CONFIG AND REQUIRE THE DRAWING TO FOLLOW (6.239.0).
+  -- Asserting the shipped "Menlo" passes with the name typed in twice.
+  CS.face = { name = "Courier", width = 1.20 }
+  CS.hide() ; CS.show()
+  local wide, wideFaced = 0, 0
+  for _, e in ipairs(drawn or {}) do
+    if e.type == "text" then
+      wide = wide + 1
+      if e.textFont == "Courier" then wideFaced = wideFaced + 1 end
+    end
+  end
+  check("6.362.0: moving the face moves every element with it",
+        wide > 10 and wideFaced == wide, wideFaced .. " of " .. wide)
+  check("6.362.0: …and the WRAP moves too — a wider face fits fewer "
+        .. "characters, so the same rows break into more lines",
+        wide > texts, texts .. " -> " .. wide)
+
+  -- 🚪 THE WAY BACK, and it must be the OLD behaviour exactly: no
+  -- font named at all, and the system face's 0.52 ratio restored.
+  CS.face = false
+  check("6.362.0: a face that is not a table names NO font", CS.faceName() == nil)
+  check("6.362.0: …and the wrap goes back to the system ratio",
+        CS.faceWidth() == 0.52, CS.faceWidth())
+  CS.hide() ; CS.show()
+  local bare = true
+  for _, e in ipairs(drawn or {}) do
+    if e.type == "text" and e.textFont ~= nil then bare = false end
+  end
+  check("6.362.0: …and not one element names a font", bare)
+
+  -- 🔒 FAILS CLOSED ON A TYPO. A width of 99 would draw a sheet one
+  -- character wide; 0.01 would run every row off the edge. Neither is a
+  -- thing a settings line may do (6.310.0).
+  for _, bad in ipairs({ 99, 0.01, -1, "wide" }) do
+    CS.face = { name = "Menlo", width = bad }
+    check("6.362.0: a width of " .. tostring(bad) .. " falls back, never draws",
+          CS.faceWidth() == 0.52, CS.faceWidth())
+  end
+  CS.face = { name = "Menlo", width = 0.60 }
+
+  -- 🔒 SOURCE: the wrap is COMPUTED from the face, never a literal.
+  -- The 0.52 that used to sit in that line is the whole bug class.
+  do
+    local f = assert(io.open(HS .. "/core/cheatsheet.lua", "r"))
+    local src = f:read("a") ; f:close()
+    check("6.362.0: the suite really read the sheet",
+          #src > 20000 and src:find("faceWidth", 1, true) ~= nil, #src)
+    local line = src:match("[^\n]*wrapChars%s*=[^\n]*\n?[^\n]*")
+    check("6.362.0: the wrap asks faceWidth() rather than a typed ratio",
+          line ~= nil and line:find("faceWidth", 1, true) ~= nil, line)
+  end
+
+  local ran = (pass + fail) - before
+  check("🔤 6.362.0 ran all of its checks (" .. ran .. " of 13+)", ran >= 13, ran)
+end
+
 print(("\n%d passed, %d failed\n"):format(pass, fail))
 os.exit(fail == 0 and 0 or 1)

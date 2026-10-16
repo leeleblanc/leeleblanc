@@ -1,4 +1,4 @@
-# TESTING — how to score release 6.361.0
+# TESTING — how to score release 6.362.0
 
 You install ONE archive and it carries several releases. Below are the
 steps for each release this archive is new for, newest first. Run the
@@ -26,6 +26,53 @@ else is a LOSS and I fix it before building further. You are the only
 scorer; I never mark my own.
 
 ---
+
+## 6.362.0
+
+6.362.0 verify with LL — 🔤 THE SHEET HAS A FONT (KNOWN GROUND)
+WHAT CHANGED: ⇪/ draws in Menlo now, where a capital I, a lowercase l,
+a digit 1 and a pipe are four different shapes.
+🔎 WHY: your own answer — "And the fonts". `textFont` appeared ZERO
+times in that file, so every row had been drawing in the system face
+since the sheet was written. That is the thing that cost you ⇪I for
+267 releases, and it would have cost the next one too.
+
+A. THE HEADLINE — ten seconds.
+A1. Press ⇪/ and search `recent`.
+    EXPECT the row's key to read ⇪I with a capital I you can TELL from
+    a pipe — crossbars top and bottom.
+A2. Search `\` (the backslash). EXPECT the arranger's split row, and
+    its key to look nothing like the I above.
+A3. Look at the sheet generally. It is monospaced now — that is the
+    trade, and it is the whole point: every key name lines up.
+
+B. MUST STILL WORK — the font changed the WIDTH of everything, so the
+   wrapping is what to watch.
+B1. Scroll the whole sheet. EXPECT no row running off the right edge
+    and no row clipped. **A row that overflows is the one real failure
+    mode here** — tell me and paste the row.
+B2. Type to filter, ⌫ to edit, Esc to clear then close.
+B3. Scroll with the wheel over the sheet; drag it somewhere and reopen.
+B4. ⇪= to add an entry, ⇪- to remove one.
+
+C. PASTE BACK.
+C1. `_G.cheatSheetReport()` — empty and faults should both read none.
+
+D. A JUDGEMENT ONLY YOU CAN MAKE.
+D1. **Do you want the whole sheet monospaced?** It is the honest trade:
+    every key is unambiguous, and the prose beside it is wider and
+    plainer. If you hate it: `settings = { cheatsheet = { face = false } }`
+    puts the old face back exactly — and say so, because then the right
+    answer is a second face for the key column only, which is a bigger
+    change I did not want to make on a guess.
+D2. Menlo vs something else — it is one table:
+    `cheatsheet = { face = { name = "Courier", width = 1.20 } }`. The
+    width must move WITH the name or the rows run off the column.
+D3. 📏 Only ⇪/ got this. The webview panels, the pickers and the
+    canvases still draw in whatever they used. Say if any of them has
+    a key you have had to squint at.
+
+
 
 ## 6.361.0
 
@@ -204,44 +251,6 @@ D2. The queue keeps 200 and never forgets by AGE — a snippet you
 D3. Should the 🕘 rows be a COPY (what they are — the snippet is also
     still in its own collection) or should picking one MOVE it out of
     its collection? Copy is what I built, so your packs stay complete.
-
-
-
-## 6.358.0
-
-6.358.0 verify with LL — 🖥 ⌃⌘F FILLS THE SCREEN (KNOWN GROUND)
-WHAT CHANGED: ⌃⌘F in the Mug Player fills the screen, and pressing it
-again puts the window back exactly where and how big it was.
-🔬 AND macOS'S OWN FULL SCREEN IS NOT REACHABLE, said plainly rather
-than half-built: Hammerspoon's webview has no fullScreen window mask
-at all (I read the list — libwebview.m:2533-2562) and this window is
-borderless. So ⌃⌘F resizes it. It looks the same; it is not the same
-thing, and the report says which.
-
-A. THE HEADLINE — twenty seconds.
-A1. ⇪⇧, then ⌃⌘F. EXPECT: the window fills the screen.
-A2. ⌃⌘F again. EXPECT: back to the size AND the spot you had it.
-A3. Move the window somewhere odd first, then A1 and A2.
-    EXPECT: it comes back to THAT spot, not to the middle.
-A4. Fill it, then drag a film onto it. EXPECT: the drop still works
-    anywhere on the window — the drop area moves with it.
-A5. Fill it, close it, reopen it, press ⌃⌘F.
-    EXPECT: it FILLS. **A FAIL is it shrinking** to last session's
-    frame.
-
-B. MUST STILL WORK.
-B1. Plain ⌘F does whatever it did before — this key asks for ⌃ too.
-B2. ⌘O, space, ↑↓, ⏎, ⌘1–9, ⌫, Escape, the ✕ on a history row.
-B3. The film's own full-screen button in the controls is macOS's and
-    is untouched; Escape leaves it with the window still up.
-
-C. PASTE BACK.
-C1. `_G.mugReport()` — a new `size   :` line and a `↳ ⌃⌘F  :` count.
-
-D. A JUDGEMENT ONLY YOU CAN MAKE.
-D1. Filled means edge to edge with no gap. Want a margin? It is a
-    number: `settings = { video_player = { fillGap = 20 } }`.
-D2. Is ⌃⌘F the right key, now that it is not macOS's full screen?
 
 
 

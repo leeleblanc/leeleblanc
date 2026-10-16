@@ -93,6 +93,62 @@ return function(core)
     cheatSheet.width     = 1024
     cheatSheet.height    = nil
     cheatSheet.key       = "/"   -- toggle key; same mods as everything above
+    -- 🔤 6.362.0 — THE SHEET HAS A FONT NOW, AND THAT IS THE WHOLE
+    -- RELEASE (LL, after finding ⇪I at last: "oh shit! It's the 'I'
+    -- key", and then "And the fonts"). Until today this file named NO
+    -- typeface at all — `textFont` appeared zero times — so every row
+    -- drew in the system face, where a capital I has no serifs and is a
+    -- bare vertical stroke. He read "⇪|", pressed the \| key beside
+    -- Return, got the window split, and reported the card as lying. It
+    -- was not lying; it was unreadable, which is the same thing from
+    -- where he was sitting, and it cost him that tool for 267 releases.
+    --
+    -- 🔑 MENLO BECAUSE IT IS ON EVERY MAC AND DISAMBIGUATION IS ITS JOB:
+    -- Apple has shipped it since 10.6, so the work Mac has it too, and a
+    -- coding face draws I with crossbars, l with a tail, 1 with a flag
+    -- and | as a full-height bar. The four that matter here.
+    --
+    -- 📏 THE TWO MOVE TOGETHER AND THAT IS NOT OPTIONAL. The wrap below
+    -- is counted in CHARACTERS off an average advance width; 0.52 em was
+    -- tuned for the system face and Menlo is 0.60, so setting the name
+    -- without the width wraps too late and the text runs out of the
+    -- column. They are ONE decision, kept in one table for exactly that
+    -- reason (6.311.0), and a check moves the table and requires the
+    -- drawing AND the wrap to follow.
+    --
+    -- 🚪 THE WAY BACK IS ONE LINE: `settings = { cheatsheet = { face =
+    -- false } }` — any non-table — restores the system face and the old
+    -- 0.52. Nothing else changes.
+    --
+    -- 🔒 AND THE WORDS STAY AS THE BELT. 6.361.0 made recent_docs name
+    -- its letter in the description, and that is NOT removed now there
+    -- is a font: a sentence needs no typeface to be true, and the gate
+    -- cannot see a glyph. The font is the fix; the words survive it.
+    cheatSheet.face = { name = "Menlo", width = 0.60 }
+
+    -- 🚪 ONE DOOR EACH, so the drawing and the wrap can never read a
+    -- different face. Both FAIL CLOSED onto the system face: a settings
+    -- line that is not a table, or a width a typo made absurd, must not
+    -- be able to draw a sheet one character wide or run it off the edge
+    -- (6.310.0 — a typo must never shrink the thing it was asked to
+    -- change). nil from faceName() means "name no font", which is what
+    -- this file did for its whole life, so the fallback is the old
+    -- behaviour exactly rather than a second guess at one.
+    function cheatSheet.faceName()
+        local f = cheatSheet.face
+        if type(f) == "table" and type(f.name) == "string" and f.name ~= "" then
+            return f.name
+        end
+        return nil
+    end
+    function cheatSheet.faceWidth()
+        local f = cheatSheet.face
+        if type(f) == "table" and type(f.width) == "number"
+           and f.width >= 0.3 and f.width <= 1.5 then
+            return f.width
+        end
+        return 0.52   -- the system face's advance ratio, and the floor
+    end
     -- 🖐 6.106.0 — WHERE YOU LEFT IT, ACROSS RELOADS. Dragging the sheet
     -- has moved it since 6.67.0, and the position survived a redraw and a
     -- reopen because it lives on this table. What it did NOT survive was a
@@ -916,7 +972,8 @@ return function(core)
         end
         table.insert(els, {
             type = "text", text = titleText,
-            textSize = st.titleSize, textColor = titleColor, textAlignment = "center",
+            textSize = st.titleSize, textFont = cheatSheet.faceName(),
+            textColor = titleColor, textAlignment = "center",
             frame = { x = 0, y = st.pad * 0.55, w = st.panelW, h = st.titleH },
         })
 
@@ -930,7 +987,7 @@ return function(core)
                 -- blue header a size larger.
                 table.insert(els, {
                     type = "text", text = line.text,
-                    textSize = st.headerSize + 2,
+                    textSize = st.headerSize + 2, textFont = cheatSheet.faceName(),
                     textColor = sty.accent or { red = 1.00, green = 0.84, blue = 0.00 },
                     -- Same x as every other row: the sheet is ONE column,
                     -- and a test holds it to that. Size and colour carry
@@ -940,14 +997,15 @@ return function(core)
             elseif line.kind == "header" then
                 table.insert(els, {
                     type = "text", text = line.text,
-                    textSize = st.headerSize,
+                    textSize = st.headerSize, textFont = cheatSheet.faceName(),
                     textColor = sty.selectLine or { red = 0.55, green = 0.83, blue = 1.0 },
                     frame = { x = st.contentX, y = y, w = st.contentW, h = st.lineH },
                 })
             elseif line.kind == "entry" then
                 table.insert(els, {
                     type = "text", text = line.text,
-                    textSize = st.entrySize, textColor = sty.fg or { white = 1.0 },
+                    textSize = st.entrySize, textFont = cheatSheet.faceName(),
+                    textColor = sty.fg or { white = 1.0 },
                     frame = { x = st.contentX, y = y, w = st.contentW, h = st.lineH },
                 })
             end   -- a "spacer" row draws nothing; it just holds the gap open
@@ -985,7 +1043,8 @@ return function(core)
         end
         table.insert(els, {
             type = "text", text = footer,
-            textSize = 13, textColor = sty.fgDim or { white = 0.62 },
+            textSize = 13, textFont = cheatSheet.faceName(),
+            textColor = sty.fgDim or { white = 0.62 },
             textAlignment = "center",
             frame = { x = 0, y = st.panelH - st.footerH - 4, w = st.panelW, h = st.footerH },
         })
@@ -1460,7 +1519,8 @@ return function(core)
         -- estimate is deliberately CONSERVATIVE (0.52 of the point size) —
         -- wrapping a line one word early is invisible, running past the
         -- column edge is the bug we are fixing.
-        local wrapChars = math.max(20, math.floor(contentW / (entrySize * 0.52)))
+        local wrapChars = math.max(20, math.floor(
+            contentW / (entrySize * cheatSheet.faceWidth())))
 
         -- All widths are in CHARACTERS, and every string here can contain
         -- multi-byte glyphs (⇪, ⌘, —, emoji), so length must be measured

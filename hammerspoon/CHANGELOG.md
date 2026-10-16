@@ -5,6 +5,61 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.362.0 — 🔤 THE CHEAT SHEET HAS A FONT
+
+LL, on finally finding the tool: "oh shit! It's the 'I' key." Then:
+"And the fonts." And then, on ⇪I itself: "is perfect."
+
+🔤 THIS FILE NAMED NO TYPEFACE AT ALL. `textFont` appeared ZERO times
+in core/cheatsheet.lua, so every row — title, family band, header,
+entry, footer — drew in hs.canvas's default, the system face, where a
+capital I has no serifs and is a bare vertical stroke. He read "⇪|",
+pressed the \| key beside Return, got the window arranger's split, and
+reported the card as lying about its own key. It was not lying. It was
+UNREADABLE, which from where he was sitting is the same thing, and it
+cost him Recent Documents for 267 releases.
+
+🔑 MENLO, FOR A REASON THAT IS NOT TASTE: Apple has shipped it since
+10.6, so the work Mac has it too and this cannot become a home-Mac-only
+sheet; and telling I from l from 1 from | is the entire job of a coding
+face. Those four are exactly the set that matters on a sheet made of
+key names.
+
+📏 THE NAME AND THE WIDTH ARE ONE TABLE, AND THAT IS LOAD-BEARING.
+The wrap is counted in CHARACTERS off an average advance ratio — 0.52
+em, tuned for the system face. Menlo is 0.60. Setting the name without
+the width wraps too late and runs every row out of the column, so the
+two are `cheatSheet.face = { name, width }` and cannot be set apart
+(6.311.0's one-literal rule, applied to a pair that must move
+together). A check moves the table to a 1.20-em face and requires BOTH
+the drawing and the line breaking to follow (6.239.0) — asserting the
+shipped "Menlo" passes with the name typed in twice.
+
+🔒 BOTH DOORS FAIL CLOSED ONTO THE OLD BEHAVIOUR EXACTLY. `faceName()`
+answers nil for anything that is not a table with a name, and nil means
+"name no font", which is what this file did for its whole life — the
+fallback is the previous behaviour rather than a second guess at one.
+`faceWidth()` refuses a width outside 0.3–1.5: 99 would draw a sheet one
+character wide and 0.01 would run every row off the edge, and a typo in
+a settings line must never be able to do either (6.310.0). Four bad
+widths have their own checks.
+
+🚪 THE WAY BACK IS ONE LINE: `settings = { cheatsheet = { face = false } }`.
+
+🔒 AND 6.361.0'S WORDS STAY AS THE BELT. recent_docs still names its
+letter in the description, and that is NOT removed now there is a font.
+A sentence needs no typeface to be true, and no gate on Linux can see a
+glyph — so the font is the fix and the words are what survives a Mac
+that substitutes one. GENERAL: when a fix depends on how something
+RENDERS, keep the version of it that depends on nothing.
+
+📏 NAMED, NOT SWEPT: this is the ⇪/ sheet alone. Every other surface in
+this config — the webview panels, the choosers, the canvases — still
+draws in whatever face it was already using. The sheet earned it
+because it is the one place he goes to LEARN a key; a panel he is
+already inside has not cost anything yet.
+
+```text
 NEW IN 6.361.0 — 🔤 THE CHEAT SHEET STOPS PRINTING A KEY HE CANNOT READ
 
 LL, reading this very card and quoting it back: "hyper+| spilts two
