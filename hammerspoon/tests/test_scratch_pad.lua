@@ -2745,8 +2745,37 @@ do
           sp.tabs[1].mark == sp.sentMark and sp.tabs[1].fails == nil,
           tostring(sp.tabs[1].mark))
 
+    -- 🚨 AND THE FIXTURE THAT BITES IS THE RETRY, which the sweep had to
+    -- ask for (6.273.0). A tab that never failed has no refusals to
+    -- clear, so it proves nothing about clearing them — and the ORDINARY
+    -- path here is a ❌ tab being retried, because that is what a ❌ mark
+    -- is FOR (6.300.0). Fail it, fix the line, send again: if the old
+    -- refusals survive, the report names a task that has since landed,
+    -- which is a lie in the one place he troubleshoots from.
+    sp.tabs = { { id = "th", text = "Fix me", createdAt = 1, at = 1 } }
+    sp.active, sp.sent = "th", {}
+    SUBMIT_ASANA = function() return false, "Asana refused it (HTTP 400) — " .. body end
+    sp.send("test")
+    check("🔁 the tab is marked ❌ and carries the refusal",
+          sp.isFailMark(sp.tabs[1].mark)
+          and type(sp.tabs[1].fails) == "table" and #sp.tabs[1].fails == 1,
+          tostring(sp.tabs[1].mark))
+    -- 🚨 AND THE RETRY MUST NOT BE PRECEDED BY A TYPE, which is the
+    -- whole point: typing already clears both (6.300.0), so a fixture
+    -- that edits first proves nothing about the send. A ❌ tab is
+    -- RETRIED on its own — that is what the mark is for — so the 16:00
+    -- run the next day re-reads it untouched, and if Asana accepts it
+    -- this time (the team member was added, the date was fixed at the
+    -- other end) the stale refusals must go WITH the ✅.
+    SUBMIT_ASANA = nil
+    sp.send("test")
+    check("🚨 …and a RETRY that lands — with NOTHING typed — clears them",
+          sp.tabs[1].mark == sp.sentMark and sp.tabs[1].fails == nil,
+          tostring(sp.tabs[1].mark) .. "/"
+          .. tostring(sp.tabs[1].fails and #sp.tabs[1].fails))
+
     local ran = (pass + fail) - before
-    check("§6.366.0 ran all of its checks (" .. ran .. " of 22)", ran >= 22, ran)
+    check("§6.366.0 ran all of its checks (" .. ran .. " of 24)", ran >= 24, ran)
 end
 
 out(string.format("\n%d passed, %d failed\n", pass, fail))
