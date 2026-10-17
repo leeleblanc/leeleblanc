@@ -2440,5 +2440,157 @@ do
     check("§6.316.0 ran all of its checks (" .. ran .. " of 4)", ran >= 4, ran)
 end
 
+-- =======================================================================
+-- §6.364.0 — A CLOSED TAB CAN BE FORGOTTEN
+-- =======================================================================
+-- LL: "just like I can delete a note from Hamsidian I'd like to be able
+-- to delete a closed tab so that it doesn't return again. There's no x
+-- at the end of the line that allows me to delete it." He is right:
+-- `sp.restore` was the only thing that could take a row out of the
+-- history, so a tab closed by mistake came back for ever.
+do
+    local before = pass + fail
+    local m364 = dofile(HS .. "/modules/scratch_pad.lua")
+    m364.setup(CORE)
+    local sp = _G.scratchPad
+    local function rows(...)
+        local out = {}
+        for _, id in ipairs({ ... }) do
+            out[#out + 1] = { id = id, text = "text of " .. id,
+                              title = "Tab " .. id, closedAt = 1000 }
+        end
+        return out
+    end
+
+    -- ---- the PURE rule ------------------------------------------------
+    local kept, gone, title = sp.dropHistory(rows("a", "b", "c"), "b")
+    check("🗑 dropHistory removes the row with that id and nothing else",
+          gone == 1 and #kept == 2 and kept[1].id == "a" and kept[2].id == "c",
+          tostring(gone) .. "/" .. tostring(#kept))
+    check("…and it hands back the title, so the door can say what went",
+          title == "Tab b", tostring(title))
+
+    -- 🚨 THE FIXTURE THAT BITES. Every other input agrees with a version
+    -- that forgets whatever it was given; an EMPTY id is the only one
+    -- where "refuse" and "match nothing" must differ, and the wrong
+    -- answer there empties his whole history on a malformed message.
+    local keptE, goneE = sp.dropHistory(rows("a", "b", "c"), "")
+    check("🚨 an EMPTY id is refused — the history is handed back WHOLE",
+          goneE == 0 and #keptE == 3, tostring(goneE) .. "/" .. tostring(#keptE))
+    local keptN, goneN = sp.dropHistory(rows("a", "b"), nil)
+    check("…and so is nil, by the same branch", goneN == 0 and #keptN == 2)
+
+    -- 6.199.0 — EVERY match goes, or a command that says it removed the
+    -- row leaves a twin behind and the row is still there next time.
+    local keptD, goneD = sp.dropHistory(rows("a", "dup", "b", "dup"), "dup")
+    check("🗑 EVERY matching row goes, never just the first",
+          goneD == 2 and #keptD == 2, tostring(goneD) .. "/" .. tostring(#keptD))
+
+    local keptM, goneM = sp.dropHistory(rows("a"), "nothere")
+    check("an id no row carries removes nothing", goneM == 0 and #keptM == 1)
+    local keptT = sp.dropHistory("not a table", "a")
+    check("a list that is not a list answers {} rather than throwing",
+          type(keptT) == "table" and #keptT == 0)
+
+    -- ---- the door -----------------------------------------------------
+    sp.tabs    = { { id = "open1", text = "still open", at = os.time() } }
+    sp.active  = "open1"
+    sp.history = rows("h1", "h2", "h3")
+    sp.forgot, sp.forgotLast = 0, nil
+    local okF, whyF = sp.forgetHistory("h2")
+    check("🗑 forgetHistory removes it, counts it and names it",
+          okF == true and whyF == "Tab h2" and #sp.history == 2
+          and sp.forgot == 1, tostring(okF) .. "/" .. tostring(#sp.history))
+    check("…and the OPEN tabs are untouched — it forgets a CLOSED one",
+          #sp.tabs == 1 and sp.tabs[1].id == "open1")
+    check("…and the row it named is the one that went",
+          sp.history[1].id == "h1" and sp.history[2].id == "h3")
+
+    local okX, whyX = sp.forgetHistory("")
+    check("🚨 an empty id refuses and SAYS which mistake it was",
+          okX == false and tostring(whyX):find("no row was named", 1, true) ~= nil,
+          tostring(whyX))
+    local okY, whyY = sp.forgetHistory("gone")
+    check("…and a missing row gives the OTHER reason, not the same one",
+          okY == false and tostring(whyY):find("no closed tab", 1, true) ~= nil,
+          tostring(whyY))
+    check("neither refusal moved the history or the count",
+          #sp.history == 2 and sp.forgot == 1)
+
+    local n = sp.clearHistory()
+    check("🗑 clearHistory empties the strip and says how many went",
+          n == 2 and #sp.history == 0 and sp.forgot == 3, tostring(n))
+    check("…and STILL leaves the open tabs alone", #sp.tabs == 1)
+
+    -- ---- the message from the page -------------------------------------
+    -- 🪟 The page has already dropped the row and redrawn its own list, so
+    -- a success must NOT re-render: a rebuild destroys the textarea's undo
+    -- stack while he is typing (6.323.0). Only a FAILURE re-renders.
+    local renders = 0
+    local realRender = sp.render
+    sp.render = function() renders = renders + 1 end
+    sp.history = rows("m1", "m2")
+    sp.handleMessage({ a = "forget", rid = "m1", text = "draft", id = "open1" })
+    check("📨 a 'forget' message removes the row",
+          #sp.history == 1 and sp.history[1].id == "m2", tostring(#sp.history))
+    check("🪟 …and does NOT re-render on success — the page already redrew",
+          renders == 0, tostring(renders))
+    sp.handleMessage({ a = "forget", rid = "nosuch", text = "draft", id = "open1" })
+    check("🪟 …but a FAILED forget DOES re-render, putting the row back",
+          renders == 1 and #sp.history == 1, tostring(renders))
+    sp.render = realRender
+
+    -- ---- the page carries it -------------------------------------------
+    sp.history = rows("p1")
+    local html = sp.buildHtml()
+    check("🖼 a history row is drawn with a ✕ that carries data-x",
+          html:find('data%-x="1"') ~= nil)
+    check("…and the ✕ has a hover rule of its own, so it is findable",
+          html:find("%.row %.x{") ~= nil and html:find("%.row:hover %.x{") ~= nil)
+    -- 🚨 THE ORDER IS THE WHOLE BUG (6.272.0). One handler serves the ✕
+    -- and the row, so a version that tests the row first RESTORES the tab
+    -- on its way to forgetting it. Asserting both strings exist passes
+    -- with the order wrong; assert the POSITIONS.
+    -- Plain finds (the 4th arg): a Lua pattern treats ( ) [ ] as magic,
+    -- and the first version of this check silently matched NOTHING.
+    local xAt = html:find("closest('[data-x]')", 1, true)
+    local rAt = html:find("say({a:'restore'", 1, true)
+    check("🚨 the ✕ is asked BEFORE the row's own restore is sent",
+          xAt ~= nil and rAt ~= nil and xAt < rAt,
+          tostring(xAt) .. "/" .. tostring(rAt))
+    check("⌥⌫ needs the ⌥ — a bare Backspace belongs to the filter box",
+          html:find("e%.key === 'Backspace' && e%.altKey") ~= nil)
+
+    -- ---- the report counts them apart ------------------------------------
+    sp.forgot, sp.forgotLast = 0, nil
+    local rep0 = (function()
+        local cap, saved = {}, print
+        print = function(...) local q = {}
+            for i = 1, select("#", ...) do q[#q + 1] = tostring((select(i, ...))) end
+            cap[#cap + 1] = table.concat(q, " ") end
+        pcall(_G.scratchPadReport); print = saved
+        return table.concat(cap, "\n")
+    end)()
+    check("🔎 with none forgotten the report NAMES the two ways to do it",
+          rep0:find("🗑 forgot: 0", 1, true) ~= nil
+          and rep0:find("⌥⌫", 1, true) ~= nil, rep0:sub(1, 60))
+    sp.history = rows("r1")
+    sp.forgetHistory("r1")
+    local rep1 = (function()
+        local cap, saved = {}, print
+        print = function(...) local q = {}
+            for i = 1, select("#", ...) do q[#q + 1] = tostring((select(i, ...))) end
+            cap[#cap + 1] = table.concat(q, " ") end
+        pcall(_G.scratchPadReport); print = saved
+        return table.concat(cap, "\n")
+    end)()
+    check("🔎 …and once one has gone it names it and when",
+          rep1:find("🗑 forgot: 1", 1, true) ~= nil
+          and rep1:find("Tab r1", 1, true) ~= nil, rep1:sub(1, 60))
+
+    local ran = (pass + fail) - before
+    check("§6.364.0 ran all of its checks (" .. ran .. " of 20)", ran >= 20, ran)
+end
+
 out(string.format("\n%d passed, %d failed\n", pass, fail))
 os.exit(fail == 0 and 0 or 1)

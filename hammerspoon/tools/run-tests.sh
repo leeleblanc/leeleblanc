@@ -405,6 +405,38 @@ else
 fi
 echo ""
 
+echo "3g. HAMSIDIAN TABS — PAGE JAVASCRIPT, EXECUTED"
+if [ -z "$LUA" ] || [ -z "$NODE" ]; then
+    echo "   ⚠️  skipped — needs both lua and node"
+    echo "      The HISTORY strip's ✕, the row walker and the filter live in"
+    echo "      this page. If this is skipped, the page holding his writing"
+    echo "      is UNTESTED this run."
+    SKIPPED="$SKIPPED scratch-js"
+elif [ ! -f "$HS/tests/dump_scratch_html.lua" ] || [ ! -f "$HS/tests/test_scratch_js.js" ]; then
+    echo "   ⚠️  skipped — harness files missing from tests/"
+    SKIPPED="$SKIPPED scratch-js"
+else
+    STAGES_RUN=$((STAGES_RUN + 1))
+    if "$LUA" "$HS/tests/dump_scratch_html.lua" "$HS/modules" \
+            > "$WORK/scratch.html" 2>"$WORK/scratch.err"; then
+        out=$("$NODE" "$HS/tests/test_scratch_js.js" "$WORK/scratch.html" 2>&1)
+        line=$(echo "$out" | grep -E '[0-9]+ passed, [0-9]+ failed' | tail -1)
+        if echo "$line" | grep -q ', 0 failed'; then
+            echo "   ✅ test_scratch_js — $line"
+            tally "$line"
+        else
+            echo "   ❌ test_scratch_js — ${line:-did not finish}"
+            echo "$out" | grep -E '^\s*(❌|FAIL)' | head -10 | sed 's/^/        /'
+            FAILED=$((FAILED + 1))
+        fi
+    else
+        echo "   ❌ the Hamsidian tabs page's HTML could not be generated:"
+        tail -5 "$WORK/scratch.err" | sed 's/^/        /'
+        FAILED=$((FAILED + 1))
+    fi
+fi
+echo ""
+
 # ---------------------------------------------------------------- the verdict
 echo "──"
 if [ -n "$SKIPPED" ]; then

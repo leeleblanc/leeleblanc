@@ -97,6 +97,7 @@ local M = {
             { "⌘T · ⌘W",   "New tab · close tab (its text goes to the history)" },
             { "⌘1…⌘9",     "Switch tab · ⌃Tab / ⌃⇧Tab cycle round them" },
             { "history",   "Right pane (in the notes): every closed tab, click to reopen" },
+            { "✕ · ⌥⌫",    "6.364.0: FORGET a closed tab — the ✕ at the end of a history row, or ⌥⌫ on the highlighted one. The open tabs and the file on disk are untouched; _G.scratchPadClearHistory() empties the whole strip" },
             { "📌",        "Pin: stays up beside the app; Esc only hands the keys back" },
             { "+ 🗒 · + ➕", "OFF since 6.254.0 — the Capture / Append rows are hidden. Nothing was deleted: both stores are intact and still searched by ⇪space. settings = { scratch_pad = { showKindRows = true } } brings the rows back" },
             { "⇪2",        "SEQUENTIAL COPY: select text, press it, select more, press again — the grabs join into ONE block on the clipboard, so ⌘V pastes the lot. Copying anything else starts a new sequence. Nothing is filed into the pad" },
@@ -200,6 +201,7 @@ function M.setup(core)
         dirty = false, saves = 0, lastSaveErr = nil, lastSend = nil,
         opens = 0, nonActivatingApplied = false, nonActivatingWhy = "not requested",
         caret = 0, filter = "",
+        forgot = 0, forgotLast = nil,
     }
     M.config = sp
     _G.scratchPad = sp
@@ -505,6 +507,69 @@ function M.setup(core)
             end
         end
         return false
+    end
+
+    -- 🗑 A CLOSED TAB CAN BE FORGOTTEN (6.364.0, LL: "just like I can
+    -- delete a note from Hamsidian I'd like to be able to delete a closed
+    -- tab so that it doesn't return again. There's no x at the end of the
+    -- line that allows me to delete it").
+    -- 🔎 HE IS RIGHT AND IT WAS NEVER BUILT: `sp.restore` was the ONLY
+    -- thing in this module that could take a row out of `sp.history`, so
+    -- a tab closed by mistake sat in the HISTORY strip for ever and the
+    -- only way to be rid of it was to restore it and close it again —
+    -- which puts it straight back. 6.272.0 built exactly this ✕ for the
+    -- Jug Player's history and nobody asked the pad, which is 6.305.0's
+    -- rule: a rule written about one caller is not a rule until every
+    -- caller has been asked.
+    -- 🔑 BY ID, NEVER BY ROW NUMBER (6.186.0 · 6.272.0). The strip draws
+    -- `historyRows` (200) of a store holding `historyKeep` (2000), the
+    -- filter box renumbers every row under his hand, and any redraw moves
+    -- them — so an index forgets a DIFFERENT tab than the one he clicked,
+    -- silently, in the one list whose purpose is remembering. `dropHistory`
+    -- is PURE, so the whole rule is proven with no Mac.
+    -- 🚨 AN EMPTY ID IS REFUSED, deliberately: a message that arrives
+    -- without one must never empty the history. And EVERY match goes
+    -- (6.199.0) — a duplicate left behind after a command that said it
+    -- removed the row is the same defect one layer down.
+    function sp.dropHistory(list, id)
+        if type(list) ~= "table" then return {}, 0, nil end
+        id = tostring(id or "")
+        if id == "" then return list, 0, nil end
+        local out, gone, title = {}, 0, nil
+        for _, h in ipairs(list) do
+            if type(h) == "table" and tostring(h.id or "") == id then
+                gone  = gone + 1
+                title = title or h.title
+            else
+                out[#out + 1] = h
+            end
+        end
+        return out, gone, title
+    end
+
+    -- The door. Answers ok AND why, so a caller can tell "that row is not
+    -- there" from "you gave me nothing" — the two reach this from
+    -- different mistakes and only one of them is his.
+    function sp.forgetHistory(id)
+        local out, gone, title = sp.dropHistory(sp.history, id)
+        if gone == 0 then
+            return false, (tostring(id or "") == "" and "no row was named"
+                           or "no closed tab has that id")
+        end
+        sp.history    = out
+        sp.forgot     = (tonumber(sp.forgot) or 0) + gone
+        sp.forgotLast = { title = title, at = os.time(), rows = gone }
+        sp.saveNow()
+        return true, title
+    end
+
+    function sp.clearHistory()
+        local n = #sp.history
+        sp.history    = {}
+        sp.forgot     = (tonumber(sp.forgot) or 0) + n
+        sp.forgotLast = { title = "the whole history", at = os.time(), rows = n }
+        sp.saveNow()
+        return n
     end
 
     -- ---- 📤 export to the vault (6.177.0) ------------------------------------
@@ -1595,6 +1660,28 @@ function M.setup(core)
     end
     _G.scratchPadTasks = function(now) return sp.taskPreview(now) end
 
+    -- 🗑 6.364.0 — the two Console doors beside the ✕, so a row can be
+    -- forgotten without the window being open, and so a mis-click has a
+    -- way back that does not involve restoring and re-closing a tab.
+    _G.scratchPadForgetHistory = function(id)
+        local ok, why = sp.forgetHistory(id)
+        local msg = ok and ("🗑 Forgot the closed tab \"" .. tostring(why or "Untitled") .. "\"")
+                       or ("🗑 Nothing forgotten — " .. tostring(why))
+        pcall(function() hs.alert.show(msg, 2) end)
+        print(msg)
+        if ok then sp.render() end
+        return ok
+    end
+
+    _G.scratchPadClearHistory = function()
+        local n = sp.clearHistory()
+        local msg = "🗑 Forgot " .. n .. " closed tab(s) — the OPEN tabs are untouched"
+        pcall(function() hs.alert.show(msg, 3) end)
+        print(msg)
+        sp.render()
+        return n
+    end
+
     -- ---- the page -------------------------------------------------------------
     local function escapeHtml(s)
         return (tostring(s or ""):gsub("&", "&amp;"):gsub("<", "&lt;")
@@ -1671,6 +1758,9 @@ textarea{flex:1;margin:0;padding:10px;border:0;outline:0;resize:none;background:
 .row .w{opacity:.5;white-space:nowrap;font-size:FS2px;min-width:86px}
 .row .t{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:40%}
 .row .p{opacity:.65;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1}
+.row .x{opacity:.3;padding:0 2px;font-size:FS1px;line-height:1}
+.row:hover .x{opacity:.6}
+.row .x:hover{opacity:1;color:#ff7a7a}
 .empty{opacity:.45;padding:8px 10px;font-size:FS1px}
 ]] .. theme .. [[</style></head><body><div id="wrap">
 <header id="bar"><span class="grip">⠿</span><span class="name">📝 Hamsidian</span>
@@ -1695,7 +1785,8 @@ function draw(){
   for (var i = 0; i < ROWS.length; i++) { var r = ROWS[i];
     if (f && (r.t + ' ' + r.p).toLowerCase().indexOf(f) < 0) continue;
     n++; out.push('<div class="row" data-id="' + esc(r.id) + '"><span class="w">' + esc(r.w)
-      + '</span><span class="t">' + esc(r.t) + '</span><span class="p">' + esc(r.p) + '</span></div>'); }
+      + '</span><span class="t">' + esc(r.t) + '</span><span class="p">' + esc(r.p) + '</span>'
+      + '<span class="x" data-x="1" title="forget this closed tab">&times;</span></div>'); }
   document.getElementById('rows').innerHTML = out.length ? out.join('') :
     '<div class="empty">' + (ROWS.length ? 'nothing matches' : 'closed tabs land here — ⌘W') + '</div>';
   document.getElementById('cnt').textContent = n + ' / ' + ROWS.length;
@@ -1704,7 +1795,25 @@ draw();
 q.addEventListener('input', function(){ SEL = -1; draw(); });
 t.addEventListener('input', function(){ say({a:'edit'}); });
 document.getElementById('rows').addEventListener('click', function(e){
-  var el = e.target.closest('.row'); if (el) say({a:'restore', rid: el.getAttribute('data-id')}); });
+  // 🚨 THE ✕ IS ASKED BEFORE THE ROW IT SITS INSIDE (6.272.0). One handler
+  // serves both, so testing the row first RESTORES the tab on its way to
+  // forgetting it — the exact defect that release fixed in the music card,
+  // where the shared handler PLAYED the track it was removing.
+  var el = e.target.closest('.row'); if (!el) return;
+  var id = el.getAttribute('data-id');
+  var x = e.target.closest ? e.target.closest('[data-x]') : null;
+  if (x) { forgetRow(id); return; }
+  say({a:'restore', rid: id}); });
+// 🪟 THE PAGE DROPS THE ROW AND REDRAWS ITS OWN LIST. Letting Lua re-render
+// would rebuild the whole document — which destroys the textarea's undo
+// stack while he is typing (6.323.0, found in the notes editor) — for a
+// change this page can make itself. Lua re-renders only if the forget
+// FAILED, which puts the row back.
+function forgetRow(id){
+  say({a:'forget', rid: id});
+  for (var j = 0; j < ROWS.length; j++) { if (ROWS[j].id === id) { ROWS.splice(j, 1); break; } }
+  SEL = -1; draw();
+}
 document.getElementById('tabs').addEventListener('click', function(e){
   var x = e.target.closest('.x'); var tab = e.target.closest('.tab');
   if (e.target.id === 'add' || (tab && tab.id === 'add')) { say({a:'new'}); return; }
@@ -1744,6 +1853,14 @@ function rowKey(e){
   if (arrow && (e.altKey || !inText())) { e.preventDefault(); moveSel(arrow); return true; }
   if (e.key === 'Enter' && !e.metaKey && (e.altKey || !inText())) {
     var r = selRow(); if (r) { e.preventDefault(); rowAct(r); return true; }
+  }
+  // ⌥⌫ forgets the highlighted row. The ⌥ is REQUIRED, not decoration:
+  // a bare Backspace belongs to the text he is typing and to the filter
+  // box, and `inText()` only knows about the TEXTAREA — so a bare key
+  // here would eat a character out of the filter instead.
+  if (e.key === 'Backspace' && e.altKey) {
+    var rb = selRow();
+    if (rb) { e.preventDefault(); forgetRow(rb.getAttribute('data-id')); return true; }
   }
   return false;
 }
@@ -1801,6 +1918,11 @@ t.focus(); try { t.setSelectionRange(CARET, CARET); } catch(e){}
             if t and t.id ~= sp.active then sp.active = t.id; sp.caret = 0; sp.scheduleSave(); sp.render() end
         elseif a == "restore" then
             if sp.restore(tostring(body.rid or "")) then sp.caret = 0; sp.render() end
+        elseif a == "forget" then
+            -- The page has already dropped the row and redrawn its list, so
+            -- a render here is a rebuild nobody needs. Only a FAILURE
+            -- re-renders, which puts the row back where he can see it.
+            if not sp.forgetHistory(tostring(body.rid or "")) then sp.render() end
         elseif a == "pin" then
             sp.pinned = not sp.pinned
             sp.saveNow()
@@ -2252,6 +2374,20 @@ t.focus(); try { t.setSelectionRange(CARET, CARET); } catch(e){}
         L[#L + 1] = "   tabs: " .. #sp.tabs .. " · history: " .. #sp.history
                     .. " · saves: " .. sp.saves .. " · failed writes: " .. (sp.saveFails or 0)
                     .. (sp.dirty and " · unsaved keystrokes pending" or "")
+        -- 🗑 6.364.0 — counted apart from the history total, because
+        -- "the list is short" and "you have been clearing it" are
+        -- different facts and only one of them is something he did.
+        do
+            local f = tonumber(sp.forgot) or 0
+            local line = "   🗑 forgot: " .. f .. " closed tab(s) this session"
+            if f == 0 then
+                line = line .. " — the ✕ on a HISTORY row, or ⌥⌫ on the highlighted one"
+            elseif type(sp.forgotLast) == "table" then
+                line = line .. "  ·  last: \"" .. tostring(sp.forgotLast.title or "Untitled")
+                       .. "\" at " .. os.date("%H:%M:%S", tonumber(sp.forgotLast.at) or 0)
+            end
+            L[#L + 1] = line
+        end
         -- 📎 6.201.0 — THE SEQUENTIAL COPY HAD NO REPORT AT ALL, which is
         -- how it shipped a clipboard nobody could inspect: the alert said
         -- "1 grab" while ⌘V pasted months of text and there was no line
