@@ -1,4 +1,4 @@
-# TESTING — how to score release 6.362.0
+# TESTING — how to score release 6.363.0
 
 You install ONE archive and it carries several releases. Below are the
 steps for each release this archive is new for, newest first. Run the
@@ -26,6 +26,73 @@ else is a LOSS and I fix it before building further. You are the only
 scorer; I never mark my own.
 
 ---
+
+## 6.363.0
+
+6.363.0 verify with LL — ✂️ THE TRIM (KNOWN GROUND)
+WHAT CHANGED: nothing you press. init.lua went 3,797 → 3,748 lines, and
+hunting the scruft found two things that were WRONG.
+🚨 THE ONE THAT MATTERS: `_G.screenReport()` — the command I ask you for
+whenever a panel opens on the wrong monitor — printed "a screen" about a
+screen it could NOT read. Two of its lines handed `select(2, pcall(f))`
+to a helper, and that is the ERROR MESSAGE when the read raises, so a
+failed read fell through to the reassuring branch. In the one instrument
+built because you reported a wrong monitor TWICE.
+🚨 AND THE SCREEN ORDER WAS WRITTEN TWICE, both copies wrong since
+6.236.0 — the release that made the POINTER outrank the front app's
+main window. Two comments went on reciting the old order for 126
+releases, fifteen lines above the code that is the order.
+
+A. THE HEADLINE — one command, and it should be boring.
+A1. Console: `_G.screenReport()`.
+    EXPECT: a block naming the last rule that placed a panel, the front
+    app, and what each candidate answers right now — `focused`,
+    `pointer`, `main`, and a `rule :` line.
+    EXPECT the `rule :` line to read "focused window · then the POINTER
+    · then the front app's main window · then the main screen". That is
+    the real order and it has been since 6.236.0.
+A2. Read the `focused`, `pointer` and `main` lines.
+    EXPECT each to name a real display or an em dash. **A FAIL is the
+    bare words "a screen" with nothing after them** — that is the lie
+    this release fixes, and it means a read failed.
+A3. Press ⇪/ on each monitor in turn, then run it again.
+    EXPECT the `last :` line to change and to name the monitor you were
+    looking at.
+
+B. MUST STILL WORK — this touched a file every key passes through, so
+   this half matters more than A.
+B1. A spread of ⇪ keys across different tools: ⇪T, ⇪D, ⇪N, ⇪3, ⇪X, ⇪4,
+    ⇪space, ⇪V, ⇪/, ⇪⇧,.
+B2. ⇪V, ⇪space and ⇪Y all open on the monitor you are working on.
+B3. ⌃⌥⌘L — the Asana dashboard, with its colour legend strip ABOVE the
+    search field. Then ⌃⌥⌘C. Those are the §6 keys and §6 is the part
+    of the file this release read most closely.
+B4. ⌃⌥⌘ + an arrow key nudges an open picker; ⌃⌥⌘R clears the nudge.
+B5. Copy three things and press ⇪V — the clipboard poll and its history
+    are untouched, and `_G.clipboardPollReport()` still prints.
+B6. Boot: All green, 72 modules, the usual ⇪ shortcut count.
+
+C. PASTE BACK, PASS OR FAIL.
+C1. `_G.screenReport()` — the whole block, from whichever Mac.
+C2. The boot line. The module and shortcut counts must be unchanged
+    from 6.362.0; this release removed no feature.
+
+D. A JUDGEMENT ONLY YOU CAN MAKE.
+D1. **§6, the Asana dashboard, is 537 lines of a feature living inside
+    the orchestrator**, and moving it to a module would take init.lua
+    from 3,748 to about 3,200 — which ends this ceiling instead of
+    postponing it. I measured it rather than guessing: it reaches only
+    seven things from the main file and every one of them is already
+    published to modules, so the move is mechanical. I did NOT do it
+    here, because it is a second change in a release you told me not to
+    break anything in, and because it needs a test suite of its own.
+    Want it as the next release?
+D2. 🔨 Nothing was broken and nothing was lost — what was wrong is that
+    a diagnostic answered confidently about a read that failed, which
+    cost us a round the two times you reported the wrong monitor. My
+    reading is that it degraded; your tag.
+
+
 
 ## 6.362.0
 
@@ -187,70 +254,6 @@ D1. WHY did you want it gone? "It overshot" and "it was erratic" and "I
 D2. See the 🖱 MOUSE GRID item in Open items for the two-keystroke
     proposal and its arithmetic. It needs one word from you, not a
     report.
-
-
-
-## 6.359.0
-
-6.359.0 verify with LL — 🕘 THE SNIPPET PICKER REMEMBERS (NEW GROUND)
-WHAT CHANGED: the snippets you PICK from ⇪⇧S now come back at the top
-of it, newest first, under a 🕘 RECENT heading. You asked for this
-twice. Nothing was recording picks before — I grepped the module for
-five different names for a recency store and found none of them, so
-this is a build and not a setting I had missed.
-🔑 THE ONE RULE, AND IT IS YOUR ANSWER: a snippet counts as used when
-you PICK it from the picker. A trigger you TYPE is not counted, on
-purpose — you fire thousands of those a day and they would bury the
-handful you choose by hand within the hour.
-
-A. THE HEADLINE — a minute.
-A1. ⇪⇧S. EXPECT: no 🕘 section yet — nothing has been picked on this
-    Mac. An empty queue draws no heading rather than an empty one.
-A2. Pick any snippet. ⇪⇧S again.
-    EXPECT: 🕘 RECENT at the very top, that snippet under it.
-A3. Pick a different one. ⇪⇧S again.
-    EXPECT: the NEW one is first, the previous one second.
-A4. Pick the FIRST one again. ⇪⇧S again.
-    EXPECT: it moves back to the top and there is still only ONE of
-    it. **A FAIL is two copies.**
-A5. Now TYPE one of your triggers (`;bd`, `gg1` — whatever you use).
-    ⇪⇧S. EXPECT: the queue has NOT changed. That is the rule above
-    working. If a typed trigger shows up here, tell me — it means the
-    recorder is on the wrong road.
-
-B. MUST STILL WORK.
-B1. The pause row is still the first row, above the 🕘 heading.
-B2. Your pinned collection (textpanders) is still the first of the
-    LIBRARY's sections, under the queue.
-B3. ⏎ on a collection heading still narrows to that collection, and
-    ◂ All snippets still comes back.
-B4. ⏎ on the 🕘 heading narrows to the recent list alone.
-B5. Type to search. EXPECT: ONE row per snippet — the 🕘 copy steps
-    out of the way while you are searching. Clear the box and both
-    are back.
-B6. A snippet picked from the 🕘 section inserts exactly what its
-    twin lower down inserts.
-B7. The ⇪V preview pane still follows the rows, 🕘 rows included.
-
-C. PASTE BACK.
-C1. `_G.snippetsReport()` — it EXISTS now. Last time you ran it your
-    Console said "attempt to call a nil value". I want the whole
-    block: the library line, the `recent :` line, the numbered rows
-    and the `store  :` path.
-C2. Run it once BEFORE you pick anything. EXPECT: `no store yet —
-    nothing has been picked on this Mac`. That wording is deliberate:
-    an empty queue has to say WHICH empty.
-
-D. A JUDGEMENT ONLY YOU CAN MAKE.
-D1. NINE rows. I took that number from your own words about ⇪\ ("the
-    most recent nine documents"). Too many? Too few? It is one line:
-    `settings = { expander = { recentShow = 5 } }`.
-D2. The queue keeps 200 and never forgets by AGE — a snippet you
-    reach for once a quarter stays. Is that right, or would you
-    rather it aged out?
-D3. Should the 🕘 rows be a COPY (what they are — the snippet is also
-    still in its own collection) or should picking one MOVE it out of
-    its collection? Copy is what I built, so your packs stay complete.
 
 
 

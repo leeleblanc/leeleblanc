@@ -5,6 +5,131 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.363.0 — ✂️ THE TRIM, AND A REPORT THAT WAS LYING
+
+LL: "Yes, do the init. lua trim release. Check for any scruft or
+detritus that could be trimmed. Look for code that is garbage. But do
+not break anything."
+
+📏 WHAT THE PRESSURE WAS. init.lua is the orchestrator and the gate
+holds it under 3,800 lines; 6.361.0 and 6.362.0 each had to trim their
+OWN release notes to fit, and the next one could not have shipped its
+notes at all. 3,797 → 3,748, and 51 lines of room. But the measurement
+is the smaller half of this release: hunting the scruft found two
+things that were WRONG, and one of them was a diagnostic answering
+confidently about a read that never happened.
+
+🚨 `_G.screenReport()` PRINTED "a screen" ABOUT A SCREEN IT COULD NOT
+READ. Two of its lines were `name(select(2, pcall(f)))`. That shape has
+cost this project a release already — 6.236.1, where a reader's own
+traceback came back as a file to play — because `select(2, pcall(f))`
+is the ERROR MESSAGE when f raises, in the same value slot as the
+result. A STRING reaching `name()` fails BOTH of its method calls
+(`scr:name()`, `scr:frame()`), so it fell through to the "a screen"
+fallback: a confident answer, in the ONE instrument built because a
+wrong monitor was reported TWICE and no report could say which screen
+the config had chosen. 6.196.1 inside the fix for 6.196.1's own class.
+It reads both values now and fails CLOSED on anything that is not a
+screen, so a refused read prints an em dash.
+🧪 AND THE CHECK ON IT WAS A GREP. test_integration asked only whether
+`function _G.screenReport()` appears in the file — which is true with
+the bug in, and was true for every one of the 127 releases it was
+there. 6.273.0's rule: when a defect sits on a line no mutation can
+kill, the line is not the finding, the missing CHECK is. The suite
+lifts the report out of init.lua and RUNS it with every screen read
+raising, then asserts the words. Restoring the old line fails it twice.
+
+🚨 AND THE POPUP SCREEN ORDER WAS STATED TWICE, BOTH COPIES WRONG SINCE
+6.236.0 — fifteen lines above the function that IS the order. That
+release made the POINTER outrank the front app's `mainWindow` (it is
+the window the app calls primary: routinely the other monitor, which is
+the stale screen LL reported). Two comments went on reciting the
+pre-6.236.0 three-step order for 126 releases, in the section that
+places every panel in this config. 6.349.0's class — a comment that
+promises what the line beside it does not do — and the fix is that the
+order lives in `_G.baseScreenPick` and nowhere else.
+🔑 GENERAL, and it is the one to carry: A FACT WRITTEN TWICE IS A FACT
+THAT WILL BE HALF-UPDATED. Both copies were correct the day they were
+written; one function moved and neither copy knew. When a release
+changes a rule, grep the PROSE for the old rule too — the gate reads
+code, and nothing in it can see a comment going quietly false.
+
+🗑 THREE PUBLISHED GLOBALS THAT NOTHING HAS EVER READ.
+`_G.hotkeyRejectedCount` sits beside `_G.hotkeyRejected`, the list it
+counts — which is read. `_G.hyperMigrationCount` is
+`#_G.hyperMigrations`, published "for anyone who wants the old figure"
+and wanted by nobody in a hundred releases. `_G.localFirstWanted` is a
+raw flag beside `_G.localFirstState`, the answer that IS read. Every
+one is 6.276.0's shape: a hand-kept copy of something that can be read
+from the thing itself. 🚨 NOT SWEPT WITH THEM, deliberately, and worth
+naming because they look identical to a grep: five `*Timer` globals are
+also written and never read, and they are LOAD-BEARING — an
+unreferenced hs.timer is collected and never fires (6.196.1), so the
+assignment is the mechanism. A global nothing reads is dead only when
+nothing needs it to EXIST.
+
+🔖 AND TWO COMMENTS NAMED THINGS THAT ARE NOT THERE. `§4` was pointed
+at twice although the task creator left this file in 6.98.0 — 265
+releases of a signpost to a deleted section. `_G.__cheatSheet` was
+named in init.lua AND in core/cheatsheet.lua as the global that must
+exist before the loader runs; the global is `_G.cheatSheet` and the
+double-underscore name has never existed anywhere. That is CLAUDE.md's
+own expensive class (the line that sent you to a deleted file) in its
+cheapest costume: a name that was never right, duplicated, so grepping
+for it finds the comments and nothing else.
+
+✂️ SEVEN TOMBSTONES, COLLAPSED TO THEIR FACT. Five prose blocks
+narrating that the clipboard history, the OCR engine, the OCR log, the
+OCR chooser and two pickers moved to modules — a fact the FILE MAP at
+the top of the file already carries — plus the EmmyLua removal note
+(184 releases old, no dependents) and a 31-line account of the
+local-stores switch whose full story, LL's quote included, is 91 lines
+of this file under 6.190.0. Every RULE in them is kept: the stores are
+machine-tagged or OneDrive makes conflict copies; the vault stays in
+the cloud whatever the switch says; it never switches onto an empty
+folder; not an alias and not a symlink; a chooser row value is a
+scalar. 6.217.0's precedent, which trimmed twenty story blocks to their
+rules and said why it was safe: the stories are in CHANGELOG.md, so a
+trim never loses one.
+🔁 AND ONE RULE WAS WRITTEN TWICE, BACK TO BACK, IN NEARLY IDENTICAL
+WORDS — fourteen lines for 6.57.0's clipboard pair and 6.105.0's OCR
+pair, both saying that a migration map entry left behind after a
+feature moves to a module means two claims on one key for the same
+feature, and a HYPER CONFLICT warning about a conflict that is not
+real teaches you to ignore the ones that are. One copy now, both cases
+named.
+
+📏 THE GATE SAYS THE HEADROOM NOW, EVERY RUN. The 3,800 budget was a
+check that could only speak when it was already too late, which is
+exactly how two releases came to trim their own notes. run-tests.sh
+prints the line count and the room left, and says so plainly under 40:
+"a release header is ~12 lines, so the NEXT one has to trim first."
+6.317.0's rule — the instrument was not the gap, the DOOR was.
+
+🗳 NAMED, NOT DONE, WITH THE MEASUREMENT: §6, THE ASANA DASHBOARD, IS
+537 LINES OF A FEATURE INSIDE THE ORCHESTRATOR — and the gate says the
+architecture out loud in its own words ("it is the orchestrator, and
+every feature belongs in modules/ or core/"). It was measured rather
+than guessed at: it defines 14 top-level names, publishes ONE global
+(`_G.asanaLegendSync`, nil-guarded at both of its call sites), and
+reaches only SEVEN main-chunk locals — `asanaToken`,
+`asanaWorkspaceId`, `requireAsana`, `panelAlpha`, `showPopup`,
+`chooserTopLeft`, `resolveBaseScreen` — every one of which is ALREADY
+published on the core table every module is handed. So the move is
+mechanical, it would take init.lua to roughly 3,200, and it ends this
+ceiling as a recurring cost rather than postponing it. It is NOT in
+this release: it needs a suite of its own (it would otherwise be the
+only module without one), the loader line, the profile name and the
+counts in three documents, and it is a second change in a release whose
+brief was "do not break anything". One change per release is what makes
+a break name its version.
+
+📏 ALSO NAMED, NOT TRIMMED: the bare `-- 6.44.0` / `-- 6.45.0` markers
+in the BASE module list look like pure chronology and are not — the
+five modules under each one carry no release on their own lines, so the
+marker is the only record of when they arrived. Fifteen lines that are
+memory, left alone.
+
 NEW IN 6.362.0 — 🔤 THE CHEAT SHEET HAS A FONT
 
 LL, on finally finding the tool: "oh shit! It's the 'I' key." Then:

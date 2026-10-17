@@ -2,7 +2,7 @@
 -- core/cheatsheet.lua — §1.6, lifted out of init.lua in 6.44.11
 -- =====================================================================
 -- A CORE FILE, NOT A MODULE. Every module registers its cheat sheet group
--- while the §1.12 loader runs, so _G.__cheatSheet has to exist BEFORE the
+-- while the §1.12 loader runs, so `_G.cheatSheet` has to exist BEFORE the
 -- loader starts. A loader-managed module could not guarantee that. This
 -- file is dofile'd by init.lua at exactly the point §1.6 used to sit, so
 -- the boot order is unchanged; only the 721 lines moved.

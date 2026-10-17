@@ -2,10 +2,23 @@
 -- * Working VERSION *
 -- =====================================================================
 -- =====================================================================
--- 10-16-26 using Claude          ← EDITED date. Bumped with every release.
+-- 10-17-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.362.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.363.0
 -- =====================================================================
+
+-- NEW IN 6.363.0 — ✂️ THE TRIM, AND A REPORT THAT WAS LYING
+--   LL: "do the init.lua trim release … look for code that is
+--   garbage. But do not break anything." 3,797 → 3,747, and the
+--   garbage was worth more than the lines. 🚨 `_G.screenReport()`
+--   printed "a screen" about a read that FAILED: two lines handed
+--   `select(2, pcall(f))` — the ERROR MESSAGE when f raises — to a
+--   helper whose method calls then failed into the reassuring branch,
+--   in the one instrument built because a wrong monitor was reported
+--   TWICE. 🚨 And the popup screen ORDER was stated twice and both
+--   copies had been wrong since 6.236.0, 15 lines above the function
+--   that is the order. Three dead globals, seven tombstones, §4 (gone
+--   since 6.98.0) and `_G.__cheatSheet` (never defined).
 
 -- NEW IN 6.362.0 — 🔤 THE CHEAT SHEET HAS A FONT
 --   (core/cheatsheet.lua). LL: "And the fonts". `textFont` appeared
@@ -16,23 +29,11 @@
 --   counts CHARACTERS, so a name set without the width runs the rows
 --   off the column. `cheatsheet = { face = false }` is the way back.
 
--- NEW IN 6.361.0 — 🔤 THE CARD STOPS PRINTING A KEY HE CANNOT READ
---   (recent_docs.lua). LL, on this very card: "hyper+| spilts two
---   recent windows … it says it is for Recent Documents. Is it not?"
---   IT IS — ⇪I since 6.93.0, live in the registry as `|i`. The defect
---   is typographic: core/cheatsheet.lua names no `textFont`, so a
---   capital I draws as a bare stroke and reads as a pipe — and the
---   only vertical bar on the keyboard is \, which §0.4 maps to the
---   window split. Both cards honest, the tool unreachable. The key
---   column stays a pure combo (6.196.0); the LETTER is named in the
---   description, where the audit never looks. A gate sentry holds the
---   class, 6.311.0's one-literal rule the label.
-
--- (6.360.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.361.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 cut the inline count to
 --  TWO; a gate check proves every entry here is also in CHANGELOG.md.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.362.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.363.0
 -- =====================================================================
 -- The catalogue that used to sit here moved to GUIDE.md ("What each
 -- tool does") in 6.180.0 — 259 lines of prose inside the orchestrator.
@@ -125,11 +126,8 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.362.0"
+_G.configVersion = "6.363.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
-
--- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the
--- story is NEW IN 6.64.0 in CHANGELOG.md) ----------------------------
 
 -- A NO-OP STAND-IN for the diagnostics API, replaced by the real one in
 -- §1.11. Sections earlier in the file log through _G.diag, so a partial
@@ -392,38 +390,23 @@ end
 -- =====================================================================
 -- 🏠 6.190.0 — THE STORES CAN LIVE ON THIS MAC INSTEAD OF IN ONEDRIVE
 -- =====================================================================
--- LL: "Would it be better to save everything to my home folder? Then,
--- every 30 minutes write a back up of all the files that have histories
--- or modifications."
+-- Every store lives in OneDrive/Logs so both Macs see the same
+-- histories. That sharing is real, and so is its cost: reading a
+-- OneDrive PLACEHOLDER blocks the main thread, which is the 6.152.x /
+-- 6.160.0 / 6.170.x beach ball. Local storage ends that class outright
+-- and costs liveness — the other Mac sees this one every 30 minutes
+-- rather than continuously. (The whole account is NEW IN 6.190.0.)
 --
--- Mostly yes, and this is the switch. Every store lives in OneDrive/Logs
--- so both Macs see the same histories, and that sharing is real — but it
--- is also where a whole class of this project's bugs comes from: a
--- OneDrive PLACEHOLDER file blocks the main thread when it is read, and
--- that is the 6.152.x / 6.160.0 / 6.170.x beach ball. Local storage ends
--- that class outright. What it costs is liveness: the other Mac sees
--- this one's histories every 30 minutes rather than continuously.
---
--- 🚨 AND IT NEVER SWITCHES ONTO AN EMPTY FOLDER. Turning this on with
--- nothing local yet would show LL every history blank — indistinguishable
--- from total data loss. So the FIRST boot after switching keeps using
--- OneDrive, says so, and copies the store down in the background; the
--- NEXT boot finds the copy and uses it. There is no moment where
--- anything is empty, and nothing is ever moved or deleted — the OneDrive
--- copy stays exactly where it is and keeps being written by the 30-minute
--- push, so switching back is this line again.
---
--- NOT an alias and NOT a symlink, deliberately: a Finder ALIAS is a
--- Finder construct that io.open, rsync, grep and find do not follow, and
--- OneDrive does not sync reliably through a symlink. Two real folders and
--- an rsync is the boring answer that actually works.
---
--- The VAULT is deliberately NOT part of this and stays in OneDrive:
--- Obsidian opens that exact folder on both Macs, which is the whole
--- design (see modules/vault.lua).
+-- 🚨 IT NEVER SWITCHES ONTO AN EMPTY FOLDER: every history reading blank
+-- is indistinguishable from total data loss, so the first boot after
+-- switching stays on OneDrive, says so, and seeds in the background.
+-- Nothing is moved or deleted, so switching back is this line again.
+-- 🚨 NOT an alias and NOT a symlink: io.open, rsync, grep and find do
+-- not follow an alias, and OneDrive will not sync through a symlink.
+-- 🚨 The VAULT stays in OneDrive whatever this says — Obsidian opens
+-- that exact folder on both Macs, which is the whole design.
 local localFirst    = false                            -- ← flip to true
 local localLogsDir  = homeDir .. "/Library/Application Support/Hammerspoon/Logs"
-_G.localFirstWanted = localFirst
 _G.localLogsDir     = localLogsDir
 _G.localFirstState  = "off"
 if localFirst then
@@ -650,17 +633,11 @@ local function requireAsana()
     return false
 end
 
--- 6.10.0: task history & clipboard history moved to the OneDrive Logs
--- folder, machine-tagged (both Macs write these constantly — sharing
--- one file would mean OneDrive conflict copies). 6.98.0: the task
--- history file (and the 💬 auto-comment knob, now a profile-overridable
--- config) went to modules/task_creator.lua with the rest of the creator.
-
--- 🔍 THE OCR LOG AND ITS SHORTCUT NAME MOVED OUT in 6.105.0, to
--- modules/ocr_engine.lua — the CSV path, the "HS OCR" Apple Shortcut, the
--- per-machine adoption, the two pickers and the Finder tagging travel
--- together. Only the clipboard watcher stayed (§3), because it is shared
--- with clipboard history; it calls the module through the registry.
+-- 🚨 EVERY STORE IS MACHINE-TAGGED (6.10.0): both Macs write these
+-- constantly, and one shared file would mean OneDrive conflict copies.
+-- (The task history went to modules/task_creator.lua in 6.98.0 and the
+--  OCR log to modules/ocr_engine.lua in 6.105.0 — the FILE MAP above
+--  carries every such move, so the accounts that sat here are gone.)
 
 -- =====================================================================
 -- 0.3 HOTKEY CONFLICT SENTRY — warns in the Console at boot
@@ -745,19 +722,13 @@ _G.hyperKeyMap = {
     ["alt+cmd+ctrl+t"]       = { {},        "t"     },  -- create task (6.86.0: the labeled form)
     ["alt+cmd+ctrl+l"]       = { {},        "l"     },  -- list tasks
     -- ---- Clipboard / OCR / Activity ----
-    -- 6.57.0 — the two clipboard entries were REMOVED here. They existed
-    -- to redirect ⌃⌥⌘V / ⌃⌥⌘⇧V onto ⇪V / ⇪⇧V, and 6.55.0 moved clipboard
-    -- history into its own module which claims those hyper keys DIRECTLY.
-    -- Leaving the map entries behind meant two claims on one key for the
-    -- SAME feature — a HYPER CONFLICT warning about a conflict that was
-    -- not real, which is its own kind of harm: it teaches you to ignore
-    -- the warnings that are.
-    -- 6.105.0 — THE TWO OCR ENTRIES WERE REMOVED HERE, for exactly the
-    -- reason the clipboard pair above was removed in 6.57.0. The engine
-    -- is modules/ocr_engine.lua now and claims ⇪O and ⇪⇧O directly.
-    -- Leaving the map entries behind would mean two claims on one key for
-    -- the SAME feature — a HYPER CONFLICT warning about a conflict that
-    -- is not real, which teaches you to ignore the warnings that are.
+    -- 🚨 WHEN A FEATURE MOVES TO A MODULE, ITS MAP ENTRY GOES WITH IT.
+    -- The clipboard pair left here in 6.57.0 and the OCR pair in 6.105.0:
+    -- both modules claim their ⇪ keys DIRECTLY, so a map entry left
+    -- behind is two claims on one key for the SAME feature — a HYPER
+    -- CONFLICT warning about a conflict that is not real, which teaches
+    -- you to ignore the warnings that are. (6.363.0 wrote that rule once
+    -- instead of twice, in near-identical words, back to back.)
     ["alt+cmd+ctrl+shift+c"] = { {"shift"}, "c"     },  -- copy-on-select toggle
     ["alt+cmd+shift+0"]      = { {},        "0"     },  -- activity tracker
     -- ---- Trackers ----
@@ -863,7 +834,7 @@ hs.hotkey.bind = function(mods, key, fn, releasedFn, repeatFn)
         return bound
     end
     err = tostring(key)
-    _G.hotkeyRejectedCount = (_G.hotkeyRejectedCount or 0) + 1
+    -- The LIST is the count — 6.363.0 deleted the tally beside it.
     _G.hotkeyRejected = _G.hotkeyRejected or {}
     table.insert(_G.hotkeyRejected, tostring(ok and combo or err))
     print("⚠️ HOTKEY REJECTED: " .. tostring(ok and combo or err)
@@ -885,10 +856,9 @@ _G.asanaTaskHistory = {}  -- populated from disk by modules/task_creator.lua; st
 -- =====================================================================
 -- Every popup chooser (Clipboard, Task Creator, OCR, App Tracker, Asana
 -- Dashboard) is positioned automatically — no manual monitor picking.
--- Screen is resolved in this order, every time a popup opens or moves:
---   1. the FRONTMOST APPLICATION's window
---   2. otherwise, whatever window currently has keyboard focus
---   3. otherwise, the main screen
+-- The SCREEN is resolved by `_G.baseScreenPick` below, which is the one
+-- place that order lives — a second copy of it sat here and went on
+-- describing the pre-6.236.0 order for 126 releases (6.363.0).
 -- On top of that, you can nudge the exact spot with the keyboard
 -- (hs.chooser has no title bar, so it can't be dragged like a normal
 -- window):
@@ -909,29 +879,22 @@ local popupScreenKeys = {
 local popupNudgeStep = 50  -- pixels moved per arrow-key tap; edit freely.
                             -- Hold the key down to walk it further.
 
--- ✏️ PANEL TRANSLUCENCY (6.10.3) — one number for the canvas panels:
--- the dashboard legend strip (§6) and the Task Creator draft mirror
--- (§4). 6.32.0: the CHEAT SHEET no longer uses this — it is the one
--- panel you read long-form, so it has its own, more see-through
--- setting (cheatSheet.alpha, top of §1.6) over a darker background.
--- 1.0 = solid, lower = more
--- see-through; below ~0.65 the white text gets hard to read over
--- bright windows. (The picker LISTS are native macOS panels with no
--- opacity API — this can't affect them; see the 6.10.3 note above.)
+-- ✏️ PANEL TRANSLUCENCY (6.10.3) — one number for the canvas panels: the
+-- dashboard legend strip (§6) and, through the core table, the task
+-- creator's draft mirror (modules/task_creator.lua since 6.98.0 — §4 has
+-- not been in this file since, and two comments went on pointing at it).
+-- 6.32.0: the CHEAT SHEET no longer uses it — the one panel you read
+-- long-form has its own, more see-through setting (cheatSheet.alpha).
+-- 1.0 = solid; below ~0.65 white text gets hard to read over bright
+-- windows. Picker LISTS are native panels with no opacity API.
 local panelAlpha = 0.90
 
 _G.popupOffset = { x = 0, y = 0 }  -- pixel offset from nudging, stacks on
                                     -- top of wherever the popup would
                                     -- otherwise appear
 
--- Which screen should a popup use as its BASE position (before nudging)?
---   1. the monitor holding the FRONTMOST APPLICATION's window
---   2. otherwise, whatever window currently has keyboard focus
---   3. otherwise, the main screen
--- Checking the frontmost app directly (rather than only focusedWindow)
--- matters when the two diverge — e.g. a background window somehow holds
--- keyboard focus while a different app is what's actually frontmost.
--- 6.27.1: an explicit screen wins over everything below.
+-- 6.27.1 — AN EXPLICIT SCREEN WINS OVER EVERY RULE BELOW. The order
+-- itself is `_G.baseScreenPick`, a few lines down and the only copy.
 -- App Lock needs this. Hiding a locked app makes macOS fall back to
 -- whatever app was in front BEFORE — often on another monitor — so by
 -- the time the PIN prompt opens, "the frontmost app" is the wrong app on
@@ -1017,8 +980,20 @@ end
 function _G.screenReport()
     local L = {}
     local function line(t) L[#L + 1] = t end
+    -- 🚨 6.363.0 — `select(2, pcall(f))` IS THE ERROR MESSAGE when f
+    -- raises (6.179.0 · 6.236.1), and the two call sites below handed it
+    -- straight to name(), where a STRING failed both method calls and
+    -- printed "a screen" — a confident answer about a read that did not
+    -- happen, in the instrument built because a wrong monitor was
+    -- reported twice and no report could say which screen was chosen.
+    -- Read BOTH values, and fail closed on anything that is not one.
+    local function scrOf(f)
+        local ok, v = pcall(f)
+        return ok and v or nil
+    end
     local function name(scr)
-        if not scr then return "—" end
+        local t = type(scr)
+        if t ~= "userdata" and t ~= "table" then return "—" end
         local okN, n = pcall(function() return scr:name() end)
         local okF, f = pcall(function() return scr:frame() end)
         return (okN and n or "a screen")
@@ -1040,10 +1015,10 @@ function _G.screenReport()
     line("   front    : " .. appName)
     local okW, win = pcall(hs.window.focusedWindow)
     line("   focused  : " .. ((okW and win)
-         and name(select(2, pcall(function() return win:screen() end))) or "none"))
+         and name(scrOf(function() return win:screen() end)) or "none"))
     local okMo, ms = pcall(function() return hs.mouse.getCurrentScreen() end)
     line("   pointer  : " .. name(okMo and ms or nil))
-    line("   main     : " .. name(select(2, pcall(hs.screen.mainScreen))))
+    line("   main     : " .. name(scrOf(hs.screen.mainScreen)))
     line("   rule     : focused window · then the POINTER · then the front")
     line("              app's main window · then the main screen")
     line("   ↳ resolveBaseScreen() would answer: "
@@ -1271,8 +1246,10 @@ end)
 -- at exactly this point, so the boot order is unchanged.
 --
 -- Not a modules/ file: every module registers its cheat sheet group while
--- the §1.12 loader runs, so _G.__cheatSheet must already exist when the
--- loader starts. A loader-managed module could not promise that.
+-- the §1.12 loader runs, so `_G.cheatSheet` must already exist when the
+-- loader starts. A loader-managed module could not promise that. (Both
+-- this file and core/cheatsheet.lua called it `_G.__cheatSheet` until
+-- 6.363.0 — a name nothing has ever defined.)
 --
 -- If it fails, ⇪/ and the custom-shortcut editor are off for the session
 -- and everything else still boots. Modules call the registration helper
@@ -1591,17 +1568,10 @@ local function formatDuration(seconds)
     return hrs .. "h " .. (mins % 60) .. "m"
 end
 
--- 📋 CLIPBOARD HISTORY MOVED OUT in 6.55.0 — loading, saving, the
--- corrupt-file backup and the verify-before-write guard all now live in
--- modules/clipboard_history.lua. They used to run here, before the
--- module loader, where an error took the whole config down instead of
--- costing one feature.
-
--- 🔍 THE OCR ENGINE lives in modules/ocr_engine.lua (moved out 6.105.0:
--- the Apple Shortcut check, the file-tagging route, the pickers). What
--- stayed is the clipboard watcher in §3 — one timer, one changeCount —
--- which reaches ocr.clipboardFiles / ocr.tagFiles / ocr.image through
--- the service registry.
+-- 📋🔍 CLIPBOARD HISTORY (6.55.0) and THE OCR ENGINE (6.105.0) are
+-- modules. What stayed here is the clipboard WATCHER below — one timer,
+-- one changeCount — which reaches ocr.clipboardFiles / ocr.tagFiles /
+-- ocr.image through the service registry, because the watcher is shared.
 
 -- =====================================================================
 -- 3. BACKGROUND MONITORING
@@ -1616,23 +1586,18 @@ local lastChangeCount = hs.pasteboard.changeCount()
 -- 🔋 6.144.0 — the poll body is a NAMED function now, because on battery
 -- the eco registry rebuilds this timer at a slower pace and needs the
 -- same body to hand to the new one. Behaviour is unchanged at 0.5s.
--- 🛑 6.170.2 — THE THRASH BREAKER. Twice a Mac locked up while the
--- pasteboard changed on EVERY tick (something rewrote it 0.5 s after
--- 0.5 s); each change made this poll decode the pasteboard on the main
--- thread. Now a change on `_G.clipboardThrashTicks` ticks IN A ROW rests
--- the poll for `_G.clipboardThrashRest` seconds (the counter still
--- advances, so nothing is filed twice), prints ONE line, and counts it.
--- `_G.clipboardPollReport()` shows the counters.
+-- 🛑 6.170.2 — THE THRASH BREAKER, after two lockups: something rewrote
+-- the pasteboard every 0.5 s and each change decoded it on the main
+-- thread. A change on `_G.clipboardThrashTicks` ticks IN A ROW rests the
+-- poll for `_G.clipboardThrashRest` seconds — the counter still advances,
+-- so nothing is filed twice — prints ONE line, and counts it.
 _G.clipboardThrashTicks = 6      -- 3 s of nonstop pasteboard changes
 _G.clipboardThrashRest  = 60     -- s the poll sleeps after that
 local thrashRun, thrashUntil = 0, 0
--- 🔎 6.224.0 — `startedAt` and `suppressed`, because "changes 3" could
--- not be read without them. LL: "I'm not sure my copy and history is
--- working. I don't see items that i just copied", and his report said
--- changes 3 · thrash rests 0 — which cleared the breaker and left three
--- readings that could mean a poll five minutes old, a poll five hours
--- old, or three copies swallowed by the borrow guard below. A count with
--- no clock beside it and no refusals beside it answers nothing.
+-- 🔎 6.224.0 — A COUNT WITH NO CLOCK AND NO REFUSALS BESIDE IT ANSWERS
+-- NOTHING, which is why `startedAt` and `suppressed` are here: "changes
+-- 3" could mean a poll five minutes old, one five hours old, or three
+-- copies swallowed by the borrow guard below.
 _G.clipboardPollStats = { changes = 0, rests = 0, lastRestAt = 0,
                           longestRun = 0, suppressed = 0, lastSuppressAt = 0,
                           startedAt = hs.timer.secondsSinceEpoch() }
@@ -2267,8 +2232,8 @@ function _G.hyperFinalize()
     -- (the §0.4 migrations, modules, hyperActions). It replaced a count
     -- of one source out of three on the one line printed at every login.
     -- ⚠️ FORWARDED KEYS ARE NOT SHORTCUTS and are deliberately excluded.
+    -- #_G.hyperMigrations is the migration count (6.363.0 took the copy).
     _G.hyperShortcutCount = _G.hyperBoundCount - forwarded
-    _G.hyperMigrationCount = #_G.hyperMigrations
     _G.hyperForwardCount  = forwarded
 end
 
@@ -2362,9 +2327,8 @@ end
 
 end -- do...end (§3.12 Hyper Key locals)
 
--- (The OCR chooser was here until 6.105.0. It is built by
---  modules/ocr_engine.lua now, under the same _G.choosers.ocr name, so
---  anything that reaches for it still finds it.)
+-- (⇪O's chooser moved to modules/ocr_engine.lua in 6.105.0, keeping the
+--  name _G.choosers.ocr, so anything reaching for it still finds it.)
 
 -- Clipboard chooser — searches the FULL text of every saved item, not
 -- just the 100 characters a row displays. Matches are newest first,
@@ -2386,11 +2350,9 @@ local coreKeys = {
     activityTracker  = { {"cmd", "alt", "shift"}, "0" },  -- activity tracker picker
 }
 
--- 📋 THE CLIPBOARD EDIT PICKER MOVED OUT in 6.55.0, to
--- modules/clipboard_history.lua — including the snapshot+index pattern
--- that makes it work at all (hs.chooser rebuilds every choice through
--- its Objective-C bridge, so table identity cannot survive the trip and
--- only a NUMBER comes back intact).
+-- (⇪⇧V's edit picker moved to modules/clipboard_history.lua in 6.55.0,
+--  with the snapshot+index pattern — a chooser row value is a SCALAR
+--  because hs.chooser rebuilds every choice through the ObjC bridge.)
 
 -- App tracker (today's activity; type 'week'/'month'/search once open)
 hs.hotkey.bind(coreKeys.activityTracker[1], coreKeys.activityTracker[2], function()
@@ -2411,27 +2373,19 @@ hs.hotkey.bind(coreKeys.activityTracker[1], coreKeys.activityTracker[2], functio
     end
 end)
 
--- (⇪⇧O's EDIT/DELETE picker was here until 6.105.0 — the CSV snapshot,
---  select mode, and the empty-the-box-to-delete dialog all moved to
---  modules/ocr_engine.lua with the rest of the engine. It is still built
---  as _G.choosers.ocrEdit, and tests/test_select_mode.lua still drives
---  that exact chooser.)
+-- (⇪⇧O's edit picker moved to modules/ocr_engine.lua in 6.105.0, still
+--  built as _G.choosers.ocrEdit — tests/test_select_mode.lua drives it.)
 
 -- =====================================================================
 -- 6. ASANA TASK DASHBOARD — ⌃⌥⌘L open · ⌃⌥⌘C comment
 -- =====================================================================
--- Shows up to 100 tasks across five categories, in this order:
---   🔴 Overdue        max 40 — newest due first
---   🟡 Due today      max 10
---   🔵 Due this week  max 30 — soonest first
---   🟠 Due later      max 10 — soonest first
---   🟣 No due date    max 10 — newest created first
--- (Category names capitalize the first word only, per spec.)
--- Caps are the config table below — edit freely; the fetch itself
--- asks Asana for up to 100 incomplete tasks, then each category is
--- trimmed to its cap for display. The list is searchable; Enter opens
--- the task in the browser (⌃⌥⌘L mode) or prompts for a comment that
--- posts to Asana (⌃⌥⌘C mode).
+-- Up to 100 incomplete tasks, asked for in one fetch and then trimmed
+-- to the five caps in the table below (which is the only copy of them —
+-- 6.363.0 deleted a comment that listed all five again). Overdue is
+-- newest due first, the dated bands soonest first, undated newest
+-- created first; names capitalize the first word only, per spec. The
+-- list is searchable; ⏎ opens the task in the browser (⌃⌥⌘L) or prompts
+-- for a comment that posts to Asana (⌃⌥⌘C).
 local asanaCaps = {
     overdue = 40,   -- 🔴 Overdue
     today   = 10,   -- 🟡 Due today
@@ -2448,15 +2402,12 @@ local asanaDashboardMode  = "open"   -- "open" or "comment"
 _G.asanaSelect = { on = false, tagged = {}, master = nil }
 
 -- ---- COLOR LEGEND STRIP — pills above the task list ------------------
--- hs.chooser can't draw a footer inside its own window, so the legend
--- is a slim hs.canvas strip (same tech as the cheat sheet). It sits
--- just ABOVE the picker's search field: the picker's top-left is a
--- position we set ourselves, so the strip's placement is exact — it
--- can never overlap the task list. (The first version sat below the
--- list, which required estimating the picker's height; the estimate
--- ran short and the strip overlaid the bottom rows.)
--- Appears when the dashboard opens; disappears when the picker
--- resolves (pick a task, Esc, or click away).
+-- hs.chooser cannot draw a footer inside its own window, so the legend
+-- is a slim hs.canvas strip. 🚨 IT SITS ABOVE THE SEARCH FIELD, because
+-- the picker's top-left is a position we set ourselves and is therefore
+-- exact — below the list meant ESTIMATING the picker's height, and the
+-- first estimate ran short and overlaid the bottom rows. It appears with
+-- the dashboard and goes when the picker resolves.
 local asanaLegendDefs = {
     { key = "overdue", label = "Overdue",       color = { red = 0.92, green = 0.25, blue = 0.20 }, darkText = false },
     { key = "today",   label = "Due today",     color = { red = 1.00, green = 0.80, blue = 0.00 }, darkText = true  },
@@ -3315,7 +3266,7 @@ local core = {
     asanaToken       = asanaToken,
     asanaWorkspaceId = asanaWorkspaceId,
     -- 6.44.0: the Capture Pad files its 4 PM tasks into this project.
-    -- Same value the Task Creator (§4) already uses, so both land in the
+    -- Same value modules/task_creator.lua already uses, so both land in
     -- same place and there is one thing to change, not two.
     asanaProjectId   = asanaProjectId,
     -- service registry (see the stub at the top of this file). A module

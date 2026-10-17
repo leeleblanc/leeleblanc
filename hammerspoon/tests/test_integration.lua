@@ -2606,6 +2606,59 @@ do
     check("🖥 and there is a report, because this has been reported twice "
           .. "and neither report could say which screen was chosen",
           init:find("function _G.screenReport()", 1, true) ~= nil)
+
+    -- =================================================================
+    -- 🚨 6.363.0 — AND THE REPORT ANSWERED "a screen" ABOUT A READ THAT
+    -- FAILED. Two of its lines were `name(select(2, pcall(f)))`, and
+    -- `select(2, pcall(f))` is the ERROR MESSAGE when f raises (6.179.0;
+    -- 6.236.1 paid for it once already, where a reader's own traceback
+    -- was handed back as a file to play). A STRING reaching name() fails
+    -- both of its method calls, so it fell through to "a screen" — the
+    -- reassuring branch, in the one instrument built because a wrong
+    -- monitor was reported TWICE and neither report could say which
+    -- screen the config had picked. 6.196.1 inside the fix for it.
+    -- The check above only greps for the function, which is why this sat
+    -- there: a line no mutation can kill means the CHECK is missing
+    -- (6.273.0). This one RUNS it with the screen reads refusing.
+    local rsrc = init:match("(function _G%.screenReport%(%).-\nend)")
+    check("🖥 the screen report was lifted out of init.lua", rsrc ~= nil)
+    if rsrc then
+        local out = {}
+        local function raise() error("macOS said no", 0) end
+        local env = {
+            type = type, pcall = pcall, tostring = tostring, math = math,
+            table = table, os = { date = function() return "00:00:00" end },
+            print = function(t) out[#out + 1] = tostring(t) end,
+            -- every screen read REFUSES; nothing else is allowed to
+            resolveBaseScreen = function() return nil end,
+            hs = {
+                application = { frontmostApplication = function()
+                    return { name = function() return "Finder" end } end },
+                window = { focusedWindow = function()
+                    return { screen = raise } end },
+                mouse  = { getCurrentScreen = raise },
+                screen = { mainScreen = raise },
+            },
+        }
+        env._G = env
+        local chunk = load(rsrc .. "\nreturn _G.screenReport", "screenReport",
+                           "t", env)
+        local rep = chunk and chunk()
+        check("...and it runs in a bare env", type(rep) == "function")
+        if type(rep) == "function" then
+            env._G.lastBaseScreen = { why = "nothing has been placed yet" }
+            local ok = pcall(rep)
+            local txt = table.concat(out, "\n")
+            check("🚨 a screen read that RAISED prints an em dash, never "
+                  .. "\"a screen\" — the reassuring branch is what made this "
+                  .. "report lie about the very thing it exists to answer",
+                  ok and txt ~= "" and not txt:find("a screen", 1, true),
+                  txt)
+            check("...and it still prints its rows rather than throwing, "
+                  .. "because a report that raises answers nothing (6.282.0)",
+                  ok and txt:find("BASE SCREEN", 1, true) ~= nil, tostring(ok))
+        end
+    end
 end
 
 -- =====================================================================

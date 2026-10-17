@@ -427,6 +427,21 @@ if [ -z "$SKIPPED" ] && [ "$FAILED" -eq 0 ]; then
 else
     echo "📏 $CHECKS checks counted (partial — not compared with GUIDE.md)"
 fi
+# 📏 6.363.0 — HOW MUCH ROOM init.lua HAS LEFT, every run. The 3,800
+# budget is a gate check (test_integration), so it only ever spoke when
+# it was already too late: 6.361.0 and 6.362.0 both had to trim their own
+# release notes to fit, which is what a ceiling nobody can see costs. A
+# number here turns that into something you watch instead of discover.
+INIT_LINES=$(wc -l < "$HS/init.lua" 2>/dev/null | tr -d ' ')
+if [ -n "$INIT_LINES" ]; then
+    ROOM=$((3799 - INIT_LINES))
+    if [ "$ROOM" -lt 40 ]; then
+        echo "📏 init.lua is $INIT_LINES lines — only $ROOM under the 3,800 budget."
+        echo "   A release header is ~12 lines, so the NEXT one has to trim first."
+    else
+        echo "📏 init.lua is $INIT_LINES lines — $ROOM of room under the 3,800 budget."
+    fi
+fi
 if [ "$STAGES_RUN" -eq 0 ]; then
     echo "⚠️  NOTHING RAN. This is not a pass."
     exit 2

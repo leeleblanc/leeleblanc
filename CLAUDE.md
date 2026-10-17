@@ -526,6 +526,49 @@ work Mac.
   📏 A COMMENT IN A MODULE IS NOT AUTHORITY EITHER: menu_search.lua said
   "⇪⇧. is the network tools" and net_tools is ⇪6, and has been since it
   was written.
+- 🔁 A FACT WRITTEN TWICE IS A FACT THAT WILL BE HALF-UPDATED (6.363.0,
+  init.lua §1.5 — found while trimming, not while debugging). The order a
+  panel's screen is resolved in was stated in PROSE twice, fifteen lines
+  apart, and **both copies had been wrong since 6.236.0** — the release
+  that made the POINTER outrank the front app's `mainWindow`. Two
+  comments went on reciting the pre-6.236.0 three-step order for 126
+  releases, in the section that places every panel in this config, with
+  the real order sitting in `_G.baseScreenPick` between them.
+  🔑 BOTH COPIES WERE CORRECT THE DAY THEY WERE WRITTEN. That is the
+  whole mechanism: one function moved and neither copy knew, because
+  nothing can see a comment going quietly false — the gate reads CODE.
+  6.349.0 is the same defect with one copy ("a comment that promises what
+  the line beside it does not do"); this is what it costs when the fact
+  is duplicated, because then even reading the code beside one copy does
+  not find the other. GENERAL: when a release changes a rule, grep the
+  PROSE for the old rule in the same commit, and when a fact must be
+  written at all, write it where the code that decides it lives.
+  🚨 AND `select(2, pcall(f))` COST A SECOND RELEASE IN THE SAME FILE.
+  `_G.screenReport()` — the instrument built because a wrong monitor was
+  reported TWICE — handed that shape to a helper at two call sites. It is
+  the ERROR MESSAGE when f raises (6.179.0 · 6.236.1, where a reader's
+  own traceback came back as a file to play), so a STRING reached a
+  helper whose `scr:name()` and `scr:frame()` then both failed, and it
+  fell through to its fallback and printed **"a screen"** — a confident
+  answer about a read that never happened, in the one line that exists to
+  say which screen the config chose. 6.196.1 inside the fix for its own
+  class. The helper fails CLOSED on anything that is not a screen now.
+  🧪 AND THE CHECK ON IT WAS A GREP: test_integration asked only whether
+  `function _G.screenReport()` appears in the file, which is true with
+  the bug in and was true for all 127 releases it was there. 6.273.0 —
+  when a defect sits on a line no mutation can kill, the line is not the
+  finding, the missing CHECK is. The suite lifts the report and RUNS it
+  with every screen read raising.
+  🗑 AND A GLOBAL NOTHING READS IS DEAD ONLY WHEN NOTHING NEEDS IT TO
+  EXIST. Three published globals were deleted as 6.276.0's shape — a
+  hand-kept copy of something readable from the thing itself
+  (`hotkeyRejectedCount` beside the list it counts, `hyperMigrationCount`
+  beside `#_G.hyperMigrations`, `localFirstWanted` beside the STATE that
+  is read). Five `*Timer` globals are written and never read too and are
+  LOAD-BEARING: an unreferenced hs.timer is collected and never fires
+  (6.196.1), so the assignment IS the mechanism. They look identical to a
+  grep, which is why the distinction is written down here.
+
 - 🔤 A KEY NAMED IN A GLYPH HE CANNOT MAP TO A PHYSICAL KEY IS A KEY
   THAT HAS NOT BEEN NAMED (6.361.0, modules/recent_docs.lua — LL, reading
   the card itself: "hyper+| spilts two recent windows … it says it is for
@@ -6082,7 +6125,7 @@ that must be READ before a new cause is named.
 | "frozen grid again" — a yellow box only a reload clears | modules/mouse_grid.lua · `_G.showCanvasSafely` | 6.266.0 | 1 | ask |
 | "can't move files in drag and drop" · Hammerspoon locked up | modules/file_tracker.lua | 6.228.0 · 6.229.0 · 6.230.0 · 6.241.0 | 4 | ask |
 | "can't drop a file on the music player" | modules/music_player.lua | 6.231.0 · 6.233.0 · 6.235.0 · 6.237.0 | 4 | ✨ WIN |
-| cheat sheet "appears on a different screen" | init.lua §1.5 · core/cheatsheet.lua | 6.236.0 · 6.288.0 | 2 | ask |
+| cheat sheet "appears on a different screen" | init.lua §1.5 · core/cheatsheet.lua | 6.236.0 · 6.288.0 · 6.363.0 | 3 | ask — and 6.363.0 found the REPORT for it lying: a failed screen read printed "a screen" |
 | "the green icons loop and loop" — OCR nonstop | modules/screenshots.lua | 6.281.0 | 1 | ask |
 | ⇪Y "caused a lock up when I started to search" | modules/chrome_history.lua | 6.245.0 | 1 | ask |
 | "banshee" — a field of doesnt/dododod, tabs opening | modules/autocorrect.lua | 6.216.0 → 6.218.0 · 6.219.0 | 2 | 🔨 crude |
@@ -6200,6 +6243,7 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
+| 6.363.0 | ✂️ init.lua trimmed 3,797 → 3,748 — and the screen report stopped saying "a screen" about a read that failed | pending |
 | 6.362.0 | 🔤 the cheat sheet has a font — Menlo, where I, l, 1 and | are four different glyphs | pending |
 | 6.361.0 | 🔤 the card stops printing a key you cannot read — ⇪I is the LETTER I, and it has opened Recent Documents since 6.93.0 | **WIN** — LL, 2026-10-15: "oh shit! It's the 'I' key" and "⇪I : is perfect." Two rounds to get there: 6.361.0 renamed the label and left the key, which he reported as "still splitting app dawg" |
 | 6.360.0 | 🗑 a held grid arrow stops speeding up — 8 pt a repeat, like an arrow in a text box | **WIN** — LL, 2026-10-15: "The grid is so much better." |
@@ -6472,6 +6516,30 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
      owner is the meeting app (Teams/Zoom) or Superwhisper. Ask which
      app is muted before looking further.
 
+
+- 🗂 §6, THE ASANA DASHBOARD, IS 537 LINES OF A FEATURE INSIDE THE
+  ORCHESTRATOR — measured in 6.363.0, named rather than moved, and it is
+  the release that ends the init.lua ceiling as a recurring cost instead
+  of postponing it (3,748 → roughly 3,200). The gate says the
+  architecture in its own words already: "it is the orchestrator, and
+  every feature belongs in modules/ or core/".
+  🔎 MEASURED, NOT GUESSED, which is what makes it a small release rather
+  than an evening: it defines 14 top-level names, publishes ONE global
+  (`_G.asanaLegendSync`, nil-guarded at both call sites — init.lua's
+  panel-nudge path and modules/window_move.lua), and reaches only SEVEN
+  main-chunk locals — `asanaToken`, `asanaWorkspaceId`, `requireAsana`,
+  `panelAlpha`, `showPopup`, `chooserTopLeft`, `resolveBaseScreen` — and
+  every one of the seven is ALREADY published on the `core` table every
+  module is handed. So the body is a mechanical rewrite to `core.X`.
+  🚨 WHAT IT STILL COSTS, so the next release is not surprised: a suite
+  of its own (it would otherwise be the only module without one — 76
+  suites for 72 modules today), the §1.12 loader line, the BASE name, the
+  module contract's `family` and `cheatsheet`, and the counts in
+  hs-doctor.sh, INSTALL.md and GUIDE.md. And the hotkeys move from
+  mid-file to the END of the load, which is a real ordering change: they
+  are `hs.hotkey.bind` so nothing above them depends on them, and the
+  nil-guards cover the one global, but that is the thing to drive.
+  🗳 HIS CALL — 6.363.0's verify block asks him for it.
 
 - 🧊 THE 73-SECOND LOCKUP IS INSTRUMENTED, NOT DIAGNOSED (2026-10-04,
   LL: "Hammerspoon locks not after a few hours period … I couldn't even
@@ -7622,6 +7690,69 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.363.0 verify with LL — ✂️ THE TRIM (KNOWN GROUND)
+  WHAT CHANGED: nothing you press. init.lua went 3,797 → 3,748 lines, and
+  hunting the scruft found two things that were WRONG.
+  🚨 THE ONE THAT MATTERS: `_G.screenReport()` — the command I ask you for
+  whenever a panel opens on the wrong monitor — printed "a screen" about a
+  screen it could NOT read. Two of its lines handed `select(2, pcall(f))`
+  to a helper, and that is the ERROR MESSAGE when the read raises, so a
+  failed read fell through to the reassuring branch. In the one instrument
+  built because you reported a wrong monitor TWICE.
+  🚨 AND THE SCREEN ORDER WAS WRITTEN TWICE, both copies wrong since
+  6.236.0 — the release that made the POINTER outrank the front app's
+  main window. Two comments went on reciting the old order for 126
+  releases, fifteen lines above the code that is the order.
+
+  A. THE HEADLINE — one command, and it should be boring.
+  A1. Console: `_G.screenReport()`.
+      EXPECT: a block naming the last rule that placed a panel, the front
+      app, and what each candidate answers right now — `focused`,
+      `pointer`, `main`, and a `rule :` line.
+      EXPECT the `rule :` line to read "focused window · then the POINTER
+      · then the front app's main window · then the main screen". That is
+      the real order and it has been since 6.236.0.
+  A2. Read the `focused`, `pointer` and `main` lines.
+      EXPECT each to name a real display or an em dash. **A FAIL is the
+      bare words "a screen" with nothing after them** — that is the lie
+      this release fixes, and it means a read failed.
+  A3. Press ⇪/ on each monitor in turn, then run it again.
+      EXPECT the `last :` line to change and to name the monitor you were
+      looking at.
+
+  B. MUST STILL WORK — this touched a file every key passes through, so
+     this half matters more than A.
+  B1. A spread of ⇪ keys across different tools: ⇪T, ⇪D, ⇪N, ⇪3, ⇪X, ⇪4,
+      ⇪space, ⇪V, ⇪/, ⇪⇧,.
+  B2. ⇪V, ⇪space and ⇪Y all open on the monitor you are working on.
+  B3. ⌃⌥⌘L — the Asana dashboard, with its colour legend strip ABOVE the
+      search field. Then ⌃⌥⌘C. Those are the §6 keys and §6 is the part
+      of the file this release read most closely.
+  B4. ⌃⌥⌘ + an arrow key nudges an open picker; ⌃⌥⌘R clears the nudge.
+  B5. Copy three things and press ⇪V — the clipboard poll and its history
+      are untouched, and `_G.clipboardPollReport()` still prints.
+  B6. Boot: All green, 72 modules, the usual ⇪ shortcut count.
+
+  C. PASTE BACK, PASS OR FAIL.
+  C1. `_G.screenReport()` — the whole block, from whichever Mac.
+  C2. The boot line. The module and shortcut counts must be unchanged
+      from 6.362.0; this release removed no feature.
+
+  D. A JUDGEMENT ONLY YOU CAN MAKE.
+  D1. **§6, the Asana dashboard, is 537 lines of a feature living inside
+      the orchestrator**, and moving it to a module would take init.lua
+      from 3,748 to about 3,200 — which ends this ceiling instead of
+      postponing it. I measured it rather than guessing: it reaches only
+      seven things from the main file and every one of them is already
+      published to modules, so the move is mechanical. I did NOT do it
+      here, because it is a second change in a release you told me not to
+      break anything in, and because it needs a test suite of its own.
+      Want it as the next release?
+  D2. 🔨 Nothing was broken and nothing was lost — what was wrong is that
+      a diagnostic answered confidently about a read that failed, which
+      cost us a round the two times you reported the wrong monitor. My
+      reading is that it degraded; your tag.
+
 - 6.362.0 verify with LL — 🔤 THE SHEET HAS A FONT (KNOWN GROUND)
   WHAT CHANGED: ⇪/ draws in Menlo now, where a capital I, a lowercase l,
   a digit 1 and a pipe are four different shapes.
