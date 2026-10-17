@@ -124,6 +124,43 @@ counts in three documents, and it is a second change in a release whose
 brief was "do not break anything". One change per release is what makes
 a break name its version.
 
+🧪 THE SWEEP FOUND THREE THINGS AND ALL THREE ARE OLD RULES IN NEW
+COSTUMES (8 mutations; 5 bit first, 8 of 8 after):
+  · TWO GUARDS, EACH UNKILLABLE BECAUSE ITS TWIN COVERED IT. `scrOf`
+    reads both pcall values AND `name()` refuses anything that is not a
+    screen, so removing either one changed nothing and no mutation could
+    fail. That is 6.199.0's dead-code shape and 6.362.0's
+    belt-and-braces shape being the same code read two ways, and the
+    resolution is neither to delete a guard nor to keep an unproven one:
+    the harness already LIFTS the report out of init.lua, so it can lift
+    it with one guard patched OUT and drive the other alone. Both are
+    proven that way now, plus a third check that drives it with BOTH
+    gone and requires it to really print "a screen" — without that one
+    the two above could pass over a path that was never broken.
+    6.304.0 · 6.342.0: drive the path with the dependency removed.
+  · A HELPER THAT RAISED INSTEAD OF ANSWERING FALSELY. The new rule-line
+    check read the sentence with `init:match(...) .. " " .. (… or "")`,
+    and the mutation that DELETES the line made the first match nil, so
+    concatenating it killed the run — "0 failed" never printed, which in
+    a gate that reads the tail looks exactly like a pass. 6.186.0, and
+    it is at least the eighth time in this project: a test helper
+    answers falsely rather than indexing or concatenating a nil.
+  · AND A CHECK THAT BIT FOR THE WRONG REASON. The bare env the report
+    runs in had no `select`, so the mutation restoring
+    `select(2, pcall(f))` died on a missing global rather than printing
+    "a screen" — red either way, and red for something that is not the
+    defect. `select` is in the env deliberately now, with a comment
+    saying why, because a check whose failure message points somewhere
+    else is a check that will be "fixed" in the wrong place.
+
+🔁 AND THE REPORT'S OWN SENTENCE IS JOINED TO THE RULE NOW. Its
+`rule :` line is a THIRD copy of the order — the thing this release is
+about — so the suite drives `_G.baseScreenPick` for each of its four
+answers and requires the printed sentence to name them in the SAME
+sequence. A fact written twice stays half-updatable until a check joins
+the copies; swapping the pointer and the main window in either place
+now fails by name.
+
 📏 ALSO NAMED, NOT TRIMMED: the bare `-- 6.44.0` / `-- 6.45.0` markers
 in the BASE module list look like pure chronology and are not — the
 five modules under each one carry no release on their own lines, so the

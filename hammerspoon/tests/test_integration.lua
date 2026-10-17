@@ -2620,13 +2620,60 @@ do
     -- The check above only greps for the function, which is why this sat
     -- there: a line no mutation can kill means the CHECK is missing
     -- (6.273.0). This one RUNS it with the screen reads refusing.
+    -- 🔁 6.363.0 — AND THE PROSE IS JOINED TO THE RULE NOW. The printed
+    -- `rule :` line is a THIRD copy of the order, and the two that were
+    -- in §1.5 had been reciting the pre-6.236.0 one for 126 releases
+    -- because nothing can see a comment going quietly false. So this
+    -- drives `baseScreenPick` for each reason and requires the report's
+    -- own sentence to name them in the SAME order — a fact written twice
+    -- is a fact that will be half-updated, unless a check joins them.
+    -- 🧪 ANSWERS FALSELY, NEVER RAISES (6.186.0): concatenating a nil
+    -- match killed the run under the mutation that deletes the line,
+    -- which in a gate that reads the tail looks like a pass.
+    local ruleLine = (init:match('line%("   rule     : ([^"]+)"') or "")
+                     .. " " .. (init:match('line%("              ([^"]+)"') or "")
+    check("🔁 the report still PRINTS its rule sentence — the line a human "
+          .. "reads to know which screen was chosen",
+          #ruleLine > 20, "'" .. ruleLine .. "'")
+    if pick and ruleLine then
+        local order = {}
+        for _, facts in ipairs({
+            { focused = FOC, mouse = MOUSE, main = MAIN, mainScreen = SCREEN },
+            { mouse = MOUSE, main = MAIN, mainScreen = SCREEN },
+            { main = MAIN, mainScreen = SCREEN },
+            { mainScreen = SCREEN },
+        }) do
+            local _, why = pick(facts)
+            order[#order + 1] = why
+        end
+        local words, at, ok = { "focused", "pointer", "main window", "main screen" }, 0, true
+        for i, w in ipairs(words) do
+            -- each reason baseScreenPick gives must carry its own word,
+            -- or the two lists are not describing the same rule at all
+            if not (order[i] or ""):find(w == "main window" and "main window"
+                                         or (w == "main screen" and "main screen" or w),
+                                         1, true) then ok = false end
+            local found = ruleLine:lower():find(w, 1, true)
+            if not found or found < at then ok = false else at = found end
+        end
+        check("🔁 🚨 the report's own sentence names the four rules in the "
+              .. "order baseScreenPick really answers them — the two prose "
+              .. "copies in §1.5 recited the pre-6.236.0 order for 126 "
+              .. "releases, and nothing could see them go false",
+              ok, ruleLine .. "  ||  " .. table.concat(order, " / "))
+    end
+
     local rsrc = init:match("(function _G%.screenReport%(%).-\nend)")
     check("🖥 the screen report was lifted out of init.lua", rsrc ~= nil)
     if rsrc then
         local out = {}
         local function raise() error("macOS said no", 0) end
+        -- `select` is here deliberately: without it the mutation that
+        -- restores `select(2, pcall(f))` DIES instead of failing, and a
+        -- check that bites for the wrong reason is 6.186.0's shape.
         local env = {
             type = type, pcall = pcall, tostring = tostring, math = math,
+            select = select,
             table = table, os = { date = function() return "00:00:00" end },
             print = function(t) out[#out + 1] = tostring(t) end,
             -- every screen read REFUSES; nothing else is allowed to
@@ -2658,6 +2705,75 @@ do
                   .. "because a report that raises answers nothing (6.282.0)",
                   ok and txt:find("BASE SCREEN", 1, true) ~= nil, tostring(ok))
         end
+
+        -- 🧪 6.363.0 — TWO GUARDS, EACH DRIVEN ALONE. `scrOf` reads both
+        -- pcall values AND `name()` refuses anything that is not a
+        -- screen, so each covers the other and neither can be killed by
+        -- a mutation while its twin stands (6.199.0's dead-code shape
+        -- and 6.362.0's belt-and-braces shape are the same code read
+        -- two ways). The resolution is to drive each with its twin
+        -- REMOVED, which the harness can do because it already lifts
+        -- the source (6.304.0 · 6.342.0: drive the path with the
+        -- dependency gone, not merely assert the line is present).
+        local function runWith(src2)
+            local o2 = {}
+            local e2 = {
+                type = type, pcall = pcall, tostring = tostring,
+                math = math, table = table, select = select,
+                os = { date = function() return "00:00:00" end },
+                print = function(t) o2[#o2 + 1] = tostring(t) end,
+                resolveBaseScreen = function() return nil end,
+                hs = {
+                    application = { frontmostApplication = function()
+                        return { name = function() return "Finder" end } end },
+                    window = { focusedWindow = function()
+                        return { screen = raise } end },
+                    mouse  = { getCurrentScreen = raise },
+                    screen = { mainScreen = raise },
+                },
+            }
+            e2._G = e2
+            e2._G.lastBaseScreen = { why = "x" }
+            local ch = load(src2 .. "\nreturn _G.screenReport", "r", "t", e2)
+            if not ch then return nil end
+            local fn = ch()
+            if type(fn) ~= "function" then return nil end
+            if not pcall(fn) then return nil end
+            return table.concat(o2, "\n")
+        end
+
+        local noType = rsrc:gsub('local t = type%(scr%)\n%s*if t ~= "userdata"'
+                                 .. ' and t ~= "table" then return "—" end',
+                                 'if not scr then return "—" end', 1)
+        check("🚨 with name()'s type guard REMOVED, scrOf alone still keeps "
+              .. "a failed read out of the report", (function()
+            if noType == rsrc then return false end
+            local t = runWith(noType)
+            return t ~= nil and not t:find("a screen", 1, true)
+        end)(), "guard removed")
+
+        local noScrOf = rsrc:gsub("local ok, v = pcall%(f%)\n%s*"
+                                  .. "return ok and v or nil",
+                                  "return select(2, pcall(f))", 1)
+        check("🚨 ...and with scrOf handing back the error message, name()'s "
+              .. "type guard alone still does — each guard is proven with "
+              .. "its twin gone, or neither is proven at all", (function()
+            if noScrOf == rsrc then return false end
+            local t = runWith(noScrOf)
+            return t ~= nil and not t:find("a screen", 1, true)
+        end)(), "scrOf neutered")
+
+        check("🚨 ...and with BOTH gone it really does lie, which is what "
+              .. "6.363.0 found and is what makes the two checks above "
+              .. "mean something", (function()
+            local both = noScrOf:gsub('local t = type%(scr%)\n%s*'
+                                      .. 'if t ~= "userdata" and t ~= "table"'
+                                      .. ' then return "—" end',
+                                      'if not scr then return "—" end', 1)
+            if both == noScrOf then return false end
+            local t = runWith(both)
+            return t ~= nil and t:find("a screen", 1, true) ~= nil
+        end)())
     end
 end
 
