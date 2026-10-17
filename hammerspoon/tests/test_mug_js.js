@@ -92,6 +92,17 @@ function makeEnv() {
       setAttribute(a, v) { this.attrs[a] = v; },
       getAttribute(a) { return a in this.attrs ? this.attrs[a] : null; },
       removeAttribute(a) { delete this.attrs[a]; },
+      // 🔬 6.365.0 — currentTime IS A SETTER, not just a getter. 6.239.0
+      // learned this the expensive way on the Jug Player: a getter-only
+      // stub lets every seek "succeed" while moving nothing, so the whole
+      // feature is invisible to the gate (and it was the THIRD time a
+      // getter-only stub had hidden one). `duration` defaults to 0 — the
+      // honest state of a film macOS has not measured yet — so the branch
+      // that refuses a FORWARD seek is the default rather than the
+      // exception, and a test has to opt INTO a known length.
+      _ct: 0, _seeks: 0, duration: 0,
+      get currentTime() { return this._ct; },
+      set currentTime(v) { this._ct = Number(v); this._seeks++; },
       load() { this.loads++; },
       play() { this.plays++; this.paused = false; },
       pause() { this.pauses++; this.paused = true; },
@@ -387,15 +398,27 @@ console.log("── Mug Player: page JavaScript, executed ──");
   check("space plays a paused film", v.plays === 1 && env.sent.length === 0);
   env.key(" ");
   check("…and pauses a playing one", v.pauses === 1);
-  // 🚨 ← and → are the FILM's own keys: WebKit seeks with them and ⇧
-  // seeks further. The page must not swallow them, or the native
-  // controls this release exists to keep lose half their behaviour.
+  // 🚨 THIS CHECK ASSERTED THE OPPOSITE UNTIL 6.365.0, and it was green
+  // the whole time the feature was missing: "← → are left to the film —
+  // the page does not swallow them". That was TRUE and the belief under
+  // it was wrong. WebKit seeks with those keys only while the <video>
+  // ELEMENT has keyboard focus, and in this window the DOCUMENT has it —
+  // which is how space and ↑↓ work at all. So the arrows reached nothing,
+  // and the only way to skip was the mouse. The page claims them now, and
+  // prevents the default so a focused film cannot seek a SECOND time on
+  // the same press.
   env.sent.length = 0;
+  const vv = env.byId.v;
+  vv.duration = 600; vv._ct = 100; vv._seeks = 0;
   let prevented = false;
   env.listeners.document.keydown({ key: "ArrowRight", metaKey: false,
                                    preventDefault() { prevented = true; } });
-  check("🚨 ← → are left to the film — the page does not swallow them",
-        prevented === false && env.sent.length === 0);
+  check("⏪ → seeks FORWARD by the config's step", vv.currentTime === 115,
+        vv.currentTime);
+  check("🚨 …and prevents the default, so a focused film cannot seek twice",
+        prevented === true);
+  check("…and tells Lua, so the report can count it",
+        env.sent.length === 1 && at(env, 0).a === "seek", JSON.stringify(env.sent));
   // a modifier that is not ⌘ must not be read as a bare key
   env.sent.length = 0;
   env.key("ArrowDown", { metaKey: true });
@@ -690,6 +713,88 @@ console.log("── Mug Player: page JavaScript, executed ──");
   check("…and the second film is the second film",
         got && got.bytes.map((b) => String.fromCharCode(b)).join("") === "BBB",
         got && got.bytes.join(","));
+}
+
+// =====================================================================
+// ⏪ ← → SEEK — 6.365.0
+// =====================================================================
+// LL: "instead of having to mouse over the window and then press the 15
+// second forward button and then 15 second back button."
+{
+  const env = load();
+  const v = env.byId.v;
+  const press = (key, o) => {
+    env.sent.length = 0;
+    env.listeners.document.keydown(Object.assign(
+      { key, metaKey: false, ctrlKey: false, shiftKey: false, altKey: false,
+        preventDefault() {} }, o || {}));
+  };
+
+  v.duration = 600; v._ct = 300;
+  press("ArrowLeft");
+  check("⏪ ← seeks BACK by the step", v.currentTime === 285, v.currentTime);
+  press("ArrowRight", { shiftKey: true });
+  check("⏪ ⇧→ uses the BIG step", v.currentTime === 345, v.currentTime);
+  press("ArrowLeft", { shiftKey: true });
+  check("⏪ ⇧← does too", v.currentTime === 285, v.currentTime);
+
+  // 📐 THE NUMBERS COME FROM THE PAYLOAD, not from the page. Moving S
+  // and requiring the key to follow is what proves it — asserting the
+  // shipped 15 passes happily with the value typed in twice (6.239.0).
+  env.call("S.sk=7");
+  v._ct = 100;
+  press("ArrowRight");
+  check("📐 the step is read from the payload, so moving the config moves the key",
+        v.currentTime === 107, v.currentTime);
+  env.call("S.sk=15");
+
+  // 🚨 NEVER PAST EITHER END.
+  v._ct = 5;
+  press("ArrowLeft");
+  check("🚨 ← at the start parks at 0, never below it", v.currentTime === 0,
+        v.currentTime);
+  v._ct = 595;
+  press("ArrowRight");
+  check("🚨 → at the end parks at the end, never past it", v.currentTime === 600,
+        v.currentTime);
+
+  // 🚨 THE FIXTURE THAT BITES, and it is the whole reason the door
+  // answers WHY (6.239.0): a duration of 0 means macOS has NOT measured
+  // the film, not that it is zero seconds long. Seeking FORWARD into a
+  // length nobody knows lands in silence with no way back — so ← must
+  // still work there and → must not. Every other input agrees.
+  v.duration = 0; v._ct = 40; v._seeks = 0;
+  press("ArrowRight");
+  check("🚨 → is REFUSED on a film with no length yet, and nothing moves",
+        v._seeks === 0 && v.currentTime === 40, v.currentTime + "/" + v._seeks);
+  check("…and it SAYS why rather than doing nothing",
+        env.sent.length === 1 && at(env, 0).ok === false
+        && String(at(env, 0).why).indexOf("no length yet") !== -1,
+        JSON.stringify(env.sent));
+  press("ArrowLeft");
+  check("🚨 …but ← still works there — back is always safe",
+        v.currentTime === 25 && at(env, 0).ok === true, v.currentTime);
+
+  // NaN is the other face of the same state, and a plain `dur <= 0`
+  // test reads it as a number (NaN <= 0 is false), so it has its own row.
+  v.duration = NaN; v._ct = 40; v._seeks = 0;
+  press("ArrowRight");
+  check("🚨 a duration of NaN is treated as unmeasured too, not as a number",
+        v._seeks === 0 && env.sent.length === 1 && at(env, 0).ok === false,
+        JSON.stringify(env.sent));
+
+  // the message carries what the report prints
+  v.duration = 600; v._ct = 100;
+  press("ArrowRight");
+  const m = at(env, 0);
+  check("⏪ the seek message carries where it landed and the length",
+        m.at === 115 && m.dur === 600, JSON.stringify(m));
+
+  // ⌘→ belongs to the app, not to us
+  v._ct = 100;
+  press("ArrowRight", { metaKey: true });
+  check("⌘→ is not our →", v.currentTime === 100 && env.sent.length === 0,
+        v.currentTime);
 }
 
 console.log(`── test_mug_js: ${pass} passed, ${fail} failed`);

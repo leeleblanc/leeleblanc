@@ -2700,6 +2700,107 @@ do
           body:match("e%.metaKey&&e%.ctrlKey&&%(e%.key==='f'") ~= nil)
 end
 
+out("\n§26 ← → seek, and the length macOS has not answered\n")
+-- =======================================================================
+-- ⏪ LL: "I'd like to be able to use the arrow keys in the mug player to
+-- move forward and back. So instead of having to mouse over the window
+-- and then press the 15 second forward button and then 15 second back
+-- button."
+-- He is right, and the comment in the page said why it could not work:
+-- ← → were "the film's own keys", delegated to WebKit — which seeks with
+-- them only while the <video> ELEMENT has keyboard focus. The DOCUMENT
+-- has it (that is how space and ↑↓ work), so the arrows reached nothing.
+do
+    local before = pass + fail
+
+    -- 📐 THE NUMBERS RIDE INTO THE PAGE, so moving the config moves what
+    -- the keys do. Asserting the shipped 15 passes happily with the value
+    -- typed into the page as well (6.239.0), so MOVE it and require the
+    -- payload to follow.
+    local keptS, keptB = vid.seekStep, vid.seekBigStep
+    vid.seekStep, vid.seekBigStep = 15, 60
+    local j1 = vid.rowsJson()
+    check("⏪ the payload carries the seek steps", j1:find("sk:15", 1, true) ~= nil
+          and j1:find("skb:60", 1, true) ~= nil, j1:sub(1, 60))
+    vid.seekStep, vid.seekBigStep = 7, 99
+    local j2 = vid.rowsJson()
+    check("⏪ …and MOVING the config moves them — the page carries no number of its own",
+          j2:find("sk:7", 1, true) ~= nil and j2:find("skb:99", 1, true) ~= nil,
+          j2:sub(1, 60))
+    vid.seekStep, vid.seekBigStep = keptS, keptB
+
+    -- 🚨 A seek must NEVER re-render: a render rebuilds the document,
+    -- which tears the <video> down and stops the film — for a key whose
+    -- whole job is to move within it.
+    vid.seeks, vid.seekRefused, vid.seekLast = 0, 0, nil
+    local renders = 0
+    local realRender = vid.render
+    vid.render = function() renders = renders + 1 end
+    vid.handleMessage({ a = "seek", d = 15, at = 30, dur = 600, ok = true,
+                        why = "forward 15s" })
+    check("⏪ a seek message is counted", (tonumber(vid.seeks) or 0) == 1,
+          tostring(vid.seeks))
+    check("🚨 …and does NOT re-render — a render would stop the film",
+          renders == 0, tostring(renders))
+    vid.handleMessage({ a = "seek", d = 15, at = 0, dur = 0, ok = false,
+                        why = "the film has no length yet" })
+    check("⏪ a REFUSED seek is counted apart from a seek that moved",
+          (tonumber(vid.seeks) or 0) == 2 and (tonumber(vid.seekRefused) or 0) == 1,
+          tostring(vid.seeks) .. "/" .. tostring(vid.seekRefused))
+    check("…and it is still not a reason to re-render", renders == 0, tostring(renders))
+    vid.render = realRender
+
+    -- 🔎 THREE STATES (6.196.1): nobody pressed · it moved · it was refused.
+    vid.seeks, vid.seekRefused, vid.seekLast = 0, 0, nil
+    local r0 = reportText()
+    check("🔎 with no press the report says so rather than printing a zero",
+          r0:find("no arrow pressed this session", 1, true) ~= nil,
+          (r0:match("seek[^\n]*") or ""))
+    check("…and it still names both steps, so the keys are discoverable",
+          (r0:match("seek[^\n]*") or ""):find("← →", 1, true) ~= nil)
+    vid.handleMessage({ a = "seek", d = -15, at = 15, dur = 600, ok = true,
+                        why = "back 15s" })
+    local r1 = reportText()
+    check("🔎 once one has landed it names it and where it landed",
+          r1:find("back 15s", 1, true) ~= nil and r1:find("15 s of 600 s", 1, true) ~= nil,
+          (r1:match("↳ last[^\n]*") or ""))
+    check("…and with none refused there is no ⚠️ on that line",
+          (r1:match("seek   :[^\n]*") or ""):find("REFUSED", 1, true) == nil)
+    vid.handleMessage({ a = "seek", d = 15, at = 20, dur = 0, ok = false,
+                        why = "the film has no length yet" })
+    local r2 = reportText()
+    check("🔎 a refusal puts a ⚠️ on the line AND names the length it lacked",
+          (r2:match("seek   :[^\n]*") or ""):find("⚠️", 1, true) ~= nil
+          and r2:find("a length macOS has not answered", 1, true) ~= nil,
+          (r2:match("↳ last[^\n]*") or ""))
+    vid.seeks, vid.seekRefused, vid.seekLast = 0, 0, nil
+
+    -- 🖼 the page claims the keys rather than leaving them to WebKit
+    local page = vid.buildPage()
+    check("⏪ the page claims ArrowLeft and ArrowRight", 
+          page:find("e.key==='ArrowLeft'||e.key==='ArrowRight'", 1, true) ~= nil)
+    check("…and preventDefault()s them, so a focused film cannot seek TWICE",
+          (page:match("ArrowLeft'||e%.key==='ArrowRight'%){[^\n]*") or "")
+            :find("preventDefault", 1, true) ~= nil)
+    -- 🚨 THE FIRST VERSION OF THIS CHECK MATCHED ITS OWN COMMENT. It
+    -- asserted the words "the film's own keys" were GONE from the page —
+    -- and the replacement comment quotes that very phrase to explain what
+    -- it replaced, so the check went red on correct code. 6.359.0 found
+    -- exactly this shape in a sentry; 6.280.0 is the same lesson from the
+    -- other side. Assert the RULE instead: there is one seek door, and the
+    -- arrow branch goes through it.
+    check("⏪ the page has ONE seek door and the arrows call it",
+          page:find("function seekBy(d)", 1, true) ~= nil
+          -- The window ENDS AT THE BRANCH'S OWN BOUNDARY (6.263.0) — its
+          -- closing `return}` — rather than at a fixed number of lines,
+          -- which is how a scanner comes to be satisfied by its neighbour.
+          and (page:match("ArrowLeft.-return}") or "")
+                :find("seekBy(", 1, true) ~= nil)
+
+    local ran = (pass + fail) - before
+    check("§26 ran all of its checks (" .. ran .. " of 13)", ran >= 13, ran)
+end
+
 -- ---- the tally ---------------------------------------------------------
 realPrint("")
 realPrint(("🎬 test_video_player — %d passed, %d failed"):format(pass, fail))

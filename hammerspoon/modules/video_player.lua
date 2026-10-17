@@ -117,7 +117,7 @@ local M = {
             { "drop",    "Drag .mp4 films onto the window: the first plays, the rest queue" },
             { "controls","The scrubber, clock, volume, full screen and PiP are macOS's own" },
             { "space",   "Play / pause, wherever the keyboard is in the window" },
-            { "← →",     "Seek, and ⇧ with them seeks further — the film's own keys" },
+            { "← →",     "6.365.0: SEEK — 15 s a press, 60 s with ⇧. These are the config's numbers, not the film's own keys: a <video> only answers its arrows while it has the keyboard, and in this window the page does" },
             { "↑ ↓ · ⏎", "Walk the queue AND the 🕘 history as one list · ⏎ plays" },
             { "⌘1–⌘9",   "Play the Nth film in the queue" },
             { "⌫",       "On a queue row: take it out · on a 🕘 history row: forget it" },
@@ -236,6 +236,17 @@ function M.setup(core)
         -- rest is still in the cloud.
         cloudFloor = 4 * 1024 * 1024,
         cloudFrac  = 0.9,
+        -- ⏪ 6.365.0 — ← → SEEK. 15 s is not a taste: it is the step on
+        -- the ±15 s buttons in macOS's own control bar, which is the
+        -- thing he named and the thing these keys replace. The Jug
+        -- Player's 5 s / 30 s is right for finding a lyric and wrong for
+        -- a film. Both ride into the page, so moving either here moves
+        -- what the keys do (6.239.0 — the page is GIVEN the numbers).
+        seekStep    = 15,
+        seekBigStep = 60,
+        seeks       = 0,
+        seekRefused = 0,
+        seekLast    = nil,
         fillGap    = 0,                -- points left around a filled window
         small      = nil,              -- the frame to come back to, while filled
         fills      = 0,
@@ -930,6 +941,12 @@ function M.setup(core)
                -- document the page is built from.
                .. ",pd:" .. tostring(vid.pageDoorLive())
                .. ",gen:" .. tostring(vid.gen)
+               -- ⏪ The seek steps, so the page never carries a number of
+               -- its own: a check moves the config and requires the page
+               -- to follow, where asserting the shipped default passes
+               -- happily with the value typed in twice (6.239.0).
+               .. ",sk:" .. tostring(tonumber(vid.seekStep) or 15)
+               .. ",skb:" .. tostring(tonumber(vid.seekBigStep) or 60)
                .. ",name:" .. jstr(cur and (cur.title or vid.titleOf(cur.path)) or "")
                .. ",brand:" .. jstr(vid.brand) .. "}"
     end
@@ -1152,8 +1169,38 @@ document.addEventListener('keydown',function(e){
  if(e.key==='ArrowUp'){e.preventDefault();say({a:'sel',d:-1});return}
  if(e.key==='Enter'){e.preventDefault();say({a:'enter'});return}
  if(e.key==='Backspace'){e.preventDefault();say({a:'drop'});return}
- // ← → are the film's own: WebKit seeks with them, and ⇧ seeks further.
+ // ⏪ ← → SEEK (6.365.0). They used to be delegated to WebKit, with a
+ // comment calling them "the film's own keys" — which is true only while
+ // the <video> ELEMENT has keyboard focus. The DOCUMENT has it, which is
+ // how space and ↑↓ work at all, so the arrows reached nothing and the
+ // only way to skip was the mouse. That is exactly what he reported.
+ // preventDefault() also stops a focused video seeking a SECOND time on
+ // the same press.
+ if(e.key==='ArrowLeft'||e.key==='ArrowRight'){e.preventDefault();
+   var step=e.shiftKey?(+S.skb||60):(+S.sk||15);
+   seekBy((e.key==='ArrowRight'?1:-1)*step);return}
 });
+// ⏪ ONE DOOR, so the keys and anything added later cannot disagree about
+// what a seek is. It answers WHY, and the rule that earns its place is
+// the DURATION: macOS answers 0 or NaN until it has measured the film,
+// and seeking FORWARD into a length nobody knows lands in silence with
+// no way back (6.239.0). So ← still works there and → does not — and it
+// says which, rather than doing nothing.
+function seekBy(d){
+ var v=el('v'); if(!v)return false;
+ var dur=+v.duration, cur=+v.currentTime;
+ if(!isFinite(cur)||cur<0)cur=0;
+ var known=isFinite(dur)&&dur>0;
+ if(!known&&d>0){
+   say({a:'seek',d:d,ok:false,at:cur,dur:0,
+        why:'the film has no length yet — forward would land in silence'});
+   return false}
+ var t=cur+d; if(t<0)t=0; if(known&&t>dur)t=dur;
+ var ok=true,why=(d>0?'forward ':'back ')+Math.abs(d)+'s';
+ try{v.currentTime=t}catch(x){ok=false;why='the film refused the seek'}
+ say({a:'seek',d:d,ok:ok,at:(ok?(+v.currentTime||t):cur),
+      dur:(known?dur:0),why:why});
+ return ok}
 (function(){
  var v=el('v');
  // 🪟 THE DOOR REPORTS ITSELF. A film that loads says which way in
@@ -2466,6 +2513,23 @@ document.addEventListener('keydown',function(e){
             vid.save() ; vid.render()
             return
 
+        elseif a == "seek" then
+            -- 🚨 NEVER RENDER HERE. A render rebuilds the document, which
+            -- tears the <video> down and STOPS THE FILM — for a key whose
+            -- whole job is to move within it. The page has already done
+            -- the seek; this only counts it, which is why the arrows cost
+            -- nothing on the main thread beyond one bookkeeping message.
+            vid.seeks = (tonumber(vid.seeks) or 0) + 1
+            if body.ok == false then
+                vid.seekRefused = (tonumber(vid.seekRefused) or 0) + 1
+            end
+            vid.seekLast = { d   = tonumber(body.d) or 0,
+                             at  = tonumber(body.at) or 0,
+                             dur = tonumber(body.dur) or 0,
+                             ok  = body.ok ~= false,
+                             why = tostring(body.why or "") }
+            return
+
         elseif a == "fill" then
             vid.toggleFill()
             return
@@ -2666,6 +2730,33 @@ document.addEventListener('keydown',function(e){
                             .. " screen (macOS full screen is not"
                             .. " reachable: hs.webview has no fullScreen"
                             .. " mask, libwebview.m:2533-2562)"
+            end
+            -- ⏪ 6.365.0 — THREE STATES (6.196.1), and the middle one is
+            -- the point: "nobody has pressed an arrow" and "every press
+            -- was refused" must not read the same, because the second is
+            -- a film whose length macOS never answered and the first is
+            -- a quiet session.
+            do
+                local n  = tonumber(vid.seeks) or 0
+                local no = tonumber(vid.seekRefused) or 0
+                local sk = tonumber(vid.seekStep) or 15
+                local kb = tonumber(vid.seekBigStep) or 60
+                local line = "   seek   : ← → " .. sk .. " s · ⇧← ⇧→ " .. kb .. " s"
+                if n == 0 then
+                    line = line .. " — no arrow pressed this session"
+                else
+                    line = line .. " — " .. n .. " press(es)"
+                               .. (no > 0 and (" · ⚠️ " .. no .. " REFUSED") or "")
+                end
+                L[#L + 1] = line
+                if type(vid.seekLast) == "table" then
+                    L[#L + 1] = "   ↳ last : " .. (vid.seekLast.ok and "" or "⚠️ ")
+                                .. tostring(vid.seekLast.why)
+                                .. "  ·  at " .. string.format("%.0f", vid.seekLast.at or 0)
+                                .. " s of " .. ((tonumber(vid.seekLast.dur) or 0) > 0
+                                    and (string.format("%.0f", vid.seekLast.dur) .. " s")
+                                    or "a length macOS has not answered")
+                end
             end
             L[#L + 1] = "   ↳ ⌃⌘F  : " .. (tonumber(vid.fills) or 0)
                         .. " press(es) this session — last: "
