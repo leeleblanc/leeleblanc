@@ -2480,6 +2480,20 @@ do
     local keptN, goneN = sp.dropHistory(rows("a", "b"), nil)
     check("…and so is nil, by the same branch", goneN == 0 and #keptN == 2)
 
+    -- 🚨 AND THAT GUARD IS NOT DECORATION — ONE fixture can show it, and
+    -- the mutation sweep is what asked for it (6.273.0: when a line no
+    -- mutation can kill is the thing the release exists for, the finding
+    -- is the missing CHECK). Over ordinary rows the guard is unkillable:
+    -- no row carries "" as its id, so the loop keeps them all anyway.
+    -- A row whose own id is MISSING answers "" too — and a store written
+    -- by an older build, or one a crash truncated mid-write, is exactly
+    -- where such a row comes from. Without the guard, a message that
+    -- arrives with no rid forgets it.
+    local odd = { { id = "a", title = "Tab a" }, { title = "a row with no id" } }
+    local keptO, goneO = sp.dropHistory(odd, "")
+    check("🚨 a row carrying NO id is NOT forgotten by an empty id",
+          goneO == 0 and #keptO == 2, tostring(goneO) .. "/" .. tostring(#keptO))
+
     -- 6.199.0 — EVERY match goes, or a command that says it removed the
     -- row leaves a twin behind and the row is still there next time.
     local keptD, goneD = sp.dropHistory(rows("a", "dup", "b", "dup"), "dup")
@@ -2589,7 +2603,7 @@ do
           and rep1:find("Tab r1", 1, true) ~= nil, rep1:sub(1, 60))
 
     local ran = (pass + fail) - before
-    check("§6.364.0 ran all of its checks (" .. ran .. " of 20)", ran >= 20, ran)
+    check("§6.364.0 ran all of its checks (" .. ran .. " of 21)", ran >= 21, ran)
 end
 
 out(string.format("\n%d passed, %d failed\n", pass, fail))
