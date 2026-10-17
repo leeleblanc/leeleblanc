@@ -10,10 +10,10 @@ and names the release.
 
 | | |
 |---|---|
-| Releases on the scoreboard | 169 |
+| Releases on the scoreboard | 173 |
 | **Scored by you** | **35** — 23 wins, 12 losses |
-| **Never scored** | **133** |
-| Open bugs below | 9 |
+| **Never scored** | **137** |
+| Open bugs below | 5 (four were shipped today as 6.364.0–6.367.0) |
 | Asks built but never delivered to you | 3 (6.356.0 · 6.357.0 · 6.358.0) |
 | Asks waiting on one word from you | 11 |
 
@@ -307,21 +307,28 @@ a placeholder is precisely what caused your 72-second freeze.
 
 ---
 
-## 6 · WHAT I RECOMMEND BEFORE YOU FREEZE
+## 6 · WHAT SHIPPED TODAY, AND WHAT IS LEFT
 
-A week of running two Macs is worth most if the config can TELL you what
-happened. So the short list is instruments and data safety, not features:
+Four of the six I recommended are **built, gated and in 6.367.0**:
 
-1. **The closed-tab ✕** (§5.1) — small, and it is your writing.
-2. **The verbose Asana failure** (§5.2) — you cannot troubleshoot a week
-   of 4 PM sends without it.
-3. **Mug Player ← →** (§5.3) — small, and you will use it this week.
-4. **The OneDrive probe** (§5.4) — if OneDrive is offloading pinned
-   files, that is your DATA, and it is the one thing on this list that
-   can cost you something you cannot get back.
-5. **`_G.installCheck()` + MANIFEST** (§2.11) — so "did it install" is a
-   five-second answer on both Macs instead of a conversation.
-6. **The first Secure Input reading** (§1.2) — one asymmetry, and it is
-   the row that can silently kill every shortcut you have.
+| | release | state |
+|---|---|---|
+| The closed-tab ✕ | 6.364.0 | ✅ shipped |
+| Mug Player ← → | 6.365.0 | ✅ shipped |
+| The verbose Asana refusal | 6.366.0 | ✅ shipped |
+| The OneDrive check | 6.367.0 | ✅ shipped (the probe half) |
+| ⌃⌘F on the Mug Player | 6.358.0 | ✅ already built — you have never had it |
 
-Everything else parks until you come back with the week's data.
+Two I recommended and did NOT build, deliberately, because each is a
+release of its own and today already carried four:
+
+1. **`_G.installCheck()` + MANIFEST** (§2.11) — so "did it install
+   correctly" is a five-second answer on both Macs instead of a
+   conversation. **This is the one I would do next**, because it is
+   worth more during your two-Mac week than any feature.
+2. **The first Secure Input reading** (§1.2) — one asymmetry, in the row
+   that can silently kill every shortcut you have.
+
+Everything else in §1–§4 parks until you come back with the week's data.
+The eleven questions in §3 are still the cheapest thing you can give me:
+each one unblocks a release that is otherwise a guess.
