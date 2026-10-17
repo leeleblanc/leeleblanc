@@ -783,6 +783,23 @@ console.log("── Mug Player: page JavaScript, executed ──");
         v._seeks === 0 && env.sent.length === 1 && at(env, 0).ok === false,
         JSON.stringify(env.sent));
 
+  // 🚨 AND Infinity IS THE THIRD FACE OF "unmeasured", which the sweep
+  // had to ask for (6.273.0: the line `isFinite(dur) && dur > 0` could
+  // not be killed by any other input, so the finding was the missing
+  // CHECK). A plain `dur > 0` test reads NaN correctly by luck and reads
+  // Infinity as a perfectly good LENGTH — and this module plays a BLOB
+  // (6.354.0), which is exactly the source that reports Infinity while
+  // the bytes are still being assembled. Seeking into it would clamp
+  // against infinity, which clamps nothing.
+  v.duration = Infinity; v._ct = 40; v._seeks = 0;
+  press("ArrowRight");
+  check("🚨 a duration of Infinity is unmeasured too — a blob says that while it loads",
+        v._seeks === 0 && env.sent.length === 1 && at(env, 0).ok === false,
+        JSON.stringify(env.sent));
+  press("ArrowLeft");
+  check("…and ← still works there, as it does for NaN and 0",
+        v.currentTime === 25, v.currentTime);
+
   // the message carries what the report prints
   v.duration = 600; v._ct = 100;
   press("ArrowRight");
