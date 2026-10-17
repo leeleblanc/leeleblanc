@@ -3149,6 +3149,11 @@ local BASE = {
     -- itself.
     "battery_saver",      -- 🔋 on battery the config slows its own pollers
                           --    and NAMES the apps draining you (no key)
+    "onedrive_check",     -- ☁️ 6.367.0 _G.oneDriveCheck() names every file whose
+                          -- BYTES are not really here, however it is marked. It
+                          -- never READS one: a read hydrates a placeholder, and
+                          -- that download on the main thread is the 72 s freeze
+                          -- the stall guard killed (6.357.0). No key.
     "editor_picker",      -- 🗂 ⌃⌃ (or ⇪space) every editor at once, by
                           -- what is open and what has something in it.
                           -- LAST on purpose: it only READS the registry the

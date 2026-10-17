@@ -1431,6 +1431,18 @@ local ALLOWED_BINARIES = {
   ["/usr/bin/shortcuts"] = "image OCR via your own Shortcut (ships with macOS)",
   ["/usr/bin/hidutil"]   = "Caps Lock -> hyper remap, per-user (ships with macOS)",
   ["/usr/bin/open"]      = "relaunch an app you asked to reopen (ships with macOS)",
+  -- ☁️ 6.367.0 — AND THIS ONE IS A DELIBERATE NON-READ, which is the
+  -- reason it is a binary at all. `xattr -s` lists an extended
+  -- attribute's NAMES; it does not open the file's contents, so it
+  -- cannot hydrate a OneDrive placeholder — and hydrating one is a
+  -- download, which on the main thread is the 72-second freeze the
+  -- stall guard killed on 2026-10-12 (6.357.0). Names only, never
+  -- values: a value can be anything, including bytes. Out of process,
+  -- bounded, with a killer timer (6.170.1).
+  ["/usr/bin/xattr"]     = "list an extended attribute's NAMES, to ask "
+                        .. "whether \"Always keep on device\" is readable "
+                        .. "at all — never its values, never the file "
+                        .. "(ships with macOS)",
   -- 6.140.0 — screen_veil joined as a second caller: the grayscale
   -- read-back READS com.apple.universalaccess after relaying ⌥⌘F5. It
   -- never writes it — test_features 4b pins that structurally, and the
@@ -2430,6 +2442,36 @@ do
 end
 check("hs-doctor.sh's expected module count matches disk",
       modCount > 0 and doctor:find("expect " .. modCount .. ")", 1, true) ~= nil, modCount)
+-- 🧪 6.367.0 — A SUITE THE GATE DOES NOT RUN IS GREEN AND MEASURES
+-- NOTHING. run-tests.sh names its Lua suites in a hand-kept list, and a
+-- new tests/test_*.lua that is never added to it sits there passing in
+-- a file nobody executes — 6.313.0's "a sentry over a haystack it did
+-- not prove it read" one layer out, and it happened on the very release
+-- that added this check. The list going stale the OTHER way is already
+-- caught: a name in it with no file prints "missing" on every run.
+do
+  local runner = readAll(HS .. "/tools/run-tests.sh") or ""
+  check("the gate's own runner could be read — a sentry over an empty "
+        .. "haystack is green and measures nothing", #runner > 1000, #runner)
+  local missing = {}
+  local pipe = io.popen('ls "' .. HS .. '/tests"/test_*.lua 2>/dev/null')
+  if pipe then
+    for line in pipe:lines() do
+      local name = tostring(line):match("([^/]+)%.lua$")
+      -- the page suites are .js and are run by their own stages; this is
+      -- about the Lua list alone
+      if name and not runner:find(" " .. name .. " ", 1, true)
+             and not runner:find(" " .. name .. ";", 1, true) then
+        missing[#missing + 1] = name
+      end
+    end
+    pipe:close()
+  end
+  check("🧪 every tests/test_*.lua suite is NAMED in run-tests.sh — one "
+        .. "that is not passes in a file nobody runs", #missing == 0,
+        table.concat(missing, ", "))
+end
+
 check("INSTALL.md's module count matches disk",
       modCount > 0 and guide:find(modCount .. " files, loaded by", 1, true) ~= nil, modCount)
 
