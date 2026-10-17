@@ -4,36 +4,32 @@
 -- =====================================================================
 -- 10-17-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.363.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.367.0
 -- =====================================================================
 
--- NEW IN 6.363.0 — ✂️ THE TRIM, AND A REPORT THAT WAS LYING
---   LL: "do the init.lua trim release … look for code that is
---   garbage. But do not break anything." 3,797 → 3,747, and the
---   garbage was worth more than the lines. 🚨 `_G.screenReport()`
---   printed "a screen" about a read that FAILED: two lines handed
---   `select(2, pcall(f))` — the ERROR MESSAGE when f raises — to a
---   helper whose method calls then failed into the reassuring branch,
---   in the one instrument built because a wrong monitor was reported
---   TWICE. 🚨 And the popup screen ORDER was stated twice and both
---   copies had been wrong since 6.236.0, 15 lines above the function
---   that is the order. Three dead globals, seven tombstones, §4 (gone
---   since 6.98.0) and `_G.__cheatSheet` (never defined).
+-- NEW IN 6.367.0 — ☁️ IS THE FILE REALLY HERE?
+--   (modules/onedrive_check.lua). LL: "even with me marking OneDrive
+--   files to 'Always keep on device' OneDrive will offload them."
+--   `_G.oneDriveCheck()` names every file whose BYTES are not on this
+--   Mac — size vs st_blocks, the only thing that can tell them apart
+--   WITHOUT READING ONE, and reading one is the 72 s freeze (6.357.0).
+--   🔬 Whether the PIN is readable is NOT known, so it is measured
+--   rather than guessed: `xattr -s` on a local file beside a
+--   placeholder, both sets printed, neither interpreted.
 
--- NEW IN 6.362.0 — 🔤 THE CHEAT SHEET HAS A FONT
---   (core/cheatsheet.lua). LL: "And the fonts". `textFont` appeared
---   ZERO times in that file, so every row drew in the system face,
---   where a capital I is a bare stroke. Menlo: on every Mac since
---   10.6, and telling I from l from 1 from | is what a coding face
---   is FOR. 📏 Name and advance width are ONE table — the wrap
---   counts CHARACTERS, so a name set without the width runs the rows
---   off the column. `cheatsheet = { face = false }` is the way back.
+-- NEW IN 6.366.0 — ❌ THE ASANA REFUSAL SAYS WHY
+--   (modules/scratch_pad.lua). LL: "that error message is not entirely
+--   helpful." The reason ALREADY existed and reached an alert gone in
+--   ten seconds; the TAB — what he is looking at — wore one literal
+--   for every cause. The mark carries Asana's own sentence now ("❌
+--   Error: 1 of 5 — assignee: Not a recognized ID"), lifted out of its
+--   JSON, and the report lists every refused task with the raw body.
 
--- (6.361.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.365.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 cut the inline count to
 --  TWO; a gate check proves every entry here is also in CHANGELOG.md.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.363.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.367.0
 -- =====================================================================
 -- The catalogue that used to sit here moved to GUIDE.md ("What each
 -- tool does") in 6.180.0 — 259 lines of prose inside the orchestrator.
@@ -126,7 +122,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.363.0"
+_G.configVersion = "6.367.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- A NO-OP STAND-IN for the diagnostics API, replaced by the real one in

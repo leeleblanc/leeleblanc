@@ -5,6 +5,260 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.367.0 — ☁️ IS THE FILE REALLY HERE? THE ONEDRIVE CHECK
+
+LL: "Can we build some kind of check tool? I'm finding that sometimes
+even with me marking OneDrive files to 'Always keep on device' OneDrive
+will offload them."
+
+🔬 THE DETECTION IS PROVEN AND THE PIN IS NOT, and this release is
+honest about which half is which rather than shipping one guess dressed
+as both.
+
+  · PROVEN: `hs.fs.attributes` answers BOTH `size` (st_size, the LOGICAL
+    size) and `blocks` (st_blocks, the 512-byte blocks really ALLOCATED)
+    — extensions/fs/libfs.m:679-688, field table :734-737, read with the
+    file named (6.233.0). A dehydrated placeholder carries the full
+    logical size with almost nothing behind it, and that difference is
+    the only thing on this Mac that can tell the two apart WITHOUT
+    READING THE FILE. 6.357.0 already rests on it to stop the Mug Player
+    freezing his Mac on a cloud film.
+  · NOT KNOWN: whether "Always keep on device" is readable at all. The
+    pin belongs to macOS's File Provider and may live in an extended
+    attribute, or may live only inside OneDrive. 6.233.0 forbids
+    designing on a belief about that, so the release ASKS: `xattr -s`
+    lists the attribute NAMES on a file that IS here beside one that is
+    NOT, prints both sets and the difference between them, and decides
+    nothing about what any name MEANS. NEW GROUND, so the first release
+    is the probe — and it carries the useful half already, because
+    naming the offloaded files is actionable on day one.
+
+🚨 THE ONE RULE IT CANNOT BREAK: IT NEVER READS A FILE. Reading a
+placeholder HYDRATES it, a hydration is a download, and a download on
+the main thread is the 72-second freeze that killed his Hammerspoon on
+2026-10-12. Every answer comes from a STAT, which touches no bytes, and
+a source sentry fails the gate if `io.open` or `:read` ever appears in
+the module — with the comments stripped first, because they quote the
+calls they forbid in order to explain the rule (6.262.0 · 6.280.0).
+
+🔎 THREE STATES, NEVER TWO (6.196.1): it is here · it is a placeholder ·
+this Mac would not say. The third must never render as either of the
+others, because the whole point of the tool is telling him something he
+cannot see, and a confident wrong answer is worse than none.
+
+🚨 AND A SMALL FILE IS NOT A PLACEHOLDER. A 2 KB note fits inside one
+allocation unit, so the ratio says nothing about it — without that floor
+every note in his vault reads as offloaded, and a tool that cries wolf
+on its first run is one he switches off long before it ever sees the
+fault it was built for (6.269.0).
+
+📏 BOUNDED, AND EVERY BOUND IS A STATE (6.197.2): walking a folder is
+main-thread work and OneDrive holds everything, so a count taken under a
+bound is printed as a FLOOR rather than as an answer.
+
+🔌 The lister and the stat are ARGUMENTS (6.230.0), so the walk, the
+bounds, the ordering and the totals are proven with no Mac and no
+OneDrive at all. The folders come from the modules that OWN them — the
+vault knows where the notes are, core knows the Logs and cloud roots
+(6.257.0) — because a copy of any of those paths here is one that drifts
+the day one of them moves. `.trash` is skipped: it holds his deleted
+notes (6.321.0), and reporting them would bury the files he is waiting
+on.
+
+🛟 The probe runs out of process with a killer timer armed BEFORE the ask
+(6.246.0 · 6.170.1), in its own slot (6.196.1), and answers exactly once
+through one door — a late reply after the belt has fired is dropped
+(6.299.0). It models the three different failures apart: a task macOS
+will not CREATE, one it creates and then REFUSES to start (6.265.0,
+fifth time), and one that never answers.
+
+🧪 THE GATE'S OWN CHECKLIST CAUGHT ALL FOUR THINGS A NEW MODULE OWES —
+the cheat-sheet family, the reviewed-binary list, hs-doctor's count and
+INSTALL.md's. That is 6.261.0's deletion checklist run in reverse, and
+it worked without anyone remembering it.
+
+🧪 ONE GAP IT DID NOT CATCH, NOW CLOSED, and it happened on this very
+release: run-tests.sh names its Lua suites in a HAND-KEPT LIST, and a
+new tests/test_*.lua that is never added to it sits there passing in a
+file nobody executes. That is 6.313.0's "a sentry over a haystack it did
+not prove it read", one layer out. A sentry walks tests/ and fails the
+gate for any suite the runner does not name. The list going stale the
+OTHER way was already caught — a name with no file prints "missing" on
+every run — which is why only this direction was open.
+
+📏 NAMED, NOT BUILT: bringing a file back is a READ, so it is not in
+this release. Doing it safely means `/bin/cat` in an hs.task, one file
+at a time, out of process — his data and his bandwidth, and its own
+release when he asks.
+
+73 modules, 77 Lua suites. 53 checks.
+
+NEW IN 6.366.0 — ❌ THE ASANA REFUSAL SAYS WHY, WHERE HE IS LOOKING
+
+LL: "for tasks that are not sent to Asana, that error message is not
+entirely helpful. So what I'd like to do is return a more descriptive
+and verbose error message. That way I can troubleshoot why it didn't
+actually post to Asana."
+
+🔎 AND THE REASON ALREADY EXISTED, which is the half worth saying first.
+`asanaSubmitTask` has handed back "Asana refused it (HTTP 400) — <the
+first 200 characters of Asana's own body>" since 6.299.0. It reached an
+hs.alert that is gone in ten seconds, a notification, and a report he
+had to know to run. What it never reached is THE TAB — the thing he is
+looking at, and the thing 6.300.0 deliberately made the ledger. Its
+title was one fixed literal, `❌ Error: tasks not sent`, identical for
+every cause; and a tab with five tasks where ONE was refused wore the
+same words as one where all five were, and named neither. 6.317.0's rule
+for the fifth time: the instrument was not the gap, the DOOR was.
+
+  · The mark carries the reason: `❌ Error: assignee: Not a recognized
+    ID`, or `❌ Error: 1 of 5 — …` when part of the tab landed. "One line
+    was wrong" and "the whole tab was refused" are different facts and he
+    acts on them differently.
+  · `sp.asanaWhy` lifts Asana's own `message` out of its JSON. It NEVER
+    invents: a body with no message is handed back as it came, because a
+    sentence I made up would be worse than noise he can read (6.196.1).
+  · The refusals are kept ON THE TAB, per task, so the report names the
+    task that was refused, Asana's sentence, and the RAW body beside it —
+    "verbose" is two different lengths in two different places, and only
+    one of them fits on a tab.
+  · ✂️ The mark is cut in CHARACTERS, never bytes (6.226.0 · 6.204.0):
+    Asana's body can carry anything, and a cut through a glyph makes a
+    string the page cannot draw and the store cannot encode.
+  · Typing clears the refusals with the mark (6.300.0 — new text is new
+    work), and a tab that sends cleanly carries none.
+  · Even "Asana is off on this Mac" says so on the tab now. The old mark
+    sent him looking at his grammar for a cause that is a missing token.
+
+🔑 ONE PLACE DECIDES WHAT A FAIL MARK IS. The mark is no longer a literal
+anything can compare against, and TWO places compared it by equality.
+`sp.isFailMark` tests the prefix, and six existing checks that asserted
+the literal ask that door now — the rule they were written for is
+unchanged, only the words moved (6.248.0).
+
+🔬 AND THE SUBMIT STUB ANSWERED ONE VERDICT FOR A WHOLE RUN, which the
+real Asana does not: his own 16:00 send had 121 land and ONE refused,
+which is the case 6.305.0 and this release both exist for. A stub that
+cannot refuse SOME of a run is gentler than the provider in exactly the
+place these releases read (6.290.0). It answers per task now, with that
+task's own reason.
+
+🧪 THE SWEEP'S OWN FINDING. Twelve mutations, eleven bit. Clearing a
+tab's refusals when a send SUCCEEDS could not be killed, because both
+fixtures were blind to it: a tab that never failed has no refusals to
+clear, and the one that did was EDITED before the retry — and typing
+already clears both. So the one path the line exists for was never
+driven, and it is the ORDINARY path: a ❌ tab is RETRIED, which is what
+the mark is for, so the next 16:00 run re-reads it untouched. Without
+the line the tab reads "✅ Success: tasks sent" while the report still
+names a task that has since landed — a lie in the one place he
+troubleshoots from. 12 of 12 bite now.
+
+439 Lua checks.
+
+NEW IN 6.365.0 — ⏪ ← → SEEK IN THE MUG PLAYER
+
+LL: "I'd like to be able to use the arrow keys in the mug player to move
+forward and back. So instead of having to mouse over the window and then
+press the 15 second forward button and then 15 second back button."
+
+He is right, and the page said why in its own comment: "← → are the
+film's own: WebKit seeks with them, and ⇧ seeks further." That is true
+only while the <video> ELEMENT has keyboard focus. The DOCUMENT has it —
+which is how space, ↑↓, ⏎ and ⌫ work at all — so the arrows fell through
+the handler and reached nothing, and the mouse was the only way to skip.
+
+  · `seekBy(d)` is ONE door, so the keys and anything added later cannot
+    disagree about what a seek is, and it answers WHY.
+  · 15 s is not a taste: it is the step on the ±15 s buttons in macOS's
+    own control bar, which is what he named and what these keys replace.
+    The Jug Player's 5 s / 30 s is right for finding a lyric in a song
+    and wrong for a film. ⇧ is 60 s. Both ride into the page, so a check
+    moves the CONFIG and requires the key to follow — asserting the
+    shipped 15 passes happily with the number typed in twice (6.239.0).
+  · 🚨 A DURATION OF 0, NaN OR Infinity MEANS macOS HAS NOT MEASURED THE
+    FILM, not that it is zero seconds long. Seeking FORWARD into a length
+    nobody knows lands in silence with no way back, so → is REFUSED there
+    and SAYS so, while ← still works. 6.239.0's rule, on a second player.
+  · preventDefault() on both, so a film that DOES have focus cannot seek
+    a second time on the same press.
+  · 🚨 Lua counts the seek and NEVER renders: a render rebuilds the
+    document, which tears the <video> down and STOPS THE FILM — for a key
+    whose whole job is to move within it.
+
+🚨 AND AN EXISTING CHECK ASSERTED THE OPPOSITE, green the whole time the
+feature was missing: "← → are left to the film — the page does not
+swallow them." The assertion was TRUE and the belief under it was wrong.
+It asserts the new rule now.
+
+🔬 The <video> stub had neither `currentTime` nor `duration`. 6.239.0
+learned on the Jug Player that a getter-only currentTime lets every seek
+"succeed" while moving nothing — the THIRD time a getter-only stub had
+hidden a whole feature. It is a real setter that counts its writes now,
+and `duration` defaults to 0, so the refusal branch is the DEFAULT state
+and a test has to opt into a known length.
+
+🧪 THE SWEEP'S OWN FINDING. Thirteen mutations, twelve bit. The survivor
+was `isFinite(dur) && dur > 0` cut to `dur > 0` — NOT equivalent, which
+is why the finding is the missing CHECK (6.273.0). NaN reads the same
+either way, which is why every fixture agreed; **Infinity** separates
+them. And it is not hypothetical here: 6.354.0's door assembles the film
+into a BLOB, and a blob-backed element reports `duration === Infinity`
+while the bytes are still arriving — which is exactly the window in
+which he would reach for the arrows. 13 of 13 bite now.
+
+Lua 362 checks · the page 104.
+
+NEW IN 6.364.0 — 🗑 A CLOSED HAMSIDIAN TAB CAN BE FORGOTTEN
+
+LL: "just like I can delete a note from Hamsidian I'd like to be able to
+delete a closed tab so that it doesn't return again. There's no x at the
+end of the line that allows me to delete it."
+
+He is right and it was never built. `sp.restore` was the ONLY thing in
+the module that could take a row out of `sp.history`, so a tab closed by
+mistake sat in the HISTORY strip for ever — and the only way to be rid
+of it was to restore it and close it again, which puts it straight back.
+6.272.0 built exactly this ✕ for the Jug Player's history and nobody
+asked the pad: 6.305.0's rule, a rule written about one caller is not a
+rule until every caller has been asked.
+
+  · `sp.dropHistory(list, id)` is PURE — BY ID, never by row number
+    (6.186.0 · 6.272.0). The strip draws 200 rows of a store holding
+    2,000 and the filter renumbers every one of them under his hand, so
+    an index forgets a DIFFERENT tab than the one he clicked, silently,
+    in the one list whose purpose is remembering.
+  · An EMPTY id is REFUSED: a message arriving without one must never
+    empty the history. EVERY match goes (6.199.0).
+  · ⌥⌫ forgets the highlighted row. The ⌥ is load-bearing: `inText()`
+    only knows about the TEXTAREA, so a bare Backspace would eat a
+    character out of the FILTER box.
+  · The page drops the row and redraws its OWN list; Lua re-renders only
+    on a FAILURE, which puts the row back. A rebuild destroys the
+    textarea's undo stack while he is typing (6.323.0).
+  · `_G.scratchPadForgetHistory(id)` / `_G.scratchPadClearHistory()`.
+
+🧪 AND THE PAGE HAD NO SUITE AT ALL. Six pages this config draws had one
+and this one did not — and it is the page holding his writing, with a
+tab strip, a history strip and a row walker in it. 6.231.0's rule,
+unpaid here until now: A PAGE THIS CONFIG DRAWS IS A PAGE THE GATE RUNS.
+It could not wait for this release, because ONE click handler serves the
+✕ and the row it sits inside: a version that asks them in the wrong
+order RESTORES the tab it was told to forget, and grepping the source
+for both strings passes with the order wrong. tests/dump_scratch_html.lua
++ tests/test_scratch_js.js, gate stage 3g, 23 checks — including the ✕ on
+a FILTERED row, where an index and an id must disagree, and a bare
+Backspace, which must forget nothing.
+
+🧪 THE SWEEP'S OWN FINDING. Twelve mutations, ten bit, one was the no-op
+control (it must survive, and did — the sweep is not simply failing
+everything). The twelfth: the EMPTY-id guard was UNKILLABLE, because no
+ordinary row carries "" as its id, so the loop keeps them all anyway.
+6.273.0 — the finding is the missing CHECK. The guard IS load-bearing,
+and one fixture shows it: a row whose own id is MISSING answers "" too,
+and a store written by an older build, or one a crash truncated
+mid-write, is exactly where such a row comes from. 11 of 12 bite now.
+
 NEW IN 6.363.0 — ✂️ THE TRIM, AND A REPORT THAT WAS LYING
 
 LL: "Yes, do the init. lua trim release. Check for any scruft or
