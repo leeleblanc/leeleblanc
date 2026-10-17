@@ -269,7 +269,15 @@ local SUBMIT_WHY = "Asana refused it (HTTP 400) — invalid assignee"
 local SUBMIT_SUBFAIL = false
 _G.asanaSubmitTask = function(title, desc, assignee, attach, extra)
     SUBMITS[#SUBMITS + 1] = { title = title, desc = desc, assignee = assignee, attach = attach, extra = extra }
-    local asana = SUBMIT_ASANA
+    -- 🔬 6.366.0 — SUBMIT_ASANA may be a FUNCTION, answering per task.
+    -- Until now it was one verdict for a whole run, and the real Asana
+    -- does not work that way: his own 16:00 run had 121 land and ONE
+    -- refused, which is the case 6.305.0 and 6.366.0 both exist for. A
+    -- stub that cannot refuse SOME of a run is gentler than the provider
+    -- exactly where these releases read (6.290.0). It may answer
+    -- `false, "why"` to give that task its own reason.
+    local asana, asanaWhy = SUBMIT_ASANA, nil
+    if type(asana) == "function" then asana, asanaWhy = asana(title) end
     if asana == nil then asana = SUBMIT_RESULT end
     local cb = (type(extra) == "table") and extra.onDone or nil
     -- 🔬 6.301.0 — and a FOURTH value when subtasks were asked for.
@@ -290,7 +298,7 @@ _G.asanaSubmitTask = function(title, desc, assignee, attach, extra)
     end
     local fire = function()
         if type(cb) == "function" then
-            cb(asana and true or false, asana and nil or SUBMIT_WHY,
+            cb(asana and true or false, asana and nil or (asanaWhy or SUBMIT_WHY),
                asana and "9001" or nil, asana and info or nil)
         end
     end
@@ -1899,7 +1907,7 @@ do
     SUBMIT_ASANA = false                     -- posted, then Asana says no
     local okF = sp.send("scheduled")
     check("❌ a refused task marks the tab with HIS failure label",
-          okF == true and sp.tabs[1].mark == sp.failMark, sp.tabs[1].mark)
+          okF == true and sp.isFailMark(sp.tabs[1].mark), sp.tabs[1].mark)
     check("...and his text is untouched",
           sp.tabs[1].text == "Something that will be refused")
     check("...and it takes the 🔔 door with Asana's own reason",
@@ -1927,7 +1935,7 @@ do
     _G.asanaSubmitTask = savedSubmit
     check("🚨 one refused task in a tab marks the whole tab ❌ — a ✅ over "
           .. "a lost task is the reassuring answer and the wrong one",
-          #SUBMITS == 2 and sp.tabs[1].mark == sp.failMark, sp.tabs[1].mark)
+          #SUBMITS == 2 and sp.isFailMark(sp.tabs[1].mark), sp.tabs[1].mark)
 
     -- 🔢 TWO TABS, ONE ANNOUNCE. With a single tab the run-level
     -- counter is indistinguishable from the tab-level one — the
@@ -1958,7 +1966,7 @@ do
     sp.send("scheduled")
     _G.asanaSubmitTask = savedSub2
     check("🔢 ...and one bad tab marks only itself",
-          sp.tabs[1].mark == sp.sentMark and sp.tabs[2].mark == sp.failMark
+          sp.tabs[1].mark == sp.sentMark and sp.isFailMark(sp.tabs[2].mark)
           and #ALERTS == 1, tostring(sp.tabs[1].mark) .. "/" .. tostring(sp.tabs[2].mark))
 
     -- ⏳ THE MARK LANDS WHEN THE LAST ANSWER DOES, not the first.
@@ -1981,7 +1989,7 @@ do
     CORE.asanaEnabled = false
     sp.send("scheduled")
     check("Asana off marks the tab ❌ and takes the 🔔 door",
-          sp.tabs[1].mark == sp.failMark and #DEGRADES == 1)
+          sp.isFailMark(sp.tabs[1].mark) and #DEGRADES == 1)
     CORE.asanaEnabled = true
 
     -- 🚨 A SUBMIT THAT RAISES must not hold the run open for ever.
@@ -1992,7 +2000,7 @@ do
     check("🚨 a submit that THROWS still marks the tab and ends the run — "
           .. "one un-answered tab would hold it open for ever, with no ✅, "
           .. "no ❌ and no announce",
-          sp.tabs[1].mark == sp.failMark and #DEGRADES == 1,
+          sp.isFailMark(sp.tabs[1].mark) and #DEGRADES == 1,
           tostring(sp.tabs[1].mark))
 
     -- 📏 CLOSED ROWS ARE NAMED, NOT SILENTLY DROPPED (6.201.1). The day
@@ -2258,7 +2266,7 @@ do
     end
     sp.send("scheduled")
     check("🚨 three tasks go, one is refused, the tab is ❌",
-          #SUBMITS == 3 and sp.tabs[1].mark == sp.failMark, titles())
+          #SUBMITS == 3 and sp.isFailMark(sp.tabs[1].mark), titles())
     -- THE WHOLE RELEASE IS THIS CHECK. Before it, the retry sent all
     -- three again and his Asana board grew by 121 a day.
     SUBMITS = {}
@@ -2604,6 +2612,141 @@ do
 
     local ran = (pass + fail) - before
     check("§6.364.0 ran all of its checks (" .. ran .. " of 21)", ran >= 21, ran)
+end
+
+-- =======================================================================
+-- §6.366.0 — THE REFUSAL SAYS WHY, WHERE HE IS LOOKING
+-- =======================================================================
+-- LL: "for tasks that are not sent to Asana, that error message is not
+-- entirely helpful. So what I'd like to do is return a more descriptive
+-- and verbose error message. That way I can troubleshoot why it didn't
+-- actually post to Asana."
+-- The reason already existed — the submit hands back "Asana refused it
+-- (HTTP 400) — <Asana's own body>" — and reached an alert that is gone
+-- in ten seconds. The TAB, which is what he is looking at, wore one
+-- fixed literal for every cause.
+do
+    local before = pass + fail
+    local m366 = dofile(HS .. "/modules/scratch_pad.lua")
+    m366.setup(CORE)
+    local sp = _G.scratchPad
+
+    -- ---- Asana's own sentence, out of its JSON ------------------------
+    local body = '{"errors":[{"message":"assignee: Not a recognized ID",'
+                 .. '"help":"For more information visit …"}]}'
+    check("📣 asanaWhy lifts Asana's own message out of the JSON",
+          sp.asanaWhy(body) == "assignee: Not a recognized ID", sp.asanaWhy(body))
+    -- 🚨 IT NEVER INVENTS. A body with no message is handed back as it
+    -- came: a sentence I made up would be worse than noise he can read.
+    check("📣 …and a body with no message is handed back AS IT CAME",
+          sp.asanaWhy("502 Bad Gateway") == "502 Bad Gateway", sp.asanaWhy("502 Bad Gateway"))
+    check("📣 …and nothing stays nothing", sp.asanaWhy(nil) == "" and sp.asanaWhy("") == "")
+    check("📣 …and a multi-line body becomes one line",
+          sp.asanaWhy("a\nb\nc") == "a b c", sp.asanaWhy("a\nb\nc"))
+
+    -- ---- cut in CHARACTERS, never bytes -------------------------------
+    -- 🚨 THE FIXTURE THAT BITES (6.274.0): over ASCII a byte cut and a
+    -- character cut agree, so only a string of multi-byte glyphs can
+    -- tell the two implementations apart. Each of these is 4 bytes.
+    local emoji = "🎬🎬🎬🎬🎬🎬🎬🎬"
+    local cut = sp.cutChars(emoji, 4)
+    check("✂️ a cut is made in CHARACTERS — four glyphs, not four bytes",
+          utf8.len(cut) == 4 and cut:sub(-3) == "…", tostring(utf8.len(cut)))
+    check("✂️ …and every byte of it is still valid UTF-8",
+          utf8.len(cut) ~= nil)
+    check("✂️ a string already short enough is untouched",
+          sp.cutChars("short", 50) == "short")
+    check("✂️ …and invalid UTF-8 falls back to bytes rather than throwing",
+          type(sp.cutChars("\xff\xfe\xff\xfe\xff\xfe", 3)) == "string")
+
+    -- ---- what counts as a fail mark -----------------------------------
+    check("🔑 isFailMark is true for a mark carrying a reason",
+          sp.isFailMark("❌ Error: no team member matches \"me\"") == true)
+    check("🔑 …and for the plain one, so an old tab still counts",
+          sp.isFailMark(sp.failMark) == true)
+    check("🔑 …and FALSE for the sent mark and for an ordinary title",
+          sp.isFailMark(sp.sentMark) == false and sp.isFailMark("Buy milk") == false
+          and sp.isFailMark(nil) == false)
+
+    -- ---- the mark itself ----------------------------------------------
+    local one = { { title = "Buy milk", why = body } }
+    check("❌ one refusal puts ASANA'S REASON on the tab",
+          sp.failMarkFor(one, 1):find("Not a recognized ID", 1, true) ~= nil,
+          sp.failMarkFor(one, 1))
+    local two = { { title = "a", why = "reason one" }, { title = "b", why = "reason two" } }
+    check("❌ two of five says HOW MANY of how many, then the first reason",
+          sp.failMarkFor(two, 5) == "❌ Error: 2 of 5 — reason one",
+          sp.failMarkFor(two, 5))
+    check("❌ …and all of them says how many without the 'of'",
+          sp.failMarkFor(two, 2) == "❌ Error: 2 — reason one",
+          sp.failMarkFor(two, 2))
+    check("❌ with nothing recorded it falls back to the plain mark",
+          sp.failMarkFor({}, 3) == sp.failMark and sp.failMarkFor(nil, 3) == sp.failMark)
+    check("❌ …and so does a refusal whose reason is empty",
+          sp.failMarkFor({ { title = "a", why = "" } }, 1) == sp.failMark)
+    local longWhy = { { title = "a", why = string.rep("x", 400) } }
+    local mk = sp.failMarkFor(longWhy, 1)
+    check("❌ a 400-character body is CUT — a tab title is a strip, not a page",
+          utf8.len(mk) <= (sp.failMarkChars + 8), tostring(utf8.len(mk)))
+    check("❌ …and it is still a fail mark after the cut", sp.isFailMark(mk))
+
+    -- ---- end to end, through a real send ------------------------------
+    sp.tabs = { { id = "tf", text = "Task one\nTask two", createdAt = 1, at = 1 } }
+    sp.active, sp.history, sp.sent = "tf", {}, {}
+    SUBMITS, DEGRADES, ALERTS, TOLD = {}, {}, {}, {}
+    SUBMIT_RESULT, SUBMIT_ASANA, SUBMIT_DEFER = true, nil, false
+    SUBMIT_PENDING, SUBMIT_SUBFAIL = {}, false
+    -- the first task lands, the second is refused with Asana's own body
+    SUBMIT_ASANA = function(title)
+        if title == "Task two" then
+            return false, "Asana refused it (HTTP 400) — " .. body
+        end
+        return true
+    end
+    sp.sendGrammar = true
+    sp.send("test")
+    local t = sp.tabs[1]
+    check("❌ a tab with one refusal of two wears the count AND the reason",
+          sp.isFailMark(t.mark) and t.mark:find("1 of 2", 1, true) ~= nil
+          and t.mark:find("Not a recognized ID", 1, true) ~= nil, tostring(t.mark))
+    check("❌ …and the tab KEEPS the refusal, so the report can name the task",
+          type(t.fails) == "table" and #t.fails == 1
+          and t.fails[1].title == "Task two", tostring(t.fails and #t.fails))
+
+    local rep = (function()
+        local cap, saved = {}, print
+        print = function(...) local q = {}
+            for i = 1, select("#", ...) do q[#q + 1] = tostring((select(i, ...))) end
+            cap[#cap + 1] = table.concat(q, " ") end
+        pcall(_G.scratchPadReport); print = saved
+        return table.concat(cap, "\n")
+    end)()
+    check("🔎 the report names the TASK that was refused",
+          rep:find("Task two", 1, true) ~= nil, rep:sub(1, 60))
+    check("🔎 …and Asana's own sentence under it",
+          rep:find("Not a recognized ID", 1, true) ~= nil)
+    -- 🔎 THE RAW BODY IS KEPT BESIDE THE SENTENCE, because the sentence
+    -- is a lift out of it and the rest may be what he needs.
+    check("🔎 …and the RAW body beside it, since the sentence is a lift",
+          rep:find("raw: ", 1, true) ~= nil)
+
+    -- typing clears it, with the mark (6.300.0)
+    sp.handleMessage({ a = "edit", id = "tf", text = "Task one\nTask three", sel = 0 })
+    check("🔁 typing clears the mark AND the refusals with it",
+          sp.tabs[1].mark == nil and sp.tabs[1].fails == nil,
+          tostring(sp.tabs[1].mark))
+
+    -- a tab that sends cleanly carries none
+    SUBMIT_ASANA = nil
+    sp.tabs = { { id = "tg", text = "Only task", createdAt = 1, at = 1 } }
+    sp.active = "tg"
+    sp.send("test")
+    check("✅ a tab that sent carries no refusals at all",
+          sp.tabs[1].mark == sp.sentMark and sp.tabs[1].fails == nil,
+          tostring(sp.tabs[1].mark))
+
+    local ran = (pass + fail) - before
+    check("§6.366.0 ran all of its checks (" .. ran .. " of 22)", ran >= 22, ran)
 end
 
 out(string.format("\n%d passed, %d failed\n", pass, fail))

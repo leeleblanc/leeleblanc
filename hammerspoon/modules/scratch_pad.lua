@@ -103,7 +103,7 @@ local M = {
             { "⇪2",        "SEQUENTIAL COPY: select text, press it, select more, press again — the grabs join into ONE block on the clipboard, so ⌘V pastes the lot. Copying anything else starts a new sequence. Nothing is filed into the pad" },
             { "16:00",     "ON again (6.300.0, his own reversal): every unsent tab's tasks go to Asana at 16:00, open window or not. _G.scratchPadSend() sends by hand; settings = { scratch_pad = { sendDaily = false } } switches the schedule off" },
             { "grammar",   "A bare line is a task · = divides · P: title · A: assignee · D: description · S: subtask (a real Asana subtask) · T: dates and times. One Asana task per task, into your default project" },
-            { "✅ / ❌",    "After a send each tab is RETITLED \"✅ Success: tasks sent\" or \"❌ Error: tasks not sent\" and kept until you delete it. A ✅ tab is never sent twice; a ❌ tab is retried, and the retry sends ONLY the tasks that did not reach Asana (6.305.0); typing in a tab clears its mark" },
+            { "✅ / ❌",    "After a send each tab is RETITLED \"✅ Success: tasks sent\" or, since 6.366.0, \"❌ Error: <Asana's own reason>\" — the refusal is on the tab, and _G.scratchPadReport() lists every refused task with Asana's words. Kept until you delete it. A ✅ tab is never sent twice; a ❌ tab is retried, and the retry sends ONLY the tasks that did not reach Asana (6.305.0); typing in a tab clears its mark" },
             { "preview",   "_G.scratchPadTasks() shows every task a send WOULD create, and what it did to each T: line — nothing is sent" },
             { "search",    "⇪space finds everything here — tabs and history" },
             { "own window","settings = { scratch_pad = { viaVault = false } } brings the old window back" },
@@ -183,6 +183,26 @@ function M.setup(core)
         -- it. Editing a tab clears the mark: new text is new work.
         sentMark      = "✅ Success: tasks sent",
         failMark      = "❌ Error: tasks not sent",
+        -- ❌ 6.366.0 — THE MARK CARRIES THE REASON. LL: "for tasks that
+        -- are not sent to Asana, that error message is not entirely
+        -- helpful. So what I'd like to do is return a more descriptive
+        -- and verbose error message."
+        -- He is right, and the reason ALREADY EXISTED: the submit hands
+        -- back "Asana refused it (HTTP 400) — <Asana's own body>". It
+        -- reached an alert that is gone in ten seconds, a notification,
+        -- and a report he had to know to run. What it never reached is
+        -- THE TAB — which is the thing he is looking at, and which
+        -- 6.300.0 made the ledger. Its title was one fixed literal,
+        -- identical for every cause. 6.317.0's rule for the FIFTH time:
+        -- the instrument was not the gap, the DOOR was.
+        -- 🔑 ONE PREFIX DECIDES WHAT A FAIL MARK IS, because the mark is
+        -- no longer a literal anything can compare against — and two
+        -- places did (the retry skip reads sentMark; the report counted
+        -- failMark by equality). `sp.isFailMark` is that one place.
+        failPrefix    = "❌ Error: ",
+        failMarkChars = 54,       -- CHARACTERS of mark, cut on a glyph
+        failsKeep     = 20,       -- refusals remembered per tab
+        failWhyChars  = 300,      -- of Asana's own words, per refusal
         landedMax     = 400,      -- keys remembered per tab (6.305.0)
 
         -- the 4 PM task
@@ -230,6 +250,75 @@ function M.setup(core)
     end
     local function trim(s) return (tostring(s or ""):gsub("^%s+", ""):gsub("%s+$", "")) end
     local function oneLine(s) return (tostring(s or ""):gsub("%s+", " ")) end
+
+    -- ✂️ CHARACTERS, NEVER BYTES (6.226.0 · 6.204.0). Asana's body can
+    -- carry anything, and a cut through the middle of a glyph makes a
+    -- string the page cannot draw and the store cannot encode.
+    local function cutChars(s, n)
+        s = tostring(s or "")
+        n = math.max(1, math.floor(tonumber(n) or 1))
+        local okLen, len = pcall(function() return utf8.len(s) end)
+        if not (okLen and len) then
+            -- not valid UTF-8: fall back to bytes rather than throwing,
+            -- and take a little less so a half glyph cannot survive
+            if #s <= n then return s end
+            return s:sub(1, n - 1) .. "…"
+        end
+        if len <= n then return s end
+        local okOff, off = pcall(function() return utf8.offset(s, n) end)
+        if not (okOff and off) then return s end
+        return s:sub(1, off - 1) .. "…"
+    end
+    sp.cutChars = cutChars
+
+    -- 📣 ASANA'S OWN SENTENCE, LIFTED OUT OF ITS JSON. A refusal comes
+    -- back as {"errors":[{"message":"assignee: Not a recognized ID", …}]}
+    -- and handing him that whole thing is the same failure one layer on:
+    -- technically complete and not readable. PURE, and it NEVER invents —
+    -- a body with no message is handed back as it came, bounded, because
+    -- a sentence I made up would be worse than Asana's own noise.
+    function sp.asanaWhy(raw)
+        raw = oneLine(raw)
+        if raw == "" then return "" end
+        local msg = raw:match('"message"%s*:%s*"(.-)"')
+        if msg and msg ~= "" then
+            -- Asana escapes quotes in its JSON; put them back so the
+            -- sentence reads as a sentence.
+            msg = msg:gsub('\\"', '"'):gsub("\\/", "/")
+            return msg
+        end
+        return raw
+    end
+
+    -- A mark is a FAIL mark if it opens with the prefix — never by
+    -- equality, now that it carries a reason. One place answers it.
+    function sp.isFailMark(mark)
+        mark = tostring(mark or "")
+        local p = tostring(sp.failPrefix or "")
+        return p ~= "" and mark:sub(1, #p) == p
+    end
+
+    -- ❌ THE MARK ITSELF. PURE, so every shape is proven with no Asana:
+    -- one refusal names its reason; several say how many of how many,
+    -- because "one line was wrong" and "the whole tab was refused" are
+    -- different facts and he acts on them differently.
+    function sp.failMarkFor(fails, total)
+        local n = (type(fails) == "table") and #fails or 0
+        if n == 0 then return sp.failMark end
+        local why = sp.asanaWhy((fails[1] or {}).why)
+        if why == "" then return sp.failMark end
+        local head = tostring(sp.failPrefix or "")
+        total = tonumber(total)
+        if total and total > n then
+            head = head .. n .. " of " .. total .. " — "
+        elseif n > 1 then
+            head = head .. n .. " — "
+        end
+        local okH, hLen = pcall(function() return utf8.len(head) end)
+        local used = (okH and hLen) or #head
+        return head .. cutChars(why,
+            math.max(8, (tonumber(sp.failMarkChars) or 54) - used))
+    end
 
     -- An empty tab is named for what it IS (6.165.1 — "Untitled ×2 told
     -- me nothing"): "Capture", "Append", or "Scratch N" by its place.
@@ -439,7 +528,10 @@ function M.setup(core)
             -- label is a claim about something else, and a ✅ tab that
             -- can never be sent again would freeze his new writing out
             -- of the 4 PM run. Its own check.
-            t.text, t.updatedAt, t.mark = text, os.time(), nil
+            -- 🔁 Typing clears the MARK (6.300.0: new text is new work)
+            -- and must clear the refusals with it, or the tab wears a
+            -- reason for a line he has since fixed or deleted.
+            t.text, t.updatedAt, t.mark, t.fails = text, os.time(), nil, nil
             sp.scheduleSave()
         end
         return true
@@ -1439,7 +1531,16 @@ function M.setup(core)
             return false, "nothing to send"
         end
         if not (core.asanaEnabled and _G.asanaSubmitTask) then
-            for _, j in ipairs(jobs) do j.tab.mark = sp.failMark end
+            -- Even this one says WHY on the tab: "tasks not sent" sent
+            -- him looking at his grammar for a cause that is a missing
+            -- token.
+            local offWhy = { { title = "(every task in this tab)",
+                               why = "Asana is off on this Mac — no token in secret.lua",
+                               at = now } }
+            for _, j in ipairs(jobs) do
+                j.tab.mark  = sp.failMarkFor(offWhy, nil)
+                j.tab.fails = offWhy
+            end
             pcall(sp.saveNow)
             sp.lastSend = { at = now, reason = reason,
                             outcome = "Asana is off on this Mac" }
@@ -1482,7 +1583,12 @@ function M.setup(core)
             end
         end
         local function jobDone(job)
-            job.tab.mark = (job.bad == 0) and sp.sentMark or sp.failMark
+            if job.bad == 0 then
+                job.tab.mark, job.tab.fails = sp.sentMark, nil
+            else
+                job.tab.mark  = sp.failMarkFor(job.fails, #job.tasks)
+                job.tab.fails = job.fails
+            end
             openJobs = openJobs - 1
             if openJobs == 0 then runDone() end
         end
@@ -1502,7 +1608,20 @@ function M.setup(core)
                     if ok then sentN = sentN + 1
                          pcall(sp.noteLanded, job.tab, task, gid)
                     else failN = failN + 1 ; job.bad = job.bad + 1
-                         lastWhy = why end
+                         lastWhy = why
+                         -- ❌ 6.366.0 — WHICH TASK, AND WHY, kept on the
+                         -- job so the mark and the report can both read
+                         -- it. A tab with five tasks where one is refused
+                         -- used to wear the same words as one where all
+                         -- five were, and name neither.
+                         job.fails = job.fails or {}
+                         if #job.fails < (tonumber(sp.failsKeep) or 20) then
+                             job.fails[#job.fails + 1] = {
+                                 title = cutChars(task.title, 80),
+                                 why   = cutChars(why, sp.failWhyChars or 300),
+                                 at    = os.time() }
+                         end
+                    end
                     -- 🗂 6.301.0 — the S: lines. A refused subtask does
                     -- NOT fail its task: the parent is already in Asana
                     -- and a retry would put a second copy of it on his
@@ -2484,15 +2603,61 @@ t.focus(); try { t.setSelectionRange(CARET, CARET); } catch(e){}
                         .. "{ sendGrammar = true } } for the grammar)"))
         if sp.sendGrammar then
             L[#L + 1] = "   marks : \"" .. sp.sentMark .. "\" is never sent "
-                        .. "again · \"" .. sp.failMark .. "\" is retried · "
+                        .. "again · a \"" .. sp.failPrefix .. "…\" tab is "
+                        .. "retried and NAMES ITS REASON (6.366.0) · "
                         .. "typing in a tab clears its mark"
             local marked, failed = 0, 0
             for _, t in ipairs(sp.tabs or {}) do
                 if tostring(t.mark or "") == sp.sentMark then marked = marked + 1
-                elseif tostring(t.mark or "") == sp.failMark then failed = failed + 1 end
+                elseif sp.isFailMark(t.mark) then failed = failed + 1 end
             end
             L[#L + 1] = "           " .. marked .. " tab(s) sent · " .. failed
                         .. " tab(s) failed and waiting to retry"
+            -- ❌ 6.366.0 — EVERY REFUSAL, BY TASK, WITH ASANA'S OWN
+            -- WORDS. The mark on the tab carries the first reason, short
+            -- enough to read in the strip; this is where the rest of it
+            -- lives, because "a more descriptive and verbose error
+            -- message" is two different lengths in two different places
+            -- and only one of them fits on a tab.
+            -- 🔎 THE RAW BODY IS KEPT BESIDE THE SENTENCE, never instead
+            -- of it: `asanaWhy` lifts Asana's own `message` out of its
+            -- JSON, and when there is none it hands the body back as it
+            -- came rather than inventing a sentence (6.196.1 — a
+            -- plausible wrong reason is worse than noise you can read).
+            do
+                local any = false
+                for _, t in ipairs(sp.tabs or {}) do
+                    if type(t.fails) == "table" and #t.fails > 0 then
+                        if not any then
+                            L[#L + 1] = "   ❌ WHY  : the refusals, by task — this is what"
+                                        .. " to troubleshoot from"
+                            any = true
+                        end
+                        L[#L + 1] = "           \"" .. tostring(sp.titleOf(t))
+                                    .. "\" — " .. #t.fails .. " refused"
+                        for _, f in ipairs(t.fails) do
+                            local said = sp.asanaWhy(f.why)
+                            L[#L + 1] = "             · " .. tostring(f.title or "(untitled)")
+                            L[#L + 1] = "               ↳ " .. (said ~= "" and said or "no reason given")
+                            -- The RAW line only when it says something the
+                            -- sentence above did not, or it is one fact
+                            -- printed twice.
+                            local raw = oneLine(f.why)
+                            if raw ~= "" and raw ~= said then
+                                L[#L + 1] = "               ↳ raw: " .. raw
+                            end
+                        end
+                    end
+                end
+                if not any and failed > 0 then
+                    -- A ❌ tab with no refusals recorded was marked by a
+                    -- build before this one. Saying so beats printing
+                    -- nothing, which reads as "there was no reason".
+                    L[#L + 1] = "   ❌ WHY  : no reason was recorded — that tab was"
+                                .. " marked by a build before 6.366.0; send it"
+                                .. " again and the refusal will name itself"
+                end
+            end
             -- 🔁 6.305.0 — THE LEDGER THAT STOPS A RETRY DUPLICATING.
             -- Counted here rather than claimed: a retry sends only what
             -- is NOT in this list, so a number that is 0 on a tab that
