@@ -479,6 +479,103 @@ work Mac.
   answering, the asking is part of the method and gets the same structure
   the work does.
 
+- ⌨️ A STEP THAT NAMES A KEY HE HAS NEVER PRESSED IS A STEP HE CANNOT RUN
+  (2026-10-20, LL, quoting back my own 6.364.0 verify block —
+  "⌥↓ to highlight a history row, then ⌥⌫" — in capitals:
+  "I DON'T KNOW WHAT THIS MEANS").
+  🔑 HE IS RIGHT AND IT IS THE SAME DEFECT AS THE 🔨/✨ SYMBOLS. That
+  block named three chords and never once said what the step was FOR,
+  which key ⌥ is on his keyboard, or why ⌥ was required at all — and he
+  reads these HOURS OR DAYS APART, so there is no running context to
+  carry a private shorthand across. 6.361.0 is the same sentence about a
+  CARD ("a key named in a glyph he cannot map to a physical key is a key
+  that has not been named"); this is it about a TEST STEP, where the cost
+  is worse: a step he cannot run reads as a feature that does not work.
+  📏 WHAT A STEP OWES, every time: the PURPOSE in plain words first
+  ("check that the keyboard can do what the mouse can"), then the keys
+  with their physical names ("hold the Option key — ⌥, next to the space
+  bar — and press the down arrow"), then what to EXPECT. A chord with no
+  purpose beside it is a chord he will skip, and skipping it is the right
+  decision on his part.
+  🚨 AND THE REASON FOR THE MODIFIER GOES IN THE STEP, because it is the
+  question he would ask: ⌥⌫ rather than ⌫ because a bare Backspace
+  belongs to the text he is typing and to the filter box. A rule that is
+  explained is a rule he can remember; one that is asserted is one he has
+  to look up every time.
+  🗳 GENERAL, past this project: when someone says they do not understand
+  an instruction, the instruction is wrong — never the reader. Rewrite it
+  for somebody arriving cold, because that is who every reader of it is.
+
+- 🗂 WHEN HE LISTS WHAT HE DOES NOT WANT, THE LIST IS THE MEASUREMENT —
+  LOOK FOR WHAT IT HAS IN COMMON (6.374.0, modules/recent_docs.lua — LL
+  handed over thirty-four app names, "1password with files, activity
+  monitor, app store, audio MIDI, calculator, chess, color sync, digital
+  color meter, disk utility, display link manager … system settings,
+  tips, Apple TV … weather", against five he WOULD work in: Word,
+  Chrome, Sublime Text, Script Editor, Shortcuts).
+  🔎 THE OBVIOUS BUILD IS THE LIST ITSELF, and it is 6.276.0's hand-kept
+  register that lies — thirty-four names he would have to maintain for
+  ever, stale the day he installs an app. What the list IS, read instead
+  of obeyed, is a measurement: **every one of the thirty-four keeps a
+  folder under ~/Library and not one of the five does.** So the fix is
+  structural and one line of a `case` statement, and it covers the
+  thirty-fifth app he never mentioned.
+  🔑 GENERAL: a list of unwanted things is evidence about a PROPERTY
+  they share. Find the property before building the list — and if they
+  share nothing, say so, because then the list really is the answer and
+  it needs a loud failure mode (6.317.0's `watchFor`).
+
+- 🔔 AN ANNOUNCEMENT GATED ON A CHANGE CANNOT REPORT A STATE THAT WAS
+  ALREADY WRONG WHEN WE ARRIVED (6.378.0, core/capabilities.lua). The
+  Secure Input line fired only when the reading MOVED, and the first
+  reading is not a move — `si.on` is born nil — so a Mac that BOOTED
+  into a held keyboard said nothing, for ever, in the one row that kills
+  every tap and every hotkey system-wide with no error anywhere.
+  🔑 THE GATE IS RIGHT AND NEEDED ONE ASYMMETRY, not replacing: a line a
+  minute saying "still fine" is how a warning gets ignored (6.269.0), so
+  a first reading of OFF stays silent and a first reading of ON speaks.
+  And it says WHICH — "already held when this config started" — because
+  that sentence is the one that explains a keyboard which has never
+  worked this session, while "it just happened" sends you looking for
+  what you did a moment ago.
+  📏 A FIRST READING IS NOT COUNTED AS A CHANGE EITHER: that number is
+  how many times the world MOVED while we watched, and counting the
+  arrival would make a Mac that booted broken read as one that broke
+  once. GENERAL: any watcher that reports transitions owes a separate
+  answer for the state it FOUND, and the two must not be summed.
+
+- 🔎 A LIST OF WHAT IS LEFT IS A SAMPLE UNTIL SOMEBODY GREPS (2026-10-20,
+  the curated older-asks list in this very file — LL: "look back through
+  our builds all the way to 6.00.0 and check for what we have not
+  built"). Two of its rows had SHIPPED and were still listed as open:
+  "@ source discoverability" (6.298.0 — typing `@` alone lists all
+  fourteen sources) and "`_G.clipboardReport()` for the chooser pane"
+  (6.224.0, whose `pane :`, `home/end :` and `place :` lines are there).
+  🚨 AND THAT LIST IS WHAT I READ WHEN DECIDING WHAT TO BUILD, so a stale
+  row there does not merely mislead — it spends a release. 6.319.0 wrote
+  this about a list of FILES still carrying a shape; it is just as true
+  of the queue, and the queue is read more often.
+  🔎 WHAT THE WHOLE-ARCHIVE SCAN FOUND, so it is not re-run from scratch:
+  489 release notes, 84 lines marked never-built / named-not-fixed / not
+  scoped, and all but THREE were this project's own discipline working as
+  intended. The three real survivors are system volume + output-device
+  switching + a mute toggle (6.68.0–6.70.0, and per-APP volume is
+  correctly refused — it needs an audio HAL driver), one combined log of
+  every URL that passed through a window (6.119.0 · 6.120.0 — the titles
+  half exists as ⇪⇧W, the urls half is Chrome's own database and says
+  nothing about Safari), and the doubled-word underline (6.221.0, blocked
+  on a per-app AXBoundsForRange measurement only he can make).
+  🗑 AND APP REMOVAL HAS NEVER BEEN BUILT OR RECORDED. He asked directly
+  — "Did you build the App removal tool so I can remove apps that run as
+  an uninstalled app?" — and the answer is no, in any release:
+  modules/app_kill.lua kills a RUNNING process and nothing here has ever
+  deleted an application. Written down now rather than answered twice.
+  🔑 AND IT NEEDS SCOPING BEFORE A LINE IS WRITTEN, because it would be
+  the only tool here that deletes files he did not name: it MOVES to the
+  Trash rather than erasing (6.280.0 — the one failure with no way back),
+  it never touches anything outside his home folder, and what counts as
+  an app's leftovers is his decision, not mine.
+
 - ✍️ LL DOES NOT EDIT init.lua AND A SETTINGS LINE IS NOT AN ANSWER
   (6.267.0, LL: "I do not edit the init.lua so I don't cause simple
   errors. You are to generate and test a new init.lua."). Every
@@ -6065,6 +6162,22 @@ THE METHOD, when something breaks after a stacked zip:
    🔑 THE FOUR LIVE IN FOUR DIFFERENT PLACES ON PURPOSE — the Hamsidian
    history strip, the Mug Player's keys, the Asana refusal path and a new
    module — so a break still names its version by which tool it is in.
+   · 6.368.0 bc246c4 (25420c3 the sweep's own two findings) · 6.369.0
+   90c0a34 · 6.370.0 80fafd8 (ab2b898 the sweep's finding — the
+   full-screen fallback's own branch) · 6.371.0 210a154 (fb77dc0 the
+   sweep's three, one of them a separator guard no mutation could kill)
+   · 6.372.0 0481639 · 6.373.0 a6269f9 · 6.374.0 fb67df8 (d6c3201 the
+   sweep's finding — the report's third state was undriven) · 6.375.0
+   0e40cbf (c5ad709 the sweep's four, among them a de-duplicating table
+   that no input could ever fail) · 6.376.0 0b803af (e311474 the sweep's
+   finding — the os.date guard) · 6.377.0 83b61ca · 6.378.0 b690488.
+   🔑 ELEVEN RELEASES IN ONE ARCHIVE, AND THEY LIVE IN NINE DIFFERENT
+   FILES on purpose — onedrive_check, ui_style, video_player,
+   autocorrect, mouse_grid, recent_docs, scratch_pad, text_expander,
+   capabilities — so a break still names its version by which tool it is
+   in. Only two share a module (6.374.0 and 6.375.0, both in ⇪I, and
+   they fail differently: one hides your apps' files, the other holds a
+   type back).
    Keep this list current: one line per release, appended at ceremony
    time.
 4. A BISECT IS AN OPTION, NOT THE FIRST MOVE — it costs him an install
@@ -6190,6 +6303,15 @@ that must be READ before a new cause is named.
 | "Add capture needs the screenshots module, which is not loaded" (over a working report) | modules/screenshot_editor.lua · an incomplete `core` table | 6.339.0 | 1 | ask |
 | "the rebuild kit is 12 days old" · "can't this be done automatically?" | modules/daily_backup.lua · a doAt that cannot catch up | 6.338.0 | 1 | ask |
 | "the card is closed — macOS keeps the key" over a card he had opened | modules/music_player.lua · `mp.show` | 6.289.0 · 6.309.0 · 6.326.0 | 3 | ask |
+| "even with me marking OneDrive files to Always keep on device OneDrive will offload them" · "watch OneDrive from its lowest level folder" | modules/onedrive_check.lua · size vs allocated blocks | 6.367.0 · 6.368.0 | 2 (a probe, then the watcher) | ask |
+| "There is not 'X' in the note list to remove an entry" | modules/ui_style.lua · an ✕ at 2.30:1 against a 3:1 floor | 6.364.0 · 6.369.0 | 2 | degraded — the ✕ was there and could not be SEEN, which is the same thing as absent (6.361.0) |
+| "fade out of sight the window borders and the playlist when in fullscreen" · "doesn't remember the Time, place or position" · "⌃⌘F is to make the FILM full screen" | modules/video_player.lua | 6.358.0 · 6.370.0 | 2 | ask |
+| "10-20-26 should be 10-20-2026" | modules/autocorrect.lua | 6.371.0 | 1 | ask |
+| "I need the rings that help find the mouse to be bigger and more colorful" | modules/mouse_grid.lua · a white ring at 1.00:1 on white | 6.310.0 · 6.372.0 | 2 | degraded — and "more colorful" was a DEFECT, not a preference |
+| "the recent documents list should show application and file types I work in" · a list of thirty-four apps · "files types like .nfo or .edm shouldn't" | modules/recent_docs.lua · ~/Library, and the learned-types floor | 6.374.0 · 6.375.0 | 2 | ask |
+| "Scratch not should be prefixed with Today's date" | modules/scratch_pad.lua · the default tab name | 6.376.0 | 1 | ask |
+| "When I select a snippet 99% of the time I want it to instantly paste" | modules/text_expander.lua · it already did; nothing counted it | 6.377.0 | 1 | ask — and the honest answer is that it was already true |
+| "I DON'T KNOW WHAT THIS MEANS" (about a verify step) | the verify blocks themselves, not any module | 6.377.0 | 1 | 🔑 a method defect — see the ⌨️ hard rule |
 
 📏 SEEDED FROM THE RECORD, NOT INVENTED: every row above is a real
 report with a real release beside it, and the pass counts are countable
@@ -6279,6 +6401,17 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
+| 6.378.0 | 🔒 Secure Input already held when this config starts is announced — it used to be reported to nobody, for ever | pending |
+| 6.377.0 | ⌨️ A picked snippet's insert is counted by route, and a refused one is SEEN rather than only logged | pending |
+| 6.376.0 | 📅 A new Hamsidian tab is named for the day it was made, not "Scratch N" | pending |
+| 6.375.0 | 🎓 A file type joins ⇪I only once you have opened two different files of it | pending |
+| 6.374.0 | 📁 ⇪I stops showing your apps' own files — his list of thirty-four named the folder | pending |
+| 6.373.0 | ⌨️ Two keystrokes land the grid instead of three, at the same cell size — his YES | pending |
+| 6.372.0 | 🎯 The pointer rings are bigger and visible on what they sit on — white on white was 1.00:1 | pending |
+| 6.371.0 | 📅 `10-20-26 ` becomes `10-20-2026 `, slashes too | pending |
+| 6.370.0 | 🎬 ⌃⌘F full-screens the FILM, the chrome fades, and a film resumes where he left it | pending |
+| 6.369.0 | 🔤 The ✕ he could not see, measured — 2.30:1 against WCAG's 3:1 floor for a control | pending |
+| 6.368.0 | ☁️ OneDrive is WATCHED — a file whose bytes leave is named, out of process, with a ledger that survives a reload | pending |
 | 6.367.0 | ☁️ `_G.oneDriveCheck()` names every file whose bytes are not really on this Mac — and asks macOS whether "keep on device" is readable at all | pending |
 | 6.366.0 | ❌ a refused Asana task says WHY on the tab, in Asana's own words — the reason existed and never reached the thing he looks at | pending |
 | 6.365.0 | ⏪ ← → seek in the Mug Player — the page had left them to WebKit, which only seeks while the film itself has the keyboard | pending |
@@ -6410,6 +6543,56 @@ next boot announced it (LL: "fortunately hammerspoon caught itself"). LL is on
 built. The work Mac's storm report is still owed, on 6.215.0 now.
 
 ## Open items — update as they move
+
+- 📥 HIS 2026-10-20 BATCH — ELEVEN RELEASES, AND WHAT IS STILL OPEN.
+  He came back inside the week with a large batch. What each turned out
+  to be, because three of them were not what the sentence said:
+  ✅ **OneDrive, which he called the most important** — 6.368.0, and his
+     own `_G.oneDriveProbe()` decided the design: `(none)` on BOTH kinds
+     of file, so the "Always keep on device" pin is NOT readable from
+     here and 6.367.0's open question is closed. It watches and DIFFS
+     instead, on size vs allocated blocks, out of process, never reading
+     a file (reading one is the 72 s freeze).
+  ✅ **"There is not 'X' in the note list"** — 6.369.0, and it was there
+     since 6.364.0. The ✕ drew at 2.30:1 against WCAG's 3:1 floor for a
+     control: 6.361.0's rule, measured rather than argued.
+  ✅ **The Mug Player's three** — 6.370.0: ⌃⌘F full-screens the FILM
+     (6.358.0 filled the window, which is not what he asked for), the
+     chrome fades, and a film resumes by PATH.
+  ✅ **Date expansion** — 6.371.0. ✅ **The rings** — 6.372.0, and "more
+     colorful" was a DEFECT: white on white is 1.00:1.
+  ✅ **The grid's two keystrokes** — 6.373.0, on his YES.
+  ✅ **Recent documents** — 6.374.0 + 6.375.0. HIS LIST OF THIRTY-FOUR
+     APPS WAS THE MEASUREMENT: every one keeps a folder under ~/Library
+     and not one of the five he named does. See the 🗂 hard rule.
+  ✅ **The dated scratch tab** — 6.376.0.
+  ✅ **"99% of the time I want it to instantly paste"** — 6.377.0, and
+     it ALREADY did: ⏎ has typed short snippets at the caret and pasted
+     multi-line ones since the picker was built. What was missing is any
+     COUNT, so "it pasted" and "it did nothing" read the same.
+  ✅ **Secure Input's first reading** — 6.378.0 (ALPHA §1.2).
+  🗳 AND THREE OF HIS QUESTIONS ARE ANSWERED IN WORDS, NOT CODE:
+     · **App removal** — never built, in any release, and now written
+       down (see the 🔎 hard rule). Needs scoping; it moves to the Trash.
+     · **"Why can't I summon an app from another desktop"** — macOS
+       exposes no public API for it. `hs.spaces.moveWindowToSpace`
+       "returns success without moving" on macOS 15+ and the note is in
+       modules/window_return.lua:14-30; the only alternative is
+       synthetic mouse drags, which fight window_move's own tap. ⌥Tab
+       carries you TO the window's desktop, which is what works.
+     · **"I DON'T KNOW WHAT THIS MEANS"** — the ⌨️ hard rule above. My
+       verify blocks named three chords and never said what the step was
+       for. That is a method defect and it is fixed in how they are
+       written from here.
+  📏 STILL OPEN AND UNBLOCKED, in the order I would build them:
+     1. ⌥Tab listing EVERY PANEL (his answer; the pickers stay out —
+        a picker you ⌥Tab into cannot be ⌥Tab'd out of).
+     2. MANIFEST.txt + `_G.installCheck()` — he RAN that command this
+        round and got nil, which is a promise of mine from 6.311.0's
+        verify block that was never kept.
+     3. The draft keeper (his "ONLY 90 DAYS" answers the last question).
+     4. Size the Mug Player to the film ("like VLC").
+     5. Anchors' cold start · the crop tool · ⇪7's macOS detail.
 
 - 📥 HIS 2026-10-17 REPORT — ALL FOUR BUILT, AND TWO OF THEM WERE
   ALREADY HALF-THERE. He asked for the full alpha inventory first (it is
@@ -7765,6 +7948,386 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.378.0 verify with LL — 🔒 THE KEYBOARD LOCK THAT NEVER SPOKE
+  (KNOWN GROUND)
+  WHAT CHANGED: if macOS's Secure Input is already on when Hammerspoon
+  starts, you are told. It used to be told to nobody, for ever.
+  🔎 WHY IT MATTERS MORE THAN ITS SIZE: Secure Input is a password
+  field's lock, and while it is held NOTHING in this config works —
+  every snippet, autocorrect, and most ⇪ shortcuts, with no error
+  anywhere. In 6.196.0 Chrome left it on and took your keyboard for
+  four hours while the Console said "All green · 104 ⇪ shortcuts". The
+  announcement only fired on a CHANGE, and the first reading is not a
+  change — so a Mac that BOOTED into that state said nothing at all.
+
+  A. THE HEADLINE — and the happy path is silence.
+  A1. Reload. Wait a minute. Console: `_G.secureInputReport()`.
+      EXPECT `state  : off — nothing is holding the keyboard`, and NO
+      new line in the Console about Secure Input. That silence is the
+      release working on a healthy Mac.
+  A2. To see the other half, click into a password field (1Password's
+      unlock, a login page) and leave it there. Then reload
+      Hammerspoon.
+      EXPECT, within a minute: `🔒 SECURE INPUT IS ON — <app> has
+      locked the keyboard …  (ALREADY held when this config started —
+      it did not just happen)`.
+      **That parenthesis is the whole release.** On every build before
+      this one you would have got nothing.
+  A3. `_G.secureInputReport()` while it is held.
+      EXPECT a `when   : ALREADY HELD when this config started` line
+      under the state. Leave the field and the next probe says
+      "🔓 Secure Input released".
+
+  B. MUST STILL WORK.
+  B1. Make it change WHILE running: with Hammerspoon up and quiet,
+      click into a password field.
+      EXPECT the same 🔒 line but WITHOUT the "ALREADY held" wording —
+      that one really did just happen.
+  B2. `probes :` must show a `change(s) seen` count that goes up for
+      B1 and NOT for A2. A boot into a held keyboard is not a change.
+  B3. Normal use for a day: no new Console noise, no alerts.
+
+  C. PASTE BACK.
+  C1. `_G.secureInputReport()` from an ordinary morning, and again if
+      you ever meet A2 by accident. If a ⇪ key ever goes dead for no
+      reason, that command is now the first thing to run.
+
+- 6.377.0 verify with LL — ⌨️ WHAT HAPPENS WHEN YOU PICK A SNIPPET
+  (KNOWN GROUND)
+  WHAT CHANGED: nothing about what ⏎ does. What changed is that you can
+  now see what it did.
+  🔎 AND YOUR SENTENCE IS ALREADY TRUE — "when I select a snippet 99% of
+  the time I want it to instantly paste". It does, and it has since the
+  picker was built: a short snippet is TYPED straight at the caret, and
+  anything with a newline in it is put on the clipboard, ⌘V'd, and your
+  clipboard put straight back (a synthetic Return in a Teams or Asana
+  box SENDS the message, which is why multi-line is never typed). What
+  was missing is any way to tell that from "it did nothing": not one of
+  nineteen hundred snippets counted an insert.
+
+  A. THE HEADLINE — two minutes.
+  A1. ⇪⇧S, pick a short snippet (an email address, an emoji).
+      EXPECT it appears at your caret, instantly, as always.
+  A2. ⇪⇧S, pick a MULTI-LINE one (the out-of-office, a signature).
+      EXPECT it appears, and your clipboard is back to what it was a
+      second later — ⌘V somewhere and check.
+  A3. Console: `_G.snippetsReport()`. Two new lines:
+        ⏎ pick: 2 — 1 typed at the caret · 1 pasted (⌘V, clipboard put
+                back) · 0 REFUSED
+        typed : 7 — 7 typed at the caret · 0 pasted · 0 REFUSED
+      PASTE THOSE. The first number is the answer to your sentence, and
+      it is the first time it has been askable.
+  A4. The `↳ last in :` line names the most recent one and HOW it went.
+
+  B. THE HALF THAT PROTECTS YOU.
+  B1. If a pick ever inserts NOTHING, you now get an alert naming the
+      snippet and macOS's own reason — it used to go to the Console and
+      nowhere else. Paste it if you ever see it; the report keeps the
+      last one on a `↳ ⚠️ last REFUSED` line.
+  B2. Type a trigger normally for a day. EXPECT no change at all, and
+      the `typed :` count climbing while `⏎ pick:` does not.
+
+  C. A JUDGEMENT ONLY YOU CAN MAKE.
+  C1. If a pick ever feels like it goes nowhere — into the picker
+      instead of your document — say so with the report. That is the
+      one failure I cannot see from here, and the counts are what would
+      prove it.
+
+- 6.376.0 verify with LL — 📅 A SCRATCH NOTE IS NAMED FOR TODAY
+  (KNOWN GROUND)
+  WHAT CHANGED: a new Hamsidian tab is called by the day you made it
+  instead of "Scratch 1".
+  🔎 Your ask: "Scratch not should be prefixed with Today's date." And
+  "Scratch 1" is the name 6.165.1 gave an empty tab, on your own
+  complaint then — "Untitled ×2 told me nothing". A number tells you
+  nothing either.
+
+  A. THE HEADLINE — twenty seconds.
+  A1. ⇪N, then ⌘T for a new tab.
+      EXPECT the tab reads **Mon Oct 20** (today), not "Scratch 2".
+  A2. ⌘T again. EXPECT **Mon Oct 20 · 3** — the date plus its place, so
+      two empty tabs made today can still be told apart.
+  A3. Type a line in one. EXPECT the title becomes YOUR LINE, as it
+      always has. That is the pad's whole design and it is unchanged.
+  A4. Close and reopen ⇪N. EXPECT the dates survive.
+
+  B. THE OTHER READING, IF I CHOSE WRONG.
+  B1. I read your sentence as "the DEFAULT name", because putting the
+      same six characters in front of every typed row is noise rather
+      than a journal. If you meant every title:
+      `settings = { scratch_pad = { titleDate = "always" } }` → every
+      tab reads "Mon Oct 20 · Buy milk".
+      **Say which and I will change the default rather than leave you a
+      line to type.**
+  B2. `titleDate = "off"` is the old "Scratch N" exactly.
+
+  C. PASTE BACK.
+  C1. `_G.scratchPadReport()` — a new `📅 dates:` line says which
+      reading is on and counts any tabs that carry no date stamp (those
+      keep their old name rather than claiming a date nobody recorded).
+
+- 6.375.0 verify with LL — 🎓 AN OBSCURE FILE TYPE HAS TO EARN ITS PLACE
+  (KNOWN GROUND)
+  WHAT CHANGED: a file type joins ⇪I only once you have opened TWO
+  different files of it. One open is no longer enough.
+  🔎 Your ask: catch the common types down to the least common, "but
+  files types like .nfo or .edm shouldn't" turn up. And the cost was not
+  only clutter: the learned list keeps 24 types and evicts the OLDEST,
+  so a handful of one-off opens could push out .key, .sql or .sketch —
+  the types you really work in — quietly.
+
+  A. THE HEADLINE.
+  A1. Console: `_G.recentDocsReport()`. Two lines to read:
+        learned : (unlearn with _G.recentDocs.unlearn("ext"))
+        waiting : N type(s) opened in fewer than 2 file(s) — join one
+                  with _G.recentDocs.learn("ext")
+      PASTE BOTH. The `waiting :` list is the one-off types being held
+      back, by name, with their counts — so .nfo and .edm should be
+      sitting there rather than in the list above.
+  A2. Press ⇪⇧I to re-scan, then run it again.
+  A3. If a type you DO work in is being held back (you keep one file of
+      it), `_G.recentDocs.learn("ipynb")` joins it by hand, for good.
+
+  B. WHAT IS STILL THERE, so it is not a surprise.
+  B1. A single .nfo you opened still shows as a ROW in ⇪I, because
+      macOS says you opened it and the nine-shelf has to stay honest.
+      What is gone is the TYPE — its own section, its @tag, its place in
+      the learned list.
+      **Tell me if you want the row gone too.** That is a bigger change
+      and I did not guess it.
+  B2. `settings = { recent_docs = { learnFloor = 1 } }` is the old rule
+      exactly, if two feels wrong.
+
+- 6.374.0 verify with LL — 📁 ⇪I STOPS SHOWING YOUR APPS' OWN FILES
+  (KNOWN GROUND)
+  WHAT CHANGED: Recent Documents no longer lists the files your apps
+  keep for themselves.
+  🔎 AND YOUR LIST OF THIRTY-FOUR APPS IS WHAT NAMED IT. 1Password,
+  Activity Monitor, App Store, Audio MIDI, Calculator, Chess, ColorSync,
+  Digital Color Meter, Disk Utility, DisplayLink, … System Settings,
+  Tips, TV, … Weather — **every single one keeps a folder under
+  ~/Library**, and not one of the five you said you WOULD work in does.
+  Word, Chrome, Sublime, Script Editor and Shortcuts keep their
+  documents in Documents, Desktop, Downloads and OneDrive. So the fix is
+  a folder, not a list of names you would have to maintain for ever.
+
+  A. THE HEADLINE.
+  A1. Press ⇪⇧I to force a fresh scan, then ⇪I.
+      EXPECT: no rows from 1Password, Notes, Weather, NordVPN, Ice or
+      anything else on your list. **A row from any of them is a FAIL** —
+      tell me which.
+  A2. 🚨 AND THE CHECK THAT MATTERS MORE: your real documents must all
+      still be there — the Vault, the screenshots, anything in OneDrive.
+      OneDrive lives INSIDE ~/Library
+      (~/Library/CloudStorage/OneDrive-Personal), so skipping ~/Library
+      without naming it back would have emptied the list of everything
+      you actually work on. Search ⇪I for a note name and a screenshot
+      name. **If your OneDrive files are missing, stop and tell me at
+      once** — that is the one bad outcome this release can have.
+  A3. Open something in Word, then ⇪I. It is at the top, as ever.
+
+  B. PASTE BACK.
+  B1. `_G.recentDocsReport()` — a new `folders :` line says how many
+      hits it turned away and why ("an app's own folder under
+      ~/Library"), with the line under it naming the cloud exception. On
+      your Mac I expect that number to be large.
+  B2. The `entries :` line — compare it to what you remember. It should
+      be SMALLER and every row should be something you would call a
+      document.
+
+  C. THE OTHER HALF, free.
+  C1. ⇪I's scan used to take the first 400 hits BEFORE filtering, so on
+      a Mac whose ~/Library churns a lot your real documents could never
+      be reached at all. The filter runs first now. If ⇪I feels like it
+      has MORE of your work in it rather than less, that is this.
+
+- 6.373.0 verify with LL — ⌨️ TWO KEYSTROKES INSTEAD OF THREE
+  (KNOWN GROUND)
+  WHAT CHANGED: the mouse grid's cells are labelled with TWO letters,
+  not three. Your YES.
+  🔎 THE ARITHMETIC, which nobody had written down: cells = letters ^
+  label length. Nine home-row keys three deep is 729 cells. Twenty-six
+  letters two deep is 676 — **within 4% of the same cell size**, so the
+  boxes stay the size you have already accepted, for a third of the
+  typing removed.
+
+  A. THE HEADLINE.
+  A1. ⇪X. EXPECT each cell shows TWO letters, and the boxes look about
+      the same size as before.
+  A2. Type the two letters. EXPECT the pointer lands, as always.
+  A3. Read the letters. They are now the WHOLE alphabet rather than the
+      home row — that is the cost, and it is two reaches instead of
+      three taps. **Tell me if it feels worse in the hand**; it is one
+      line either way.
+  A4. The two-letter split after landing, the arrows (8 pt a repeat,
+      no acceleration since 6.360.0), ⌫, ⎋ and space are unchanged.
+
+  B. PASTE BACK.
+  B1. `_G.mouseGridReport()` — the `cells   :` line gives the real cell
+      size on the screen you are on. I have been reasoning about that
+      number from arithmetic; I would like it from your display.
+
+- 6.372.0 verify with LL — 🎯 THE RINGS, BIGGER AND VISIBLE
+  (KNOWN GROUND)
+  WHAT CHANGED: ⇪⇧L's rings are bigger AND they change colour, because
+  "more colorful" turned out to be a defect rather than a preference.
+  🔎 THE MEASUREMENT: the ring shipped WHITE. On a white background —
+  a Finder window, a Word document, a browser page — that is **1.00:1
+  contrast. Literally invisible**, on most of what is on your screen at
+  the moment you have lost the pointer.
+
+  A. THE HEADLINE.
+  A1. Put a white Finder window or a Word document in front. Press ⇪⇧L.
+      EXPECT: you can see it. Three rings, each a different colour,
+      stepping outward.
+  A2. Do it over a DARK window too. EXPECT: still visible — the three
+      colours cycle so one of them stands out whatever is underneath.
+  A3. The rings are 180 pt now rather than 150, and each is 10% wider
+      than the last (your number, 6.310.0).
+
+  B. A JUDGEMENT ONLY YOU CAN MAKE.
+  B1. Magenta, orange and violet are my choice, picked by contrast
+      arithmetic rather than taste (3.06:1, 6.86:1 on black, 4.22:1 on
+      white). If you want different colours, say so —
+      `settings = { mouse_grid = { locateColors = {...} } }`, or just
+      name them and I will change the default.
+  B2. Still not obvious enough? `locateRadius` and `locateSecs` are
+      numbers, not releases.
+
+- 6.371.0 verify with LL — 📅 A TWO-DIGIT YEAR IS WRITTEN OUT
+  (KNOWN GROUND)
+  WHAT CHANGED: typing `10-20-26 ` gives you `10-20-2026 `. Your ask,
+  both separators.
+
+  A. THE HEADLINE — ten seconds, in Chrome or Word.
+  A1. Type `10-20-26` and then a SPACE.
+      EXPECT: `10-20-2026 `.
+  A2. Type `10/20/26` and a space. EXPECT: `10/20/2026 `.
+  A3. Type `10-20-2026` and a space. EXPECT: unchanged — a four-digit
+      year is already right.
+  A4. Type `13-45-26` and a space. EXPECT: unchanged. There is no month
+      13 and no day 45, so it is not a date.
+  A5. Type `10-20/26` and a space. EXPECT: unchanged — mismatched
+      separators are a typo, not a date.
+
+  B. MUST STILL WORK — this touched the tap that watches your typing.
+  B1. Type normally for a while. No missed characters, no stray
+      corrections.
+  B2. `teh ` still becomes `the `. `somethingg ` still becomes
+      `something`.
+  B3. ⇪Z still undoes a correction and refuses it for good.
+  B4. In Terminal, Ghostty or Sublime: nothing is corrected, as before.
+
+  C. PASTE BACK.
+  C1. `_G.autocorrectReport()` — a new `dates :` line counts them.
+  C2. 📏 KNOWN: a date typed mid-word is not corrected, and the buffer
+      is capped at 12 characters.
+
+- 6.370.0 verify with LL — 🎬 ⌃⌘F, THE FADING CHROME, AND RESUMING
+  (NEW GROUND for the full-screen half)
+  WHAT CHANGED: all three of your Mug Player asks.
+  🚨 AND ⌃⌘F IS DIFFERENT NOW: in 6.358.0 it filled the WINDOW. You
+  said "⌃⌘F is to make the FILM full screen", so it asks the FILM to go
+  full screen and only falls back to filling the window when macOS
+  refuses — which it can, and the report says which happened.
+
+  A. THE HEADLINE.
+  A1. ⇪⇧, and play a film. Press **⌃⌘F**.
+      EXPECT: the FILM fills the whole screen — no window edges, no
+      deck, nothing but the picture.
+  A2. Press **Escape**. EXPECT: out of full screen, window still up.
+      Press Escape again to close the window.
+  A3. Press ⌃⌘F again and read what the window says if it could NOT go
+      full screen. EXPECT either real full screen, or the window filled
+      with a line saying macOS refused. Both are a pass; tell me which.
+
+  B. THE CHROME FADES.
+  B1. In full screen (or filled), EXPECT the header and the film deck
+      to fade out of sight. Move the mouse: they come back.
+
+  C. IT REMEMBERS WHERE YOU WERE — the one you asked for by name.
+  C1. Play a film, let it run two minutes, press ⇪⇧, to close.
+  C2. ⇪⇧, again and press ⏎ on the same film.
+      EXPECT: it resumes at about two minutes, not at zero.
+      **A FAIL is starting from the beginning** — that is the bug.
+  C3. Let a film play to the END, then play it again.
+      EXPECT: it starts from the beginning. A finished film has no
+      place to resume to.
+
+  D. PASTE BACK.
+  D1. `_G.mugReport()` — new `cinema :` and `resume :` lines. If
+      `resume` ever says the Mac would not say how long the film is,
+      paste it: nothing is moved in that case, deliberately.
+
+- 6.369.0 verify with LL — 🔤 THE ✕ YOU COULD NOT SEE (KNOWN GROUND)
+  WHAT CHANGED: the ✕ that removes a row in Hamsidian is visible.
+  🔎 AND IT WAS THERE ALL ALONG, since 6.364.0 — which is the same thing
+  as absent, and that is my fault rather than yours. It drew at 0.28 and
+  0.30 opacity over that sidebar: **2.30:1 and 2.44:1 contrast, against
+  the 3:1 floor a control is supposed to meet.** Measured, not argued.
+
+  A. THE HEADLINE — ten seconds.
+  A1. ⇪N. Look at the right-hand end of a HISTORY row (a closed tab).
+      EXPECT: a ✕ you can see WITHOUT hovering.
+  A2. Hover it. EXPECT: brighter. Move onto it: red.
+  A3. Click it. EXPECT: the row is forgotten and nothing reopens.
+  A4. ⇪3, look at a note row's ✕. Same.
+
+  B. A JUDGEMENT ONLY YOU CAN MAKE.
+  B1. Too loud now? It is 0.55, which measures 4.5:1 — one number:
+      `settings = { ui_style = { controlAlpha = 0.45 } }`. Say so and I
+      will move the default.
+  B2. 📏 NAMED: this fixed the two places you reported. Every other
+      panel in this config still draws its own dim controls at whatever
+      number it typed in. If anything else has a control you have to
+      hunt for, tell me where and it gets the same arithmetic.
+
+- 6.368.0 verify with LL — ☁️ ONEDRIVE IS WATCHED (NEW GROUND)
+  WHAT CHANGED: this config now notices when OneDrive takes a file's
+  bytes back off your Mac, and names the files.
+  🔬 AND YOUR OWN PROBE DECIDED THE DESIGN. `_G.oneDriveProbe()` came
+  back with **(none)** on both kinds of file: a local file carries
+  `com.apple.macl` and `com.apple.provenance`, a placeholder carries
+  `com.apple.FinderInfo`, and there is NO File Provider attribute
+  anywhere. So "Always keep on device" is NOT readable from here — that
+  question is answered and closed. What IS readable is how much of a
+  file is actually allocated, so this watches and compares.
+
+  A. THE HEADLINE.
+  A1. Console: `_G.oneDriveSweep()`.
+      EXPECT the folders it walked, the counts, and — the line you asked
+      for — **☁️ NOT HERE**, naming every offloaded file, biggest first.
+  A2. Wait a day or two of normal use and run it again.
+      EXPECT: if OneDrive has taken anything back since the first
+      sweep, it is named as **TAKEN BACK since <when>** rather than
+      just listed. That difference is the whole release: "it was never
+      here" and "it was here this morning" are opposite facts.
+  A3. Reload Hammerspoon and run it again.
+      EXPECT: the comparison still works. The record of what was local
+      is written to disk, so a reload does not blind it.
+
+  B. IT MUST NOT COST YOU ANYTHING.
+  B1. It never READS a file — reading a placeholder downloads it, and a
+      download on the main thread is the 72-second freeze from
+      2026-10-12. The sweep runs out of process.
+  B2. Use the Mac normally while a sweep runs. EXPECT: nothing
+      noticeable. If the Mac ever stutters at the moment a sweep runs,
+      tell me and the interval is a number.
+
+  C. PASTE BACK.
+  C1. `_G.oneDriveSweep()` after a few days — the ☁️ NOT HERE list and
+      the TAKEN BACK list.
+  C2. If it says it stopped at a bound, every number is a floor rather
+      than a total; say so when you paste it.
+
+  D. A JUDGEMENT ONLY YOU CAN MAKE.
+  D1. Should it bring files BACK by itself? I have not built that on
+      purpose: downloading is a READ, and a read is the thing that
+      froze your Mac. Doing it safely means one file at a time, outside
+      Hammerspoon. Say the word and it is its own release.
+  D2. Which folders should it watch? Right now the Vault, the Logs
+      folder and the OneDrive root. Name any others.
+
 - 6.367.0 verify with LL — ☁️ IS THE FILE REALLY HERE? (NEW GROUND)
   WHAT CHANGED: one new command. `_G.oneDriveCheck()` walks the folders
   that hold your data and names every file whose BYTES are not on this
@@ -14885,9 +15448,20 @@ LL reopens it.)
   panel reflowed like ⇪space; a SNIPPETS window in the ⇪space style;
   sequential screenshots to the clipboard (needs LL's go-ahead — the
   honest shape is a multi-select in ⇪space @shots writing FILE URLs);
-  @ source discoverability; widening `uni.runnable`; vault
+  widening `uni.runnable`; vault
   front-matter completion; ⌘⇧N / ⌘⇧E on the small dialog (the
-  `editor.open` window exists since 6.213.5 — take it); the ⇪⇧O
-  image-history beach ball (a stall — diagnose before touching); and
-  6.202.0's queued `_G.clipboardReport()` for the chooser pane (the
-  one change queued next, alone).
+  `editor.open` window exists since 6.213.5 — take it); and the ⇪⇧O
+  image-history beach ball (a stall — diagnose before touching).
+  ✅ TWO ROWS WERE SHIPPED AND STILL LISTED HERE, which is the 🔎 hard
+  rule above being paid: "@ source discoverability" is 6.298.0 (typing
+  `@` alone lists all fourteen sources) and 6.202.0's queued
+  `_G.clipboardReport()` for the chooser pane is 6.224.0 (its `pane :`,
+  `home/end :` and `place :` lines are there). Both struck out.
+  📜 AND THREE REAL SURVIVORS CAME OUT OF THE 489-RELEASE SCAN, each
+  asked for and never withdrawn: system volume + output/input device
+  switching + a mute toggle (6.68.0–6.70.0; per-APP volume stays
+  correctly refused, it needs an audio HAL driver); ONE combined log of
+  every URL that passed through a window (6.119.0 · 6.120.0 — titles
+  exist as ⇪⇧W, urls are Chrome's own database and say nothing about
+  Safari); and the doubled-word underline (6.221.0, blocked on a
+  per-app AXBoundsForRange measurement).

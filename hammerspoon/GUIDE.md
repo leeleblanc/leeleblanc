@@ -12,7 +12,7 @@ structure, not for the shortcuts (⇪/ is the shortcut list).
 ├── init.lua          the orchestrator (3749 lines)
 ├── secret.lua        Asana token. NEVER backed up, never in the cloud
 ├── core/             dofile'd at a fixed point, NOT loader-managed (13 files)
-├── modules/          one file per feature (72 files, ~64,300 lines)
+├── modules/          one file per feature (73 files, ~65,900 lines)
 ├── tests/            run on any machine with lua5.4; no Mac required
 ├── packs/            the four PUBLIC snippet packs as .json (1,926), in
 │                     git since 6.162.0 — the builder folds them into
@@ -973,10 +973,10 @@ CREATED AUTOMATICALLY (never make these yourself):
 
 ## 6. Tests
 
-Seventy-seven Lua suites, 11,713 checks, plus seven more that run the
+Seventy-seven Lua suites, 11,996 checks, plus seven more that run the
 Capture Pad's, the screenshot editor's, unified search's, the vault's,
 the music player's, the Mug Player's and Hamsidian's own page JavaScript
-under `node` for a further 836 — **12,549 checks over eighty-six stages**
+under `node` for a further 857 — **12,853 checks over eighty-six stages**
 in
 all. Every Lua stage runs with `lua5.4` on any machine — no Mac required,
 they stub the `hs` API:

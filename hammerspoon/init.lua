@@ -2,34 +2,36 @@
 -- * Working VERSION *
 -- =====================================================================
 -- =====================================================================
--- 10-17-26 using Claude          ← EDITED date. Bumped with every release.
+-- 10-20-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.367.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.378.0
 -- =====================================================================
 
--- NEW IN 6.367.0 — ☁️ IS THE FILE REALLY HERE?
---   (modules/onedrive_check.lua). LL: "even with me marking OneDrive
---   files to 'Always keep on device' OneDrive will offload them."
---   `_G.oneDriveCheck()` names every file whose BYTES are not on this
---   Mac — size vs st_blocks, the only thing that can tell them apart
---   WITHOUT READING ONE, and reading one is the 72 s freeze (6.357.0).
---   🔬 Whether the PIN is readable is NOT known, so it is measured
---   rather than guessed: `xattr -s` on a local file beside a
---   placeholder, both sets printed, neither interpreted.
+-- NEW IN 6.378.0 — 🔒 SECURE INPUT ALREADY HELD AT BOOT IS ANNOUNCED
+--   (core/capabilities.lua). The announcement was gated on a CHANGE,
+--   and a first reading is not one — si.on is born nil. So a Mac where
+--   Secure Input was ALREADY held when this config started reported it
+--   to NOBODY, for ever, in the one row that kills every tap AND every
+--   hotkey system-wide with no error anywhere (6.196.0 took his
+--   keyboard for four hours while the Console read "All green").
+--   🔑 One asymmetry: a first reading of ON speaks and says it was
+--   already held; a first reading of OFF stays silent, because a line a
+--   minute saying "still fine" is how a warning gets ignored (6.269.0).
 
--- NEW IN 6.366.0 — ❌ THE ASANA REFUSAL SAYS WHY
---   (modules/scratch_pad.lua). LL: "that error message is not entirely
---   helpful." The reason ALREADY existed and reached an alert gone in
---   ten seconds; the TAB — what he is looking at — wore one literal
---   for every cause. The mark carries Asana's own sentence now ("❌
---   Error: 1 of 5 — assignee: Not a recognized ID"), lifted out of its
---   JSON, and the report lists every refused task with the raw body.
+-- NEW IN 6.377.0 — ⌨️ A PICKED SNIPPET'S INSERT IS COUNTED, AND A
+--   REFUSAL IS SEEN (modules/text_expander.lua). LL: "When I select a
+--   snippet 99% of the time I want it to instantly paste." IT ALREADY
+--   DOES — ⏎ types short ones at the caret and pastes anything with a
+--   newline in it. What was missing is any way to tell that from "it
+--   did nothing": nothing counted an insert, by route or by outcome.
+--   Picks are counted apart from typed triggers, and a refused insert
+--   takes the 🔔 door instead of only reaching the Console (6.214.0).
 
--- (6.365.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.376.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 cut the inline count to
 --  TWO; a gate check proves every entry here is also in CHANGELOG.md.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.367.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.378.0
 -- =====================================================================
 -- The catalogue that used to sit here moved to GUIDE.md ("What each
 -- tool does") in 6.180.0 — 259 lines of prose inside the orchestrator.
@@ -122,7 +124,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.367.0"
+_G.configVersion = "6.378.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- A NO-OP STAND-IN for the diagnostics API, replaced by the real one in

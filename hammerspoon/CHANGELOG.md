@@ -5,6 +5,286 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.378.0 — 🔒 SECURE INPUT ALREADY HELD AT BOOT IS ANNOUNCED:
+  The announcement was gated on a CHANGE, and a first reading is not
+  one: `si.on` is born nil, so `was ~= nil` is false on the very first
+  probe. A Mac where Secure Input was ALREADY HELD when this config
+  started — the lock screen a wake goes through, a password field left
+  open, Chrome having set it and never cleared it — reported it to
+  NOBODY, for ever.
+  🚨 THAT IS THE HIGHEST-STAKES ROW IN THIS CONFIG. Secure Input stops
+  every event tap AND every hotkey dispatch system-wide with no error
+  anywhere; in 6.196.0 it took LL's keyboard for four hours while the
+  Console read "All green · 104 ⇪ shortcuts". And the only trace in his
+  Console on 2026-10-09 was a LuaSkin line about a pid macOS could not
+  name — which is exactly what that caller logs when Secure Input IS on.
+  🔑 ONE ASYMMETRY, NOT A NEW INSTRUMENT. A first reading of ON speaks;
+  a first reading of OFF stays silent. The gate is RIGHT for the healthy
+  case — a line a minute saying "still fine" is how a warning gets
+  scrolled past (6.269.0) — and WRONG for the held case, where there is
+  no later change to announce because the state was already wrong when
+  we arrived.
+  📏 A FIRST READING IS NOT COUNTED AS A CHANGE: `changes` is how many
+  times the state MOVED while we were watching, and counting the first
+  one would make a Mac that booted into a held keyboard read as one that
+  lost it once. The words say WHICH it is — "ALREADY held when this
+  config started — it did not just happen" — because that sentence is
+  what explains a keyboard which has never worked this session; the
+  report carries the same distinction on a `when :` line.
+  🧪 Driven four ways, both halves that already worked included: first
+  ON speaks and says "already"; first OFF says nothing and the report
+  does not claim it; off → ON still announces and IS counted as a
+  change, without the "already" wording; ON → off still announces.
+  6 of 6 mutations bit on the first sweep.
+
+NEW IN 6.377.0 — ⌨️ A PICKED SNIPPET'S INSERT IS COUNTED, AND A REFUSAL
+  IS SEEN: LL, answering the focus question — "When I select a snippet
+  99% of the time I want it to instantly paste."
+  🔎 AND IT ALREADY DOES, which is the first thing to say rather than
+  the last. ⏎ in the ⇪⇧S picker has gone straight to exp.inject since
+  the picker was built: a short snippet is TYPED at the caret, anything
+  with a newline in it is put on the clipboard, ⌘V'd, and the clipboard
+  put straight back — the newline rule, because a synthetic Return in a
+  chat box SENDS the message. So there was nothing to build, and no way
+  at all to tell whether it was happening: nothing in nineteen hundred
+  snippets counted an insert, by route or by outcome, so "it pasted at
+  the caret" and "it did nothing" read identically from his side.
+  6.274.0 — when a symptom is intermittent the missing half is a
+  per-outcome COUNT, not a better guess.
+  🔑 PICKS ARE COUNTED APART FROM TYPED TRIGGERS, because that is the
+  distinction his sentence is about and because the two fail for
+  different reasons: a pick happens as the picker closes and macOS hands
+  focus back, a typed trigger happens mid-sentence with the caret
+  already where it belongs.
+  🔔 AND A REFUSED INSERT IS SEEN, NOT ONLY LOGGED. It printed to the
+  Console and recorded a notice; it never reached the screen. A picker
+  whose whole job is that something lands, inserting nothing and saying
+  nothing, is the complaint this release is about (6.214.0).
+  📋 AND THE REPORT RETURNS ITS TEXT, like every other report here. It
+  handed back the module table, which prints fine and cannot be ASSERTED
+  without capturing print — so a check about this report was a check
+  about a harness (6.179.1).
+  🔬 THE CORE STUB HAD NO `degrade`, so the door could not be exercised
+  and every check about it would have passed with the door deleted —
+  6.278.0's hole in a third suite, and once again it is this project's
+  OWN core table that was unmodelled rather than macOS (6.290.0).
+  11 of 11 mutations bit on the first sweep.
+
+NEW IN 6.376.0 — 📅 A SCRATCH NOTE IS NAMED FOR THE DAY IT WAS MADE:
+  LL: "Scratch not should be prefixed with Today's date."
+  "Scratch N" is what 6.165.1 gave an empty tab, and his complaint then
+  was "Untitled ×2 told me nothing". A number tells him nothing either,
+  and a column of them tells him less — a date does, and it makes
+  6.333.0's one list read as a journal.
+  🔑 sp.dateTitle is PURE with the clock handed in, so the gate proves
+  every edge with no Mac — including the one that matters: a tab whose
+  stamp is missing, zero or unreadable keeps the OLD "Scratch N" rather
+  than claiming a date nobody recorded. 1970 is a plausible wrong answer
+  and those are the expensive kind (6.338.0).
+  🔢 THE INDEX IS THE ONE "Scratch N" ALREADY USED — the tab's place,
+  read at draw time — so it is exactly as stable as the name it replaces
+  and no more. Inventing a second "Nth made today" counter would
+  renumber under his hand when a tab closes (6.272.0 · 6.186.0).
+  📏 THE DEFAULT STOPS AT AN EMPTY TAB. The moment he types, his own
+  first line IS the title — the whole design of this pad — and putting
+  the same six characters in front of every row is noise rather than a
+  journal. `titleDate = "always"` is the other reading of his sentence
+  and it is one word from him instead of a release; `"off"` is the
+  pre-6.376.0 name exactly (6.267.0).
+  🧪 6.248.0 — the one existing check asserted the NAME (">Scratch 1<")
+  where it meant the RULE. 12 of 12 mutations bit after the sweep found
+  the os.date guard undriven: the format is settings-overridable and
+  os.date RAISES on a specifier it does not know, so one bad character
+  in a profile line would empty the name of every tab in the strip.
+
+NEW IN 6.375.0 — 🎓 AN OBSCURE FILE TYPE HAS TO EARN ITS PLACE:
+  LL: catch the most common file types down to the least common, "but
+  files types like .nfo or .edm shouldn't" turn up.
+  ONE open of ANY extension joined it for ever. That is the right rule
+  for a type he works in and the wrong one for a file he opened once to
+  look at — and the cost is not only clutter: `rd.learnedCap` keeps 24
+  learned types and evicts the OLDEST, so a handful of one-off opens can
+  push out .key, .sql or .sketch, quietly, with the junk left behind.
+  🔑 THE FLOOR IS TWO DIFFERENT FILES, and that comes from upstream
+  rather than from a guard: every list reaching assemble is ALREADY
+  keyed by path — `rd.parse` merges the U and M rows for one file — so
+  one entry IS one file and re-opening the same file cannot reach the
+  floor. A de-duplicating table inside the counter was written, found
+  unkillable by the sweep, and removed (6.199.0, eighth time); the
+  invariant is checked where it is CREATED instead.
+  📏 NO NEW STORE: the evidence is in the SCAN, which carries 30 days of
+  opens, so the count is recomputed from ground truth every time rather
+  than tallied in a file that can drift (6.276.0). A type ALREADY
+  learned is never re-tested, so the floor governs JOINING and never
+  eviction — a month in which he opens one .key must not un-learn it.
+  ↩️ A RULE THAT REFUSES OWES A WAY PAST IT (6.199.0):
+  `_G.recentDocs.learn("ipynb")` joins a type by hand, takes a leading
+  dot and any case, refuses a built-in type and nonsense, says why, and
+  survives a reload. `learnFloor = 1` is the pre-6.375.0 rule exactly;
+  0 or a typo clamps to a floor that cannot admit everything (6.338.0).
+  🔎 The report says what is held back and why, in three states.
+  📏 NAMED, AND IT IS A QUESTION FOR HIM: a single opened file of an
+  obscure type still appears as a ROW, because macOS says he opened it
+  and the nine-shelf must stay honest. What goes is the TYPE — its
+  section, its @tag, its place in the learned list.
+  13 of 13 mutations bit after the sweep's four findings.
+
+NEW IN 6.374.0 — 📁 ~/Library IS AN APP'S FILING CABINET, NOT HIS
+  DOCUMENTS: LL's list of thirty-four apps is the measurement, and it
+  names the folder — 1Password, Activity Monitor, App Store, Audio MIDI,
+  Calculator, Chess, ColorSync, Digital Color Meter, Disk Utility,
+  DisplayLink, … System Settings, Tips, TV, … Weather. Every one keeps a
+  folder under ~/Library. Not one of the five he said he WOULD work in
+  does — Word, Chrome, Sublime Text, Script Editor and Shortcuts keep
+  their documents in Documents, Desktop, Downloads and OneDrive.
+  The scan is `-onlyin $HOME`, and the seed-type rule admits a merely
+  MODIFIED .png/.csv/.txt — so every icon cache, log and container file
+  macOS churns under ~/Library arrived in ⇪I as a "recent document",
+  wearing the app's name. The module header claims "no blocklist to
+  maintain — the OS already recorded intent", and that is true of the
+  OPENED half and false of the MODIFIED half, which is the half his list
+  is made of.
+  ☁️ AND THE CLOUD FOLDER LIVES INSIDE IT. OneDrive is
+  ~/Library/CloudStorage/OneDrive-Personal, which holds the Vault, the
+  screenshots and nearly everything he does work on; skipping ~/Library
+  without naming that back would empty the list of the one place that
+  matters. 6.229.0 paid for this exact arithmetic in the file tracker —
+  stated here rather than shared, because that function answers "which
+  folders do I watch" and this one answers "is this path a document".
+  📁 THE RULE RUNS IN THE SCRIPT, BEFORE THE COST AND BEFORE THE CAP.
+  One mdls is one process per file, so a path turned away afterwards is
+  a process already spent (6.229.0). And `head -n "$cap"` took the first
+  400 hits BEFORE any filtering — so on a Mac whose ~/Library churns
+  more than 400 files a fortnight his real documents never reached the
+  loop at all. The count happens after the filter now.
+  🔑 rd.appOwned is PURE with home as an ARGUMENT and answers WHY as
+  well as whether, and admit(), the learn loop and the script all ask it
+  (6.305.0, in the same commit).
+  🔌 The two binaries come from the environment with absolute defaults
+  (6.208.0's SG_* shape), which lets the gate run THIS script under
+  /bin/sh with mdfind and mdls shimmed — the only way to prove a `case`
+  pattern rather than read it. The fixture puts forty junk hits FIRST
+  with the cap at 2: the old order answers nothing, the new one answers
+  the document.
+  🧪 6.248.0 — two fixtures encoded a decision that has expired: §3's
+  "plist LL genuinely opened" was in ~/Library/Preferences, which is now
+  exactly what his list asks not to see, and the flood fixture was
+  refused by two rules at once so it could have passed with the
+  anti-flood rule deleted. 10 of 10 mutations bit after the sweep found
+  the report's third state undriven.
+
+NEW IN 6.373.0 — ⌨️ TWO KEYSTROKES LAND THE GRID, ON HIS WORD:
+  His YES to the arithmetic nobody had written down: cells =
+  #alphabet ^ labelLength.
+      9 home-row keys, 3 deep  =  729 cells, THREE keystrokes
+     26 letters,       2 deep  =  676 cells, TWO keystrokes
+  Within 4% of the same cell — so the boxes stay the size he has already
+  accepted — for a third of the typing removed. And a two-character
+  label is WIDER-SPACED in the same box, so it reads better rather than
+  worse, which is the trap 6.176.0 fell into when 4,096 cells made a
+  three-character label illegible. The cost is named: the letters are
+  the whole keyboard rather than the home row, so two reaches replace
+  three home-row taps.
+  📏 6.184.0's decision record moves WITH the rule, and the slow-build
+  advice now offers a SMALLER grid (`alphabet = "asdfghjkl"`, 81 cells)
+  rather than the bigger one it used to suggest — labelLength is already
+  2, so a shorter alphabet is the only thing left that makes it smaller.
+  6 of 6 mutations bit.
+
+NEW IN 6.372.0 — 🎯 THE POINTER RINGS, BIGGER AND VISIBLE ON WHAT THEY
+  SIT ON: LL: "I need the rings that help find the mouse to be bigger
+  and more colorful."
+  🔎 AND "MORE COLORFUL" WAS A DEFECT, MEASURED. The ring shipped WHITE
+  — 1.00:1 against a white background, which is a Finder window, a Word
+  document or a browser page: literally invisible on most of what is on
+  his screen when he has lost the pointer. 6.369.0's contrast arithmetic
+  is reused rather than re-derived: magenta 3.06:1 on white, orange
+  2.26:1 but 6.86:1 on black, violet 4.22:1 on white — three colours
+  that cycle, so whatever is underneath, one of them stands out.
+  📏 180 pt instead of 150, and `grid.locateRingColor` is PURE and is
+  read by BOTH the ring stroke and the centre dot, so they cannot
+  disagree about which colour this ring is. `minRingContrast` was
+  written and removed in the same release: nothing read it, and a
+  threshold no code asks is a comment (6.199.0).
+  11 of 11 mutations bit.
+
+NEW IN 6.371.0 — 📅 A TWO-DIGIT YEAR IS WRITTEN OUT IN FULL:
+  LL: "10-20-26 should be 10-20-2026 / 10/20/26 should be 10/20/2026."
+  `acDateFix` is PURE: MM-DD-YY or MM/DD/YY only, both separators the
+  same, the month 1–12 and the day 1–31, and the year becomes 20YY. A
+  four-digit year is untouched; so is a date with mismatched separators,
+  which is a typo rather than a date.
+  🔑 ITS OWN BUFFER, AND ITS OWN BOUNDARY. The word buffer ends a token
+  on punctuation, and a date is nothing BUT punctuation — so it gets a
+  separate buffer that ends on whitespace, and `acQuietHere()` is split
+  out of `acSpellHereOK()` so the date rule asks only the questions that
+  apply to it: the app, the pause switch, Secure Input. It does NOT ask
+  whether the word list has loaded, which is what the spelling rule
+  needs and a date does not — found by driving it, not by reading.
+  📏 COST, NAMED: a date typed mid-word is not corrected, and a
+  12-character cap keeps the buffer bounded.
+  12 of 12 mutations bit after the sweep's three findings — one of which
+  was a separator guard no mutation could kill (6.199.0).
+
+NEW IN 6.370.0 — 🎬 ⌃⌘F FULL-SCREENS THE FILM, THE CHROME FADES, AND IT
+  RESUMES: LL: "Mug player should fade out of sight the window borders
+  and the playlist when in fullscreen mode. When I hide it and bring it
+  back it reloads and doesn't remember the Time, place or position the
+  movie was at … ⌃⌘F is to make the FILM full screen."
+  Three asks, one release, because they are one surface. ⌃⌘F now asks
+  the FILM to go full screen — `requestFullscreen` on the video element,
+  with the four shapes WebKit has shipped it under — and falls back to
+  filling the window when macOS refuses, which it can (read in
+  libwebview.m, with the file named: there is no fullScreen window mask
+  at all). Cinema mode fades the header and the deck and grows the
+  stage. And the film's position is recorded BY PATH and restored once
+  per load, so closing the window and bringing it back puts you where
+  you were.
+  🚨 EVERY FUNCTION LUA PUSHES INTO THE PAGE IS DECLARED AT THE PAGE'S
+  TOP LEVEL, because `evaluateJavaScript` runs in global scope — one
+  declared inside the page's IIFE is unreachable from Lua, and a sentry
+  now holds the whole class.
+  📏 A duration of Infinity is refused rather than seeked to: this door
+  plays a BLOB, which reports exactly that while it loads.
+  16 of 16 mutations bit.
+
+NEW IN 6.369.0 — 🔤 THE ✕ HE COULD NOT SEE, MEASURED:
+  LL: "There is not 'X' in the note list to remove an entry." There IS —
+  since 6.364.0 — and he could not see it, which is the same thing as
+  absent (6.361.0's rule: when a tool goes unused, check it can be READ
+  before checking it is correct).
+  📐 AND THIS ONE IS ARITHMETIC, NOT TASTE. The ✕ drew at 0.28 and 0.30
+  opacity over the sidebar: **2.30:1 and 2.44:1**, against WCAG's 3:1
+  floor for a control. Below the floor, by measurement, in both places.
+  `ui_style` grew `blend`, `luminance`, `contrast` and `minAlphaFor` —
+  the sRGB → relative-luminance → ratio arithmetic, PURE, with a suite
+  of its own — and both modules READ `controlAlpha` (0.55, ≥4.5:1)
+  rather than retyping a number (6.239.0).
+  🔑 The fixtures that earn their place are blue and green on white,
+  where a weighted luminance and a naive average MUST differ.
+  72 checks in the new suite; 11 of 11 mutations bit.
+
+NEW IN 6.368.0 — ☁️ ONEDRIVE IS WATCHED, AND A FILE WHOSE BYTES LEAVE IS
+  NAMED: LL, and he called it the most important thing in the batch:
+  "Watch OneDrive from its lowest level folder and give a screen report
+  if it is not working watching files that are offloading to the cloud."
+  🔬 AND HIS OWN PROBE DECIDED THE DESIGN. `_G.oneDriveProbe()` came
+  back with `(none)` on BOTH kinds of file; only a local file carries
+  `com.apple.macl · com.apple.provenance`, only a placeholder carries
+  `com.apple.FinderInfo`. There is NO File Provider attribute, so
+  "Always keep on device" is not readable from this side — which closes
+  6.367.0's open question and forces the shape: watch and DIFF, rather
+  than read a pin that does not exist.
+  📏 ONE `find` PER SWEEP, OUT OF PROCESS, and the comparison is
+  `st_blocks × 512` against `st_size` — the only thing that can tell a
+  placeholder from a real file WITHOUT READING ONE, and reading one is
+  the 72-second freeze 6.357.0 is about. The ledger of what was local
+  last time is written temp-then-rename into Application Support, so it
+  survives a reload (6.313.0).
+  🔎 Three states, and the sweep's own generation guard (6.304.0): a
+  sweep that is superseded cannot finish into the live one's slot.
+  22 of 22 mutations bit after the sweep's two findings.
+
 NEW IN 6.367.0 — ☁️ IS THE FILE REALLY HERE? THE ONEDRIVE CHECK
 
 LL: "Can we build some kind of check tool? I'm finding that sometimes

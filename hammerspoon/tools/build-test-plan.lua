@@ -32,11 +32,27 @@
 -- archive that carries several releases, so the plan carries exactly the
 -- ones that archive is new for — older blocks stay in CLAUDE.md, which is
 -- in git.
+--
+-- 🚨 6.378.0 — AND THE DEPTH MUST COVER THE ARCHIVE, WHICH A CONSTANT
+-- CANNOT. This shipped as a flat 4 and the batch it was first asked to
+-- describe held ELEVEN releases — so the steps for the OneDrive watcher
+-- he had called the most important thing in the batch would not have
+-- been in the file at all, and a release with no steps is 6.271.0's bug
+-- exactly: a test plan that exists and does not reach him. The count is
+-- an ARGUMENT now, the ceremony passes how many releases the archive is
+-- new for, and the default stays 4 for an ordinary one.
+--   lua5.4 tools/build-test-plan.lua <hs> [--check] [keep]
 -- =====================================================================
 local HS    = arg and arg[1] or "."
 local CHECK = arg and arg[2] == "--check"
 local OUT   = HS .. "/TESTING.md"
+-- the depth may arrive in either position, so --check and a count can be
+-- given in any order and neither is read as the other
 local KEEP  = 4
+for i = 2, 4 do
+    local n = tonumber(arg and arg[i])
+    if n and n >= 1 then KEEP = math.floor(n) ; break end
+end
 
 local function readAll(p)
     local f = io.open(p, "r"); if not f then return nil end
