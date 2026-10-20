@@ -51,6 +51,7 @@ local M = {
                      .. " YOU just made — backspace over a typo, retype it,"
                      .. " press ⇪Z within 30s" },
             { "auto", "Fixes typos & TWo-caps as you type (autocorrect.csv)" },
+            { "dates", "6.371.0: a two-digit year is written out in full as you type — 10-20-26 → 10-20-2026, 10/20/26 → 10/20/2026. Both separators must match and the month and day must be real, so a version number or an ID is left alone" },
             { "see", "_G.autocorrectReport() — what ⇪Z has learned, and how"
                      .. " to unlearn it (_G.autocorrectForget \"HOw\")" },
             { "add", "_G.autocorrectAdd(\"intsead\", \"instead\") — a permanent"
@@ -649,6 +650,37 @@ function M.setup(core)
         step()
     end
 
+    -- 📅 6.371.0 — A TWO-DIGIT YEAR IS A DATE THAT WILL BE WRONG LATER.
+    -- LL: "10-20-26 should be 10-20-2026 / 10/20/26 should be
+    -- 10/20/2026." Written into a note, a task title or an Asana due
+    -- date, `26` is ambiguous the moment anybody but him reads it.
+    --
+    -- 🔒 NARROW ON PURPOSE, because this rewrites text he typed. Both
+    -- separators must MATCH (a part number like `10-20/26` is not a
+    -- date), the month must be 1–12 and the day 1–31, and the year must
+    -- be exactly two digits — so `10-20-2026` is already right and is
+    -- left alone. The digits he typed are kept verbatim, so `9-5-26`
+    -- becomes `9-5-2026` and `09-05-26` becomes `09-05-2026`: padding a
+    -- number he chose not to pad is a second change he did not ask for.
+    --
+    -- 📏 COST, NAMED: a two-digit year becomes 20YY, always. `65-12-26`
+    -- is refused (there is no month 65), but `12-26-65` becomes
+    -- 2065 rather than 1965. A date in the last century has to be typed
+    -- in full — which is what he would do anyway, and the alternative is
+    -- a cutoff year this config would have to guess at.
+    local function acDateFix(token)
+        local a, s1, b, s2, y =
+            tostring(token or ""):match("^(%d%d?)([-/])(%d%d?)([-/])(%d%d)$")
+        if not a then return nil, "not a date with a two-digit year" end
+        if s1 ~= s2 then return nil, "the two separators do not match" end
+        local m, d = tonumber(a), tonumber(b)
+        if m < 1 or m > 12 then return nil, "there is no month " .. a end
+        if d < 1 or d > 31 then return nil, "there is no day " .. b end
+        return a .. s1 .. b .. s2 .. "20" .. y, "a two-digit year"
+    end
+    _G.acDateFix = acDateFix   -- the gate reads it directly
+    _G.acDateCount = function() return acDates, acDateLast end
+
     -- The decision for one completed word: returns the corrected word, or
     -- nil if it's fine as typed. Dictionary first, then the TWo-caps rule.
     -- 📌 6.200.0 — IT NAMES ITS SOURCE: "dictionary" (a row LL wrote),
@@ -691,6 +723,17 @@ function M.setup(core)
     -- after it. Our own synthetic keystrokes are flagged so the watcher
     -- ignores them.
     local acBuffer    = ""
+    local acDates     = 0        -- dates expanded this session
+    local acDateLast  = nil      -- the last one, for the report
+    -- 📅 6.371.0 — ITS OWN BUFFER, deliberately. `acBuffer` holds a WORD
+    -- and is cleared by a digit, and `-` and `/` are BOUNDARY characters
+    -- that end a word — so a date never accumulates there and could not
+    -- be seen at all. Widening acBuffer to take digits and separators
+    -- would change what every rule in this module is asked about, in the
+    -- one module that can take his keyboard away (6.216.0's banshee).
+    -- A second, tiny buffer that only ever holds digits and two
+    -- separators cannot do that.
+    local acDate      = ""
     local acInjecting = false
     -- 6.16.18: held in _G. so Lua's GC can't collect this one-shot timer
     -- before its (short) delay elapses — same real Hammerspoon gotcha
@@ -904,6 +947,7 @@ function M.setup(core)
             if t == hs.eventtap.event.types.leftMouseDown
                or t == hs.eventtap.event.types.rightMouseDown then
                 acBuffer = ""
+                acDate   = ""       -- the caret moved; so did the date
                 acSelf.before = nil          -- a click is a different word
                 if acLast then acLast.undoSafe = false end   -- cursor moved
                 return false
@@ -936,6 +980,7 @@ function M.setup(core)
             end
             if acClearKeycodes[code] then
                 acBuffer = ""
+                acDate   = ""       -- the caret moved off whatever this was
                 acSelf.before = nil          -- the caret moved off the word
                 if acLast then acLast.undoSafe = false end   -- cursor moved
                 return false
@@ -944,12 +989,14 @@ function M.setup(core)
             local ch = ev:getCharacters()
             if not ch or #ch ~= 1 then               -- function keys, IME, etc.
                 acBuffer = ""
+                acDate   = ""
                 return false
             end
 
             if acLast then acLast.undoSafe = false end       -- typed something new
 
             if ch:match("^%a$") then                 -- letter: extend the word
+                acDate   = ""        -- a letter is never part of a date
                 acBuffer = acBuffer .. ch
                 if #acBuffer > 40 then acBuffer = "" end
                 return false
@@ -958,6 +1005,39 @@ function M.setup(core)
             -- Boundary characters end a word and trigger the check
             if ch == " " or ch == "\r" or ch == "\t"
                or ch:match("^[%.,;:!%?'\"%(%)%[%]{}<>/\\%-_=%+%*&%%%$#@~`|%^]$") then
+                -- 📅 6.371.0 — `-` AND `/` ARE INSIDE A DATE, not after
+                -- it. They are boundary characters for a WORD and the
+                -- word check below still runs on an empty buffer and
+                -- does nothing, so the two rules do not interfere.
+                if (ch == "-" or ch == "/") and acDate:match("%d$") then
+                    acDate = acDate .. ch
+                elseif ch == " " or ch == "\r" or ch == "\t" then
+                    local tok = acDate
+                    acDate = ""
+                    -- 🔒 THE SAME DOOR THE WORD LIST USES. Pause,
+                    -- Secure Input and the code-editor list all gate it,
+                    -- because this rewrites text he typed and a version
+                    -- string in Ghostty is exactly the shape it matches.
+                    if tok ~= "" and acSpellHereOK() then
+                        local fixed = acDateFix(tok)
+                        if fixed then
+                            acDates = (tonumber(acDates) or 0) + 1
+                            acDateLast = tok .. " → " .. fixed
+                            local it
+                            it = hs.timer.doAfter(0.01, function()
+                                acInject(tok, fixed, ch, false)
+                                for i, t in ipairs(_G.acInjectTimers) do
+                                    if t == it then table.remove(_G.acInjectTimers, i) break end
+                                end
+                            end)
+                            table.insert(_G.acInjectTimers, it)
+                            acBuffer = ""
+                            return true          -- consume; we retype it
+                        end
+                    end
+                else
+                    acDate = ""
+                end
                 local word = acBuffer
                 acBuffer = ""
                 -- 🔤 6.243.0 — HE CORRECTED HIMSELF. Deletes removed the
@@ -1049,6 +1129,13 @@ function M.setup(core)
             end
 
             acBuffer = ""                            -- digits & anything else
+            -- 📅 a digit extends the date token and nothing else does
+            if ch:match("^%d$") then
+                acDate = acDate .. ch
+                if #acDate > 12 then acDate = "" end
+            else
+                acDate = ""
+            end
             return false
     end
 
@@ -1481,6 +1568,18 @@ function M.setup(core)
             end
             L[#L + 1] = "      ↳ any of these wrong? ⇪Z right after it, or"
             L[#L + 1] = "        _G.autocorrectForget(\"<the word>\") later."
+        end
+        -- 📅 6.371.0 — TWO STATES, and the second is not a fault: a day
+        -- with no date typed in it is the ordinary day, and a report
+        -- that printed "0" there would read like something is broken.
+        do
+            local n, last = 0, nil
+            if _G.acDateCount then n, last = _G.acDateCount() end
+            L[#L + 1] = "   date         : "
+                        .. (((tonumber(n) or 0) > 0)
+                            and (n .. " two-digit year(s) written out in full"
+                                 .. (last and ("  ·  last: " .. last) or ""))
+                            or "no two-digit date typed this session (10-20-26 → 10-20-2026)")
         end
         L[#L + 1] = "   apostrophe   : "
                     .. (acApostrophe == 0

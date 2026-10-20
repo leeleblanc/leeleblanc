@@ -1078,14 +1078,30 @@ do
   -- ---- against the source: one door -------------------------------------
   local f = io.open(HS .. "/modules/autocorrect.lua", "r")
   local src = f:read("*a"); f:close()
-  local _, asks = src:gsub("acSpellHereOK", "")
-  ck("🔒 there is ONE place that asks whether the word list may speak"
-     .. " (the definition and a single call) — never a second door",
-     asks == 2, asks)
+  -- 🔒 6.371.0 — THE SENTRY ASKS THE RULE, NOT A COUNT. It used to
+  -- require exactly two mentions of acSpellHereOK (the definition and
+  -- one call), which was right while one rule needed the gate and wrong
+  -- the day a second one did: 6.371.0's date expansion rewrites text he
+  -- typed and has to be silent in exactly the same places. 6.321.0's
+  -- lesson — a sentry that bans a NAME expires the first time the name
+  -- has an honest use. The rule is that there is ONE DEFINITION and
+  -- nobody re-implements it: a second copy of the app list or the
+  -- secure-input test is how one of them comes to speak where it must
+  -- not.
+  local _, defs = src:gsub("local function acSpellHereOK", "")
+  local _, asks = src:gsub("acSpellHereOK%(%)", "")
+  ck("🔒 the gate is DEFINED once", defs == 1, defs)
+  ck("🔒 …and every rule that needs it CALLS it rather than copying it",
+     asks >= 1 and asks <= 4, asks)
+  -- the copy that would matter: nothing else reads the off-list or asks
+  -- about Secure Input for itself
+  local body = src:gsub("%-%-[^\n]*", "")
+  local _, offIn = body:gsub("offIn", "")
+  ck("🔒 …and the app off-list is read in one place only", offIn <= 3, offIn)
   local _, quotes = src:gsub('ch == "\'"', "")
   ck("🔒 and ONE apostrophe test in the tap", quotes == 1, quotes)
 
-  check("§10 ran every one of its checks", mine == 13, mine)
+  check("§10 ran every one of its checks", mine == 15, mine)
 end
 
 -- =====================================================================
@@ -1336,6 +1352,74 @@ do
   local _, writes = src:gsub("autocorrectAdd%(p%.wrong", "")
   check("🔒 ...and there is exactly ONE place a learned pair is written",
         writes == 1, writes)
+end
+
+-- =====================================================================
+-- §11 📅 A TWO-DIGIT YEAR IS A DATE THAT WILL BE WRONG LATER (6.371.0)
+-- =====================================================================
+-- LL: "10-20-26 should be 10-20-2026 / 10/20/26 should be 10/20/2026."
+do
+  local mine = 0
+  local function ck(...) mine = mine + 1 ; check(...) end
+  out("\n§11 📅 the date rule\n")
+
+  -- ---- the PURE rule ----------------------------------------------------
+  ck("📅 10-20-26 becomes 10-20-2026", _G.acDateFix("10-20-26") == "10-20-2026",
+     tostring(_G.acDateFix("10-20-26")))
+  ck("📅 …and 10/20/26 becomes 10/20/2026",
+     _G.acDateFix("10/20/26") == "10/20/2026", tostring(_G.acDateFix("10/20/26")))
+  -- 🔑 THE DIGITS HE TYPED ARE KEPT. Padding a number he chose not to
+  -- pad is a second change he did not ask for.
+  ck("🔑 a single-digit month and day are left as he typed them",
+     _G.acDateFix("9-5-26") == "9-5-2026", tostring(_G.acDateFix("9-5-26")))
+
+  -- ---- and every way it REFUSES, because this rewrites his text --------
+  local function no(t) return (_G.acDateFix(t)) == nil end
+  ck("🔒 a four-digit year is already right and is left alone", no("10-20-2026"))
+  ck("🔒 mixed separators are not a date", no("10-20/26"))
+  ck("🔒 there is no month 13", no("13-20-26"))
+  ck("🔒 …and no day 32", no("10-32-26"))
+  ck("🔒 a version string is not a date", no("1.2.26") and no("10-20-26-1"))
+  ck("🔒 …and neither is a phone number or an ID", no("555-1234") and no("10-20-260"))
+  ck("🔒 nothing at all is refused rather than thrown at", no(nil) and no(""))
+  -- 📏 THE COST, NAMED rather than discovered: a two-digit year is
+  -- always 20YY. A date in the last century has to be typed in full.
+  ck("📏 a two-digit year is ALWAYS this century, and that is the cost",
+     _G.acDateFix("12-26-65") == "12-26-2065", tostring(_G.acDateFix("12-26-65")))
+  -- the reason is carried, so a refusal can be explained
+  local _, why = _G.acDateFix("10-20/26")
+  ck("…and a refusal says why", tostring(why):find("separators", 1, true) ~= nil, why)
+
+  -- ---- typed, through the real tap --------------------------------------
+  ck("📅 typing 10-20-26 then a space expands it",
+     typeWord("10-20-26 ") == "10-20-2026 ", tostring(typeWord("10-20-26 ")))
+  ck("📅 …and 10/20/26 too",
+     typeWord("10/20/26 ") == "10/20/2026 ", tostring(typeWord("10/20/26 ")))
+  -- 🚨 THE ONES THAT MUST TYPE THROUGH UNTOUCHED. This buffer sees every
+  -- digit he types, and a rule that fires on something that is not a
+  -- date is a rule that edits his work.
+  ck("🚨 a four-digit year is typed through untouched",
+     typeWord("10-20-2026 ") == nil, tostring(typeWord("10-20-2026 ")))
+  ck("🚨 …and so is a version number", typeWord("1.2.26 ") == nil)
+  ck("🚨 …and a bare number", typeWord("2026 ") == nil)
+  ck("🚨 …and a word with digits in it", typeWord("abc26 ") == nil)
+
+  -- 🔑 THE TWO RULES DO NOT INTERFERE. `-` and `/` end a WORD, and the
+  -- word check still runs on the empty buffer beside the date check.
+  ck("🔑 the word rules still work after a date",
+     typeWord("10-20-26 ") == "10-20-2026 " and typeWord("teh ") == "the ",
+     tostring(typeWord("teh ")))
+  ck("🔑 …and a letter in the middle kills the date, not the word",
+     typeWord("10-x-26 ") == nil)
+
+  -- the report names it
+  log = {}
+  _G.autocorrectReport()
+  local rep = table.concat(log, "\n")
+  ck("📅 the report counts the dates it expanded",
+     rep:find("date", 1, true) ~= nil, rep:match("date[^\n]*"))
+
+  check("§11 ran every one of its checks", mine == 21, mine)
 end
 
 out(("\n%d passed, %d failed\n\n"):format(pass, fail))
