@@ -1101,6 +1101,36 @@ check("💾 the store is read back: queue, history, spot and the door",
       #vid.queue == 1 and #vid.history == 1 and vid.doorStart == 2
       and vid.pos.x == 10 and vid.storeState == "read")
 
+-- ⏮ 6.370.0 — AND THE PLACES SURVIVE A RELOAD, which is the whole of
+-- his complaint: "When I hide it and bring it back it RELOADS and
+-- doesn't remember the Time, place or position." A place held only in
+-- memory is a place lost at the next ⇪R, and the mutation sweep found
+-- this round trip untested — the save and the load could both have been
+-- deleted and every other check stayed green (6.273.0).
+_G.FAKE_DECODE = { queue = { { path = "/F/q.mp4" } },
+                   resume = { { path = "/F/q.mp4", at = 100, secs = 2537 },
+                              { path = "/F/old.mp4", at = 1, secs = 0 },
+                              { path = "", at = 1, secs = 10 } } }
+vid.resume = {}
+vid.loaded = false
+vid.loadStore()
+check("⏮ a remembered place survives the reload",
+      vid.resumeFor("/F/q.mp4") == 2537, tostring(vid.resumeFor("/F/q.mp4")))
+check("…and a row with no seconds, or no path, is refused at the loader",
+      #vid.resume == 1, #vid.resume)
+
+-- and the SAVE really writes them, or the loader above has nothing to
+-- read on a real Mac
+vid.resume = vid.noteResume({}, "/F/two.mp4", os.time(), 99, 60)
+DISK[vid.storeFile] = nil
+RENAME_FAILS = false
+for _, t in ipairs(TIMERS) do t.stopped = true end
+vid.save()
+for _, t in ipairs(TIMERS) do if not t.stopped and t.fn then t.fn() end end
+check("⏮ …and the save really writes them",
+      tostring(DISK[vid.storeFile] or ""):find("/F/two.mp4", 1, true) ~= nil,
+      tostring(DISK[vid.storeFile]):sub(1, 160))
+
 -- §15 ── the report -----------------------------------------------------
 out("\n§15 the report\n")
 reset()
