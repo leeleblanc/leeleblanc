@@ -255,11 +255,17 @@ function M.setup(core)
     -- `rd.learnedCap` keeps 24 learned types and evicts the OLDEST, so a
     -- handful of one-off opens can push out .key, .sql or .sketch — the
     -- types he really does work in, quietly, with the junk left behind.
-    -- 🔑 THE FLOOR IS TWO DIFFERENT FILES, not two opens: re-opening one
-    -- file is no evidence at all about a TYPE, and the pair of them is
-    -- the cheapest thing that can tell "I work in this" from "I looked
-    -- at one of these". A type ALREADY learned is never re-tested, so
-    -- the floor governs joining and never eviction.
+    -- 🔑 THE FLOOR IS TWO DIFFERENT FILES, and that comes for free from
+    -- upstream rather than from a guard here: every list reaching
+    -- assemble is already keyed BY PATH — `rd.parse` merges the U and M
+    -- rows for one file into one entry, `loadCsv` skips a path it has
+    -- seen, and the ⇪F injection only adds a path `byPath` lacks. So one
+    -- entry IS one file, and re-opening the same file a dozen times
+    -- cannot reach the floor. A de-duplicating table inside the counter
+    -- would be a guard no input could ever fail (6.199.0); the invariant
+    -- is checked where it is created instead.
+    -- 🔁 A type ALREADY learned is never re-tested, so the floor governs
+    -- joining and never eviction.
     -- 📏 NO NEW STORE, deliberately: the evidence is in the SCAN, which
     -- carries 30 days of opens, so the count is recomputed from ground
     -- truth every time rather than tallied in a file that can drift
@@ -473,11 +479,8 @@ function M.setup(core)
             local x = e.path and extOf(e.path)
             if x and e.used and not rd.extTag[x] and not rd.appOwned(e.path) then
                 local b = by[x]
-                if not b then b = { paths = {}, n = 0 } ; by[x] = b end
-                if not b.paths[e.path] then
-                    b.paths[e.path] = true
-                    b.n = b.n + 1
-                end
+                if not b then b = { n = 0 } ; by[x] = b end
+                b.n = b.n + 1          -- one entry is one file, see above
                 if not b.last or e.used > b.last then
                     b.last    = e.used
                     b.example = e.path:match("[^/]+$")

@@ -270,15 +270,42 @@ check("two different files of a type DO make it one he works in",
       rd.learned.plist and rd.learned.plist.example)
 check("…and it is no longer waiting", rd.waiting.plist == nil)
 
--- 🔁 RE-OPENING ONE FILE IS NO EVIDENCE ABOUT A TYPE, which is the
--- fixture that separates "two files" from "two opens" — a count of opens
--- would learn from this and must not (6.230.0).
+-- 🔁 RE-OPENING ONE FILE IS NO EVIDENCE ABOUT A TYPE, and the floor
+-- gets that from upstream rather than from a guard of its own: the scan
+-- emits a U row AND an M row for one file and `rd.parse` merges them, so
+-- one entry is one file. Driven END TO END through parse, because that
+-- merge is the thing the claim rests on.
+mod, rd = freshModule()
+local dupe = table.concat({
+    "U\t" .. HOME .. "/Downloads/movie.nfo\t" .. stamp(-20) .. "\t" .. stamp(-20),
+    "M\t" .. HOME .. "/Downloads/movie.nfo\t-\t" .. stamp(-19),
+    "U\t" .. HOME .. "/Downloads/movie.nfo\t" .. stamp(-18) .. "\t-",
+}, "\n")
+local dl, dbp = rd.parse(dupe)
+check("three scan rows about ONE file are one entry — the merge upstream "
+      .. "is what makes the floor count files", #dl == 1, #dl)
+rd.assemble(dl, dbp)
+check("so re-opening one file never reaches the floor",
+      rd.learned.nfo == nil and rd.waiting.nfo == 1,
+      rd.waiting and rd.waiting.nfo)
+
+-- 🔁 AND THE FLOOR GOVERNS JOINING, NEVER EVICTION: a month in which he
+-- opens only one .key must not un-learn a type he works in.
+local keyed = {
+    { path = HOME .. "/Documents/one.key", used = BASE - 40 },
+    { path = HOME .. "/Documents/two.key", used = BASE - 39 },
+}
+rd.assemble(keyed, { [keyed[1].path] = keyed[1], [keyed[2].path] = keyed[2] })
+check(".key is learned from two files", rd.learned.key ~= nil)
+local lonely = { { path = HOME .. "/Documents/three.key", used = BASE - 5 } }
+rd.assemble(lonely, { [lonely[1].path] = lonely[1] })
+check("a later scan with ONE file of a learned type keeps it learned",
+      rd.learned.key ~= nil and rd.waiting.key == nil)
+check("…and the newer example is taken",
+      rd.learned.key.example == "three.key", rd.learned.key.example)
 mod, rd = freshModule()
 local same = { { path = HOME .. "/Downloads/movie.nfo", used = BASE - 20 } }
 rd.assemble(same, { [same[1].path] = same[1] })
-rd.assemble(same, { [same[1].path] = same[1] })
-check("the same file seen twice does NOT teach its type",
-      rd.learned.nfo == nil and rd.waiting.nfo == 1)
 -- ↩️ AND A RULE THAT REFUSES OWES A WAY PAST IT (6.199.0)
 check("learn() joins a type by hand, once",
       rd.learn("nfo") == true and rd.learned.nfo ~= nil
@@ -289,6 +316,13 @@ check("learn() refuses a built-in type and nonsense, and says why",
       and select(2, rd.learn("xlsx")):find("built-in", 1, true) ~= nil)
 check("learn() takes a leading dot and any case",
       rd.learn(".EDM") == true and rd.learned.edm ~= nil)
+-- a type joined by hand has to SURVIVE a reload, or the command is a
+-- courtesy that lasts until the next ⌘⌃R
+rd.learned = {}
+rd.loadTypes()
+check("a type joined by hand is written to disk, not held in memory",
+      rd.learned.nfo ~= nil and rd.learned.edm ~= nil,
+      tostring(rd.learned.nfo) .. "/" .. tostring(rd.learned.edm))
 -- the floor is a NUMBER the gate can move, and floor 1 is the old rule
 mod, rd = freshModule()
 rd.learnFloor = 1
