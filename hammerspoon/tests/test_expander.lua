@@ -26,6 +26,7 @@ local FRONTAPP = "TextEdit"
 local CLIP = "clipboard contents"
 local PENDING = {}
 local BOUND, CHOOSERS = {}, {}
+local DEGRADED = {}
 local AXOK = true
 -- The paste path, watched: what went on the clipboard and in what order,
 -- whether ⌘V was pressed, how long the restore waited, and whether the
@@ -345,6 +346,15 @@ local core = {
     table.insert(HYPER, { combo = table.concat(mods, "+") .. "+" .. key, fn = fn, src = src })
   end,
   warnWriteFailed = function() end,
+  -- 🔬 6.377.0 — THE CORE STUB HAD NO `degrade`, so the 🔔 door this
+  -- module takes on a refused insert could not be exercised at all and
+  -- every check about it would have passed with the door deleted.
+  -- 6.278.0's hole, in a third suite — it is this project's OWN core
+  -- table, which is the one nobody thinks to model (6.290.0).
+  degrade = function(tool, why)
+    DEGRADED[#DEGRADED + 1] = { tool = tool, why = tostring(why) }
+    return false, why
+  end,
 }
 
 -- ---- the fixture: LL's real collection, in the real format ----------
@@ -2928,6 +2938,134 @@ check("📋 the cheat sheet carries both doors — the queue and the report",
     end
     return saw.recent and saw.report
   end)())
+
+
+out("\n=== ⌨️ 6.377.0 — a picked snippet lands at the caret, and it is counted ===\n")
+-- LL, answering the focus question: "When I select a snippet 99% of the
+-- time I want it to instantly paste."
+-- 🔎 IT ALREADY DOES — ⏎ in the picker has gone straight to exp.inject
+-- since the picker was built. What was missing is any way to tell that
+-- from "it did nothing", which is why the counts are the release.
+do
+  local before = pass + fail
+  -- BY TRIGGER, not by the row's text: the row's `text` is the snippet's
+  -- NAME and the fixture's names move between sections of this suite.
+  local function pickTrigger(trig)
+    reset(); DEGRADED = {}
+    CHOOSERS = {}
+    exp.show()
+    local ch = CHOOSERS[#CHOOSERS]
+    if not ch then return nil end
+    for _, r in ipairs(ch.rows_ or {}) do
+      if r.pick and r.trigger == trig then ch.cb(r) ; return r end
+    end
+    return nil
+  end
+  -- and the two snippets are CHOSEN from what is loaded right now, so
+  -- this section cannot go stale when a fixture above it changes
+  local shortTrig, shortText, multiTrig
+  for t, s in pairs(exp.snippets or {}) do
+    local body = tostring(s.text or "")
+    if not multiTrig and body:find("\n", 1, true) then multiTrig = t end
+    if not shortTrig and not body:find("\n", 1, true)
+       and #body > 0 and #body < 30 and not s.fn then
+      shortTrig, shortText = t, body
+    end
+  end
+  -- a multi-line one is ADDED through the module's own door if the
+  -- library as loaded here holds none: the rule under test is "a
+  -- newline is always pasted", and it needs a newline to test it with
+  if not multiTrig then
+    pcall(exp.add, "mlx", "line one\nline two", "Multi line")
+    multiTrig = exp.snippets and exp.snippets["mlx"] and "mlx" or nil
+  end
+  check("the fixture offers a short single-line snippet and a multi-line one",
+        shortTrig ~= nil and multiTrig ~= nil,
+        tostring(shortTrig) .. "/" .. tostring(multiTrig))
+
+  -- the counters start empty, and an empty count SAYS which empty
+  exp.inserts = { pick  = { typed = 0, pasted = 0, refused = 0 },
+                  typed = { typed = 0, pasted = 0, refused = 0 } }
+  exp.lastInsert = nil
+  local r0 = _G.snippetsReport()
+  check("before anything is picked the report says so, not '0 typed'",
+        r0:find("none picked from", 1, true) ~= nil, r0:match("⏎ pick[^\n]*"))
+
+  -- ⏎ ON A SHORT SNIPPET TYPES IT AT THE CARET
+  local got = pickTrigger(shortTrig)
+  check("⏎ in the picker inserts the snippet — nothing else has to happen",
+        got ~= nil and KEYSTROKES[1] == shortText,
+        tostring(KEYSTROKES[1]) .. " want " .. tostring(shortText))
+  check("…and it is counted as a PICK that was TYPED",
+        exp.inserts.pick.typed == 1 and exp.inserts.pick.pasted == 0
+        and exp.inserts.typed.typed == 0,
+        exp.inserts.pick.typed .. "/" .. exp.inserts.typed.typed)
+
+  -- 🚨 A PICK AND A TYPED TRIGGER ARE COUNTED APART, which is the whole
+  -- distinction his sentence is about: they fail for different reasons.
+  reset(); typeStr(" " .. shortTrig); drain()
+  check("a TYPED trigger lands in the other bucket, not the pick one",
+        exp.inserts.typed.typed == 1 and exp.inserts.pick.typed == 1,
+        exp.inserts.pick.typed .. "/" .. exp.inserts.typed.typed)
+
+  -- a multi-line pick is PASTED, and counted as pasted
+  local m = pickTrigger(multiTrig)
+  check("a multi-line snippet picked from ⇪⇧S is PASTED, never typed",
+        m ~= nil and PASTED == 1 and #KEYSTROKES == 0, PASTED)
+  check("…and the route is recorded as pasted, not as typed",
+        exp.inserts.pick.pasted == 1, exp.inserts.pick.pasted)
+
+  local r1 = _G.snippetsReport()
+  check("the report names both buckets and both routes",
+        r1:find("⏎ pick:", 1, true) ~= nil
+        and r1:find("typed at the caret", 1, true) ~= nil
+        and r1:find("pasted", 1, true) ~= nil, r1:match("⏎ pick[^\n]*"))
+  -- the last thing in was the multi-line PICK, so the line must say
+  -- picked AND pasted — the pair is what makes it readable
+  check("…and names the last one that landed, with its door and its route",
+        (r1:match("last in[^\n]*") or ""):find("picked", 1, true) ~= nil
+        and (r1:match("last in[^\n]*") or ""):find("pasted", 1, true) ~= nil,
+        r1:match("last in[^\n]*"))
+
+  -- 🔔 AND A REFUSAL IS SEEN, NOT ONLY LOGGED (6.214.0). A picker whose
+  -- whole job is that something lands, inserting nothing and saying
+  -- nothing, is the complaint this release is about.
+  local realStrokes2 = hs.eventtap.keyStrokes
+  hs.eventtap.keyStrokes = function() error("macOS refused the keystrokes", 0) end
+  local bad = pickTrigger(shortTrig)
+  hs.eventtap.keyStrokes = realStrokes2
+  check("a refused insert is counted as refused",
+        bad ~= nil and exp.inserts.pick.refused == 1, exp.inserts.pick.refused)
+  check("🔔 …and it takes the degrade door, naming the snippet",
+        #DEGRADED == 1 and DEGRADED[1].tool == "Snippets"
+        and DEGRADED[1].why:find("could not insert", 1, true) ~= nil,
+        #DEGRADED .. " " .. tostring(DEGRADED[1] and DEGRADED[1].why))
+  local r2 = _G.snippetsReport()
+  check("…and the report carries the refusal, the name and the reason",
+        r2:find("last REFUSED", 1, true) ~= nil
+        and r2:find("refused the keystrokes", 1, true) ~= nil,
+        r2:match("last REFUSED[^\n]*"))
+
+  -- 🔒 ONE DOOR: the picker must not grow an insert of its own, or the
+  -- two paths come to disagree about typing vs pasting (6.231.0).
+  -- io.open is NOT stubbed in this suite (it writes a real fixture tree
+  -- under TMP), so the plain one reads the module — asserted below all
+  -- the same, because a sentry over an empty haystack is green and
+  -- measures nothing (6.313.0).
+  local SRC = io.open(HS .. "/modules/text_expander.lua", "r")
+  local TXT = SRC and SRC:read("*a") or ""
+  if SRC then SRC:close() end
+  check("the sentry below really read the module", #TXT > 40000, #TXT)
+  check("the picker inserts through exp.inject and nothing else",
+        select(2, TXT:gsub("function exp%.inject", "")) == 1
+        and TXT:find('exp.inject(row.trigger or "", row.snip, 0, nil, "pick")',
+                     1, true) ~= nil)
+  check("every caller of inject names its door or takes the default",
+        select(2, TXT:gsub('"pick"', "")) >= 2)
+
+  local ran = (pass + fail) - before
+  check("§6.377.0 ran all of its checks (" .. ran .. " of 14)", ran >= 14, ran)
+end
 
 out(("\n%d passed, %d failed\n\n"):format(pass, fail))
 os.execute("rm -rf '" .. TMP .. "'")

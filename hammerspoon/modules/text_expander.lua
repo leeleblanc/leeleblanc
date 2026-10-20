@@ -249,6 +249,28 @@ function M.setup(core)
     local function say(m)  if _G.diag then _G.diag.say("expander", m)  end end
     local function warn(m) if _G.diag then _G.diag.warn("expander", m) end end
 
+    -- ⌨️ 6.377.0 — WHICH ROUTE AN INSERT TOOK, COUNTED (LL, answering the
+    -- focus question: "When I select a snippet 99% of the time I want it
+    -- to instantly paste.").
+    -- 🔎 AND IT ALREADY DOES, which is the first thing to say: ⏎ in the
+    -- ⇪⇧S picker has gone straight to exp.inject since the picker was
+    -- built — short snippets are TYPED at the caret, anything with a
+    -- newline in it is put on the clipboard, ⌘V'd and the clipboard put
+    -- straight back (the newline rule, because a synthetic Return in a
+    -- chat box SENDS the message). So there was nothing to build and no
+    -- way to tell whether it was happening: nothing in nineteen hundred
+    -- snippets counted an insert, by route or by outcome, so "it pasted"
+    -- and "it did nothing" read identically from his side.
+    -- 🔑 PICKS ARE COUNTED APART FROM TYPED TRIGGERS, because that is the
+    -- distinction his sentence is about and because the two fail for
+    -- different reasons — a pick happens as the picker closes and macOS
+    -- hands focus back, a typed trigger happens mid-sentence with the
+    -- caret already where it belongs (6.274.0: when a symptom is
+    -- intermittent the missing half is a per-outcome COUNT).
+    exp.inserts = { pick  = { typed = 0, pasted = 0, refused = 0 },
+                    typed = { typed = 0, pasted = 0, refused = 0 },
+                    lastWhy = nil, lastName = nil, lastAt = nil }
+
     exp.snippets   = {}    -- trigger -> { text, name, source }
     exp.count      = 0
     exp.longest    = 0     -- characters in the longest trigger
@@ -792,7 +814,10 @@ function M.setup(core)
     -- tail: characters that were typed AFTER the trigger and consumed by
     -- us, which have to reappear after the snippet. Only the deferred
     -- path uses it — see the ⏳ note in the tap.
-    function exp.inject(trigger, snip, deleteCount, tail)
+    -- `how` is "pick" when the ⇪⇧S picker inserted it and "typed" when a
+    -- trigger did. It only ever decides which counter moves and what the
+    -- report says; nothing about the insert itself reads it.
+    function exp.inject(trigger, snip, deleteCount, tail, how)
         -- ⚡ ACTION TRIGGER: the payload is a function, not text. Same
         -- contract as an expansion — what was typed is removed and any
         -- tail is retyped — but nothing is inserted; the function runs
@@ -861,7 +886,13 @@ function M.setup(core)
             end
         end)
         err = pasteErr or err
+        local bucket = exp.inserts[(how == "pick") and "pick" or "typed"]
         if ok then
+            bucket[snip.viaPaste and "pasted" or "typed"] =
+                bucket[snip.viaPaste and "pasted" or "typed"] + 1
+            exp.lastInsert = { how = (how == "pick") and "pick" or "typed",
+                               route = snip.viaPaste and "pasted" or "typed",
+                               name = tostring(snip.name or ""), at = os.time() }
             fired(trigger, snip)
             -- Autocorrect watched us eat the trigger's last character and
             -- is now holding the front of a word that no longer exists on
@@ -884,6 +915,10 @@ function M.setup(core)
         -- Injection failed: clear the guard NOW so the owed character
         -- we type back is not blocked by our own injecting flag.
         exp.injecting = false
+        bucket.refused   = bucket.refused + 1
+        exp.inserts.lastWhy  = tostring(err or "no reason given")
+        exp.inserts.lastName = tostring(snip.name or "")
+        exp.inserts.lastAt   = os.time()
         -- 🚨 THE KEYSTROKES ARE NOT LOST. Whatever we consumed on the
         -- promise that this would replace it gets typed back — the final
         -- character of the trigger on the immediate path, the tail on the
@@ -896,6 +931,17 @@ function M.setup(core)
         if _G.notices then
             _G.notices.record("expander", "insertion failed",
                               tostring(snip.name) .. ": " .. tostring(err))
+        end
+        -- 🔔 6.377.0 — AND IT IS SEEN, NOT ONLY LOGGED (6.214.0, from his
+        -- own words: "I must have anything here that breaks to throw an
+        -- error so I see it"). A picker whose whole job is that something
+        -- lands, inserting nothing and saying nothing, is the complaint
+        -- this release is about; the door is gated per cause so a snippet
+        -- that keeps failing cannot become a wall of alerts.
+        if core.degrade then
+            pcall(core.degrade, "Snippets",
+                  "could not insert \"" .. tostring(snip.name) .. "\" — "
+                  .. tostring(err))
         end
         return false
     end
@@ -2109,7 +2155,7 @@ function M.setup(core)
             local row = picks[tonumber(choice.pick) or 0]
             if not (row and row.snip) then return end
             -- Nothing to delete: this is an insert, not a replacement.
-            exp.inject(row.trigger or "", row.snip, 0)
+            exp.inject(row.trigger or "", row.snip, 0, nil, "pick")
             -- 🕘 6.359.0 — AND THIS IS THE ONLY PLACE A PICK IS RECORDED.
             -- AFTER the insert, never before: the store write is disk work
             -- on the main thread (6.228.0) and his text must not wait
@@ -2260,8 +2306,48 @@ function M.setup(core)
         line("   counts : a PICK from ⇪⇧S. A trigger you type expands and is"
              .. " NOT recorded — thousands a day would bury the handful you"
              .. " choose by hand.")
-        print(table.concat(L, "\n"))
-        return exp
+        -- ⌨️ 6.377.0 — WHAT ACTUALLY LANDED, AND BY WHICH ROUTE. Three
+        -- states on each line (6.196.1): nothing picked yet · it landed,
+        -- here is how · it was REFUSED, here is the snippet and the
+        -- reason. The first two used to read the same from his side,
+        -- which is why "it pastes" could not be checked.
+        do
+            local Q = string.char(34)          -- a plain quote, unescaped
+            local function routes(b, what, note)
+                local n = b.typed + b.pasted + b.refused
+                if n == 0 then
+                    line("   " .. what .. ": none " .. note .. " this session")
+                    return
+                end
+                line(string.format("   %s: %d — %d typed at the caret · %d pasted"
+                                   .. " (⌘V, clipboard put back) · %d REFUSED",
+                                   what, n, b.typed, b.pasted, b.refused))
+            end
+            routes(exp.inserts.pick,  "⏎ pick", "picked from ⇪⇧S")
+            routes(exp.inserts.typed, "typed ", "expanded by a typed trigger")
+            line("   ↳ a snippet with a NEWLINE in it is always pasted, never"
+                 .. " typed: a synthetic Return in a chat box sends the message")
+            local li = exp.lastInsert
+            if li then
+                line(string.format("   ↳ last in : %s " .. Q .. "%s" .. Q .. " %s at %s",
+                                   li.how == "pick" and "picked" or "typed",
+                                   li.name, li.route,
+                                   os.date("%H:%M:%S", li.at)))
+            end
+            if exp.inserts.lastWhy then
+                line("   ↳ ⚠️ last REFUSED: " .. Q .. tostring(exp.inserts.lastName)
+                     .. Q .. " — " .. tostring(exp.inserts.lastWhy)
+                     .. " at " .. os.date("%H:%M:%S", exp.inserts.lastAt or os.time()))
+            end
+        end
+        -- 📋 6.377.0 — IT RETURNS ITS TEXT, like every other report in
+        -- this config. It used to hand back the module table, which
+        -- printed fine and could not be ASSERTED without capturing
+        -- print — so a check about this report was a check about a
+        -- harness (6.179.1: a report prints as one string).
+        local out = table.concat(L, "\n")
+        print(out)
+        return out
     end
     _G.textExpander   = exp
     M.exp    = exp
