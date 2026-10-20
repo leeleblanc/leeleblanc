@@ -2967,7 +2967,16 @@ do
   for t, s in pairs(exp.snippets or {}) do
     local body = tostring(s.text or "")
     if not multiTrig and body:find("\n", 1, true) then multiTrig = t end
+    -- 🚨 NO TOKEN IN IT. `exp.substitute` expands {date:…}, {clip} and
+    -- friends, so a snippet carrying one types something that is
+    -- correctly NOT its raw text — and the real 1,926-snippet library
+    -- inside the package has plenty. Found by running the gate from
+    -- INSIDE the package, which is the whole reason that step exists:
+    -- the working tree's snippets/ is gitignored and holds something
+    -- else. The check asserts what was TYPED equals the body, so the
+    -- fixture has to be a snippet for which that is true.
     if not shortTrig and not body:find("\n", 1, true)
+       and not body:find("{", 1, true)
        and #body > 0 and #body < 30 and not s.fn then
       shortTrig, shortText = t, body
     end
