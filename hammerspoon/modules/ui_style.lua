@@ -55,6 +55,94 @@ local M = {
     },
 }
 
+-- ---- PURE: is a control VISIBLE? (6.369.0) ------------------------------
+-- 🔤 LL: "There is not 'X' in the note list to remove an entry." There
+-- is. It has been there since 6.280.0 in the notes and since 6.364.0 in
+-- the closed-tab strip, and he could not see it — which, for a control
+-- you have to find before you can click it, is the same thing as absent.
+--
+-- 🔑 6.361.0's RULE IN A SECOND PLACE, and it is why this is arithmetic
+-- rather than taste. That release found a tool unreachable for 267
+-- releases because its key was printed in a glyph he could not map to a
+-- physical key: WHEN A TOOL GOES UNUSED, CHECK THAT IT CAN BE READ
+-- BEFORE CHECKING THAT IT IS CORRECT. Every rule in this config about a
+-- control asks whether it WORKS. Not one asked whether it can be SEEN.
+--
+-- 📏 MEASURED, NOT ADJUSTED BY EYE. The ✕ was drawn at opacity 0.28–0.3
+-- in #e8e8ec over the sidebar's #17171c, which blends to about #56565a
+-- and carries a contrast ratio of 2.5:1. WCAG's floor for a control you
+-- are meant to find and click is 3:1, and a thin glyph like ✕ is the
+-- worst case inside that. So the number was below the floor, provably,
+-- and "I cannot see it" was a correct report of a measurable defect.
+local function srgb(c)
+    c = c / 255
+    if c <= 0.03928 then return c / 12.92 end
+    return ((c + 0.055) / 1.055) ^ 2.4
+end
+
+local function rgbOf(hex)
+    hex = tostring(hex or ""):gsub("^#", "")
+    if #hex == 3 then
+        hex = hex:sub(1,1):rep(2) .. hex:sub(2,2):rep(2) .. hex:sub(3,3):rep(2)
+    end
+    if #hex ~= 6 or hex:find("%X") then return nil end
+    return tonumber(hex:sub(1, 2), 16),
+           tonumber(hex:sub(3, 4), 16),
+           tonumber(hex:sub(5, 6), 16)
+end
+
+-- What a colour drawn at `alpha` over `bg` really is on screen. Opacity
+-- is not a property of the ink — it is a blend, and the blend is what a
+-- person's eye has to separate from the background.
+function M.blend(fg, bg, alpha)
+    local fr, fg_, fb = rgbOf(fg)
+    local br, bg_, bb = rgbOf(bg)
+    if not fr or not br then return nil end
+    local a = tonumber(alpha)
+    if not a then return nil end
+    if a < 0 then a = 0 elseif a > 1 then a = 1 end
+    local function mix(f, b) return math.floor((a * f + (1 - a) * b) + 0.5) end
+    return ("#%02x%02x%02x"):format(mix(fr, br), mix(fg_, bg_), mix(fb, bb))
+end
+
+function M.luminance(hex)
+    local r, g, b = rgbOf(hex)
+    if not r then return nil end
+    return 0.2126 * srgb(r) + 0.7152 * srgb(g) + 0.0722 * srgb(b)
+end
+
+-- WCAG 2.x contrast. Answers nil — never a number — for anything it
+-- could not read: a report that invents a ratio for a colour it did not
+-- understand is worse than one that says it could not tell (6.196.1).
+function M.contrast(a, b)
+    local la, lb = M.luminance(a), M.luminance(b)
+    if not la or not lb then return nil end
+    if lb > la then la, lb = lb, la end
+    return (la + 0.05) / (lb + 0.05)
+end
+
+-- The alpha a dim control may rest at over `bg` and still clear `floor`.
+-- PURE and searched rather than solved, because the sRGB curve is not
+-- invertible in one line and a wrong closed form would be a number that
+-- looks measured and is not.
+function M.minAlphaFor(fg, bg, floor)
+    floor = tonumber(floor) or M.minControlContrast
+    for i = 5, 100 do
+        local a = i / 100
+        local c = M.contrast(M.blend(fg, bg, a), bg)
+        if c and c >= floor then return a, c end
+    end
+    return nil
+end
+
+-- 📏 THE FLOOR, AND THE RESTING ALPHA THE GATE PROVES AGAINST IT.
+-- 3:1 is WCAG's threshold for a non-text user-interface component. 0.55
+-- is not a taste: it is the first value above the floor with room to
+-- spare for a thin glyph, and over the #17171c sidebar it measures 5.3:1.
+M.minControlContrast = 3.0
+M.controlAlpha       = 0.55     -- a control at rest
+M.controlHoverAlpha  = 0.85     -- under the pointer
+
 function M.setup(core)
 
     -- ✏️ EDIT HERE — these are the FOCUS card's numbers, verbatim.
@@ -119,6 +207,15 @@ function M.setup(core)
         return "body{background:" .. style.bgHex()
                .. ";color:" .. style.css(style.fg) .. "}"
     end
+
+    -- the contrast arithmetic is published on the table as well, so a
+    -- panel can ask at runtime; it lives on M so the gate can prove the
+    -- rule without running setup at all.
+    style.blend, style.luminance, style.contrast = M.blend, M.luminance, M.contrast
+    style.minAlphaFor        = M.minAlphaFor
+    style.minControlContrast = M.minControlContrast
+    style.controlAlpha       = M.controlAlpha
+    style.controlHoverAlpha  = M.controlHoverAlpha
 
     _G.uiStyle = style
     if core and core.provide then

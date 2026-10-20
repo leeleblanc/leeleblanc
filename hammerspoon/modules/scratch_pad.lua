@@ -1839,7 +1839,18 @@ function M.setup(core)
         local fs = tonumber(sp.fontSize) or 16
         if fs < 8 then fs = 8 end
         local function sized(html)
-            return (html:gsub("FS1px", math.floor(fs - 2) .. "px"):gsub("FS2px", math.floor(fs - 3) .. "px")
+            -- 🔤 6.369.0 — THE ✕'s OPACITY IS READ, NEVER RETYPED
+            -- (6.239.0). ui_style measured it: 0.3 over this sidebar is
+            -- 2.4:1, under WCAG's 3:1 floor for a control, which is why
+            -- he reported an ✕ that has been there since 6.364.0 as
+            -- absent. The fallback is ui_style's own shipped value, so a
+            -- boot where that module failed to load still draws a
+            -- visible one.
+            local ui = _G.uiStyle or {}
+            local ca = tonumber(ui.controlAlpha) or 0.55
+            local ch = tonumber(ui.controlHoverAlpha) or 0.85
+            return (html:gsub("CTRLA", tostring(ca)):gsub("CTRLH", tostring(ch))
+                        :gsub("FS1px", math.floor(fs - 2) .. "px"):gsub("FS2px", math.floor(fs - 3) .. "px")
                         :gsub("FSpx", math.floor(fs) .. "px"))
         end
         return sized([[<!doctype html><html><head><meta charset="utf-8"><style>
@@ -1860,7 +1871,7 @@ header .bad{background:#7a2a2a;color:#ffd9d9;border-radius:6px;padding:3px 8px;f
 .tab.capture{background:#1f2a33}.tab.capture.on{background:#2b3f4d;box-shadow:inset 0 -3px 0 #4fb3d9}
 .tab.append{background:#2f2a1c}.tab.append.on{background:#4a4024;box-shadow:inset 0 -3px 0 #e0b04a}
 .tab .tt{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.tab .x{opacity:.5;cursor:pointer;padding:0 2px}
+.tab .x{opacity:CTRLA;cursor:pointer;padding:0 2px}
 .tab .x:hover{opacity:1}
 .tab.add{padding:4px 10px;opacity:.7;cursor:pointer}
 textarea{flex:1;margin:0;padding:10px;border:0;outline:0;resize:none;background:#141418;color:#e8e8ec;
@@ -1877,8 +1888,8 @@ textarea{flex:1;margin:0;padding:10px;border:0;outline:0;resize:none;background:
 .row .w{opacity:.5;white-space:nowrap;font-size:FS2px;min-width:86px}
 .row .t{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:40%}
 .row .p{opacity:.65;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1}
-.row .x{opacity:.3;padding:0 2px;font-size:FS1px;line-height:1}
-.row:hover .x{opacity:.6}
+.row .x{opacity:CTRLA;padding:0 2px;font-size:FS1px;line-height:1}
+.row:hover .x{opacity:CTRLH}
 .row .x:hover{opacity:1;color:#ff7a7a}
 .empty{opacity:.45;padding:8px 10px;font-size:FS1px}
 ]] .. theme .. [[</style></head><body><div id="wrap">
@@ -1905,7 +1916,7 @@ function draw(){
     if (f && (r.t + ' ' + r.p).toLowerCase().indexOf(f) < 0) continue;
     n++; out.push('<div class="row" data-id="' + esc(r.id) + '"><span class="w">' + esc(r.w)
       + '</span><span class="t">' + esc(r.t) + '</span><span class="p">' + esc(r.p) + '</span>'
-      + '<span class="x" data-x="1" title="forget this closed tab">&times;</span></div>'); }
+      + '<span class="x" data-x="1" title="forget this closed tab">\u2715</span></div>'); }
   document.getElementById('rows').innerHTML = out.length ? out.join('') :
     '<div class="empty">' + (ROWS.length ? 'nothing matches' : 'closed tabs land here — ⌘W') + '</div>';
   document.getElementById('cnt').textContent = n + ' / ' + ROWS.length;

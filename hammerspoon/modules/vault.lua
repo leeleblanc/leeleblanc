@@ -2592,12 +2592,12 @@ textarea{flex:1;width:100%;box-sizing:border-box;resize:none;border:0;outline:0;
 #rows li.sec{opacity:.55;font-size:FS2px;letter-spacing:.05em;font-weight:600;cursor:default;padding:8px 12px 3px}
 #rows li.tab{display:flex;align-items:center;gap:6px}
 #rows li.tab .tt{flex:1;overflow:hidden;text-overflow:ellipsis}
-#rows li.tab .x{opacity:.45;padding:0 3px}
+#rows li.tab .x{opacity:CTRLA;padding:0 3px}
 /* 🗑 6.280.0 — visible without hovering (dim), brighter under the
    pointer: a control you have to discover is one he asks for twice,
    which is exactly what happened here. */
-#rows li.note .x{float:right;opacity:.28;padding:0 2px 0 6px}
-#rows li.note:hover .x{opacity:.75}
+#rows li.note .x{float:right;opacity:CTRLA;padding:0 2px 0 6px}
+#rows li.note:hover .x{opacity:CTRLH}
 #rows li.note .x:hover{opacity:1;color:#ff8a80}
 #rows li.tab .x:hover{opacity:1}
 #rows li.tab.capture{box-shadow:inset 3px 0 0 #4fb3d9}
@@ -4222,6 +4222,8 @@ else {
         local fs2 = math.max(10, math.floor(fs) - 2)
         return (html:gsub("TIPGAPPX", tostring(math.floor(fs) + 8))
                     :gsub("FSLABEL", tostring(fs2)):gsub("FSNUM", tostring(math.floor(fs)))
+                    :gsub("CTRLA", tostring(tonumber((_G.uiStyle or {}).controlAlpha) or 0.55))
+                    :gsub("CTRLH", tostring(tonumber((_G.uiStyle or {}).controlHoverAlpha) or 0.85))
                     :gsub("FS1px", fs1 .. "px")
                     :gsub("FS2px", fs2 .. "px"):gsub("FSpx", math.floor(fs) .. "px"))
     end

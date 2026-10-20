@@ -170,5 +170,116 @@ check("the Asana legend takes bgWith(panelAlpha)",
 check("the task mirror takes bgWith(core.panelAlpha)",
       wired("modules/task_creator.lua", "bgWith(core.panelAlpha)"))
 
+-- =====================================================================
+-- 🔤 6.369.0 — CAN THE CONTROL BE SEEN?
+-- =====================================================================
+-- LL: "There is not 'X' in the note list to remove an entry." There is,
+-- and has been since 6.280.0. 6.361.0's rule in a second place: when a
+-- tool goes unused, check that it can be READ before checking that it
+-- is correct. These checks make "can it be seen" arithmetic.
+out("\n🔤 the contrast arithmetic, and the ✕ he could not see\n")
+do
+  local M = dofile(HS .. "/modules/ui_style.lua")
+
+  -- the arithmetic itself, against values anyone can check
+  local function near(a, b) return a and math.abs(a - b) < 0.05 end
+  check("black on white is the maximum ratio", near(M.contrast("#000000", "#ffffff"), 21))
+  check("a colour against itself is 1:1", near(M.contrast("#17171c", "#17171c"), 1))
+  check("the order of the two colours does not change the ratio",
+        near(M.contrast("#000", "#fff"), M.contrast("#fff", "#000")))
+  check("a three-digit hex is the same colour as its six-digit form",
+        M.luminance("#fff") == M.luminance("#ffffff"))
+  -- 🔎 nil, never a number, for anything it could not read: a ratio
+  -- invented for a colour nobody understood is worse than none (6.196.1)
+  check("🔎 a colour it cannot read answers nil, never a ratio",
+        M.contrast("rebeccapurple", "#fff") == nil and M.luminance("#12345") == nil)
+  check("…and so does a blend with no alpha", M.blend("#fff", "#000", nil) == nil)
+
+  -- opacity is a BLEND, which is the thing a resting alpha hides
+  check("opacity 1 is the ink itself", M.blend("#e8e8ec", "#17171c", 1) == "#e8e8ec")
+  check("opacity 0 is the background", M.blend("#e8e8ec", "#17171c", 0) == "#17171c")
+  check("an alpha past the ends is clamped, never wrapped",
+        M.blend("#e8e8ec", "#17171c", 5) == "#e8e8ec"
+        and M.blend("#e8e8ec", "#17171c", -5) == "#17171c")
+
+  -- 📏 THE MEASUREMENT THIS RELEASE RESTS ON. The ✕ shipped at 0.28 in
+  -- the note list and 0.3 in the closed-tab strip; both are under
+  -- WCAG's 3:1 floor for a control, which is why he reported one that
+  -- was there as missing.
+  local SIDEBAR, INK = "#17171c", "#e8e8ec"
+  local was28 = M.contrast(M.blend(INK, SIDEBAR, 0.28), SIDEBAR)
+  local was30 = M.contrast(M.blend(INK, SIDEBAR, 0.30), SIDEBAR)
+  check("📏 the OLD note ✕ really was under the floor", was28 < 3.0,
+        ("%.2f:1"):format(was28))
+  check("📏 …and so was the OLD closed-tab ✕", was30 < 3.0, ("%.2f:1"):format(was30))
+  check("📏 the shipped resting alpha clears it, with room for a thin glyph",
+        M.contrast(M.blend(INK, SIDEBAR, M.controlAlpha), SIDEBAR) >= 4.5,
+        ("%.2f:1"):format(M.contrast(M.blend(INK, SIDEBAR, M.controlAlpha), SIDEBAR)))
+  check("…and the hover state is brighter still, never dimmer",
+        M.controlHoverAlpha > M.controlAlpha)
+  local a, c = M.minAlphaFor(INK, SIDEBAR)
+  check("the minimum alpha for the floor is found and is below the shipped one",
+        a and a < M.controlAlpha and c >= 3.0, tostring(a))
+  check("…and it answers nil when no alpha can reach the floor",
+        M.minAlphaFor("#181820", "#17171c", 3.0) == nil)
+end
+
+-- =====================================================================
+-- 🔤 THE PAGES DRAW IT AT THE MEASURED NUMBER, NOT A TYPED ONE
+-- =====================================================================
+out("\n🔤 every ✕ in a page is read from ui_style and clears the floor\n")
+do
+  local M = dofile(HS .. "/modules/ui_style.lua")
+  local function src(f)
+    local fh = assert(io.open(HS .. "/" .. f, "r"))
+    local t = fh:read("a") ; fh:close()
+    return t
+  end
+  -- 🔑 6.239.0 — THE PAGE IS GIVEN THE NUMBER. A literal typed into the
+  -- CSS beside a literal in ui_style is two numbers kept in step by
+  -- hand, which is how the note list and the closed-tab strip came to
+  -- differ by 0.02 for no reason anyone could name.
+  for _, f in ipairs({ "modules/vault.lua", "modules/scratch_pad.lua" }) do
+    local t = src(f)
+    local code = t:gsub("%-%-[^\n]*", "")
+    check(f .. "'s ✕ opacity is a token, not a number",
+          code:find("%.x{[^}]*opacity:CTRLA") ~= nil
+          or code:find("%.x{float:right;opacity:CTRLA") ~= nil, f)
+    check(f .. " substitutes it from _G.uiStyle",
+          code:find('gsub%("CTRLA"') ~= nil and code:find("uiStyle") ~= nil, f)
+    -- rule 1 of ui_style: every consumer reads it WITH A FALLBACK, so a
+    -- boot where this module failed to load is the old look and never a
+    -- page whose controls are invisible
+    check(f .. " falls back to a visible value if ui_style did not load",
+          code:find("controlAlpha%) or 0%.55") ~= nil, f)
+    check(f .. " leaves no hard-coded dim ✕ behind",
+          code:find("%.x{opacity:%.[0-4]") == nil
+          and code:find("%.x{float:right;opacity:%.[0-4]") == nil, f)
+  end
+  -- 🔑 THE GLYPH SAYS WHAT THE ACT COSTS, and that is a rule rather
+  -- than a tidy-up. × (the multiplication sign) CLOSES something that
+  -- can be reopened — a tab goes to the history. ✕ (U+2715, a heavier
+  -- stroke) REMOVES it from a list for good. The closed-tab strip drew
+  -- the light × for an act that is permanent, which is the wrong weight
+  -- as well as the wrong contrast.
+  local sp = src("modules/scratch_pad.lua")
+  local vt = src("modules/vault.lua")
+  check("🔑 forgetting a closed tab draws the heavy ✕, not the light ×",
+        sp:find("\\u2715", 1, true) ~= nil
+        and sp:find("&times;</span></div>", 1, true) == nil)
+  check("🔑 …the same glyph deleting a note draws", vt:find("\\u2715", 1, true) ~= nil)
+  check("🔑 …and CLOSING a tab still draws the light ×, because it can be reopened",
+        sp:find('title="Close ⌘W">×', 1, true) ~= nil)
+
+  -- 📏 NAMED, NOT SWEPT (6.269.0). This rule is about CONTROLS — a
+  -- thing you have to find and click. Receded LABELS ("no task
+  -- matches", "loading…") and a drag ghost are dim on purpose, and a
+  -- check that flagged those would go red on a healthy tree and be
+  -- switched off inside a week. The bin's restore button measures
+  -- 3.98:1 at 0.45 and is left alone for the same reason.
+  check("📏 the bin's restore control already clears the floor, so it is untouched",
+        M.contrast(M.blend("#e8e8ec", "#17171c", 0.45), "#17171c") >= 3.0)
+end
+
 out(("\n%d passed, %d failed\n\n"):format(pass, fail))
 os.exit(fail == 0 and 0 or 1)
