@@ -790,8 +790,20 @@ function M.setup(core)
     -- guessing. It FAILS CLOSED: an app it cannot name is not silently
     -- trusted, and a Mac that cannot answer about secure input is
     -- treated as if the lock were on.
-    local function acSpellHereOK()
-        if not acSpell.on or not acSpellWords then return false end
+    -- 🔒 6.371.0 — THE PLACE RULE AND THE WORD-LIST RULE ARE SPLIT, and
+    -- that is a correction rather than tidying. `acSpellHereOK` asked two
+    -- questions at once: "is it safe to rewrite text HERE" (Secure Input,
+    -- the code-editor list) and "is the word list even loaded". The date
+    -- expansion needs the first and has nothing to do with the second —
+    -- gated on the whole thing, a Mac with no /usr/share/dict/words, or
+    -- one in the seconds before it finishes loading, would silently stop
+    -- expanding dates for a reason that has nothing to do with dates.
+    -- Found by driving the rule in a bare harness rather than by reading.
+    --
+    -- ONE DEFINITION OF THE PLACE RULE, two callers (6.231.0). A second
+    -- copy of the off-list is how one of them comes to speak where it
+    -- must not.
+    local function acQuietHere()
         local okS, secure = pcall(hs.eventtap.isSecureInputEnabled)
         if (not okS) or secure then
             acSpellDown = acSpellDown + 1
@@ -803,6 +815,11 @@ function M.setup(core)
             if name == ex then acSpellDown = acSpellDown + 1 return false end
         end
         return true
+    end
+
+    local function acSpellHereOK()
+        if not acSpell.on or not acSpellWords then return false end
+        return acQuietHere()
     end
 
     -- 🌩 6.218.0 — THE GUARD STAYS UP UNTIL THE RETYPE HAS DRAINED.
@@ -1009,8 +1026,9 @@ function M.setup(core)
                 -- it. They are boundary characters for a WORD and the
                 -- word check below still runs on an empty buffer and
                 -- does nothing, so the two rules do not interfere.
-                if (ch == "-" or ch == "/") and acDate:match("%d$") then
+                if ch == "-" or ch == "/" then
                     acDate = acDate .. ch
+                    if #acDate > 12 then acDate = "" end
                 elseif ch == " " or ch == "\r" or ch == "\t" then
                     local tok = acDate
                     acDate = ""
@@ -1018,7 +1036,7 @@ function M.setup(core)
                     -- Secure Input and the code-editor list all gate it,
                     -- because this rewrites text he typed and a version
                     -- string in Ghostty is exactly the shape it matches.
-                    if tok ~= "" and acSpellHereOK() then
+                    if tok ~= "" and acQuietHere() then
                         local fixed = acDateFix(tok)
                         if fixed then
                             acDates = (tonumber(acDates) or 0) + 1
@@ -1132,6 +1150,12 @@ function M.setup(core)
             -- 📅 a digit extends the date token and nothing else does
             if ch:match("^%d$") then
                 acDate = acDate .. ch
+                -- 📏 THE CAP BOUNDS MEMORY, NOT THE ANSWER, and that is
+                -- written down because no test can tell the two apart:
+                -- the longest date this rule accepts is 8 characters, so
+                -- a run past 12 can never become one either way. What it
+                -- stops is a buffer growing without limit while he types
+                -- a long number — the same reason acBuffer stops at 40.
                 if #acDate > 12 then acDate = "" end
             else
                 acDate = ""

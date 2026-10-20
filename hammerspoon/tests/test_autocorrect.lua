@@ -1089,10 +1089,21 @@ do
   -- secure-input test is how one of them comes to speak where it must
   -- not.
   local _, defs = src:gsub("local function acSpellHereOK", "")
-  local _, asks = src:gsub("acSpellHereOK%(%)", "")
-  ck("🔒 the gate is DEFINED once", defs == 1, defs)
-  ck("🔒 …and every rule that needs it CALLS it rather than copying it",
-     asks >= 1 and asks <= 4, asks)
+  local _, place = src:gsub("local function acQuietHere", "")
+  local _, asks = src:gsub("acQuietHere%(%)", "")
+  ck("🔒 the word-list gate is DEFINED once", defs == 1, defs)
+  ck("🔒 …and so is the PLACE rule it rests on", place == 1, place)
+  ck("🔒 …and every rule that needs the place rule CALLS it, never copies it",
+     asks >= 2 and asks <= 5, asks)
+  -- 🔒 AND THE DATE RULE DOES NOT WAIT ON THE WORD LIST. They are
+  -- different questions and were one function until 6.371.0: a Mac with
+  -- no /usr/share/dict/words would silently stop expanding dates for a
+  -- reason that has nothing to do with dates.
+  local body2 = src:gsub("%-%-[^\n]*", "")
+  ck("🔒 the date rule asks the PLACE rule, not the word list's gate",
+     body2:find("acDateFix") ~= nil
+     and body2:match("if tok ~= \"\" and acQuietHere%(%) then") ~= nil,
+     tostring(body2:match("if tok ~= [^\n]*")))
   -- the copy that would matter: nothing else reads the off-list or asks
   -- about Secure Input for itself
   local body = src:gsub("%-%-[^\n]*", "")
@@ -1101,7 +1112,7 @@ do
   local _, quotes = src:gsub('ch == "\'"', "")
   ck("🔒 and ONE apostrophe test in the tap", quotes == 1, quotes)
 
-  check("§10 ran every one of its checks", mine == 15, mine)
+  check("§10 ran every one of its checks", mine == 17, mine)
 end
 
 -- =====================================================================
@@ -1412,6 +1423,77 @@ do
   ck("🔑 …and a letter in the middle kills the date, not the word",
      typeWord("10-x-26 ") == nil)
 
+  -- 🔒 THE GATE, DRIVEN. The sweep found these untested: the rule rewrites
+  -- text he typed, and the places it must be silent are exactly the
+  -- places the word list must be silent.
+  SECURE = true
+  ck("🔒 Secure Input silences the date rule, as it does the word list",
+     typeWord("10-20-26 ") == nil, tostring(typeWord("10-20-26 ")))
+  SECURE = false
+  ck("…and it speaks again once Secure Input is down",
+     typeWord("10-20-26 ") == "10-20-2026 ")
+  _G.hsPaused = true
+  ck("🔒 the pause switch silences it too", typeWord("10-20-26 ") == nil)
+  _G.hsPaused = false
+
+  -- 🚨 THE BOUNDARY IS CONSUMED, or the space is typed twice: once by
+  -- him and once by the injection. The handler's RETURN is the fact.
+  KEYSTROKES, DELETES, TIMERS = {}, 0, {}
+  for ch in ("10-20-26"):gmatch(".") do keyIn(ch) end
+  local ate = TAP.fn({ getType = function() return hs.eventtap.event.types.keyDown end,
+                       getFlags = function() return {} end,
+                       getKeyCode = function() return 0 end,
+                       getCharacters = function() return " " end })
+  ck("🚨 the space that ends a date is CONSUMED — we retype it", ate == true,
+     tostring(ate))
+  -- 🚨 AND THE INJECTION IS DRAINED, or this check poisons every one
+  -- after it. 6.218.0's guard stands down by COUNTING its own keys back
+  -- through the tap; a test that fires an injection and never delivers
+  -- those keys leaves the guard UP, and the next word typed is swallowed
+  -- whole. That is exactly how the letter fixture below came to pass
+  -- with its guard deleted — the sweep found it, and the cause was in
+  -- the harness, not the code (6.218.0's own "a test measuring its own
+  -- stub", one layer out).
+  runShortTimers()
+  if KEYSTROKES[1] then
+    local nDel, text = DELETES, KEYSTROKES[1]
+    TIMERS = {}
+    deliver(nDel, text)
+    runShortTimers()
+  end
+
+  -- 🖱 a click moves the caret, so whatever was half-typed is not a date
+  KEYSTROKES, DELETES, TIMERS = {}, 0, {}
+  for ch in ("10-20-"):gmatch(".") do keyIn(ch) end
+  TAP.fn({ getType = function() return hs.eventtap.event.types.leftMouseDown end,
+           getFlags = function() return {} end,
+           getKeyCode = function() return 0 end,
+           getCharacters = function() return "" end })
+  for ch in ("26 "):gmatch(".") do keyIn(ch) end
+  runShortTimers()
+  local afterClick = KEYSTROKES[1]
+  ck("🖱 a click in the middle clears the date — the caret moved",
+     afterClick == nil, tostring(afterClick))
+
+  -- 🚨 A LETTER IN THE MIDDLE IS NOT A DATE, and the fixture that bites
+  -- is one where the digits either side would otherwise JOIN: `1a0-20-26`
+  -- reads as 10-20-26 the moment the letter stops clearing the buffer.
+  --
+  -- 🧪 CALLED ONCE, INTO A LOCAL. Written as two calls inside one check
+  -- — the condition and its detail — the second ran against the state
+  -- the first had left, and the pair passed with the guard deleted. A
+  -- check whose answer depends on what ran before it is not a check
+  -- (6.212.0's rule about asserting what is unique to the branch, in the
+  -- harness rather than the code).
+  do
+    local gotLetter = typeWord("1a0-20-26 ")
+    local gotPlain  = typeWord("10-20-26 ")
+    ck("🚨 a letter between the digits stops them joining into a date",
+       gotLetter == nil, tostring(gotLetter))
+    ck("…and the SAME digits with the letter taken out still expand",
+       gotPlain == "10-20-2026 ", tostring(gotPlain))
+  end
+
   -- the report names it
   log = {}
   _G.autocorrectReport()
@@ -1419,7 +1501,7 @@ do
   ck("📅 the report counts the dates it expanded",
      rep:find("date", 1, true) ~= nil, rep:match("date[^\n]*"))
 
-  check("§11 ran every one of its checks", mine == 21, mine)
+  check("§11 ran every one of its checks", mine == 28, mine)
 end
 
 out(("\n%d passed, %d failed\n\n"):format(pass, fail))
