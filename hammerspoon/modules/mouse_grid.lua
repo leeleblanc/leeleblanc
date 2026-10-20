@@ -154,7 +154,8 @@ local M = {
             { "-- after it lands --", "" },
             { "space",    "Left click · ⇧space right click · 2 double click" },
             { "↑↓←→",     "Nudge 8pt a press — HOLD it and it repeats at that same 8pt, like an arrow in a text box (the old climb to 64pt is gone, 6.360.0) · with ⇧ nudge 1pt for a tight target" },
-            { "two keys", "After you land, the box is drawn SPLIT IN HALF with a letter in each side (the first two of the alphabet — the badge names them). Press one and that half is kept, the pointer goes to its middle, and it splits again — two or three presses narrow a big cell onto a small button" },
+            { "two keys", "6.373.0: TWO keystrokes land you, not three — 26 letters two deep is 676 cells, within 4% of the 729 it replaces, so the boxes are the size you know and a third of the typing is gone" },
+            { "split",    "After you land, the box is drawn SPLIT IN HALF with a letter in each side (the first two of the alphabet — the badge names them). Press one and that half is kept, the pointer goes to its middle, and it splits again — two or three presses narrow a big cell onto a small button" },
             { "⎋",        "Done — leave the pointer where it is" },
             { "⇪⇧L",      "Find the pointer — three white rings pulse out from it, again and again, for 5 s" },
             { "",         "6.372.0: BIGGER (180 pt, was 110) and in colour — magenta, orange, violet in turn. It shipped WHITE, which is 1.00:1 on a white window, so over Finder or Word the ring was genuinely not there. Every colour now clears 2.5:1 on white AND on black" },
@@ -210,8 +211,26 @@ function M.setup(core)
     --      9 keys, 4 deep ->  6,561 cells, four keystrokes
     --    `_G.mouseGridReport()` prints the REAL cell size on this Mac —
     --    read it after any change here rather than guessing.
-    grid.alphabet    = "asdfghjkl"         -- the home row, nothing to reach for
-    grid.labelLength = 3
+    -- ⌨️ 6.373.0 — TWO KEYSTROKES, HIS ANSWER. The ask was "too much work
+    -- to get to a specific element", said across 6.176.0, 6.181.0 and
+    -- 6.360.0, and the arithmetic nobody had written down is what
+    -- settles it: cells = #alphabet ^ labelLength.
+    --
+    --     9 home-row keys, 3 deep  =   729 cells, THREE keystrokes
+    --    26 letters,       2 deep  =   676 cells, TWO keystrokes
+    --
+    -- Within 4% of the same cell — so the boxes stay the size he has
+    -- already accepted — for a THIRD of the typing removed. And a
+    -- two-character label is wider-spaced in the same box, so it reads
+    -- better rather than worse, which is the trap 6.176.0 fell into:
+    -- 4,096 cells was a 30 pt box carrying a three-character label, and
+    -- his reaction ("HOLY SHIT! The grid is insane") was correct.
+    --
+    -- 📏 ITS ONE COST, NAMED: the letters are the whole keyboard rather
+    -- than the home row, so two reaches replace three home-row taps.
+    -- That was his to judge, and he judged it.
+    grid.alphabet    = "abcdefghijklmnopqrstuvwxyz"
+    grid.labelLength = 2
     -- ✏️ How slow a geometry build has to be before the Console says so
     -- (milliseconds). See the note where it is used: the cost is once
     -- per display layout, never per press.
@@ -654,7 +673,11 @@ function M.setup(core)
             print(string.format("🎯 mouse grid: laying out %d cells took %.0f ms on "
                 .. "this Mac — that happens once per display layout, not per press. "
                 .. "If the first ⇪X after a reload feels slow, a smaller grid is "
-                .. "settings = { mouse_grid = { labelLength = 2 } } "
+                -- 📏 6.373.0 — THE OVERRIDE HAS TO MAKE IT SMALLER, and
+                -- labelLength is 2 already. A shorter alphabet is what
+                -- is left: 9 home-row keys at 2 deep is 81 cells, which
+                -- is a coarse grid that builds instantly.
+                .. "settings = { mouse_grid = { alphabet = \"asdfghjkl\" } } "
                 .. "(81 cells, much bigger cells).", index, ms))
         end
         return { screens = plan, used = index, capacity = capacity,
@@ -2134,7 +2157,6 @@ function M.setup(core)
         { red = 1.00, green = 0.42, blue = 0.21 },   -- orange   2.84 / 7.41
         { red = 0.69, green = 0.52, blue = 1.00 },   -- violet   2.77 / 7.59
     }
-    grid.minRingContrast = 2.5   -- against white AND black, both
     grid.locateRadius = 180     -- at scale 1 (was 110, and 60 before that)
     grid.locateSecs   = 6       -- how long the pointer is marked (was 1.2): five whole pulses
     grid.locateCycle  = 1.2     -- one pulse of three rings; repeats until locateSecs

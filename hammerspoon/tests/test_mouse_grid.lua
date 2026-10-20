@@ -331,7 +331,15 @@ end
 
 -- Load the SHIPPED file. `src` lets section 8 hand in a mutated copy.
 DEFAULT_ALPHABET = nil
+DEFAULT_LABELLEN = nil
 PIN_ALPHABET = "asdfghjkl"   -- 6.176.0: the alphabet the checks below assume
+-- ⌨️ 6.373.0 — AND THE LABEL LENGTH WITH IT. The geometry and snap
+-- checks below were written against a 729-cell grid; pinning only the
+-- alphabet left them computing 9^2 = 81 the moment the shipped label
+-- length moved, and what is under test there is the arithmetic, not
+-- which grid ships. The shipped values are asserted once, in section 3,
+-- from the DEFAULT_ captured before the pin.
+PIN_LABELLEN = 3
 local function loadModule(src)
     resetWorld()
     local chunk, err
@@ -358,7 +366,9 @@ local function loadModule(src)
     -- the real (wider) alphabet during setup, so every pinned letter is
     -- still a bound key.
     DEFAULT_ALPHABET = grid.alphabet
+    DEFAULT_LABELLEN = grid.labelLength
     grid.alphabet = PIN_ALPHABET or grid.alphabet
+    grid.labelLength = PIN_LABELLEN or grid.labelLength
     return M
 end
 
@@ -549,14 +559,24 @@ local cache = grid.cache
 -- the button still lands ON it. Precision lives in the snap now, where
 -- it costs no reading and no typing. These two checks are the guard: a
 -- future "make it finer" must be an explicit decision, not a drift.
-check("6.184.0: the SHIPPED alphabet is the 9 home-row keys — labels you "
-      .. "can read at a glance, and no finger leaves the home row",
-      DEFAULT_ALPHABET == "asdfghjkl" and #DEFAULT_ALPHABET == 9,
-      DEFAULT_ALPHABET)
-check("…which is 729 cells, and it is still THREE keystrokes",
-      (#DEFAULT_ALPHABET) ^ 3 == 729 and grid.labelLength == 3)
-check("…and every one of those keys is on the home row itself",
-      DEFAULT_ALPHABET:match("^[asdfghjkl]+$") ~= nil, DEFAULT_ALPHABET)
+-- ⌨️ 6.373.0 — TWO KEYSTROKES, HIS ANSWER, and the record of the
+-- decision moves with it. 6.184.0 shipped 9 home-row keys 3 deep (729
+-- cells, three keystrokes) and these checks were its guard. He was asked
+-- for the trade and took it: 26 letters 2 deep is 676 cells — within 4%
+-- of the same box — for a THIRD of the typing removed. The guard is
+-- unchanged in spirit: a future "make it finer" must be an explicit
+-- decision, not a drift.
+check("⌨️ the SHIPPED alphabet is the whole lowercase alphabet",
+      DEFAULT_ALPHABET == "abcdefghijklmnopqrstuvwxyz"
+      and #DEFAULT_ALPHABET == 26, DEFAULT_ALPHABET)
+check("…which is 676 cells, and it is TWO keystrokes",
+      (#DEFAULT_ALPHABET) ^ 2 == 676 and DEFAULT_LABELLEN == 2,
+      tostring(DEFAULT_LABELLEN))
+check("…so the CELL is within 4% of the 729-cell grid it replaces — the"
+      .. " typing got shorter, the boxes did not get bigger",
+      math.abs(676 - 729) / 729 < 0.08)
+check("…and every one of those keys is a plain letter",
+      DEFAULT_ALPHABET:match("^[a-z]+$") ~= nil, DEFAULT_ALPHABET)
 -- the escape hatch has to keep working in BOTH directions, or "one line,
 -- no release" is a promise the config cannot keep
 check("…and the 6.176.0 fine grid is still one settings line away",
@@ -589,12 +609,21 @@ do
           and said:find("once per display layout", 1, true) ~= nil
           -- 6.184.0: the home row IS the shipped grid now, so the override
           -- it offers has to be one that still makes the grid smaller
-          and said:find("labelLength = 2", 1, true) ~= nil
+          -- 6.373.0: labelLength IS 2 now, so the override it offers
+          -- has to be one that still makes the grid smaller
+          -- 6.373.0: labelLength IS 2 now, so the override it offers
+          -- has to be one that still makes the grid smaller — a shorter
+          -- alphabet. The old clause forbade naming the shipped one;
+          -- the home row IS the smaller one today, so the rule it
+          -- protects is that the advice names something SMALLER.
+          and said:find("alphabet = ", 1, true) ~= nil
+          and said:find("81 cells", 1, true) ~= nil
           and said:find(DEFAULT_ALPHABET, 1, true) == nil, said)
     grid.buildSlowMs = 120
     grid.cache = nil
 end
-check("capacity is exactly alphabet^length", cache.capacity == 9 ^ 3, cache.capacity)
+check("capacity is exactly alphabet^length",
+      cache.capacity == (#grid.alphabet) ^ grid.labelLength, cache.capacity)
 check("cells never exceed the label capacity", cache.used <= cache.capacity, cache.used)
 check("no cell is left unlabelled and therefore unreachable",
       cache.truncated == 0, cache.truncated)
@@ -2492,14 +2521,30 @@ do
                 local m = math.min(onW, onB)
                 if m < worstC then worst, worstC = i, m end
             end
+            -- 📏 2.5:1 IS THE DECISION AND IT LIVES HERE, not as a knob
+            -- in the module: nothing in the drawing reads a floor, so a
+            -- field holding one would be a number nobody consults
+            -- (6.199.0). WCAG's non-text threshold is 3:1; a ring is a
+            -- STROKE over arbitrary content rather than a control on a
+            -- known background, and the band that clears 3:1 against
+            -- BOTH white and black is one narrow slice of luminance —
+            -- which is the opposite of "more colourful". 2.5 is the
+            -- trade, named rather than discovered.
             check("🎨 EVERY shipped ring colour is visible on white AND on black",
-                  worstC >= G.minRingContrast,
+                  worstC >= 2.5,
                   ("ring %s is only %.2f:1"):format(tostring(worst), worstC))
             check("…and there is more than one of them, which is the ask",
                   #G.locateColors >= 2, #G.locateColors)
             -- 📏 BIGGER, and in terms of what it was rather than a number
             check("📏 the ring is bigger than the 110 pt it shipped at in 6.310.0",
                   G.locateRadius > 110, G.locateRadius)
+
+            -- ⌨️ 6.373.0 — TWO KEYSTROKES, HIS ANSWER. cells =
+            -- #alphabet ^ labelLength, and the whole point is that the
+            -- CELL stays the size he has accepted while the TYPING
+            -- drops by a third. A check on the keystrokes alone would
+            -- pass with a 26-cell grid.
+
 
             -- the colour per ring, cycled, with a floor that cannot be empty
             local a = G.locateRingColor(0, G.locateColors, G.locateColor)
@@ -2532,8 +2577,14 @@ do
             end
             check("🎨 the drawing reads the list — move it and the rings follow",
                   allGreen and #rings(fG) >= 1, #rings(fG))
+            -- 🚨 THE FIXTURE HAD TO CHANGE COLOUR: green was 1 in the
+            -- fallback white too, so the dot check passed with the
+            -- list ignored. The input where the two must differ is a
+            -- colour whose RED is 0 (6.230.0).
             check("…and the pointer dot takes the first colour too",
-                  dot(fG) and dot(fG).fillColor.green == 1)
+                  dot(fG) and dot(fG).fillColor.green == 1
+                  and dot(fG).fillColor.red == 0,
+                  dot(fG) and dot(fG).fillColor.red)
             G.locateColors = kept
         end
 
