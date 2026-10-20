@@ -54,6 +54,7 @@ check("the page carries exactly one script block", scripts.length === 1, scripts
 function makeEnv() {
   const sent = [];
   const listeners = { document: {}, el: {} };
+  const timeouts = [];       // 6.370.0: the deferred full-screen probe
   const texts = {};          // "k:i" → the textContent written into that row
   let scrolled = 0;
 
@@ -154,7 +155,20 @@ function makeEnv() {
     document: {
       getElementById: (id) => byId[id] || null,
       addEventListener: (ev, fn) => { listeners.document[ev] = fn; },
+      // 🔬 6.290.0 — A REAL DOCUMENT ALWAYS HAS A BODY, and 6.370.0's
+      // cinema mode reads its className. A harness without one is
+      // gentler than WebKit and the whole mode is unreachable from the
+      // gate, which is how a stub comes to certify a bug.
+      body: { className: "" },
+      fullscreenElement: null,
+      webkitFullscreenElement: null,
+      exitFullscreen() { this.fullscreenElement = null; },
     },
+    // the older webkit full-screen form answers nothing, so the page
+    // asks a beat later whether it took — the beat is collected rather
+    // than slept through.
+    setTimeout: (fn, ms) => { timeouts.push({ fn, ms }); return timeouts.length; },
+    Date,
     webkit: { messageHandlers: { mugPlayer: { postMessage: (m) => sent.push(m) } } },
     Uint8Array,
     Blob,
@@ -181,7 +195,9 @@ function makeEnv() {
     },
   };
   return { sandbox, sent, listeners, byId, texts, scrolledCount: () => scrolled,
-           rowObjs, blobs, urls, liveURLs: () => Object.keys(urls) };
+           rowObjs, blobs, urls, liveURLs: () => Object.keys(urls),
+           timeouts, fireTimeouts: () => { const t = timeouts.splice(0);
+                                           t.forEach((x) => x.fn()); return t.length; } };
 }
 
 function load() {
@@ -812,6 +828,156 @@ console.log("── Mug Player: page JavaScript, executed ──");
   press("ArrowRight", { metaKey: true });
   check("⌘→ is not our →", v.currentTime === 100 && env.sent.length === 0,
         v.currentTime);
+}
+
+// =====================================================================
+// 🎬 6.370.0 — ⌃⌘F ASKS THE FILM, AND THE CHROME FADES
+// =====================================================================
+// LL: "Mug player should fade out of sight the window borders and the
+// playlist when in fullscreen mode. … ⌃⌘F is to make the FILM full
+// screen." Whether a WKWebView will ALLOW element full screen is not
+// knowable from Lua — hs.webview never sets the WKPreferences key and
+// the macOS default is off — so the page ASKS and reports which
+// happened. New ground gets a probe, never a fix built on a belief
+// (6.233.0).
+{
+  // 🔬 A SYNCHRONOUS THENABLE, deliberately: the branch under test is
+  // `pr && pr.then`, and driving it with a real promise would make the
+  // whole section async for no gain in what it proves.
+  const thenable = (ok) => ({
+    then(f) { if (ok) f(); return { catch(g) { if (!ok) g(new Error("refused")); } }; },
+  });
+
+  let env = load();
+  let asked = 0;
+  env.byId.v.requestFullscreen = () => { asked += 1; return thenable(true); };
+  env.key("f", { metaKey: true, ctrlKey: true });
+  check("🖥 ⌃⌘F asks the FILM for full screen, not the window", asked === 1, asked);
+  check("…and a WebKit that TAKES it is reported as 'film'",
+        env.sent.some((m) => m.a === "fill" && m.mode === "film"),
+        JSON.stringify(env.sent));
+  check("…and nothing asks Lua to resize the window underneath it",
+        !env.sent.some((m) => m.a === "fill" && m.mode === "window"));
+
+  // 🚨 THE FIXTURE THAT MATTERS, because it is the one his Mac is most
+  // likely to be: WebKit refuses, and the window must fill instead.
+  env = load();
+  env.byId.v.requestFullscreen = () => thenable(false);
+  env.key("f", { metaKey: true, ctrlKey: true });
+  const ref = env.sent.find((m) => m.a === "fill");
+  check("🚨 a WebKit that REFUSES falls back to filling the window",
+        ref && ref.mode === "window", JSON.stringify(env.sent));
+  check("…and says WHY, so the report can name it rather than guess",
+        ref && typeof ref.why === "string" && ref.why.length > 5, ref && ref.why);
+
+  // a WebKit with no element full screen at all
+  env = load();
+  delete env.byId.v.requestFullscreen;
+  env.key("f", { metaKey: true, ctrlKey: true });
+  const none = env.sent.find((m) => m.a === "fill");
+  check("a WebKit with no element full screen at all says so and fills",
+        none && none.mode === "window"
+        && /no element full screen/.test(none.why || ""), JSON.stringify(none));
+
+  // the older form answers NOTHING, so the page asks a beat later
+  env = load();
+  env.byId.v.requestFullscreen = () => undefined;
+  env.key("f", { metaKey: true, ctrlKey: true });
+  check("the older webkit form is not guessed about on the spot",
+        env.sent.length === 0 && env.timeouts.length === 1, env.sent.length);
+  env.sandbox.document.fullscreenElement = env.byId.v;
+  env.fireTimeouts();
+  check("…and once the beat has passed it reports what really happened",
+        env.sent.some((m) => m.a === "fill" && m.mode === "film"),
+        JSON.stringify(env.sent));
+
+  // and out again
+  env = load();
+  env.sandbox.document.fullscreenElement = env.byId.v;
+  env.key("f", { metaKey: true, ctrlKey: true });
+  check("⌃⌘F while the film IS full screen takes it back out",
+        env.sent.some((m) => m.a === "fill" && m.mode === "film-out"),
+        JSON.stringify(env.sent));
+
+  // 🎬 CINEMA — Lua owns the flag and pushes it; the page reflects it
+  env = load();
+  env.call("cinema(true);");
+  check("🎬 cinema fades the chrome by a class on the body",
+        env.sandbox.document.body.className === "cinema",
+        env.sandbox.document.body.className);
+  // 🚨 ESC LEAVES THE MODE BEFORE IT CLOSES THE WINDOW. A mode you can
+  // only leave with the key that put you in is a mode you can get stuck
+  // in, and Esc closing the window from inside it loses the film.
+  env.key("Escape");
+  const esc = env.sent.find((m) => m.a === "fill" || m.a === "close");
+  check("🚨 Esc in cinema leaves the MODE, it does not close the window",
+        esc && esc.a === "fill", JSON.stringify(env.sent));
+  env.call("cinema(false);");
+  env.sent.length = 0;
+  env.key("Escape");
+  check("…and out of cinema Esc closes the window as it always did",
+        env.sent.some((m) => m.a === "close"), JSON.stringify(env.sent));
+  // and while the FILM is full screen WebKit keeps Esc (6.318.0)
+  env.sandbox.document.fullscreenElement = env.byId.v;
+  env.sent.length = 0;
+  env.key("Escape");
+  check("…and WebKit still owns Esc while the film is full screen",
+        env.sent.length === 0, JSON.stringify(env.sent));
+}
+
+// =====================================================================
+// ⏮ 6.370.0 — WHERE HE LEFT IT
+// =====================================================================
+// LL: "When I hide it and bring it back it reloads and doesn't remember
+// the Time, place or position the movie was at when it was playing — I
+// have jump and find place the last place it was playing at."
+{
+  let env = load();
+  const v = env.byId.v;
+
+  // 📍 the position is reported, and THROTTLED: timeupdate fires about
+  // four times a second and each message is a hop onto the main thread.
+  v.duration = 3600; v._ct = 120;
+  env.video("timeupdate");
+  const first = env.sent.filter((m) => m.a === "at");
+  check("📍 the page reports where the film is", first.length === 1,
+        JSON.stringify(env.sent));
+  check("…with the length beside it, which the resume decision needs",
+        first[0].t === 120 && first[0].dur === 3600, JSON.stringify(first[0]));
+  v._ct = 121;
+  env.video("timeupdate");
+  check("📍 …and a second one a moment later is THROTTLED, not sent",
+        env.sent.filter((m) => m.a === "at").length === 1,
+        JSON.stringify(env.sent));
+  // …but a PAUSE always reports, because that is the place he stopped at
+  v._ct = 200;
+  env.video("pause");
+  const atP = env.sent.filter((m) => m.a === "at");
+  check("📍 a PAUSE reports at once — that is the place he stopped at",
+        atP.length === 2 && atP[1].t === 200, JSON.stringify(atP));
+
+  // ⏮ the duration is its own message, because a blob says Infinity
+  // while it is still assembling (6.365.0) and Lua cannot decide on it
+  env = load();
+  env.byId.v.duration = Infinity;
+  env.video("durationchange");
+  check("⏮ an Infinity duration is NOT reported — nothing can be decided on it",
+        !env.sent.some((m) => m.a === "dur"), JSON.stringify(env.sent));
+  env.byId.v.duration = 6486;
+  env.video("durationchange");
+  const dm = env.sent.find((m) => m.a === "dur");
+  check("⏮ …and once it is a real number it is", dm && dm.d === 6486,
+        JSON.stringify(env.sent));
+
+  // and Lua pushes the place back
+  env = load();
+  env.byId.v.duration = 6486;
+  env.call("resumeTo(2537);");
+  check("⏮ resumeTo moves the film to where he left it",
+        env.byId.v.currentTime === 2537, env.byId.v.currentTime);
+  check("…and refuses a place that is not a number, rather than throwing",
+        env.call("resumeTo('later');") === false
+        && env.byId.v.currentTime === 2537, env.byId.v.currentTime);
 }
 
 console.log(`── test_mug_js: ${pass} passed, ${fail} failed`);

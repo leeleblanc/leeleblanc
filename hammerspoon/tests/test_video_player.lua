@@ -2691,7 +2691,13 @@ do
     check("🔒 the sentry really read the page's keydown",
           type(body) == "string" and #body > 400, tostring(body and #body))
     body = body or ""
-    local fillAt = body:find("a:'fill'", 1, true)
+    -- 🔒 6.370.0 — THE CHECK ASKS THE RULE, NOT THE SENTENCE (6.248.0).
+    -- ⌃⌘F used to post `a:'fill'` straight from the handler; it calls
+    -- filmFull() now, which asks the FILM for full screen first and
+    -- falls back to filling the window. What must stay true is the
+    -- ORDERING — the key is claimed before the plain-⌘ bail, or it is
+    -- silently dead — and that is a fact about position, not wording.
+    local fillAt = body:find("filmFull()", 1, true)
     local bailAt = body:find("if(e.metaKey)return;", 1, true)
     check("🔒 ⌃⌘F is claimed BEFORE the plain-⌘ bail, or it is dead",
           fillAt ~= nil and bailAt ~= nil and fillAt < bailAt,
@@ -2799,6 +2805,186 @@ do
 
     local ran = (pass + fail) - before
     check("§26 ran all of its checks (" .. ran .. " of 13)", ran >= 13, ran)
+end
+
+
+-- =====================================================================
+-- ⏮ 6.370.0 — WHERE HE LEFT IT, AND ⌃⌘F ON THE FILM
+-- =====================================================================
+out("\n§27 ⏮ the resume decision, and the three states that move nothing\n")
+do
+    -- ⏮ FOUR ANSWERS, ONE OF WHICH MOVES ANYTHING (6.196.1). The other
+    -- three all look like "it started at the beginning" from outside,
+    -- which is the complaint this release exists to answer.
+    local t, why = vid.resumeAt(2537, 6486)
+    check("⏮ a film he was half way through goes back to where he left it",
+          t == 2537 and why:find("42:17", 1, true) ~= nil, tostring(why))
+    t, why = vid.resumeAt(nil, 6486)
+    check("…nothing remembered moves nothing, and says that",
+          t == nil and why:find("nothing was remembered", 1, true) ~= nil, tostring(why))
+    t, why = vid.resumeAt(12, 6486)
+    check("…barely started is its own answer, not 'nothing remembered'",
+          t == nil and why:find("near enough the start", 1, true) ~= nil, tostring(why))
+    t, why = vid.resumeAt(6450, 6486)
+    check("…and all but finished starts over rather than landing on the credits",
+          t == nil and why:find("last", 1, true) ~= nil, tostring(why))
+
+    -- 🚨 A LENGTH NOBODY KNOWS REFUSES, exactly as the seek does
+    -- (6.239.0): a blob-backed <video> says Infinity while it is still
+    -- assembling, and seeking into that lands in silence with no way
+    -- back. This is the fixture that separates a real duration from a
+    -- plausible one (6.230.0).
+    t, why = vid.resumeAt(2537, math.huge)
+    check("🚨 an INFINITE duration moves nothing and says why",
+          t == nil and why:find("how long", 1, true) ~= nil, tostring(why))
+    t = vid.resumeAt(2537, 0 / 0)
+    check("🚨 …and so does a NaN one", t == nil)
+    t = vid.resumeAt(2537, 0)
+    check("🚨 …and so does no duration at all", t == nil)
+
+    -- the clock a human can find on a scrubber
+    check("the place is written as a clock, not a number of seconds",
+          vid.clock(2537) == "42:17" and vid.clock(59) == "0:59"
+          and vid.clock(6486) == "1:48:06", vid.clock(2537))
+    check("…and a nonsense position is 0:00, never a throw", vid.clock("later") == "0:00")
+end
+
+out("\n§28 ⏮ remembering a place: by path, bounded, newest first\n")
+do
+    local l = vid.noteResume({}, "/a.mp4", 100, 30, 3)
+    check("a place is remembered against the film", #l == 1 and l[1].path == "/a.mp4")
+    l = vid.noteResume(l, "/a.mp4", 200, 90, 3)
+    check("…and the same film keeps ONE row, moved to the front",
+          #l == 1 and l[1].secs == 90, #l)
+    l = vid.noteResume(l, "/b.mp4", 300, 40, 3)
+    l = vid.noteResume(l, "/c.mp4", 400, 50, 3)
+    l = vid.noteResume(l, "/d.mp4", 500, 60, 3)
+    check("📏 past the bound the OLDEST film goes, never the newest",
+          #l == 3 and l[1].path == "/d.mp4"
+          and l[3].path ~= "/a.mp4", #l .. " " .. l[#l].path)
+    check("a place of zero is not remembered at all",
+          #vid.noteResume({}, "/z.mp4", 1, 0, 3) == 0)
+    check("nothing at all is an empty list, never a throw",
+          #vid.noteResume(nil, nil, nil, nil, 3) == 0)
+end
+
+out("\n§29 ⏮ the page reports a place, and the film goes back to it\n")
+do
+    vid.resume, vid.resumes, vid.resumeDone, vid.resumeLast = {}, 0, nil, nil
+    -- the push needs a window to push INTO: a resume with no page is a
+    -- state of its own and is checked below, separately.
+    if not vid.webview then vid.show() end
+    vid.queue = { { path = "/films/one.mp4", title = "one" } }
+    vid.index = 1
+    vid.gen = (tonumber(vid.gen) or 0) + 1
+
+    -- 📍 a position recorded against the PATH, never the row number: the
+    -- queue renumbers under his hand (6.186.0 · 6.272.0), and a place
+    -- kept by index comes back on a different film.
+    vid.handleMessage({ a = "at", t = 2537, dur = 6486, gen = vid.gen })
+    check("📍 the position is recorded against the film's path",
+          vid.resumeFor("/films/one.mp4") == 2537, tostring(vid.resumeFor("/films/one.mp4")))
+    -- a late report about the film that WAS playing must not speak for
+    -- this one (6.304.0)
+    vid.handleMessage({ a = "at", t = 99, dur = 6486, gen = vid.gen - 1 })
+    check("…and a STALE report is ignored rather than overwriting it",
+          vid.resumeFor("/films/one.mp4") == 2537)
+
+    -- ⏮ and the next time it plays, the page is pushed back there
+    JS = {}
+    vid.handleMessage({ a = "dur", d = 6486, gen = vid.gen })
+    local pushed = table.concat(JS, " ")
+    check("⏮ once the length is known, the film is moved to where he left it",
+          pushed:find("resumeTo(2537", 1, true) ~= nil, pushed)
+    check("…and it is counted and named, so the report can say so",
+          vid.resumes == 1 and vid.resumeLast.at == 2537, tostring(vid.resumes))
+
+    -- 🚨 ONCE PER FILM. A second durationchange on the same film must
+    -- not yank him back to where he started watching from.
+    JS = {}
+    vid.handleMessage({ a = "dur", d = 6486, gen = vid.gen })
+    check("🚨 a second length report on the SAME film moves nothing",
+          #JS == 0 and vid.resumes == 1, table.concat(JS, " "))
+
+    -- …and the NEXT film is still offered its own place
+    vid.gen = vid.gen + 1
+    vid.queue = { { path = "/films/two.mp4", title = "two" } }
+    vid.resume = vid.noteResume(vid.resume, "/films/two.mp4", 1, 1200, 60)
+    JS = {}
+    vid.handleMessage({ a = "dur", d = 6486, gen = vid.gen })
+    check("…but the NEXT film is still offered its own place",
+          table.concat(JS, " "):find("resumeTo(1200", 1, true) ~= nil,
+          table.concat(JS, " "))
+end
+
+out("\n§30 🖥 ⌃⌘F: the film, the window, and the cinema flag\n")
+do
+    vid.filmFulls, vid.windowFills, vid.fills = 0, 0, 0
+    vid.small, vid.cinema, vid.fillMode = nil, false, nil
+    if not vid.webview then vid.show() end
+    vid.webview:frame({ x = 100, y = 80, w = 880, h = 660 })
+    -- 🖥 WEBKIT TOOK THE FILM FULL SCREEN: the window must NOT also move
+    -- underneath it. Two things happening for one press is the bug.
+    local before = vid.fills
+    vid.handleMessage({ a = "fill", mode = "film" })
+    check("🖥 a film that really went full screen does not also resize the window",
+          vid.fills == before and vid.filmFulls == 1 and vid.fillMode == "film",
+          tostring(vid.fills) .. "/" .. tostring(vid.filmFulls))
+    vid.handleMessage({ a = "fill", mode = "film-out" })
+    check("…and coming back out clears the claim", vid.fillMode == nil)
+
+    -- 🚨 WEBKIT REFUSED: the window fills instead, the chrome fades, and
+    -- the reason WebKit gave is kept so the report can name it.
+    JS = {}
+    vid.handleMessage({ a = "fill", mode = "window",
+                        why = "WebKit refused the film full screen" })
+    check("🚨 a refusal fills the WINDOW instead", vid.fills == before + 1, vid.fills)
+    check("…and fades the chrome with it",
+          vid.cinema == true
+          and table.concat(JS, " "):find("cinema(true)", 1, true) ~= nil,
+          table.concat(JS, " "))
+    check("…and keeps WebKit's own reason, rather than inventing one",
+          tostring(vid.filmFullWhy):find("refused", 1, true) ~= nil, vid.filmFullWhy)
+    JS = {}
+    vid.handleMessage({ a = "fill", mode = "window" })
+    check("…and ⌃⌘F again brings the chrome back",
+          vid.cinema == false
+          and table.concat(JS, " "):find("cinema(false)", 1, true) ~= nil,
+          table.concat(JS, " "))
+
+    -- 🎬 A CLOSED WINDOW HOLDS NO CLAIM (6.326.0): both of these describe
+    -- a window that no longer exists, and a claim left set is one every
+    -- gate downstream reads as truth.
+    vid.cinema, vid.fillMode = true, "film"
+    vid.hide()
+    check("🎬 closing the window clears the cinema flag and the full-screen claim",
+          vid.cinema == false and vid.fillMode == nil)
+end
+
+out("\n§31 🔒 a function Lua calls must be where Lua can call it\n")
+do
+    -- 🚨 THE SWEEP THAT WROTE THIS CHECK WAS THE PAGE SUITE ITSELF.
+    -- `evaluateJavaScript` runs in the page's GLOBAL scope, and this
+    -- page wraps its wiring in an IIFE. A helper declared inside that
+    -- IIFE is invisible to Lua — the push lands, throws nothing, and
+    -- does nothing — which is 6.238.0's silent-drop in a new costume.
+    local page = SRC:match("\n%[%[<!doctype html>(.-)%]%] %}%)") or SRC
+    local body = SRC
+    local iifeAt = body:find("\n%(function%(%)")
+    check("🔒 the sentry found the page's IIFE", iifeAt ~= nil, tostring(iifeAt))
+    local called = {}
+    for name in SRC:gmatch('pushJs%("([%a_][%w_]*)%(') do called[name] = true end
+    for name in SRC:gmatch('evaluateJavaScript%("([%a_][%w_]*)%(') do called[name] = true end
+    local n, bad = 0, {}
+    for name in pairs(called) do
+        n = n + 1
+        local at = body:find("\nfunction " .. name .. "%(")
+        if not at or (iifeAt and at > iifeAt) then bad[#bad + 1] = name end
+    end
+    check("…and there are functions to check — never an empty haystack (6.313.0)",
+          n >= 3, n)
+    check("🔒 every function Lua pushes is declared at the page's TOP level",
+          #bad == 0, table.concat(bad, ", "))
 end
 
 -- ---- the tally ---------------------------------------------------------

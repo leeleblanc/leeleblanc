@@ -189,6 +189,22 @@ do
         near(M.contrast("#000", "#fff"), M.contrast("#fff", "#000")))
   check("a three-digit hex is the same colour as its six-digit form",
         M.luminance("#fff") == M.luminance("#ffffff"))
+
+  -- 🚨 6.230.0 — THE FIXTURE THAT BITES IS A COLOUR, NOT A GREY. Every
+  -- colour this rule is really about is grey, and for a grey the
+  -- weighted luminance and a plain average of the three channels give
+  -- the SAME answer — the weights sum to 1. So a suite built only from
+  -- the sidebar and its ink proves nothing about the weights at all;
+  -- the mutation sweep found exactly that. Blue is the input where the
+  -- two must differ, and these are published WCAG values.
+  check("🚨 blue on white is 8.59:1 — the eye weights blue least",
+        near(M.contrast("#0000ff", "#ffffff"), 8.59),
+        tostring(M.contrast("#0000ff", "#ffffff")))
+  check("🚨 …and green on white is 1.37:1, because it weights green most",
+        near(M.contrast("#00ff00", "#ffffff"), 1.37),
+        tostring(M.contrast("#00ff00", "#ffffff")))
+  check("🚨 …so pure green is far brighter than pure blue, not equal to it",
+        M.luminance("#00ff00") > M.luminance("#0000ff") * 5)
   -- 🔎 nil, never a number, for anything it could not read: a ratio
   -- invented for a colour nobody understood is worse than none (6.196.1)
   check("🔎 a colour it cannot read answers nil, never a ratio",
@@ -217,6 +233,28 @@ do
         ("%.2f:1"):format(M.contrast(M.blend(INK, SIDEBAR, M.controlAlpha), SIDEBAR)))
   check("…and the hover state is brighter still, never dimmer",
         M.controlHoverAlpha > M.controlAlpha)
+  -- 🔑 ONE NUMBER, AND THE PAGE'S FALLBACK IS THE SAME NUMBER. The
+  -- publication is what makes ui_style the single source, and the
+  -- fallback is what keeps a boot without it visible — if those two
+  -- drift, the ✕ is one brightness on a good boot and another on a bad
+  -- one, which is the shape 6.239.0 exists to stop.
+  do
+    local kept = _G.uiStyle
+    M.setup({ provide = function() end })
+    check("🔑 the resting alpha is published where a page can read it",
+          _G.uiStyle and _G.uiStyle.controlAlpha == M.controlAlpha,
+          tostring(_G.uiStyle and _G.uiStyle.controlAlpha))
+    check("…and so is the contrast arithmetic itself",
+          type(_G.uiStyle.contrast) == "function"
+          and type(_G.uiStyle.minAlphaFor) == "function")
+    local fh = assert(io.open(HS .. "/modules/vault.lua", "r"))
+    local vsrc = fh:read("a") ; fh:close()
+    check("🔑 …and the page's fallback is the SAME number, so they cannot drift",
+          vsrc:find("controlAlpha%) or " .. tostring(M.controlAlpha)) ~= nil,
+          tostring(M.controlAlpha))
+    _G.uiStyle = kept
+  end
+
   local a, c = M.minAlphaFor(INK, SIDEBAR)
   check("the minimum alpha for the floor is found and is below the shipped one",
         a and a < M.controlAlpha and c >= 3.0, tostring(a))

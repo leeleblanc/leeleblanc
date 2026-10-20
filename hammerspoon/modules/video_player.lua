@@ -124,7 +124,8 @@ local M = {
             { "✕",       "On a 🕘 history row: forget that film (the file is not touched)" },
             { "⌘O",      "Open the film playing now in QuickTime — the way out when" },
             { "",        "macOS will not let this window read it" },
-            { "⌃⌘F",     "Fill the screen — press it again for the size you had it at" },
+            { "⌃⌘F",     "6.370.0: FULL SCREEN THE FILM. WebKit is asked first; if it refuses, the WINDOW fills the screen instead and the title strip and the deck FADE out of the way. Press it again to come back. _G.mugReport()'s film line says which of the two you got" },
+            { "⏮ resume", "6.370.0: a film picks up where you left it. The place is remembered per FILM — not per row — and survives closing the window and reloading, so you never have to hunt for it again" },
             { "drag",    "Move the window: grab its title strip — or ⌘-drag anywhere on it" },
             { "⏯ ⏮ ⏭",   "NOT taken here, deliberately: the Jug Player holds them, and two" },
             { "",        "tools on one physical key is how they come to disagree (6.291.0)" },
@@ -251,6 +252,23 @@ function M.setup(core)
         small      = nil,              -- the frame to come back to, while filled
         fills      = 0,
         fillWhy    = "⌃⌘F has not been pressed this session",
+        -- 🖥 6.370.0 — HIS ANSWER: "⌃⌘F is to make the FILM full screen."
+        fillMode   = nil,              -- "film" while WebKit holds it
+        cinema     = false,            -- the chrome is faded
+        filmFulls  = 0,                -- times the FILM really went full screen
+        windowFills = 0,               -- times WebKit refused and the window filled
+        filmFullWhy = "⌃⌘F has not been pressed this session",
+        -- ⏮ 6.370.0 — WHERE HE LEFT IT. LL: "When I hide it and bring it
+        -- back it reloads and doesn't remember the Time, place or
+        -- position the movie was at … I have jump and find place the
+        -- last place it was playing at. It needs to do this."
+        resume     = {},               -- path -> seconds
+        maxResume  = 60,               -- films remembered
+        minResume  = 30,               -- under this it is near enough the start
+        tailStop   = 60,               -- within this of the end, start over
+        resumes    = 0,
+        resumeLast = nil,
+        atSeen     = 0,                -- positions the page reported
         slowTurnMs = 120,               -- past this a turn takes the 🔔 door
         -- 🛟 6.355.0 — THE PAGE SAYS WHEN IT HAS TAKEN A CHUNK.
         -- `evaluateJavaScript` RETURNS BEFORE THE SCRIPT RUNS (read in
@@ -795,6 +813,18 @@ function M.setup(core)
         vid.history = vid.noteHistory(h, nil, os.time(),
                                       vid.historyDays, vid.maxHistory)
         if type(data.pos) == "table" then vid.pos = data.pos end
+        -- ⏮ WHERE EACH FILM WAS. Shape-checked at the loader like the
+        -- rest (6.198.1): "it is a table" is not "it is MY table", and
+        -- this one is read by the resume decision on every film.
+        local rs = {}
+        for _, r in ipairs(type(data.resume) == "table" and data.resume or {}) do
+            if type(r) == "table" and type(r.path) == "string" and r.path ~= ""
+               and (tonumber(r.secs) or 0) > 0 then
+                rs[#rs + 1] = { path = r.path, at = tonumber(r.at) or 0,
+                                secs = tonumber(r.secs) }
+            end
+        end
+        vid.resume = vid.noteResume(rs, nil, nil, nil, vid.maxResume)
         -- 🔑 THE DOOR THAT WORKED IS REMEMBERED ACROSS BOOTS, so a Mac
         -- that needs the second way in never flickers through the first.
         local d = tonumber(data.doorStart)
@@ -811,8 +841,15 @@ function M.setup(core)
             h[#h + 1] = { path = vid.history[i].path, at = vid.history[i].at }
         end
         local ok, raw = pcall(function()
+            local rs = {}
+            for i = 1, math.min(#(vid.resume or {}),
+                                tonumber(vid.maxResume) or 60) do
+                rs[#rs + 1] = { path = vid.resume[i].path,
+                                at   = math.floor(vid.resume[i].at or 0),
+                                secs = math.floor(vid.resume[i].secs or 0) }
+            end
             return hs.json.encode({ queue = q, history = h, pos = vid.pos,
-                                    doorStart = vid.doorStart })
+                                    resume = rs, doorStart = vid.doorStart })
         end)
         if not (ok and type(raw) == "string") then
             say("could not encode the queue — nothing was written")
@@ -985,6 +1022,17 @@ video{width:100%;height:100%;object-fit:contain;background:#000}
 .nm{flex:1 1 auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .x{flex:0 0 auto;color:#5d626c;padding:0 4px}
 .x:hover{color:#e06c6c}
+/* 🎬 CINEMA — LL: "Mug player should fade out of sight the window
+   borders and the playlist when in fullscreen mode." They FADE rather
+   than vanish, and the stage grows into the room they leave, so nothing
+   jumps: a cut would reflow the <video> and WebKit re-lays-out a playing
+   film when it does. Esc leaves cinema before it closes the window —
+   a mode you can only get out of with the key that put you in is a mode
+   you can get stuck in. */
+#head,#deck,#stage{transition:height .22s ease,opacity .22s ease,padding .22s ease}
+body.cinema #head{height:0;padding:0;opacity:0;overflow:hidden;pointer-events:none}
+body.cinema #deck{height:0;padding:0;opacity:0;overflow:hidden;pointer-events:none}
+body.cinema #stage{height:100%}
 #drop{position:absolute;inset:0;display:none;align-items:center;
  justify-content:center;background:rgba(110,168,254,.18);
  border:2px dashed #6ea8fe;color:#cfe0ff;font-size:16px}
@@ -999,6 +1047,72 @@ var S=]], rows, [[;
 function say(m){try{webkit.messageHandlers.mugPlayer.postMessage(m)}catch(e){}}
 function el(i){return document.getElementById(i)}
 function dropShow(on){el('drop').style.display=on?'flex':'none'}
+// 🖥 ⌃⌘F ASKS THE FILM FIRST — his own words: "⌃⌘F is to make the FILM
+// full screen." Whether a WKWebView will ALLOW that is not knowable
+// from Lua: hs.webview never sets WKPreferences' element-full-screen
+// key (libwebview.m sets minimumFontSize, javaScript*, developerExtras
+// and suppressesIncrementalRendering, and nothing else), and the
+// default is off on macOS. So this ASKS, and reports which happened —
+// new ground gets a probe, never a fix built on a belief (6.233.0).
+// When WebKit refuses, Lua fills the WINDOW instead and the chrome
+// fades, which is the same picture by a different road.
+function filmFull(){
+  var v=el('v'); if(!v){say({a:'fill'});return false}
+  if(document.fullscreenElement||document.webkitFullscreenElement){
+    try{(document.exitFullscreen||document.webkitExitFullscreen).call(document)}catch(e){}
+    say({a:'fill',mode:'film-out'});return true}
+  var rq=v.requestFullscreen||v.webkitRequestFullscreen||v.webkitRequestFullScreen;
+  if(!rq){say({a:'fill',mode:'window',why:'this WebKit has no element full screen'});return false}
+  try{
+    var pr=rq.call(v);
+    if(pr&&pr.then){
+      pr.then(function(){say({a:'fill',mode:'film'})})
+        .catch(function(){say({a:'fill',mode:'window',why:'WebKit refused the film full screen'})});
+    }else{
+      // the older webkit form answers nothing, so ask a beat later
+      // whether it actually took — a promise that is not one cannot be
+      // waited on, and guessing either way is a report that lies.
+      setTimeout(function(){
+        if(document.fullscreenElement||document.webkitFullscreenElement)
+          say({a:'fill',mode:'film'});
+        else say({a:'fill',mode:'window',why:'WebKit did not take the film full screen'});
+      },250);
+    }
+  }catch(e){say({a:'fill',mode:'window',why:'the film refused full screen'})}
+  return true;
+}
+// Lua owns the window's frame, so Lua owns the cinema flag too and
+// pushes it back; the page only reflects it. Two owners for one state
+// is how they come to disagree (6.291.0).
+function cinema(on){
+  document.body.className = on ? 'cinema' : '';
+  return document.body.className;
+}
+// ⏮ WHERE HE LEFT IT. Pushed by Lua once the film has loaded.
+function resumeTo(t){
+  var v=el('v'); if(!v)return false;
+  var n=+t; if(!isFinite(n)||n<0)return false;
+  try{v.currentTime=n}catch(e){return false}
+  return true;
+}
+// 📍 THE POSITION IS REPORTED, THROTTLED. `timeupdate` fires about four
+// times a second and each message is a hop into Lua on the main
+// thread — 6.228.0's cost, paid four times a second for the length of
+// a film. Once every few seconds is enough to remember a place.
+var toldAt=0;
+function tellAt(force){
+  var v=el('v'); if(!v)return;
+  var n=Date.now(); if(!force&&n-toldAt<5000)return;
+  toldAt=n;
+  var cur=+v.currentTime, dur=+v.duration;
+  if(!isFinite(cur)||cur<0)return;
+  say({a:'at',t:cur,dur:(isFinite(dur)&&dur>0?dur:0),gen:S.gen});
+}
+// ⏮ THE DURATION, ONCE IT IS A NUMBER. A blob-backed <video> reports
+// Infinity while it is still assembling (6.365.0 found that), and
+// seeking into a length that is not a number lands in silence. Lua
+// cannot resume until this arrives, which is why it is its own
+// message rather than a field on 'srcok'.
 function fail(t){var m=el('msg');m.textContent=t;m.style.display='flex';
  el('v').style.visibility='hidden'}
 function clearFail(){el('msg').style.display='none';
@@ -1154,7 +1268,7 @@ document.addEventListener('keydown',function(e){
  // metaKey bail below, which returns on every ⌘ chord this page does
  // not claim — put after it, this key would be silently dead.
  if(e.metaKey&&e.ctrlKey&&(e.key==='f'||e.key==='F')){e.preventDefault();
-   say({a:'fill'});return}
+   filmFull();return}
  if(e.metaKey)return;
  if(e.key==='Escape'){
    // 🪟 WEBKIT OWNS ESC WHILE THE FILM IS FULL SCREEN. Taking it here
@@ -1162,6 +1276,11 @@ document.addEventListener('keydown',function(e){
    // native control this release promised and must not quietly remove
    // (6.318.0: when you take a surface over, you inherit what it did).
    if(document.fullscreenElement||document.webkitFullscreenElement)return;
+   // 🎬 …and cinema is the same promise one layer down: Esc leaves the
+   // mode before it closes the window, so the chrome always comes back
+   // before anything goes away.
+   if(document.body.className.indexOf('cinema')>=0){
+     e.preventDefault();say({a:'fill'});return}
    e.preventDefault();say({a:'close'});return}
  if(e.key===' '){e.preventDefault();
    try{v.paused?v.play():v.pause()}catch(err){} return}
@@ -1216,6 +1335,13 @@ function seekBy(d){
         why:(er.message||'')});
  });
  v.addEventListener('ended',function(){say({a:'ended',gen:S.gen})});
+
+ v.addEventListener('durationchange',function(){
+   var d=+v.duration;
+   if(isFinite(d)&&d>0)say({a:'dur',d:d,gen:S.gen});
+ });
+ v.addEventListener('timeupdate',function(){tellAt(false)});
+ v.addEventListener('pause',function(){tellAt(true)});
  draw();
  // 🪟 THE PAGE SAYS WHEN IT EXISTS (6.238.0): view:html() returns BEFORE
  // WebKit has parsed the document, so a draw pushed on the next line of
@@ -1515,6 +1641,11 @@ function seekBy(d){
         -- first ⌃⌘F of the next session would "return" the window to a
         -- frame from the last one instead of filling the screen.
         vid.small = nil
+        -- 🎬 …and so do the cinema flag and the full-screen claim: both
+        -- describe a window that no longer exists, and a claim left set
+        -- is one every gate downstream reads as truth (6.326.0).
+        vid.cinema   = false
+        vid.fillMode = nil
         -- 📦 A READ IN FLIGHT IS A FILE HANDLE AND A HELD TIMER, and a
         -- feature holding both owes a teardown to every door that can end
         -- it (6.256.0). Without this, closing the window mid-read leaves
@@ -1566,6 +1697,83 @@ function seekBy(d){
     -- 🖥 ⌃⌘F — one door, both directions, and the catcher comes with it
     -- (a drop area left at the old frame is a dead zone over the old
     -- spot and no drop at the new one).
+    -- ---- PURE: a position, in minutes and seconds --------------------
+    -- A number of seconds is a thing he has to divide; 42:17 is a thing
+    -- he can find on the scrubber.
+    function vid.clock(secs)
+        local n = math.floor(math.max(0, tonumber(secs) or 0))
+        local h = math.floor(n / 3600)
+        if h > 0 then
+            return ("%d:%02d:%02d"):format(h, math.floor((n % 3600) / 60), n % 60)
+        end
+        return ("%d:%02d"):format(math.floor(n / 60), n % 60)
+    end
+
+    -- ---- PURE: should this film go back to where he left it? --------
+    -- ⏮ FOUR ANSWERS, AND ONLY ONE OF THEM MOVES ANYTHING (6.196.1).
+    -- "nothing was remembered", "he had barely started", "he had all but
+    -- finished" and "go back to 42:17" are four different facts, and the
+    -- last three all look like "it started at the beginning" from
+    -- outside — which is the complaint this exists to answer.
+    --
+    -- 🚨 AND A LENGTH NOBODY KNOWS REFUSES, like the seek does (6.239.0):
+    -- a blob-backed <video> reports `Infinity` for its duration while it
+    -- is still assembling, and seeking into a length that is not a
+    -- number lands in silence with no way back.
+    function vid.resumeAt(saved, dur, opts)
+        opts = (type(opts) == "table") and opts or {}
+        local minR = tonumber(opts.minResume) or 30
+        local tail = tonumber(opts.tailStop)  or 60
+        local s = tonumber(saved)
+        if not s or s <= 0 then
+            return nil, "nothing was remembered for this film"
+        end
+        if s < minR then
+            return nil, "it was only " .. math.floor(s)
+                   .. "s in — near enough the start to begin again"
+        end
+        local d = tonumber(dur)
+        if not d or d <= 0 or d ~= d or d == math.huge then
+            return nil, "this Mac did not say how long the film is, so"
+                   .. " nothing was moved"
+        end
+        if s >= d - tail then
+            return nil, "it was inside the last " .. tail
+                   .. "s — starting it over"
+        end
+        return s, "back to " .. vid.clock(s)
+    end
+
+    -- ⏮ PURE: remembering a place, bounded, newest first. A map would be
+    -- simpler and could not be pruned in any order anyone could name;
+    -- this keeps a LIST so the oldest film is the one that goes.
+    function vid.noteResume(list, path, at, secs, maxN)
+        local out = {}
+        if type(list) == "table" then
+            for _, r in ipairs(list) do
+                if type(r) == "table" and type(r.path) == "string"
+                   and r.path ~= path then
+                    out[#out + 1] = { path = r.path, at = tonumber(r.at) or 0,
+                                      secs = tonumber(r.secs) or 0 }
+                end
+            end
+        end
+        if type(path) == "string" and path ~= "" and (tonumber(secs) or 0) > 0 then
+            table.insert(out, 1, { path = path, at = tonumber(at) or 0,
+                                   secs = tonumber(secs) or 0 })
+        end
+        local cap = math.max(1, math.floor(tonumber(maxN) or 60))
+        while #out > cap do table.remove(out) end
+        return out
+    end
+
+    function vid.resumeFor(path)
+        for _, r in ipairs(type(vid.resume) == "table" and vid.resume or {}) do
+            if r.path == path then return tonumber(r.secs) or 0 end
+        end
+        return nil
+    end
+
     function vid.toggleFill()
         if not vid.webview then
             vid.fillWhy = "no window is open"
@@ -2531,7 +2739,80 @@ function seekBy(d){
             return
 
         elseif a == "fill" then
-            vid.toggleFill()
+            -- 🖥 THE PAGE ASKED THE FILM FIRST AND SAYS WHAT HAPPENED.
+            -- Only the "window" answer resizes anything: when WebKit
+            -- really did take the film full screen, moving the window
+            -- underneath it is a second thing happening for one press.
+            local mode = tostring(body.mode or "window")
+            if mode == "film" then
+                vid.filmFulls  = (tonumber(vid.filmFulls) or 0) + 1
+                vid.fillMode   = "film"
+                vid.filmFullWhy = "WebKit took the FILM full screen"
+                return
+            end
+            if mode == "film-out" then
+                vid.fillMode    = nil
+                vid.filmFullWhy = "WebKit let the film back out of full screen"
+                return
+            end
+            if body.why then
+                vid.filmFullWhy = tostring(body.why)
+                vid.windowFills = (tonumber(vid.windowFills) or 0) + 1
+            end
+            local ok = vid.toggleFill()
+            -- 🎬 Lua owns the window's frame, so Lua owns the cinema flag
+            -- and pushes it back. The page only reflects it; two owners
+            -- for one state is how they come to disagree (6.291.0).
+            if ok then
+                vid.cinema = (vid.small ~= nil)
+                if vid.webview then
+                    pcall(vid.pushJs, "cinema(" .. tostring(vid.cinema) .. ");")
+                end
+            end
+            return
+
+        elseif a == "dur" then
+            -- ⏮ BACK TO WHERE HE LEFT IT, once per film. The guard is
+            -- the GENERATION, not a boolean: a second durationchange on
+            -- the same film must not yank him back, and the next film
+            -- must still be offered its own place (6.304.0).
+            if asRow(body.gen) ~= vid.gen then return end
+            if vid.resumeDone == vid.gen then return end
+            vid.resumeDone = vid.gen
+            local cur = vid.queue[vid.index]
+            if not (cur and cur.path) then return end
+            local want, why = vid.resumeAt(vid.resumeFor(cur.path),
+                                           tonumber(body.d),
+                                           { minResume = vid.minResume,
+                                             tailStop  = vid.tailStop })
+            vid.resumeLast = { path = cur.path, why = why,
+                               at = want or 0, when = os.time() }
+            if not want then return end
+            if vid.webview and pcall(vid.pushJs,
+                                     ("resumeTo(%.3f);"):format(want)) then
+                vid.resumes = (tonumber(vid.resumes) or 0) + 1
+                pcall(function()
+                    hs.alert.show("⏮ " .. tostring(cur.title or "") .. "\n" .. why, 3)
+                end)
+            else
+                vid.resumeLast.why = "the window would not take the seek"
+            end
+            return
+
+        elseif a == "at" then
+            -- 📍 WHERE THE FILM IS, throttled by the page. Recorded
+            -- against the PATH, never the row number: the queue
+            -- renumbers under his hand (6.186.0 · 6.272.0), and a place
+            -- remembered by index comes back on a different film.
+            if asRow(body.gen) ~= vid.gen then return end
+            local t   = tonumber(body.t)
+            local cur = vid.queue[vid.index]
+            if not (t and cur and cur.path) then return end
+            vid.atSeen = (tonumber(vid.atSeen) or 0) + 1
+            vid.lastAt = { t = t, dur = tonumber(body.dur) or 0 }
+            vid.resume = vid.noteResume(vid.resume, cur.path, os.time(), t,
+                                        vid.maxResume)
+            vid.save()
             return
 
         elseif a == "external" then
@@ -2758,6 +3039,17 @@ function seekBy(d){
                                     or "a length macOS has not answered")
                 end
             end
+            -- 🖥 6.370.0 — WHICH FULL SCREEN HE GOT. "the FILM went full
+            -- screen" and "WebKit refused and the window filled instead"
+            -- are opposite facts that look identical on a display, and
+            -- only this line can tell them apart.
+            L[#L + 1] = "   ↳ film  : " .. (tonumber(vid.filmFulls) or 0)
+                        .. " time(s) the FILM really went full screen · "
+                        .. (tonumber(vid.windowFills) or 0)
+                        .. " time(s) WebKit refused and the window filled"
+            if (tonumber(vid.windowFills) or 0) > 0 then
+                L[#L + 1] = "   ↳ why   : " .. tostring(vid.filmFullWhy)
+            end
             L[#L + 1] = "   ↳ ⌃⌘F  : " .. (tonumber(vid.fills) or 0)
                         .. " press(es) this session — last: "
                         .. tostring(vid.fillWhy)
@@ -2842,6 +3134,27 @@ function seekBy(d){
             if not vid.blobLoad then
                 L[#L + 1] = "   ↳ OFF   : settings = { video_player ="
                             .. " { blobLoad = true } } puts the bytes door back"
+            end
+        end
+        -- ⏮ 6.370.0 — WHERE EACH FILM WAS. Three states, and the middle
+        -- one matters most: "nothing has been remembered yet" and "it
+        -- decided not to move anything" are different facts, and both
+        -- look like a film starting at the beginning from outside.
+        do
+            local n = #(vid.resume or {})
+            local line = "   resume : " .. (tonumber(vid.resumes) or 0)
+                         .. " film(s) picked up where he left off · "
+                         .. n .. " place(s) remembered · "
+                         .. (tonumber(vid.atSeen) or 0) .. " position(s) reported"
+            if n == 0 and (tonumber(vid.atSeen) or 0) == 0 then
+                line = "   resume : ⏳ nothing has been remembered yet — a place"
+                       .. " is kept once a film has run past "
+                       .. tostring(vid.minResume) .. " s"
+            end
+            L[#L + 1] = line
+            if vid.resumeLast then
+                L[#L + 1] = "   ↳ last  : " .. tostring(vid.resumeLast.why)
+                            .. "  ·  " .. tostring(vid.titleOf(vid.resumeLast.path))
             end
         end
         L[#L + 1] = "   store  : " .. vid.storeVerdict(vid.storeState, vid.storeBytes,
