@@ -1550,6 +1550,17 @@ local ALLOWED_BINARIES = {
   ["/usr/bin/grep"]            = "⇪7 picks the serial line out of ioreg; 6.172.0 the vault's [[link]] index (ships with macOS)",
   ["/usr/bin/find"]            = "6.172.0 the vault's note list — in hs.task, so a OneDrive placeholder never blocks the main thread (ships with macOS)",
   ["/bin/cat"]                 = "6.174.0 the vault reads a TEMPLATE's body in hs.task — a OneDrive placeholder would stall a main-thread read (ships with macOS)",
+  -- ☁️ 6.368.0 — AND THIS ONE IS A DELIBERATE NON-READ, like xattr above.
+  -- `stat` answers st_size and st_blocks — the LOGICAL size and the bytes
+  -- really ALLOCATED — and that difference is the only thing on this Mac
+  -- that can tell a file from a OneDrive placeholder WITHOUT OPENING IT.
+  -- It is run by `find -exec`, one child for many files, in an hs.task
+  -- with a killer timer: the alternative is stat'ing twenty thousand
+  -- files on the main thread, which is the cost 6.228.0 exists to fear.
+  ["/usr/bin/stat"]            = "☁️ the OneDrive watch reads each file's "
+                              .. "size and ALLOCATED blocks — never its "
+                              .. "contents, because reading a placeholder "
+                              .. "downloads it (ships with macOS)",
   -- 6.120.0 — ⇪⇧` REVEALS GHOSTTY'S FOLDER. A terminal's directory
   -- belongs to the SHELL, not the window, and is published nowhere a
   -- neighbouring process can read. The window title is tried first
