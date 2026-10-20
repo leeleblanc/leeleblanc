@@ -133,6 +133,12 @@ function M.setup(core)
         historyKeep   = 2000,     -- rows kept in the store (oldest drop past this)
         maxTabs       = 12,
         titleChars    = 40,
+        -- 📅 6.376.0 — a scratch note is named for the day it was made.
+        -- "new": only a tab he has not typed in yet (the shipped
+        -- default) · "always": every tab's title carries its date ·
+        -- "off": the pre-6.376.0 "Scratch N".
+        titleDate     = "new",
+        titleDateFmt  = "%a %b %d",
         previewChars  = 120,
         focusOnOpen   = true,
         nonActivating = true,
@@ -320,23 +326,69 @@ function M.setup(core)
             math.max(8, (tonumber(sp.failMarkChars) or 54) - used))
     end
 
+    -- 📅 6.376.0 — A SCRATCH NOTE IS NAMED FOR THE DAY IT WAS MADE
+    -- (LL: "Scratch not should be prefixed with Today's date.").
+    -- "Scratch N" is what 6.165.1 gave an empty tab, and it is the same
+    -- complaint he made then — "Untitled ×2 told me nothing" — one
+    -- layer on: a number tells him nothing either, and a column of them
+    -- tells him less. A date does, and it makes the one list a journal.
+    -- 🔑 PURE, WITH THE CLOCK AS AN ARGUMENT, so the gate proves every
+    -- edge with no Mac — including the one that matters: a tab whose
+    -- stamp is missing or unreadable keeps the OLD "Scratch N" rather
+    -- than claiming a date nobody recorded. 1970 is a plausible wrong
+    -- answer and those are the expensive kind (6.338.0).
+    -- 🔢 THE INDEX IS THE ONE "Scratch N" ALREADY USED — the tab's
+    -- place, read at draw time — so it is exactly as stable as the name
+    -- it replaces and no more: inventing a second "Nth made today"
+    -- counter would renumber under his hand when a tab closes, and name
+    -- a different tab than the one he looked at (6.272.0 · 6.186.0).
+    function sp.dateTitle(createdAt, i, fmt)
+        local t = tonumber(createdAt)
+        if not t or t <= 0 or t ~= t then
+            return nil, "no date recorded for this tab"
+        end
+        local okD, when = pcall(os.date, tostring(fmt or sp.titleDateFmt or "%a %b %d"),
+                                math.floor(t))
+        if not okD or type(when) ~= "string" or when == "" then
+            return nil, "this Mac would not format that date"
+        end
+        if i and i > 1 then return when .. " · " .. tostring(i), "the day it was made" end
+        return when, "the day it was made"
+    end
+
     -- An empty tab is named for what it IS (6.165.1 — "Untitled ×2 told
-    -- me nothing"): "Capture", "Append", or "Scratch N" by its place.
+    -- me nothing"): "Capture", "Append", or the day it was made.
     function sp.titleOf(tab)
         -- 🏷 6.300.0 — a tab the send has answered for wears its answer.
         -- LL: "Can we rewrite the task titles to either of the names in
         -- the screenshot … So they stay until I delete them?"
         local mark = tostring(tab.mark or "")
         if mark ~= "" then return mark end
+        local mode  = tostring(sp.titleDate or "new")
         local first = tostring(tab.text or ""):match("[^\r\n]*") or ""
         first = trim(first)
         if first == "" then
             local k = tab.kind and sp.kinds and sp.kinds[tab.kind]
             if k then return k.label end
             local _, i = sp.findTab(tab.id)
+            if mode ~= "off" then
+                local dated = sp.dateTitle(tab.createdAt, i)
+                if dated then return dated end
+            end
             return "Scratch " .. tostring(i or "")
         end
         if #first > sp.titleChars then first = first:sub(1, sp.titleChars - 1) .. "…" end
+        -- 📏 "new" IS THE DEFAULT AND IT STOPS HERE, deliberately: the
+        -- moment he types, his own first line IS the title, which is the
+        -- whole design of this pad — putting the same six characters in
+        -- front of every row is noise, not a journal. "always" is the
+        -- other reading of his sentence and it is one word from him
+        -- rather than a release (6.267.0: the switch exists so the
+        -- release is reversible; the default is the answer).
+        if mode == "always" then
+            local dated = sp.dateTitle(tab.createdAt, nil)
+            if dated then return dated .. " · " .. first end
+        end
         return first
     end
 
@@ -2504,6 +2556,35 @@ t.focus(); try { t.setSelectionRange(CARET, CARET); } catch(e){}
         L[#L + 1] = "   tabs: " .. #sp.tabs .. " · history: " .. #sp.history
                     .. " · saves: " .. sp.saves .. " · failed writes: " .. (sp.saveFails or 0)
                     .. (sp.dirty and " · unsaved keystrokes pending" or "")
+        -- 📅 6.376.0 — WHICH READING OF HIS SENTENCE IS ON, and the one
+        -- word that changes it. Three states, and the third is a real
+        -- one: a tab with no date stamp keeps the old "Scratch N", so a
+        -- strip showing both is not a bug (6.196.1).
+        do
+            local mode = tostring(sp.titleDate or "new")
+            local shown = (mode == "new"
+                and "a tab you have not typed in yet is named for the DAY it was made")
+                or (mode == "always"
+                and "every tab's title carries the day it was made")
+                or "OFF — tabs are named \"Scratch N\" as before 6.376.0"
+            L[#L + 1] = "   📅 dates: " .. shown
+            local undated, sample = 0, nil
+            for i, t in ipairs(sp.tabs) do
+                if not sp.dateTitle(t.createdAt, i) then
+                    undated = undated + 1
+                    sample = sample or sp.titleOf(t)
+                end
+            end
+            if mode ~= "off" and undated > 0 then
+                L[#L + 1] = "     " .. undated .. " tab(s) carry no date stamp and "
+                    .. "keep their old name (e.g. \"" .. tostring(sample) .. "\")"
+            end
+            if mode ~= "always" then
+                L[#L + 1] = "     settings = { scratch_pad = { titleDate = "
+                    .. "\"always\" } } dates every title · \"off\" restores "
+                    .. "\"Scratch N\""
+            end
+        end
         -- 🗑 6.364.0 — counted apart from the history total, because
         -- "the list is short" and "you have been clearing it" are
         -- different facts and only one of them is something he did.

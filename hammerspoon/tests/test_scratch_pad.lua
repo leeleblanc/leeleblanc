@@ -409,7 +409,18 @@ check("6.171.2: the page text is 16 px and no FS placeholder survives",
       and view.htmlSet:find("FS%d?px") == nil, view and view.htmlSet and view.htmlSet:match("font%-size:[^;]+"))
 check("6.171.2: the chrome sizes off the text (14 px buttons, 13 px labels)",
       view and view.htmlSet and view.htmlSet:find("font%-size:14px") and view.htmlSet:find("font%-size:13px"))
-check("an empty tab is named by its place, not 'Untitled'", view.htmlSet:find(">Scratch 1<", 1, true) ~= nil and view.htmlSet:find("Untitled", 1, true) == nil)
+-- 📅 6.376.0 — THE RULE IS UNCHANGED AND THE FIXTURE WAS THE NAME. An
+-- empty tab is named for what it IS (6.165.1 — "Untitled ×2 told me
+-- nothing"); what it IS is now the day it was made rather than its
+-- place in the strip. Asserted against sp.dateTitle rather than against
+-- a date typed here, so moving the format moves the check (6.239.0).
+local DATED = sp.dateTitle(sp.tabs[1] and sp.tabs[1].createdAt, 1)
+check("an empty tab is named for the DAY IT WAS MADE, not 'Untitled' "
+      .. "and no longer 'Scratch 1'",
+      DATED ~= nil and view.htmlSet:find(">" .. DATED .. "<", 1, true) ~= nil
+      and view.htmlSet:find("Untitled", 1, true) == nil
+      and view.htmlSet:find(">Scratch 1<", 1, true) == nil,
+      tostring(DATED))
 check("opening told the hyper watchdog to expect the release within 1.5 s",
       EXPECTED[#EXPECTED] and EXPECTED[#EXPECTED].secs == 1.5)
 msg({ a = "f18up" })
@@ -2776,6 +2787,114 @@ do
 
     local ran = (pass + fail) - before
     check("§6.366.0 ran all of its checks (" .. ran .. " of 24)", ran >= 24, ran)
+end
+
+-- =======================================================================
+out("\n📅 6.376.0 — a scratch note is named for the day it was made\n")
+-- =======================================================================
+-- LL: "Scratch not should be prefixed with Today's date."
+do
+    local before = pass + fail
+    -- 🔬 6.278.0 — THE INSTANCE THAT PUBLISHED THE REPORT IS THE ONE TO
+    -- DRIVE. This suite loads the module several times; a section that
+    -- drives an earlier copy while reading _G.scratchPadReport() is
+    -- measuring two objects and calling the disagreement a bug.
+    local sp = _G.scratchPad
+    local DAY = os.time{ year = 2026, month = 10, day = 20, hour = 12 }
+    local NEXT = DAY + 86400
+
+    -- the rule, PURE, with the clock handed in
+    check("a tab made on a day is named for that day",
+          sp.dateTitle(DAY, 1) == os.date("%a %b %d", DAY),
+          tostring(sp.dateTitle(DAY, 1)))
+    check("the second tab in the strip carries its place beside the date",
+          sp.dateTitle(DAY, 2) == os.date("%a %b %d", DAY) .. " · 2",
+          tostring(sp.dateTitle(DAY, 2)))
+    check("the format is read from the config, never typed in",
+          sp.dateTitle(DAY, 1, "%Y-%m-%d") == os.date("%Y-%m-%d", DAY))
+    -- 🚨 THE EXPENSIVE EDGE: a stamp that is missing, zero or nonsense
+    -- must NOT become 1970 — a plausible wrong date is worse than a
+    -- refusal, and the refusal is what keeps the old name (6.338.0).
+    check("no stamp at all is refused, with a reason",
+          sp.dateTitle(nil, 1) == nil
+          and select(2, sp.dateTitle(nil, 1)):find("no date", 1, true) ~= nil)
+    check("a zero or negative stamp is refused — never 1970",
+          sp.dateTitle(0, 1) == nil and sp.dateTitle(-5, 1) == nil)
+    check("a non-number stamp is refused", sp.dateTitle("yesterday", 1) == nil)
+
+    -- …and the title obeys it, through the ONE function every surface asks
+    sp.tabs, sp.history, sp.active = {}, {}, nil
+    local a = sp.newTab("")
+    a.createdAt = DAY
+    check("an empty tab wears the date, not \"Scratch 1\"",
+          sp.titleOf(a) == os.date("%a %b %d", DAY), sp.titleOf(a))
+    local b = sp.newTab("")
+    b.createdAt = NEXT
+    check("a second empty tab wears ITS OWN day, not today's",
+          sp.titleOf(b) == os.date("%a %b %d", NEXT) .. " · 2", sp.titleOf(b))
+
+    -- 📏 THE DEFAULT STOPS AT AN EMPTY TAB, which is the half of his
+    -- sentence I chose and the half he can reverse in one word.
+    sp.setText(a.id, "Buy milk")
+    check("once he types, HIS first line is the title — the pad's whole design",
+          sp.titleOf(a) == "Buy milk", sp.titleOf(a))
+    sp.titleDate = "always"
+    check("titleDate = \"always\" is the other reading, and it works",
+          sp.titleOf(a) == os.date("%a %b %d", DAY) .. " · Buy milk",
+          sp.titleOf(a))
+    sp.titleDate = "off"
+    check("titleDate = \"off\" is the pre-6.376.0 name exactly",
+          sp.titleOf(a) == "Buy milk" and sp.titleOf(b) == "Scratch 2",
+          sp.titleOf(b))
+    sp.titleDate = "new"
+    -- a tab from a store written before createdAt existed keeps its old
+    -- name rather than claiming a date nobody recorded
+    b.createdAt = nil
+    check("an undated tab falls back to \"Scratch N\", not to 1970",
+          sp.titleOf(b) == "Scratch 2", sp.titleOf(b))
+
+    -- 🔑 ONE FUNCTION, EVERY SURFACE (6.311.0): the strip, the report,
+    -- the export, the Asana body and the vault's one list all ask
+    -- titleOf, so none of them can disagree about what a tab is called.
+    -- 🔒 realIoOpen, NOT io.open — this suite replaces io.open with a
+    -- virtual disk, which answers nil for a path it has never heard of,
+    -- so a source sentry read through it would measure an EMPTY haystack
+    -- and pass over nothing (6.313.0 · 6.273.0). The size is asserted.
+    local sf = realIoOpen(HS .. "/modules/scratch_pad.lua", "r")
+    local SRC = sf and sf:read("*a") or ""
+    if sf then sf:close() end
+    check("the sentry below really read the module", #SRC > 50000, #SRC)
+    local defs = select(2, SRC:gsub("function sp%.titleOf", ""))
+    check("titleOf has ONE definition and the date is built inside it",
+          defs == 1 and select(2, SRC:gsub("function sp%.dateTitle", "")) == 1)
+    -- the format is DECLARED once in the config and READ once, in
+    -- dateTitle; any third mention is a second place formatting a date
+    check("the format is declared once and read in exactly one place",
+          select(2, SRC:gsub("titleDateFmt%s*=", "")) == 1
+          and select(2, SRC:gsub("sp%.titleDateFmt", "")) == 1,
+          select(2, SRC:gsub("sp%.titleDateFmt", "")))
+
+    -- the report says which reading is on, and how to change it
+    b.createdAt = DAY
+    local r = _G.scratchPadReport()
+    check("the report names the mode and the settings line",
+          r:find("📅 dates", 1, true) ~= nil
+          and r:find("titleDate", 1, true) ~= nil, r:match("📅 dates[^\n]*"))
+    sp.titleDate = "off"
+    local roff = _G.scratchPadReport()
+    check("…and says OFF when it is off, rather than describing a rule "
+          .. "that is not running",
+          roff:find("OFF", 1, true) ~= nil
+          and roff:find("named for the DAY", 1, true) == nil)
+    sp.titleDate = "new"
+    b.createdAt = nil
+    local rund = _G.scratchPadReport()
+    check("…and counts the undated tabs, so a mixed strip is explained",
+          rund:find("no date stamp", 1, true) ~= nil, rund)
+    b.createdAt = DAY
+
+    local ran = (pass + fail) - before
+    check("§6.376.0 ran all of its checks (" .. ran .. " of 18)", ran >= 18, ran)
 end
 
 out(string.format("\n%d passed, %d failed\n", pass, fail))
