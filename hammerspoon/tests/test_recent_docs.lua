@@ -244,13 +244,73 @@ local function entryNamed(n)
 end
 check("the plist LL genuinely opened IS here — in a project folder",
       entryNamed("Info.plist") ~= nil)
-check(".plist was LEARNED from that one open",
-      rd.learned.plist ~= nil
-      and rd.learned.plist.example == "Info.plist")
+-- 🎓 6.375.0 — ONE OPEN IS NOT A TYPE, which is the decision this check
+-- used to assert the other way round ("`.plist` was LEARNED from that
+-- one open"). LL: catch the common types "but files types like .nfo or
+-- .edm shouldn't" turn up. The RULE is the same shape — a type he works
+-- in joins — and the evidence it demands is two DIFFERENT files.
+check("one opened file does NOT make .plist a type he works in",
+      rd.learned.plist == nil, tostring(rd.learned.plist))
+check("…and it is NAMED as waiting, with the count, not silently dropped",
+      rd.waiting and rd.waiting.plist == 1, rd.waiting and rd.waiting.plist)
 check("…and .lua is a SEED now, so it is not 'learned'",
       rd.learned.lua == nil and entryNamed("init.lua") ~= nil)
 check("a seed-type file merely MODIFIED shows (the sent attachment)",
       entryNamed("sent to you.xlsx") ~= nil)
+
+-- A SECOND file of the type is the evidence, and it joins.
+local two = {
+    { path = HOME .. "/Code/app/Info.plist",     used = BASE - 300 },
+    { path = HOME .. "/Code/app/Settings.plist", used = BASE - 290 },
+}
+rd.assemble(two, { [two[1].path] = two[1], [two[2].path] = two[2] })
+check("two different files of a type DO make it one he works in",
+      rd.learned.plist ~= nil
+      and rd.learned.plist.example == "Settings.plist",
+      rd.learned.plist and rd.learned.plist.example)
+check("…and it is no longer waiting", rd.waiting.plist == nil)
+
+-- 🔁 RE-OPENING ONE FILE IS NO EVIDENCE ABOUT A TYPE, which is the
+-- fixture that separates "two files" from "two opens" — a count of opens
+-- would learn from this and must not (6.230.0).
+mod, rd = freshModule()
+local same = { { path = HOME .. "/Downloads/movie.nfo", used = BASE - 20 } }
+rd.assemble(same, { [same[1].path] = same[1] })
+rd.assemble(same, { [same[1].path] = same[1] })
+check("the same file seen twice does NOT teach its type",
+      rd.learned.nfo == nil and rd.waiting.nfo == 1)
+-- ↩️ AND A RULE THAT REFUSES OWES A WAY PAST IT (6.199.0)
+check("learn() joins a type by hand, once",
+      rd.learn("nfo") == true and rd.learned.nfo ~= nil
+      and rd.learn("nfo") == false)
+check("learn() refuses a built-in type and nonsense, and says why",
+      rd.learn("docx") == false and rd.learn("") == false
+      and rd.learn("not an ext") == false
+      and select(2, rd.learn("xlsx")):find("built-in", 1, true) ~= nil)
+check("learn() takes a leading dot and any case",
+      rd.learn(".EDM") == true and rd.learned.edm ~= nil)
+-- the floor is a NUMBER the gate can move, and floor 1 is the old rule
+mod, rd = freshModule()
+rd.learnFloor = 1
+rd.assemble(same, { [same[1].path] = same[1] })
+check("floor = 1 is the pre-6.375.0 rule exactly — one open joins",
+      rd.learned.nfo ~= nil and next(rd.waiting) == nil)
+mod, rd = freshModule()
+rd.learnFloor = 0
+check("a floor of 0 or less clamps to 1 — a typo cannot admit everything",
+      rd.learnFloorValue() == 1)
+rd.learnFloor = "nonsense"
+check("an unreadable floor falls back to the shipped 2, never to 0",
+      rd.learnFloorValue() == 2)
+
+-- put the corpus state back for the checks below
+mod, rd = freshModule()
+list, byPath = rd.parse(corpus)
+rd.assemble(list, byPath)
+rd.assemble(two, { [two[1].path] = two[1], [two[2].path] = two[2] })
+entryNamed = function(n)
+    for _, e in ipairs(rd.entries) do if e.name == n then return e end end
+end
 
 -- 🚨 IN A DOCUMENT FOLDER, DELIBERATELY: under ~/Library this row is
 -- refused by 6.374.0's folder rule as well, so the check would pass with
@@ -269,7 +329,7 @@ rd.learned = {}
 rd.loadTypes()
 check("learned types survive the round-trip to disk",
       rd.learned.plist ~= nil and rd.learned.plist.example
-      == "Info.plist")
+      == "Settings.plist")
 check("unlearn forgets one and says so",
       rd.unlearn("plist") == true and rd.learned.plist == nil
       and rd.unlearn("plist") == false)
@@ -741,20 +801,33 @@ check("a list with nothing to turn away reads as health, not as unread",
 -- admits every opened file of that type for ever — the folder rule
 -- leaking back in a week later through the types list.
 mod, rd = freshModule()
+-- TWO files, so the floor is cleared and only the folder rule can
+-- refuse: with one file this check would pass with 6.374.0's rule
+-- deleted, because 6.375.0's floor would refuse it anyway (6.273.0).
 local one = { { path = HOME .. "/Library/Containers/com.apple.Notes/x.sqlite",
-                used = BASE - 10 } }
-rd.assemble(one, { [one[1].path] = one[1] })
-check("an opened file in a container does NOT teach its extension",
+                used = BASE - 10 },
+              { path = HOME .. "/Library/Containers/com.apple.Notes/y.sqlite",
+                used = BASE - 9 } }
+rd.assemble(one, { [one[1].path] = one[1], [one[2].path] = one[2] })
+check("opened files in a container do NOT teach their extension",
       rd.learned["sqlite"] == nil)
+-- two different files, because 6.375.0's floor is two — the point here
+-- is the FOLDER, so the fixture has to clear the other rule
 mod, rd = freshModule()
-local two = { { path = HOME .. "/Documents/thing.sqlite", used = BASE - 10 } }
-rd.assemble(two, { [two[1].path] = two[1] })
-check("an opened file in Documents DOES teach its extension",
+local docs = {
+    { path = HOME .. "/Documents/one.sqlite", used = BASE - 10 },
+    { path = HOME .. "/Documents/two.sqlite", used = BASE - 9 },
+}
+rd.assemble(docs, { [docs[1].path] = docs[1], [docs[2].path] = docs[2] })
+check("opened files in Documents DO teach their extension",
       rd.learned["sqlite"] ~= nil)
 mod, rd = freshModule()
-local three = { { path = CLOUD .. "/Vault/thing.sqlite", used = BASE - 10 } }
-rd.assemble(three, { [three[1].path] = three[1] })
-check("an opened file in the cloud folder teaches its extension too",
+local cl = {
+    { path = CLOUD .. "/Vault/one.sqlite", used = BASE - 10 },
+    { path = CLOUD .. "/Vault/two.sqlite", used = BASE - 9 },
+}
+rd.assemble(cl, { [cl[1].path] = cl[1], [cl[2].path] = cl[2] })
+check("opened files in the cloud folder teach their extension too",
       rd.learned["sqlite"] ~= nil)
 
 -- 🔒 A SENTRY ON THE ONE EXCEPTION. A filter that drops ~/Library
@@ -772,6 +845,66 @@ check("the script skips the rest of ~/Library",
       or SRC:find('"$hm"/Library/*)', 1, true) ~= nil)
 check("the cap is applied after the filter, never by head",
       not SRC:find("head -n", 1, true) and SRC:find("-le \"$cap\"", 1, true))
+
+
+-- =======================================================================
+out("\n9d) 6.375.0 — the report says what is being held back, and why\n")
+-- =======================================================================
+mod, rd = freshModule()
+local r0 = _G.recentDocsReport()
+check("before any scan the waiting line says nothing was asked",
+      r0:find("waiting : nothing asked yet", 1, true) ~= nil, r0)
+check("…and the learned line names the FLOOR, so the sentence cannot go "
+      .. "stale when the number moves (6.181.0 · 6.239.0)",
+      r0:find("open " .. rd.learnFloorValue() .. " different files",
+              1, true) ~= nil, r0)
+
+local held = {
+    { path = HOME .. "/Downloads/a.nfo", used = BASE - 30 },
+    { path = HOME .. "/Downloads/b.edm", used = BASE - 20 },
+    { path = HOME .. "/Documents/one.key", used = BASE - 15 },
+    { path = HOME .. "/Documents/two.key", used = BASE - 14 },
+}
+local hbp = {} ; for _, e in ipairs(held) do hbp[e.path] = e end
+rd.assemble(held, hbp)
+local r1 = _G.recentDocsReport()
+check(".key reached the floor and is learned", rd.learned.key ~= nil)
+check(".nfo and .edm are held back, by name, with their counts",
+      rd.waiting.nfo == 1 and rd.waiting.edm == 1)
+check("the report names both and gives the command that joins one",
+      r1:find("%.nfo") and r1:find("%.edm")
+      and r1:find("recentDocs.learn", 1, true) ~= nil, r1)
+check("the report does NOT list .key as waiting", not r1:find("%.key  1"))
+
+-- the health line: everything he opened reached the floor
+mod, rd = freshModule()
+local allgood = {
+    { path = HOME .. "/Documents/one.key", used = BASE - 15 },
+    { path = HOME .. "/Documents/two.key", used = BASE - 14 },
+}
+rd.assemble(allgood, { [allgood[1].path] = allgood[1],
+                       [allgood[2].path] = allgood[2] })
+local r2 = _G.recentDocsReport()
+check("with nothing held back it reads as health, not as unasked",
+      r2:find("waiting : none", 1, true) ~= nil
+      and r2:find("nothing asked yet", 1, true) == nil, r2)
+
+-- 🔒 the floor is READ in one place, never retyped: the drawing, the
+-- learn loop and the report all ask learnFloorValue(), so moving the
+-- config moves all three (6.239.0).
+mod, rd = freshModule()
+rd.learnFloor = 4
+local r3 = _G.recentDocsReport()
+check("moving the floor moves the sentence the report prints",
+      r3:find("open 4 different files", 1, true) ~= nil, r3)
+local SRC = io.open(HS .. "/modules/recent_docs.lua"):read("*a")
+local defs    = select(2, SRC:gsub("function rd%.learnFloorValue", ""))
+local mentions = select(2, SRC:gsub("learnFloorValue%(%)", ""))
+check("the floor has ONE definition and is ASKED by the rule and the "
+      .. "report, never retyped as a literal",
+      defs == 1 and (mentions - defs) >= 2
+      and not SRC:find("rd%.learnFloor >= ")
+      and not SRC:find("b%.n >= 2"), defs .. "/" .. mentions)
 
 os.remove(TMPA) ; os.remove(TMPB)
 out(string.format("\n%d passed, %d failed\n", pass, fail))

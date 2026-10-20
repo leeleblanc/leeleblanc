@@ -158,6 +158,10 @@ function M.setup(core)
 
     rd.entries, rd.byPath = {}, {}
     rd.learned  = {}         -- ext -> { first, last, example }
+    rd.waiting  = nil        -- 6.375.0: ext -> opens, below the floor.
+                             -- nil until a list has been assembled —
+                             -- "not asked yet" and "none waiting" are
+                             -- different facts (6.196.1)
     rd.loadedAt = 0          -- epoch of the last completed scan
     rd.pos      = nil        -- 🖐 where you dragged it — a remembered
                              -- position WINS (the pomodoro's 6.67.0 rule)
@@ -239,6 +243,62 @@ function M.setup(core)
                 .. tostring(o[2].last) .. "," .. csvField(o[2].example) .. "\n")
         end
         f:close()
+    end
+
+
+    -- 🎓 6.375.0 — AN OBSCURE TYPE HAS TO EARN ITS PLACE (LL: catch the
+    -- most common file types down to the least common, "but files types
+    -- like .nfo or .edm shouldn't" turn up).
+    -- 🔎 WHAT IT WAS: ONE open of ANY extension joined it for ever. That
+    -- is the right rule for a type he works in and the wrong one for a
+    -- file he opened once to look at — and the cost is not only clutter.
+    -- `rd.learnedCap` keeps 24 learned types and evicts the OLDEST, so a
+    -- handful of one-off opens can push out .key, .sql or .sketch — the
+    -- types he really does work in, quietly, with the junk left behind.
+    -- 🔑 THE FLOOR IS TWO DIFFERENT FILES, not two opens: re-opening one
+    -- file is no evidence at all about a TYPE, and the pair of them is
+    -- the cheapest thing that can tell "I work in this" from "I looked
+    -- at one of these". A type ALREADY learned is never re-tested, so
+    -- the floor governs joining and never eviction.
+    -- 📏 NO NEW STORE, deliberately: the evidence is in the SCAN, which
+    -- carries 30 days of opens, so the count is recomputed from ground
+    -- truth every time rather than tallied in a file that can drift
+    -- (6.276.0 — read the truth, never retype it).
+    -- ↩️ AND A RULE THAT REFUSES OWES A WAY PAST IT (6.199.0):
+    -- `_G.recentDocs.learn("ipynb")` joins a type by hand, which is the
+    -- answer for a type he genuinely works in but keeps ONE file of.
+    rd.learnFloor = 2
+    function rd.learnFloorValue()
+        -- a typo in a settings line must never make the floor 0 and
+        -- admit everything, nor negative and mean nothing at all
+        local n = tonumber(rd.learnFloor) or 2
+        n = math.floor(n)
+        if n < 1 then n = 1 end
+        return n
+    end
+
+    function rd.learn(ext)
+        ext = tostring(ext or ""):lower():gsub("^%.", "")
+        if ext == "" or not ext:match("^%w+$") then
+            return false, "that is not a file extension"
+        end
+        if rd.extTag[ext] then
+            return false, "." .. ext .. " is already a built-in type"
+        end
+        if rd.learned[ext] then
+            return false, "." .. ext .. " is already learned"
+        end
+        local now = epoch()
+        rd.learned[ext] = { first = now, last = now,
+                            example = "(you asked for it)" }
+        if rd.waiting then rd.waiting[ext] = nil end
+        rd.saveTypes()
+        say("learned ." .. ext .. " on request")
+        pcall(function()
+            hs.alert.show("📂 ." .. ext .. " is a type now — "
+                          .. keyLabel(true) .. " re-scans")
+        end)
+        return true
     end
 
     function rd.unlearn(ext)
@@ -396,6 +456,36 @@ function M.setup(core)
             return true, "an app's own folder under ~/Library"
         end
         return false, "a document folder"
+    end
+
+    -- 🚨 6.375.0 — IT LIVES HERE, BESIDE extOf AND rd.appOwned, AND NOT
+    -- UP WITH THE OTHER TYPE FUNCTIONS: both of those are declared in
+    -- this part of the file, so a reader written above them would be
+    -- calling nil GLOBALS of the same name (6.335.0, which cost a whole
+    -- suite). Anything that asks them is declared after them.
+    -- PURE given the list: which non-seed, non-app-owned extensions he
+    -- has OPENED, and in how many DIFFERENT files. `floor = 1` makes it
+    -- the pre-6.375.0 behaviour exactly, which is what makes the release
+    -- reversible and lets the gate drive both sides.
+    function rd.openedByType(list)
+        local by = {}
+        for _, e in ipairs(list or {}) do
+            local x = e.path and extOf(e.path)
+            if x and e.used and not rd.extTag[x] and not rd.appOwned(e.path) then
+                local b = by[x]
+                if not b then b = { paths = {}, n = 0 } ; by[x] = b end
+                if not b.paths[e.path] then
+                    b.paths[e.path] = true
+                    b.n = b.n + 1
+                end
+                if not b.last or e.used > b.last then
+                    b.last    = e.used
+                    b.example = e.path:match("[^/]+$")
+                end
+                if not b.first or e.used < b.first then b.first = e.used end
+            end
+        end
+        return by
     end
 
     function rd.finish(e)
@@ -577,27 +667,27 @@ scan M "$modq"
             end
         end
         -- 🎓 learn: every opened extension outside the seeds joins now
-        -- 🚨 6.305.0 — THE LEARN LOOP DECIDES THE SAME THING AS admit()
-        -- AND HAD TO BE ASKED IN THE SAME COMMIT. Opening one file
-        -- inside a container would otherwise teach its extension, and a
-        -- learned type then admits every opened file of that type for
-        -- ever — so the folder rule has to hold here or it leaks back in
-        -- through the types list a week later.
+        -- 🎓 6.375.0 — A TYPE EARNS ITS PLACE, IT IS NOT HANDED ONE.
+        -- `rd.openedByType` answers the floor's question and the learn
+        -- loop obeys it; a type ALREADY learned is never re-tested, so
+        -- the floor governs JOINING and never eviction — a month in
+        -- which he happens to open only one .key must not un-learn it.
         local learnedNew = false
-        for _, e in ipairs(list) do
-            local x = extOf(e.path)
-            if x and e.used and not rd.extTag[x]
-               and not rd.appOwned(e.path) then
+        rd.waiting = {}
+        for x, b in pairs(rd.openedByType(list)) do
+            if rd.learned[x] or b.n >= rd.learnFloorValue() then
                 local l = rd.learned[x]
                 if not l then
-                    rd.learned[x] = { first = e.used, last = e.used,
-                                      example = e.path:match("[^/]+$") }
+                    rd.learned[x] = { first = b.first, last = b.last,
+                                      example = b.example }
                     learnedNew = true
-                elseif e.used > l.last then
-                    l.last = e.used
-                    l.example = e.path:match("[^/]+$")
+                elseif b.last > l.last then
+                    l.last = b.last
+                    l.example = b.example
                     learnedNew = true
                 end
+            else
+                rd.waiting[x] = b.n
             end
         end
         local kept = {}
@@ -1232,13 +1322,44 @@ if (q.focus) q.focus();
             learned[#learned + 1] = { ext = ext, l = l }
         end
         table.sort(learned, function(a, b) return a.l.last > b.l.last end)
+        -- 📋 6.375.0 — THE SENTENCE HAD TO MOVE WITH THE RULE: "open any
+        -- file type and it joins" stopped being true the moment the floor
+        -- existed, and a report promising behaviour that no longer happens
+        -- is a broken feature (6.181.0).
+        local floorN = rd.learnFloorValue()
         if #learned == 0 then
-            lines[#lines + 1] = "   learned : none yet — open any file type and it joins"
+            lines[#lines + 1] = "   learned : none yet — open " .. floorN
+                .. " different files of a type and it joins"
         else
             lines[#lines + 1] = "   learned : (unlearn with _G.recentDocs.unlearn(\"ext\"))"
             for _, o in ipairs(learned) do
                 lines[#lines + 1] = "     ." .. o.ext .. "  since "
                     .. os.date("%b %d", o.l.first) .. " — e.g. " .. (o.l.example or "")
+            end
+        end
+        -- 🎓 WHAT IS BEING HELD BACK, AND WHY — three states, because a
+        -- type he expected to see and does not is otherwise a silence.
+        if rd.waiting == nil then
+            lines[#lines + 1] = "   waiting : nothing asked yet — "
+                .. keyLabel(true) .. " scans"
+        else
+            local w = {}
+            for ext, n in pairs(rd.waiting) do w[#w + 1] = { ext = ext, n = n } end
+            table.sort(w, function(a, b)
+                if a.n ~= b.n then return a.n > b.n end
+                return a.ext < b.ext
+            end)
+            if #w == 0 then
+                lines[#lines + 1] = "   waiting : none — every type you opened "
+                    .. "has reached " .. floorN .. " file(s)"
+            else
+                lines[#lines + 1] = "   waiting : " .. #w .. " type(s) opened in "
+                    .. "fewer than " .. floorN .. " file(s) — join one with "
+                    .. "_G.recentDocs.learn(\"ext\")"
+                for _, o in ipairs(w) do
+                    lines[#lines + 1] = "     ." .. o.ext .. "  " .. o.n
+                        .. " file(s) opened"
+                end
             end
         end
         local out = table.concat(lines, "\n")
