@@ -718,6 +718,24 @@ check("the report names what it turned away and why",
                  and r:find("Library", 1, true) ~= nil
       end)())
 
+-- 🔎 THE THIRD STATE, DRIVEN (6.273.0 — the sweep found this one
+-- missing). Before any list is assembled the count is nil, and "nothing
+-- has been read" must NOT print the words for "read it and turned
+-- nothing away": one is a tool that has not run, the other is a clean
+-- bill of health, and they are opposite facts.
+mod, rd = freshModule()
+local fresh = _G.recentDocsReport()
+check("a module that has assembled nothing says so, not '0 turned away'",
+      fresh:find("nothing read yet", 1, true) ~= nil
+      and fresh:find("0 turned away", 1, true) == nil, fresh)
+-- and a list with nothing to turn away says THAT, which is the health line
+local clean = { { path = HOME .. "/Documents/Only.docx", used = BASE - 10 } }
+rd.assemble(clean, { [clean[1].path] = clean[1] })
+local okline = _G.recentDocsReport()
+check("a list with nothing to turn away reads as health, not as unread",
+      okline:find("0 turned away", 1, true) ~= nil
+      and okline:find("nothing read yet", 1, true) == nil, okline)
+
 -- 🎓 THE LEARN LOOP DECIDES THE SAME THING (6.305.0): one opened file
 -- inside a container would teach its extension, and a learned type then
 -- admits every opened file of that type for ever — the folder rule
