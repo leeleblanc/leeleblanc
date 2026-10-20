@@ -2251,6 +2251,108 @@ if capChunk then
           .. "never fires, and a shared slot is the use-after-free)",
           beltSrc and beltSrc:match("_G%.secureInputBelt%s*=%s*hs%.timer%.doAfter"))
 
+    -- =================================================================
+    -- 🔒 6.378.0 — THE FIRST READING OF **ON** SPEAKS
+    -- =================================================================
+    -- The announcement was gated on a CHANGE, and the first reading is
+    -- not one: si.on is born nil. So a Mac where Secure Input was
+    -- ALREADY HELD when this config started reported it to NOBODY, for
+    -- ever — in the row that kills every tap and every hotkey with no
+    -- error anywhere, and took his keyboard for four hours in 6.196.0.
+    do
+      freshMac()
+      _G.secureInputCheck()
+      local said = {}
+      local realPrint = print
+      print = function(s) said[#said + 1] = tostring(s) end
+      if T.cbs.narrow then
+        T.cbs.narrow(nil, 'kCGSSessionSecureInputPID" = 4242')
+      end
+      print = realPrint
+      local all = table.concat(said, "\n")
+      check("🔒 a FIRST reading of ON is announced — there is no later "
+            .. "change to announce, because it was already wrong when "
+            .. "this config arrived",
+            _G.secureInput.on == true
+            and all:find("SECURE INPUT IS ON", 1, true) ~= nil, all)
+      check("...and it says it was ALREADY held, so a keyboard that has "
+            .. "never worked this session is explained",
+            all:find("ALREADY held", 1, true) ~= nil, all)
+      check("...and a first reading is NOT counted as a change — that "
+            .. "number is how many times the state MOVED while watching",
+            (_G.secureInput.changes or 0) == 0,
+            tostring(_G.secureInput.changes))
+      local rep2 = capture(_G.secureInputReport)
+      check("...and the report tells 'already held at boot' from 'took it "
+            .. "while we watched'",
+            rep2:find("ALREADY HELD when this config started", 1, true) ~= nil,
+            rep2)
+    end
+
+    -- 🔕 AND THE HEALTHY CASE STAYS SILENT, which is the half that keeps
+    -- the warning worth reading: a first reading of OFF says nothing at
+    -- all (6.269.0 — an instrument that talks on day one is switched off
+    -- long before it sees the fault it was built for).
+    do
+      freshMac()
+      _G.secureInputCheck()
+      local said = {}
+      local realPrint = print
+      print = function(s) said[#said + 1] = tostring(s) end
+      if T.cbs.narrow then T.cbs.narrow(nil, "no pid here") end
+      if T.cbs.broad  then T.cbs.broad(nil, "no pid here")  end
+      local hopNow = hop()
+      if hopNow and hopNow.fn then hopNow.fn() end
+      if T.cbs.broad then T.cbs.broad(nil, "no pid here") end
+      print = realPrint
+      local all = table.concat(said, "\n")
+      check("🔕 a first reading of OFF says NOTHING — a line a minute "
+            .. "saying 'still fine' is how a warning gets ignored",
+            _G.secureInput.on == false
+            and all:find("SECURE INPUT", 1, true) == nil
+            and all:find("released", 1, true) == nil, all)
+      local rep3 = capture(_G.secureInputReport)
+      check("...and the report does not claim it was already held",
+            rep3:find("ALREADY HELD", 1, true) == nil, rep3)
+    end
+
+    -- 🔁 AND A REAL CHANGE STILL ANNOUNCES BOTH WAYS. The asymmetry must
+    -- not have cost the thing that already worked.
+    do
+      freshMac()
+      _G.secureInputCheck()
+      if T.cbs.narrow then T.cbs.narrow(nil, "no pid here") end
+      local hopNow = hop()
+      if hopNow and hopNow.fn then hopNow.fn() end
+      if T.cbs.broad then T.cbs.broad(nil, "no pid here") end
+      local said = {}
+      local realPrint = print
+      print = function(s) said[#said + 1] = tostring(s) end
+      _G.secureInputCheck()
+      if T.cbs.narrow then
+        T.cbs.narrow(nil, 'kCGSSessionSecureInputPID" = 9191')
+      end
+      print = realPrint
+      local all = table.concat(said, "\n")
+      check("🔁 off → ON is still announced, and counted as a change",
+            all:find("SECURE INPUT IS ON", 1, true) ~= nil
+            and (_G.secureInput.changes or 0) == 1,
+            tostring(_G.secureInput.changes) .. " " .. all)
+      check("...and it does NOT claim it was already held at boot",
+            all:find("ALREADY held", 1, true) == nil, all)
+      said = {}
+      print = function(s) said[#said + 1] = tostring(s) end
+      _G.secureInputCheck()
+      if T.cbs.narrow then T.cbs.narrow(nil, "no pid here") end
+      local h2 = hop()
+      if h2 and h2.fn then h2.fn() end
+      if T.cbs.broad then T.cbs.broad(nil, "no pid here") end
+      print = realPrint
+      check("🔓 ON → off is still announced",
+            table.concat(said, "\n"):find("released", 1, true) ~= nil,
+            table.concat(said, "\n"))
+    end
+
     hs.task, hs.timer = realTask, realTimerSave
     _G.secureInput = nil
   end

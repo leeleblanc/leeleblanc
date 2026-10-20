@@ -133,13 +133,38 @@ return function(core)
         -- Only a CHANGE is announced. This runs on a timer forever, and a
         -- line every minute saying the same thing is how a real warning
         -- gets scrolled past and then ignored.
-        if was ~= nil and was ~= si.on then
-            si.changes = si.changes + 1
+        -- 🔒 6.378.0 — AND THE FIRST READING IS NOT A CHANGE, which made
+        -- the one state that matters most unannounceable. `si.on` is born
+        -- nil, so `was ~= nil` is false on the very first probe: a Mac
+        -- where Secure Input is ALREADY HELD when this config boots —
+        -- the lock screen a wake goes through, a password field left
+        -- open, Chrome having set it and not cleared it — reported it to
+        -- NOBODY, for ever. And Secure Input stops every event tap AND
+        -- every hotkey dispatch system-wide with no error anywhere; it
+        -- took his keyboard for four hours in 6.196.0 while the Console
+        -- said "All green · 104 ⇪ shortcuts".
+        -- 🔑 ONE ASYMMETRY, NOT A NEW INSTRUMENT: a first reading of ON
+        -- speaks, a first reading of OFF stays silent. The gate above is
+        -- RIGHT for the healthy case — a line a minute saying "still
+        -- fine" is how a warning gets ignored (6.269.0) — and WRONG for
+        -- the held case, where there is no later change to announce
+        -- because the state was already wrong when we arrived.
+        local firstOn = (was == nil) and si.on
+        if firstOn or (was ~= nil and was ~= si.on) then
+            -- 📏 A FIRST READING IS NOT A CHANGE AND IS NOT COUNTED AS
+            -- ONE: `changes` is how many times the state MOVED while we
+            -- were watching, and the report prints it beside the probe
+            -- count. Counting the first reading would make a Mac that
+            -- booted into a held keyboard read as one that lost it once.
+            if not firstOn then si.changes = si.changes + 1 end
+            si.firstWasOn = si.firstWasOn or (firstOn and true) or nil
             if si.on then
                 print("🔒 SECURE INPUT IS ON — " .. tostring(si.app) .. " has locked "
                       .. "the keyboard. Snippets, autocorrect and MOST ⇪ shortcuts "
                       .. "will do nothing until it lets go. Not a fault in this "
-                      .. "config: quit that app, or leave its password field.")
+                      .. "config: quit that app, or leave its password field."
+                      .. (firstOn and "  (ALREADY held when this config "
+                                      .. "started — it did not just happen)" or ""))
                 if _G.notices then
                     pcall(_G.notices.record, "runtime", "secure input",
                           "on — " .. tostring(si.app))
@@ -354,6 +379,14 @@ return function(core)
             end
         elseif si.on then
             L[#L + 1] = "   state  : ON — " .. tostring(si.app) .. " holds it"
+            -- 🔒 6.378.0 — ALREADY HELD AT BOOT vs TOOK IT WHILE WATCHING
+            -- are different facts and only the first one explains a
+            -- keyboard that has never worked this session.
+            if si.firstWasOn then
+                L[#L + 1] = "   when   : ALREADY HELD when this config started — the "
+                            .. "very first probe found it on, so nothing here ever "
+                            .. "saw it happen"
+            end
             L[#L + 1] = "   costs  : every event tap (snippets, autocorrect, the "
                         .. "expander, ⇪'s fallback) and most hotkeys. Other apps too."
             L[#L + 1] = "   fix    : quit that app, or leave the password field it "
