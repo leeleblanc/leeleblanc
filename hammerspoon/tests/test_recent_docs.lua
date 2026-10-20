@@ -209,7 +209,14 @@ end
 local corpus = table.concat({
     "U\t" .. HOME .. "/Documents/Budget FINAL v3.xlsx\t" .. stamp(0) .. "\t" .. stamp(-50),
     "U\t" .. HOME .. "/Documents/report.docx\t" .. stamp(-100) .. "\t" .. stamp(-200),
-    "U\t" .. HOME .. "/Library/Preferences/com.microsoft.Outlook.plist\t"
+    -- 📁 6.374.0 — THIS PLIST USED TO LIVE IN ~/Library/Preferences,
+    -- and that fixture encoded a decision that has EXPIRED: an opened
+    -- plist there is exactly what LL's thirty-four-app list asks not to
+    -- see. The RULE under test is unchanged — a learned type lists only
+    -- files you opened — so the fixture moves to a plist in a project
+    -- folder, which is a plist he really does open and really is a
+    -- document (6.248.0: assert the rule, not the fixture).
+    "U\t" .. HOME .. "/Code/app/Info.plist\t"
         .. stamp(-300) .. "\t" .. stamp(-300),
     "U\t" .. HOME .. "/Code/init.lua\t" .. stamp(-400) .. "\t" .. stamp(-400),
     "U\t" .. HOME .. "/Desktop/notes.txt\t" .. stamp(-500) .. "\t-",
@@ -235,17 +242,21 @@ rd.assemble(list, byPath)
 local function entryNamed(n)
     for _, e in ipairs(rd.entries) do if e.name == n then return e end end
 end
-check("the plist LL genuinely opened IS here — the Outlook case",
-      entryNamed("com.microsoft.Outlook.plist") ~= nil)
+check("the plist LL genuinely opened IS here — in a project folder",
+      entryNamed("Info.plist") ~= nil)
 check(".plist was LEARNED from that one open",
       rd.learned.plist ~= nil
-      and rd.learned.plist.example == "com.microsoft.Outlook.plist")
+      and rd.learned.plist.example == "Info.plist")
 check("…and .lua is a SEED now, so it is not 'learned'",
       rd.learned.lua == nil and entryNamed("init.lua") ~= nil)
 check("a seed-type file merely MODIFIED shows (the sent attachment)",
       entryNamed("sent to you.xlsx") ~= nil)
 
-local flood = { { path = HOME .. "/Library/Caches/junk.plist",
+-- 🚨 IN A DOCUMENT FOLDER, DELIBERATELY: under ~/Library this row is
+-- refused by 6.374.0's folder rule as well, so the check would pass with
+-- the anti-flood rule deleted — the fixture has to be one where only the
+-- rule under test can say no (6.230.0 · 6.273.0).
+local flood = { { path = HOME .. "/Code/app/junk.plist",
                   mod = BASE - 10 } }
 local fbp = { [flood[1].path] = flood[1] }
 rd.assemble(flood, fbp)
@@ -258,7 +269,7 @@ rd.learned = {}
 rd.loadTypes()
 check("learned types survive the round-trip to disk",
       rd.learned.plist ~= nil and rd.learned.plist.example
-      == "com.microsoft.Outlook.plist")
+      == "Info.plist")
 check("unlearn forgets one and says so",
       rd.unlearn("plist") == true and rd.learned.plist == nil
       and rd.unlearn("plist") == false)
@@ -537,6 +548,212 @@ do
     mod, rd = freshModule()   -- put the real module back for anything after
 end
 
+
+
+-- =======================================================================
+out("\n9) 6.374.0 — ~/Library is an app's own folder, not his documents\n")
+-- =======================================================================
+-- LL's list of thirty-four apps — 1Password, Activity Monitor, App
+-- Store, Audio MIDI, Calculator, Chess, ColorSync, Digital Color Meter,
+-- Disk Utility, DisplayLink, … System Settings, Tips, TV, … Weather —
+-- against the five he said he WOULD work in. Every one of the
+-- thirty-four keeps a folder under ~/Library; none of the five does.
+mod, rd = freshModule()
+
+-- The pure rule, and the REASON as well as the verdict: a document
+-- wrongly turned away has to be readable in the report (6.196.1).
+local function owned(p) return (rd.appOwned(p, HOME)) end
+local function why(p) local _, w = rd.appOwned(p, HOME) ; return w end
+
+check("a document in Documents is his", not owned(HOME .. "/Documents/Budget.xlsx"))
+check("a document on the Desktop is his", not owned(HOME .. "/Desktop/notes.md"))
+check("1Password's own icon cache is NOT a document",
+      owned(HOME .. "/Library/Application Support/1Password/icon.png"),
+      why(HOME .. "/Library/Application Support/1Password/icon.png"))
+check("a Notes container file is NOT a document",
+      owned(HOME .. "/Library/Containers/com.apple.Notes/Data/note.csv"))
+check("a Preferences plist is NOT a document",
+      owned(HOME .. "/Library/Preferences/com.apple.Weather.plist"))
+check("the reason names the folder, so the report can print it",
+      why(HOME .. "/Library/Containers/com.apple.Notes/Data/note.csv")
+          :find("Library", 1, true) ~= nil)
+
+-- ☁️ THE FIXTURE THAT SEPARATES A CORRECT RULE FROM A LIST-EMPTYING ONE
+-- (6.230.0): OneDrive lives INSIDE ~/Library, so "skip ~/Library" and
+-- "skip ~/Library except the cloud folder" agree about every path but
+-- this one — and this one is where the Vault, the screenshots and
+-- nearly everything he works on actually live.
+local CLOUD = HOME .. "/Library/CloudStorage/OneDrive-Personal"
+check("the Vault inside ~/Library/CloudStorage IS his",
+      not owned(CLOUD .. "/Vault/Note.md"), why(CLOUD .. "/Vault/Note.md"))
+check("a screenshot in the cloud folder IS his",
+      not owned(CLOUD .. "/2026 Screenshots/shot.png"))
+check("the cloud exception is named as such, not as a document folder",
+      why(CLOUD .. "/Vault/Note.md"):find("cloud", 1, true) ~= nil)
+
+check("a file inside an app bundle is not a document",
+      owned("/Applications/Thing.app/Contents/readme.txt"))
+check("a package folder is not a document",
+      owned(HOME .. "/code/proj/node_modules/pkg/readme.md"))
+check("a hidden folder is not a document",
+      owned(HOME .. "/.Trash/old.docx"))
+check("an empty path fails CLOSED", owned(nil) and owned(""))
+-- home is an ARGUMENT, so the gate can move it under the rule (6.239.0)
+check("the rule follows the home folder it is given",
+      rd.appOwned("/Users/other/Library/Caches/x.png", "/Users/other")
+      and not rd.appOwned("/Users/other/Library/Caches/x.png", HOME))
+
+-- =======================================================================
+out("\n9b) the folder rule runs in the SCRIPT, before mdls and before the cap\n")
+-- =======================================================================
+-- 🚨 THE CHECK THAT EARNS ITS PLACE RUNS THE SHIPPED SCRIPT. A `case`
+-- pattern cannot be proven by reading, and the Lua half cannot see it
+-- at all — so the script is lifted out of the argv the module really
+-- built and executed by /bin/sh with mdfind and mdls shimmed, which is
+-- what the RD_MDFIND / RD_MDLS defaults exist for (6.208.0's shape).
+local function runScript(hits, capN, hm)
+    local dir = os.tmpname() ; os.remove(dir)
+    os.execute("mkdir -p '" .. dir .. "/bin'")
+    local f = io.open(dir .. "/scan.sh", "w")
+    if not f then return nil end
+    f:write(TASKS[1].args[2]) ; f:close()
+    f = io.open(dir .. "/hits", "w")
+    for _, h in ipairs(hits) do
+        f:write(h, "\n")
+        -- every hit must EXIST as a plain file or the script's own
+        -- `[ -f ]` rejects it and the fixture proves nothing
+        local d = h:match("^(.*)/[^/]+$")
+        os.execute("mkdir -p '" .. d .. "' 2>/dev/null")
+        os.execute("touch '" .. h .. "' 2>/dev/null")
+    end
+    f:close()
+    f = io.open(dir .. "/bin/mdfind", "w")
+    f:write("#!/bin/sh\ncat \"$FAKE_HITS\"\n") ; f:close()
+    f = io.open(dir .. "/bin/mdls", "w")
+    f:write("#!/bin/sh\nprintf '2026-10-18 09:00:00 +0000'\n"
+            .. "printf '\\0'\nprintf '2026-10-19 10:00:00 +0000'\n") ; f:close()
+    os.execute("chmod +x '" .. dir .. "/bin/mdfind' '" .. dir .. "/bin/mdls'")
+    local cmd = "FAKE_HITS='" .. dir .. "/hits' RD_MDFIND='" .. dir
+        .. "/bin/mdfind' RD_MDLS='" .. dir .. "/bin/mdls' /bin/sh '"
+        .. dir .. "/scan.sh' '" .. hm .. "' " .. tostring(capN)
+        .. " usedq modq 2>/dev/null"
+    local p = io.popen(cmd)
+    local o = p and p:read("*a") or ""
+    if p then p:close() end
+    os.execute("rm -rf '" .. dir .. "' 2>/dev/null")
+    return o
+end
+
+rd.refresh()        -- so TASKS[1] carries the shipped script to lift
+local SHOME = (os.tmpname() .. "-home"):gsub("'", "")
+local SCLOUD = SHOME .. "/Library/CloudStorage/OneDrive-Personal"
+local ran = runScript({
+    SHOME .. "/Documents/Budget.xlsx",
+    SHOME .. "/Library/Application Support/1Password/icon.png",
+    SHOME .. "/Library/Containers/com.apple.Notes/note.csv",
+    SCLOUD .. "/Vault/Note.md",
+    SHOME .. "/Applications/Thing.app/Contents/readme.txt",
+}, 400, SHOME)
+if not ran or ran == "" then
+    check("the shipped script runs under /bin/sh", false,
+          "no output — /bin/sh or the shims did not run")
+else
+    check("the script keeps a Documents file", ran:find("Budget.xlsx", 1, true))
+    check("the script keeps the cloud folder", ran:find("Note.md", 1, true))
+    check("the script turns 1Password's folder away",
+          not ran:find("icon.png", 1, true), ran)
+    check("the script turns a container away",
+          not ran:find("note.csv", 1, true), ran)
+    check("the script turns an app bundle away",
+          not ran:find("readme.txt", 1, true), ran)
+end
+
+-- 🚨 AND THE CAP COUNTS DOCUMENTS, WHICH IS THE SHARPER HALF. The old
+-- script took `head -n "$cap"` BEFORE filtering, so on a Mac whose
+-- ~/Library churns more than the cap in a fortnight his real documents
+-- never reached the loop. This fixture puts the junk FIRST and sets the
+-- cap to 2: the old order answers nothing but junk (and therefore
+-- nothing at all, once the rule drops it), the new order answers the
+-- document. Old and new MUST differ here (6.230.0).
+local many = {}
+for i = 1, 40 do
+    many[#many + 1] = SHOME .. "/Library/Application Support/1Password/j"
+                      .. i .. ".png"
+end
+many[#many + 1] = SHOME .. "/Documents/Real.docx"
+local ran2 = runScript(many, 2, SHOME)
+check("the cap is spent on documents, not on the files it turned away",
+      ran2 and ran2:find("Real.docx", 1, true) ~= nil, tostring(ran2))
+
+-- =======================================================================
+out("\n9c) the same rule in Lua: a stale cache, the learn loop, the report\n")
+-- 🔬 INTEGER STAMPS, DELIBERATELY: this harness advances its clock by a
+-- fraction on every read (6.282.0 — macOS's own clock is a float), so a
+-- fixture built from NOW carries a fraction into os.date, which refuses
+-- one. The module floors its clock; a test fixture has to as well.
+-- =======================================================================
+-- A cache written by an older build already holds ~/Library rows, so
+-- the Lua half is not decoration: without it the list goes on showing
+-- them until they age out of the window.
+mod, rd = freshModule()
+local stale = {
+    { path = HOME .. "/Documents/Budget.xlsx", used = BASE - 100 },
+    { path = HOME .. "/Library/Application Support/1Password/icon.png",
+      used = BASE - 50 },
+    { path = CLOUD .. "/Vault/Note.md", used = BASE - 60 },
+}
+local byPath = {} ; for _, e in ipairs(stale) do byPath[e.path] = e end
+local kept = rd.assemble(stale, byPath)
+local names = {}
+for _, e in ipairs(kept) do names[e.name] = true end
+check("a stale ~/Library row is turned away on load",
+      names["Budget.xlsx"] and names["Note.md"] and not names["icon.png"])
+check("the turned-away count is kept, not discarded in silence",
+      rd.turnedAway == 1, tostring(rd.turnedAway))
+check("the report names what it turned away and why",
+      (function()
+          printed = {}
+          local r = _G.recentDocsReport()
+          return r:find("turned away", 1, true) ~= nil
+                 and r:find("Library", 1, true) ~= nil
+      end)())
+
+-- 🎓 THE LEARN LOOP DECIDES THE SAME THING (6.305.0): one opened file
+-- inside a container would teach its extension, and a learned type then
+-- admits every opened file of that type for ever — the folder rule
+-- leaking back in a week later through the types list.
+mod, rd = freshModule()
+local one = { { path = HOME .. "/Library/Containers/com.apple.Notes/x.sqlite",
+                used = BASE - 10 } }
+rd.assemble(one, { [one[1].path] = one[1] })
+check("an opened file in a container does NOT teach its extension",
+      rd.learned["sqlite"] == nil)
+mod, rd = freshModule()
+local two = { { path = HOME .. "/Documents/thing.sqlite", used = BASE - 10 } }
+rd.assemble(two, { [two[1].path] = two[1] })
+check("an opened file in Documents DOES teach its extension",
+      rd.learned["sqlite"] ~= nil)
+mod, rd = freshModule()
+local three = { { path = CLOUD .. "/Vault/thing.sqlite", used = BASE - 10 } }
+rd.assemble(three, { [three[1].path] = three[1] })
+check("an opened file in the cloud folder teaches its extension too",
+      rd.learned["sqlite"] ~= nil)
+
+-- 🔒 A SENTRY ON THE ONE EXCEPTION. A filter that drops ~/Library
+-- without naming the cloud folder back would empty the list of almost
+-- everything he works on, and NOTHING functional in Lua can see the
+-- script's `case` — so the exception is asserted against the shipped
+-- text as well as driven above.
+mod, rd = freshModule()
+rd.refresh()
+local SRC = TASKS[1].args[2]
+check("the script names the cloud folder back by hand",
+      SRC:find("Library/CloudStorage/", 1, true) ~= nil)
+check("the script skips the rest of ~/Library",
+      SRC:find('"$hm"/Library/%*%)') ~= nil
+      or SRC:find('"$hm"/Library/*)', 1, true) ~= nil)
+check("the cap is applied after the filter, never by head",
+      not SRC:find("head -n", 1, true) and SRC:find("-le \"$cap\"", 1, true))
 
 os.remove(TMPA) ; os.remove(TMPB)
 out(string.format("\n%d passed, %d failed\n", pass, fail))

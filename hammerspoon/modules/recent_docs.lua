@@ -345,6 +345,59 @@ function M.setup(core)
         return e and e:lower() or nil
     end
 
+    -- 📁 6.374.0 — ~/Library IS AN APP'S OWN FILING CABINET, NOT HIS
+    -- DOCUMENTS (LL, with a list of thirty-four names: "1password with
+    -- files, activity monitor, app store, audio MIDI, calculator,
+    -- chess, color sync, digital color meter, disk utility, display
+    -- link manager, … system settings, tips, Apple TV, … weather" —
+    -- against five he WOULD work in: Word, Chrome, Sublime Text,
+    -- Script Editor, Shortcuts).
+    -- 🔎 HIS LIST IS THE MEASUREMENT AND IT NAMES THE FOLDER. Every one
+    -- of the thirty-four keeps a folder under ~/Library — a Container,
+    -- a Group Container, Application Support, a Preferences plist — and
+    -- not one of the five does: their documents live in Documents,
+    -- Desktop, Downloads and OneDrive. The scan is `-onlyin $HOME`, and
+    -- the seed-type rule admits a merely-MODIFIED .png/.csv/.txt, so
+    -- every icon cache, log and container file macOS churns under
+    -- ~/Library arrived as a "recent document" wearing the app's name.
+    -- The header above claims "no blocklist to maintain — the OS
+    -- already recorded intent", and that is true of the OPENED half and
+    -- false of the MODIFIED half, which is the half his list is made of.
+    -- ☁️ AND THE CLOUD FOLDER LIVES INSIDE IT: OneDrive is
+    -- ~/Library/CloudStorage/OneDrive-Personal, which holds the Vault,
+    -- the screenshots and nearly everything he does work on. Skipping
+    -- ~/Library without naming that back would empty the list of the one
+    -- place that matters — 6.229.0 paid for this exact arithmetic in the
+    -- file tracker (`ft.watchRoots` adds OneDrive back BY NAME). Stated
+    -- here rather than shared: that function answers "which folders do I
+    -- watch", this one answers "is this path a document", and a shared
+    -- answer to two questions is how one of them comes to be wrong.
+    -- 🔑 PURE, with home as an ARGUMENT, and it answers WHY (6.196.1) —
+    -- the report prints the reason, so a document wrongly turned away is
+    -- readable rather than simply missing.
+    function rd.appOwned(path, homeDir)
+        path = tostring(path or "")
+        homeDir = (type(homeDir) == "string" and homeDir ~= "" and homeDir)
+                  or home
+        if path == "" then return true, "no path" end
+        -- A dot-component is macOS's own or a VCS's: ~/.Trash,
+        -- .git, .Spotlight-V100. The shell loop skips these before it
+        -- spends an mdls on them; this half catches a row that a cache
+        -- written by an older build still holds.
+        if path:find("/%.") then return true, "a hidden folder" end
+        if path:find("%.app/") then return true, "inside an app bundle" end
+        if path:find("/node_modules/") then return true, "a package folder" end
+        local lib = homeDir .. "/Library/"
+        if path:sub(1, #lib) == lib then
+            local cloud = lib .. "CloudStorage/"
+            if path:sub(1, #cloud) == cloud then
+                return false, "the cloud folder — his documents live here"
+            end
+            return true, "an app's own folder under ~/Library"
+        end
+        return false, "a document folder"
+    end
+
     function rd.finish(e)
         e.name = e.path:match("[^/]+$") or e.path
         e.ext  = extOf(e.path)
@@ -373,10 +426,18 @@ function M.setup(core)
         return e
     end
 
+    -- 🔢 6.374.0 — WHAT IT TURNED AWAY IS COUNTED, not discarded in
+    -- silence: a list that is suddenly short and a list that is
+    -- correctly short read the same, and the report has to tell them
+    -- apart (6.229.0's yield line, one module along).
+    rd.turnedAway, rd.turnedWhy = nil, nil   -- nil: no list assembled yet
     local function admit(e)
         local x = extOf(e.path)
         if not x then return false end                -- extensionless: not a doc
-        if e.path:find("%.app/") or e.path:find("/node_modules/") then
+        local owned, why = rd.appOwned(e.path)
+        if owned then
+            rd.turnedAway = (rd.turnedAway or 0) + 1
+            rd.turnedWhy  = why
             return false
         end
         local seed = rd.extTag[x] ~= nil
@@ -391,16 +452,40 @@ function M.setup(core)
     -- opened-files query, $4 the seed-types-modified query. Each hit is
     -- printed as MARK<TAB>path<TAB>lastUsed<TAB>modified — mdls -raw
     -- separates the two attributes with a NUL, tr turns it into the tab.
+    -- 📁 6.374.0 — THE FOLDER RULE RUNS HERE, BEFORE THE COST, AND
+    -- BEFORE THE CAP. Two things were wrong with doing it in Lua only.
+    -- One mdls is ONE PROCESS PER FILE, so a path turned away afterwards
+    -- is a process already spent — 6.229.0's rule ("an exclusion that
+    -- runs after the expensive thing has happened is not a filter, it is
+    -- a receipt"). And `head -n "$cap"` took the first 400 hits BEFORE
+    -- any filtering, so on a Mac whose ~/Library churns more than 400
+    -- files a fortnight his real documents never reached the loop at
+    -- all — the cap was being spent on files he can never want. The
+    -- count now happens AFTER the filter, so the cap bounds documents.
+    -- 🔌 THE TWO BINARIES COME FROM THE ENVIRONMENT with their absolute
+    -- paths as the default, which is the stall guard's SG_* shape
+    -- (6.208.0): it costs nothing on his Mac and it lets the gate run
+    -- THIS script, as /bin/sh, with the two commands shimmed — the only
+    -- way to prove a `case` pattern rather than read it.
     local SCRIPT = [[
 hm="$1"; cap="$2"; usedq="$3"; modq="$4"
+MDFIND=${RD_MDFIND:-/usr/bin/mdfind}
+MDLS=${RD_MDLS:-/usr/bin/mdls}
 scan() {
-  mark="$1"; qq="$2"
-  /usr/bin/mdfind -onlyin "$hm" "$qq" 2>/dev/null | head -n "$cap" | \
+  mark="$1"; qq="$2"; n=0
+  "$MDFIND" -onlyin "$hm" "$qq" 2>/dev/null | \
   while IFS= read -r f; do
-    case "$f" in */.*) continue ;; esac
+    case "$f" in
+      */.*)                         continue ;;
+      "$hm"/Library/CloudStorage/*) : ;;
+      "$hm"/Library/*)              continue ;;
+      *.app/*|*/node_modules/*)     continue ;;
+    esac
     [ -f "$f" ] || continue
+    n=$((n + 1))
+    [ "$n" -le "$cap" ] || break
     printf '%s\t%s\t' "$mark" "$f"
-    /usr/bin/mdls -name kMDItemLastUsedDate -name kMDItemContentModificationDate \
+    "$MDLS" -name kMDItemLastUsedDate -name kMDItemContentModificationDate \
       -raw -nullMarker '-' "$f" 2>/dev/null | tr '\0' '\t'
     printf '\n'
   done
@@ -453,6 +538,7 @@ scan M "$modq"
     -- finish, shelf numbering. Pure enough that the tests call it with
     -- fabricated lists and no hs at all.
     function rd.assemble(list, byPath)
+        rd.turnedAway, rd.turnedWhy = 0, nil
         local map, trackerOn = rd.trackerIndex()
         local now = epoch()
         local windowFrom = now - rd.days * 86400
@@ -491,10 +577,17 @@ scan M "$modq"
             end
         end
         -- 🎓 learn: every opened extension outside the seeds joins now
+        -- 🚨 6.305.0 — THE LEARN LOOP DECIDES THE SAME THING AS admit()
+        -- AND HAD TO BE ASKED IN THE SAME COMMIT. Opening one file
+        -- inside a container would otherwise teach its extension, and a
+        -- learned type then admits every opened file of that type for
+        -- ever — so the folder rule has to hold here or it leaks back in
+        -- through the types list a week later.
         local learnedNew = false
         for _, e in ipairs(list) do
             local x = extOf(e.path)
-            if x and e.used and not rd.extTag[x] then
+            if x and e.used and not rd.extTag[x]
+               and not rd.appOwned(e.path) then
                 local l = rd.learned[x]
                 if not l then
                     rd.learned[x] = { first = e.used, last = e.used,
@@ -1117,6 +1210,23 @@ if (q.focus) q.focus();
                 .. "  ·  " .. keyLabel(true) .. " re-scans",
             "   cache   : " .. rd.csvFile,
         }
+        -- 📁 6.374.0 — THREE STATES, because a list that is suddenly
+        -- short and a list that is correctly short read the same
+        -- (6.196.1), and the REASON is what makes a document wrongly
+        -- turned away readable rather than simply absent.
+        if rd.turnedAway == nil then
+            lines[#lines + 1] = "   folders : nothing read yet — "
+                .. keyLabel(true) .. " scans"
+        elseif rd.turnedAway == 0 then
+            lines[#lines + 1] = "   folders : 0 turned away — every hit was in "
+                .. "a document folder"
+        else
+            lines[#lines + 1] = "   folders : " .. rd.turnedAway
+                .. " turned away — an app's own files, not yours"
+                .. (rd.turnedWhy and ("  (last: " .. rd.turnedWhy .. ")") or "")
+            lines[#lines + 1] = "     ~/Library is an app's filing cabinet; "
+                .. "~/Library/CloudStorage (OneDrive) is NOT and is kept"
+        end
         local learned = {}
         for ext, l in pairs(rd.learned) do
             learned[#learned + 1] = { ext = ext, l = l }
