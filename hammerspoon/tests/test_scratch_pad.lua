@@ -2821,6 +2821,26 @@ do
     check("a zero or negative stamp is refused — never 1970",
           sp.dateTitle(0, 1) == nil and sp.dateTitle(-5, 1) == nil)
     check("a non-number stamp is refused", sp.dateTitle("yesterday", 1) == nil)
+    -- 🚨 AND A FORMAT HE TYPED WRONG MUST NOT BLANK EVERY TITLE. The
+    -- format is settings-overridable, and os.date RAISES on a specifier
+    -- it does not know — so without the guard one bad character in a
+    -- profile line empties the name of every tab in the strip. The
+    -- sweep found this branch undriven (6.273.0).
+    do
+        local keep = sp.titleDateFmt
+        sp.titleDateFmt = "%Q"
+        local v, w = sp.dateTitle(DAY, 1)
+        check("a format this Mac cannot read is refused, with a reason",
+              v == nil and tostring(w):find("format", 1, true) ~= nil,
+              tostring(v) .. "/" .. tostring(w))
+        local z = sp.newTab("")
+        z.createdAt = DAY
+        local _, zi = sp.findTab(z.id)
+        check("…and the tab keeps a NAME rather than losing it",
+              sp.titleOf(z) == "Scratch " .. tostring(zi), sp.titleOf(z))
+        sp.closeTab(z.id)
+        sp.titleDateFmt = keep
+    end
 
     -- …and the title obeys it, through the ONE function every surface asks
     sp.tabs, sp.history, sp.active = {}, {}, nil
@@ -2894,7 +2914,7 @@ do
     b.createdAt = DAY
 
     local ran = (pass + fail) - before
-    check("§6.376.0 ran all of its checks (" .. ran .. " of 18)", ran >= 18, ran)
+    check("§6.376.0 ran all of its checks (" .. ran .. " of 20)", ran >= 20, ran)
 end
 
 out(string.format("\n%d passed, %d failed\n", pass, fail))
