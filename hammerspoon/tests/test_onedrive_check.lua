@@ -30,14 +30,25 @@ local TASK_REFUSES = false
 -- 🔬 A VIRTUAL DISK, because the ledger is temp-then-rename (6.313.0)
 -- and a harness whose io.open always succeeds cannot drive the one
 -- failure that matters: a write cut off half way.
-local DISK, WRITE_REFUSES, RENAME_REFUSES = {}, false, false
+local DISK, WRITE_REFUSES, RENAME_REFUSES, CLOSE_REFUSES = {}, false, false, false
 local realOpen, realRename, realRemove = io.open, os.rename, os.remove
 io.open = function(path, mode)
     if (mode or "r"):find("w") then
         if WRITE_REFUSES then return nil, "refused" end
+        -- 🔬 6.290.0 — AND IT TRUNCATES ON OPEN, because a real one does.
+        -- `io.open(path, "w")` empties the file BEFORE a byte is written,
+        -- which is the entire reason temp-then-rename exists (6.313.0).
+        -- A harness that only empties it on a SUCCESSFUL close leaves the
+        -- one failure that matters unreachable, and certifies the bug.
+        DISK[path] = ""
         local buf = {}
         return { write = function(_, t) buf[#buf + 1] = tostring(t) end,
-                 close = function() DISK[path] = table.concat(buf) end,
+                 -- a disk that fills MID-WRITE: the open already emptied
+                 -- the file, and the close is where it is noticed.
+                 close = function()
+                     if CLOSE_REFUSES then error("no space left on device", 0) end
+                     DISK[path] = table.concat(buf)
+                 end,
                  read  = function() return nil end }
     end
     local held = DISK[path]
@@ -674,11 +685,72 @@ do
     check("…temp-then-rename, so a cut-off write costs the WRITE (6.313.0)",
           DISK[od.storeFile .. ".tmp"] == nil)
 
-    -- 🔕 it must not shout once a sweep
+    -- 🔕 IT MUST NOT SHOUT ONCE A SWEEP — and the fixture has to make
+    -- something REALLY leave, or the rate limit is never reached and the
+    -- check passes with the window deleted. The mutation sweep found
+    -- exactly that: driving a sweep where nothing moved proves nothing
+    -- about a guard that only runs when something did (6.273.0).
     ALERTS = {}
     od.sweep("a test")
-    TASKS[3].cb(0, GONE, "")
-    check("🔕 the same offload does not shout again inside the window", #ALERTS == 0)
+    TASKS[3].cb(0, "104857600 8 /cloud/film.mov\n104857600 8 /cloud/two.mov", "")
+    check("…and the SECOND file really did leave, so there was something to say",
+          #od.offloads == 2, #od.offloads)
+    check("🔕 a second offload inside the window is counted and not shouted",
+          #ALERTS == 0, ALERTS[1])
+    -- …and once the window has passed it speaks again, or "quiet" and
+    -- "nothing happened" become the same thing.
+    od.toldAt = 0
+    od.sweep("a test")
+    TASKS[4].cb(0, "104857600 8 /cloud/film.mov\n104857600 8 /cloud/two.mov\n104857600 204800 /cloud/three.mov", "")
+    od.sweep("a test")
+    TASKS[5].cb(0, "104857600 8 /cloud/three.mov", "")
+    check("🔕 …and once the window has passed it speaks again", #ALERTS == 1, #ALERTS)
+
+    -- 🔒 THE LEDGER SURVIVES A WRITE THAT FAILS (6.313.0), and the
+    -- fixture has to make a DIFFERENT file leave on every attempt — the
+    -- sweep found the first version of these checks passing because the
+    -- baseline had already emptied and `saveLedger` was never reached at
+    -- all. A check that drives a path the guard does not run on proves
+    -- nothing about the guard (6.273.0).
+    do
+        TASKS, ALERTS, DEGRADES = {}, {}, {}
+        od.sweepBusy, od.baseline, od.offloads, od.toldAt = false, nil, {}, 0
+        DISK[od.storeFile] = nil
+        local ALL   = "104857600 204800 /c/a.mov\n104857600 204800 /c/b.mov\n104857600 204800 /c/c.mov"
+        local GONE1 = "104857600 8 /c/a.mov\n104857600 204800 /c/b.mov\n104857600 204800 /c/c.mov"
+        local GONE2 = "104857600 8 /c/a.mov\n104857600 8 /c/b.mov\n104857600 204800 /c/c.mov"
+        local GONE3 = "104857600 8 /c/a.mov\n104857600 8 /c/b.mov\n104857600 8 /c/c.mov"
+        od.sweep("t") ; TASKS[#TASKS].cb(0, ALL, "")        -- the baseline
+        od.sweep("t") ; TASKS[#TASKS].cb(0, GONE1, "")      -- a.mov leaves
+        local held = DISK[od.storeFile]
+        check("…there is a ledger on disk to protect",
+              held ~= nil and held:find("a.mov", 1, true) ~= nil, tostring(held))
+
+        -- a disk that fills MID-WRITE: the open has already emptied
+        -- whatever it opened, so a direct write destroys the record of
+        -- what left his Mac. Temp-then-rename costs the WRITE instead.
+        CLOSE_REFUSES = true
+        od.sweep("t") ; TASKS[#TASKS].cb(0, GONE2, "")      -- b.mov leaves
+        CLOSE_REFUSES = false
+        check("🔒 a ledger write that fails MID-WRITE leaves the old ledger whole",
+              DISK[od.storeFile] == held, tostring(DISK[od.storeFile]))
+
+        RENAME_REFUSES = true
+        od.sweep("t") ; TASKS[#TASKS].cb(0, GONE3, "")      -- c.mov leaves
+        RENAME_REFUSES = false
+        check("🔒 …and so does a rename this Mac refuses",
+              DISK[od.storeFile] == held, tostring(DISK[od.storeFile]))
+        check("🔒 …with no half-written temp file left behind",
+              DISK[od.storeFile .. ".tmp"] == nil, DISK[od.storeFile .. ".tmp"])
+        -- …and an open that is refused outright is the third way, where
+        -- nothing was truncated and nothing may be lost either.
+        WRITE_REFUSES = true
+        od.baseline = { ["/c/d.mov"] = true }
+        od.sweep("t") ; TASKS[#TASKS].cb(0, "104857600 8 /c/d.mov", "")
+        WRITE_REFUSES = false
+        check("🔒 …and so does an open this Mac refuses outright",
+              DISK[od.storeFile] == held, tostring(DISK[od.storeFile]))
+    end
 
     -- ---- every way the sweep can fail -----------------------------------
     reset()
