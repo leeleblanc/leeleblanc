@@ -157,7 +157,8 @@ local M = {
             { "two keys", "After you land, the box is drawn SPLIT IN HALF with a letter in each side (the first two of the alphabet — the badge names them). Press one and that half is kept, the pointer goes to its middle, and it splits again — two or three presses narrow a big cell onto a small button" },
             { "⎋",        "Done — leave the pointer where it is" },
             { "⇪⇧L",      "Find the pointer — three white rings pulse out from it, again and again, for 5 s" },
-            { "",         "Sized to the screen (×1.5 on a 4K at full points); grid.locateRadius / locateSecs / locateScale to taste" },
+            { "",         "6.372.0: BIGGER (180 pt, was 110) and in colour — magenta, orange, violet in turn. It shipped WHITE, which is 1.00:1 on a white window, so over Finder or Word the ring was genuinely not there. Every colour now clears 2.5:1 on white AND on black" },
+            { "",         "Sized to the screen (×1.5 on a 4K at full points); grid.locateRadius / locateColors / locateSecs / locateScale to taste" },
             { "⌃⌥⌘⇧X",   "PANIC — tear the overlay down whatever state it is in" },
             { "check it", "_G.mouseGridReport() — cell size on THIS Mac" },
         },
@@ -2110,8 +2111,31 @@ function M.setup(core)
     -- the hint card: ×1.5 on a 4K at full points, never below 1), the
     -- pulse REPEATS every locateCycle seconds until locateSecs, and a
     -- white dot flashes at the pointer with each pulse.
-    grid.locateColor  = { red = 1, green = 1, blue = 1 }         -- white
-    grid.locateRadius = 110     -- at scale 1 (was 60)
+    -- 🎨 6.372.0 — BIGGER AND MORE COLOURFUL, and the colour half turned
+    -- out to be measurable rather than a taste. LL: "I need the rings
+    -- that help find the mouse to be bigger and more colorful."
+    --
+    -- 🚨 THE RING SHIPPED WHITE, WHICH IS 1.00:1 ON A WHITE WINDOW —
+    -- it does not exist there. Measured with ui_style's WCAG arithmetic
+    -- (6.369.0) against both extremes:
+    --     white   on white 1.00   on black 21.00   ← invisible one way
+    --     magenta on white 3.06   on black  6.86
+    --     orange  on white 2.84   on black  7.41
+    --     violet  on white 2.77   on black  7.59
+    -- So "I cannot find the pointer" is a correct report of a ring that
+    -- is genuinely absent over Finder, Word, a browser — anything light.
+    -- The rule this ships with: EVERY ring colour must be visible on a
+    -- white background AND on a black one, because the pointer is over
+    -- both in the same minute. 6.361.0's lesson in a third place — when
+    -- a tool goes unused, check that it can be SEEN.
+    grid.locateColor  = { red = 1, green = 1, blue = 1 }   -- the fallback
+    grid.locateColors = {
+        { red = 1.00, green = 0.30, blue = 0.65 },   -- magenta  3.06 / 6.86
+        { red = 1.00, green = 0.42, blue = 0.21 },   -- orange   2.84 / 7.41
+        { red = 0.69, green = 0.52, blue = 1.00 },   -- violet   2.77 / 7.59
+    }
+    grid.minRingContrast = 2.5   -- against white AND black, both
+    grid.locateRadius = 180     -- at scale 1 (was 110, and 60 before that)
     grid.locateSecs   = 6       -- how long the pointer is marked (was 1.2): five whole pulses
     grid.locateCycle  = 1.2     -- one pulse of three rings; repeats until locateSecs
     grid.locateRings  = 3
@@ -2176,6 +2200,23 @@ function M.setup(core)
         if g > 2 then g = 2 end
         return g
     end
+    -- PURE. The colour ring i is drawn in: the list, cycled, with
+    -- `locateColor` as the floor. A settings override that is not a list
+    -- of colours must fall back rather than draw nothing — this is the
+    -- mark that exists to be FOUND, so an empty answer is the one
+    -- outcome it cannot have.
+    function grid.locateRingColor(i, list, fallback)
+        fallback = (type(fallback) == "table" and tonumber(fallback.red))
+                   and fallback or { red = 1, green = 1, blue = 1 }
+        if type(list) ~= "table" or #list == 0 then return fallback end
+        local c = list[(math.max(0, math.floor(tonumber(i) or 0)) % #list) + 1]
+        if type(c) ~= "table" or not tonumber(c.red)
+           or not tonumber(c.green) or not tonumber(c.blue) then
+            return fallback
+        end
+        return c
+    end
+
     function grid.locateRingR(i, r)
         r = tonumber(r) or num(grid.locateRadius, 110)
         return r * (grid.locateRingGrowth() ^ math.max(0, math.floor(i or 0)))
@@ -2213,20 +2254,23 @@ function M.setup(core)
                 local p = (tc - i * stagger) / life
                 if p >= 0 and p <= 1 then
                     local ri = grid.locateRingR(i, r)      -- 6.310.0
+                    local rc = grid.locateRingColor(i, grid.locateColors,
+                                                     grid.locateColor)
                     els[#els + 1] = {
                         type = "circle", action = "stroke",
-                        strokeColor = { red = grid.locateColor.red, green = grid.locateColor.green,
-                                        blue = grid.locateColor.blue, alpha = 0.95 * (1 - p) },
+                        strokeColor = { red = rc.red, green = rc.green,
+                                        blue = rc.blue, alpha = 0.95 * (1 - p) },
                         strokeWidth = (4 - 2 * p) * k,
                         center = { x = span, y = span },
                         radius = 4 * k + (ri - 8 * k) * p,
                     }
                 end
             end
+            local dc = grid.locateRingColor(0, grid.locateColors, grid.locateColor)
             els[#els + 1] = {
                 type = "circle", action = "fill",
-                fillColor = { red = grid.locateColor.red, green = grid.locateColor.green,
-                              blue = grid.locateColor.blue, alpha = 0.9 - 0.6 * (tc / cycle) },
+                fillColor = { red = dc.red, green = dc.green,
+                              blue = dc.blue, alpha = 0.9 - 0.6 * (tc / cycle) },
                 center = { x = span, y = span }, radius = 3 * k,
             }
         end

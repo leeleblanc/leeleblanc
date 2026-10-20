@@ -2424,8 +2424,16 @@ do
         local f0 = G.locateFrame(0)
         local fMid = G.locateFrame(G.locateStagger * 2 + 0.05)
         local fEnd = G.locateFrame(G.locateSecs + 0.1)
+        -- 🧪 6.248.0 — IN TERMS OF THE CONFIG, NEVER A CONSTANT. This
+        -- read `radius < 12`, which was the ring's own starting size
+        -- when locateRadius was 110; 6.372.0 moved the radius and the
+        -- check went red with nothing to say about the change. The RULE
+        -- is that a ring starts much smaller than it ends.
         check("at t=0 one ring has left, small and bright",
-              #rings(f0) == 1 and rings(f0)[1].radius < 12 and rings(f0)[1].strokeColor.alpha > 0.9)
+              #rings(f0) == 1
+              and rings(f0)[1].radius < G.locateRadius * 0.15
+              and rings(f0)[1].strokeColor.alpha > 0.9,
+              rings(f0)[1] and rings(f0)[1].radius)
         check("later all three are in flight, the first largest and faintest",
               #rings(fMid) == 3 and rings(fMid)[1].radius > rings(fMid)[3].radius
               and rings(fMid)[1].strokeColor.alpha < rings(fMid)[3].strokeColor.alpha)
@@ -2439,18 +2447,95 @@ do
               math.abs(G.locateSecs / G.locateCycle - math.floor(G.locateSecs / G.locateCycle + 0.5)) < 1e-9)
         local f2 = G.locateFrame(G.locateCycle + 0.01)
         check("...the pulse REPEATS: just into the second cycle a fresh small ring has left",
-              #rings(f2) >= 1 and rings(f2)[1].radius < 12 and rings(f2)[1].strokeColor.alpha > 0.9)
+              #rings(f2) >= 1
+              and rings(f2)[1].radius < G.locateRadius * 0.15
+              and rings(f2)[1].strokeColor.alpha > 0.9,
+              rings(f2)[1] and rings(f2)[1].radius)
         local fLate = G.locateFrame(G.locateSecs - 0.05)
         check("...and it is still pulsing just before locateSecs", #rings(fLate) >= 1)
         check("...a white dot marks the pointer throughout, brightest as each pulse starts",
               dot(f0) ~= nil and dot(f0).fillColor.alpha > 0.85
               and dot(fMid) ~= nil and dot(fMid).fillColor.alpha < dot(f0).fillColor.alpha
               and dot(fEnd) == nil)
-        local fBig = G.locateFrame(G.locateStagger * 2 + 0.05, 165)
+        local fBig = G.locateFrame(G.locateStagger * 2 + 0.05,
+                                   G.locateRadius * 1.5)
         check("...drawn at the radius asked for, strokes growing with it (a 4K ring is a 4K ring)",
               rings(fBig)[1].radius > rings(fMid)[1].radius
               and rings(fBig)[1].strokeWidth > rings(fMid)[1].strokeWidth
-              and rings(fBig)[1].center.x == G.locateSpan(165))
+              and rings(fBig)[1].center.x == G.locateSpan(G.locateRadius * 1.5))
+
+
+        -- =============================================================
+        -- 🎨 6.372.0 — BIGGER, AND VISIBLE ON WHATEVER IS UNDER IT
+        -- =============================================================
+        -- LL: "I need the rings that help find the mouse to be bigger
+        -- and more colorful." The colour half turned out to be
+        -- measurable: the ring shipped WHITE, which is 1.00:1 on a white
+        -- window — it does not exist over Finder, Word or a browser.
+        -- 6.361.0's rule in a third place: when a tool goes unused,
+        -- check that it can be SEEN before checking that it is correct.
+        do
+            local UI = dofile(HS .. "/modules/ui_style.lua")
+            local function hex(c)
+                return ("#%02x%02x%02x"):format(
+                    math.floor(c.red * 255 + 0.5), math.floor(c.green * 255 + 0.5),
+                    math.floor(c.blue * 255 + 0.5))
+            end
+            -- 🚨 THE MEASUREMENT THIS RELEASE RESTS ON
+            check("🚨 the OLD white ring really was invisible on a white window",
+                  UI.contrast("#ffffff", "#ffffff") < 1.5,
+                  tostring(UI.contrast("#ffffff", "#ffffff")))
+            local worst, worstC = nil, 99
+            for i, c in ipairs(G.locateColors) do
+                local onW = UI.contrast(hex(c), "#ffffff")
+                local onB = UI.contrast(hex(c), "#000000")
+                local m = math.min(onW, onB)
+                if m < worstC then worst, worstC = i, m end
+            end
+            check("🎨 EVERY shipped ring colour is visible on white AND on black",
+                  worstC >= G.minRingContrast,
+                  ("ring %s is only %.2f:1"):format(tostring(worst), worstC))
+            check("…and there is more than one of them, which is the ask",
+                  #G.locateColors >= 2, #G.locateColors)
+            -- 📏 BIGGER, and in terms of what it was rather than a number
+            check("📏 the ring is bigger than the 110 pt it shipped at in 6.310.0",
+                  G.locateRadius > 110, G.locateRadius)
+
+            -- the colour per ring, cycled, with a floor that cannot be empty
+            local a = G.locateRingColor(0, G.locateColors, G.locateColor)
+            local b = G.locateRingColor(1, G.locateColors, G.locateColor)
+            check("🎨 consecutive rings are DIFFERENT colours", hex(a) ~= hex(b),
+                  hex(a) .. " / " .. hex(b))
+            check("…and the list cycles rather than running out",
+                  hex(G.locateRingColor(#G.locateColors, G.locateColors, G.locateColor))
+                  == hex(a))
+            -- 🚨 THIS IS THE MARK THAT EXISTS TO BE FOUND, so a bad
+            -- settings override must fall back, never draw nothing.
+            local fb = { red = 0.1, green = 0.2, blue = 0.3 }
+            check("🚨 an empty or malformed colour list falls back, never draws nothing",
+                  hex(G.locateRingColor(0, {}, fb)) == hex(fb)
+                  and hex(G.locateRingColor(0, "red", fb)) == hex(fb)
+                  and hex(G.locateRingColor(0, { { red = "x" } }, fb)) == hex(fb))
+            check("…and a broken fallback TOO still answers a colour",
+                  G.locateRingColor(0, nil, nil).red == 1)
+
+            -- and the DRAWING really uses them (6.239.0: move the config
+            -- and require the picture to follow)
+            local kept = G.locateColors
+            G.locateColors = { { red = 0, green = 1, blue = 0 } }
+            local fG = G.locateFrame(G.locateStagger * 2 + 0.05)
+            local allGreen = true
+            for _, r in ipairs(rings(fG)) do
+                if r.strokeColor.green ~= 1 or r.strokeColor.red ~= 0 then
+                    allGreen = false
+                end
+            end
+            check("🎨 the drawing reads the list — move it and the rings follow",
+                  allGreen and #rings(fG) >= 1, #rings(fG))
+            check("…and the pointer dot takes the first colour too",
+                  dot(fG) and dot(fG).fillColor.green == 1)
+            G.locateColors = kept
+        end
 
         -- 🎯 6.310.0 — EACH RING 10% WIDER THAN THE ONE BEFORE IT. LL:
         -- "⇪⇧L needs to be more obvious. Can you make each ring grow in
@@ -2582,14 +2667,17 @@ do
           G.locateLast and G.locateLast.radius == r4 and G.locateLast.scale == s4)
     G.locateScale = 2
     G.locate()
-    check("grid.locateScale = 2 pins it (a settings override): radius 220",
-          CANVASES[#CANVASES].frame.w == G.locateSpan(220) * 2
+    local pinned = G.locateRadius * 2
+    check("grid.locateScale = 2 pins it (a settings override): double the radius",
+          CANVASES[#CANVASES].frame.w == G.locateSpan(pinned) * 2
           and G.locateScaleFor() == 2,
-          CANVASES[#CANVASES].frame.w .. " vs " .. G.locateSpan(220) * 2)
+          CANVASES[#CANVASES].frame.w .. " vs " .. G.locateSpan(pinned) * 2)
     local rep = tostring(_G.mouseGridReport() or "")
     check("the report's ring line names the version, the radius here and what the last press drew",
-          rep:find("ring    : ⇪⇧L (6.167.0) · radius 220 pt here (scale 2.00, pinned by grid.locateScale)", 1, true) ~= nil
-          and rep:find("last press drew radius 220 at scale 2.00", 1, true) ~= nil, rep:match("ring[^\n]*"))
+          rep:find("ring    : ⇪⇧L (6.167.0) · radius " .. pinned
+                   .. " pt here (scale 2.00, pinned by grid.locateScale)", 1, true) ~= nil
+          and rep:find("last press drew radius " .. pinned .. " at scale 2.00",
+                       1, true) ~= nil, rep:match("ring[^\n]*"))
     G.locateScale = "1.5"
     check("a pin typed as a string still pins", G.locateScaleFor() == 1.5)
     G.locateScale = 0
