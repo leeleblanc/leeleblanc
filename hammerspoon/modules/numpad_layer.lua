@@ -74,8 +74,10 @@
 --
 -- And LL is right about what those keys are FOR. The shifted digits are
 -- this config's last open real estate: every ⇪ letter and ⇪⇧ letter
--- had been spoken for since 6.125.0 (⇪⇧T came free in 6.161.0, when the
--- snippets moved to ⇪⇧S), so when a new feature earns a key
+-- had been spoken for since 6.125.0 (⇪⇧T came free in 6.161.0 when the
+-- snippets moved to ⇪⇧S, and was spent again in 6.194.0 and 6.379.0 —
+-- every shifted letter is claimed now and ⇪⇧Z is reserved), so when a
+-- new feature earns a key
 -- — grayscale's ⇪9 in 6.141.0 — a digit is where it comes from. A
 -- layer that duplicates the pad map across nine of them, plus ⇪⇧, ⇪⇧.
 -- and ⇪⇧⏎, spends the whole reserve on routes that mostly exist

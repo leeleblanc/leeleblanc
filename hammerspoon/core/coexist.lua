@@ -449,6 +449,12 @@ _G.escapePriorities = {
     anchors    =  71,   -- ⇪⇧U's picker (6.180.0) — a chooser, opened over
     anchorsPick =  71,  -- whatever you were looking at, so it closes first
     pomodoro   = 100,
+    -- ⏱ 6.379.0 — one rung ABOVE the pomodoro, and the reason is the
+    -- pointer: this card claims Esc while you are pointing at it, so when
+    -- both corner cards want the key the one under the pointer is the one
+    -- you meant. Its claim is also active while the card is HIDDEN, which
+    -- is the only way ⇪⎋ can reach a timer you have put away.
+    timer      = 101,
     mousegrid  = 900,   -- drawn at screenSaver level, above everything
 }
 

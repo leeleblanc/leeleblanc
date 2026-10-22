@@ -3052,6 +3052,10 @@ local BASE = {
     --  unified search on the tool tag, one source in the one search box)
     "universal_actions",  -- ⇪⇧A  act on the Finder selection
     "pomodoro",           -- ⇪⇧P  25 on, 5 off
+    -- 6.379.0 — AFTER pomodoro, and that order is readable rather than
+    -- load-bearing: the timer reads the pomodoro's frame so the two cards
+    -- do not sit on top of each other, nil-guarded either way.
+    "timer",              -- ⏱ ⇪⇧T  say how long in words, count it down
     -- 6.231.0
     "music_player",       -- ⇪⇧pad.  a card in the corner, files dropped on it
     "video_player",       -- ⇪⇧,    the Mug Player: .mp4 films, native controls
@@ -3094,8 +3098,15 @@ local BASE = {
     "right_click",        -- 🖱 ⇪⇧F a real right-click at the pointer
     "mouse_follows",      -- 🖱 ⇪⇧3 the pointer goes where focus goes (opt-in, 6.160.2)
     -- 6.119.0 — THE PUNCTUATION TIER. Every ⇪ letter and every ⇪⇧ letter
-    -- was already claimed (⇪⇧T came free again in 6.161.0, ⇪⇧U in 6.166.0
-    -- when win_pin left; _G.freeKeys() lists both), so these
+    -- was already claimed, so these
+    -- 🚨 6.379.0 — AND THE TWO THIS COMMENT NAMED AS FREE ARE BOTH SPENT.
+    -- It read "⇪⇧T came free again in 6.161.0, ⇪⇧U in 6.166.0 when win_pin
+    -- left; _G.freeKeys() lists both" — true the day it was written, false
+    -- since 6.194.0 (⇪⇧T → type the clipboard) and 6.180.0 (⇪⇧U →
+    -- anchors), and still reading like the answer 185 releases later.
+    -- ASK THE REGISTRY, never a comment: _G.freeKeys(), or dump
+    -- test_integration's HYPER_CLAIMS. Every shifted LETTER is now spent
+    -- and ⇪⇧Z is reserved.
     -- four land on punctuation instead. That is not a workaround: ⇪, sits
     -- exactly where ⌘, does in every other Mac app, and the rest are one
     -- reach from the home row. All four are also runnable from ⇪⇧/ with

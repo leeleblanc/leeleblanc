@@ -142,8 +142,10 @@ local M = {
         title = "🧰 POWER TOOLS (⇪; — the small ones, in one list)",
         entries = {
             { "⇪;",     "The list — type to filter, ⏎ runs it" },
-            { "⇪⇧T",    "Types the clipboard key by key — for fields that" },
+            { "⇪⇧\\",   "Types the clipboard key by key — for fields that" },
             { "",       "refuse ⌘V, like “confirm your email address” (⌨️ row too)" },
+            { "",       "that is the \\| key beside Return — it was ⇪⇧T until" },
+            { "",       "6.379.0, when the ⏱ timer took T" },
             { "🔢 count", "Words · characters · ~sentences in the selection" },
             { "📋 count", "The same, and both counts onto the clipboard" },
             { "🔠 case",  "UPPER · lower · Title · camel · kebab · snake —" },
@@ -202,7 +204,17 @@ function M.setup(core)
     -- 📸 6.194.0 — moved off ⇪⇧2, which is now "capture active window" in
     -- LL's screenshot map. T for Type, and ⇪⇧T has been deliberately
     -- unspent since 6.161.0 — this is what it was being kept for.
-    pt.typeKey      = "t"          -- ⇪⇧T (was ⇪⇧2 until 6.194.0)
+    -- ⏱ 6.379.0 — AND IT MOVED AGAIN, off T, because LL asked for a TIMER
+    -- there by name. The registry said T was this; every other shifted
+    -- letter was spent and ⇪⇧Z is reserved, so one of the two had to move.
+    -- 🔑 THE ASK ITSELF WAS THE MEASUREMENT: someone who reached for ⇪⇧T
+    -- daily to type the clipboard would have known it was taken. And the
+    -- FEATURE loses nothing — ⇪; has listed it since 6.158.0, which is the
+    -- door he already knows; what moves is the no-picker shortcut.
+    -- 📏 ⇪⇧\ was measured free against BOTH authorities (the registry's
+    -- HYPER_CLAIMS and §0.4's migration map, which binds ⇪\ — plain, the
+    -- window split — and no shifted form of it).
+    pt.typeKey      = "\\"         -- ⇪⇧\ (⇪⇧2 → ⇪⇧T in 6.194.0 → here)
     pt.typeMods     = { "shift" }
     -- 6.194.0 — UPPER: the key is stored lowercase (hs.hotkey wants that)
     -- but a cheat sheet row reading "⇪⇧t" looks like a typo next to ⇪⇧S.

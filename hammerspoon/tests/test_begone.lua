@@ -241,7 +241,11 @@ do
     for _, e in ipairs(cs) do joined = joined .. tostring(e[1]) .. " " .. tostring(e[2]) .. "\n" end
     check("the cheat sheet points at ⇪⇧S, the key the snippet panel is on",
           joined:find("⇪⇧S", 1, true) ~= nil, joined)
-    check("...and no longer at ⇪⇧T, which is unspent", joined:find("⇪⇧T", 1, true) == nil, joined)
+    -- 6.379.0 — the row must still not say ⇪⇧T, and the REASON changed:
+    -- it is not "unspent" any more, it is the ⏱ timer's. Either way a
+    -- begone row naming it would send him to the wrong tool.
+    check("...and no longer at ⇪⇧T, which is the ⏱ timer's key now",
+          joined:find("⇪⇧T", 1, true) == nil, joined)
 end
 
 out(string.format("\n%d passed, %d failed\n", pass, fail))

@@ -1561,7 +1561,11 @@ out("17) 6.174.0 — the doors: no new hyper key, the source sentries, the page'
 do
     local n17 = 0
     for k in pairs(HYPER) do n17 = n17 + 1 end
-    check("still ONE hyper key (⇪3) — ⇪⇧T / ⇪⇧U / ⇪⇧Z untouched", n17 == 1 and HYPER["|3"] ~= nil)
+    -- 6.379.0 — reworded: ⇪⇧T is the timer's and ⇪⇧U is anchors' now, so
+    -- "untouched" named two keys that are no longer free. What this check
+    -- is actually about is that the VAULT claims exactly one key.
+    check("still ONE hyper key (⇪3) — this module claims nothing else",
+          n17 == 1 and HYPER["|3"] ~= nil)
     local rf = io.popen("cat '" .. HS .. "/modules/vault.lua'")
     local real = rf and rf:read("a") or ""
     if rf then rf:close() end

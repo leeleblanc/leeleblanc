@@ -5,8 +5,9 @@
 -- from 6.68.0, and ⇪⇧S opened the Asana past-task picker — LL kept
 -- pressing S for snippets and getting Asana ("that shouldn't be taken
 -- nor launch that tool"). The picker lost its key (task_creator.lua);
--- ⇪⇧T is FREE — the first free ⇪⇧ letter since 6.104.0, and
--- _G.freeKeys() lists it.
+-- ⇪⇧T was free then — the first free ⇪⇧ letter since 6.104.0. It is NOT
+-- now: 6.194.0 gave it to type-the-clipboard and 6.379.0 gave it to the
+-- ⏱ timer. Ask _G.freeKeys(), never a comment (6.276.0).
 -- =====================================================================
 -- LL: "Snippets attached. Some have a trigger convention and some are
 -- just three letter combos like gg1 … Not all my snippets require a

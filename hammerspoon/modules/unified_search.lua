@@ -712,7 +712,10 @@ function M.setup(core)
         ["⇪O"]    = "ocr.show",
         ["⇪⇧O"]   = "ocr.edit",
         -- 📊 The rollup has NO KEY — every ⇪⇧ letter was spoken for when it
-        -- arrived (⇪⇧T came free in 6.161.0 and stays free on purpose). That
+        -- arrived (⇪⇧T came free in 6.161.0 and was spent again in 6.194.0,
+        -- then by the ⏱ timer in 6.379.0 — ask the registry, not this
+        -- comment, which read "stays free on purpose" for 185 releases
+        -- after it stopped being true). That
         -- makes this row the only way to open it by hand short of the
         -- Console, which is exactly what a tool list is for.
         ["📊"]    = "rollup.show",

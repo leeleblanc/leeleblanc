@@ -418,18 +418,30 @@ end)())
 -- ⌨️ 6.158.0 — THE FIFTH KEY. LL: "I need a simple automated shortcut to
 -- type the clipboard contents where we can't use ⌘+V, or paste." ⇪⇧2 —
 -- the ⇪⇧ number row 6.142.0 cleared, beside ⇪⇧1, the pause switch.
-check("⇪⇧T types the clipboard without the picker (6.158.0, moved 6.194.0)",
-      BOUND["shift+t"] ~= nil and BOUND["shift+t"].src == "type the clipboard",
-      BOUND["shift+t"] and BOUND["shift+t"].src)
-check("...it is the key the constants say, so a one-line edit moves it",
-      pt.typeKey == "t" and pt.typeMods[1] == "shift" and pt.typeHint == "⇪⇧T",
+-- 🔑 6.379.0 — ASSERTED AS A RULE, NOT AS A SPELLING. These three named
+-- "⇪⇧T" outright, so the day the key moved they went red with nothing to
+-- say about the move — 6.248.0, which is the reason they are written this
+-- way now: whatever pt.typeKey/pt.typeMods say is what must be bound, and
+-- what the ⇪; row must name. A future move costs no edit here at all.
+local TYPEKEY = table.concat(pt.typeMods, "+") .. "+" .. pt.typeKey
+check("the type-the-clipboard key is bound, without the picker (6.158.0)",
+      BOUND[TYPEKEY] ~= nil and BOUND[TYPEKEY].src == "type the clipboard",
+      TYPEKEY .. " -> " .. tostring(BOUND[TYPEKEY] and BOUND[TYPEKEY].src))
+check("...and it is the key the constants say, so a one-line edit moves it",
+      pt.typeMods[1] == "shift"
+      and pt.typeHint == ("⇪⇧" .. tostring(pt.typeKey):upper()),
       pt.typeHint)
-check("...and the ⇪; row names the key, from the same constants",
-      (pt.byId("type").sub or ""):find("⇪⇧T", 1, true) ~= nil,
+check("...and the ⇪; row names that same key, from the same constants",
+      (pt.byId("type").sub or ""):find(pt.typeHint, 1, true) ~= nil,
       pt.byId("type").sub)
+-- ⏱ 6.379.0 — and it is NOT on T any more: the timer took that, and a
+-- stale binding here would be two tools on one key.
+check("...and ⇪⇧T is NOT it — the ⏱ timer has T from 6.379.0",
+      pt.typeKey ~= "t" and BOUND["shift+t"] == nil,
+      tostring(pt.typeKey))
 reset()
 CLIP = "lee@example.com"
-BOUND["shift+t"].fn()
+BOUND[TYPEKEY].fn()
 check("pressing it starts the typing path — nothing typed on the press, "
       .. "one timer armed, the same as the row",
       #TYPED == 0 and #TIMERS == 1, #TYPED .. " typed, " .. #TIMERS .. " timers")
