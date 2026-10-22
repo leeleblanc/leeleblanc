@@ -5,6 +5,143 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.379.0 — ⏱ A SIMPLE TIMER, IN WORDS, ON THE KEY HE ASKED FOR:
+  LL: "Please add a simple timer I can launch using a shortcut key. I
+  like hyper+shift+t if that is not taken. Make the timer look like the
+  Pomodoro timer. I should be able to type a time in natural language
+  when I launch like 24 hours and five minutes or 24h and 35m or 15
+  seconds or 15s. Using the shortcut key when it is visible, hides it.
+  When visible, hitting escape, stops the timer."
+
+  🆓 ⇪⇧T WAS TAKEN, AND THE REGISTRY IS WHAT SAID SO. This file's own
+  notes were a hint and nothing more (6.276.0): the answer came from
+  dumping test_integration's HYPER_CLAIMS, which loads the REAL config —
+  79 claims, and `shift|t -> type the clipboard`, power_tools' since
+  6.194.0. Read beside §0.4's migration map, which binds a dozen keys
+  the registry cannot see, EVERY SHIFTED LETTER IS SPENT: ⇪⇧C is
+  copy-on-select, ⇪⇧D the diagnostic report, ⇪⇧R the nudge reset, and
+  ⇪⇧Z is reserved by his own rule. What is genuinely free is ⇪⇧[, ⇪⇧]
+  and ⇪⇧\ — and none of them is a key anyone would reach for to start a
+  timer, which is 6.361.0's whole 267-release lesson about a tool whose
+  key could not be remembered.
+  🔑 SO HIS ASK ITSELF WAS THE MEASUREMENT, and that is the half worth
+  carrying past this release: SOMEONE WHO REACHED FOR A KEY DAILY WOULD
+  KNOW IT WAS TAKEN. He offered ⇪⇧T for a timer, so ⇪⇧T is not in his
+  hands for type-the-clipboard. T for Timer is his; type-the-clipboard
+  moved to ⇪⇧\ (measured free against both authorities) and LOSES A
+  SHORTCUT, NOT THE FEATURE — ⇪; has run it from its own list since
+  6.158.0, which is the door he already knows. Its cheat-sheet row names
+  the physical key in words, "the \| key beside Return" (6.361.0).
+
+  📣 THE GRAMMAR IS PURE, so all four of his examples are proven with no
+  Mac: 15s · 15 seconds · 24h and 35m · 24 hours and five minutes, plus
+  compound tens ("twenty five minutes"), glued forms ("5m30s", "1h30m"),
+  days, and the two fraction shapes English actually uses — "half an
+  hour" and "an hour and a half", which need ONE rule between them: "a"
+  and "an" count a unit that follows them and are noise anywhere else.
+  Without it "half an hour" reads as two numbers in a row and is
+  refused, which is the most natural thing a person could type.
+  🚨 AND THE TWO ASSUMPTIONS ARE SHOWN, NEVER MADE. A bare number ("25")
+  is minutes and a trailing number ("1h 30") is the unit below — both
+  are guesses, so the box PRINTS the reading it made while he is still
+  typing (6.297.0's preview rule). An assumption visible before Return
+  is not a guess; the same assumption made silently is.
+  🔎 AND ":" IS REFUSED BY NAME: "1:30" could be a minute and a half or
+  an hour and a half, this config does not guess (6.200.0), and the
+  refusal names BOTH readings and the forms that work.
+  🗣 THE WORDS ECHO HIM RATHER THAN THE ARITHMETIC. "24h and 35m" is a
+  day and 35 minutes, and a preview saying "1 day 35 minutes" reads as
+  though the box had rewritten his input — which is the opposite of what
+  a confirmation is for. Days appear only at two or more, or a whole
+  number of them; one day with a remainder stays in hours. The fixture
+  that bites is exactly 24h 35m, because every other duration agrees
+  with both readings (6.230.0).
+
+  🚨 THE ESC RULE IS NOT THE LITERAL READING OF HIS SENTENCE, and that
+  is said out loud in the module's header rather than quietly decided.
+  Binding bare Esc through hs.hotkey SWALLOWS it system-wide for as long
+  as the binding is enabled, and a timer here can run seven days: for a
+  day Esc would not dismiss a dialog, would not leave a full-screen film
+  (he has the Mug Player), would not cancel a Spotlight search, and
+  nothing on screen would explain why. pomodoro.lua's own header refuses
+  exactly this for ⏎ over 25 minutes.
+  🔑 THE SHAPE THAT SATISFIES BOTH (6.311.0 — look for the shape, never
+  trade a measured rule away): Esc is ours in the three moments a person
+  reaches for it — while the POINTER IS ON the card, for escSecs after
+  the card is brought up, and for escSecs after the alarm goes off — and
+  the card's own last line is READ from that one decision function, so
+  it can never promise a key that is not live. ⇪⎋ stops it from
+  anywhere, through the router, and costs no app anything because that
+  key is already this config's. 📏 COST, NAMED: Esc with the pointer
+  elsewhere, long after the card appeared, does nothing; the bottom line
+  is what says which state you are in.
+  🚨 AND THE SWEEP FOUND A ONE-SECOND HOLE IN IT. fire() re-stamped the
+  window and left the modal to the NEXT tick, so for one whole second
+  the alarm was going off and Esc did nothing — and the first second is
+  exactly when the key gets pressed. Found by a check written to kill a
+  mutation, which is the argument for the sweep in one line.
+
+  🔑 HIDE IS NOT STOP, and that distinction is HIS: the key puts the
+  card away and the timer keeps running; the key again brings it back
+  (the fourth state, forced by his three rather than chosen). WHICH
+  MAKES THE ANNOUNCEMENT AT ZERO LOAD-BEARING RATHER THAN DECORATION,
+  because a running timer can be invisible: the card SHOWS ITSELF,
+  flashes, alerts, writes a Console line, sends a notification that
+  survives Focus (6.278.0 — a 24-hour timer lands during a meeting) and
+  plays a tone resolved on the KEYPRESS, never inside a timer (6.210.0).
+  And it STAYS until answered, because an alarm that clears itself while
+  he is away is an alarm that did nothing.
+
+  💾 IT SURVIVES A RELOAD, because the lengths he named are longer than
+  the gaps between his reloads — he reloads to install releases. One
+  number and the words he typed go into hs.settings on start and stop,
+  never on a tick, and M.warm restores it (6.267.0 — never setup).
+  THREE STATES: still running, with the time that is actually LEFT ·
+  it ENDED while this config was not running, which is SAID and never
+  fired hours late, because an alarm going off two hours late is
+  indistinguishable from one going off now · nothing to restore.
+
+  🪟 IT LOOKS LIKE THE POMODORO, which is what he asked for: the same
+  corner, the same rounded card, the same shared style table, the same
+  alpha knobs. It is NOT the pomodoro's code — folding the two cards
+  into one drawing helper would be a second change in this release and
+  would touch a module that works, so the duplication is NAMED and the
+  fold is its own release. 🗓 And it does not sit ON it: with the
+  pomodoro's card up this one drops below it (slotOffset, PURE), from a
+  nil-guarded read of that module's published frame — no new service,
+  and with pomodoro absent there is simply no offset. The fixture that
+  bites is a pomodoro dragged BELOW this card, which must not push it
+  off the top of the screen.
+  📏 Degrades three ways, each named: a card macOS will not MAKE, and a
+  card it will not SHOW (6.265.0's "created, wired, refused", driven
+  apart) both leave the TIMER RUNNING — a countdown with no card beats
+  no countdown, and the announcement needs no card. A Mac that will not
+  give us a TICKER starts nothing and says so, because a timer that
+  cannot count is not a timer and reporting it as running is worse than
+  refusing.
+
+  🔁 AND THE PROSE WENT WITH THE RULE, in the same commit. Four files
+  said ⇪⇧T was free — text_expander ("⇪⇧T is FREE"), numpad_layer,
+  unified_search ("stays free on purpose") and §1.12's own comment —
+  every one correct the day it was written and false since 6.194.0,
+  still reading like the answer 185 releases later. Two test labels
+  explained themselves with keys that have since moved. Three
+  power_tools checks spelled "⇪⇧T" out, so the move turned them red with
+  nothing to say about the change they existed to prove (6.248.0): they
+  assert the RULE now — whatever the constants say is what must be bound
+  and what the ⇪; row must name — so the next move costs no edit at all,
+  and a source sentry holds pt.typeHint to being BUILT rather than
+  typed, because asserting its VALUE cannot tell one literal from two
+  that happen to agree today. INSTALL.md's step 3d told him to expect
+  `12` core files against a core of 13, so a correct install read as a
+  wrong one.
+  🧪 235 checks of its own; 55 of 55 mutations killed and the no-op
+  control survived. Three survived the first sweep and all three were
+  MISSING CHECKS (6.273.0): the Esc re-stamp, which is only observable
+  with the card already up and its window closed; a second call to the
+  published fire(), which the ticker's own guard made unkillable; and
+  the typeHint sentry above.
+
 NEW IN 6.378.0 — 🔒 SECURE INPUT ALREADY HELD AT BOOT IS ANNOUNCED:
   The announcement was gated on a CHANGE, and a first reading is not
   one: `si.on` is born nil, so `was ~= nil` is false on the very first

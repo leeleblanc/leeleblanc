@@ -279,7 +279,13 @@ hs = {
     },
     settings = {
         get = function(k) return SETTINGS[k] end,
-        set = function(k, v) SETTINGS[k] = v end,
+        -- 🔬 6.290.0 — set(k, nil) DOES NOT DELETE here, because on a Mac
+        -- it is not a reliable delete either: that is the whole reason
+        -- hs.settings.clear exists and the reason mouse_follows.lua has
+        -- used it since 6.160.2. A stub where writing nil worked would
+        -- have certified a timer he stopped coming back on the next boot.
+        set = function(k, v) if v ~= nil then SETTINGS[k] = v end end,
+        clear = function(k) SETTINGS[k] = nil ; return true end,
     },
     sound = {
         getByName = function(n)
@@ -680,6 +686,19 @@ check("...and only fires ONCE no matter how long the ticker runs", (function()
     ticks(10)
     return tm.counts.fired == before, tm.counts.fired
 end)())
+-- 🚨 tm.fire is PUBLISHED on the module table, so "called twice" is a
+-- real contract and not a hypothetical: a second announcement would
+-- alert, notify and play the tone all over again. The ticker's own
+-- guard means no mutation inside fire() could be killed through it, so
+-- this drives the published door directly (6.273.0).
+check("...and calling fire() again announces nothing a second time",
+      (function()
+          local alerts, told, fired = #ALERTS, #TOLD, tm.counts.fired
+          tm.fire()
+          return #ALERTS == alerts and #TOLD == told
+                 and tm.counts.fired == fired,
+                 #ALERTS - alerts .. " alert(s), " .. (#TOLD - told) .. " told"
+      end)())
 
 out("   -- it fires even with the card hidden, and SHOWS ITSELF --")
 boot()
@@ -695,6 +714,33 @@ check("...and the card PUTS ITSELF BACK to say so",
       and cardText():find("TIME UP", 1, true) ~= nil, cardText())
 check("...and the alarm owns esc again, bounded, from the moment it went off",
       MODALS[1].inside == true)
+
+-- 🚨 6.379.0 — THE RE-STAMP, driven where it is the only thing that can
+-- matter: the card ALREADY UP and its Esc window long closed. The hidden
+-- case above cannot see it, because showing the card stamps shownAt
+-- anyway — so without this the line was unkillable (6.273.0).
+boot()
+tm.start(30, "30 seconds")
+CLOCK = CLOCK + tm.escSecs + 2
+ticks(1)
+check("with the card up and cold, esc has gone back to his apps",
+      MODALS[1].inside == false)
+for _ = 1, 40 do
+    ticks(1)
+    if tm.state.fired then break end
+end
+check("...the alarm goes off", tm.state.fired == true)
+-- 🚨 IN THE SAME INSTANT, not on the next tick: the first second of an
+-- alarm is when the key gets pressed.
+check("...and it takes esc back THAT SECOND, so the key he reaches for "
+      .. "answers it", MODALS[1].inside == true)
+check("...and the card says so", cardText():find("esc stops it", 1, true) ~= nil,
+      cardText())
+CLOCK = CLOCK + tm.escSecs + 2
+ticks(1)
+check("...and it gives it back again afterwards — an alarm nobody is "
+      .. "there to answer must not hold the key for ever",
+      MODALS[1].inside == false)
 
 out("   -- the alarm stays until it is answered --")
 boot()

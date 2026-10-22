@@ -1,5 +1,5 @@
 ========================================================================
-RESOLVED FEATURE REQUESTS — Hammerspoon config 6.378.0
+RESOLVED FEATURE REQUESTS — Hammerspoon config 6.379.0
 Every feature and how to use it. Generated from the modules' own
 cheat sheets (the rows ⇪/ draws), so it is never out of date.
 ⇪ = Caps Lock held (the hyper key). ⇪⇧X = Caps Lock + Shift + X.
@@ -481,8 +481,10 @@ In the Console, _G.<tool>Report() prints any tool's own report.
 
 🧰 POWER TOOLS (⇪; — the small ones, in one list)   [modules/power_tools.lua]
   ⇪;      The list — type to filter, ⏎ runs it
-  ⇪⇧T   Types the clipboard key by key — for fields that
+  ⇪⇧\   Types the clipboard key by key — for fields that
             refuse ⌘V, like “confirm your email address” (⌨️ row too)
+            that is the \| key beside Return — it was ⇪⇧T until
+            6.379.0, when the ⏱ timer took T
   🔢 count Words · characters · ~sentences in the selection
   📋 count The same, and both counts onto the clipboard
   🔠 case UPPER · lower · Title · camel · kebab · snake —
@@ -618,6 +620,20 @@ In the Console, _G.<tool>Report() prints any tool's own report.
   4:30      Day's tally at workday end · Friday adds the week's
   note      Enter/esc are NOT captured during the countdown
   check     _G.pomodoroReport() — today, this week, and the file
+
+⏱ TIMER (⇪⇧T — say how long, in words)   [modules/timer.lua]
+  ⇪⇧T   Ask how long, then count it down in the corner
+            ⇧ plus the letter T, next to R and Y
+            15s · 25 · 24h and 35m · twenty five minutes ·
+            half an hour · 1h 30 · 5m30s · 2 days
+  again     ⇪⇧T with the card up PUTS IT AWAY — it keeps running
+  esc       Stops it, while the pointer is on the card or just
+            after you bring it up (the card's last line says which)
+  ⇪⎋    Stops it from anywhere, pointer or no pointer
+  ⏱ ends  The card shows itself, flashes and stays until you
+            answer it — a timer that ended while you were away
+            is still waiting when you come back
+  check     _G.timerReport() — what is running, and the last one
 
 🎵 JUG PLAYER (⇪⇧. · ⇪⇧pad. — a card in the corner, mp3 · m4a · wav · aiff)   [modules/music_player.lua]
   ⇪⇧. · ⇪⇧pad. Open / close the player
@@ -823,6 +839,7 @@ In the Console, _G.<tool>Report() prints any tool's own report.
 
 📜 RELEASE INDEX — newest first, one line per release (the full story of each is in CHANGELOG.md)
 ------------------------------------------------------------------------
+  6.379.0  ⏱ A SIMPLE TIMER, IN WORDS, ON THE KEY HE ASKED FOR
   6.378.0  🔒 SECURE INPUT ALREADY HELD AT BOOT IS ANNOUNCED
   6.377.0  ⌨️ A PICKED SNIPPET'S INSERT IS COUNTED, AND A REFUSAL
   6.376.0  📅 A SCRATCH NOTE IS NAMED FOR THE DAY IT WAS MADE

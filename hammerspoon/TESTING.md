@@ -1,4 +1,4 @@
-# TESTING — how to score release 6.378.0
+# TESTING — how to score release 6.379.0
 
 You install ONE archive and it carries several releases. Below are the
 steps for each release this archive is new for, newest first. Run the
@@ -26,6 +26,129 @@ else is a LOSS and I fix it before building further. You are the only
 scorer; I never mark my own.
 
 ---
+
+## 6.379.0
+
+6.379.0 verify with LL — ⏱ A TIMER YOU TALK TO (KNOWN GROUND)
+WHAT CHANGED: there is a new tool. Hold Caps Lock and Shift and press
+the letter **T** — next to R and Y — and a box asks how long. Type it
+the way you would say it out loud. A card counts it down in the
+top-right corner under the clock, shaped like the pomodoro.
+🆓 AND ⇪⇧T WAS TAKEN, which you asked me to check: it was "type the
+clipboard". I asked the registry rather than my own notes, and every
+other shifted letter is spent too (⇪⇧C, ⇪⇧D and ⇪⇧R are
+copy-on-select, the diagnostic report and the nudge reset; ⇪⇧Z is
+reserved on your word). 🔑 I gave you T anyway and moved the other
+tool, because your asking for T is itself evidence you do not reach
+for it to type the clipboard — and that tool loses a shortcut, not the
+feature. Step D is where you check that.
+
+A. THE HEADLINE — two minutes.
+A1. Press **⇪⇧T** (hold Caps Lock and Shift, press T).
+    EXPECT: a box reading "How long? 15s · 25 · 24h and 35m · …".
+A2. Type `24h and 35m` and WATCH THE ROW as you type.
+    EXPECT: **"⏱ 24 hours 35 minutes"**, and under it "⏎ starts it ·
+    24:35:00 on the card". That row is the point of the box: it shows
+    what it understood BEFORE you commit to it.
+A3. Press ⏎. EXPECT: a card top-right counting down from 24:35:00,
+    with "24 hours 35 minutes" written under the digits.
+A4. Try the rest, one at a time: `15s` · `15 seconds` ·
+    `twenty five minutes` · `half an hour` · `an hour and a half` ·
+    `5m30s` · `2 days`. All of them work.
+A5. Type `25` on its own. EXPECT the row to read "25 minutes — no unit
+    given, so minutes". A bare number is MINUTES and it tells you so
+    rather than deciding quietly.
+A6. Type `banana`. EXPECT `could not read "banana"`, and ⏎ does
+    nothing. Then type `1:30`. EXPECT a refusal explaining it cannot
+    tell a minute and a half from an hour and a half.
+
+B. HIDE IS NOT STOP — your two sentences, and they are different.
+B1. With a card counting down, press **⇪⇧T** again.
+    EXPECT: the card goes away. **The timer is STILL RUNNING.**
+B2. Wait a minute, press ⇪⇧T again.
+    EXPECT: the card is back showing a minute LESS — not the length
+    you asked for. That is the proof it kept counting out of sight.
+B3. Console, while it is hidden: `_G.timerReport()`.
+    EXPECT a line shouting **THE CARD IS HIDDEN, and it is still
+    counting**. That wording exists so a timer you have forgotten
+    cannot read the same as no timer at all.
+
+C. STOPPING IT — and here I did NOT do the literal thing you asked
+   for, so please read this before judging it.
+C1. With the card up, put the **mouse pointer on the card** and press
+    **esc** (top-left of the keyboard). EXPECT: it stops, card gone.
+C2. Start another. Within ten seconds of the card appearing press
+    **esc** with the pointer anywhere at all. EXPECT: it stops.
+C3. Start another. Wait a minute, leave the pointer elsewhere, press
+    **esc**. EXPECT: **nothing happens** — and the card's bottom line
+    now reads **⇪⎋** instead of "esc stops it".
+    🚨 WHY: binding esc swallows it everywhere, and this timer can run
+    for days. For a day esc would not close a dialog, would not leave
+    a full-screen film, would not cancel a Spotlight search, and
+    nothing on screen would explain why. So esc is yours in the
+    moments you actually reach for it, and the card's last line always
+    says which state you are in.
+C4. The one that always works: **⇪⎋** — Caps Lock and the esc key —
+    from anywhere, pointer or not, card up or hidden. EXPECT: it stops.
+    **If you would rather have plain esc all the time and accept
+    losing it in your apps, say so and it is one line.** Your Mac.
+
+D. WHAT MOVED, so it is not a surprise next week.
+D1. "Type the clipboard" is **⇪⇧\** now — Caps Lock, Shift and the
+    \| key beside Return. Press it in a field that refuses ⌘V.
+    EXPECT: it types your clipboard out, exactly as ⇪⇧T used to.
+D2. It is ALSO still in the ⇪; list, where it has been since 6.158.0:
+    press ⇪; and look for the ⌨️ row. That is why moving its key costs
+    a shortcut and not the feature.
+D3. ⇪/ and search `timer`, then `power`. Both cards are right, and the
+    power tools card now says where the \| key is, in words.
+
+E. THE ALARM — worth setting a 20-second one for.
+E1. Start `20s` and let it run out while you work in something else.
+    EXPECT: the card FLASHES amber, an alert says TIME UP and names
+    the length, a notification arrives, and you hear Submarine a few
+    times. **And it stays there flashing until you answer it** — ⇪⇧T
+    or esc clears it.
+E2. The one that matters: start `20s`, press ⇪⇧T to HIDE the card, and
+    let it run out.
+    EXPECT: the card PUTS ITSELF BACK and goes off exactly as in E1.
+    A timer you put away must still be able to reach you; that is what
+    makes hiding safe.
+
+F. A RELOAD DOES NOT LOSE IT — why the long durations are usable.
+F1. Start `30m`, then reload Hammerspoon (⌘⌃R).
+    EXPECT: a Console line saying a timer was still running, and the
+    card back with about 29 minutes left — not 30.
+F2. Start `2m`, reload, and keep Hammerspoon down past the two minutes
+    if you can.
+    EXPECT: it does NOT go off late. It says **"Your 2 minutes ended
+    while Hammerspoon was not running"**. An alarm two hours late is
+    indistinguishable from one going off now, so it is said rather
+    than fired.
+
+G. PASTE BACK.
+G1. `_G.timerReport()` — the whole block, once with something running
+    and once with nothing. Its `esc` line says whose that key is right
+    now and quotes what the card is showing, which is the one thing I
+    cannot see from here.
+
+H. A JUDGEMENT ONLY YOU CAN MAKE.
+H1. Is a bare number MINUTES right? `25` → 25 minutes is my call; say
+    the word and I change the default.
+H2. Ten seconds is how long esc stays yours after the card appears.
+    Too short to be useful, or too long to be safe? It is a number.
+H3. Seven days is the longest timer it will set. Enough?
+H4. The card is the pomodoro's shape but NOT its code. Folding the two
+    into one drawing helper is its own release, because it would touch
+    a module that works. Say if you want them merged.
+H5. ONE TIMER AT A TIME, and this is the one I expect to annoy you
+    first: with one running, ⇪⇧T hides or shows the card — it does not
+    offer to start another. So a 25-minute timer followed by a
+    5-minute one means stopping the first (⇪⎋) and pressing ⇪⇧T again.
+    Should the key offer to REPLACE a running timer, or should several
+    run at once? The first is small; the second is a different card.
+
+
 
 ## 6.378.0
 
@@ -154,300 +277,6 @@ C. PASTE BACK.
 C1. `_G.scratchPadReport()` — a new `📅 dates:` line says which
     reading is on and counts any tabs that carry no date stamp (those
     keep their old name rather than claiming a date nobody recorded).
-
-
-
-## 6.375.0
-
-6.375.0 verify with LL — 🎓 AN OBSCURE FILE TYPE HAS TO EARN ITS PLACE
-(KNOWN GROUND)
-WHAT CHANGED: a file type joins ⇪I only once you have opened TWO
-different files of it. One open is no longer enough.
-🔎 Your ask: catch the common types down to the least common, "but
-files types like .nfo or .edm shouldn't" turn up. And the cost was not
-only clutter: the learned list keeps 24 types and evicts the OLDEST,
-so a handful of one-off opens could push out .key, .sql or .sketch —
-the types you really work in — quietly.
-
-A. THE HEADLINE.
-A1. Console: `_G.recentDocsReport()`. Two lines to read:
-      learned : (unlearn with _G.recentDocs.unlearn("ext"))
-      waiting : N type(s) opened in fewer than 2 file(s) — join one
-                with _G.recentDocs.learn("ext")
-    PASTE BOTH. The `waiting :` list is the one-off types being held
-    back, by name, with their counts — so .nfo and .edm should be
-    sitting there rather than in the list above.
-A2. Press ⇪⇧I to re-scan, then run it again.
-A3. If a type you DO work in is being held back (you keep one file of
-    it), `_G.recentDocs.learn("ipynb")` joins it by hand, for good.
-
-B. WHAT IS STILL THERE, so it is not a surprise.
-B1. A single .nfo you opened still shows as a ROW in ⇪I, because
-    macOS says you opened it and the nine-shelf has to stay honest.
-    What is gone is the TYPE — its own section, its @tag, its place in
-    the learned list.
-    **Tell me if you want the row gone too.** That is a bigger change
-    and I did not guess it.
-B2. `settings = { recent_docs = { learnFloor = 1 } }` is the old rule
-    exactly, if two feels wrong.
-
-
-
-## 6.374.0
-
-6.374.0 verify with LL — 📁 ⇪I STOPS SHOWING YOUR APPS' OWN FILES
-(KNOWN GROUND)
-WHAT CHANGED: Recent Documents no longer lists the files your apps
-keep for themselves.
-🔎 AND YOUR LIST OF THIRTY-FOUR APPS IS WHAT NAMED IT. 1Password,
-Activity Monitor, App Store, Audio MIDI, Calculator, Chess, ColorSync,
-Digital Color Meter, Disk Utility, DisplayLink, … System Settings,
-Tips, TV, … Weather — **every single one keeps a folder under
-~/Library**, and not one of the five you said you WOULD work in does.
-Word, Chrome, Sublime, Script Editor and Shortcuts keep their
-documents in Documents, Desktop, Downloads and OneDrive. So the fix is
-a folder, not a list of names you would have to maintain for ever.
-
-A. THE HEADLINE.
-A1. Press ⇪⇧I to force a fresh scan, then ⇪I.
-    EXPECT: no rows from 1Password, Notes, Weather, NordVPN, Ice or
-    anything else on your list. **A row from any of them is a FAIL** —
-    tell me which.
-A2. 🚨 AND THE CHECK THAT MATTERS MORE: your real documents must all
-    still be there — the Vault, the screenshots, anything in OneDrive.
-    OneDrive lives INSIDE ~/Library
-    (~/Library/CloudStorage/OneDrive-Personal), so skipping ~/Library
-    without naming it back would have emptied the list of everything
-    you actually work on. Search ⇪I for a note name and a screenshot
-    name. **If your OneDrive files are missing, stop and tell me at
-    once** — that is the one bad outcome this release can have.
-A3. Open something in Word, then ⇪I. It is at the top, as ever.
-
-B. PASTE BACK.
-B1. `_G.recentDocsReport()` — a new `folders :` line says how many
-    hits it turned away and why ("an app's own folder under
-    ~/Library"), with the line under it naming the cloud exception. On
-    your Mac I expect that number to be large.
-B2. The `entries :` line — compare it to what you remember. It should
-    be SMALLER and every row should be something you would call a
-    document.
-
-C. THE OTHER HALF, free.
-C1. ⇪I's scan used to take the first 400 hits BEFORE filtering, so on
-    a Mac whose ~/Library churns a lot your real documents could never
-    be reached at all. The filter runs first now. If ⇪I feels like it
-    has MORE of your work in it rather than less, that is this.
-
-
-
-## 6.373.0
-
-6.373.0 verify with LL — ⌨️ TWO KEYSTROKES INSTEAD OF THREE
-(KNOWN GROUND)
-WHAT CHANGED: the mouse grid's cells are labelled with TWO letters,
-not three. Your YES.
-🔎 THE ARITHMETIC, which nobody had written down: cells = letters ^
-label length. Nine home-row keys three deep is 729 cells. Twenty-six
-letters two deep is 676 — **within 4% of the same cell size**, so the
-boxes stay the size you have already accepted, for a third of the
-typing removed.
-
-A. THE HEADLINE.
-A1. ⇪X. EXPECT each cell shows TWO letters, and the boxes look about
-    the same size as before.
-A2. Type the two letters. EXPECT the pointer lands, as always.
-A3. Read the letters. They are now the WHOLE alphabet rather than the
-    home row — that is the cost, and it is two reaches instead of
-    three taps. **Tell me if it feels worse in the hand**; it is one
-    line either way.
-A4. The two-letter split after landing, the arrows (8 pt a repeat,
-    no acceleration since 6.360.0), ⌫, ⎋ and space are unchanged.
-
-B. PASTE BACK.
-B1. `_G.mouseGridReport()` — the `cells   :` line gives the real cell
-    size on the screen you are on. I have been reasoning about that
-    number from arithmetic; I would like it from your display.
-
-
-
-## 6.372.0
-
-6.372.0 verify with LL — 🎯 THE RINGS, BIGGER AND VISIBLE
-(KNOWN GROUND)
-WHAT CHANGED: ⇪⇧L's rings are bigger AND they change colour, because
-"more colorful" turned out to be a defect rather than a preference.
-🔎 THE MEASUREMENT: the ring shipped WHITE. On a white background —
-a Finder window, a Word document, a browser page — that is **1.00:1
-contrast. Literally invisible**, on most of what is on your screen at
-the moment you have lost the pointer.
-
-A. THE HEADLINE.
-A1. Put a white Finder window or a Word document in front. Press ⇪⇧L.
-    EXPECT: you can see it. Three rings, each a different colour,
-    stepping outward.
-A2. Do it over a DARK window too. EXPECT: still visible — the three
-    colours cycle so one of them stands out whatever is underneath.
-A3. The rings are 180 pt now rather than 150, and each is 10% wider
-    than the last (your number, 6.310.0).
-
-B. A JUDGEMENT ONLY YOU CAN MAKE.
-B1. Magenta, orange and violet are my choice, picked by contrast
-    arithmetic rather than taste (3.06:1, 6.86:1 on black, 4.22:1 on
-    white). If you want different colours, say so —
-    `settings = { mouse_grid = { locateColors = {...} } }`, or just
-    name them and I will change the default.
-B2. Still not obvious enough? `locateRadius` and `locateSecs` are
-    numbers, not releases.
-
-
-
-## 6.371.0
-
-6.371.0 verify with LL — 📅 A TWO-DIGIT YEAR IS WRITTEN OUT
-(KNOWN GROUND)
-WHAT CHANGED: typing `10-20-26 ` gives you `10-20-2026 `. Your ask,
-both separators.
-
-A. THE HEADLINE — ten seconds, in Chrome or Word.
-A1. Type `10-20-26` and then a SPACE.
-    EXPECT: `10-20-2026 `.
-A2. Type `10/20/26` and a space. EXPECT: `10/20/2026 `.
-A3. Type `10-20-2026` and a space. EXPECT: unchanged — a four-digit
-    year is already right.
-A4. Type `13-45-26` and a space. EXPECT: unchanged. There is no month
-    13 and no day 45, so it is not a date.
-A5. Type `10-20/26` and a space. EXPECT: unchanged — mismatched
-    separators are a typo, not a date.
-
-B. MUST STILL WORK — this touched the tap that watches your typing.
-B1. Type normally for a while. No missed characters, no stray
-    corrections.
-B2. `teh ` still becomes `the `. `somethingg ` still becomes
-    `something`.
-B3. ⇪Z still undoes a correction and refuses it for good.
-B4. In Terminal, Ghostty or Sublime: nothing is corrected, as before.
-
-C. PASTE BACK.
-C1. `_G.autocorrectReport()` — a new `dates :` line counts them.
-C2. 📏 KNOWN: a date typed mid-word is not corrected, and the buffer
-    is capped at 12 characters.
-
-
-
-## 6.370.0
-
-6.370.0 verify with LL — 🎬 ⌃⌘F, THE FADING CHROME, AND RESUMING
-(NEW GROUND for the full-screen half)
-WHAT CHANGED: all three of your Mug Player asks.
-🚨 AND ⌃⌘F IS DIFFERENT NOW: in 6.358.0 it filled the WINDOW. You
-said "⌃⌘F is to make the FILM full screen", so it asks the FILM to go
-full screen and only falls back to filling the window when macOS
-refuses — which it can, and the report says which happened.
-
-A. THE HEADLINE.
-A1. ⇪⇧, and play a film. Press **⌃⌘F**.
-    EXPECT: the FILM fills the whole screen — no window edges, no
-    deck, nothing but the picture.
-A2. Press **Escape**. EXPECT: out of full screen, window still up.
-    Press Escape again to close the window.
-A3. Press ⌃⌘F again and read what the window says if it could NOT go
-    full screen. EXPECT either real full screen, or the window filled
-    with a line saying macOS refused. Both are a pass; tell me which.
-
-B. THE CHROME FADES.
-B1. In full screen (or filled), EXPECT the header and the film deck
-    to fade out of sight. Move the mouse: they come back.
-
-C. IT REMEMBERS WHERE YOU WERE — the one you asked for by name.
-C1. Play a film, let it run two minutes, press ⇪⇧, to close.
-C2. ⇪⇧, again and press ⏎ on the same film.
-    EXPECT: it resumes at about two minutes, not at zero.
-    **A FAIL is starting from the beginning** — that is the bug.
-C3. Let a film play to the END, then play it again.
-    EXPECT: it starts from the beginning. A finished film has no
-    place to resume to.
-
-D. PASTE BACK.
-D1. `_G.mugReport()` — new `cinema :` and `resume :` lines. If
-    `resume` ever says the Mac would not say how long the film is,
-    paste it: nothing is moved in that case, deliberately.
-
-
-
-## 6.369.0
-
-6.369.0 verify with LL — 🔤 THE ✕ YOU COULD NOT SEE (KNOWN GROUND)
-WHAT CHANGED: the ✕ that removes a row in Hamsidian is visible.
-🔎 AND IT WAS THERE ALL ALONG, since 6.364.0 — which is the same thing
-as absent, and that is my fault rather than yours. It drew at 0.28 and
-0.30 opacity over that sidebar: **2.30:1 and 2.44:1 contrast, against
-the 3:1 floor a control is supposed to meet.** Measured, not argued.
-
-A. THE HEADLINE — ten seconds.
-A1. ⇪N. Look at the right-hand end of a HISTORY row (a closed tab).
-    EXPECT: a ✕ you can see WITHOUT hovering.
-A2. Hover it. EXPECT: brighter. Move onto it: red.
-A3. Click it. EXPECT: the row is forgotten and nothing reopens.
-A4. ⇪3, look at a note row's ✕. Same.
-
-B. A JUDGEMENT ONLY YOU CAN MAKE.
-B1. Too loud now? It is 0.55, which measures 4.5:1 — one number:
-    `settings = { ui_style = { controlAlpha = 0.45 } }`. Say so and I
-    will move the default.
-B2. 📏 NAMED: this fixed the two places you reported. Every other
-    panel in this config still draws its own dim controls at whatever
-    number it typed in. If anything else has a control you have to
-    hunt for, tell me where and it gets the same arithmetic.
-
-
-
-## 6.368.0
-
-6.368.0 verify with LL — ☁️ ONEDRIVE IS WATCHED (NEW GROUND)
-WHAT CHANGED: this config now notices when OneDrive takes a file's
-bytes back off your Mac, and names the files.
-🔬 AND YOUR OWN PROBE DECIDED THE DESIGN. `_G.oneDriveProbe()` came
-back with **(none)** on both kinds of file: a local file carries
-`com.apple.macl` and `com.apple.provenance`, a placeholder carries
-`com.apple.FinderInfo`, and there is NO File Provider attribute
-anywhere. So "Always keep on device" is NOT readable from here — that
-question is answered and closed. What IS readable is how much of a
-file is actually allocated, so this watches and compares.
-
-A. THE HEADLINE.
-A1. Console: `_G.oneDriveSweep()`.
-    EXPECT the folders it walked, the counts, and — the line you asked
-    for — **☁️ NOT HERE**, naming every offloaded file, biggest first.
-A2. Wait a day or two of normal use and run it again.
-    EXPECT: if OneDrive has taken anything back since the first
-    sweep, it is named as **TAKEN BACK since <when>** rather than
-    just listed. That difference is the whole release: "it was never
-    here" and "it was here this morning" are opposite facts.
-A3. Reload Hammerspoon and run it again.
-    EXPECT: the comparison still works. The record of what was local
-    is written to disk, so a reload does not blind it.
-
-B. IT MUST NOT COST YOU ANYTHING.
-B1. It never READS a file — reading a placeholder downloads it, and a
-    download on the main thread is the 72-second freeze from
-    2026-10-12. The sweep runs out of process.
-B2. Use the Mac normally while a sweep runs. EXPECT: nothing
-    noticeable. If the Mac ever stutters at the moment a sweep runs,
-    tell me and the interval is a number.
-
-C. PASTE BACK.
-C1. `_G.oneDriveSweep()` after a few days — the ☁️ NOT HERE list and
-    the TAKEN BACK list.
-C2. If it says it stopped at a bound, every number is a floor rather
-    than a total; say so when you paste it.
-
-D. A JUDGEMENT ONLY YOU CAN MAKE.
-D1. Should it bring files BACK by itself? I have not built that on
-    purpose: downloading is a READ, and a read is the thing that
-    froze your Mac. Doing it safely means one file at a time, outside
-    Hammerspoon. Say the word and it is its own release.
-D2. Which folders should it watch? Right now the Vault, the Logs
-    folder and the OneDrive root. Name any others.
 
 
 

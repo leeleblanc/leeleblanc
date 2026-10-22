@@ -589,6 +589,20 @@ function M.setup(core)
     tm.paint = paint
 
     -- ---- the stored deadline -------------------------------------------
+    -- 🚨 CLEAR, NOT set(nil). `hs.settings.set(key, nil)` is not a
+    -- reliable delete — modules/mouse_follows.lua has used clear() with
+    -- set(nil) only as the fallback since 6.160.2 — and the cost of
+    -- getting it wrong here is the worst shape this module has: a timer
+    -- he STOPPED coming back on the next boot, or being announced as
+    -- having "ended while away" when he cancelled it himself.
+    function tm.forget()
+        local cleared = pcall(function() hs.settings.clear(tm.settingsKey) end)
+        if not cleared then
+            pcall(function() hs.settings.set(tm.settingsKey, nil) end)
+        end
+        return cleared
+    end
+
     local function remember()
         local s = tm.state
         pcall(function()
@@ -598,7 +612,7 @@ function M.setup(core)
                                 { endsAt = s.endsAt, asked = s.asked,
                                   secs = s.secs })
             else
-                hs.settings.set(tm.settingsKey, nil)
+                tm.forget()
             end
         end)
     end
@@ -687,6 +701,11 @@ function M.setup(core)
             end)
         end)
         paint("⏱ TIME UP", tm.bgFlash, tm.fgFlash)
+        -- ⎋ TAKE Esc NOW, not on the next tick. The window is re-stamped
+        -- above; without this the modal was only entered a second later,
+        -- and the first second of an alarm going off is precisely when
+        -- the key is pressed. Found by this release's own sweep.
+        applyEscModal()
         pcall(function() hs.alert.show("⏱ TIME UP — " .. words, 6) end)
         print("⏱ Timer: TIME UP — " .. words)
         -- a notification HOLDS through Focus and lands when it ends: a
@@ -1071,9 +1090,7 @@ function M.warm(core)
         print("⏱ Timer: a timer was still running — " .. tostring(why))
     elseif what == "ended" then
         tm.counts.endedAway = tm.counts.endedAway + 1
-        pcall(function()
-            hs.settings.set(tm.settingsKey, nil)
-        end)
+        tm.forget()
         -- 🚨 SAID, NOT FIRED. An alarm going off hours after the fact is
         -- worse than useless: it is indistinguishable from one that is
         -- going off now.

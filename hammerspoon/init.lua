@@ -4,8 +4,29 @@
 -- =====================================================================
 -- 10-20-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.378.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.379.0
 -- =====================================================================
+
+-- NEW IN 6.379.0 — ⏱ A SIMPLE TIMER, IN WORDS, ON ⇪⇧T
+--   (modules/timer.lua). LL: "add a simple timer … I like
+--   hyper+shift+t if that is not taken … type a time in natural
+--   language … 24 hours and five minutes or 24h and 35m or 15 seconds
+--   or 15s. Using the shortcut key when it is visible, hides it. When
+--   visible, hitting escape, stops the timer."
+--   🆓 ⇪⇧T WAS TAKEN and the REGISTRY said so, not this file: it was
+--   power_tools' "type the clipboard" since 6.194.0, and every other
+--   shifted letter is spent. 🔑 HIS ASK WAS THE MEASUREMENT — nobody
+--   who used ⇪⇧T daily would offer it for a timer — so T is the
+--   timer's and type-the-clipboard moved to ⇪⇧\, losing a shortcut and
+--   not the feature (⇪; has listed it since 6.158.0).
+--   🚨 Esc IS NARROW ON PURPOSE: binding it swallows it system-wide and
+--   a timer here can run seven days. Ours while the POINTER IS ON the
+--   card, and for escSecs after the card appears or the alarm goes off;
+--   the card's last line is READ from that decision, so it never
+--   promises a key that is not live. ⇪⎋ stops it from anywhere.
+--   🔑 HIDE IS NOT STOP, so the announcement at zero is load-bearing:
+--   the card shows ITSELF, flashes, alerts, writes a Console line and
+--   notifies through Focus, and stays until it is answered.
 
 -- NEW IN 6.378.0 — 🔒 SECURE INPUT ALREADY HELD AT BOOT IS ANNOUNCED
 --   (core/capabilities.lua). The announcement was gated on a CHANGE,
@@ -18,20 +39,12 @@
 --   already held; a first reading of OFF stays silent, because a line a
 --   minute saying "still fine" is how a warning gets ignored (6.269.0).
 
--- NEW IN 6.377.0 — ⌨️ A PICKED SNIPPET'S INSERT IS COUNTED, AND A
---   REFUSAL IS SEEN (modules/text_expander.lua). LL: "When I select a
---   snippet 99% of the time I want it to instantly paste." IT ALREADY
---   DOES — ⏎ types short ones at the caret and pastes anything with a
---   newline in it. What was missing is any way to tell that from "it
---   did nothing": nothing counted an insert, by route or by outcome.
---   Picks are counted apart from typed triggers, and a refused insert
---   takes the 🔔 door instead of only reaching the Console (6.214.0).
 
--- (6.376.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.377.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 cut the inline count to
 --  TWO; a gate check proves every entry here is also in CHANGELOG.md.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.378.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.379.0
 -- =====================================================================
 -- The catalogue that used to sit here moved to GUIDE.md ("What each
 -- tool does") in 6.180.0 — 259 lines of prose inside the orchestrator.
@@ -124,7 +137,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.378.0"
+_G.configVersion = "6.379.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- A NO-OP STAND-IN for the diagnostics API, replaced by the real one in

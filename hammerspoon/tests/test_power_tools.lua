@@ -434,6 +434,20 @@ check("...and it is the key the constants say, so a one-line edit moves it",
 check("...and the ⇪; row names that same key, from the same constants",
       (pt.byId("type").sub or ""):find(pt.typeHint, 1, true) ~= nil,
       pt.byId("type").sub)
+-- 🔑 6.379.0 — and the hint is BUILT, not typed. Asserting its VALUE
+-- cannot see a hard-coded literal, because the literal is equal to the
+-- built answer on the day it is written and drifts the day the key moves
+-- (6.311.0). This reads the source, which is the only thing that can
+-- tell "one literal" from "two that agree for now".
+check("...and pt.typeHint is DERIVED from pt.typeKey, never typed out",
+      (function()
+          local f = io.open(HS .. "/modules/power_tools.lua")
+          if not f then return false, "could not read the module" end
+          local src = f:read("*a") ; f:close()
+          local line = src:match("pt%.typeHint%s*=[^\n]*\n[^\n]*")
+          if not line then return false, "no pt.typeHint assignment found" end
+          return line:find("pt.typeKey", 1, true) ~= nil, line
+      end)())
 -- ⏱ 6.379.0 — and it is NOT on T any more: the timer took that, and a
 -- stale binding here would be two tools on one key.
 check("...and ⇪⇧T is NOT it — the ⏱ timer has T from 6.379.0",
