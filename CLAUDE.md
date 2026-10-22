@@ -6174,11 +6174,19 @@ THE METHOD, when something breaks after a stacked zip:
    0e40cbf (c5ad709 the sweep's four, among them a de-duplicating table
    that no input could ever fail) · 6.376.0 0b803af (e311474 the sweep's
    finding — the os.date guard) · 6.377.0 83b61ca · 6.378.0 b690488
-   · 6.379.0 5214b32 (the code; 55 of 55 mutations bit and the no-op
-   control survived. The three that survived the first sweep were all
-   MISSING CHECKS, and one of them found a real one-second hole: the
-   alarm re-stamped its Esc window and left the modal to the NEXT
-   tick, so for a second it was going off and esc did nothing).
+   · 6.379.0 5214b32 (the code; e3908d5 the ceremony and the archive, and
+   **e3908d5 is the SHA every link to it must carry**. 56 of 56 mutations
+   bit and the no-op control survived; the three that survived the first
+   sweep were all MISSING CHECKS, and one of them found a real one-second
+   hole — the alarm re-stamped its Esc window and left the modal to the
+   NEXT tick, so for a second it was going off and esc did nothing. Two
+   more came from reading the diff against the rest of the tree rather
+   than from a failing test: hs.settings.set(k, nil) is not a reliable
+   delete (mouse_follows has used clear() since 6.160.2, so a timer he
+   STOPPED could have come back on the next boot), and the .gitignore
+   un-ignore had not moved since 6.367.0 — twelve releases force-added by
+   hand, where the first one that forgot would have shipped a commit with
+   no archive in it and nothing saying so).
    🔑 ELEVEN RELEASES IN ONE ARCHIVE, AND THEY LIVE IN NINE DIFFERENT
    FILES on purpose — onedrive_check, ui_style, video_player,
    autocorrect, mouse_grid, recent_docs, scratch_pad, text_expander,
