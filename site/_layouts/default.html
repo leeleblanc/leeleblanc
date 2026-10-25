@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="{{ page.lang | default: site.lang | default: 'en' }}">
+<head>
+  {%- include head.html -%}
+</head>
+<body>
+  {%- comment -%}
+    ♿ A skip link, landmark elements and a visible focus ring. These are
+    twenty-year-old HTML that no framework churn can take away, and they
+    are the difference between a page anyone can read and one that only
+    works with a mouse.
+  {%- endcomment -%}
+  <a class="skip-link" href="#content">Skip to content</a>
+  {%- include header.html -%}
+  <main id="content" class="wrap">
+    {{ content }}
+  </main>
+  {%- include footer.html -%}
+</body>
+</html>

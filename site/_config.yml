@@ -1,0 +1,96 @@
+# ---------------------------------------------------------------------------
+# Jekyll configuration
+#
+# 🔭 FUTURE-PROOFING IS THE WHOLE BRIEF, so every choice here is written down
+# with its reason. The rule applied throughout: prefer a thing that cannot
+# rot over a thing that is merely convenient today.
+#
+#   · NO THEME. Not a gem theme, not a remote_theme. The layouts are four
+#     small HTML files in _layouts/ that you own. A theme is someone else's
+#     repository that can go unmaintained, change its class names, or drop
+#     the version of Jekyll you are on. This is the single biggest decision
+#     in this file.
+#   · NO PLUGINS. The Atom feed, the sitemap and robots.txt are ordinary
+#     Liquid templates in this folder. That means `jekyll build` works on
+#     Jekyll 3 or 4, with or without a Gemfile, and on GitHub's legacy
+#     builder too — there is no gem whitelist to satisfy and nothing to
+#     break when one of them is abandoned.
+#   · NO JAVASCRIPT, no CDN, no web font. Nothing to update and nothing
+#     third-party to go away or start tracking you.
+#   · CONTENT IS PLAIN MARKDOWN with four front-matter keys. If Jekyll ever
+#     dies, _posts/*.md moves to Hugo, Eleventy or Astro essentially
+#     untouched. The content outliving the generator is the real insurance.
+# ---------------------------------------------------------------------------
+
+title: Lee LeBlanc
+tagline: Notes and work in progress
+description: >-
+  The personal site of Lee LeBlanc.
+author: Lee LeBlanc
+
+# 🔗 WHERE THE SITE LIVES. `url` is the origin only, with no trailing slash.
+# Change this one line if you move to a custom domain.
+url: "https://leeleblanc.github.io"
+
+# 📏 LEAVE `baseurl` EMPTY AND DO NOT HAND-EDIT IT. The deploy workflow
+# passes the correct value in at build time (`--baseurl`), so the same
+# commit is correct whether it is served at
+#   leeleblanc.github.io            (a repo named leeleblanc.github.io)
+#   leeleblanc.github.io/leeleblanc (this repo, as a project site)
+#   your-own-domain.com             (a CNAME)
+# Every link in the layouts goes through Jekyll's `relative_url` filter, so
+# that one injected value is the only thing that has to be right. Empty here
+# is also what makes `jekyll serve` work at http://localhost:4000/.
+baseurl: ""
+
+# 📅 Dates render in the site's own timezone rather than the build machine's,
+# so a post does not change its date because CI ran in UTC.
+timezone: America/Chicago
+
+# ✍️ Markdown: named explicitly rather than relying on a default that could
+# change. kramdown and rouge ship WITH Jekyll, so neither is a dependency.
+markdown: kramdown
+highlighter: rouge
+kramdown:
+  input: GFM                 # GitHub-flavoured: fenced code, tables
+  hard_wrap: false
+  syntax_highlighter: rouge
+  smart_quotes: lsquo,rsquo,ldquo,rdquo
+
+# 🔗 URLS ARE FOREVER — this is the hardest thing to change later, so it is
+# chosen for portability. `/posts/:title/` carries no date, so correcting a
+# post's date never breaks its link; it is namespaced, so a post can never
+# collide with a page; and it ends in a slash, so any static host on earth
+# serves it by finding index.html in that directory. `:title` (not `:slug`)
+# is used because it has existed since Jekyll 1.x.
+permalink: /posts/:title/
+
+# 🚨 FAIL LOUD. A post with broken front matter stops the build with a named
+# error instead of being silently skipped and quietly missing from the site.
+strict_front_matter: true
+
+# A post dated tomorrow is not published until tomorrow.
+future: false
+
+encoding: utf-8
+
+# Front matter every post gets without having to repeat it.
+defaults:
+  - scope:
+      path: ""
+      type: posts
+    values:
+      layout: post
+  - scope:
+      path: ""
+    values:
+      layout: page
+
+# 🗂 Not copied into the built site.
+exclude:
+  - Gemfile
+  - Gemfile.lock
+  - README.md
+  - vendor
+  - .bundle
+  - .jekyll-cache

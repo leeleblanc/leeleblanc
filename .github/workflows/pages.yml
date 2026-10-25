@@ -1,0 +1,91 @@
+# ---------------------------------------------------------------------------
+# Build the Jekyll site in site/ and publish it to GitHub Pages.
+#
+# 🔭 WHY ACTIONS AND NOT "DEPLOY FROM A BRANCH": GitHub's built-in Jekyll
+# builder pins you to an old Jekyll (3.9.x) and a fixed whitelist of
+# plugins, and it has been in maintenance for years. Building here means
+# this repository chooses its own Ruby and Jekyll version, and if Pages ever
+# changes shape, the upload and deploy are two swappable steps rather than a
+# setting nobody can see.
+#
+# ⚠️ ONE SETTING TO CHANGE BY HAND, ONCE: in the repository, under
+# Settings → Pages → Build and deployment, set Source to "GitHub Actions".
+# Until that is done this workflow runs and the deploy step fails, because
+# Pages is still expecting to build the branch itself.
+# ---------------------------------------------------------------------------
+name: Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'site/**'
+      - '.github/workflows/pages.yml'
+  # 🚪 Lets you deploy from any branch by hand, from the Actions tab, before
+  # merging to main.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deploy at a time; a newer push waits rather than racing.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          # 📌 PINNED ON PURPOSE. A floating version breaks the site on a
+          # morning you changed nothing; bump this line deliberately.
+          ruby-version: '3.3'
+          bundler-cache: true
+          working-directory: ./site
+
+      - name: Configure Pages
+        id: pages
+        uses: actions/configure-pages@v5
+
+      - name: Build
+        working-directory: ./site
+        env:
+          JEKYLL_ENV: production
+        # 📏 THE BASEURL IS INJECTED, NEVER TYPED. `base_path` is empty for a
+        # user site or a custom domain and "/repo-name" for a project site,
+        # so the same commit is correct in all three cases and _config.yml
+        # never has to be edited to move the site.
+        run: bundle exec jekyll build --baseurl "${{ steps.pages.outputs.base_path }}"
+
+      # 🔍 VERIFY THE ARTEFACT, NOT THE INTENTION. The feed and the sitemap
+      # are hand-written templates rather than plugin output, so the one real
+      # risk of that choice is malformed XML that no reader complains about
+      # loudly. This fails the build instead of publishing it.
+      - name: Check the generated XML is well-formed
+        working-directory: ./site
+        run: |
+          xmllint --noout _site/feed.xml
+          xmllint --noout _site/sitemap.xml
+          test -s _site/index.html
+          test -s _site/assets/css/main.css
+          echo "feed, sitemap, index and stylesheet all present and well-formed"
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./site/_site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

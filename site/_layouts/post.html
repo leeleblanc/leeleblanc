@@ -1,0 +1,42 @@
+---
+layout: default
+---
+<article class="post">
+  <header class="post-header">
+    <h1>{{ page.title | escape }}</h1>
+    {%- comment -%}
+      🕒 A machine-readable `datetime` beside the human one. The feed, the
+      archive and this header all read the same `page.date`, so they cannot
+      disagree about when something was written.
+    {%- endcomment -%}
+    <p class="post-meta">
+      <time datetime="{{ page.date | date_to_xmlschema }}">{{ page.date | date: "%-d %B %Y" }}</time>
+      {%- if page.tags and page.tags != empty %}
+      <span class="tags">
+        {%- for tag in page.tags %}<span class="tag">{{ tag | escape }}</span>{% endfor -%}
+      </span>
+      {%- endif %}
+    </p>
+  </header>
+
+  {{ content }}
+
+  {%- comment -%}
+    ← → between posts, computed by Jekyll from the date order. Nothing to
+    keep in step by hand.
+  {%- endcomment -%}
+  {%- if page.previous or page.next %}
+  <nav class="post-nav" aria-label="More posts">
+    {%- if page.previous %}
+    <a class="prev" rel="prev" href="{{ page.previous.url | relative_url }}">
+      <span>Previous</span>{{ page.previous.title | escape }}
+    </a>
+    {%- endif %}
+    {%- if page.next %}
+    <a class="next" rel="next" href="{{ page.next.url | relative_url }}">
+      <span>Next</span>{{ page.next.title | escape }}
+    </a>
+    {%- endif %}
+  </nav>
+  {%- endif %}
+</article>
