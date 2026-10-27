@@ -1364,6 +1364,21 @@ function M.setup(core)
 
     if core.provide then
         core.provide("fileTracker.report", function() return _G.fileTrackerReport() end)
+        -- 🔗 6.380.0 — PUBLISHED, SO THE SECOND CALLER CAN ASK RATHER THAN
+        -- COPY (6.231.0 · 6.352.0's shape). `ft.realOf` is the only place in
+        -- this config that knows how to turn a path into the tree it really
+        -- names: realpath first because it resolves every link in the whole
+        -- path in one call, symlinkAttributes as the belt for a Hammerspoon
+        -- without it, the path itself as the floor, and a RELATIVE answer
+        -- refused because it is not a path anything can be handed. That is
+        -- platform knowledge, and platform knowledge ages — which is
+        -- exactly what 6.363.0 says must not be written twice.
+        --
+        -- 📏 NO BEHAVIOUR OF THIS MODULE CHANGES. It is one line making an
+        -- existing pure function reachable; onedrive_check asks for it at
+        -- USE time, never caching it at setup, because the module order
+        -- decides which of the two loaded first (6.190.0 · 6.339.0).
+        core.provide("files.realpath", function(p) return ft.realOf(p) end)
     end
     _G.fileTracker = ft
     M.ft     = ft
