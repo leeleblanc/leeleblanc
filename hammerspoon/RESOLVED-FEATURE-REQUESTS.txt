@@ -1,5 +1,5 @@
 ========================================================================
-RESOLVED FEATURE REQUESTS — Hammerspoon config 6.379.0
+RESOLVED FEATURE REQUESTS — Hammerspoon config 6.380.0
 Every feature and how to use it. Generated from the modules' own
 cheat sheets (the rows ⇪/ draws), so it is never out of date.
 ⇪ = Caps Lock held (the hyper key). ⇪⇧X = Caps Lock + Shift + X.
@@ -394,10 +394,11 @@ In the Console, _G.<tool>Report() prints any tool's own report.
 ☁️ ONEDRIVE CHECK (Console)   [modules/onedrive_check.lua]
   cloud check 6.367.0: _G.oneDriveCheck() — walks the folders that hold your data and names every file whose BYTES are not on this Mac, however it is marked in Finder. It never reads a file: reading one downloads it, and that is the 72-second freeze
   probe     The same report prints the extended attributes macOS keeps on a local file and on an offloaded one, side by side — that comparison is what can say whether "Always keep on device" is readable at all
-  folders   By default the Vault, the Logs folder and the OneDrive root. settings = { onedrive_check = { folders = { "/full/path" } } } names your own
-  the watch 6.368.0: every 30 min it walks the WHOLE tree with find+stat in a background task and compares against the last sweep. A file that was HERE and is in the cloud now has been taken back — that is the one thing "Always keep on device" was supposed to prevent, and you get an alert naming it
-  sweep now _G.oneDriveSweep() runs one at once. The report's ☁️ LEFT THIS MAC block survives a reload — it is kept in Application Support, never in OneDrive
-  if it stops A sweep that fails takes the 🔔 door: an alert, a ⚠️ Console line and a row in _G.todayReport(). The report's watch line reads WANTED but NOT RUNNING rather than printing a reassuring count
+  folders   6.380.0: the Vault, the Logs folder, <OneDrive>/Music, <OneDrive>/Movies, ~/Music and ~/Movies — whichever of them are on this Mac. The OneDrive ROOT is deliberately NOT one: it contains the others and walking it took 358 seconds against a 180-second budget, which is why no sweep ever finished. settings = { onedrive_check = { folders = { "/full/path" } } } names your own instead
+  the watch 6.380.0: ONE folder per turn, every 7 min, with find+stat in a background task — so a full pass is about 35 min and each piece of it actually lands. Each folder is compared against ITS OWN last answer: a file that was HERE and is in the cloud now has been taken back, which is the one thing "Always keep on device" was supposed to prevent, and you get an alert naming it and the folder
+  sweep now _G.oneDriveSweep() walks the NEXT folder; _G.oneDriveSweep(true) walks every one in turn. The report's ☁️ LEFT THIS MAC block survives a reload — it is kept in Application Support, never in OneDrive
+  the budget 6.380.0: each folder's time limit is read off what ITS last walk cost (4×, floored at 90 s, ceilinged at 600) rather than one number typed for every folder. The report says the number AND where it came from, so a timeout can be read against it
+  if it stops A turn that fails takes the 🔔 door: an alert naming the folder, a ⚠️ Console line and a row in _G.todayReport(). The report's watch line reads WANTED but NOT RUNNING rather than printing a reassuring count
 
 ✂️ TEXT & CLIPBOARD — what happens to text as it moves
 ------------------------------------------------------------------------
@@ -839,6 +840,7 @@ In the Console, _G.<tool>Report() prints any tool's own report.
 
 📜 RELEASE INDEX — newest first, one line per release (the full story of each is in CHANGELOG.md)
 ------------------------------------------------------------------------
+  6.380.0  ☁️ THE ONEDRIVE WALK FINISHES, AND HIS MUSIC AND FILMS
   6.379.0  ⏱ A SIMPLE TIMER, IN WORDS, ON THE KEY HE ASKED FOR
   6.378.0  🔒 SECURE INPUT ALREADY HELD AT BOOT IS ANNOUNCED
   6.377.0  ⌨️ A PICKED SNIPPET'S INSERT IS COUNTED, AND A REFUSAL

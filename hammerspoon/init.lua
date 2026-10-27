@@ -4,8 +4,21 @@
 -- =====================================================================
 -- 10-20-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.379.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.380.0
 -- =====================================================================
+
+-- NEW IN 6.380.0 — ☁️ THE ONEDRIVE WALK FINISHES, WITH HIS MUSIC IN IT
+--   (modules/onedrive_check.lua). The sweep had never once completed on
+--   his Mac, and his own log says why: the probe walked the whole cloud
+--   drive and was STILL RUNNING at 358 s with the disk to itself, against
+--   a 180 s budget. So raising 180 bought nothing — the mechanism changed.
+--   The cloud ROOT is no longer a root (it CONTAINS the Vault and the
+--   Logs folder); folders are de-duplicated by CONTAINMENT after
+--   resolving links (6.230.0, never paid here); ONE folder is walked per
+--   turn with ONE BASELINE EACH; and the budget is read off each folder's
+--   own last walk rather than typed (6.355.0).
+--   🎬 And <cloud>/Music, <cloud>/Movies, ~/Music and ~/Movies join it,
+--   on his word, with Apple's library bundles pruned by name.
 
 -- NEW IN 6.379.0 — ⏱ A SIMPLE TIMER, IN WORDS, ON ⇪⇧T
 --   (modules/timer.lua). LL: "add a simple timer … I like
@@ -28,23 +41,11 @@
 --   the card shows ITSELF, flashes, alerts, writes a Console line and
 --   notifies through Focus, and stays until it is answered.
 
--- NEW IN 6.378.0 — 🔒 SECURE INPUT ALREADY HELD AT BOOT IS ANNOUNCED
---   (core/capabilities.lua). The announcement was gated on a CHANGE,
---   and a first reading is not one — si.on is born nil. So a Mac where
---   Secure Input was ALREADY held when this config started reported it
---   to NOBODY, for ever, in the one row that kills every tap AND every
---   hotkey system-wide with no error anywhere (6.196.0 took his
---   keyboard for four hours while the Console read "All green").
---   🔑 One asymmetry: a first reading of ON speaks and says it was
---   already held; a first reading of OFF stays silent, because a line a
---   minute saying "still fine" is how a warning gets ignored (6.269.0).
-
-
--- (6.377.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.378.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 cut the inline count to
 --  TWO; a gate check proves every entry here is also in CHANGELOG.md.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.379.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.380.0
 -- =====================================================================
 -- The catalogue that used to sit here moved to GUIDE.md ("What each
 -- tool does") in 6.180.0 — 259 lines of prose inside the orchestrator.
@@ -137,7 +138,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.379.0"
+_G.configVersion = "6.380.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- A NO-OP STAND-IN for the diagnostics API, replaced by the real one in

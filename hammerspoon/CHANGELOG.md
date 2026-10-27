@@ -5,6 +5,153 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.380.0 — ☁️ THE ONEDRIVE WALK FINISHES, AND HIS MUSIC AND FILMS
+  ARE IN IT: LL, after four days of the sweep never completing: "Build
+  the OneDrive fix now but include music and movies folder."
+
+  📏 THE MEASUREMENT IS IN HIS OWN CONSOLE, and it is the whole release.
+  2026-10-25, 08:38:31 → 08:47:57:
+
+      08:39:16  ONEDRIVE WALK: started
+      08:41:59  ⚠️ OneDrive watch: the sweep did not answer in 180 s
+      08:47:57  (log ends — the probe is STILL RUNNING)
+
+  The sweep's own `find` was killed at 08:41:59, so from that moment the
+  probe had the disk ENTIRELY TO ITSELF: 358 seconds, uncontended, one
+  root, unfinished — against a 180-second budget. Two corroborations
+  that the numbers are real rather than read into: boot 08:38:31 +
+  firstSweep 25 s + sweepSecs 180 s = 08:41:56, and the log says
+  08:41:59, three seconds apart; and he was on BATTERY with eco active
+  (5 timers slowed), which makes the walk slower than on mains but
+  nowhere near three times slower.
+
+  🔑 SO RAISING THE BUDGET WOULD HAVE BOUGHT NOTHING. 180 → 600 fails
+  the same way. ONE root could not be walked in the budget and the
+  sweep was handing `find` THREE, so the mechanism had to change. Four
+  changes, and each one is forced by that number rather than chosen:
+
+    1 THE CLOUD ROOT IS NO LONGER A ROOT. `vault.dir` is <cloud>/Vault
+      and `logsDir` is <cloud>/Logs, so two of the three roots were
+      INSIDE the third — and walking the third is the 358 seconds.
+    2 DE-DUPLICATE BY CONTAINMENT, AFTER RESOLVING LINKS. 6.230.0's
+      rule, and this module never paid it: the old guard compared the
+      candidates as TEXT (`used[r]`), which can see neither a folder
+      inside another nor a symlink at all. `ft.covers` has existed for
+      exactly this since 6.229.0 and was never applied here.
+    3 ONE FOLDER PER TURN, WITH ONE BASELINE PER FOLDER.
+    4 THE BUDGET IS MEASURED off each folder's own last walk — 4×,
+      floored at 90 s, ceilinged at 600 — rather than typed.
+
+  🚨 AND (3)'s SECOND HALF IS WHAT MAKES ITS FIRST HALF SAFE, which is
+  the part worth writing down. `od.offloaded` asks "was this file LOCAL
+  at the last look?", so a baseline belonging to a DIFFERENT folder
+  matches nothing at all — and round-robin means a folder is never
+  walked twice in a row. A single shared baseline would therefore have
+  left the watcher silently and permanently blind: a green report, zero
+  alerts, and no offload ever caught, on a tool whose entire job is
+  noticing an absence. The mutation that reproduces it kills five
+  checks. GENERAL: when a sweep is split into pieces, the STATE it
+  compares against has to be split the same way, or the split is not an
+  optimisation but a silent switching-off.
+
+  📏 6.355.0's RULE, AND 180 IS THE LITERAL IT IS ABOUT. That bound
+  stood in for "long enough for this walk to finish" and was never long
+  enough for the walk it was bounding. Each folder's budget is now read
+  off what ITS last walk cost, and the report prints the number WITH its
+  provenance, so a timeout can be read against it instead of looking
+  like arithmetic nobody can check. 🚨 It fails to the FLOOR and never
+  to 0 — a budget of 0 reads as a valid number, kills every walk the
+  instant it starts, and blames the walk while doing it (6.338.0's
+  parser, one layer along, in a clock). A negative is a clock that
+  moved, never a fast walk.
+
+  🚨 AND ONLY A FINISHED WALK TEACHES THE BUDGET, which is the feedback
+  loop the mutation sweep forced into the open: a KILLED turn's elapsed
+  time IS the budget, so feeding it back would raise the budget BECAUSE
+  it timed out and call that a measurement. The guard was unkillable at
+  first because every failure path passed no time at all — 6.273.0, the
+  line was not the finding, the missing CHECK was — so the failure paths
+  carry their elapsed time now (the report uses it: "ran 90.0 s before
+  giving up") and the guard has something to refuse.
+
+  🎬 HIS ASK RIDES WITH IT: <cloud>/Music, <cloud>/Movies, ~/Music and
+  ~/Movies join the Vault and the Logs folder. BOTH locations for each,
+  because which he means cannot be known from here — the cloud ones can
+  hold placeholders outright, and the home ones can too but only if they
+  are LINKS into OneDrive, which is 6.230.0's exact shape and is why
+  they are resolved rather than reasoned about. A candidate that is not
+  on this Mac is SKIPPED and said; one that folds into a folder already
+  walked is DROPPED and said, because a root that vanishes with no
+  explanation is indistinguishable from a folder that stopped being
+  watched.
+
+  🚨 AND APPLE'S LIBRARY BUNDLES ARE PRUNED BY NAME, which his Music
+  folder needs and the Vault never did: a `*.photoslibrary` or a
+  `*.musiclibrary` is ONE document holding tens of thousands of files,
+  not one of which any OneDrive can offload, so walking one would spend
+  the whole budget this release exists to fix on files whose answer is
+  known before the walk starts. `Media.localized` is deliberately NOT
+  pruned — that is where his actual music files live, and pruning it to
+  go faster would blind the tool to the very thing he asked it to watch.
+  Both halves have their own check, the second so that a later "make it
+  faster" cannot quietly add it.
+
+  🔬 THE PARENTHESES ARE PLAIN ARGV, written down because it looks like
+  an oversight: in a shell `(` and `)` need escaping because the SHELL
+  eats them, and hs.task execs /usr/bin/find directly with no shell
+  anywhere. A later "fix" to `\(` would pass a literal backslash and
+  find would refuse the whole expression. A check asserts no argv token
+  carries a backslash, and asserts the ONE `-o` that must sit OUTSIDE
+  the group is the one right after `-prune` — which is what makes the
+  expression "pruned OR a file to stat" rather than "pruned AND…".
+
+  📏 COST, NAMED, because a consequence decided and not acted on is one
+  there is an obligation to name (6.201.1): a file in OneDrive that is
+  in NONE of the named folders is no longer watched. `settings =
+  { onedrive_check = { folders = { "/full/path" } } }` names his own,
+  and the report lists every folder being walked so a gap is readable
+  rather than assumed. A full pass is N × 7 minutes — about 35 on five
+  folders, which is close to the 30 the old nominal sweep claimed and
+  never once delivered.
+
+  🔗 file_tracker PUBLISHES `files.realpath` (one `core.provide` line,
+  no behaviour change there) so the resolver is ASKED FOR rather than
+  copied — 6.352.0's shape. What is worth not writing twice is the
+  RESOLUTION, because realpath-then-symlinkAttributes-then-the-path,
+  with a relative answer refused, is platform knowledge and platform
+  knowledge ages (6.363.0). The three lines of CONTAINMENT arithmetic
+  are copied, deliberately: there is no fact in them to go stale. And
+  the service is asked at USE time, never cached at setup, because the
+  module order decides which of the two loaded first and a cached nil is
+  6.339.0's `core.has` — a dependency that silently never arrives.
+
+  🚨 FOUND WHILE WRITING THE SUITE, by its own OLD check: `findArgs`
+  took a LIST until this release, and `tostring({})` is "table: 0x55…",
+  a NON-EMPTY string. A caller left on the old signature would have had
+  find walk a literal path of that name, match nothing, and report a
+  clean folder. It refuses a non-string outright now (6.338.0 — a value
+  that fails into a valid-looking answer is worse than one that throws).
+
+  🔬 AND THE HARNESS HAD TO BECOME FAITHFUL TWICE BEFORE ANY OF IT
+  COULD BE TESTED — 6.290.0 for the thirteenth time, and the second one
+  is the sharper:
+    · `hs.fs.attributes` answered nil for EVERY path, which is a Mac
+      with no filesystem at all. So "is this folder really on this Mac?"
+      could not exist in the gate: a `folders()` that skipped the check
+      entirely would have passed every check in the file.
+    · `logsDir` in the core stub was "/logs" — OUTSIDE the cloud root.
+      So the containment that caused the entire bug was ABSENT from the
+      end-to-end path: the rule was provable in isolation while the code
+      that assembles the list never met the case. The stub reproduces
+      his geometry now (<cloud>/Logs, <cloud>/Vault), and a check puts
+      the root back in the list to prove all four fold into it.
+
+  🧪 124 → 242 checks. 30 of 30 mutations bit and the no-op control
+  survived; the two that survived the first sweep were both checks
+  passing for the wrong reason — a negative walk time caught by the
+  FLOOR branch rather than by its own guard, so the check asserts the
+  SENTENCE now (6.248.0), and the budget guard above.
+
 NEW IN 6.379.0 — ⏱ A SIMPLE TIMER, IN WORDS, ON THE KEY HE ASKED FOR:
   LL: "Please add a simple timer I can launch using a shortcut key. I
   like hyper+shift+t if that is not taken. Make the timer look like the

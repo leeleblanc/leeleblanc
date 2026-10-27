@@ -970,13 +970,19 @@ function M.setup(core)
             -- Throwing that away would turn one unreadable folder into a
             -- silent dead watcher, so a partial answer is used and SAID.
             local text = tostring(out or "")
+            local tDone  = (clock and clock()) or began
+            local walkMs = math.floor(((tDone - t0walk) * 1000) + 0.5)
             if code ~= 0 and text == "" then
+                -- 📏 THE ELAPSED TIME RIDES ALONG EVEN ON A FAILURE, so the
+                -- report can say how long a folder ran before it gave up —
+                -- and so the "only a finished walk teaches the budget"
+                -- guard has something to refuse. A guard no failure path
+                -- can reach is a guard no mutation can kill (6.273.0).
                 return sweepEnd(gen, false,
                                 "find exited " .. tostring(code)
-                                .. " and printed nothing", nil, nil, root, nil)
+                                .. " and printed nothing", nil, nil, root, walkMs)
             end
-            local t0 = (clock and clock()) or began
-            local walkMs = math.floor(((t0 - t0walk) * 1000) + 0.5)
+            local t0 = tDone
             local res = od.parseStat(text, { frac = od.frac,
                                              smallest = od.smallest,
                                              maxTrack = od.maxTrack })
@@ -1034,10 +1040,20 @@ function M.setup(core)
         if type(hs.timer) == "table" and type(hs.timer.doAfter) == "function" then
             od.sweepKiller = hs.timer.doAfter(budget, function()
                 pcall(function() if od.sweepTask then od.sweepTask:terminate() end end)
+                -- 🚨 AND THIS IS THE ONE THE GUARD EXISTS FOR: the time a
+                -- killed turn ran for IS THE BUDGET. Letting it teach the
+                -- budget would raise the budget BECAUSE it timed out, and
+                -- call that a measurement — a loop that ratchets itself up
+                -- for ever off its own failure. It is carried for the
+                -- REPORT and refused by `ok and` in sweepEnd.
+                local ranMs = nil
+                if clock then
+                    ranMs = math.floor(((clock() - t0walk) * 1000) + 0.5)
+                end
                 sweepEnd(gen, false, "the walk of "
                          .. tostring(root):match("[^/]+$")
                          .. " did not answer in " .. budget .. " s ("
-                         .. tostring(bwhy) .. ")", nil, nil, root, nil)
+                         .. tostring(bwhy) .. ")", nil, nil, root, ranMs)
             end)
         else
             od.noKiller = (tonumber(od.noKiller) or 0) + 1

@@ -440,6 +440,49 @@ work Mac.
      ("find the field that separates them BEFORE saying either out
      loud") broken in the direction that costs him the most.
 
+- 🔪 WHEN A SWEEP IS SPLIT INTO PIECES, THE STATE IT COMPARES AGAINST IS
+  SPLIT THE SAME WAY — OR THE SPLIT IS NOT AN OPTIMISATION, IT IS A
+  SILENT SWITCHING-OFF (6.380.0, modules/onedrive_check.lua). The sweep
+  built in 6.368.0 had never once completed on his Mac, and the fix is to
+  walk one folder per turn instead of three at once. The danger is in the
+  half nobody would look at: `od.offloaded` asks "was this file LOCAL at
+  the last look?", so a baseline belonging to a DIFFERENT folder matches
+  nothing at all — and round-robin means a folder is never walked twice in
+  a row. ONE SHARED BASELINE WOULD THEREFORE HAVE CAUGHT NOTHING, EVER:
+  a green report, zero alerts, no offload found, in the tool whose entire
+  job is noticing an absence. Per-folder baselines make that structurally
+  impossible rather than merely unlikely; the mutation that reproduces it
+  kills five checks.
+  🔑 GENERAL, and it is the half to carry: splitting work into turns is
+  routine and splitting the MEMORY the turns compare against is not — so
+  after any such split, ask what each piece is being compared to, and
+  whether a piece could be measured against a neighbour's answer. The
+  failure is not a crash and not a wrong number; it is a feature that
+  quietly stops having an opinion.
+  📏 AND THE BOUND THAT FORCED IT WAS NEVER ACHIEVABLE, which is 6.355.0
+  with a number attached. His log: the probe walked the whole cloud drive
+  and was STILL RUNNING at 358 s with the disk entirely to itself (the
+  sweep's own find had been killed 6 minutes earlier, so there was no
+  contention left to blame) against a `sweepSecs = 180` I had typed. A
+  budget nothing could ever meet is not a budget, and raising it buys
+  nothing: each folder's limit is read off what ITS last walk cost now.
+  🚨 AND ONLY A FINISHED WALK MAY TEACH SUCH A BUDGET. A killed turn's
+  elapsed time IS the budget, so feeding it back raises the budget BECAUSE
+  it timed out and calls that a measurement — a loop that ratchets itself
+  up for ever off its own failure. The guard for it was UNKILLABLE at
+  first because every failure path passed no time at all (6.273.0: the
+  line was not the finding, the missing CHECK was), so the failure paths
+  carry their elapsed time now — the report uses it — and the guard has
+  something to refuse.
+  🔬 AND THE HARNESS HID THE BUG'S OWN GEOMETRY, which is the sharpest
+  costume 6.290.0 has worn: the core stub put `logsDir` at "/logs",
+  OUTSIDE the cloud root, while on his Mac it IS `<cloud>/Logs`. So the
+  containment that caused the whole defect was absent from the end-to-end
+  path — the rule was provable in isolation while the code that assembles
+  the list never met the case. GENERAL: a stub's PATHS are part of its
+  fidelity. When a bug is about the SHAPE of some data, check that the
+  harness reproduces the shape before trusting a green run about it.
+
 - 🗿 A MEASURED REJECTION IS EVIDENCE ABOUT ONE IMPLEMENTATION, NEVER A
   VETO ON THE PROBLEM (6.360.0, LL: "And yes, holy shit I did say that.
   Because the grid was fucking ridiculous. Be cool if you could recommend
@@ -6319,7 +6362,7 @@ that must be READ before a new cause is named.
 | "Add capture needs the screenshots module, which is not loaded" (over a working report) | modules/screenshot_editor.lua · an incomplete `core` table | 6.339.0 | 1 | ask |
 | "the rebuild kit is 12 days old" · "can't this be done automatically?" | modules/daily_backup.lua · a doAt that cannot catch up | 6.338.0 | 1 | ask |
 | "the card is closed — macOS keeps the key" over a card he had opened | modules/music_player.lua · `mp.show` | 6.289.0 · 6.309.0 · 6.326.0 | 3 | ask |
-| "even with me marking OneDrive files to Always keep on device OneDrive will offload them" · "watch OneDrive from its lowest level folder" | modules/onedrive_check.lua · size vs allocated blocks | 6.367.0 · 6.368.0 | 2 (a probe, then the watcher) | ask |
+| "even with me marking OneDrive files to Always keep on device OneDrive will offload them" · "watch OneDrive from its lowest level folder" · "the sweep did not answer in 180 s" · "include music and movies folder" | modules/onedrive_check.lua · size vs allocated blocks, and a walk that never finished | 6.367.0 · 6.368.0 · 6.380.0 | 3 (a probe, a watcher, then a walk that lands) | ask |
 | "There is not 'X' in the note list to remove an entry" | modules/ui_style.lua · an ✕ at 2.30:1 against a 3:1 floor | 6.364.0 · 6.369.0 | 2 | degraded — the ✕ was there and could not be SEEN, which is the same thing as absent (6.361.0) |
 | "fade out of sight the window borders and the playlist when in fullscreen" · "doesn't remember the Time, place or position" · "⌃⌘F is to make the FILM full screen" | modules/video_player.lua | 6.358.0 · 6.370.0 | 2 | ask |
 | "10-20-26 should be 10-20-2026" | modules/autocorrect.lua | 6.371.0 | 1 | ask |
@@ -6418,6 +6461,7 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
+| 6.380.0 | ☁️ The OneDrive walk finishes — one folder per turn, with his music and films in it, and a time limit read off the Mac instead of typed | pending |
 | 6.379.0 | ⏱ A simple timer on ⇪⇧T — say how long in words, and the key hides the card without stopping it | pending |
 | 6.378.0 | 🔒 Secure Input already held when this config starts is announced — it used to be reported to nobody, for ever | pending |
 | 6.377.0 | ⌨️ A picked snippet's insert is counted by route, and a refused one is SEEN rather than only logged | pending |
@@ -6612,6 +6656,18 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
      those extensions were never real. An example offered to ILLUSTRATE
      a rule is not a case to be handled — ask which it is before
      building for a name he happened to type.
+  ✅ AND THE ONEDRIVE SWEEP IS FIXED — 6.380.0, on his word ("Build the
+     OneDrive fix now but include music and movies folder"). It had never
+     completed once: his own log shows 358 s on ONE root, uncontended,
+     against a budget of 180 that I had typed. One folder per turn with
+     one baseline each, the cloud ROOT dropped (it contains the others),
+     containment after resolving links, and the budget measured. His
+     music and films are in it. See the 🔪 hard rule above.
+  🗳 AND ONE QUESTION IT PUTS TO HIM, because I named the obvious four
+     folders and the Mug Player work suggests a fifth: his films may be
+     in `<cloud>/Desktop/new_dl` rather than `<cloud>/Movies`, in which
+     case they are NOT being watched. The verify block asks; it is one
+     line when he answers.
   📏 STILL OPEN AND UNBLOCKED, in the order I would build them:
      1. ⌥Tab listing EVERY PANEL (his answer; the pickers stay out —
         a picker you ⌥Tab into cannot be ⌥Tab'd out of). 6.379.0's ⏱
@@ -7977,6 +8033,108 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.380.0 verify with LL — ☁️ THE ONEDRIVE WALK FINISHES (KNOWN GROUND)
+  WHAT CHANGED: the OneDrive check now walks ONE folder at a time instead
+  of three at once, so a walk actually finishes — and your music and
+  films are in it.
+  🔎 AND IT HAD NEVER FINISHED ONCE, which your own log proved. The probe
+  I asked you to paste walked the whole OneDrive drive and was STILL
+  RUNNING after 358 seconds — with the disk entirely to itself, because
+  the sweep's own search had already been killed six minutes earlier —
+  against a 180-second limit that I had typed. So raising 180 would have
+  bought nothing; the limit was never achievable and the mechanism had to
+  change. Your whole OneDrive drive is no longer walked at all: it
+  CONTAINS your Vault and your Logs folder, which is why one tree was
+  being searched three times over.
+
+  A. THE HEADLINE — two commands, and the second one is the release.
+  A1. Install and reload. Wait about a minute.
+  A2. Console: `_G.oneDriveCheck()`.
+      EXPECT a `folders:` line naming each folder on its own row —
+      something like:
+        folders: 5, one per turn every 7 min — a full pass takes about 35 min
+          ▸ /Users/…/OneDrive-Personal/Vault     here 412 · ☁️ 3 · 2.1 s · just now
+          · /Users/…/OneDrive-Personal/Logs      ⏳ not walked yet
+          · /Users/…/OneDrive-Personal/Movies    ⏳ not walked yet
+          · /Users/leeleblanc/Music              ⏳ not walked yet
+      **PASTE THAT BLOCK.** It is the first time this tool has been able
+      to tell you what it is doing folder by folder.
+  A3. Read the row that has a time on it. A number of SECONDS there is
+      the whole release: the walk finished. **A FAIL is every row reading
+      ⏳ not walked yet an hour after a reload**, or a row reading
+      ⚠️ did not answer — paste either.
+  A4. Watch it over an hour or two and run it again. Each row should
+      gain a time, one folder every seven minutes, until all of them
+      have one.
+
+  B. YOUR MUSIC AND FILMS — the half you asked for.
+  B1. In the `folders:` list, look for Music and Movies.
+      EXPECT: `<OneDrive>/Music`, `<OneDrive>/Movies`, `~/Music` and
+      `~/Movies` — whichever of those four are actually on your Mac.
+  B2. Any that are NOT on your Mac appear on a `↳ not here:` line by
+      name. That is ordinary, not a fault — `~/Music` exists on every
+      Mac and `<OneDrive>/Movies` may not.
+  B3. 🚨 **AND TELL ME IF YOUR FILMS ARE SOMEWHERE ELSE.** I have named
+      the obvious four. If your films actually live in `<OneDrive>/
+      Desktop/new_dl` or anywhere else, they are NOT being watched and
+      the list needs one more name — one line, not a release.
+  B4. A `↳ pruned:` line lists `*.photoslibrary`, `*.musiclibrary` and
+      the like. Those are single documents holding tens of thousands of
+      files that OneDrive cannot offload, and walking one would spend
+      the whole time limit this release exists to fix.
+
+  C. THE ONE THAT WOULD BE SERIOUS IF IT WERE WRONG.
+  C1. `_G.oneDriveCheck()` and read the `☁️ LEFT THIS MAC:` line.
+      EXPECT, in the first half hour after a reload: "none from the 2 of
+      5 folder(s) walked since boot", with a `↳ ⏳ still to walk:` line
+      naming the rest.
+      **A FAIL is a long list of files it claims OneDrive took back on
+      the first pass.** If you see that, stop and paste it: it would
+      mean one folder's walk is being compared against another folder's
+      memory, which is the one thing this release had to make impossible.
+  C2. Over a few days, if OneDrive really does take something back, you
+      get an alert naming the count, the FOLDER and the biggest file.
+
+  D. MUST STILL WORK.
+  D1. `_G.oneDriveSweep()` walks the next folder and prints which, with
+      its place in the pass ("folder 3 of 5").
+  D2. `_G.oneDriveSweep(true)` walks every folder one after another —
+      the on-demand "check everything now".
+  D3. The `☁️ NOT HERE:` list still names offloaded files biggest first.
+  D4. Normal use for a day: no alert, no Console noise, nothing on
+      screen. It is a command you run, not a tool that talks.
+  D5. Boot: All green, 73 modules, the usual ⇪ shortcut count. The boot
+      line should read "watching N folder(s), one per turn every 7 min".
+  D6. 🚨 **AND ⌃⌥⇧F — the file history.** This release published one of
+      file_tracker's own functions as a shared service, so if the file
+      history breaks, this did it and I want to know at once.
+
+  E. PASTE BACK, PASS OR FAIL.
+  E1. `_G.oneDriveCheck()` — the whole thing, after a few hours.
+  E2. The `budget :` line specifically. It reads each folder's own time
+      limit and where the number came from — "90 s (first walk)" before
+      a folder has been walked, then something measured off its real
+      cost. That line is 6.355.0 being paid: the 180 that never worked
+      was a number I typed, and this one is read off your Mac.
+  E3. If any row ever says **⚠️ AT THE BOUND**, paste it. That folder
+      holds more than 40,000 files and every number about it is a floor
+      rather than a total.
+
+  F. A JUDGEMENT ONLY YOU CAN MAKE.
+  F1. **Seven minutes between folders** — so a five-folder pass takes
+      about 35 minutes, close to the 30 the old sweep claimed and never
+      delivered. Too slow to catch an offload the same morning? It is a
+      number, not a release.
+  F2. 📏 COST, NAMED, so it is not a surprise in a month: a file in
+      OneDrive that is in NONE of the named folders is no longer
+      watched. That is what buys the walk finishing. Name any folder you
+      want added.
+  F3. 🔨 While the sweep was failing, was the Mac unusable, or did it
+      just not do the thing? My reading is the second — it warned on
+      every boot and nothing else broke — but the tool was completely
+      dead for four days while reporting itself as watching, which is
+      its own kind of cost. Your tag.
+
 - 6.379.0 verify with LL — ⏱ A TIMER YOU TALK TO (KNOWN GROUND)
   WHAT CHANGED: there is a new tool. Hold Caps Lock and Shift and press
   the letter **T** — next to R and Y — and a box asks how long. Type it

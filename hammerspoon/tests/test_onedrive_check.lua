@@ -744,9 +744,18 @@ do
     check("…and it says so rather than looking like a measurement",
           tostring(why):find("not been walked yet") ~= nil, why)
     check("🚨 a ZERO is the floor too, not a zero budget", od.turnBudget(0, opts) == 90)
-    -- a clock that moved backwards is not a fast walk
-    check("🚨 …and so is a NEGATIVE, which is a clock that moved",
-          od.turnBudget(-5000, opts) == 90)
+    -- 🚨 A CLOCK THAT MOVED BACKWARDS IS NOT A FAST WALK — and asserting
+    -- the NUMBER proves nothing here, which the sweep found: without the
+    -- `n <= 0` guard a -5000 falls through, 4 × -5 is -20, and the FLOOR
+    -- branch catches it and returns 90 anyway. What the guard really
+    -- holds is the SENTENCE: the mutant prints "its last walk took -5.0 s"
+    -- to him, which is a report telling him something impossible.
+    -- 6.248.0 — assert the RULE, never the constant.
+    local bn, wn = od.turnBudget(-5000, opts)
+    check("🚨 …and so is a NEGATIVE, which is a clock that moved", bn == 90, bn)
+    check("🚨 …and it is NOT described as a walk that took -5 s",
+          tostring(wn):find("not been walked yet") ~= nil
+          and tostring(wn):find("-5") == nil, tostring(wn))
 
     -- a walk well inside the floor keeps the floor
     local b2, w2 = od.turnBudget(2000, opts)
@@ -1321,8 +1330,35 @@ do
           od.lastSweep.ok == false
           and tostring(od.lastSweep.why):find("did not answer") ~= nil,
           tostring(od.lastSweep and od.lastSweep.why))
-    check("🚨 …and teaches the budget NOTHING, so it cannot ratchet itself up",
+    -- 🚨 THE CHECK THE SWEEP FORCED. Asserting `rootMs == nil` after a
+    -- killed turn proved nothing, because the killed path used to pass no
+    -- time at all — so assigning it was a no-op and the guard could not
+    -- be killed by any mutation (6.273.0: the line was not the finding,
+    -- the missing check was). The failure paths CARRY their elapsed time
+    -- now, for the report, so the guard has something to refuse: a killed
+    -- turn's elapsed time IS the budget, and letting it teach the budget
+    -- would raise the budget BECAUSE it timed out and call that a
+    -- measurement — a loop that ratchets itself up off its own failure.
+    check("🚨 …and the report KNOWS how long it ran before giving up",
+          type(od.turnLast["/a"]) == "table"
+          and tonumber(od.turnLast["/a"].walkMs) ~= nil,
+          tostring(od.turnLast["/a"] and od.turnLast["/a"].walkMs))
+    check("🚨 …while the BUDGET learns nothing from it, so it cannot ratchet up",
           od.rootMs["/a"] == nil, tostring(od.rootMs["/a"]))
+
+    -- …and the same for a find that exits non-zero with nothing to show
+    od.rootMs, od.turnLast = {}, {}
+    od.sweepBusy, od.turnIdx = false, 0
+    TASKS = {}
+    od.sweep("t")
+    TASKS[#TASKS].cb(3, "", "")
+    check("a find that exits non-zero with no output is a FAILURE too",
+          od.lastSweep.ok == false
+          and tostring(od.lastSweep.why):find("exited 3") ~= nil,
+          tostring(od.lastSweep.why))
+    check("🚨 …and it does not teach the budget either",
+          od.rootMs["/a"] == nil and tonumber(od.turnLast["/a"].walkMs) ~= nil,
+          tostring(od.rootMs["/a"]))
     check("…and it takes the 🔔 door, naming the folder",
           #DEGRADES >= 1 and tostring(DEGRADES[#DEGRADES]):find("a") ~= nil,
           DEGRADES[#DEGRADES])

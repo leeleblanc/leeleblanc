@@ -1,4 +1,4 @@
-# TESTING — how to score release 6.379.0
+# TESTING — how to score release 6.380.0
 
 You install ONE archive and it carries several releases. Below are the
 steps for each release this archive is new for, newest first. Run the
@@ -26,6 +26,112 @@ else is a LOSS and I fix it before building further. You are the only
 scorer; I never mark my own.
 
 ---
+
+## 6.380.0
+
+6.380.0 verify with LL — ☁️ THE ONEDRIVE WALK FINISHES (KNOWN GROUND)
+WHAT CHANGED: the OneDrive check now walks ONE folder at a time instead
+of three at once, so a walk actually finishes — and your music and
+films are in it.
+🔎 AND IT HAD NEVER FINISHED ONCE, which your own log proved. The probe
+I asked you to paste walked the whole OneDrive drive and was STILL
+RUNNING after 358 seconds — with the disk entirely to itself, because
+the sweep's own search had already been killed six minutes earlier —
+against a 180-second limit that I had typed. So raising 180 would have
+bought nothing; the limit was never achievable and the mechanism had to
+change. Your whole OneDrive drive is no longer walked at all: it
+CONTAINS your Vault and your Logs folder, which is why one tree was
+being searched three times over.
+
+A. THE HEADLINE — two commands, and the second one is the release.
+A1. Install and reload. Wait about a minute.
+A2. Console: `_G.oneDriveCheck()`.
+    EXPECT a `folders:` line naming each folder on its own row —
+    something like:
+      folders: 5, one per turn every 7 min — a full pass takes about 35 min
+        ▸ /Users/…/OneDrive-Personal/Vault     here 412 · ☁️ 3 · 2.1 s · just now
+        · /Users/…/OneDrive-Personal/Logs      ⏳ not walked yet
+        · /Users/…/OneDrive-Personal/Movies    ⏳ not walked yet
+        · /Users/leeleblanc/Music              ⏳ not walked yet
+    **PASTE THAT BLOCK.** It is the first time this tool has been able
+    to tell you what it is doing folder by folder.
+A3. Read the row that has a time on it. A number of SECONDS there is
+    the whole release: the walk finished. **A FAIL is every row reading
+    ⏳ not walked yet an hour after a reload**, or a row reading
+    ⚠️ did not answer — paste either.
+A4. Watch it over an hour or two and run it again. Each row should
+    gain a time, one folder every seven minutes, until all of them
+    have one.
+
+B. YOUR MUSIC AND FILMS — the half you asked for.
+B1. In the `folders:` list, look for Music and Movies.
+    EXPECT: `<OneDrive>/Music`, `<OneDrive>/Movies`, `~/Music` and
+    `~/Movies` — whichever of those four are actually on your Mac.
+B2. Any that are NOT on your Mac appear on a `↳ not here:` line by
+    name. That is ordinary, not a fault — `~/Music` exists on every
+    Mac and `<OneDrive>/Movies` may not.
+B3. 🚨 **AND TELL ME IF YOUR FILMS ARE SOMEWHERE ELSE.** I have named
+    the obvious four. If your films actually live in `<OneDrive>/
+    Desktop/new_dl` or anywhere else, they are NOT being watched and
+    the list needs one more name — one line, not a release.
+B4. A `↳ pruned:` line lists `*.photoslibrary`, `*.musiclibrary` and
+    the like. Those are single documents holding tens of thousands of
+    files that OneDrive cannot offload, and walking one would spend
+    the whole time limit this release exists to fix.
+
+C. THE ONE THAT WOULD BE SERIOUS IF IT WERE WRONG.
+C1. `_G.oneDriveCheck()` and read the `☁️ LEFT THIS MAC:` line.
+    EXPECT, in the first half hour after a reload: "none from the 2 of
+    5 folder(s) walked since boot", with a `↳ ⏳ still to walk:` line
+    naming the rest.
+    **A FAIL is a long list of files it claims OneDrive took back on
+    the first pass.** If you see that, stop and paste it: it would
+    mean one folder's walk is being compared against another folder's
+    memory, which is the one thing this release had to make impossible.
+C2. Over a few days, if OneDrive really does take something back, you
+    get an alert naming the count, the FOLDER and the biggest file.
+
+D. MUST STILL WORK.
+D1. `_G.oneDriveSweep()` walks the next folder and prints which, with
+    its place in the pass ("folder 3 of 5").
+D2. `_G.oneDriveSweep(true)` walks every folder one after another —
+    the on-demand "check everything now".
+D3. The `☁️ NOT HERE:` list still names offloaded files biggest first.
+D4. Normal use for a day: no alert, no Console noise, nothing on
+    screen. It is a command you run, not a tool that talks.
+D5. Boot: All green, 73 modules, the usual ⇪ shortcut count. The boot
+    line should read "watching N folder(s), one per turn every 7 min".
+D6. 🚨 **AND ⌃⌥⇧F — the file history.** This release published one of
+    file_tracker's own functions as a shared service, so if the file
+    history breaks, this did it and I want to know at once.
+
+E. PASTE BACK, PASS OR FAIL.
+E1. `_G.oneDriveCheck()` — the whole thing, after a few hours.
+E2. The `budget :` line specifically. It reads each folder's own time
+    limit and where the number came from — "90 s (first walk)" before
+    a folder has been walked, then something measured off its real
+    cost. That line is 6.355.0 being paid: the 180 that never worked
+    was a number I typed, and this one is read off your Mac.
+E3. If any row ever says **⚠️ AT THE BOUND**, paste it. That folder
+    holds more than 40,000 files and every number about it is a floor
+    rather than a total.
+
+F. A JUDGEMENT ONLY YOU CAN MAKE.
+F1. **Seven minutes between folders** — so a five-folder pass takes
+    about 35 minutes, close to the 30 the old sweep claimed and never
+    delivered. Too slow to catch an offload the same morning? It is a
+    number, not a release.
+F2. 📏 COST, NAMED, so it is not a surprise in a month: a file in
+    OneDrive that is in NONE of the named folders is no longer
+    watched. That is what buys the walk finishing. Name any folder you
+    want added.
+F3. 🔨 While the sweep was failing, was the Mac unusable, or did it
+    just not do the thing? My reading is the second — it warned on
+    every boot and nothing else broke — but the tool was completely
+    dead for four days while reporting itself as watching, which is
+    its own kind of cost. Your tag.
+
+
 
 ## 6.379.0
 
@@ -240,43 +346,6 @@ C1. If a pick ever feels like it goes nowhere — into the picker
     instead of your document — say so with the report. That is the
     one failure I cannot see from here, and the counts are what would
     prove it.
-
-
-
-## 6.376.0
-
-6.376.0 verify with LL — 📅 A SCRATCH NOTE IS NAMED FOR TODAY
-(KNOWN GROUND)
-WHAT CHANGED: a new Hamsidian tab is called by the day you made it
-instead of "Scratch 1".
-🔎 Your ask: "Scratch not should be prefixed with Today's date." And
-"Scratch 1" is the name 6.165.1 gave an empty tab, on your own
-complaint then — "Untitled ×2 told me nothing". A number tells you
-nothing either.
-
-A. THE HEADLINE — twenty seconds.
-A1. ⇪N, then ⌘T for a new tab.
-    EXPECT the tab reads **Mon Oct 20** (today), not "Scratch 2".
-A2. ⌘T again. EXPECT **Mon Oct 20 · 3** — the date plus its place, so
-    two empty tabs made today can still be told apart.
-A3. Type a line in one. EXPECT the title becomes YOUR LINE, as it
-    always has. That is the pad's whole design and it is unchanged.
-A4. Close and reopen ⇪N. EXPECT the dates survive.
-
-B. THE OTHER READING, IF I CHOSE WRONG.
-B1. I read your sentence as "the DEFAULT name", because putting the
-    same six characters in front of every typed row is noise rather
-    than a journal. If you meant every title:
-    `settings = { scratch_pad = { titleDate = "always" } }` → every
-    tab reads "Mon Oct 20 · Buy milk".
-    **Say which and I will change the default rather than leave you a
-    line to type.**
-B2. `titleDate = "off"` is the old "Scratch N" exactly.
-
-C. PASTE BACK.
-C1. `_G.scratchPadReport()` — a new `📅 dates:` line says which
-    reading is on and counts any tabs that carry no date stamp (those
-    keep their old name rather than claiming a date nobody recorded).
 
 
 
