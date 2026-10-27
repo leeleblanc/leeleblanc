@@ -6217,6 +6217,19 @@ THE METHOD, when something breaks after a stacked zip:
    0e40cbf (c5ad709 the sweep's four, among them a de-duplicating table
    that no input could ever fail) · 6.376.0 0b803af (e311474 the sweep's
    finding — the os.date guard) · 6.377.0 83b61ca · 6.378.0 b690488
+   · 6.380.0 1cbcbeb (the code and the suite; f6b7779 the ceremony;
+   **fd99349 is the archive, and fd99349 is the SHA every link to it must
+   carry** — a branch-pinned link dies the moment the next release
+   deletes the file, which is why 6.356.0–6.358.0 never reached his
+   Downloads. 30 of 30 mutations bit and the no-op control survived; the
+   two that survived the first sweep were both checks passing for the
+   WRONG REASON — a negative walk time caught by the FLOOR branch rather
+   than by its own guard, and a budget guard no failure path could reach
+   because every one of them passed no time at all. The harness had to
+   become faithful TWICE before any of it was testable, and the second
+   is the one to remember: the core stub put `logsDir` OUTSIDE the cloud
+   root, so the containment that caused the entire bug was absent from
+   the end-to-end path.)
    · 6.379.0 5214b32 (the code; e3908d5 the ceremony and the archive, and
    **e3908d5 is the SHA every link to it must carry**. 56 of 56 mutations
    bit and the no-op control survived; the three that survived the first
