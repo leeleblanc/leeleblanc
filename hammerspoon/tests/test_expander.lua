@@ -24,6 +24,14 @@ local KEYSTROKES, DELETES, LEFTS, ALERTS = {}, 0, 0, {}
 local log, TAP = {}, nil
 local FRONTAPP = "TextEdit"
 local CLIP = "clipboard contents"
+-- 🚨 6.382.0 — DECLARED HERE, ABOVE THE hs STUB, ON PURPOSE. The
+-- pasteboard stub below closes over PBREFUSE, and a `local` written
+-- further down the file is a different variable entirely — the closure
+-- would read a nil GLOBAL and the refusal could never be driven. The
+-- first version of this section did exactly that and its three checks
+-- failed against correct code (6.335.0 · 6.230.0).
+local CLIPWRITES, CLIPBOARD, CLIPREFUSE = {}, nil, false
+local PBREFUSE = false
 local PENDING = {}
 local BOUND, CHOOSERS = {}, {}
 local DEGRADED = {}
@@ -271,9 +279,19 @@ hs = {
       return { name = function() return FRONTAPP end }
     end,
   },
+  -- 🔬 6.382.0 — IT CAN REFUSE NOW. setContents answers FALSE and never
+  -- throws, so a stub that always says yes makes the swallow shape
+  -- `pcall(function() setContents(x) end)` and the correct shape agree
+  -- on every input — and a mutation restoring the bug SURVIVED the
+  -- whole suite because of it. 6.230.0: pick the input where right and
+  -- wrong must differ, or the fixture proves nothing.
   pasteboard = {
     getContents = function() return CLIP end,
-    setContents = function(t) table.insert(CLIPSET, t) ; return true end,
+    setContents = function(t)
+      table.insert(CLIPSET, t)
+      if PBREFUSE then return false end
+      return true
+    end,
   },
   alert = { show = function(m) table.insert(ALERTS, m) end },
   chooser = {
@@ -331,8 +349,6 @@ _G.notices = { recorded = {},
 
 local PROVIDED, HYPER = {}, {}
 local CALLS = {}       -- 6.156.0: every core.call — the preview pane services
-local CLIPWRITES, CLIPBOARD, CLIPREFUSE = {}, nil, false
-
 local core = {
   logsDir = TMP,
   -- 🚨 6.359.0 — THE RECENT QUEUE'S STORE HANGS OFF core.homeDir, and a
@@ -3208,6 +3224,24 @@ do
         rR:find("REFUSED by macOS", 1, true) ~= nil, rR:match("clip[^\n]*"))
   CLIPREFUSE = false
 
+  -- ---- 🚨 AND THE PASTE ROUTE'S OWN WRITE CAN BE REFUSED. This is the
+  -- fixture the mutation sweep demanded: with a stub that always says
+  -- yes, `pcall(function() setContents(x) end)` and a version that reads
+  -- the return agree on every input, so restoring the 6.198.0 swallow
+  -- shape survived the entire suite. macOS refuses by RETURNING FALSE.
+  PBREFUSE = true
+  exp.clipLand = { kept = 0, refused = 0, why = nil, last = nil }
+  exp.inserts.pick = { typed = 0, pasted = 0, refused = 0 }
+  pick(multiTrig)
+  check("a clipboard write macOS REFUSES is not reported as a paste",
+        exp.inserts.pick.pasted == 0 and exp.inserts.pick.refused == 1,
+        exp.inserts.pick.pasted .. "/" .. exp.inserts.pick.refused)
+  check("…and nothing was left on the clipboard to claim",
+        exp.clipLand.kept == 0, exp.clipLand.kept)
+  check("…and he is told, rather than it silently not landing",
+        #DEGRADED > 0, #DEGRADED)
+  PBREFUSE = false
+
   -- ---- 🚨 THE REPORT MUST NOT PROMISE THE OLD BEHAVIOUR. That line
   -- read "(⌘V, clipboard put back)" for BOTH routes, which is now false
   -- for a pick — 6.181.0's stale row, in a diagnostic.
@@ -3238,7 +3272,7 @@ do
   exp.pickToClipboard = true
 
   local ran = (pass + fail) - before
-  check("§6.382.0 ran all of its checks (" .. ran .. " of 16)", ran >= 16, ran)
+  check("§6.382.0 ran all of its checks (" .. ran .. " of 19)", ran >= 19, ran)
 end
 
 out(("\n%d passed, %d failed\n\n"):format(pass, fail))

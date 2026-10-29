@@ -150,6 +150,40 @@ local od = M.config
 -- =====================================================================
 -- §1 — ONE FILE, THREE ANSWERS
 -- =====================================================================
+out("\n§0 6.381.0 — the shipped default, which IS this release\n")
+do
+    -- 🚨 ASSERTING A DEFAULT, DELIBERATELY, AND 6.248.0 SAYS WHY THAT IS
+    -- NORMALLY WRONG: a check on a constant goes red with nothing to say
+    -- about the change it existed to prove. The exception is a release
+    -- whose WHOLE CLAIM is the default — he asked for the watcher off,
+    -- so "off" is the behaviour, not an implementation detail. Every
+    -- other section drives the switch explicitly for exactly that reason.
+    -- 🔌 realOpen, NOT io.open — this suite replaces io.open with a
+    -- virtual disk, so the plain one reads NOTHING and a sentry over an
+    -- empty haystack is green and measures nothing (6.313.0 · 6.273.0).
+    local f = realOpen(HS .. "/modules/onedrive_check.lua", "r")
+    local txt = f and f:read("*a") or ""
+    if f then f:close() end
+    check("the sentry below really read the module", #txt > 20000, #txt)
+    check("🗑 the watcher ships OFF — parked on his word",
+          txt:find("enabled   = false,", 1, true) ~= nil)
+    -- 🔒 ONE NAME FOR ONE IDEA. `enabled` was dead and a second flag did
+    -- the governing, so the house idiom governed nothing (6.276.0).
+    --
+    -- 🚨 COMMENTS STRIPPED (6.262.0) — the block above the field QUOTES
+    -- the settings line, so a sentry reading raw source counts it twice
+    -- and goes red on correct code. 🚨 AND THE NEEDLE CARRIES ITS OWN
+    -- BOUNDARY (6.236.0): `od.watch` is a PREFIX of `od.watchVerdict`,
+    -- so the bare name matches the very function that replaced the flag.
+    -- Both of those were red on a healthy tree before this comment.
+    local bare = txt:gsub("\n%s*%-%-[^\n]*", "\n")
+    check("the strip left something to read", #bare > 15000, #bare)
+    check("…and there is no second flag to disagree with it",
+          bare:find("od%.watch[^V]") == nil
+          and select(2, bare:gsub("enabled%s*=%s*false", "")) == 1,
+          tostring(bare:match("od%.watch[^V]")))
+end
+
 out("\n§1 what a stat says about one file\n")
 do
     local st, why = od.fileState(100 * 1024 * 1024, (100 * 1024 * 1024) / 512)
