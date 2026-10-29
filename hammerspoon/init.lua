@@ -3172,6 +3172,9 @@ local BASE = {
     -- itself.
     "battery_saver",      -- 🔋 on battery the config slows its own pollers
                           --    and NAMES the apps draining you (no key)
+    "app_remove",         -- 🗑 ⇪⇧[ 6.384.0 remove an app AND its leftovers, to
+                          -- the Trash and never erased; the first press only
+                          -- SHOWS what would move
     "onedrive_check",     -- ☁️ 6.367.0 _G.oneDriveCheck() names every file whose
                           -- BYTES are not really here, however it is marked. It
                           -- never READS one: a read hydrates a placeholder, and
