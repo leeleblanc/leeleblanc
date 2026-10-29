@@ -217,6 +217,54 @@ function M.setup(core)
     style.controlAlpha       = M.controlAlpha
     style.controlHoverAlpha  = M.controlHoverAlpha
 
+    -- 🎨 6.385.0 — THE THIRD FAMILY: the PICKERS. LL, with a screenshot
+    -- of the ⇪⇧V clipboard picker beside the Jug Player: "Can you make
+    -- my other windows look like jug player".
+    --
+    -- This module's own header has listed CANVASES and WEBVIEWS since
+    -- 6.90.0 and never mentioned hs.chooser — so thirty-three pickers,
+    -- which are most of what he actually looks at, were the one family
+    -- the shared style never reached. They were light because macOS
+    -- draws them light, not because anybody chose it.
+    --
+    -- 🔬 AND IT IS POSSIBLE, which I had to check rather than assume: a
+    -- chooser is an NSTableView macOS owns, but hs.chooser exposes
+    -- bgDark, fgColor and subTextColor, and app_watcher.lua has used all
+    -- three since 6.16.21. So the card colour is reachable; what is NOT
+    -- reachable is anything PER ROW — see the 📏 note below.
+    --
+    -- 📏 WHAT A PICKER STILL CANNOT HAVE, said rather than discovered:
+    -- an ✕ at the end of a row. A chooser row is drawn by macOS from a
+    -- string; there is no sub-element to click and no API that puts one
+    -- there. The webview panels (the Jug Player, Hamsidian, the pads)
+    -- draw their own rows and DO have one. On a picker the equivalent is
+    -- a key on the highlighted row, which ⇪⇧V already has.
+    --
+    -- One function, called from ONE place (§1.5's showPopup, the single
+    -- door every picker in this config is already required to go
+    -- through), so this is one change rather than thirty-three — and a
+    -- picker added next year is styled without anybody remembering to.
+    function style.picker(chooser)
+        if style.pickerDark == false then return false, "switched off" end
+        if type(chooser) ~= "table" and type(chooser) ~= "userdata" then
+            return false, "not a chooser"
+        end
+        local n = 0
+        -- each one apart: a Hammerspoon without one of these must not
+        -- cost the other two, and the count is what the report reads
+        if pcall(function() chooser:bgDark(true) end) then n = n + 1 end
+        if pcall(function() chooser:fgColor(style.fg) end) then n = n + 1 end
+        if pcall(function() chooser:subTextColor(style.fgDim) end) then n = n + 1 end
+        style.pickersStyled = (style.pickersStyled or 0) + 1
+        if n < 3 then
+            style.pickerPartial = (style.pickerPartial or 0) + 1
+        end
+        return n == 3, n
+    end
+    style.pickerDark    = true   -- false = macOS's own light pickers
+    style.pickersStyled = 0
+    style.pickerPartial = 0
+
     _G.uiStyle = style
     if core and core.provide then
         core.provide("style.get", function() return style end)

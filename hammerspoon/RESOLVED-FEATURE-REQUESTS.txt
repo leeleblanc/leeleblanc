@@ -1,5 +1,5 @@
 ========================================================================
-RESOLVED FEATURE REQUESTS — Hammerspoon config 6.380.0
+RESOLVED FEATURE REQUESTS — Hammerspoon config 6.385.0
 Every feature and how to use it. Generated from the modules' own
 cheat sheets (the rows ⇪/ draws), so it is never out of date.
 ⇪ = Caps Lock held (the hyper key). ⇪⇧X = Caps Lock + Shift + X.
@@ -391,11 +391,27 @@ In the Console, _G.<tool>Report() prints any tool's own report.
   safe      Subtitles move WITH their video — always, by design
             Any collision aborts the whole batch. Nothing partial.
 
-☁️ ONEDRIVE CHECK (Console)   [modules/onedrive_check.lua]
+🗑 APP REMOVAL (⇪⇧[ — to the Trash, never erased)   [modules/app_remove.lua]
+  ⇪⇧[   Pick an app — ⇧ plus the [ key, right of P
+  ⏎       SHOWS what would move: the app and every leftover,
+            each with its size and the rule that found it.
+            Nothing moves on this press.
+  ⏎ again Moves all of it to the Trash. You empty the Trash.
+  ⚠️ rows Matched by NAME, not by bundle id — a guess. Read
+            those before the second press.
+  where     Leftovers: your home folder only. The app itself:
+            /Applications or ~/Applications. Nowhere else.
+  running   It refuses to remove an app that is open — quit it
+            first (⇪⇧X ends a process)
+  undo      Finder → Trash → Put Back, like any other file
+  console   _G.appRemove("Name") lists · _G.appRemoveGo() does it
+  check     _G.appRemoveReport() — what it last listed or moved
+
+☁️ ONEDRIVE CHECK (Console) — the watch is OFF (6.381.0)   [modules/onedrive_check.lua]
   cloud check 6.367.0: _G.oneDriveCheck() — walks the folders that hold your data and names every file whose BYTES are not on this Mac, however it is marked in Finder. It never reads a file: reading one downloads it, and that is the 72-second freeze
   probe     The same report prints the extended attributes macOS keeps on a local file and on an offloaded one, side by side — that comparison is what can say whether "Always keep on device" is readable at all
   folders   6.380.0: the Vault, the Logs folder, <OneDrive>/Music, <OneDrive>/Movies, ~/Music and ~/Movies — whichever of them are on this Mac. The OneDrive ROOT is deliberately NOT one: it contains the others and walking it took 358 seconds against a 180-second budget, which is why no sweep ever finished. settings = { onedrive_check = { folders = { "/full/path" } } } names your own instead
-  the watch 6.380.0: ONE folder per turn, every 7 min, with find+stat in a background task — so a full pass is about 35 min and each piece of it actually lands. Each folder is compared against ITS OWN last answer: a file that was HERE and is in the cloud now has been taken back, which is the one thing "Always keep on device" was supposed to prevent, and you get an alert naming it and the folder
+  the watch 🗑 OFF since 6.381.0, on your word — no turns, no alerts, nothing walking your cloud folders. Nothing was deleted: every folder's last answer and the ☁️ LEFT THIS MAC ledger are kept, and both doors below still work by hand. settings = { onedrive_check = { enabled = true } } turns the watch back on, and it then walks ONE folder per turn every 7 min (6.380.0)
   sweep now _G.oneDriveSweep() walks the NEXT folder; _G.oneDriveSweep(true) walks every one in turn. The report's ☁️ LEFT THIS MAC block survives a reload — it is kept in Application Support, never in OneDrive
   the budget 6.380.0: each folder's time limit is read off what ITS last walk cost (4×, floored at 90 s, ceilinged at 600) rather than one number typed for every folder. The report says the number AND where it came from, so a timeout can be read against it
   if it stops A turn that fails takes the 🔔 door: an alert naming the folder, a ⚠️ Console line and a row in _G.todayReport(). The report's watch line reads WANTED but NOT RUNNING rather than printing a reassuring count
@@ -840,6 +856,11 @@ In the Console, _G.<tool>Report() prints any tool's own report.
 
 📜 RELEASE INDEX — newest first, one line per release (the full story of each is in CHANGELOG.md)
 ------------------------------------------------------------------------
+  6.385.0  🎨 THE PICKERS WEAR THE JUG PLAYER'S CARD: LL, with a
+  6.384.0  🗑 APP REMOVAL (⇪⇧[), TO THE TRASH AND NEVER ERASED
+  6.383.0  📓 @logs IN ⇪D: LL: "I don't have at @ search for
+  6.382.0  📋 A PICKED SNIPPET IS LEFT ON THE CLIPBOARD: LL: "A
+  6.381.0  🗑 THE ONEDRIVE WATCHER IS PARKED: LL: "Turn off the
   6.380.0  ☁️ THE ONEDRIVE WALK FINISHES, AND HIS MUSIC AND FILMS
   6.379.0  ⏱ A SIMPLE TIMER, IN WORDS, ON THE KEY HE ASKED FOR
   6.378.0  🔒 SECURE INPUT ALREADY HELD AT BOOT IS ANNOUNCED

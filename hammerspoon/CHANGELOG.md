@@ -5,6 +5,208 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.385.0 — 🎨 THE PICKERS WEAR THE JUG PLAYER'S CARD: LL, with a
+  screenshot of the ⇪⇧V clipboard picker beside the Jug Player: "Can you
+  make my other windows look like jug player and have (x) at the end of
+  the line/row".
+
+  🔎 TWO ASKS, AND THEY HAVE DIFFERENT ANSWERS. ui_style.lua's own header
+  has listed its consumers since 6.90.0 — CANVASES and WEBVIEWS — and has
+  never mentioned hs.chooser. So the THIRTY-THREE PICKERS, which are most
+  of what he actually looks at (⇪V, ⇪space, ⇪Y, ⇪⇧S, ⇪T's assignee, ⇪.,
+  ⇪⇧;), were the one family the shared style never reached. They were
+  light because macOS draws them light, not because anybody chose it.
+
+  🔬 AND IT IS REACHABLE, which had to be CHECKED rather than assumed —
+  the first answer drafted for him said a chooser cannot be restyled at
+  all, and that is false. hs.chooser exposes bgDark, fgColor and
+  subTextColor, and modules/app_watcher.lua has used all three since
+  6.16.21. 6.233.0's rule: a platform fact that decides an architecture
+  is checked in the source, with the file named.
+
+  🚪 ONE DOOR, THIRTY-THREE PICKERS. §1.5's showPopup is the single
+  placement path every picker in this config is already REQUIRED to use
+  (6.160.1's sentry), so the styling goes there and nowhere else: one
+  change rather than thirty-three, and a picker added next year is
+  styled without anybody remembering to. style.picker tries each of the
+  three APIs in its OWN pcall — a Hammerspoon missing one must not cost
+  the other two — counts a PARTIAL apart from a success (6.196.1), and
+  never throws, because it runs on the path every keypress takes.
+
+  📏 AND A PICKER CANNOT HAVE A PER-ROW ✕, written into the module where
+  the next attempt will read it rather than rediscover it. A chooser row
+  is drawn by macOS from a string; there is no sub-element to click and
+  no API that puts one there. The webview panels — the Jug Player,
+  Hamsidian, the pads — draw their own rows and DO have one, which is
+  exactly why the Jug Player in his screenshot has ✕ and ⇪⇧V does not.
+  On a picker the equivalent is a key on the highlighted row.
+
+  🧪 5 of 5 mutations bite. The section had to re-run setup first: §4
+  above deliberately boots the module with a bare core and leaves
+  _G.uiStyle pointing at THAT table, so a later section reading the
+  global measures a different object from the one it thinks (6.278.0).
+
+NEW IN 6.384.0 — 🗑 APP REMOVAL (⇪⇧[), TO THE TRASH AND NEVER ERASED:
+  LL: "Build App removal: trash do not erase, home folder only and
+  applicable files, delete any temp files." Never built, in any release
+  — app_kill ends a RUNNING process and nothing here had ever removed an
+  application. Written down as missing in the 6.0.0-onward archaeology
+  and now built.
+
+  ⇪⇧[ — and the key came from the REGISTRY, not from this project's own
+  notes (6.276.0): the collision auditor loads the real config and says
+  [ and ] are the only free shifted keys. ⇪⇧Z stays reserved on his word.
+
+  🚨 THIS IS THE ONLY TOOL HERE THAT MOVES FILES HE DID NOT NAME ONE BY
+  ONE, so its rules went in before its feature:
+
+    1. NOTHING IS ERASED. Every path is RENAMED into ~/.Trash (6.280.0 —
+       an unrecoverable delete of his own files is the one failure with
+       no way back). There is no os.remove, no rm, no osascript and no
+       io.popen in the file. The sentry states that as a RULE rather
+       than banning a name (6.321.0 — a name sentry expires the first
+       time the name has an honest use), reads the source with comments
+       STRIPPED (6.262.0 — the header quotes the very call it forbids),
+       and asserts the explanation is still there so it cannot be
+       satisfied by deleting the comment.
+    2. IT CANNOT REACH OUTSIDE TWO PLACES — the home folder for
+       leftovers (his words) and /Applications for the app itself.
+       insideAllowed is PURE and is a COMPONENT test, never a substring:
+       "/Users/lee-evil" starts with "/Users/lee" and belongs to someone
+       else. It also refuses the roots THEMSELVES, so no bug can ask for
+       the home folder to be moved. 🚨 AND IT RUNS IMMEDIATELY BEFORE
+       EACH RENAME, over the path actually about to move — a guard that
+       runs when a list is ASSEMBLED is not a guard on what is acted on.
+       The suite injects /etc/passwd, /Library and the prefix-trap path
+       INTO a plan and requires the move to turn all three away.
+    3. IT MATCHES ON THE BUNDLE ID and marks a NAME match as a guess,
+       with a ⚠️ on the row: another app's support folder can be called
+       the same thing, and drawing a certain row with a ⚠️ would teach
+       him to ignore the ⚠️ — which is the only thing between him and a
+       wrong folder (6.269.0).
+    4. IT REFUSES A RUNNING APP.
+    5. THE FIRST PRESS MOVES NOTHING. The list IS the feature: what a
+       removal tool owes is that you can see what it is about to do
+       while there is still time to say no.
+
+  📏 "Delete the temp files" is satisfied BY the Trash: the caches go
+  WITH the app rather than being left behind, and emptying the Trash is
+  his. It does not touch the system /Library, launch daemons, or helper
+  apps with a different bundle id — those are outside the home folder or
+  need a password, and both are his call.
+
+  🚨 AND THE PICKER PATH SHIPPED BROKEN AND WAS CAUGHT BY READING, NOT
+  BY A TEST. The module called core.showPopup(hs.chooser.new(...)) and
+  then :choices() on what came back — but showPopup SHOWS the picker and
+  answers true/false; it does not hand the chooser back. ⇪⇧[ would have
+  raised on the first press, every time. Nothing could have caught it:
+  the suite's showPopup stub RETURNED THE CHOOSER, so the whole path was
+  certified by a stub gentler than init.lua (6.290.0, thirteenth time),
+  and no check drove the picker at all (6.273.0 — the line was not the
+  finding, the missing CHECK was). Found while reading showPopup to
+  answer a different question.
+
+  🧪 10 of 10 mutations bite, the no-op control survives, and the sweep
+  found three more: a "keep the surer rule" branch that could never run
+  because bundle-id rows are added first (6.199.0, eighth time — removed,
+  and replaced by a check on the ORDER it really rests on); two checks
+  that DIED instead of failing (6.186.0); and the helper written to fix
+  that carried `(type(e)=="table") and e[k] or nil`, which CANNOT return
+  a false value — so the row whose `sure` is FALSE, the whole point of
+  the section, read as absent. 6.303.0's rule, re-broken by this project
+  one release after writing it down.
+
+NEW IN 6.383.0 — 📓 @logs IN ⇪D: LL: "I don't have at @ search for
+  Logs." He is right, and 6.279.0 named this exact gap in the breath
+  that built the ledger — "the log is not yet a ⇪D source. One
+  uni.sources row, its own release" — and then never built it. Fifteen
+  sources now; every tool that has failed on this Mac is searchable from
+  the panel he already uses, where _G.todayReport() is today alone and
+  has to be known about.
+
+  🔁 ONE PARSER, TWO READERS (6.231.0). The rows come from a new
+  notices.logRows, and _G.todayReport() was rewritten to ask it too. A
+  second copy of that CSV parsing in unified_search is the OCR log's own
+  defect — two readers over one file, one of which drifts, and a column
+  goes missing while the write ledger reports the shrink as normal.
+
+  🔎 AND IT ANSWERS nil + A REASON, NEVER AN EMPTY LIST. A log that
+  could not be READ must not arrive as a store with nothing in it:
+  "nothing has failed" is the most reassuring sentence this config can
+  print and would be a lie on exactly the day the disk is full. It
+  becomes a ROW he can see instead.
+
+  🧪 5 of 5 bite. The sweep found a check that DIED rather than failing
+  (6.186.0), nothing driving logRows' ORDER — so returning the rows in
+  write order survived the whole suite — and a section placed mid-file
+  where logTo() flushed the queue the NEXT checks depended on (6.278.0).
+  Both new sentries went red on a healthy tree first: io.open is a
+  virtual disk in both suites (6.313.0), and "logs.-gmatch" spans half
+  the module (6.263.0 — the window ends at the thing's own boundary).
+
+NEW IN 6.382.0 — 📋 A PICKED SNIPPET IS LEFT ON THE CLIPBOARD: LL: "A
+  picked snippet needs to land on the clipboard."
+
+  🔎 NEITHER ROUTE DID, and they failed differently, which is why the
+  fix is two-sided. A SHORT snippet is typed at the caret, so the
+  clipboard is never touched at all. A LONG one is pasted through a
+  BORROW that puts his old clipboard straight back 0.25 s later. So the
+  snippet was never on the clipboard afterwards by either road.
+
+  🚨 AND IT IS NOT A LATER WRITE. The obvious build restores as usual
+  and writes the snippet on top a moment afterwards; that is a race
+  against our own timer and the winner is whichever landed last
+  (6.246.0). A keep arms NO restore — there is no second actor. The
+  suppress is skipped too: it tells the clipboard history to look away,
+  which is right for a borrow nobody should see and exactly wrong for a
+  keep, whose point is that it shows up in ⇪V as the newest row.
+
+  📏 PICK ONLY, and that is a rule rather than caution: a typed trigger
+  fires thousands of times a day and would churn ⇪V into uselessness
+  while overwriting whatever he had copied, constantly, with text he
+  never asked to copy. 6.359.0 drew the same line for the recency queue
+  on his own word — a snippet is the one he PICKS.
+
+  🚨 pasteText WAS STILL CARRYING THE 6.198.0 SHAPE this file was named
+  for and never swept: pcall(function() setContents(x) end) is true
+  whether or not macOS took the write. Load-bearing now — a release
+  claiming the snippet lands has to be able to tell whether it did.
+
+  🚨 AND THE REPORT PROMISED THE OLD BEHAVIOUR: "(⌘V, clipboard put
+  back)" was printed for BOTH routes and is now false for a pick —
+  6.181.0's stale cheat-sheet row, in a diagnostic. The sentence is read
+  off the switch.
+
+  🧪 8 of 8 bite. The pasteboard stub ALWAYS returned true, so restoring
+  the swallow shape survived the entire suite — a fixture where right
+  and wrong AGREE proves nothing (6.230.0). And the flag added to fix
+  that was declared BELOW the hs stub, so the stub's closure read a nil
+  global and three checks failed against correct code (6.335.0).
+
+NEW IN 6.381.0 — 🗑 THE ONEDRIVE WATCHER IS PARKED: LL: "Turn off the
+  OneDrive watcher and park the development." Done — and nothing is
+  deleted: every folder's last answer, the ☁️ LEFT THIS MAC ledger and
+  both by-hand doors stay, and the report SAYS what is kept rather than
+  leaving him to wonder (6.254.0 · 6.356.0). What stops is the timer.
+
+  🚨 AND THE SWITCH HE WOULD HAVE REACHED FOR DID NOTHING. `enabled`
+  shipped true from 6.368.0 and was READ NOWHERE; the only flag
+  startWatch consulted was a second one called `watch`. So
+  settings = { onedrive_check = { enabled = false } } — the idiom every
+  other module in this config uses — was a line that parsed, applied and
+  governed nothing. 6.276.0's shape in a switch rather than a
+  cheat-sheet row, and 6.199.0's rule says a guard no test can fail is
+  dead code with a comment on it. ONE field now, asked through a PURE
+  od.watchVerdict so the report and the timer cannot come to disagree
+  about whether this tool is running.
+
+  🧪 The suite's §11 had to start DRIVING the switch rather than reading
+  the default: three checks went red the moment the default flipped,
+  with nothing to say about the change they existed to prove (6.248.0).
+  Asserting a shipped default is normally that same mistake; the
+  exception is a release whose whole claim IS the default, which this
+  one is. 8 of 8 bite across this release and 6.382.0.
+
 NEW IN 6.380.0 — ☁️ THE ONEDRIVE WALK FINISHES, AND HIS MUSIC AND FILMS
   ARE IN IT: LL, after four days of the sweep never completing: "Build
   the OneDrive fix now but include music and movies folder."

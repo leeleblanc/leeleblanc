@@ -319,5 +319,104 @@ do
         M.contrast(M.blend("#e8e8ec", "#17171c", 0.45), "#17171c") >= 3.0)
 end
 
+-- =====================================================================
+-- 🎨 6.385.0 — THE PICKERS, THE THIRD FAMILY
+-- =====================================================================
+-- LL, with the ⇪⇧V picker beside the Jug Player: "Can you make my other
+-- windows look like jug player". This module's header has listed
+-- CANVASES and WEBVIEWS since 6.90.0 and never mentioned hs.chooser, so
+-- thirty-three pickers — most of what he actually looks at — were the
+-- one family the shared style never reached.
+do
+  local before = pass + fail
+  -- §4 above deliberately runs setup with a bare core and leaves
+  -- _G.uiStyle pointing at THAT table; a section reading a global some
+  -- earlier section rebuilt is measuring a different object from the one
+  -- it thinks (6.278.0). Re-run setup so this block drives the real one.
+  mod.setup(core)
+  local St = _G.uiStyle
+  check("🎨 the style table knows how to dress a picker",
+        type(St.picker) == "function")
+  check("…and it ships ON", St.pickerDark == true)
+
+  -- a chooser that records what was asked of it
+  local function fake()
+    local c = { calls = {} }
+    function c:bgDark(v)        self.calls.bgDark = v ; return self end
+    function c:fgColor(v)       self.calls.fg = v ; return self end
+    function c:subTextColor(v)  self.calls.sub = v ; return self end
+    return c
+  end
+
+  St.pickersStyled, St.pickerPartial = 0, 0
+  local c1 = fake()
+  local ok, n = St.picker(c1)
+  check("every picker is asked for the dark card", c1.calls.bgDark == true)
+  check("…the SAME foreground the canvases and webviews use",
+        c1.calls.fg == St.fg, tostring(c1.calls.fg))
+  check("…and the same dim colour for the second line",
+        c1.calls.sub == St.fgDim, tostring(c1.calls.sub))
+  check("…and it answers that all three landed", ok == true and n == 3, tostring(n))
+  check("…and counts it, so the report can be asked", St.pickersStyled == 1)
+
+  -- 🚨 A HAMMERSPOON MISSING ONE OF THE THREE MUST NOT COST THE OTHER
+  -- TWO. Each is its own pcall, and the partial is COUNTED rather than
+  -- passed off as success — "it is styled" and "it is half styled" are
+  -- different facts (6.196.1).
+  local c2 = fake()
+  c2.subTextColor = nil
+  local ok2, n2 = St.picker(c2)
+  check("🚨 a missing subTextColor still gets the dark card and the text colour",
+        c2.calls.bgDark == true and c2.calls.fg == St.fg)
+  check("…and it does NOT claim success", ok2 == false and n2 == 2, tostring(n2))
+  check("…and the partial is counted", St.pickerPartial == 1, St.pickerPartial)
+
+  -- 🚨 AND IT NEVER THROWS INSIDE showPopup. A picker that raises on
+  -- its way to the screen is a keypress that does nothing — this runs
+  -- on the one path every one of the thirty-three takes.
+  local c3 = { bgDark = function() error("macOS said no", 0) end }
+  local okCall = pcall(St.picker, c3)
+  check("🚨 a chooser that THROWS does not take the keypress with it", okCall == true)
+
+  -- the switch is real in both directions
+  St.pickerDark = false
+  local c4 = fake()
+  local off, why = St.picker(c4)
+  check("OFF means macOS's own light picker, untouched",
+        off == false and c4.calls.bgDark == nil, tostring(why))
+  St.pickerDark = true
+
+  -- and nothing that is not a chooser is dressed
+  check("a nil is refused rather than thrown at", St.picker(nil) == false)
+
+  -- 🔒 ONE DOOR. The styling must be applied from §1.5's showPopup —
+  -- the single placement path every picker is already required to use —
+  -- and from nowhere else, or thirty-three modules each grow their own
+  -- copy and they drift (6.231.0).
+  local f = io.open(HS .. "/init.lua", "r")
+  local INIT = f and f:read("*a") or ""
+  if f then f:close() end
+  check("the sentry below really read init.lua", #INIT > 100000, #INIT)
+  check("🔒 showPopup is where the picker gets its colours",
+        INIT:find("_G.uiStyle.picker", 1, true) ~= nil)
+  check("…and it is nil-guarded, so a boot without ui_style is the old look",
+        INIT:find("if _G.uiStyle and type(_G.uiStyle.picker)", 1, true) ~= nil)
+
+  -- 📏 AND THE LIMIT IS WRITTEN DOWN WHERE IT WILL BE READ. A chooser
+  -- row is drawn by macOS from a string: there is no per-row ✕ to be
+  -- had, and the next person to try must find that out from the file
+  -- rather than from an afternoon.
+  local g = io.open(HS .. "/modules/ui_style.lua", "r")
+  local UIS = g and g:read("*a") or ""
+  if g then g:close() end
+  check("the module says, in words, that a picker cannot have a per-row ✕",
+        UIS:lower():find("cannot have", 1, true) ~= nil
+        and UIS:find("✕", 1, true) ~= nil,
+        tostring(UIS:match("[^\n]*CANNOT HAVE[^\n]*")))
+
+  local ran = (pass + fail) - before
+  check("the picker section ran all of its checks (" .. ran .. " of 16)", ran >= 16, ran)
+end
+
 out(("\n%d passed, %d failed\n\n"):format(pass, fail))
 os.exit(fail == 0 and 0 or 1)

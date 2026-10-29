@@ -1,4 +1,4 @@
-# TESTING — how to score release 6.380.0
+# TESTING — how to score release 6.385.0
 
 You install ONE archive and it carries several releases. Below are the
 steps for each release this archive is new for, newest first. Run the
@@ -27,325 +27,171 @@ scorer; I never mark my own.
 
 ---
 
-## 6.380.0
+## 6.385.0
 
-6.380.0 verify with LL — ☁️ THE ONEDRIVE WALK FINISHES (KNOWN GROUND)
-WHAT CHANGED: the OneDrive check now walks ONE folder at a time instead
-of three at once, so a walk actually finishes — and your music and
-films are in it.
-🔎 AND IT HAD NEVER FINISHED ONCE, which your own log proved. The probe
-I asked you to paste walked the whole OneDrive drive and was STILL
-RUNNING after 358 seconds — with the disk entirely to itself, because
-the sweep's own search had already been killed six minutes earlier —
-against a 180-second limit that I had typed. So raising 180 would have
-bought nothing; the limit was never achievable and the mechanism had to
-change. Your whole OneDrive drive is no longer walked at all: it
-CONTAINS your Vault and your Logs folder, which is why one tree was
-being searched three times over.
-
-A. THE HEADLINE — two commands, and the second one is the release.
-A1. Install and reload. Wait about a minute.
-A2. Console: `_G.oneDriveCheck()`.
-    EXPECT a `folders:` line naming each folder on its own row —
-    something like:
-      folders: 5, one per turn every 7 min — a full pass takes about 35 min
-        ▸ /Users/…/OneDrive-Personal/Vault     here 412 · ☁️ 3 · 2.1 s · just now
-        · /Users/…/OneDrive-Personal/Logs      ⏳ not walked yet
-        · /Users/…/OneDrive-Personal/Movies    ⏳ not walked yet
-        · /Users/leeleblanc/Music              ⏳ not walked yet
-    **PASTE THAT BLOCK.** It is the first time this tool has been able
-    to tell you what it is doing folder by folder.
-A3. Read the row that has a time on it. A number of SECONDS there is
-    the whole release: the walk finished. **A FAIL is every row reading
-    ⏳ not walked yet an hour after a reload**, or a row reading
-    ⚠️ did not answer — paste either.
-A4. Watch it over an hour or two and run it again. Each row should
-    gain a time, one folder every seven minutes, until all of them
-    have one.
-
-B. YOUR MUSIC AND FILMS — the half you asked for.
-B1. In the `folders:` list, look for Music and Movies.
-    EXPECT: `<OneDrive>/Music`, `<OneDrive>/Movies`, `~/Music` and
-    `~/Movies` — whichever of those four are actually on your Mac.
-B2. Any that are NOT on your Mac appear on a `↳ not here:` line by
-    name. That is ordinary, not a fault — `~/Music` exists on every
-    Mac and `<OneDrive>/Movies` may not.
-B3. 🚨 **AND TELL ME IF YOUR FILMS ARE SOMEWHERE ELSE.** I have named
-    the obvious four. If your films actually live in `<OneDrive>/
-    Desktop/new_dl` or anywhere else, they are NOT being watched and
-    the list needs one more name — one line, not a release.
-B4. A `↳ pruned:` line lists `*.photoslibrary`, `*.musiclibrary` and
-    the like. Those are single documents holding tens of thousands of
-    files that OneDrive cannot offload, and walking one would spend
-    the whole time limit this release exists to fix.
-
-C. THE ONE THAT WOULD BE SERIOUS IF IT WERE WRONG.
-C1. `_G.oneDriveCheck()` and read the `☁️ LEFT THIS MAC:` line.
-    EXPECT, in the first half hour after a reload: "none from the 2 of
-    5 folder(s) walked since boot", with a `↳ ⏳ still to walk:` line
-    naming the rest.
-    **A FAIL is a long list of files it claims OneDrive took back on
-    the first pass.** If you see that, stop and paste it: it would
-    mean one folder's walk is being compared against another folder's
-    memory, which is the one thing this release had to make impossible.
-C2. Over a few days, if OneDrive really does take something back, you
-    get an alert naming the count, the FOLDER and the biggest file.
-
-D. MUST STILL WORK.
-D1. `_G.oneDriveSweep()` walks the next folder and prints which, with
-    its place in the pass ("folder 3 of 5").
-D2. `_G.oneDriveSweep(true)` walks every folder one after another —
-    the on-demand "check everything now".
-D3. The `☁️ NOT HERE:` list still names offloaded files biggest first.
-D4. Normal use for a day: no alert, no Console noise, nothing on
-    screen. It is a command you run, not a tool that talks.
-D5. Boot: All green, 73 modules, the usual ⇪ shortcut count. The boot
-    line should read "watching N folder(s), one per turn every 7 min".
-D6. 🚨 **AND ⌃⌥⇧F — the file history.** This release published one of
-    file_tracker's own functions as a shared service, so if the file
-    history breaks, this did it and I want to know at once.
-
-E. PASTE BACK, PASS OR FAIL.
-E1. `_G.oneDriveCheck()` — the whole thing, after a few hours.
-E2. The `budget :` line specifically. It reads each folder's own time
-    limit and where the number came from — "90 s (first walk)" before
-    a folder has been walked, then something measured off its real
-    cost. That line is 6.355.0 being paid: the 180 that never worked
-    was a number I typed, and this one is read off your Mac.
-E3. If any row ever says **⚠️ AT THE BOUND**, paste it. That folder
-    holds more than 40,000 files and every number about it is a floor
-    rather than a total.
-
-F. A JUDGEMENT ONLY YOU CAN MAKE.
-F1. **Seven minutes between folders** — so a five-folder pass takes
-    about 35 minutes, close to the 30 the old sweep claimed and never
-    delivered. Too slow to catch an offload the same morning? It is a
-    number, not a release.
-F2. 📏 COST, NAMED, so it is not a surprise in a month: a file in
-    OneDrive that is in NONE of the named folders is no longer
-    watched. That is what buys the walk finishing. Name any folder you
-    want added.
-F3. 🔨 While the sweep was failing, was the Mac unusable, or did it
-    just not do the thing? My reading is the second — it warned on
-    every boot and nothing else broke — but the tool was completely
-    dead for four days while reporting itself as watching, which is
-    its own kind of cost. Your tag.
-
-
-
-## 6.379.0
-
-6.379.0 verify with LL — ⏱ A TIMER YOU TALK TO (KNOWN GROUND)
-WHAT CHANGED: there is a new tool. Hold Caps Lock and Shift and press
-the letter **T** — next to R and Y — and a box asks how long. Type it
-the way you would say it out loud. A card counts it down in the
-top-right corner under the clock, shaped like the pomodoro.
-🆓 AND ⇪⇧T WAS TAKEN, which you asked me to check: it was "type the
-clipboard". I asked the registry rather than my own notes, and every
-other shifted letter is spent too (⇪⇧C, ⇪⇧D and ⇪⇧R are
-copy-on-select, the diagnostic report and the nudge reset; ⇪⇧Z is
-reserved on your word). 🔑 I gave you T anyway and moved the other
-tool, because your asking for T is itself evidence you do not reach
-for it to type the clipboard — and that tool loses a shortcut, not the
-feature. Step D is where you check that.
-
-A. THE HEADLINE — two minutes.
-A1. Press **⇪⇧T** (hold Caps Lock and Shift, press T).
-    EXPECT: a box reading "How long? 15s · 25 · 24h and 35m · …".
-A2. Type `24h and 35m` and WATCH THE ROW as you type.
-    EXPECT: **"⏱ 24 hours 35 minutes"**, and under it "⏎ starts it ·
-    24:35:00 on the card". That row is the point of the box: it shows
-    what it understood BEFORE you commit to it.
-A3. Press ⏎. EXPECT: a card top-right counting down from 24:35:00,
-    with "24 hours 35 minutes" written under the digits.
-A4. Try the rest, one at a time: `15s` · `15 seconds` ·
-    `twenty five minutes` · `half an hour` · `an hour and a half` ·
-    `5m30s` · `2 days`. All of them work.
-A5. Type `25` on its own. EXPECT the row to read "25 minutes — no unit
-    given, so minutes". A bare number is MINUTES and it tells you so
-    rather than deciding quietly.
-A6. Type `banana`. EXPECT `could not read "banana"`, and ⏎ does
-    nothing. Then type `1:30`. EXPECT a refusal explaining it cannot
-    tell a minute and a half from an hour and a half.
-
-B. HIDE IS NOT STOP — your two sentences, and they are different.
-B1. With a card counting down, press **⇪⇧T** again.
-    EXPECT: the card goes away. **The timer is STILL RUNNING.**
-B2. Wait a minute, press ⇪⇧T again.
-    EXPECT: the card is back showing a minute LESS — not the length
-    you asked for. That is the proof it kept counting out of sight.
-B3. Console, while it is hidden: `_G.timerReport()`.
-    EXPECT a line shouting **THE CARD IS HIDDEN, and it is still
-    counting**. That wording exists so a timer you have forgotten
-    cannot read the same as no timer at all.
-
-C. STOPPING IT — and here I did NOT do the literal thing you asked
-   for, so please read this before judging it.
-C1. With the card up, put the **mouse pointer on the card** and press
-    **esc** (top-left of the keyboard). EXPECT: it stops, card gone.
-C2. Start another. Within ten seconds of the card appearing press
-    **esc** with the pointer anywhere at all. EXPECT: it stops.
-C3. Start another. Wait a minute, leave the pointer elsewhere, press
-    **esc**. EXPECT: **nothing happens** — and the card's bottom line
-    now reads **⇪⎋** instead of "esc stops it".
-    🚨 WHY: binding esc swallows it everywhere, and this timer can run
-    for days. For a day esc would not close a dialog, would not leave
-    a full-screen film, would not cancel a Spotlight search, and
-    nothing on screen would explain why. So esc is yours in the
-    moments you actually reach for it, and the card's last line always
-    says which state you are in.
-C4. The one that always works: **⇪⎋** — Caps Lock and the esc key —
-    from anywhere, pointer or not, card up or hidden. EXPECT: it stops.
-    **If you would rather have plain esc all the time and accept
-    losing it in your apps, say so and it is one line.** Your Mac.
-
-D. WHAT MOVED, so it is not a surprise next week.
-D1. "Type the clipboard" is **⇪⇧\** now — Caps Lock, Shift and the
-    \| key beside Return. Press it in a field that refuses ⌘V.
-    EXPECT: it types your clipboard out, exactly as ⇪⇧T used to.
-D2. It is ALSO still in the ⇪; list, where it has been since 6.158.0:
-    press ⇪; and look for the ⌨️ row. That is why moving its key costs
-    a shortcut and not the feature.
-D3. ⇪/ and search `timer`, then `power`. Both cards are right, and the
-    power tools card now says where the \| key is, in words.
-
-E. THE ALARM — worth setting a 20-second one for.
-E1. Start `20s` and let it run out while you work in something else.
-    EXPECT: the card FLASHES amber, an alert says TIME UP and names
-    the length, a notification arrives, and you hear Submarine a few
-    times. **And it stays there flashing until you answer it** — ⇪⇧T
-    or esc clears it.
-E2. The one that matters: start `20s`, press ⇪⇧T to HIDE the card, and
-    let it run out.
-    EXPECT: the card PUTS ITSELF BACK and goes off exactly as in E1.
-    A timer you put away must still be able to reach you; that is what
-    makes hiding safe.
-
-F. A RELOAD DOES NOT LOSE IT — why the long durations are usable.
-F1. Start `30m`, then reload Hammerspoon (⌘⌃R).
-    EXPECT: a Console line saying a timer was still running, and the
-    card back with about 29 minutes left — not 30.
-F2. Start `2m`, reload, and keep Hammerspoon down past the two minutes
-    if you can.
-    EXPECT: it does NOT go off late. It says **"Your 2 minutes ended
-    while Hammerspoon was not running"**. An alarm two hours late is
-    indistinguishable from one going off now, so it is said rather
-    than fired.
-
-G. PASTE BACK.
-G1. `_G.timerReport()` — the whole block, once with something running
-    and once with nothing. Its `esc` line says whose that key is right
-    now and quotes what the card is showing, which is the one thing I
-    cannot see from here.
-
-H. A JUDGEMENT ONLY YOU CAN MAKE.
-H1. Is a bare number MINUTES right? `25` → 25 minutes is my call; say
-    the word and I change the default.
-H2. Ten seconds is how long esc stays yours after the card appears.
-    Too short to be useful, or too long to be safe? It is a number.
-H3. Seven days is the longest timer it will set. Enough?
-H4. The card is the pomodoro's shape but NOT its code. Folding the two
-    into one drawing helper is its own release, because it would touch
-    a module that works. Say if you want them merged.
-H5. ONE TIMER AT A TIME, and this is the one I expect to annoy you
-    first: with one running, ⇪⇧T hides or shows the card — it does not
-    offer to start another. So a 25-minute timer followed by a
-    5-minute one means stopping the first (⇪⎋) and pressing ⇪⇧T again.
-    Should the key offer to REPLACE a running timer, or should several
-    run at once? The first is small; the second is a different card.
-
-
-
-## 6.378.0
-
-6.378.0 verify with LL — 🔒 THE KEYBOARD LOCK THAT NEVER SPOKE
+6.385.0 verify with LL — 🎨 THE PICKERS LOOK LIKE THE JUG PLAYER
 (KNOWN GROUND)
-WHAT CHANGED: if macOS's Secure Input is already on when Hammerspoon
-starts, you are told. It used to be told to nobody, for ever.
-🔎 WHY IT MATTERS MORE THAN ITS SIZE: Secure Input is a password
-field's lock, and while it is held NOTHING in this config works —
-every snippet, autocorrect, and most ⇪ shortcuts, with no error
-anywhere. In 6.196.0 Chrome left it on and took your keyboard for
-four hours while the Console said "All green · 104 ⇪ shortcuts". The
-announcement only fired on a CHANGE, and the first reading is not a
-change — so a Mac that BOOTED into that state said nothing at all.
+WHAT CHANGED: every picker in this config now wears the Jug Player's
+dark card instead of macOS's white one.
+🔎 AND HALF YOUR ASK IS NOT POSSIBLE, said first rather than found out
+later. You asked for two things: the LOOK, and an **(x) at the end of
+every row**. The look is done. The ✕ is not, on these windows, and
+cannot be: the ⇪⇧V window in your screenshot is an `hs.chooser` — a
+list macOS draws for us from plain strings — and there is no
+sub-element in a row to click and no way to put one there. The Jug
+Player HAS a ✕ because it is a web page we draw ourselves, every
+pixel of it. That is the whole difference between those two
+screenshots.
+🔬 I nearly told you the colours were impossible too, and that would
+have been wrong — hs.chooser does expose bgDark, fgColor and
+subTextColor, and one of your own tools (the app-quit popup) has used
+all three since 6.16.21.
 
-A. THE HEADLINE — and the happy path is silence.
-A1. Reload. Wait a minute. Console: `_G.secureInputReport()`.
-    EXPECT `state  : off — nothing is holding the keyboard`, and NO
-    new line in the Console about Secure Input. That silence is the
-    release working on a healthy Mac.
-A2. To see the other half, click into a password field (1Password's
-    unlock, a login page) and leave it there. Then reload
-    Hammerspoon.
-    EXPECT, within a minute: `🔒 SECURE INPUT IS ON — <app> has
-    locked the keyboard …  (ALREADY held when this config started —
-    it did not just happen)`.
-    **That parenthesis is the whole release.** On every build before
-    this one you would have got nothing.
-A3. `_G.secureInputReport()` while it is held.
-    EXPECT a `when   : ALREADY HELD when this config started` line
-    under the state. Leave the field and the next probe says
-    "🔓 Secure Input released".
+A. THE HEADLINE — ten seconds.
+A1. Press ⇪V (clipboard) or ⇪⇧V. EXPECT: a DARK panel, white text,
+    dimmer second line — the Jug Player's colours.
+    **A FAIL is the white panel in your screenshot.**
+A2. Now press several more: ⇪space, ⇪Y, ⇪⇧S, ⇪., ⇪⇧;, ⇪T.
+    EXPECT: every one of them dark, and all of them the SAME dark.
+    That sameness is the release — they read one table now.
+A3. ⇪D (unified search) was already dark. EXPECT: unchanged, and the
+    two now look like each other.
 
-B. MUST STILL WORK.
-B1. Make it change WHILE running: with Hammerspoon up and quiet,
-    click into a password field.
-    EXPECT the same 🔒 line but WITHOUT the "ALREADY held" wording —
-    that one really did just happen.
-B2. `probes :` must show a `change(s) seen` count that goes up for
-    B1 and NOT for A2. A boot into a held keyboard is not a change.
-B3. Normal use for a day: no new Console noise, no alerts.
+B. MUST STILL WORK — this touched the one door every picker opens
+   through, so this half matters more than A.
+B1. Type to filter in ⇪V. ↑↓ walk. ⏎ picks. Esc closes.
+B2. ⌘-drag a picker somewhere, close it, open it again: it reopens
+    where you put it.
+B3. ⌃⌥⌘ + an arrow nudges an open picker; ⌃⌥⌘R clears the nudge.
+B4. The preview pane beside ⇪⇧V and ⇪⇧S still follows the rows.
+B5. ⌘⌘ still opens the clipboard; ⌥⌥ still opens the menus.
 
 C. PASTE BACK.
-C1. `_G.secureInputReport()` from an ordinary morning, and again if
-    you ever meet A2 by accident. If a ⇪ key ever goes dead for no
-    reason, that command is now the first thing to run.
+C1. If ANY picker is still light, name it — that would mean it is
+    opening without going through the shared door, which is a real
+    finding and a different bug.
+
+D. A JUDGEMENT ONLY YOU CAN MAKE.
+D1. Too dark? Too much? `settings = { ui_style = { pickerDark =
+    false } }` puts macOS's own light pickers back everywhere at once.
+    Say the word and I change the default rather than leaving you a
+    line to type.
+D2. **Which windows did you mean by "my other windows"?** If you meant
+    the ones that CAN have a ✕ — Hamsidian, the pads, the task form —
+    say so: those are web pages, they can have anything, and that is a
+    different and bigger release I did not want to guess at.
+D3. On a picker the nearest thing to a ✕ is a KEY on the highlighted
+    row. ⇪⇧V already deletes that way. Want that on others — and which?
 
 
 
-## 6.377.0
+## 6.384.0
 
-6.377.0 verify with LL — ⌨️ WHAT HAPPENS WHEN YOU PICK A SNIPPET
+6.384.0 verify with LL — 🗑 REMOVE AN APP (NEW GROUND — it moves files)
+WHAT CHANGED: there is a new tool. **⇪⇧[** — hold Caps Lock and Shift
+and press the **[** key, just right of P — removes an app AND the
+leftovers it keeps in your home folder.
+🚨 NOTHING IS EVER ERASED. Everything goes to the **Trash**, and you
+empty the Trash yourself. If it ever takes something you wanted,
+Finder → Trash → **Put Back**.
+🚨 AND THE FIRST PRESS MOVES NOTHING. It SHOWS you the list first.
+
+A. THE HEADLINE — use something you do not mind losing.
+A1. Press **⇪⇧[**. EXPECT: a picker listing your applications.
+A2. Type part of an app's name and press ⏎.
+    EXPECT: an alert naming the app, how many items and how big — and
+    saying NOTHING HAS MOVED. **Check your Applications folder: the
+    app must still be there.**
+A3. Open the Console. EXPECT a list, one line per item: the .app
+    itself, then each leftover, with its size and the rule that found
+    it. **READ THAT LIST.** It is the whole point of the tool.
+A4. Any line with a ⚠️ was matched by the app's NAME rather than its
+    bundle id — a guess. Another app's folder can be called the same
+    thing. Read those before step A5.
+A5. Press ⇪⇧[ again. EXPECT the FIRST row now reads
+    "✅ Move “<app>” to the Trash — N item(s), …". Press ⏎ on it.
+    EXPECT: an alert saying how many moved, and the app is gone from
+    Applications and sitting in your Trash.
+A6. Open the Trash. EXPECT the .app and each leftover, each stamped
+    with the date and time. Put one back to prove it works.
+
+B. THE REFUSALS — these are the tool working, not failing.
+B1. Try to remove an app that is OPEN. EXPECT it refuses and tells you
+    to quit it first. Nothing moves.
+B2. `_G.appRemove("NoSuchApp")` in the Console. EXPECT it says it
+    cannot find it rather than guessing.
+B3. 🚨 If it EVER moves something outside your home folder or
+    /Applications, stop and tell me at once. It is built so it cannot:
+    every path is checked immediately before it moves, and the test
+    suite puts /etc/passwd into a list on purpose and requires the
+    move to turn it away.
+
+C. THE CONSOLE DOORS, if you prefer typing.
+C1. `_G.appRemove("Transmission")` — lists, moves nothing.
+C2. `_G.appRemoveGo()` — moves what was just listed.
+C3. `_G.appRemoveReport()` — what it last listed or moved.
+
+D. A JUDGEMENT ONLY YOU CAN MAKE.
+D1. **Is ⇪⇧[ a key you will remember?** It is one of only two free
+    shifted keys left (the other is ⇪⇧]), and I picked it rather than
+    take one you use. Say if you want it somewhere else.
+D2. **Is the Trash the right answer for the caches?** You said "delete
+    any temp files" — I read that as "take the caches WITH the app"
+    rather than "erase them", because erasing is the one thing with no
+    way back. If you want caches erased outright rather than trashed,
+    say so; it is a decision, not an oversight.
+D3. **Did it miss anything?** Check ~/Library after a removal for a
+    folder with that app's name still in it. The list of places it
+    looks is in the module and takes one line to extend. It
+    deliberately does NOT touch the system /Library or launch daemons
+    — those need a password.
+
+
+
+## 6.383.0
+
+6.383.0 verify with LL — 📓 @logs IN ⇪D (KNOWN GROUND)
+WHAT CHANGED: ⇪D has a fifteenth source. Every tool that has failed on
+this Mac is now searchable from the panel you already use.
+🔎 You were right that it was missing — and the uncomfortable part is
+that 6.279.0 named this exact gap when it built the failure log, in
+writing, and then never built it.
+A1. Press ⇪D and type a single `@`.
+    EXPECT **15 sources** now, and **📓 @logs** among them.
+A2. ⏎ on it. EXPECT the failures, newest first, each with the tool,
+    the reason and when.
+A3. Type `@logs hamsidian` (or any tool name). EXPECT it filters.
+A4. `_G.todayReport()` still works and still shows today alone. The
+    two read the same file through the same parser now.
+A5. If @logs ever shows a single row reading "⚠️ the failure log could
+    not be read", paste it. That is deliberate: a log that cannot be
+    read must never come back as an empty list, because "nothing has
+    failed" is the most reassuring thing this config can say and would
+    be a lie on exactly the day the disk is full.
+
+
+
+## 6.382.0
+
+6.382.0 verify with LL — 📋 A PICKED SNIPPET LANDS ON THE CLIPBOARD
 (KNOWN GROUND)
-WHAT CHANGED: nothing about what ⏎ does. What changed is that you can
-now see what it did.
-🔎 AND YOUR SENTENCE IS ALREADY TRUE — "when I select a snippet 99% of
-the time I want it to instantly paste". It does, and it has since the
-picker was built: a short snippet is TYPED straight at the caret, and
-anything with a newline in it is put on the clipboard, ⌘V'd, and your
-clipboard put straight back (a synthetic Return in a Teams or Asana
-box SENDS the message, which is why multi-line is never typed). What
-was missing is any way to tell that from "it did nothing": not one of
-nineteen hundred snippets counted an insert.
-
-A. THE HEADLINE — two minutes.
-A1. ⇪⇧S, pick a short snippet (an email address, an emoji).
-    EXPECT it appears at your caret, instantly, as always.
-A2. ⇪⇧S, pick a MULTI-LINE one (the out-of-office, a signature).
-    EXPECT it appears, and your clipboard is back to what it was a
-    second later — ⌘V somewhere and check.
-A3. Console: `_G.snippetsReport()`. Two new lines:
-      ⏎ pick: 2 — 1 typed at the caret · 1 pasted (⌘V, clipboard put
-              back) · 0 REFUSED
-      typed : 7 — 7 typed at the caret · 0 pasted · 0 REFUSED
-    PASTE THOSE. The first number is the answer to your sentence, and
-    it is the first time it has been askable.
-A4. The `↳ last in :` line names the most recent one and HOW it went.
-
-B. THE HALF THAT PROTECTS YOU.
-B1. If a pick ever inserts NOTHING, you now get an alert naming the
-    snippet and macOS's own reason — it used to go to the Console and
-    nowhere else. Paste it if you ever see it; the report keeps the
-    last one on a `↳ ⚠️ last REFUSED` line.
-B2. Type a trigger normally for a day. EXPECT no change at all, and
-    the `typed :` count climbing while `⏎ pick:` does not.
-
-C. A JUDGEMENT ONLY YOU CAN MAKE.
-C1. If a pick ever feels like it goes nowhere — into the picker
-    instead of your document — say so with the report. That is the
-    one failure I cannot see from here, and the counts are what would
-    prove it.
+WHAT CHANGED: pick a snippet from ⇪⇧S and it is now left ON the
+clipboard, so ⌘V pastes it again and it is the newest row in ⇪V.
+A1. ⇪⇧S, pick a SHORT snippet. It types at the caret as always.
+    Now press ⌘V somewhere else. EXPECT: the same snippet again.
+A2. ⇪⇧S, pick a MULTI-LINE one (a signature, the out-of-office).
+    EXPECT: it inserts, and ⌘V still pastes it afterwards. Before, your
+    old clipboard came back a quarter-second later and the snippet was
+    gone.
+A3. Press ⇪V. EXPECT the snippet is the NEWEST row.
+A4. 🚨 THE ONE THAT PROTECTS YOU: copy something of your own with ⌘C,
+    then TYPE a trigger (not the picker — type it). EXPECT: your copy
+    is still on the clipboard. A typed trigger must never touch it —
+    you fire thousands a day and they would bury everything you copy.
+A5. `_G.snippetsReport()` — a new `clip :` line counts them. If it
+    ever says REFUSED by macOS, paste it.
+A6. Don't want it? `settings = { expander = { pickToClipboard =
+    false } }`. Say so and I will change the default instead.
 
 
 

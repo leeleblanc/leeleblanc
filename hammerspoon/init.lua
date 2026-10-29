@@ -2,50 +2,57 @@
 -- * Working VERSION *
 -- =====================================================================
 -- =====================================================================
--- 10-20-26 using Claude          ← EDITED date. Bumped with every release.
+-- 10-29-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.380.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.385.0
 -- =====================================================================
 
--- NEW IN 6.380.0 — ☁️ THE ONEDRIVE WALK FINISHES, WITH HIS MUSIC IN IT
---   (modules/onedrive_check.lua). The sweep had never once completed on
---   his Mac, and his own log says why: the probe walked the whole cloud
---   drive and was STILL RUNNING at 358 s with the disk to itself, against
---   a 180 s budget. So raising 180 bought nothing — the mechanism changed.
---   The cloud ROOT is no longer a root (it CONTAINS the Vault and the
---   Logs folder); folders are de-duplicated by CONTAINMENT after
---   resolving links (6.230.0, never paid here); ONE folder is walked per
---   turn with ONE BASELINE EACH; and the budget is read off each folder's
---   own last walk rather than typed (6.355.0).
---   🎬 And <cloud>/Music, <cloud>/Movies, ~/Music and ~/Movies join it,
---   on his word, with Apple's library bundles pruned by name.
+-- NEW IN 6.385.0 — 🎨 THE PICKERS WEAR THE JUG PLAYER'S CARD
+--   (modules/ui_style.lua + §1.5). LL, with the ⇪⇧V picker beside the
+--   Jug Player: "Can you make my other windows look like jug player".
+--   This module's header has listed CANVASES and WEBVIEWS since 6.90.0
+--   and never hs.chooser — so thirty-three pickers, most of what he
+--   looks at, were the one family the shared style never reached. They
+--   were light because macOS draws them light, not because anyone chose
+--   it. bgDark/fgColor/subTextColor ARE exposed (app_watcher has used
+--   all three since 6.16.21), and showPopup is the one door every picker
+--   already has to pass through — so one change, not thirty-three.
+--   📏 AND A PICKER CANNOT HAVE A PER-ROW ✕, written down where the next
+--   attempt will read it: a chooser row is drawn by macOS from a string
+--   and has no sub-element to click. The webview panels draw their own
+--   rows and do have one.
 
--- NEW IN 6.379.0 — ⏱ A SIMPLE TIMER, IN WORDS, ON ⇪⇧T
---   (modules/timer.lua). LL: "add a simple timer … I like
---   hyper+shift+t if that is not taken … type a time in natural
---   language … 24 hours and five minutes or 24h and 35m or 15 seconds
---   or 15s. Using the shortcut key when it is visible, hides it. When
---   visible, hitting escape, stops the timer."
---   🆓 ⇪⇧T WAS TAKEN and the REGISTRY said so, not this file: it was
---   power_tools' "type the clipboard" since 6.194.0, and every other
---   shifted letter is spent. 🔑 HIS ASK WAS THE MEASUREMENT — nobody
---   who used ⇪⇧T daily would offer it for a timer — so T is the
---   timer's and type-the-clipboard moved to ⇪⇧\, losing a shortcut and
---   not the feature (⇪; has listed it since 6.158.0).
---   🚨 Esc IS NARROW ON PURPOSE: binding it swallows it system-wide and
---   a timer here can run seven days. Ours while the POINTER IS ON the
---   card, and for escSecs after the card appears or the alarm goes off;
---   the card's last line is READ from that decision, so it never
---   promises a key that is not live. ⇪⎋ stops it from anywhere.
---   🔑 HIDE IS NOT STOP, so the announcement at zero is load-bearing:
---   the card shows ITSELF, flashes, alerts, writes a Console line and
---   notifies through Focus, and stays until it is answered.
+--   ALSO IN THIS ARCHIVE (full entries in CHANGELOG.md):
+--   🗑 6.381.0 the OneDrive watcher is OFF on his word, and the switch
+--   he would have reached for did NOTHING: `enabled` shipped true and
+--   was read nowhere while a second flag governed (6.276.0 in a switch).
+--   One field now. Nothing deleted — the report says what is kept.
+--   📋 6.382.0 a PICKED snippet is left on the clipboard. Neither route
+--   did: short ones were typed, long ones pasted through a borrow that
+--   put his clipboard back. A keep arms NO restore rather than writing
+--   on top of one (6.246.0). Pick only — a typed trigger fires thousands
+--   of times a day.
+--   📓 6.383.0 @logs in ⇪D: every tool that has failed, searchable.
+--   6.279.0 named this gap when it built the ledger and never built it.
+--   ONE parser — todayReport asks the same reader.
 
--- (6.378.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- NEW IN 6.384.0 — 🗑 APP REMOVAL (⇪⇧[), TO THE TRASH, NEVER ERASED
+--   (modules/app_remove.lua). His ask, never built in any release. The
+--   FIRST press only SHOWS what would move — the .app and every
+--   leftover, each with its size and the rule that found it; the second
+--   moves it all to ~/.Trash. Nothing is erased: there is no os.remove
+--   in the file and a sentry states that as a RULE. Leftovers are looked
+--   for in the HOME folder only (his words), the guard is a COMPONENT
+--   test so /Users/lee-evil is refused, and it runs immediately BEFORE
+--   each rename rather than when the list was built — the suite injects
+--   /etc/passwd into a plan and requires the move to turn it away.
+--   🪪 Bundle id is an answer; a NAME match is a guess and wears a ⚠️.
+
+-- (6.383.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 cut the inline count to
 --  TWO; a gate check proves every entry here is also in CHANGELOG.md.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.380.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.385.0
 -- =====================================================================
 -- The catalogue that used to sit here moved to GUIDE.md ("What each
 -- tool does") in 6.180.0 — 259 lines of prose inside the orchestrator.
@@ -138,7 +145,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.380.0"
+_G.configVersion = "6.385.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- A NO-OP STAND-IN for the diagnostics API, replaced by the real one in
@@ -1165,6 +1172,15 @@ local function showPopup(chooser, atPoint)
                 pt = { x = x, y = y }
             end
         end
+    end
+    -- 🎨 6.385.0 — ONE DOOR, THIRTY-THREE PICKERS. His ask was that the
+    -- other windows look like the Jug Player; a chooser's colours are
+    -- reachable (bgDark/fgColor/subTextColor) and this is the single
+    -- place every picker is already required to pass through, so it is
+    -- one change rather than thirty-three. Nil-guarded: a boot where
+    -- ui_style did not load gets macOS's own pickers, as before.
+    if _G.uiStyle and type(_G.uiStyle.picker) == "function" then
+        pcall(_G.uiStyle.picker, chooser)
     end
     -- 🔒 6.314.0 — GUARDED. Only pcall/type/_G below: the gate lifts this
     -- function and runs it in a bare environment.
