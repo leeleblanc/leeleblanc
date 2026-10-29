@@ -122,7 +122,8 @@ function M.setup(core)
     uni.groupCap = 8         -- rows per source in the nothing-typed view
     uni.maxPer  = { clip = 400, cmd = 400, shots = 30, note = 120,
                     asana = 200, ocr = 200, doc = 200, file = 200, pad = 60,
-                    web = 300, scratch = 200, vault = 300, images = 150 }
+                    web = 300, scratch = 200, vault = 300, images = 150,
+                    logs = 300 }
     -- 6.187.0 — how many @images rows get a real picture. A thumbnail is a
     -- full decode on the main thread, so this is a budget, not a preference.
     uni.thumbMax = 24
@@ -286,6 +287,46 @@ function M.setup(core)
                      text = oneLine(e.cmd):sub(1, uni.preview),
                      sub  = e.when or "shell history", full = e.cmd }
             end
+        end
+    end
+
+    -- 📓 6.383.0 — @logs. LL: "I don't have at @ search for Logs."
+    -- He is right, and 6.279.0 named this exact gap when it built the
+    -- ledger — "the log is not yet a ⇪D source. One uni.sources row, its
+    -- own release" — and then never built it. Everything that has
+    -- degraded on this Mac, searchable from the panel he already uses.
+    --
+    -- 🔁 ONE PARSER. The rows come from notices.logRows, the same reader
+    -- _G.todayReport() asks; a second copy of that CSV parsing here is
+    -- how two readers over one file come to disagree about a column.
+    local function srcLogs(add)
+        local n = _G.notices
+        if not (n and type(n.logRows) == "function") then return end
+        local ok, rows, err = pcall(n.logRows, { max = uni.maxPer.logs })
+        if not ok then return end
+        -- 🔎 THREE STATES, AND THE MIDDLE ONE IS THE POINT (6.196.1). A
+        -- log that could not be READ must not come back as an empty
+        -- store: "nothing has failed" is the most reassuring sentence
+        -- this config can print and would be a lie on exactly the day
+        -- the disk is full. It becomes a ROW he can see instead.
+        if not rows then
+            uni.logsWhy = tostring(err or "the log could not be read")
+            add{ tag = "logs", icon = "📓", src = "Tool failures",
+                 text = "⚠️ the failure log could not be read — " .. uni.logsWhy,
+                 sub  = "this is NOT 'nothing failed'",
+                 full = "The degrade log could not be read, so ⇪D cannot say"
+                        .. " whether anything has failed. " .. uni.logsWhy }
+            return
+        end
+        uni.logsWhy = nil
+        for i = 1, #rows do
+            local r = rows[i]
+            add{ tag = "logs", icon = "📓", src = "Tool failures",
+                 text = oneLine(tostring(r.tool) .. " — " .. tostring(r.why))
+                            :sub(1, uni.preview),
+                 sub  = tostring(r.date) .. " " .. tostring(r.clock),
+                 full = tostring(r.tool) .. " failed at " .. tostring(r.date)
+                        .. " " .. tostring(r.clock) .. "\n\n" .. tostring(r.why) }
         end
     end
 
@@ -859,6 +900,9 @@ function M.setup(core)
           what = "everything you have copied — ⇪V opens the panel here" },
         { tag = "cmd",   icon = "⌨️", label = "Commands",     fn = srcCommands,
           what = "the shell and Console commands ⇪H remembers" },
+        { tag = "logs",  icon = "📓", label = "Tool failures", fn = srcLogs,
+          what = "every tool that has failed on this Mac — the 4 PM check,"
+                 .. " searchable (_G.todayReport() is today alone)" },
         { tag = "shots", icon = "📸", label = "Screenshots",  fn = srcShots,
           what = "every file in the screenshots folder — ⇪⇧space opens here" },
         { tag = "note",  icon = "🗒", label = "Notes",        fn = srcNotes,

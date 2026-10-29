@@ -471,6 +471,55 @@ return function(core)
     -- point: "no log to read" must NOT print as "nothing failed today".
     -- The second is the most reassuring sentence this config can say and
     -- it would be a lie on exactly the day the disk is full.
+    -- 📓 6.383.0 — ONE PARSER, TWO READERS (6.231.0). ⇪D's @logs source
+    -- needs these same rows, and a second copy of this parsing beside it
+    -- is the OCR log's defect exactly: two readers over one CSV that
+    -- drift, so one ⇪⇧O typo fix strips a column off every row while the
+    -- write ledger reports the shrink as normal. The parse lives HERE,
+    -- where the writer is, and todayReport asks it too.
+    --
+    -- Newest first, bounded, and it reads only the TAIL — this file is
+    -- uncapped by design (6.179.0), so reading it whole is a main-thread
+    -- read that grows for ever.
+    --
+    -- 🔎 IT ANSWERS rows, err — never a bare empty list. "the log holds
+    -- nothing" and "the log could not be read" are opposite facts, and a
+    -- reader that cannot tell them apart prints the reassuring one
+    -- (6.196.1). Every caller must carry the second value.
+    function notices.logRows(opts)
+        opts = type(opts) == "table" and opts or {}
+        local max = tonumber(opts.max) or 400
+        if not notices.logPath then
+            return nil, "no log file yet — notices.logTo() has not been called"
+        end
+        local f = io.open(notices.logPath, "r")
+        if not f then return nil, "the log is there and could not be read" end
+        local okR, text = pcall(function()
+            local size = f:seek("end")
+            local want = notices.logTail or 64 * 1024
+            f:seek("set", math.max(0, size - want))
+            return f:read("a") or ""
+        end)
+        pcall(function() f:close() end)
+        if not okR then return nil, "the log could not be read" end
+        local rows = {}
+        for line in tostring(text or ""):gmatch("[^\n]+") do
+            local d, clock, at, rest = line:match('^"([^"]*)","([^"]*)",(%d+),(.*)$')
+            if d and rest then
+                local tool, why = rest:match('^"(.-)",?"?(.*)"?$')
+                tool = (tool or "?"):gsub('""', '"')
+                why  = (why  or ""):gsub('^"', ""):gsub('"$', ""):gsub('""', '"')
+                rows[#rows + 1] = { date = d, clock = clock, at = tonumber(at) or 0,
+                                    tool = tool, why = why }
+            end
+        end
+        -- newest first; the tail is in write order, so reverse rather
+        -- than sort — equal seconds must keep the order they happened in
+        local out, n = {}, #rows
+        for i = n, math.max(1, n - max + 1), -1 do out[#out + 1] = rows[i] end
+        return out
+    end
+
     function _G.todayReport(day)
         day = day or os.date("%Y-%m-%d")
         local L = { "📓 WHAT FAILED " .. (day == os.date("%Y-%m-%d") and "TODAY" or "ON " .. day)
@@ -498,25 +547,22 @@ return function(core)
             return finish()
         end
         L[#L + 1] = "   log    : " .. notices.logPath
-        local f = io.open(notices.logPath, "r")
-        if not f then
+        -- 🔁 6.383.0 — THE SAME PARSER ⇪D's @logs ASKS. Two readers over
+        -- one CSV is how a column goes missing from one of them.
+        local rows, rerr = notices.logRows({ max = 5000 })
+        if not rows then
             L[#L + 1] = "   ⚠️ COULD NOT READ IT — so this report cannot say whether"
             L[#L + 1] = "      anything failed today. Treat it as unknown, not as clear."
+            L[#L + 1] = "      (" .. tostring(rerr) .. ")"
             return finish()
         end
-        -- the tail only: this file is uncapped by design (6.179.0)
-        local size = f:seek("end")
-        local want = notices.logTail or 64 * 1024
-        f:seek("set", math.max(0, size - want))
-        local text = f:read("a") or ""
-        f:close()
         local tools, order, n = {}, {}, 0
-        for line in text:gmatch("[^\n]+") do
-            local d, clock, _, rest = line:match('^"([^"]*)","([^"]*)",(%d+),(.*)$')
-            if d == day and rest then
-                local tool, why = rest:match('^"(.-)",?"?(.*)"?$')
-                tool = (tool or "?"):gsub('""', '"')
-                why  = (why  or ""):gsub('^"', ""):gsub('"$', ""):gsub('""', '"')
+        -- logRows answers newest-first; this block groups by tool and
+        -- wants first→last, so it walks back up
+        for i = #rows, 1, -1 do
+            local r = rows[i]
+            local d, clock, tool, why = r.date, r.clock, r.tool, r.why
+            if d == day then
                 local e = tools[tool]
                 if not e then e = { n = 0, first = clock, causes = {}, order = {} }
                              tools[tool] = e; order[#order + 1] = tool end

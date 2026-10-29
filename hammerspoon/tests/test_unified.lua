@@ -1476,7 +1476,124 @@ do
     check("§6.325.0 ran all of its checks (" .. ran .. " of 7)", ran >= 7, ran)
 end
 
+
+-- =====================================================================
+out("\n8. 📓 6.383.0 — @logs: every tool that has failed, searchable\n")
+-- =====================================================================
+-- LL: "I don't have at @ search for Logs." He was right. 6.279.0 built
+-- the ledger and named this gap in the same breath — "the log is not yet
+-- a ⇪D source. One uni.sources row, its own release" — and then it sat
+-- there for a hundred releases.
+do
+    local before = pass + fail
+
+    check("@logs is a source, so it has a section, a @tag and a directory row",
+          (function()
+              for _, sc in ipairs(U.sources) do
+                  if sc.tag == "logs" then
+                      return type(sc.what) == "string" and #sc.what > 10
+                  end
+              end
+              return false
+          end)())
+
+    -- a ledger with two failures in it, written the way notices writes
+    local LOGCSV = table.concat({
+        '"2026-10-29","08:14:02",1790000042,"Hamsidian save","the note Budget was NOT written"',
+        '"2026-10-29","09:02:11",1790003731,"OneDrive watch","no folder to watch"',
+    }, "\n") .. "\n"
+
+    _G.notices = {
+        logPath = "/logs/degrades-TestMac.csv",
+        logTail = 64 * 1024,
+        logRows = function(opts)
+            local rows = {}
+            for line in LOGCSV:gmatch("[^\n]+") do
+                local d, clock, at, rest = line:match('^"([^"]*)","([^"]*)",(%d+),(.*)$')
+                if d then
+                    local tool, why = rest:match('^"(.-)",?"?(.*)"?$')
+                    rows[#rows + 1] = { date = d, clock = clock, at = tonumber(at),
+                                        tool = tool, why = (why or ""):gsub('"$', "") }
+                end
+            end
+            local out = {}
+            for i = #rows, 1, -1 do out[#out + 1] = rows[i] end
+            return out
+        end,
+    }
+    U.gather()
+    local logs = {}
+    for _, r in ipairs(U.rows) do if r.tag == "logs" then logs[#logs + 1] = r end end
+    check("every failure in the ledger becomes a row", #logs == 2, #logs)
+    check("…newest first, the way every other store here reads",
+          (logs[1].text or ""):find("OneDrive watch", 1, true) ~= nil,
+          logs[1] and logs[1].text)
+    check("…and a row carries the TOOL and macOS's own words, so it is searchable",
+          (logs[2].text or ""):find("Hamsidian save", 1, true) ~= nil
+          and (logs[2].text or ""):find("NOT written", 1, true) ~= nil,
+          logs[2] and logs[2].text)
+    check("…with the day and the clock beside it",
+          (logs[2].sub or ""):find("2026%-10%-29") ~= nil
+          and (logs[2].sub or ""):find("08:14:02", 1, true) ~= nil, logs[2].sub)
+
+    -- 🚨 THE ONE THAT MATTERS MOST, and it is the fixture where a lazier
+    -- build and this one must differ: a log that could NOT be read must
+    -- not arrive as an empty store. "nothing has failed" is the most
+    -- reassuring line this config can print and would be a lie on
+    -- exactly the day the disk is full (6.196.1 · 6.279.0).
+    _G.notices.logRows = function() return nil, "the log is there and could not be read" end
+    U.gather()
+    local bad = {}
+    for _, r in ipairs(U.rows) do if r.tag == "logs" then bad[#bad + 1] = r end end
+    -- 🚨 A HELPER THAT ANSWERS FALSELY, NEVER ONE THAT INDEXES A NIL
+    -- (6.186.0). The mutation that drops this row leaves `bad` empty, and
+    -- `bad[1].text` then ENDS THE RUN with "0 failed" never printed —
+    -- which in a gate that reads the tail looks exactly like a pass. It
+    -- DID, on the first sweep of this release.
+    local function badField(i, k)
+        local r = bad[i]
+        return (type(r) == "table" and tostring(r[k] or "")) or ""
+    end
+    check("🚨 an UNREADABLE log is a row, not an empty store",
+          #bad == 1 and badField(1, "text"):find("could not be read", 1, true) ~= nil,
+          #bad .. " / " .. badField(1, "text"))
+    check("…and it says so in as many words, rather than reading as 'all clear'",
+          badField(1, "sub"):find("NOT", 1, true) ~= nil, badField(1, "sub"))
+
+    -- a Mac where notices never loaded: no rows, no crash, no claim
+    _G.notices = nil
+    U.gather()
+    local none = 0
+    for _, r in ipairs(U.rows) do if r.tag == "logs" then none = none + 1 end end
+    check("no ledger at all → no rows and nothing thrown (it degrades)", none == 0, none)
+
+    -- 🔁 ONE PARSER. A second copy of the CSV parsing in this module is
+    -- how two readers over one file drift; the gate asserts the module
+    -- asks for the rows rather than parsing them itself.
+    -- 🔌 realOpen — io.open is a virtual disk in this suite, so the plain
+    -- one reads NOTHING and the sentry is green over an empty haystack
+    -- (6.313.0). The size is asserted for the same reason.
+    local SRC = realOpen(HS .. "/modules/unified_search.lua", "r")
+    local TXT = SRC and SRC:read("*a") or ""
+    if SRC then SRC:close() end
+    check("the sentry below really read the module", #TXT > 40000, #TXT)
+    -- 🚨 THE WINDOW ENDS AT THE FUNCTION'S OWN BOUNDARY (6.263.0). The
+    -- first version searched the WHOLE file for "logs" followed by
+    -- "gmatch", which spans half the module and matches a neighbour —
+    -- it went red on correct code. The body is cut out first.
+    local body = TXT:match("local function srcLogs%(add%).-\n    local function ") or ""
+    check("the srcLogs body was found to read", #body > 400, #body)
+    check("@logs asks notices for the rows and parses no CSV of its own",
+          body:find("logRows", 1, true) ~= nil
+          and body:find("gmatch", 1, true) == nil,
+          tostring(body:match("[^\n]*gmatch[^\n]*")))
+
+    local ran = (pass + fail) - before
+    check("§8 ran all of its checks (" .. ran .. " of 11)", ran >= 11, ran)
+end
+
 io.write(("\n%d passed, %d failed\n"):format(pass, fail))
+
 if fail > 0 then
     io.write("FAILURES:\n")
     for _, f in ipairs(failures) do io.write("   ❌ " .. f .. "\n") end

@@ -899,6 +899,66 @@ do
     os.remove(LOG)
 end
 
+-- =====================================================================
+out("\n§L 6.383.0 — logRows, the one parser ⇪D's @logs asks\n")
+-- =====================================================================
+boot()
+-- =================================================================
+-- 📓 6.383.0 — logRows: ONE parser, and it answers NEWEST FIRST
+-- =================================================================
+-- ⇪D's @logs source and _G.todayReport() read the same CSV, so the
+-- parse lives HERE, where the writer is, and both ask it. Two
+-- readers over one file is the OCR log's own defect — one of them
+-- drifts and a column goes missing with nothing saying so.
+do
+    local DIR = os.getenv("TMPDIR") or "/tmp"
+    local ORD = DIR .. "/hs-degrades-order-" .. tostring(os.time()) .. ".csv"
+    os.remove(ORD)
+    local f = assert(realIoOpen(ORD, "w"))
+    f:write('"2026-10-29","08:00:00",1790000000,"First tool","first why"\n')
+    f:write('"2026-10-29","09:00:00",1790003600,"Second tool","second why"\n')
+    f:write('"2026-10-29","10:00:00",1790007200,"Third tool","third, with a comma"\n')
+    f:close()
+    N.logTo(ORD)
+
+    local rows, err = N.logRows({ max = 10 })
+    check("📓 logRows reads the ledger back",
+          type(rows) == "table" and #rows == 3,
+          tostring(rows and #rows) .. " " .. tostring(err))
+    -- 🚨 THE ORDER IS THE CONTRACT, and nothing drove it until the
+    -- mutation sweep said so: returning the rows in WRITE order
+    -- survived the whole suite. ⇪D lists newest first like every
+    -- other store it shows, so a reversal opens the panel on last
+    -- month's failures with today's at the bottom.
+    check("…NEWEST FIRST, which is the order ⇪D draws",
+          rows and rows[1] and rows[1].tool == "Third tool"
+          and rows[3] and rows[3].tool == "First tool",
+          tostring(rows and rows[1] and rows[1].tool) .. " … "
+          .. tostring(rows and rows[3] and rows[3].tool))
+    check("…and a comma inside a reason survives the round trip",
+          rows and rows[1] and (rows[1].why or ""):find("with a comma", 1, true) ~= nil,
+          rows and rows[1] and rows[1].why)
+    check("…with the day, the clock and the epoch kept apart",
+          rows and rows[1] and rows[1].date == "2026-10-29"
+          and rows[1].clock == "10:00:00" and rows[1].at == 1790007200,
+          tostring(rows and rows[1] and rows[1].at))
+    local few = N.logRows({ max = 2 })
+    check("…the bound is real, and it keeps the NEWEST",
+          type(few) == "table" and #few == 2 and few[1].tool == "Third tool",
+          type(few) == "table" and #few or tostring(few))
+
+    -- 🔎 AND AN UNREADABLE LOG ANSWERS nil + A REASON, never {}. An
+    -- empty list reads as "nothing has failed", which is the most
+    -- reassuring sentence this config can print and would be a lie
+    -- on exactly the day the disk is full (6.196.1 · 6.279.0).
+    N.logTo(DIR .. "/no-such-dir-" .. tostring(os.time()) .. "/nope.csv")
+    local none, why = N.logRows({})
+    check("📓 an unreadable log is nil AND a reason, never an empty list",
+          none == nil and type(why) == "string" and #why > 5, tostring(why))
+    os.remove(ORD)
+end
+
+
 io.open = realIoOpen
 out("\n")
 if fail > 0 then
