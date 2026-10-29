@@ -430,8 +430,12 @@ function M.setup(core)
             core.degrade("App removal", "no applications could be listed")
             return false, "no applications could be listed"
         end
-        local ch
-        ch = core.showPopup(hs.chooser.new(function(row)
+        -- 🚨 core.showPopup SHOWS the picker and answers true/false — it
+        -- does NOT hand the chooser back. Building it, filling it and
+        -- only then asking showPopup to place it is the shape every
+        -- other picker in this config uses, and the one the placement
+        -- record depends on (6.127.0).
+        local ch = hs.chooser.new(function(row)
             _G.choosers.appRemove = nil
             if not row then return end
             if row.go then
@@ -457,12 +461,23 @@ function M.setup(core)
                               .. "\nNOTHING HAS MOVED. The Console lists every one."
                               .. "\n⇪⇧[ again to confirm.", 7)
             end
-        end))
+        end)
         if not ch then return false, "macOS would not open the picker" end
         ch:choices(rows)
         ch:placeholderText("Remove an app — to the Trash, never erased")
         _G.choosers.appRemove = ch
-        ch:show()
+        -- 🧊 AND THE ANSWER IS READ. A refused show leaves a picker that
+        -- is not on screen while this module thinks one is open
+        -- (6.265.0 · 6.326.0 — a published handle is a claim about the
+        -- world, written after the world agrees).
+        local shown = false
+        if core.showPopup then shown = core.showPopup(ch) ~= false
+        else shown = pcall(function() ch:show() end) end
+        if not shown then
+            _G.choosers.appRemove = nil
+            core.degrade("App removal", "macOS would not put the picker on screen")
+            return false, "macOS would not put the picker on screen"
+        end
         return true
     end
 

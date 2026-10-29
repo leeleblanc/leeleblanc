@@ -223,10 +223,20 @@ os.rename = function(a, b)
 end
 
 local DEGRADED, COPYREFUSE = {}, false
+local SHOWN, POPUPREFUSE = {}, false
 local core = {
     homeDir = HOME,
     hyperAddShortcut = function() end,
-    showPopup = function(c) return c end,
+    -- 🔬 THE REAL showPopup SHOWS the picker and answers true/false; it
+    -- does NOT hand the chooser back. A stub that returned the chooser
+    -- let this module's picker ship calling `:choices()` on a BOOLEAN —
+    -- 6.290.0, caught by reading init.lua rather than by any check here.
+    -- It can refuse, too, because macOS can (6.265.0).
+    showPopup = function(c)
+        if POPUPREFUSE then return false end
+        SHOWN[#SHOWN + 1] = c
+        return true
+    end,
     degrade = function(tool, w) DEGRADED[#DEGRADED + 1] = tostring(tool) .. ": " .. tostring(w) end,
     -- 🔬 IT CAN REFUSE, as macOS can — setContents answers false and
     -- never throws, and test_stub_fidelity fails the gate for a stub
@@ -401,6 +411,80 @@ check("a refused rename is counted, not announced as moved",
       tostring(fRes and fRes.moved) .. "/" .. tostring(fRes and fRes.failed))
 check("…and the file is still there", FS[HOME .. "/Library/Caches/com.vendor.Thing"] ~= nil)
 check("🔔 …and it takes the door", #DEGRADED > 0, #DEGRADED)
+
+-- =====================================================================
+out("\n=== 7b. THE PICKER ITSELF — the path nothing was driving ===")
+-- =====================================================================
+-- 🚨 THIS SECTION EXISTS BECAUSE A REAL BUG SHIPPED WITHOUT IT. The
+-- module called `core.showPopup(hs.chooser.new(...))` and then
+-- `:choices()` on what came back — but showPopup SHOWS the picker and
+-- answers true/false; it does not hand the chooser back. The harness's
+-- stub returned the chooser, so the whole picker path was certified by
+-- a stub gentler than init.lua (6.290.0, thirteenth time). Nothing here
+-- drove ar.show() at all, which is why no check could fail.
+freshDisk()
+SHOWN, POPUPREFUSE = {}, false
+local sOK = ar.show()
+check("the picker opens", sOK == true, tostring(sOK))
+check("…and it was PLACED through core.showPopup, never a bare :show()",
+      #SHOWN == 1, #SHOWN)
+-- 🚨 ANSWER FALSELY, NEVER INDEX A NIL (6.186.0). A mutation that
+-- stops the picker being shown leaves SHOWN empty, and `ch.rows_` then
+-- ENDS THE RUN with "0 failed" never printed — a pass, to a gate that
+-- reads the tail. It did, on this release's sweep.
+local ch = SHOWN[1] or { rows_ = {}, cb = function() end }
+check("…with its rows already in it before it was shown",
+      type(ch.rows_) == "table" and #ch.rows_ > 0, type(ch.rows_))
+check("…listing the apps it found", (function()
+          for _, r in ipairs(ch.rows_ or {}) do
+              if r.app == "Thing" then return true end
+          end
+          return false
+      end)())
+check("…and every app row says the first press moves nothing", (function()
+          for _, r in ipairs(ch.rows_ or {}) do
+              if r.app and not tostring(r.subText):find("nothing moves", 1, true) then
+                  return false
+              end
+          end
+          return true
+      end)())
+check("…and it is filed in _G.choosers so Esc closes it first",
+      _G.choosers.appRemove ~= nil)
+
+-- picking an app LISTS it and still moves nothing
+ch.cb({ app = "Thing" })
+check("picking an app builds a plan", ar.plan ~= nil and ar.plan.name == "Thing")
+check("🚨 …and STILL moves nothing", #RENAMES == 0, #RENAMES)
+
+-- now the confirmation row is offered first
+SHOWN = {}
+ar.show()
+local ch2 = SHOWN[1] or { rows_ = {}, cb = function() end }
+local function row1(k)
+    local r = ch2.rows_[1]
+    if type(r) ~= "table" then return nil end
+    return r[k]
+end
+check("with a plan in hand the picker offers the confirmation FIRST",
+      row1("go") == true, row1("text"))
+check("…and says what it is about to move, in words",
+      tostring(row1("text")):find("Thing", 1, true) ~= nil
+      and tostring(row1("text")):find("Trash", 1, true) ~= nil, row1("text"))
+check("…and says it is undoable",
+      tostring(row1("subText")):find("Put Back", 1, true) ~= nil, row1("subText"))
+if type(ch2.rows_[1]) == "table" then ch2.cb(ch2.rows_[1]) end
+check("…and choosing it moves them", #RENAMES == 4, #RENAMES)
+
+-- 🧊 A REFUSED SHOW IS NOT RECORDED AS AN OPEN PICKER (6.265.0 · 6.326.0)
+freshDisk()
+SHOWN, POPUPREFUSE = {}, true
+_G.choosers.appRemove = nil
+local rOK2, rWhy2 = ar.show()
+check("🧊 a picker macOS refuses answers false", rOK2 == false, tostring(rOK2))
+check("…and is NOT left recorded as open", _G.choosers.appRemove == nil)
+check("🔔 …and he is told", #DEGRADED > 0, #DEGRADED)
+POPUPREFUSE = false
 
 -- =====================================================================
 out("\n=== 8. THE REPORT, AND THE SOURCE PROMISE ===")
