@@ -483,6 +483,32 @@ work Mac.
   fidelity. When a bug is about the SHAPE of some data, check that the
   harness reproduces the shape before trusting a green run about it.
 
+- 🎙 A GREP THAT SEARCHES FOR THE WORD INSTEAD OF THE API CLEARS A FILE
+  THAT IS GUILTY (2026-10-29, modules/focus_mode.lua — LL, weeks
+  earlier: "when I put it in focus mode I have the need to come out of
+  focus mode so that my microphone unmutes"). That report was written
+  into this file as **NOT OURS**: "nothing in this config touches the
+  microphone or mutes audio input", and he was sent to look at Teams,
+  Zoom and Superwhisper.
+  🚨 IT IS OURS, AND IT IS ON BY DEFAULT. focus_mode.lua is ⇪Q, ships
+  `enabled = true` and `doMuteMic = true`, engages BY ITSELF on a
+  Zoom/Teams meeting window or an Outlook reminder, and at :364-386
+  calls `dev:setInputMuted(true)` on the default input device. It
+  unmutes only on disengage. His sentence is that module working exactly
+  as designed, described exactly as it behaves.
+  🔑 THE MECHANISM OF THE WRONG ANSWER, and it is the half to carry: the
+  grep that produced "not ours" searched for **microphone** and **mute**
+  in prose. The code says `hs.audiodevice` and `setInputMuted`. A module
+  can only be cleared by searching for the API THAT WOULD DO THE THING —
+  the platform call, not the English word for it — because the English
+  word appears in comments and the API appears in code. 6.319.0 says a
+  list of files still carrying a shape is a SAMPLE until somebody greps;
+  this says the grep itself can be the lie.
+  📏 AND "NOT OURS" IS THE MOST EXPENSIVE WRONG ANSWER AVAILABLE. It
+  does not merely fail to fix the thing — it sends him to argue with
+  somebody else's software about a default this config chose. Before
+  writing that sentence about any report, grep for the API and name it.
+
 - 🗿 A MEASURED REJECTION IS EVIDENCE ABOUT ONE IMPLEMENTATION, NEVER A
   VETO ON THE PROBLEM (6.360.0, LL: "And yes, holy shit I did say that.
   Because the grid was fucking ridiculous. Be cool if you could recommend
@@ -6230,6 +6256,21 @@ THE METHOD, when something breaks after a stacked zip:
    is the one to remember: the core stub put `logsDir` OUTSIDE the cloud
    root, so the containment that caused the entire bug was absent from
    the end-to-end path.)
+   · 6.381.0–6.385.0 3b7f3ba (6.381.0 the OneDrive park + 6.382.0 the
+   snippet clipboard) · 7f86c18 (their sweep) · 043fb0a (6.383.0 @logs)
+   · 6522d4e (6.384.0 app removal) · e3d952d (its picker fix) · cc81e5d
+   (6.385.0 the picker card + the whole ceremony) · **1ddc6d4 is the
+   archive, and 1ddc6d4 is the SHA every link to it must carry** — a
+   branch-pinned link dies the moment the next release deletes the file.
+   🔑 FIVE RELEASES IN FIVE DIFFERENT PLACES on purpose — onedrive_check,
+   text_expander, unified_search+notices, a NEW module (app_remove) and
+   ui_style+§1.5 — so a break still names its version by which tool it
+   is in. 36 of 36 mutations bit across the batch and every no-op control
+   survived; the sweeps' own findings are in each commit message, and
+   the sharpest is 6.384.0's: the picker path shipped BROKEN and was
+   caught by READING init.lua, not by any check, because the suite's
+   showPopup stub returned the chooser while the real one returns a
+   boolean (6.290.0, thirteenth time).
    · 6.379.0 5214b32 (the code; e3908d5 the ceremony and the archive, and
    **e3908d5 is the SHA every link to it must carry**. 56 of 56 mutations
    bit and the no-op control survived; the three that survived the first
@@ -6384,6 +6425,12 @@ that must be READ before a new cause is named.
 | "Scratch not should be prefixed with Today's date" | modules/scratch_pad.lua · the default tab name | 6.376.0 | 1 | ask |
 | "When I select a snippet 99% of the time I want it to instantly paste" | modules/text_expander.lua · it already did; nothing counted it | 6.377.0 | 1 | ask — and the honest answer is that it was already true |
 | "I DON'T KNOW WHAT THIS MEANS" (about a verify step) | the verify blocks themselves, not any module | 6.377.0 | 1 | 🔑 a method defect — see the ⌨️ hard rule |
+| "when I put it in focus mode I have the need to come out of focus mode so that my microphone unmutes" | modules/focus_mode.lua — ⇪Q mutes the input device, on by default | (open) | 0 | 🚨 filed as NOT OURS and it IS ours — see the 🎙 hard rule |
+| "Can you make my other windows look like jug player and have (x) at the end of the line/row" | modules/ui_style.lua · §1.5 showPopup — the pickers were the one family the shared style never reached | 6.385.0 | 1 | half of it is impossible on an hs.chooser, and that is now written down |
+| "Build App removal" · "trash do not erase, home folder only" | modules/app_remove.lua — never built in any release | 6.384.0 | 1 | ask |
+| "I don't have at @ search for Logs" | modules/unified_search.lua · core/notices.lua — 6.279.0 named the gap and never built it | 6.383.0 | 1 | ask |
+| "A picked snippet needs to land on the clipboard" | modules/text_expander.lua — neither route left it there | 6.382.0 | 1 | ask |
+| "Turn off the OneDrive watcher and park the development" | modules/onedrive_check.lua — `enabled` was read nowhere | 6.381.0 | 1 | ask |
 | "add a simple timer I can launch using a shortcut key" · "I like hyper+shift+t if that is not taken" | modules/timer.lua · and ⇪⇧T was taken | 6.379.0 | 1 | a new tool, not a defect — nothing was broken |
 
 📏 SEEDED FROM THE RECORD, NOT INVENTED: every row above is a real
@@ -6474,6 +6521,11 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
+| 6.385.0 | 🎨 Every picker wears the Jug Player's dark card — and a picker cannot have a per-row ✕, which is said rather than discovered | pending |
+| 6.384.0 | 🗑 App removal on ⇪⇧[ — to the Trash, never erased, and the first press only SHOWS | pending |
+| 6.383.0 | 📓 @logs in ⇪D — every tool that has failed, searchable | pending |
+| 6.382.0 | 📋 A picked snippet is left on the clipboard | pending |
+| 6.381.0 | 🗑 The OneDrive watcher is parked — and the switch he would have reached for did nothing | pending |
 | 6.380.0 | ☁️ The OneDrive walk finishes — one folder per turn, with his music and films in it, and a time limit read off the Mac instead of typed | pending |
 | 6.379.0 | ⏱ A simple timer on ⇪⇧T — say how long in words, and the key hides the card without stopping it | pending |
 | 6.378.0 | 🔒 Secure Input already held when this config starts is announced — it used to be reported to nobody, for ever | pending |
@@ -6618,6 +6670,54 @@ next boot announced it (LL: "fortunately hammerspoon caught itself"). LL is on
 built. The work Mac's storm report is still owed, on 6.215.0 now.
 
 ## Open items — update as they move
+
+- 📥 HIS 2026-10-29 BATCH — FIVE BUILT, HIS ANSWERS LOGGED, AND WHAT IS
+  LEFT. He asked "what is left to build?", got the list, and answered
+  most of it in one message.
+  ✅ BUILT: the OneDrive park (6.381.0) · the picked snippet on the
+     clipboard (6.382.0) · @logs (6.383.0) · App removal (6.384.0) · the
+     pickers' dark card (6.385.0).
+  🗳 HIS DECISIONS, LOGGED SO THEY ARE NOT RE-ASKED:
+     · **Scratch tab → file: (a)** — every tab becomes a .md
+       IMMEDIATELY. NOT YET BUILT and it is the biggest open item: it
+       means every keystroke eventually writes into OneDrive, an
+       untitled tab needs a filename the second it exists, and ⌘W on a
+       throwaway leaves a file behind. My recommendation stands — write
+       on the first PAUSE rather than the first keystroke, auto-named
+       from the first line — and it needs his yes before a line is
+       written, because it changes where his writing lives.
+     · **Spotlight is off**, so the ⌘Space launcher is unblocked. Not
+       yet built.
+     · **The sanitize list, for the public config**: lleblanc7,
+       lleblanc7@alamo.edu, 901176849, sac-libsys@alamo.edu, sac-libsys,
+       sac\lleblanc7, sac-libfinance@alamo.edu, leblanc.lee@gmail.com,
+       512-840-9255 — "for now". 📏 MEASURED AGAINST THE TREE ALREADY:
+       only ONE of the nine appears in a shipped file —
+       tests/test_expander.lua:441 carries the gmail address as a
+       snippet fixture, and has since 6.68.0. The rest are absent. So
+       the scrub is small and the risk is the ones he has NOT listed
+       yet, which is why the list says "for now".
+  📏 STILL OPEN, in the order I would build them:
+     1. **§6, the Asana dashboard, out of init.lua** — now URGENT rather
+        than tidy: init.lua is 3,795 of 3,800 and 6.385.0 had to drop a
+        NEW IN block to fit. The next release cannot add a header at all
+        until this moves. ~529 lines, mechanical (it reaches only seven
+        things and all seven are already on the core table), and it
+        needs a suite of its own.
+     2. The scratch-tab → .md decision above.
+     3. ⌘Space launcher · ⌥Tab listing every panel · MANIFEST.txt +
+        _G.installCheck() · the draft keeper · the Mug Player sized to
+        the film · anchors' cold start · the crop tool · ⇪7's detail.
+     4. tests/test_lint.lua — hs-lint has no suite and every rule in it
+        is a bug that cost a release.
+     5. The half-swept classes: the Jug Player's catcher (its show's
+        answer is thrown away — 6.352.0's bug, verbatim, at
+        music_player.lua:1745), five bare webview shows, the OCR tag
+        resolving a file reference with realpath instead of the bookmark
+        round trip 6.237.0 proved correct, nameByText's missing killer
+        timer, screenshots having no M.warm.
+  🎙 AND ONE THING THAT IS NOT A FEATURE: ⇪Q mutes his microphone, by
+     default, and this file said it was not ours. See the 🎙 hard rule.
 
 - 📥 HIS 2026-10-20 BATCH — ELEVEN RELEASES, AND WHAT IS STILL OPEN.
   He came back inside the week with a large batch. What each turned out
