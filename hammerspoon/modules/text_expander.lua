@@ -268,6 +268,11 @@ function M.setup(core)
     -- hands focus back, a typed trigger happens mid-sentence with the
     -- caret already where it belongs (6.274.0: when a symptom is
     -- intermittent the missing half is a per-outcome COUNT).
+    -- 📋 6.382.0 — a PICKED snippet is left on the clipboard, so ⌘V
+    -- pastes it again and it is the newest row in ⇪V. false restores the
+    -- old behaviour exactly (the borrow puts his clipboard back).
+    exp.pickToClipboard = true
+    exp.clipLand = { kept = 0, refused = 0, why = nil, last = nil }
     exp.inserts = { pick  = { typed = 0, pasted = 0, refused = 0 },
                     typed = { typed = 0, pasted = 0, refused = 0 },
                     lastWhy = nil, lastName = nil, lastAt = nil }
@@ -769,21 +774,47 @@ function M.setup(core)
         return text:find("\n", 1, true) ~= nil or clen(text) > exp.pasteOver
     end
 
-    local function pasteText(text)
+    -- 📋 6.382.0 — `keep` MEANS THE SNIPPET STAYS. His ask: "A picked
+    -- snippet needs to land on the clipboard." The borrow below is what
+    -- stopped that happening — it put his old clipboard straight back —
+    -- so a keep arms NO restore and the snippet simply remains.
+    --
+    -- 🚨 AND IT IS NOT A LATER WRITE. The obvious build is to restore as
+    -- usual and then write the snippet on top a moment afterwards; that
+    -- is a race against our own timer (6.246.0 — a cache refreshed for
+    -- the next caller is a one-step delay line), and the loser is
+    -- whichever landed last. Not arming the restore has no second actor.
+    --
+    -- 🔕 AND THE SUPPRESS IS SKIPPED ON A KEEP. _G.pasteboardSuppress
+    -- tells the clipboard history to ignore what we are about to write —
+    -- right for a borrow nobody should see, and exactly wrong here: the
+    -- point of a keep is that it shows up in ⇪V as the newest item.
+    local function pasteText(text, keep)
         local okRead, prior = pcall(hs.pasteboard.getContents)
-        if _G.pasteboardSuppress then _G.pasteboardSuppress(exp.restoreAfter + 1.0) end
-        local okSet = pcall(function() hs.pasteboard.setContents(text) end)
-        if not okSet then return false, "could not put the snippet on the clipboard" end
+        if not keep and _G.pasteboardSuppress then
+            _G.pasteboardSuppress(exp.restoreAfter + 1.0)
+        end
+        -- 🚨 setContents REFUSES BY RETURNING FALSE AND NEVER THROWS, so
+        -- `pcall(function() setContents(x) end)` is true either way —
+        -- this file was named in 6.198.0 as still carrying that shape and
+        -- was never swept. It is load-bearing now: a release that claims
+        -- the snippet lands on the clipboard must be able to tell whether
+        -- the write happened.
+        local okSet = false
+        pcall(function() okSet = hs.pasteboard.setContents(text) ~= false end)
+        if not okSet then return false, "macOS refused the clipboard write" end
         local okPaste = pcall(function() hs.eventtap.keyStroke({ "cmd" }, "v", 0) end)
         -- The restore is DELAYED, not immediate: ⌘V is asynchronous from
         -- here — the paste is a synthetic event the app has not processed
         -- yet — and putting the old text back in the same breath is a race
         -- the app loses, pasting whatever was there before.
-        hold(hs.timer.doAfter(exp.restoreAfter, function()
-            pcall(function()
-                hs.pasteboard.setContents((okRead and prior) or "")
-            end)
-        end))
+        if not keep then
+            hold(hs.timer.doAfter(exp.restoreAfter, function()
+                pcall(function()
+                    hs.pasteboard.setContents((okRead and prior) or "")
+                end)
+            end))
+        end
         if not okPaste then return false, "⌘V was refused" end
         return true
     end
@@ -859,6 +890,14 @@ function M.setup(core)
             after  = body:sub(cut + #"{cursor}")
         end
         local whole = before .. (after or "") .. (tail or "")
+        -- 📋 6.382.0 — ONLY A PICK LANDS ON THE CLIPBOARD, and that is a
+        -- rule rather than caution. A typed trigger fires thousands of
+        -- times a day; leaving every one of them on the clipboard would
+        -- churn ⇪V into uselessness and overwrite whatever he had copied,
+        -- constantly, with text he never asked to copy. 6.359.0 drew the
+        -- same line for the recency queue, on his own word: a snippet is
+        -- the one he PICKS.
+        local keepClip = (how == "pick") and (exp.pickToClipboard ~= false)
         local pasteErr
         -- 🚨 THROUGH THE SHARED GUARD (6.69.0), not just our own flag.
         -- exp.injecting stops OUR tap re-reading what we type; it says
@@ -870,7 +909,7 @@ function M.setup(core)
                 hs.eventtap.keyStroke({}, "delete", 0)
             end
             if shouldPaste(whole) then
-                local okP, why = pasteText(whole)
+                local okP, why = pasteText(whole, keepClip)
                 if not okP then pasteErr = why; error(why) end
                 snip.viaPaste = true
             else
@@ -891,6 +930,36 @@ function M.setup(core)
         if ok then
             bucket[snip.viaPaste and "pasted" or "typed"] =
                 bucket[snip.viaPaste and "pasted" or "typed"] + 1
+            -- 📋 6.382.0 — A SHORT SNIPPET IS TYPED, so nothing has
+            -- touched the clipboard at all and the keep has to be a real
+            -- write. A long one went through pasteText, which has
+            -- already left it there — writing again would be a second
+            -- write of the same bytes and a second row in ⇪V.
+            if keepClip then
+                if snip.viaPaste then
+                    exp.clipLand.kept = exp.clipLand.kept + 1
+                    exp.clipLand.last = { name = tostring(snip.name or ""),
+                                          route = "the paste it was inserted with",
+                                          at = os.time() }
+                else
+                    local okC, whyC = core.copyText(whole, "snippet pick")
+                    if okC then
+                        exp.clipLand.kept = exp.clipLand.kept + 1
+                        exp.clipLand.last = { name = tostring(snip.name or ""),
+                                              route = "written after it was typed",
+                                              at = os.time() }
+                    else
+                        exp.clipLand.refused = exp.clipLand.refused + 1
+                        exp.clipLand.why = tostring(whyC or "macOS refused the write")
+                        -- 🔔 SEEN, NEVER ONLY LOGGED (6.214.0): he asked
+                        -- for this and a silent miss reads as "it does
+                        -- not work" with nothing to look at.
+                        core.degrade("Snippet clipboard",
+                                     "the snippet was inserted but could NOT be left on"
+                                     .. " the clipboard — " .. tostring(whyC or "macOS refused"))
+                    end
+                end
+            end
             exp.lastInsert = { how = (how == "pick") and "pick" or "typed",
                                route = snip.viaPaste and "pasted" or "typed",
                                name = tostring(snip.name or ""), at = os.time() }
@@ -2314,18 +2383,50 @@ function M.setup(core)
         -- which is why "it pastes" could not be checked.
         do
             local Q = string.char(34)          -- a plain quote, unescaped
-            local function routes(b, what, note)
+            -- 🚨 6.382.0 — THIS LINE SAID "clipboard put back" FOR BOTH
+            -- ROUTES, and for a pick that is now false. A report that
+            -- describes behaviour the code no longer has is 6.181.0's
+            -- stale cheat-sheet row in a diagnostic, so the sentence is
+            -- read off the SWITCH rather than typed once for both.
+            local function routes(b, what, note, kept)
                 local n = b.typed + b.pasted + b.refused
                 if n == 0 then
                     line("   " .. what .. ": none " .. note .. " this session")
                     return
                 end
                 line(string.format("   %s: %d — %d typed at the caret · %d pasted"
-                                   .. " (⌘V, clipboard put back) · %d REFUSED",
-                                   what, n, b.typed, b.pasted, b.refused))
+                                   .. " (⌘V, %s) · %d REFUSED",
+                                   what, n, b.typed, b.pasted,
+                                   kept and "LEFT on the clipboard" or "clipboard put back",
+                                   b.refused))
             end
-            routes(exp.inserts.pick,  "⏎ pick", "picked from ⇪⇧S")
-            routes(exp.inserts.typed, "typed ", "expanded by a typed trigger")
+            local keeping = (exp.pickToClipboard ~= false)
+            routes(exp.inserts.pick,  "⏎ pick", "picked from ⇪⇧S", keeping)
+            routes(exp.inserts.typed, "typed ", "expanded by a typed trigger", false)
+            -- 📋 6.382.0 — DID IT ACTUALLY LAND? Three states, because
+            -- "nothing has been picked yet" and "it was picked and the
+            -- write was refused" are opposite facts (6.196.1).
+            if not keeping then
+                line("   clip   : OFF — a picked snippet does NOT stay on the clipboard;"
+                     .. " settings = { expander = { pickToClipboard = true } } keeps it")
+            elseif exp.clipLand.kept == 0 and exp.clipLand.refused == 0 then
+                line("   clip   : a picked snippet is LEFT on the clipboard — nothing"
+                     .. " has been picked this session yet")
+            else
+                line(string.format("   clip   : %d picked snippet(s) left on the clipboard"
+                                   .. " — ⌘V pastes it again, and it is the newest row in ⇪V",
+                                   exp.clipLand.kept))
+                local cl = exp.clipLand.last
+                if cl then
+                    line("   ↳ last  : " .. Q .. tostring(cl.name) .. Q .. " — "
+                         .. tostring(cl.route) .. " at "
+                         .. os.date("%H:%M:%S", cl.at or os.time()))
+                end
+                if exp.clipLand.refused > 0 then
+                    line("   ↳ ⚠️ " .. exp.clipLand.refused .. " REFUSED by macOS — "
+                         .. tostring(exp.clipLand.why))
+                end
+            end
             line("   ↳ a snippet with a NEWLINE in it is always pasted, never"
                  .. " typed: a synthetic Return in a chat box sends the message")
             local li = exp.lastInsert

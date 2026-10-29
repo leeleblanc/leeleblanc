@@ -1060,6 +1060,13 @@ do
     od.baselines, od.rootMs, od.turnLast = {}, {}, {}
     od.turnIdx, od.turns = 0, 0
     od.storeRead = true
+    -- 🚨 6.381.0 — THIS SECTION IS ABOUT THE MECHANISM, SO IT TURNS THE
+    -- WATCH ON RATHER THAN RELYING ON THE SHIPPED DEFAULT. The default is
+    -- OFF now (he parked it), and a check that reads a default is a check
+    -- that goes red with nothing to say the day the default moves —
+    -- 6.248.0, which this release met the moment the default flipped.
+    -- The OFF half is driven explicitly at the end of the section.
+    od.enabled = true
 
     -- 🔌 6.228.0 — THE WATCH STARTS IN warm, NEVER setup: a profile's
     -- settings land AFTER setup returns, so a watcher started there can
@@ -1115,13 +1122,41 @@ do
     check("🚨 the report printed rather than throwing, on a sweep result",
           #r3 > 200, #r3)
 
-    -- the switch, real in both directions
-    od.watch = false
+    -- 🗑 6.381.0 — THE SWITCH IS REAL IN BOTH DIRECTIONS, and it is the
+    -- one he would actually reach for. `enabled` shipped as a field that
+    -- was READ NOWHERE while a second flag did the governing, so the
+    -- house idiom was a line that parsed and did nothing. These checks
+    -- drive the FIELD, so re-introducing a second flag fails by name.
+    od.enabled = false
     M.warm()
     local r4 = reportText()
-    check("the OFF switch is real and the report says it is OFF",
+    check("OFF is real: no timer is armed",
+          od.tickTimer == nil and od.firstTimer == nil,
+          tostring(od.tickTimer) .. " / " .. tostring(od.firstTimer))
+    check("the report says it is OFF",
           r4:find("watch  : OFF", 1, true) ~= nil, r4:sub(1, 400))
-    od.watch = true
+    -- 🚨 NOTHING WAS DELETED, and the report has to SAY so — "off" and
+    -- "your records are gone" are opposite facts (6.196.1 · 6.356.0).
+    check("OFF names what is kept",
+          r4:find("kept", 1, true) ~= nil
+          and r4:find("nothing was deleted", 1, true) ~= nil, r4:sub(1, 600))
+    check("OFF names the way back on",
+          r4:find("enabled = true", 1, true) ~= nil, r4:sub(1, 600))
+    -- 🚪 PARKED IS NOT REMOVED: both by-hand doors must still be there.
+    check("the by-hand doors survive the park",
+          type(_G.oneDriveSweep) == "function"
+          and type(_G.oneDriveCheck) == "function")
+    -- the verdict is PURE and answers the REASON, not just the branch
+    local onOK = od.watchVerdict(true)
+    local offOK, offWhy = od.watchVerdict(false)
+    check("watchVerdict: true runs, false is off AND says why",
+          onOK == true and offOK == false
+          and type(offWhy) == "string" and offWhy:find("OFF", 1, true) ~= nil,
+          tostring(offWhy))
+    od.enabled = true
+    M.warm()
+    check("ON is real too: the timer comes back",
+          od.tickTimer ~= nil, tostring(od.tickTimer))
     od.stopWatch()
     od.folderList = nil
 end

@@ -78,12 +78,12 @@ local M = {
               .. " when a file that was on this Mac is taken back to the cloud",
 }
 M.cheatsheet = {
-    title = "☁️ ONEDRIVE CHECK (Console)",
+    title = "☁️ ONEDRIVE CHECK (Console) — the watch is OFF (6.381.0)",
     entries = {
         { "cloud check", "6.367.0: _G.oneDriveCheck() — walks the folders that hold your data and names every file whose BYTES are not on this Mac, however it is marked in Finder. It never reads a file: reading one downloads it, and that is the 72-second freeze" },
         { "probe",       "The same report prints the extended attributes macOS keeps on a local file and on an offloaded one, side by side — that comparison is what can say whether \"Always keep on device\" is readable at all" },
         { "folders",     "6.380.0: the Vault, the Logs folder, <OneDrive>/Music, <OneDrive>/Movies, ~/Music and ~/Movies — whichever of them are on this Mac. The OneDrive ROOT is deliberately NOT one: it contains the others and walking it took 358 seconds against a 180-second budget, which is why no sweep ever finished. settings = { onedrive_check = { folders = { \"/full/path\" } } } names your own instead" },
-        { "the watch",   "6.380.0: ONE folder per turn, every 7 min, with find+stat in a background task — so a full pass is about 35 min and each piece of it actually lands. Each folder is compared against ITS OWN last answer: a file that was HERE and is in the cloud now has been taken back, which is the one thing \"Always keep on device\" was supposed to prevent, and you get an alert naming it and the folder" },
+        { "the watch",   "🗑 OFF since 6.381.0, on your word — no turns, no alerts, nothing walking your cloud folders. Nothing was deleted: every folder's last answer and the ☁️ LEFT THIS MAC ledger are kept, and both doors below still work by hand. settings = { onedrive_check = { enabled = true } } turns the watch back on, and it then walks ONE folder per turn every 7 min (6.380.0)" },
         { "sweep now",   "_G.oneDriveSweep() walks the NEXT folder; _G.oneDriveSweep(true) walks every one in turn. The report's ☁️ LEFT THIS MAC block survives a reload — it is kept in Application Support, never in OneDrive" },
         { "the budget",  "6.380.0: each folder's time limit is read off what ITS last walk cost (4×, floored at 90 s, ceilinged at 600) rather than one number typed for every folder. The report says the number AND where it came from, so a timeout can be read against it" },
         { "if it stops", "A turn that fails takes the 🔔 door: an alert naming the folder, a ⚠️ Console line and a row in _G.todayReport(). The report's watch line reads WANTED but NOT RUNNING rather than printing a reassuring count" },
@@ -91,7 +91,23 @@ M.cheatsheet = {
 }
 
 local od = {
-    enabled   = true,
+    -- 🗑 6.381.0 — PARKED, ON HIS WORD ("Turn off the OneDrive watcher and
+    -- park the development."). Nothing is deleted: the baselines, the
+    -- ☁️ LEFT THIS MAC ledger and both by-hand doors all stay, and the
+    -- report SAYS what is kept rather than leaving him to wonder. What
+    -- stops is the timer — no turns, no alerts, no find over a cloud tree.
+    --
+    -- 🚨 AND THE SWITCH HE WOULD HAVE REACHED FOR DID NOTHING. This field
+    -- shipped `enabled = true` from 6.368.0 and was READ NOWHERE; the only
+    -- flag startWatch consulted was a second one called `watch`. So
+    -- `settings = { onedrive_check = { enabled = false } }` — the idiom
+    -- every other module in this config uses — was a line that parsed,
+    -- applied, and governed nothing. 6.276.0's shape in a switch rather
+    -- than a cheat-sheet row, and 6.199.0's rule says a guard no test can
+    -- fail is dead code with a comment on it. ONE field now, house name,
+    -- asked through od.watchVerdict so the report and the timer cannot
+    -- come to disagree about whether this tool is running.
+    enabled   = false,
     -- 📏 BOUNDED, AND EVERY BOUND IS A STATE (6.197.2). Walking a folder
     -- is main-thread work, and his vault holds hundreds of notes while
     -- OneDrive holds everything. A count taken under a bound is a FLOOR,
@@ -112,7 +128,7 @@ local od = {
     -- cadence and it is chosen for the same reason: often enough that he
     -- hears about an offload the morning it happens, rare enough that a
     -- `find` over a cloud tree is not a thing his Mac is ever busy doing.
-    watch      = true,
+    -- (the flag that used to live here is `enabled`, above — 6.381.0)
     -- 📏 6.380.0 — ONE FOLDER PER TURN, so a turn is a fifth of the work
     -- and finishes inside a budget that is real. A full pass over N
     -- folders therefore takes N × turnEvery, and 7 minutes keeps a
@@ -1079,9 +1095,21 @@ function M.setup(core)
         return od.turn(reason, root, onDone)
     end
 
+    -- 🔌 PURE, so the gate drives both directions with no Mac, and so the
+    -- report and the timer read the SAME answer (6.231.0 — one function,
+    -- two callers). It answers the verdict AND the reason: "off" and
+    -- "could not start" are opposite facts and must not print alike.
+    function od.watchVerdict(on)
+        if on == false then
+            return false, "OFF — parked on your word in 6.381.0"
+        end
+        return true, "watching"
+    end
+
     function od.startWatch()
         od.stopWatch()
-        if od.watch == false then return false, "switched off" end
+        local want, why = od.watchVerdict(od.enabled)
+        if not want then return false, why end
         if type(hs.timer) ~= "table" or type(hs.timer.doEvery) ~= "function" then
             core.degrade("OneDrive watch", "this Hammerspoon has no hs.timer")
             return false, "no hs.timer"
@@ -1293,9 +1321,14 @@ function M.setup(core)
         -- counts below them (6.196.1 · 6.260.0): a healthy-looking number
         -- printed over a watcher that has stopped is the exact failure
         -- this release exists to prevent.
-        if od.watch == false then
-            L[#L + 1] = "   watch  : OFF — settings = { onedrive_check = { watch = true } }"
-                        .. " turns it back on"
+        if od.enabled == false then
+            L[#L + 1] = "   watch  : OFF — parked on your word. No turns, no"
+                        .. " alerts, nothing walking your cloud folders."
+            L[#L + 1] = "   ↳ kept  : every folder's last answer, the ☁️ LEFT THIS"
+                        .. " MAC ledger, and both doors below — nothing was deleted."
+            L[#L + 1] = "   ↳ by hand: _G.oneDriveCheck() still reports, and"
+                        .. " _G.oneDriveSweep() still walks a folder when you ask."
+            L[#L + 1] = "   ↳ back on: settings = { onedrive_check = { enabled = true } }"
         elseif not od.tickTimer then
             L[#L + 1] = "   watch  : ⚠️ WANTED but NOT RUNNING — nothing is watching for"
                         .. " files leaving this Mac"

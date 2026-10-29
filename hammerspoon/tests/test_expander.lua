@@ -331,6 +331,8 @@ _G.notices = { recorded = {},
 
 local PROVIDED, HYPER = {}, {}
 local CALLS = {}       -- 6.156.0: every core.call — the preview pane services
+local CLIPWRITES, CLIPBOARD, CLIPREFUSE = {}, nil, false
+
 local core = {
   logsDir = TMP,
   -- 🚨 6.359.0 — THE RECENT QUEUE'S STORE HANGS OFF core.homeDir, and a
@@ -346,6 +348,23 @@ local core = {
     table.insert(HYPER, { combo = table.concat(mods, "+") .. "+" .. key, fn = fn, src = src })
   end,
   warnWriteFailed = function() end,
+  -- 🔬 6.382.0 — AND IT HAD NO `copyText` EITHER, which is 6.339.0 for
+  -- the second time in this one table: a core member the real init.lua
+  -- publishes and the stub does not. The module calls it UNGUARDED on
+  -- purpose — nil-guarding an incomplete contract is what turned four
+  -- editor buttons into a four-release silence — so the suite died here
+  -- rather than failing, and the fix belongs in the stub.
+  --
+  -- 🚨 IT CAN REFUSE. macOS's setContents answers false and never
+  -- throws, so a stub that always says yes makes the degrade path
+  -- unreachable and certifies a feature that cannot report its own
+  -- failure (6.290.0, both directions).
+  copyText = function(t, who)
+    CLIPWRITES[#CLIPWRITES + 1] = { text = t, who = who }
+    if CLIPREFUSE then return false, "macOS refused the write" end
+    CLIPBOARD = t
+    return true
+  end,
   -- 🔬 6.377.0 — THE CORE STUB HAD NO `degrade`, so the 🔔 door this
   -- module takes on a refused insert could not be exercised at all and
   -- every check about it would have passed with the door deleted.
@@ -3074,6 +3093,152 @@ do
 
   local ran = (pass + fail) - before
   check("§6.377.0 ran all of its checks (" .. ran .. " of 14)", ran >= 14, ran)
+end
+
+
+-- =====================================================================
+-- §6.382.0 — A PICKED SNIPPET IS LEFT ON THE CLIPBOARD
+-- =====================================================================
+-- LL: "A picked snippet needs to land on the clipboard."
+--
+-- 🔎 NEITHER ROUTE DID. A short snippet was TYPED at the caret, so the
+-- clipboard was never touched; a long one was pasted through a BORROW
+-- that put his old clipboard straight back 0.25 s later. So the snippet
+-- was never on the clipboard afterwards by either road, and the fix has
+-- to be different on each — which is why both are driven here.
+out("\n=== 19. 6.382.0 — a picked snippet stays on the clipboard ===\n")
+do
+  local before = pass + fail
+
+  local function pick(trig)
+    reset(); DEGRADED = {}; CHOOSERS = {}
+    CLIPWRITES, CLIPBOARD = {}, nil
+    exp.show()
+    local ch = CHOOSERS[#CHOOSERS]
+    if not ch then return nil end
+    for _, r in ipairs(ch.rows_ or {}) do
+      if r.pick and r.trigger == trig then ch.cb(r) ; return r end
+    end
+    return nil
+  end
+
+  -- the two fixtures, chosen from what is loaded rather than typed in
+  local shortTrig, shortText, multiTrig
+  for t, sn in pairs(exp.snippets or {}) do
+    local body = tostring(sn.text or "")
+    if not multiTrig and body:find("\n", 1, true) then multiTrig = t end
+    if not shortTrig and not body:find("\n", 1, true)
+       and not body:find("{", 1, true)
+       and #body > 0 and #body < 30 and not sn.fn then
+      shortTrig, shortText = t, body
+    end
+  end
+  if not multiTrig then
+    pcall(exp.add, "mlz", "line one\nline two", "Multi line z")
+    multiTrig = exp.snippets and exp.snippets["mlz"] and "mlz" or nil
+  end
+  check("the fixture offers both a typed-route and a pasted-route snippet",
+        shortTrig ~= nil and multiTrig ~= nil,
+        tostring(shortTrig) .. "/" .. tostring(multiTrig))
+
+  exp.pickToClipboard = true
+  exp.clipLand = { kept = 0, refused = 0, why = nil, last = nil }
+  CLIPREFUSE = false
+
+  -- ---- the TYPED route: nothing borrowed, so the keep is a real write
+  pick(shortTrig)
+  check("a picked SHORT snippet is left on the clipboard",
+        CLIPBOARD == shortText, tostring(CLIPBOARD) .. " want " .. tostring(shortText))
+  check("…written through core.copyText, the one door that reads the return",
+        #CLIPWRITES == 1 and CLIPWRITES[1].who ~= nil, #CLIPWRITES)
+  check("…and counted, so the report can be asked whether it landed",
+        exp.clipLand.kept == 1 and exp.clipLand.refused == 0,
+        exp.clipLand.kept .. "/" .. exp.clipLand.refused)
+
+  -- ---- the PASTED route: it is already there, so the fix is to NOT
+  -- arm the restore. 🚨 THE FIXTURE THAT BITES: a later write on top of
+  -- the restore would also leave the snippet there MOST of the time,
+  -- and would be a race with our own timer (6.246.0). Asserting that NO
+  -- restore was armed is the only thing that tells the two apart.
+  pick(multiTrig)
+  check("a picked MULTI-LINE snippet arms NO restore — the snippet stays",
+        RESTOREDELAY == nil, tostring(RESTOREDELAY))
+  check("…and it is not written a second time on top of its own paste",
+        #CLIPWRITES == 0, #CLIPWRITES)
+  -- 🔕 the suppress is what tells ⇪V to look away; a keep must be SEEN
+  check("…and the clipboard history is NOT told to ignore it (it is a ⇪V row now)",
+        SUPPRESSED == 0, SUPPRESSED)
+
+  -- ---- 🚨 THE ONE THAT PROTECTS HIM. A typed trigger fires thousands
+  -- of times a day. If this leaked, every expansion would overwrite
+  -- whatever he had copied — strictly worse than not having the feature.
+  reset(); CLIPWRITES, CLIPBOARD = {}, nil
+  typeStr(" " .. shortTrig); drain()
+  check("🚨 a TYPED trigger does NOT touch the clipboard",
+        CLIPBOARD == nil and #CLIPWRITES == 0,
+        tostring(CLIPBOARD) .. "/" .. #CLIPWRITES)
+
+  -- a typed MULTI-LINE trigger still borrows and still gives it back
+  if multiTrig then
+    reset(); CLIPWRITES, CLIPBOARD = {}, nil
+    typeStr(" " .. multiTrig); drain()
+    check("…and a typed multi-line trigger still BORROWS and restores",
+          RESTOREDELAY == 0.25 and SUPPRESSED > 0,
+          tostring(RESTOREDELAY) .. "/" .. SUPPRESSED)
+  end
+
+  -- ---- the switch is real in both directions
+  exp.pickToClipboard = false
+  pick(multiTrig)
+  check("OFF restores the old behaviour exactly: the borrow is given back",
+        RESTOREDELAY == 0.25, tostring(RESTOREDELAY))
+  exp.pickToClipboard = true
+
+  -- ---- 🔔 A REFUSED WRITE IS SEEN, not silently absent
+  CLIPREFUSE = true
+  exp.clipLand = { kept = 0, refused = 0, why = nil, last = nil }
+  pick(shortTrig)
+  check("a refused clipboard write is counted, not swallowed",
+        exp.clipLand.refused == 1 and exp.clipLand.kept == 0,
+        exp.clipLand.kept .. "/" .. exp.clipLand.refused)
+  check("…and it takes the 🔔 door, so he sees it rather than reading a log",
+        #DEGRADED > 0, #DEGRADED)
+  local rR = _G.snippetsReport()
+  check("…and the report carries the ⚠️ with macOS's own words",
+        rR:find("REFUSED by macOS", 1, true) ~= nil, rR:match("clip[^\n]*"))
+  CLIPREFUSE = false
+
+  -- ---- 🚨 THE REPORT MUST NOT PROMISE THE OLD BEHAVIOUR. That line
+  -- read "(⌘V, clipboard put back)" for BOTH routes, which is now false
+  -- for a pick — 6.181.0's stale row, in a diagnostic.
+  exp.clipLand = { kept = 2, refused = 0, why = nil,
+                   last = { name = "x", route = "written after it was typed",
+                            at = os.time() } }
+  local rOn = _G.snippetsReport()
+  check("the report says a PICK is left on the clipboard",
+        (rOn:match("⏎ pick[^\n]*") or ""):find("LEFT on the clipboard", 1, true) ~= nil,
+        rOn:match("⏎ pick[^\n]*"))
+  -- 🚨 THE NEEDLE IS ANCHORED TO THE LINE'S OWN START. "typed at the
+  -- caret" appears INSIDE the pick row too, so a bare "typed " match
+  -- reads the neighbour and the check passes for the wrong reason —
+  -- 6.263.0's unbounded window, met here in a check rather than a
+  -- sentry. The first version of this did exactly that.
+  local typedLine = rOn:match("\n   typed :[^\n]*") or ""
+  check("…while a TYPED trigger still says the clipboard is put back",
+        typedLine:find("clipboard put back", 1, true) ~= nil, typedLine)
+  check("…and the clip line names the count",
+        (rOn:match("\n   clip   :[^\n]*") or ""):find("left on the clipboard", 1, true) ~= nil,
+        rOn:match("\n   clip   :[^\n]*"))
+  exp.pickToClipboard = false
+  local rOff = _G.snippetsReport()
+  local clipOff = rOff:match("\n   clip   :[^\n]*") or ""
+  check("…and with the switch OFF the report says OFF, with the line to turn it on",
+        clipOff:find("OFF", 1, true) ~= nil
+        and rOff:find("pickToClipboard = true", 1, true) ~= nil, clipOff)
+  exp.pickToClipboard = true
+
+  local ran = (pass + fail) - before
+  check("§6.382.0 ran all of its checks (" .. ran .. " of 16)", ran >= 16, ran)
 end
 
 out(("\n%d passed, %d failed\n\n"):format(pass, fail))
