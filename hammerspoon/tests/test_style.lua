@@ -162,11 +162,16 @@ end
 check("the cheat sheet card takes bgWith(alpha)",
       wired("core/cheatsheet.lua", "bgWith"))
 -- 6.98.0: the task mirror moved to modules/task_creator.lua with the
--- rest of the creator, so the two call sites now live in two files —
--- the legend strip in init.lua (§6), the mirror in the module (where
--- panelAlpha arrives via core).
-check("the Asana legend takes bgWith(panelAlpha)",
-      wired("init.lua", "bgWith(panelAlpha)"))
+-- rest of the creator, so the two call sites live in two files.
+-- 🚪 6.386.0 — AND THE LEGEND'S FILE MOVED TOO. §6 left init.lua for
+-- modules/asana_dashboard.lua, where panelAlpha arrives on `core` like
+-- everywhere else, so both call sites now read bgWith(core.panelAlpha).
+-- This check is a READER of that section and the gate found it; it is
+-- here rather than in a note because a pinned check is a dependency.
+check("the Asana legend takes bgWith(core.panelAlpha)",
+      wired("modules/asana_dashboard.lua", "bgWith(core.panelAlpha)"))
+check("...and init.lua no longer draws it at all",
+      not wired("init.lua", "bgWith(panelAlpha)"))
 check("the task mirror takes bgWith(core.panelAlpha)",
       wired("modules/task_creator.lua", "bgWith(core.panelAlpha)"))
 

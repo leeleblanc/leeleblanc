@@ -4,8 +4,33 @@
 -- =====================================================================
 -- 10-29-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.385.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.386.0
 -- =====================================================================
+
+-- NEW IN 6.386.0 — 🚪 THE ASANA DASHBOARD LEAVES THIS FILE
+--   (modules/asana_dashboard.lua, was §6). LL: "Yes, and make this move
+--   safe-proof and non-destructive for the Asana dashboard both on my
+--   home and work mac." 529 lines out; ⇪L, ⇪C and ⇪B unchanged. The
+--   reason is arithmetic rather than taste: the gate fails this file at
+--   3,800 lines and it stood at 3,795, so 6.385.0 had to drop a release
+--   note to fit and the ceiling had stopped being a budget. 3,295 now.
+--   📏 THE NOTE THAT SAID IT WAS SAFE WAS A READING, AND IT HAD AGED
+--   (6.324.0). It said ONE global crosses the boundary; FIVE do, and six
+--   checks in tests/test_select_mode were pinned to this file's source —
+--   the move would have turned every one red with the feature perfectly
+--   fine. 6.268.0: grep every READER, and a suite is a reader.
+--   🪜 AND THE ORDERING FACT THAT DECIDED ITS SHAPE: all three combos are
+--   in §0.4's migration map, so hs.hotkey.bind does not register them —
+--   it appends to _G.hyperMigrations, which §7's hyperFinalize DRAINS
+--   ONCE, after the loader. setup() is the last moment such a bind can
+--   be made; in warm() all three keys would be silently dead. The suite
+--   models that drain and drives both sides of it.
+--   🔑 THE BIND STAYS hs.hotkey.bind, NOT core.hyperAddShortcut: a
+--   migrated combo never enters the cheat-sheet auditors, which is what
+--   lets core/cheatsheet.lua keep the ✅ ASANA card without printing
+--   ⇪B/⇪C/⇪L on two cards (6.90.1's complaint).
+--   🔎 _G.asanaDashboardReport() — it had none, which is why "did the
+--   move work?" could only have been answered by reading the source.
 
 -- NEW IN 6.385.0 — 🎨 THE PICKERS WEAR THE JUG PLAYER'S CARD
 --   (modules/ui_style.lua + §1.5). LL, with the ⇪⇧V picker beside the
@@ -35,24 +60,17 @@
 --   📓 6.383.0 @logs in ⇪D: every tool that has failed, searchable.
 --   6.279.0 named this gap when it built the ledger and never built it.
 --   ONE parser — todayReport asks the same reader.
+--   🗑 6.384.0 APP REMOVAL (⇪⇧[), to the Trash and never erased — his
+--   ask, never built in any release. The FIRST press only SHOWS what
+--   would move. There is no os.remove in the file and a sentry states
+--   that as a RULE; the home-folder guard is a COMPONENT test, checked
+--   immediately before each rename rather than when the list was built.
 
--- NEW IN 6.384.0 — 🗑 APP REMOVAL (⇪⇧[), TO THE TRASH, NEVER ERASED
---   (modules/app_remove.lua). His ask, never built in any release. The
---   FIRST press only SHOWS what would move — the .app and every
---   leftover, each with its size and the rule that found it; the second
---   moves it all to ~/.Trash. Nothing is erased: there is no os.remove
---   in the file and a sentry states that as a RULE. Leftovers are looked
---   for in the HOME folder only (his words), the guard is a COMPONENT
---   test so /Users/lee-evil is refused, and it runs immediately BEFORE
---   each rename rather than when the list was built — the suite injects
---   /etc/passwd into a plan and requires the move to turn it away.
---   🪪 Bundle id is an answer; a NAME match is a guess and wears a ⚠️.
-
--- (6.383.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.384.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 cut the inline count to
 --  TWO; a gate check proves every entry here is also in CHANGELOG.md.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.385.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.386.0
 -- =====================================================================
 -- The catalogue that used to sit here moved to GUIDE.md ("What each
 -- tool does") in 6.180.0 — 259 lines of prose inside the orchestrator.
@@ -145,7 +163,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.385.0"
+_G.configVersion = "6.386.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- A NO-OP STAND-IN for the diagnostics API, replaced by the real one in
@@ -2405,533 +2423,27 @@ end)
 --  built as _G.choosers.ocrEdit — tests/test_select_mode.lua drives it.)
 
 -- =====================================================================
--- 6. ASANA TASK DASHBOARD — ⌃⌥⌘L open · ⌃⌥⌘C comment
+-- 6. ASANA TASK DASHBOARD → modules/asana_dashboard.lua (6.386.0)
 -- =====================================================================
--- Up to 100 incomplete tasks, asked for in one fetch and then trimmed
--- to the five caps in the table below (which is the only copy of them —
--- 6.363.0 deleted a comment that listed all five again). Overdue is
--- newest due first, the dated bands soonest first, undated newest
--- created first; names capitalize the first word only, per spec. The
--- list is searchable; ⏎ opens the task in the browser (⌃⌥⌘L) or prompts
--- for a comment that posts to Asana (⌃⌥⌘C).
-local asanaCaps = {
-    overdue = 40,   -- 🔴 Overdue
-    today   = 10,   -- 🟡 Due today
-    week    = 30,   -- 🔵 Due this week
-    later   = 10,   -- 🟠 Due later
-    undated = 10,   -- 🟣 No due date
-}
-
-local isAsanaFetching     = false
-local asanaDashboardMode  = "open"   -- "open" or "comment"
--- 🗑 6.156.0 — the picker's select mode (see _G.asanaSelect.rows below);
--- a global rather than a local because this file is near the 200-local
--- ceiling. on/tagged = the state, master = the last fetched list.
-_G.asanaSelect = { on = false, tagged = {}, master = nil }
-
--- ---- COLOR LEGEND STRIP — pills above the task list ------------------
--- hs.chooser cannot draw a footer inside its own window, so the legend
--- is a slim hs.canvas strip. 🚨 IT SITS ABOVE THE SEARCH FIELD, because
--- the picker's top-left is a position we set ourselves and is therefore
--- exact — below the list meant ESTIMATING the picker's height, and the
--- first estimate ran short and overlaid the bottom rows. It appears with
--- the dashboard and goes when the picker resolves.
-local asanaLegendDefs = {
-    { key = "overdue", label = "Overdue",       color = { red = 0.92, green = 0.25, blue = 0.20 }, darkText = false },
-    { key = "today",   label = "Due today",     color = { red = 1.00, green = 0.80, blue = 0.00 }, darkText = true  },
-    { key = "week",    label = "Due this week", color = { red = 0.04, green = 0.52, blue = 1.00 }, darkText = false },
-    { key = "later",   label = "Due later",     color = { red = 1.00, green = 0.58, blue = 0.00 }, darkText = false },
-    { key = "undated", label = "No due date",   color = { red = 0.69, green = 0.32, blue = 0.87 }, darkText = false },
-}
-
-_G.asanaLegendCanvas = nil
-local asanaLegendCounts = nil   -- set on each fetch; nil = nothing to show
-
-local function asanaLegendHide()
-    if _G.asanaLegendCanvas then
-        pcall(function() _G.asanaLegendCanvas:delete() end)
-        _G.asanaLegendCanvas = nil
-    end
-end
-
-local function asanaLegendShow()
-    asanaLegendHide()
-    if not asanaLegendCounts then return end
-    local chooser = _G.choosers.asana
-    if not chooser then return end
-
-    -- Reuse the EXACT placement showPopup just used for the picker —
-    -- resolving the screen again here could disagree (focus shifts as
-    -- the popup opens) and draw the legend on a different monitor.
-    local place = _G.lastPopupPlacement
-    local screen  = (place and place.screen) or resolveBaseScreen()
-    local sf = screen:frame()
-    local topLeft = (place and place.point)
-    if not topLeft then
-        topLeft = chooserTopLeft(chooser, screen)
-    end
-    local pct = 40
-    local okW, w = pcall(function() return chooser:width() end)
-    if okW and type(w) == "number" and w > 0 and w <= 100 then pct = w end
-    local chooserW = sf.w * (pct / 100)
-
-    local stripH, pad, gap, pillH, textSize = 44, 12, 10, 30, 16
-
-    -- Just above the picker's top edge — exact, no height estimation.
-    -- Clamped so a picker nudged to the very top of the screen can't
-    -- push the strip off-screen.
-    local stripY = math.max(sf.y + 4, topLeft.y - stripH - 8)
-
-    -- Lay pills left→right; width estimated from label length
-    local pills, x = {}, pad
-    for _, def in ipairs(asanaLegendDefs) do
-        local n = asanaLegendCounts[def.key] or 0
-        if n > 0 then
-            local label = def.label .. "  " .. n
-            local pillW = 20 + math.floor(#label * 9.0)
-            table.insert(pills, { label = label, color = def.color, darkText = def.darkText, x = x, w = pillW })
-            x = x + pillW + gap
-        end
-    end
-    if #pills == 0 then return end
-
-    local stripW = x - gap + pad
-    -- Center under the picker, then clamp fully on-screen
-    local stripX = topLeft.x + math.max(0, (chooserW - stripW) / 2)
-    if stripX + stripW > sf.x + sf.w then stripX = sf.x + sf.w - stripW - 4 end
-    if stripX < sf.x then stripX = sf.x + 4 end
-
-    local canvas = hs.canvas.new({ x = stripX, y = stripY, w = stripW, h = stripH })
-    if not canvas then return end
-
-    local sty = _G.uiStyle or {}   -- 🎨 6.90.0 shared card look
-    local els = {}
-    table.insert(els, {
-        type = "rectangle", action = "fill",
-        fillColor = (sty.bgWith and sty.bgWith(panelAlpha))
-                    or { red = 0.11, green = 0.11, blue = 0.13, alpha = panelAlpha },
-        roundedRectRadii = { xRadius = 12, yRadius = 12 },
-    })
-    for _, p in ipairs(pills) do
-        table.insert(els, {
-            type = "rectangle", action = "fill",
-            fillColor = { red = p.color.red, green = p.color.green, blue = p.color.blue, alpha = 1.0 },
-            roundedRectRadii = { xRadius = pillH / 2, yRadius = pillH / 2 },
-            frame = { x = p.x, y = (stripH - pillH) / 2, w = p.w, h = pillH },
-        })
-        table.insert(els, {
-            type = "text", text = p.label, textSize = textSize,
-            textColor = p.darkText and { white = 0.05 } or { white = 1.0 },
-            textAlignment = "center",
-            frame = { x = p.x, y = (stripH - pillH) / 2 + 4, w = p.w, h = pillH },
-        })
-    end
-
-    canvas:appendElements(els)
-    pcall(function() canvas:level(hs.canvas.windowLevels.overlay) end)
-    -- CRITICAL for Spaces/full-screen: a canvas belongs only to the
-    -- Space it was created on unless told otherwise — and a native
-    -- full-screen app is its own private Space, so the legend simply
-    -- never appeared there. canJoinAllSpaces = visible on every Space;
-    -- fullScreenAuxiliary = allowed to overlay full-screen Spaces.
-    -- (hs.chooser's panel declares these internally, which is why the
-    -- picker never had this problem.)
-    pcall(function() canvas:behaviorAsLabels({ "canJoinAllSpaces", "fullScreenAuxiliary" }) end)
-    _G.showCanvasSafely(canvas, "popup panel")
-    _G.asanaLegendCanvas = canvas
-    -- Console diagnostic (harmless; invaluable if placement misbehaves)
-    local scrName = "?"
-    pcall(function() scrName = screen:name() or "?" end)
-    print(string.format("🎨 Legend on '%s' at x=%d y=%d w=%d h=%d",
-        scrName, math.floor(stripX), math.floor(stripY), math.floor(stripW), stripH))
-end
-
--- Nudging (⌃⌥⌘ arrows) repositions the picker — this lets section 1.5
--- drag the legend along with it.
-_G.asanaLegendSync = function()
-    if _G.asanaLegendCanvas then asanaLegendShow() end
-end
-
--- Helper: parse Asana date strings safely into unix timestamps
-local function parseAsanaDate(dateStr)
-    -- Guard against JSON null arriving as userdata
-    if type(dateStr) ~= "string" or dateStr == "" then return nil end
-    local y, m, d = dateStr:match("^(%d%d%d%d)-(%d%d)-(%d%d)")
-    if y and m and d then
-        return os.time({ year = tonumber(y), month = tonumber(m), day = tonumber(d), hour = 12, min = 0, sec = 0 })
-    end
-    return nil
-end
-
--- Append up to `cap` entries from src into dst (the per-category limit)
-local function appendCapped(dst, src, cap)
-    for i = 1, math.min(#src, cap) do
-        table.insert(dst, src[i])
-    end
-end
-
-local function fetchAsanaDashboard(mode)
-    if not requireAsana() then return end
-    asanaDashboardMode = mode or "open"
-    _G.asanaSelect.on, _G.asanaSelect.tagged = false, {}   -- a fresh list, no stale ✓
-    asanaLegendHide()   -- clear any stale strip from a previous open
-
-    if isAsanaFetching then
-        hs.alert.show("⚠️ Request pending. Please wait.")
-        return
-    end
-
-    isAsanaFetching = true
-    hs.alert.show("🔄 Syncing Asana Tasks...")
-
-    local fullUrl = "https://app.asana.com/api/1.0/tasks"
-        .. "?assignee=me&completed_since=now&workspace=" .. asanaWorkspaceId
-        .. "&opt_fields=name,due_on,due_at,created_at,permalink_url&limit=100"
-
-    local headers = {
-        ["Authorization"] = "Bearer " .. asanaToken,
-        ["Accept"]        = "application/json"
-    }
-
-    hs.http.asyncGet(fullUrl, headers, function(status, body, resHeaders)
-        isAsanaFetching = false
-
-        if status ~= 200 then
-            if status == 401 then
-                hs.alert.show("🔒 Asana rejected the token — it's revoked or mistyped. Create a new one at app.asana.com/0/my-apps and update ~/.hammerspoon/secret.lua", 8)
-                print("🚨 ASANA 401 — the token in secret.lua is not valid (revoked, expired, or mistyped)")
-            else
-                hs.alert.show("❌ Asana Sync Failed (Status: " .. tostring(status) .. ")")
-                print("🚨 ASANA API ERROR: " .. tostring(body))
-            end
-            return
-        end
-
-        local response = _G.safeJson(body, "asana/list")
-        if not response or not response.data then
-            hs.alert.show("❌ Error reading data from Asana")
-            return
-        end
-
-        local now     = os.time()
-        local current = os.date("*t", now)
-        local todayStart = os.time({ year = current.year, month = current.month, day = current.day, hour = 0,  min = 0,  sec = 0  })
-        local todayEnd   = os.time({ year = current.year, month = current.month, day = current.day, hour = 23, min = 59, sec = 59 })
-        local weekEnd    = todayEnd + (7 * 86400)
-
-        local overdueTasks = {}   -- 🔴 Overdue
-        local todayTasks   = {}   -- 🟡 Due today
-        local weekTasks    = {}   -- 🔵 Due this week
-        local laterTasks   = {}   -- 🟠 Due later
-        local undatedTasks = {}   -- 🟣 No due date
-
-        for _, task in ipairs(response.data) do
-            local dueStr  = task.due_on or task.due_at
-            local dueTime = parseAsanaDate(dueStr)
-
-            if dueTime then
-                local cleanDateStr = string.sub(dueStr, 1, 10)
-                if dueTime < todayStart then
-                    table.insert(overdueTasks, { text = task.name, subText = "🔴 Overdue — due: " .. cleanDateStr, url = task.permalink_url, gid = task.gid, dueTime = dueTime })
-                elseif dueTime >= todayStart and dueTime <= todayEnd then
-                    table.insert(todayTasks,   { text = task.name, subText = "🟡 Due today — due: " .. cleanDateStr, url = task.permalink_url, gid = task.gid, dueTime = dueTime })
-                elseif dueTime > todayEnd and dueTime <= weekEnd then
-                    table.insert(weekTasks,    { text = task.name, subText = "🔵 Due this week — due: " .. cleanDateStr, url = task.permalink_url, gid = task.gid, dueTime = dueTime })
-                else
-                    table.insert(laterTasks,   { text = task.name, subText = "🟠 Due later — due: " .. cleanDateStr, url = task.permalink_url, gid = task.gid, dueTime = dueTime })
-                end
-            else
-                -- No due date: typically the newest tasks. created_at is
-                -- ISO-8601, which sorts correctly as a plain string.
-                local created = (type(task.created_at) == "string") and task.created_at or ""
-                table.insert(undatedTasks, {
-                    text    = task.name,
-                    subText = "🟣 No due date — created: " .. (created ~= "" and created:sub(1, 10) or "unknown"),
-                    url     = task.permalink_url,
-                    gid     = task.gid,
-                    created = created,
-                })
-            end
-        end
-
-        -- Per-category sorting (before caps, so the cap keeps the most
-        -- relevant entries of each category):
-        table.sort(overdueTasks, function(a, b) return a.dueTime > b.dueTime end)  -- newest due first
-        table.sort(weekTasks,    function(a, b) return a.dueTime < b.dueTime end)  -- soonest first
-        table.sort(laterTasks,   function(a, b) return a.dueTime < b.dueTime end)  -- soonest first
-        table.sort(undatedTasks, function(a, b) return a.created > b.created end)  -- newest created first
-
-        -- Assemble in display order, each category trimmed to its cap:
-        -- 40 + 10 + 30 + 10 + 10 = 100 tasks maximum
-        local masterChoicesList = {}
-        appendCapped(masterChoicesList, overdueTasks, asanaCaps.overdue)
-        appendCapped(masterChoicesList, todayTasks,   asanaCaps.today)
-        appendCapped(masterChoicesList, weekTasks,    asanaCaps.week)
-        appendCapped(masterChoicesList, laterTasks,   asanaCaps.later)
-        appendCapped(masterChoicesList, undatedTasks, asanaCaps.undated)
-
-        if #masterChoicesList == 0 then
-            hs.alert.show("✨ Clean slate! No urgent tasks found.")
-            return
-        end
-
-        -- Legend pill counts = rows each category actually contributed
-        asanaLegendCounts = {
-            overdue = math.min(#overdueTasks, asanaCaps.overdue),
-            today   = math.min(#todayTasks,   asanaCaps.today),
-            week    = math.min(#weekTasks,    asanaCaps.week),
-            later   = math.min(#laterTasks,   asanaCaps.later),
-            undated = math.min(#undatedTasks, asanaCaps.undated),
-        }
-
-        -- Registered in _G.choosers so it participates in popup screen routing
-        if not _G.choosers.asana then
-            _G.choosers.asana = hs.chooser.new(function(choice)
-                asanaLegendHide()   -- picker resolved (pick / Esc / click away)
-                if not choice then return end
-
-                if asanaDashboardMode == "comment" then
-                    -- 💬 COMMENT MODE: prompt for text, post it as a comment
-                    if choice.gid then
-                        local button, text = hs.dialog.textPrompt(
-                            "💬 Comment on: " .. (choice.text or "task"),
-                            "Your comment will post to Asana exactly like the 'Add a comment' box.",
-                            "", "Post", "Cancel")
-                        if button == "Post" and text and #text > 0 then
-                            _G.service.call("asana.addComment", choice.gid, text)
-                        end
-                    else
-                        hs.alert.show("⚠️ No task ID found for this row")
-                    end
-                else
-                    -- 🗑 6.156.0 — SELECT MODE and the delete verbs, before
-                    -- the open. The rows are the ones _G.asanaSelect.rows
-                    -- built; every branch that keeps the picker up calls
-                    -- reshow(), which re-opens it with the ✓ marks kept.
-                    local sel = _G.asanaSelect
-                    if choice.selectStart then
-                        sel.on, sel.tagged = true, {}
-                        sel.reshow(); return
-                    elseif choice.selectStop then
-                        sel.on, sel.tagged = false, {}
-                        sel.reshow(); return
-                    elseif choice.deleteTagged then
-                        local list = {}
-                        for _, c in ipairs(sel.master or {}) do
-                            if sel.tagged[c.gid] then table.insert(list, c) end
-                        end
-                        sel.delete(list); return
-                    end
-                    if sel.on and choice.gid then
-                        if sel.tagged[choice.gid] then sel.tagged[choice.gid] = nil
-                        else sel.tagged[choice.gid] = true end
-                        sel.reshow(); return
-                    end
-                    -- ⌥⏎ on one row: delete just that task (asks first)
-                    local mods = {}
-                    pcall(function() mods = hs.eventtap.checkKeyboardModifiers() or {} end)
-                    if mods.alt and choice.gid then
-                        sel.delete({ choice }); return
-                    end
-                    -- 🚀 OPEN MODE: open the task in the browser
-                    if choice.url then
-                        hs.urlevent.openURL(choice.url)
-                        hs.alert.show("🚀 Opening task in Asana...")
-                    end
-                end
-            end)
-        end
-
-        local placeholder = (asanaDashboardMode == "comment")
-            and "💬 Pick a task to comment on…"
-            or  "Filter your current priority tasks… (⌥⏎ deletes one)"
-
-        -- 👁 6.157.0 — the preview pane: the whole task name, its due
-        -- line and its link, beside the picker
-        for _, c in ipairs(masterChoicesList) do
-            c.rawText = tostring(c.text or "") .. "\n" .. tostring(c.subText or "")
-                        .. (c.url and ("\n" .. c.url) or "")
-        end
-        _G.asanaSelect.master = masterChoicesList
-        local rows = _G.asanaSelect.rows(masterChoicesList)
-        _G.choosers.asana:choices(rows)
-        _G.choosers.asana:placeholderText(placeholder)
-        _G.choosers.asana:rows(math.min(#rows, 10))
-        showPopup(_G.choosers.asana)
-        asanaLegendShow()
-        _G.asanaSelect.pane()
-    end)
-end
-
--- 👁 6.157.0 — the pane, through the registry (clipboard_history provides
--- it); the hideCallback is set once, the first time the picker opens.
-_G.asanaSelect.pane = function()
-    local svc = _G.service
-    if not (svc and svc.has and svc.has("preview.open") and _G.choosers.asana) then return end
-    if not _G.asanaSelect.paneWired then
-        _G.asanaSelect.paneWired = true
-        pcall(function()
-            _G.choosers.asana:hideCallback(function() pcall(svc.call, "preview.suspend") end)
-        end)
-    end
-    pcall(svc.call, "preview.open", _G.choosers.asana)
-end
-
--- 🗑 6.156.0 — SELECT SEVERAL, DELETE (LL's ask): "☑️ Select several…"
--- tags rows, "🗑 Delete N selected" deletes after a confirmation naming
--- them; ⌥⏎ deletes one. DELETE /tasks/{gid} with the token in the header
--- (never a process argument), one task at a time; Asana keeps deleted
--- tasks in its trash 30 days. Hangs off _G.asanaSelect, not new locals.
-_G.asanaSelect.rows = function(master)
-    local sel = _G.asanaSelect
-    if asanaDashboardMode ~= "open" then return master end
-    local n = 0
-    for _ in pairs(sel.tagged) do n = n + 1 end
-    local rows = {}
-    if sel.on then
-        if n > 0 then
-            table.insert(rows, {
-                text    = ("🗑 Delete %d selected task%s"):format(n, n == 1 and "" or "s"),
-                subText = "asks first · they go to Asana's trash, restorable for 30 days",
-                deleteTagged = true })
-        end
-        table.insert(rows, { text = "✕ Leave select mode",
-                             subText = "keeps everything as it is", selectStop = true })
-        for _, c in ipairs(master) do
-            table.insert(rows, { text = (sel.tagged[c.gid] and "✓ " or "") .. tostring(c.text),
-                                 subText = c.subText, url = c.url, gid = c.gid })
-        end
-    else
-        table.insert(rows, { text = "☑️ Select several to delete…",
-                             subText = "⏎ tags rows, then 🗑 · ⌥⏎ on any row deletes just that one",
-                             selectStart = true })
-        for _, c in ipairs(master) do table.insert(rows, c) end
-    end
-    return rows
-end
-
-_G.asanaSelect.reshow = function()
-    local sel = _G.asanaSelect
-    if not (_G.choosers.asana and sel.master) then return end
-    local rows = sel.rows(sel.master)
-    _G.choosers.asana:choices(rows)
-    pcall(function() _G.choosers.asana:rows(math.min(#rows, 10)) end)
-    showPopup(_G.choosers.asana)
-    asanaLegendShow()
-    sel.pane()
-end
-
-_G.asanaSelect.delete = function(list)
-    if #list == 0 then
-        hs.alert.show("Nothing picked — press Enter on the rows you want first")
-        return
-    end
-    local names = {}
-    for i = 1, math.min(#list, 8) do
-        names[#names + 1] = "• " .. (tostring(list[i].text):gsub("^✓ ", ""))
-    end
-    if #list > 8 then names[#names + 1] = ("… and %d more"):format(#list - 8) end
-    local button = nil
-    pcall(function()
-        button = hs.dialog.blockAlert(
-            ("Delete %d task%s from Asana?"):format(#list, #list == 1 and "" or "s"),
-            table.concat(names, "\n")
-            .. "\n\nThey go to Asana's trash — restorable from Deleted Items for 30 days.",
-            "Delete", "Cancel")
-    end)
-    if button ~= "Delete" then hs.alert.show("🗑 Nothing deleted") return end
-    local done, failed, i = 0, 0, 0
-    local headers = { ["Authorization"] = "Bearer " .. asanaToken,
-                      ["Accept"] = "application/json" }
-    local function step()
-        i = i + 1
-        local t = list[i]
-        if not t then
-            hs.alert.show(("🗑 Deleted %d task%s%s"):format(done, done == 1 and "" or "s",
-                failed > 0 and (" · %d failed — see the Console"):format(failed) or ""), 4)
-            _G.asanaSelect.on, _G.asanaSelect.tagged = false, {}
-            if done > 0 then fetchAsanaDashboard("open") end
-            return
-        end
-        hs.http.asyncRequest("https://app.asana.com/api/1.0/tasks/" .. tostring(t.gid),
-            "DELETE", nil, headers, function(status, body)
-                if status == 200 then
-                    done = done + 1
-                else
-                    failed = failed + 1
-                    print("🚨 ASANA delete failed for " .. tostring(t.text) .. " — status "
-                          .. tostring(status) .. ": " .. tostring(body):sub(1, 200))
-                end
-                step()
-            end)
-    end
-    step()
-end
-
--- Dashboard: open task in browser
--- 6.16.12: standardized every Asana hotkey onto the same ⌃⌥⌘ chord
--- (was ⌃⇧⌥ for this one and the two below) — ⌃⌥⌘L, "List tasks".
-hs.hotkey.bind({"cmd", "ctrl", "alt"}, "L", function()
-    fetchAsanaDashboard("open")
-end)
-
--- Dashboard: add a comment to a task — 6.16.12: ⌃⇧⌥C -> ⌃⌥⌘C
-hs.hotkey.bind({"cmd", "ctrl", "alt"}, "C", function()
-    fetchAsanaDashboard("comment")
-end)
-
--- ⌃⌥⌘B — browse your Asana project's team; Enter copies the exact name
--- so pasting it into the Task Creator's Assignee field always resolves
--- (see resolveAssignee in §5). 6.16.12: ⌃⇧⌥M -> ⌃⌥⌘B, standardized onto
--- the same chord as the rest of the Asana hotkeys. Wrapped in do...end:
--- this file is near Lua's 200-local ceiling and nothing outside this
--- needs these locals.
-do
-
-_G.choosers.asanaTeam = hs.chooser.new(function(choice)
-    if not choice or not choice.name then return end
-    hs.pasteboard.setContents(choice.name)
-    hs.alert.show("📋 Copied " .. choice.name .. " — paste into the Assignee field")
-end)
-_G.choosers.asanaTeam:placeholderText("Search your Asana team — Enter copies the name")
--- Team name is folded into subText below (e.g. "someone@x.com  ·  SAC
--- Library Core Projects") — searchSubText makes hs.chooser's own
--- filtering match against it too, so typing "core" narrows to just that
--- team. Pure display/search change — doesn't touch the native ⌘+number
--- row-shortcut badges the chooser already shows, those aren't ours.
-pcall(function() _G.choosers.asanaTeam:searchSubText(true) end)
-
-local function showTeamPicker()
-    local choices = {}
-    for _, m in ipairs(_G.asanaTeamMembers) do
-        local teamLabel = (m.teams and #m.teams > 0) and table.concat(m.teams, " + ") or ""
-        local sub = m.email or ""
-        if teamLabel ~= "" then
-            sub = (sub ~= "" and (sub .. "  ·  ") or "") .. teamLabel
-        end
-        table.insert(choices, { text = m.name, subText = sub, name = m.name })
-    end
-    _G.choosers.asanaTeam:choices(choices)
-    showPopup(_G.choosers.asanaTeam)
-end
-
-hs.hotkey.bind({"cmd", "ctrl", "alt"}, "B", function()
-    if not requireAsana() then return end
-    if #_G.asanaTeamMembers > 0 then
-        showTeamPicker()
-        return
-    end
-    hs.alert.show("🔄 Fetching team members…")
-    _G.fetchAsanaTeamMembers(function()
-        if #_G.asanaTeamMembers == 0 then
-            hs.alert.show("⚠️ Couldn't load team members — check Console")
-        else
-            showTeamPicker()
-        end
-    end)
-end)
-
-end -- do...end (⌃⌥⌘B team member picker locals)
+-- 529 lines left this file on LL's word ("Yes, and make this move
+-- safe-proof and non-destructive … both on my home and work mac"). ⇪L,
+-- ⇪C and ⇪B are unchanged; the module takes the seven helpers it used to
+-- read as locals here off the `core` table, where all seven already were.
+--
+-- 📏 WHY, AND IT IS ARITHMETIC: the gate fails this file at 3,800 lines
+-- and it stood at 3,795. 6.385.0 had to drop a release note to fit, so
+-- the ceiling had stopped being a budget and become a tax on the next
+-- release. This section was the largest FEATURE still living in the
+-- orchestrator, which this file's own header has forbidden since it was
+-- written.
+--
+-- 🪜 THE ONE THING A READER HERE NEEDS: its three keys are written as
+-- ⌃⌥⌘ chords and §0.4 migrates all three onto ⇪. A migrated bind is
+-- APPENDED to _G.hyperMigrations, which §7's _G.hyperFinalize() drains
+-- once — after the §1.12 loader — so the module binds them in setup()
+-- and could not bind them in warm(). Nothing else in this file reaches
+-- into it; the one global it publishes that anything here reads is
+-- _G.asanaLegendSync, nil-guarded at §1.5's nudge path below.
 
 -- =====================================================================
 -- 7. BOOTSTRAP — portability report + ready alert
@@ -3065,6 +2577,12 @@ local BASE = {
     -- read BASE by matching every quoted word between its braces, so a
     -- name mentioned in passing reads as a module that must exist on disk.
     "asana_comments",
+    -- 6.386.0 — ⇪L / ⇪C / ⇪B, out of this file's §6 at last. AFTER
+    -- asana_comments for readability only: it reaches that module's
+    -- _G.fetchAsanaTeamMembers at PRESS time and says so rather than
+    -- throwing if it is absent, so the order is not load-bearing.
+    "asana_dashboard",   -- 📋 up to 100 tasks, banded and capped, with the
+                         -- color legend strip and bulk delete
     -- 6.44.0
     "screen_veil", "mini_calendar", "quick_append", "capture_pad",
     "numpad_layer",

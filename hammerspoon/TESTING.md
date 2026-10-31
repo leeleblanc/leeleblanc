@@ -1,4 +1,4 @@
-# TESTING — how to score release 6.385.0
+# TESTING — how to score release 6.386.0
 
 You install ONE archive and it carries several releases. Below are the
 steps for each release this archive is new for, newest first. Run the
@@ -26,6 +26,91 @@ else is a LOSS and I fix it before building further. You are the only
 scorer; I never mark my own.
 
 ---
+
+## 6.386.0
+
+6.386.0 verify with LL — 🚪 THE ASANA DASHBOARD MOVED HOUSE (KNOWN GROUND)
+WHAT CHANGED: nothing you press. 529 lines of Asana code left init.lua
+for a file of its own. ⇪L, ⇪C and ⇪B do exactly what they did.
+🔎 WHY IT WAS WORTH A RELEASE, since there is nothing new to use: the
+gate refuses to ship init.lua over 3,800 lines and it had reached 3,795.
+6.385.0 had to delete a release note from the top of the file just to
+fit, which means the next thing you asked for would have cost a feature
+to make room. It is 3,295 now, with 504 lines of headroom.
+🚨 SO THIS BLOCK IS A REGRESSION TEST, NOT A FEATURE TOUR. The only
+honest claim is "everything still works", and the only way to know is
+to press the keys. If any step below behaves differently from last
+week, that is the release and I want to know at once.
+
+A. THE HEADLINE — three keys, about two minutes.
+A1. Press **⇪L** (hold Caps Lock, press L).
+    EXPECT: "🔄 Syncing Asana Tasks…", then your task list, searchable,
+    with the colour legend strip — Overdue, Due today, Due this week,
+    Due later, No due date — sitting ABOVE the search field.
+    **A FAIL is nothing happening at all**, which is what a mis-moved
+    key looks like. Go straight to D1 if so.
+A2. Press ⏎ on a task. EXPECT: it opens in your browser.
+A3. Press **⇪C**. EXPECT: the same list, but the placeholder now reads
+    "💬 Pick a task to comment on…". Pick one, type a comment, Post.
+    EXPECT: it lands in Asana.
+A4. Press **⇪B**. EXPECT: your Asana team, searchable. Type part of a
+    team name — "core" — and the list narrows, because the team is
+    folded into each row's second line.
+A5. Press ⏎ on a person. EXPECT: "📋 Copied <name> — paste into the
+    Assignee field", and ⌘V gives you that name.
+
+B. SELECT MODE AND THE DELETE — the one verb here that destroys
+   something, so it is worth the five minutes.
+B1. ⇪L, then ⏎ on the first row, "☑️ Select several to delete…".
+    EXPECT: the list comes back with a "✕ Leave select mode" row.
+B2. ⏎ on two or three tasks. EXPECT: each gains a ✓.
+B3. ⏎ on the "🗑 Delete N selected" row at the top.
+    EXPECT: a dialog NAMING the tasks and saying they go to Asana's
+    trash, restorable for 30 days. **Press Cancel.**
+    EXPECT: "🗑 Nothing deleted", and all of them still in Asana.
+B4. Only if you have a task you really want gone: do B1–B3 and press
+    Delete. EXPECT: it goes, and the list re-fetches.
+B5. ⇪L, then hold ⌥ and press ⏎ on one row. EXPECT: the same
+    confirmation for that one task.
+
+C. THE LEGEND STRIP, which is the fiddliest thing in the release.
+C1. With ⇪L open, hold ⌃⌥⌘ and press an arrow key to nudge the picker.
+    EXPECT: the colour strip MOVES WITH IT. That is the one wire that
+    crosses between this file and init.lua, and if the strip gets left
+    behind, this is where it shows.
+C2. ⌃⌥⌘R to clear the nudge. EXPECT: both go back.
+C3. ⇪L on your OTHER monitor. EXPECT: the strip is on that monitor,
+    above the picker, fully on screen.
+C4. Esc. EXPECT: the picker AND the strip both go.
+
+D. PASTE BACK, PASS OR FAIL.
+D1. Console: `_G.asanaDashboardReport()` — NEW; this tool has never had
+    one, which is why "did it move correctly?" could only have been
+    answered by me reading the code.
+    EXPECT the `keys` line to read **"3 of 3 bound in setup() — ⇪L · ⇪C
+    · ⇪B"**. Two other things it can say and each is a real finding:
+    "⏳ setup has NOT run" means the module did not load at all;
+    "⚠️ setup ran and bound NOTHING" means macOS refused the keys and
+    names why. PASTE WHICHEVER YOU GET.
+D2. The `↳ seven` line should read "every helper this module moved away
+    from is on the core table". A ⚠️ MISSING there is the one failure
+    that would make a key die at the moment you press it.
+D3. The boot line: **76 modules** now, not 75, and the same ⇪ shortcut
+    count as before. A different shortcut count is a finding.
+
+E. A JUDGEMENT ONLY YOU CAN MAKE.
+E1. One thing really did change, and it is a fix I found while moving
+    the line past: ⇪B's "📋 Copied" used to be printed whether or not
+    macOS took the clipboard write. If it ever now says "⚠️ macOS
+    refused the clipboard write", that is real and I want to know —
+    before this release you would simply have had nothing to paste.
+E2. 🔨 Nothing was broken and nothing was lost — so unless a key below
+    fails, I would not log this as a problem at all. If something DOES
+    fail, tell me which letter and what happened instead; a move that
+    breaks a key is the one kind of regression where the fix is
+    obvious once it is named.
+
+
 
 ## 6.385.0
 
@@ -168,30 +253,6 @@ A5. If @logs ever shows a single row reading "⚠️ the failure log could
     read must never come back as an empty list, because "nothing has
     failed" is the most reassuring thing this config can say and would
     be a lie on exactly the day the disk is full.
-
-
-
-## 6.382.0
-
-6.382.0 verify with LL — 📋 A PICKED SNIPPET LANDS ON THE CLIPBOARD
-(KNOWN GROUND)
-WHAT CHANGED: pick a snippet from ⇪⇧S and it is now left ON the
-clipboard, so ⌘V pastes it again and it is the newest row in ⇪V.
-A1. ⇪⇧S, pick a SHORT snippet. It types at the caret as always.
-    Now press ⌘V somewhere else. EXPECT: the same snippet again.
-A2. ⇪⇧S, pick a MULTI-LINE one (a signature, the out-of-office).
-    EXPECT: it inserts, and ⌘V still pastes it afterwards. Before, your
-    old clipboard came back a quarter-second later and the snippet was
-    gone.
-A3. Press ⇪V. EXPECT the snippet is the NEWEST row.
-A4. 🚨 THE ONE THAT PROTECTS YOU: copy something of your own with ⌘C,
-    then TYPE a trigger (not the picker — type it). EXPECT: your copy
-    is still on the clipboard. A typed trigger must never touch it —
-    you fire thousands a day and they would bury everything you copy.
-A5. `_G.snippetsReport()` — a new `clip :` line counts them. If it
-    ever says REFUSED by macOS, paste it.
-A6. Don't want it? `settings = { expander = { pickToClipboard =
-    false } }`. Say so and I will change the default instead.
 
 
 

@@ -427,17 +427,45 @@ check("...and it reaches the engine through the registry instead",
       and iCode:find('ocr%.tagFiles') ~= nil
       and iCode:find('ocr%.image') ~= nil)
 
+-- 🚪 6.386.0 — AND THE SAME IS TRUE OF THE ASANA DASHBOARD. 529 lines left
+-- §6 for modules/asana_dashboard.lua; a copy left behind is two copies
+-- that drift, which is the failure 6.104.0's Document Watcher merge
+-- existed to end and the reason the OCR check above was written.
+check("init.lua kept no Asana dashboard code — not the fetch, not the "
+      .. "legend, not the picker, not the three binds",
+      iCode:find("fetchAsanaDashboard", 1, true) == nil
+      and iCode:find("asanaLegendShow", 1, true) == nil
+      and iCode:find("asanaCaps", 1, true) == nil
+      and iCode:find("_G.asanaSelect", 1, true) == nil
+      and iCode:find('_G.choosers.asanaTeam', 1, true) == nil)
+-- 🔑 ...and the ONE global that crosses the boundary is still reached the
+-- way it always was. §1.5's nudge path reads _G.asanaLegendSync nil-guarded,
+-- which is precisely what made the move invisible to it.
+check("...while §1.5 still drags the legend strip with a nudged picker, "
+      .. "nil-guarded as before",
+      iCode:find("if movedAny and _G.asanaLegendSync then", 1, true) ~= nil)
+
 -- =====================================================================
--- 🗑 6.156.0 — ⇪L (⌃⌥⌘L), the Asana picker, has select mode too. LL:
--- "Can we use the Asana hyper+L to also select and delete tasks in bulk
--- or one line?" Pinned to init.lua's source, like the rest of this suite.
-local asanaDel = iCode:match("_G%.asanaSelect%.delete = function(.-)\nend") or ""
+-- 🗑 6.156.0 — ⇪L, the Asana picker, has select mode too. LL: "Can we use
+-- the Asana hyper+L to also select and delete tasks in bulk or one line?"
+--
+-- 🚪 6.386.0 — PINNED TO modules/asana_dashboard.lua NOW, not init.lua.
+-- The whole dashboard left §6 in that release, and these six checks were
+-- matched against init.lua's source — so the move would have turned every
+-- one of them red while the feature was perfectly fine. 6.268.0's rule:
+-- grep every READER before moving a module, and a suite is a reader.
+local dsrc = realIoOpen(HS .. "/modules/asana_dashboard.lua", "r")
+local DASH_SRC = dsrc and dsrc:read("*a") or "" ; if dsrc then dsrc:close() end
+local dCode = DASH_SRC:gsub("\n%s*%-%-[^\n]*", "\n")
+check("the Asana dashboard module source was found at all",
+      #DASH_SRC > 10000, #DASH_SRC)
+local asanaDel = dCode:match("_G%.asanaSelect%.delete = function(.-)\nend") or ""
 check("⇪L: the Asana picker grew select mode — a switch-on row, ✓ tags, a 🗑 row",
-      iCode:find("selectStart = true", 1, true) ~= nil
-      and iCode:find("deleteTagged = true", 1, true) ~= nil
-      and iCode:find('sel.tagged[c.gid] and "✓ "', 1, true) ~= nil)
+      dCode:find("selectStart = true", 1, true) ~= nil
+      and dCode:find("deleteTagged = true", 1, true) ~= nil
+      and dCode:find('sel.tagged[c.gid] and "✓ "', 1, true) ~= nil)
 check("...⌥⏎ on one row deletes just that one",
-      iCode:find("mods.alt and choice.gid", 1, true) ~= nil)
+      dCode:find("mods.alt and choice.gid", 1, true) ~= nil)
 check("🚨 deleting ASKS FIRST — the confirmation precedes the request", (function()
     local a = asanaDel:find("hs.dialog.blockAlert", 1, true)
     local b = asanaDel:find('"DELETE"', 1, true)
@@ -452,7 +480,7 @@ check("...one task at a time, and the trash's 30 days are named",
       asanaDel:find("local function step", 1, true) ~= nil
       and asanaDel:find("30 days", 1, true) ~= nil)
 check("...and a fresh fetch clears stale ✓ marks",
-      iCode:find("_G.asanaSelect.on, _G.asanaSelect.tagged = false, {}   -- a fresh list", 1, true) ~= nil)
+      DASH_SRC:find("_G.asanaSelect.on, _G.asanaSelect.tagged = false, {}   -- a fresh list", 1, true) ~= nil)
 
 -- =====================================================================
 io.open = realIoOpen

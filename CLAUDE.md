@@ -440,6 +440,42 @@ work Mac.
      ("find the field that separates them BEFORE saying either out
      loud") broken in the direction that costs him the most.
 
+- 🚪 A MOVE'S READERS ARE NOT ONLY THE CODE THAT CALLS IT — THEY ARE THE
+  CHECKS PINNED TO ITS ADDRESS (6.386.0, init.lua §6 → modules/
+  asana_dashboard.lua, on LL's "make this move safe-proof and
+  non-destructive … both on my home and work mac"). SEVEN checks across
+  two suites matched that section against **init.lua's source text** —
+  six in test_select_mode since 6.156.0, one in test_style since 6.98.0.
+  Move the code and every one goes red while the feature is perfectly
+  fine, which is how a correct refactor gets abandoned halfway.
+  🔑 6.268.0 SAID "GREP EVERY READER BEFORE DELETING A MODULE" AND I READ
+  IT AS A RULE ABOUT CALLERS. A suite that pins itself to a file's text
+  is a reader with no call site, invisible to a grep for the function
+  names — the needle is the FILENAME, not the identifier. So the sweep is
+  `grep -rn "init.lua"` over tests/ as well as a grep for what moved.
+  📏 AND THE GATE FOUND THE SEVENTH, not the sweep: test_style's "the
+  Asana legend takes bgWith(panelAlpha)" was pinned by a helper that
+  takes the path as an ARGUMENT, so it carried no literal to grep for.
+  Which is the argument for running the whole gate before believing any
+  survey of a move — the survey is a hypothesis and the gate is the
+  measurement.
+  🪜 AND THE ORDERING FACT THAT DECIDED THE FILE'S SHAPE, which no amount
+  of care about readers would have caught: the three keys are ⌃⌥⌘ chords
+  that §0.4 MIGRATES onto ⇪, and a migrated bind is appended to
+  `_G.hyperMigrations`, which `_G.hyperFinalize()` drains ONCE, after the
+  §1.12 loader. setup() is therefore the LAST moment such a bind can be
+  made, and the same lines in `M.warm` would leave three dead keys on a
+  config that boots green. GENERAL: before moving code that REGISTERS
+  anything, find out when the register is read — 6.311.0 wrote that about
+  offering a live call and it is just as true of relocating one.
+  🔒 AND WHEN A MOVE TEMPTS YOU TO MODERNISE ON THE WAY PAST, ASK WHAT
+  THE OLD FORM WAS BUYING. `core.hyperAddShortcut` is the modern way to
+  claim a ⇪ key and would have broken the cheat sheet: a migrated combo
+  never enters the auditors' owner table, and that blindness is what lets
+  core/cheatsheet.lua keep the ✅ ASANA card without printing ⇪B/⇪C/⇪L on
+  two cards — 6.90.1's complaint. A refactor is the wrong release to
+  change a registration in.
+
 - 🔪 WHEN A SWEEP IS SPLIT INTO PIECES, THE STATE IT COMPARES AGAINST IS
   SPLIT THE SAME WAY — OR THE SPLIT IS NOT AN OPTIMISATION, IT IS A
   SILENT SWITCHING-OFF (6.380.0, modules/onedrive_check.lua). The sweep
@@ -508,6 +544,19 @@ work Mac.
   does not merely fail to fix the thing — it sends him to argue with
   somebody else's software about a default this config chose. Before
   writing that sentence about any report, grep for the API and name it.
+  🗳 AND THE BEHAVIOUR STAYS, ON HIS WORD — ASKED, ANSWERED, DO NOT
+  RE-ASK (2026-10-31, LL, answering the question at the end of the
+  6.385.0 delivery: "Disregard hyper+Q. It's fine."). I recommended
+  stopping the mute; he overruled me. So `doMuteMic = true` is correct,
+  ⇪Q goes on muting the input device on engage, and a later release must
+  NOT "helpfully" change that default — it is his taste on his Mac and
+  he has now spent a turn on it.
+  🔑 WHAT THIS RULE IS FOR, THEREFORE, IS THE METHOD AND NOT THE KNOB:
+  a module is cleared by grepping for the API that would do the thing,
+  never the English word for it. That half cost a wrong answer and
+  stands. GENERAL, past this project: when a recommendation is declined,
+  write the DECLINE next to the finding — a finding with no decision
+  beside it reads as work outstanding, and the next session does it.
 
 - 🗿 A MEASURED REJECTION IS EVIDENCE ABOUT ONE IMPLEMENTATION, NEVER A
   VETO ON THE PROBLEM (6.360.0, LL: "And yes, holy shit I did say that.
@@ -6432,6 +6481,7 @@ that must be READ before a new cause is named.
 | "A picked snippet needs to land on the clipboard" | modules/text_expander.lua — neither route left it there | 6.382.0 | 1 | ask |
 | "Turn off the OneDrive watcher and park the development" | modules/onedrive_check.lua — `enabled` was read nowhere | 6.381.0 | 1 | ask |
 | "add a simple timer I can launch using a shortcut key" · "I like hyper+shift+t if that is not taken" | modules/timer.lua · and ⇪⇧T was taken | 6.379.0 | 1 | a new tool, not a defect — nothing was broken |
+| "Fix the Asana dashboard or tell me what this means?" · "make this move safe-proof and non-destructive … both on my home and work mac" | init.lua §6 → modules/asana_dashboard.lua | 6.386.0 | 1 | not a defect — init.lua was five lines under its ceiling |
 
 📏 SEEDED FROM THE RECORD, NOT INVENTED: every row above is a real
 report with a real release beside it, and the pass counts are countable
@@ -6521,6 +6571,7 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
+| 6.386.0 | 🚪 The Asana dashboard leaves init.lua — 3,795 lines to 3,295, with ⇪L, ⇪C and ⇪B unchanged | pending |
 | 6.385.0 | 🎨 Every picker wears the Jug Player's dark card — and a picker cannot have a per-row ✕, which is said rather than discovered | pending |
 | 6.384.0 | 🗑 App removal on ⇪⇧[ — to the Trash, never erased, and the first press only SHOWS | pending |
 | 6.383.0 | 📓 @logs in ⇪D — every tool that has failed, searchable | pending |
@@ -6697,14 +6748,20 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
        snippet fixture, and has since 6.68.0. The rest are absent. So
        the scrub is small and the risk is the ones he has NOT listed
        yet, which is why the list says "for now".
+  ✅ AND TWO OF HIS THREE ANSWERS ARE SPENT (2026-10-31: "1. Disregard
+     hyper+Q. It's fine. / 2. Yes / 3. Yes, and make this move safe-proof
+     and non-destructive for the Asana dashboard both on my home and work
+     mac"). ⇪Q stays as it is — see the 🎙 hard rule, where his decline is
+     now written beside the finding. §6 is OUT (6.386.0): 3,795 → 3,295,
+     504 lines of room, and the measured half of the old note held while
+     the remembered half did not. The scratch-tab YES is next.
   📏 STILL OPEN, in the order I would build them:
-     1. **§6, the Asana dashboard, out of init.lua** — now URGENT rather
-        than tidy: init.lua is 3,795 of 3,800 and 6.385.0 had to drop a
-        NEW IN block to fit. The next release cannot add a header at all
-        until this moves. ~529 lines, mechanical (it reaches only seven
-        things and all seven are already on the core table), and it
-        needs a suite of its own.
-     2. The scratch-tab → .md decision above.
+     1. **The scratch-tab → .md build, which he has said YES to**: every
+        Hamsidian tab becomes a real .md, written on the FIRST PAUSE
+        rather than the first keystroke, auto-named from its first line.
+        It is the biggest open item because it changes where his writing
+        lives, and it is unblocked now that init.lua has room for its
+        release note.
      3. ⌘Space launcher · ⌥Tab listing every panel · MANIFEST.txt +
         _G.installCheck() · the draft keeper · the Mug Player sized to
         the film · anchors' cold start · the crop tool · ⇪7's detail.
@@ -8146,6 +8203,87 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.386.0 verify with LL — 🚪 THE ASANA DASHBOARD MOVED HOUSE (KNOWN GROUND)
+  WHAT CHANGED: nothing you press. 529 lines of Asana code left init.lua
+  for a file of its own. ⇪L, ⇪C and ⇪B do exactly what they did.
+  🔎 WHY IT WAS WORTH A RELEASE, since there is nothing new to use: the
+  gate refuses to ship init.lua over 3,800 lines and it had reached 3,795.
+  6.385.0 had to delete a release note from the top of the file just to
+  fit, which means the next thing you asked for would have cost a feature
+  to make room. It is 3,295 now, with 504 lines of headroom.
+  🚨 SO THIS BLOCK IS A REGRESSION TEST, NOT A FEATURE TOUR. The only
+  honest claim is "everything still works", and the only way to know is
+  to press the keys. If any step below behaves differently from last
+  week, that is the release and I want to know at once.
+
+  A. THE HEADLINE — three keys, about two minutes.
+  A1. Press **⇪L** (hold Caps Lock, press L).
+      EXPECT: "🔄 Syncing Asana Tasks…", then your task list, searchable,
+      with the colour legend strip — Overdue, Due today, Due this week,
+      Due later, No due date — sitting ABOVE the search field.
+      **A FAIL is nothing happening at all**, which is what a mis-moved
+      key looks like. Go straight to D1 if so.
+  A2. Press ⏎ on a task. EXPECT: it opens in your browser.
+  A3. Press **⇪C**. EXPECT: the same list, but the placeholder now reads
+      "💬 Pick a task to comment on…". Pick one, type a comment, Post.
+      EXPECT: it lands in Asana.
+  A4. Press **⇪B**. EXPECT: your Asana team, searchable. Type part of a
+      team name — "core" — and the list narrows, because the team is
+      folded into each row's second line.
+  A5. Press ⏎ on a person. EXPECT: "📋 Copied <name> — paste into the
+      Assignee field", and ⌘V gives you that name.
+
+  B. SELECT MODE AND THE DELETE — the one verb here that destroys
+     something, so it is worth the five minutes.
+  B1. ⇪L, then ⏎ on the first row, "☑️ Select several to delete…".
+      EXPECT: the list comes back with a "✕ Leave select mode" row.
+  B2. ⏎ on two or three tasks. EXPECT: each gains a ✓.
+  B3. ⏎ on the "🗑 Delete N selected" row at the top.
+      EXPECT: a dialog NAMING the tasks and saying they go to Asana's
+      trash, restorable for 30 days. **Press Cancel.**
+      EXPECT: "🗑 Nothing deleted", and all of them still in Asana.
+  B4. Only if you have a task you really want gone: do B1–B3 and press
+      Delete. EXPECT: it goes, and the list re-fetches.
+  B5. ⇪L, then hold ⌥ and press ⏎ on one row. EXPECT: the same
+      confirmation for that one task.
+
+  C. THE LEGEND STRIP, which is the fiddliest thing in the release.
+  C1. With ⇪L open, hold ⌃⌥⌘ and press an arrow key to nudge the picker.
+      EXPECT: the colour strip MOVES WITH IT. That is the one wire that
+      crosses between this file and init.lua, and if the strip gets left
+      behind, this is where it shows.
+  C2. ⌃⌥⌘R to clear the nudge. EXPECT: both go back.
+  C3. ⇪L on your OTHER monitor. EXPECT: the strip is on that monitor,
+      above the picker, fully on screen.
+  C4. Esc. EXPECT: the picker AND the strip both go.
+
+  D. PASTE BACK, PASS OR FAIL.
+  D1. Console: `_G.asanaDashboardReport()` — NEW; this tool has never had
+      one, which is why "did it move correctly?" could only have been
+      answered by me reading the code.
+      EXPECT the `keys` line to read **"3 of 3 bound in setup() — ⇪L · ⇪C
+      · ⇪B"**. Two other things it can say and each is a real finding:
+      "⏳ setup has NOT run" means the module did not load at all;
+      "⚠️ setup ran and bound NOTHING" means macOS refused the keys and
+      names why. PASTE WHICHEVER YOU GET.
+  D2. The `↳ seven` line should read "every helper this module moved away
+      from is on the core table". A ⚠️ MISSING there is the one failure
+      that would make a key die at the moment you press it.
+  D3. The boot line: **76 modules** now, not 75, and the same ⇪ shortcut
+      count as before. A different shortcut count is a finding.
+
+  E. A JUDGEMENT ONLY YOU CAN MAKE.
+  E1. One thing really did change, and it is a fix I found while moving
+      the line past: ⇪B's "📋 Copied" used to be printed whether or not
+      macOS took the clipboard write. If it ever now says "⚠️ macOS
+      refused the clipboard write", that is real and I want to know —
+      before this release you would simply have had nothing to paste.
+  E2. 🔨 Nothing was broken and nothing was lost — so unless a key below
+      fails, I would not log this as a problem at all. If something DOES
+      fail, tell me which letter and what happened instead; a move that
+      breaks a key is the one kind of regression where the fix is
+      obvious once it is named.
+
 - 6.385.0 verify with LL — 🎨 THE PICKERS LOOK LIKE THE JUG PLAYER
   (KNOWN GROUND)
   WHAT CHANGED: every picker in this config now wears the Jug Player's

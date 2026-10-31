@@ -5,6 +5,124 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.386.0 — 🚪 THE ASANA DASHBOARD LEAVES init.lua: LL, answering
+  the question at the end of the 6.385.0 delivery: "Yes, and make this
+  move safe-proof and non-destructive for the Asana dashboard both on my
+  home and work mac."
+
+  📏 WHY NOW, AND IT IS ARITHMETIC RATHER THAN TIDINESS. The gate fails
+  init.lua at 3,800 lines and it stood at 3,795 — five lines. 6.385.0 had
+  to drop a release note from the header to fit, which is the moment a
+  budget stops being a budget and becomes a tax on whatever ships next.
+  §6 was 529 of those lines and is a FEATURE living inside the
+  orchestrator, which init.lua's own header has forbidden since it was
+  written. 3,295 lines now, 504 of room.
+
+  📏 AND THE NOTE THAT SAID THIS WAS SAFE WAS A READING, AND IT HAD AGED
+  — 6.324.0's rule, paid by the release that cites it. The durable note
+  said §6 "publishes ONE global (_G.asanaLegendSync, nil-guarded at both
+  call sites)". FIVE globals cross that boundary: _G.asanaSelect (which a
+  SUITE reads), _G.asanaLegendCanvas, _G.asanaLegendSync, and two entries
+  in _G.choosers. The note's other half — the seven main-chunk locals —
+  was exactly right, and all seven were already on the `core` table, so
+  the body really was a mechanical rewrite. One half measured, one half
+  remembered, and only the measured half held.
+
+  🔎 SIX CHECKS WERE PINNED TO THIS FILE'S SOURCE, which is the finding
+  that would have cost the release. tests/test_select_mode has matched
+  _G.asanaSelect.delete, the ✓ marks, the ⌥⏎ branch and the fresh-fetch
+  clear against init.lua's text since 6.156.0 — so the move would have
+  turned every one of them red with the feature perfectly fine, and a red
+  gate on a correct change is how a safe refactor gets abandoned halfway.
+  6.268.0's rule: grep every READER before moving a module, and a suite
+  is a reader. test_style's "the Asana legend takes bgWith(panelAlpha)"
+  was a seventh, and the gate found that one rather than the grep —
+  which is the argument for running it before believing the sweep.
+
+  🪜 THE ORDERING FACT THAT DECIDED THE FILE'S SHAPE, measured in
+  init.lua rather than assumed. The three keys are written ⌃⌥⌘L / ⌃⌥⌘C /
+  ⌃⌥⌘B and §0.4's migration map rewrites all three onto ⇪ (⇪L, ⇪C, ⇪B).
+  A migrated bind NEVER REACHES macOS: hs.hotkey.bind appends it to
+  _G.hyperMigrations, and _G.hyperFinalize() DRAINS THAT LIST ONCE, at
+  §7, after the §1.12 loader has run. So setup() is the last moment such
+  a bind can be made — and the same three lines in M.warm would append to
+  a list nobody reads again, leaving three silently dead keys on a config
+  that boots green. 6.311.0's rule ("a registration function READ once at
+  boot cannot register anything afterwards") in a new place, and the
+  suite MODELS the drain and drives both sides of it rather than
+  describing it: a bind made after finalize is asserted to be unreachable.
+
+  🔑 AND THE BIND STAYS hs.hotkey.bind, NEVER core.hyperAddShortcut. The
+  modern form looks like the right answer here and would break two things
+  at once. A migrated combo never enters the test suite's HYPER_OWNER, so
+  BOTH cheat-sheet auditors — 6.196.0's misattribution join and 6.294.0's
+  bound-key-with-no-row — are blind to these three by construction. That
+  blindness is what lets core/cheatsheet.lua keep the ✅ ASANA card it has
+  owned for a hundred releases. Registering through hyperAddShortcut would
+  demand a row on THIS module's sheet, and ⇪B/⇪C/⇪L printed on two cards
+  is the double listing LL objected to from a screenshot in 6.90.1.
+  GENERAL: when a move tempts you to modernise the registration on the
+  way past, check what the OLD form's invisibility was buying.
+
+  🔒 THREE NIL-GUARDS, NAMED RATHER THAN SMUGGLED. ⇪B read
+  `#_G.asanaTeamMembers` and called `_G.fetchAsanaTeamMembers` — both
+  published by modules/asana_comments. Inside init.lua the handler could
+  only ever fire long after that module loaded; it is STILL only
+  reachable from a keypress, so these are belts. But a module that failed
+  to load must cost ONE SHORTCUT, not a traceback out of hyperBind's
+  re-raise (6.177.0 · 6.179.0), and on the work Mac "less is installed"
+  is the normal case rather than the edge. The missing fetcher now takes
+  the 🔔 door and names the module. And asanaLegendShow refuses when
+  `core` is nil, because _G.asanaLegendSync is published at LOAD and
+  window_move can reach it before setup has run.
+
+  📋 AND A CLIPBOARD WRITE THAT WAS NEVER READ, found while moving the
+  line past. ⇪B's "📋 Copied <name>" sat on a bare
+  hs.pasteboard.setContents, which REFUSES BY RETURNING FALSE and never
+  throws — so the alert claimed a write macOS may have declined. 6.325.0
+  closed that class at three call sites and named the rule; this one was
+  inside init.lua §6, where nobody had grepped. 6.319.0's own warning,
+  paid: when a rule names the files still carrying a shape, the list is a
+  SAMPLE unless someone greps. It goes through core.copyText now, which
+  reads the answer, and a refusal says so instead of lying.
+
+  🔎 _G.asanaDashboardReport() — the tool had NO report at all, which is
+  why "did the move work?" could only ever have been answered by reading
+  the source. 6.306.0's precedent: the panel drag engine survived two of
+  his reports for eleven releases because nothing could be asked of it.
+  THREE STATES on the keys line (6.196.1): setup never ran · setup ran
+  and bound NOTHING, with macOS's reason · the three keys and WHEN they
+  bound. It also names all seven core helpers and shouts if one is
+  missing, which is 6.339.0 — an incomplete nil-guarded table cost four
+  editor buttons four releases.
+
+  🧪 THE SUITE IS WRITTEN AGAINST THE THREE WAYS A MOVE GOES WRONG rather
+  than against the feature: a helper left behind (a source sentry per
+  name, plus every key driven for real), the keys bound at the wrong
+  moment (the drain, both sides), and a work Mac with less on it (no
+  secret.lua, no asana_comments, a key macOS refuses). 58 checks.
+  🔬 AND THE HARNESS MODELS init.lua's OWN hs.hotkey.bind WRAPPER,
+  migration map and all — 6.290.0 for the fourteenth time. With a stub
+  that simply registers, the whole ordering section would pass with the
+  binds moved to warm(), certifying the one defect the release exists to
+  make impossible.
+  🚨 TWO OF THE SUITE'S OWN CHECKS WERE WRONG BEFORE THE CODE WAS, and
+  both are old rules in new costumes. The bare-name sentries matched
+  their own needle inside the report's string literals and went red on
+  correct code — 6.359.0's finding, in this suite, on its first run; they
+  read the source with STRINGS stripped as well as comments now. And the
+  copyText stub expressed its refusal through a flag, which
+  test_stub_fidelity's §6 ratchet reads TEXTUALLY and could not see — the
+  ratchet was right to fail it (6.342.0: a textual sentry closes the
+  literal half of a class and never the variable half), so the refusal is
+  written as a literal `return false` AND driven.
+
+  📏 WHAT DID NOT CHANGE, said plainly because that is the whole claim:
+  the keys, the five bands and their caps, the ordering inside each band,
+  the legend strip's placement and pills, select mode, the bulk delete
+  and its confirmation, the preview pane, and the ✅ ASANA cheat-sheet
+  card. 76 modules now, 80 Lua suites.
+
 NEW IN 6.385.0 — 🎨 THE PICKERS WEAR THE JUG PLAYER'S CARD: LL, with a
   screenshot of the ⇪⇧V clipboard picker beside the Jug Player: "Can you
   make my other windows look like jug player and have (x) at the end of
