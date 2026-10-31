@@ -113,10 +113,23 @@ local function asanaLegendShow()
     if not asanaLegendCounts then return end
     local chooser = _G.choosers.asana
     if not chooser then return end
-    -- 🔒 6.386.0 — the one place a caller outside this module can arrive
-    -- (window_move's nudge → _G.asanaLegendSync) reaches this function, so
-    -- it refuses rather than indexing a nil core if setup never ran.
-    if not core then return end
+    -- 🔒 THE ONE CALLER OUTSIDE THIS MODULE is window_move's nudge, through
+    -- _G.asanaLegendSync — which is published at LOAD and can therefore be
+    -- reached before setup has run, when `core` is still nil. FOUR early
+    -- returns stand between that caller and the first core index: the
+    -- canvas guard in asanaLegendSync itself, the counts guard above, this
+    -- chooser guard, and the `#pills == 0` return below. Any ONE of them
+    -- suffices, and there is no picker before a fetch and no fetch before
+    -- setup, so an early caller never gets past the first two.
+    -- 🧪 AND A `if not core then return end` WAS WRITTEN HERE AND TAKEN OUT
+    -- AGAIN, because the sweep could not kill it — nor, it turned out, any
+    -- of the four: each is masked by the next, so NO single-line mutation
+    -- makes this function unsafe. 6.273.0 says a line no mutation can kill
+    -- means the missing CHECK is the finding; its boundary is a property
+    -- held by several independent guards, where no single check can exist
+    -- either. So the suite asserts the PROPERTY — that an early
+    -- _G.asanaLegendSync never throws and draws nothing, from every state
+    -- a stranger can leave the world in — rather than any one line.
 
     -- Reuse the EXACT placement showPopup just used for the picker —
     -- resolving the screen again here could disagree (focus shifts as
@@ -546,13 +559,13 @@ local function showTeamPicker()
     if not core then return end
     if not _G.choosers.asanaTeam then return end
     local choices = {}
-    -- 🔒 6.386.0 — `or {}`. The list is published by modules/asana_comments
-    -- and is nil until that module's setup runs; before the move this file
-    -- was init.lua and the handler could only ever fire long after. It is
-    -- STILL only reachable from a keypress, so this is a belt — but a
-    -- module that failed to load must cost one shortcut, not a traceback
-    -- out of hyperBind (6.177.0).
-    for _, m in ipairs(_G.asanaTeamMembers or {}) do
+    -- 🔒 NO `or {}` HERE, DELIBERATELY. The one caller checks
+    -- `#(_G.asanaTeamMembers or {}) > 0` before it arrives, on both its
+    -- branches, so a nil list can never reach this loop — and a second
+    -- guard that no mutation can kill is dead code with a comment on it
+    -- (6.199.0). The guard that does the work is in the ⇪B handler, where
+    -- the suite drives it with the list absent.
+    for _, m in ipairs(_G.asanaTeamMembers) do
         local teamLabel = (m.teams and #m.teams > 0) and table.concat(m.teams, " + ") or ""
         local sub = m.email or ""
         if teamLabel ~= "" then

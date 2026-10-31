@@ -317,11 +317,31 @@ check("…and calling it with nothing drawn does nothing and does not throw",
       (function() local ok = pcall(_G.asanaLegendSync) ; return ok end)())
 -- 🚨 THE GUARD THAT MAKES THAT SAFE: a canvas recorded with setup never
 -- run means `core` is nil, and the legend redraw would index it.
+-- 🚨 THE ONE WAY A STRANGER CAN REACH THE REDRAW, driven as a PROPERTY.
+-- window_move nudges a picker and calls _G.asanaLegendSync; before setup
+-- has run `core` is nil, so the function must turn away without indexing
+-- it. FOUR early returns can do that and each masks the next, so the
+-- sweep could kill none of them individually — which is 6.273.0's own
+-- boundary: where a promise rests on several independent guards there is
+-- no single line to mutate and no single check to write. What CAN be
+-- asserted is the promise itself, in every state a caller can leave the
+-- world in: it does not throw, and it draws nothing.
 _G.asanaLegendCanvas = { delete = function() end }
+_G.choosers = {}
 check("🚨 …and with a canvas recorded but setup never run, it REFUSES "
       .. "rather than indexing a nil core",
-      (function() local ok = pcall(_G.asanaLegendSync) ; return ok end)())
+      (function() local ok, err = pcall(_G.asanaLegendSync) ; return ok, err end)())
+check("…and it did so WITHOUT drawing anything", #canvasesShown == 0, #canvasesShown)
+-- 🧪 …and the same call with a picker present must still refuse, which is
+-- what tells the chooser guard apart from the counts guard above it.
+_G.choosers = { asana = newChooser(function() end) }
+_G.asanaLegendCanvas = { delete = function() end }
+check("🧪 …and with a picker present too, the counts guard holds the line "
+      .. "— nothing has been fetched, so there is nothing to draw",
+      (function() local ok = pcall(_G.asanaLegendSync) ; return ok and #canvasesShown == 0 end)(),
+      #canvasesShown)
 _G.asanaLegendCanvas = nil
+_G.choosers = {}
 
 capture(true) ; mod.setup(core) ; capture(false)
 check("🪜 setup() bound THREE keys", #migrations == 3, #migrations)
@@ -389,6 +409,46 @@ check("🎨 …and the legend strip was drawn, placed off core.chooserTopLeft "
       #canvasesShown == 1 and said("🎨 Legend on 'Test'") ~= nil, said("🎨 Legend"))
 check("…the strip sits ABOVE the picker's own top edge, never estimated",
       canvasesShown[1].frame.y < 300, canvasesShown[1].frame.y)
+
+-- 🧪 6.230.0 — THE FIXTURE THAT BITES THE CAPS. Three tasks are under
+-- every one of the five limits, so a cap obeyed and a cap ignored give
+-- the identical answer and the mutation sweep found nothing to kill. The
+-- documented promise is 40 + 10 + 30 + 10 + 10 = 100 tasks MAXIMUM, and
+-- the only input that can prove it is one that overflows a band.
+do
+    local many = {}
+    for i = 1, 45 do
+        many[#many + 1] = ('{ gid = "o%d", name = "Overdue %d", due_on = "2020-01-%02d", permalink_url = "u" }')
+                          :format(i, i, (i % 28) + 1)
+    end
+    for i = 1, 14 do
+        many[#many + 1] = ('{ gid = "n%d", name = "Undated %d", created_at = "2026-05-%02dT00:00:00.000Z", permalink_url = "u" }')
+                          :format(i, i, (i % 28) + 1)
+    end
+    REPLY = { ["/tasks?assignee=me"] = { 200, "{ data = { " .. table.concat(many, ", ") .. " } }" } }
+    capture(true) ; bound["l"]() ; capture(false)
+    local m = _G.asanaSelect.master or {}
+    check("📏 a band that OVERFLOWS is trimmed to its cap — 45 overdue in, "
+          .. "40 out, and 14 undated in, 10 out",
+          #m == 50, #m .. " row(s) kept from 59")
+    local overdue, undated = 0, 0
+    for _, c in ipairs(m) do
+        if (c.subText or ""):find("🔴", 1, true) then overdue = overdue + 1 end
+        if (c.subText or ""):find("🟣", 1, true) then undated = undated + 1 end
+    end
+    check("…and the trim is PER BAND, not a total taken off the end",
+          overdue == 40 and undated == 10, overdue .. " overdue · " .. undated .. " undated")
+    check("…the overdue band is still NEWEST due first inside the cap, so "
+          .. "the cap keeps the most relevant of each band",
+          m[1].dueTime > m[2].dueTime and m[2].dueTime > m[3].dueTime)
+    check("🎨 …and the legend pills count the rows each band CONTRIBUTED, "
+          .. "never the rows it had", canvasesShown[#canvasesShown] ~= nil)
+end
+REPLY = { ["/tasks?assignee=me"] = { 200, [[{ data = {
+    { gid = "1", name = "Late thing",   due_on = "2020-01-02", permalink_url = "u1" },
+    { gid = "2", name = "Later thing",  due_on = "2020-01-09", permalink_url = "u2" },
+    { gid = "3", name = "No date here", created_at = "2026-05-05T00:00:00.000Z", permalink_url = "u3" },
+} }]] } }
 
 capture(true) ; bound["c"]() ; capture(false)
 check("🎯 ⇪C opens the same picker in comment mode",

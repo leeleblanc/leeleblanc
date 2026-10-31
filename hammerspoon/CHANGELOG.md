@@ -117,6 +117,28 @@ NEW IN 6.386.0 — 🚪 THE ASANA DASHBOARD LEAVES init.lua: LL, answering
   literal half of a class and never the variable half), so the refusal is
   written as a literal `return false` AND driven.
 
+  🔬 THE SWEEP'S OWN FINDINGS — 24 mutations, 21 bitten, the no-op control
+  survived, and all three survivors were about GUARDS rather than logic.
+  Two were dead code: `ipairs(_G.asanaTeamMembers or {})` in showTeamPicker
+  (its one caller already checks `#(… or {}) > 0` on both branches, so a
+  nil list cannot reach the loop) and a `if not core then return end` in
+  asanaLegendShow. Both removed with the real protection named — 6.199.0,
+  eighth time: a guard no test can fail is dead code with a comment on it.
+  The third was the caps: a three-task fixture is under every one of the
+  five limits, so a cap obeyed and a cap ignored give the identical answer.
+  A 59-task fixture that OVERFLOWS two bands bites all three of the
+  mutations that matter (the cap itself, a cap applied as a total rather
+  than per band, and the sort that decides WHICH rows a cap keeps) —
+  6.230.0, pick the input where the two implementations must differ.
+  📏 AND ONE BOUNDARY OF 6.273.0, WORTH WRITING DOWN. That rule says a
+  line no mutation can kill means the missing CHECK is the finding. Here
+  the promise that `_G.asanaLegendSync` is safe before setup rests on FOUR
+  independent early returns, each masking the next, so no single-line
+  mutation makes the function unsafe and no single check can exist either.
+  Where a promise is held by several independent guards, the check asserts
+  the PROPERTY — it does not throw and it draws nothing, from every state
+  a caller can leave the world in — rather than any one line. 64 checks.
+
   📏 WHAT DID NOT CHANGE, said plainly because that is the whole claim:
   the keys, the five bands and their caps, the ordering inside each band,
   the legend strip's placement and pills, select mode, the bulk delete
