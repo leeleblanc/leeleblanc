@@ -5,6 +5,108 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.387.0 — 📝 EVERY HAMSIDIAN TAB IS A REAL .md FILE: LL, asked
+  which of the two readings of his own sentence he meant, picked "(a)
+  every tab is a .md IMMEDIATELY" and then answered "Yes" to the shape
+  I recommended with it — written on the first PAUSE rather than the
+  first keystroke, auto-named from its first line. Both halves shipped
+  exactly as asked: a tab writes itself into <Vault>/Scratch after
+  `autoWriteSecs` (2.0) of silence, and ⌘⇧S still writes the lot, which
+  makes it the "all of them, now" door rather than the only one.
+
+  🔑 ONE FUNCTION, TWO CALLERS (6.231.0). sp.exportOne is sp.exportAll's
+  own machinery — exportDir, exportNameFor, exportBody, writeOne — asked
+  for ONE record instead of every record. Writing all twenty tabs and
+  two thousand history rows into a OneDrive folder every two seconds is
+  6.229.0 with a different name, and the fixture that bites is two tabs
+  with text where only the one that was typed in is written.
+
+  🏷 AND THE PAUSE IS THE WRONG MOMENT TO USE THE TITLE, which is the
+  half that needed a rule rather than a timer. sp.exportNameFor pins a
+  tab's file name the FIRST time it is written and never changes it —
+  deliberately: that name is the note's identity for every [[link]] that
+  points at it, and vault.lua's own rule is that a file is never
+  renamed. So a pause two seconds after "Buy mi" would leave the note
+  called "Buy mi.md" after he finishes typing "Buy milk".
+  `sp.titleSettled` is PURE, with the clock handed in, and answers the
+  verdict AND why: a FINISHED first line settles at once whatever it
+  says (he has moved past it); a one-line tab settles once it has been
+  quiet for `autoNameSecs` (20), which is the answer for the note he
+  types and walks away from; a tab whose name is already spent is always
+  settled, because there is nothing left to protect. Everything else
+  WAITS, and the report says how many waited — "nothing has been
+  written" and "nothing was worth writing yet" are different sentences
+  (6.196.1), and the second is the ordinary one.
+
+  🚨 AND THE RE-ARM WAS 6.196.1 INSIDE THE BRANCH WHOSE OWN COMMENT
+  CITES IT. The first version of the not-settled branch armed a second
+  timer and then stored a DIFFERENT, zero-second no-op timer in the
+  slot — so the re-arm was unreferenced, collected, and the tab was
+  never written at all. It asks again through the SAME door now, which
+  holds its timer in the one slot, so the bug is gone by construction
+  rather than by care. The check that bites fires the re-armed timer
+  and requires the note to land.
+
+  📝 THE ONE LIST DRAWS EACH ENTRY ONCE, and this is the half that would
+  have read as a regression. Every tab now ALSO has a note, so 6.333.0's
+  single list had the same thing in it twice: the TAB it still is, and
+  the NOTE a scan has just found. That is the two-sections problem he
+  asked to be rid of, wearing a new hat.
+  🔑 AND THE OWNED NAMES RIDE WITH THE INDEX, never on their own. A name
+  is pinned on a tab's first write and the note only enters the list
+  when a SCAN finds it — so `v.ownedJson()` is sent by setIndex, the one
+  function that sends the notes, as an additive fourth argument
+  (6.299.0's shape). One push, so the two facts cannot disagree about
+  which files are tabs; a second push of its own would be a second thing
+  to keep in step (6.231.0).
+  🚨 NEVER A REBUILD: v.render() rebuilds the page and a rebuild
+  destroys the textarea's undo history — 6.323.0's whole finding, and
+  calling it on every pinned name would have cost ⌘Z mid-sentence. A
+  source check asserts ownedJson does not reach for it.
+  📏 AND THE NOTE STAYS IN THE INDEX. Only the LIST row is skipped, so
+  [[links]], the graph, ⌘⇧F body search and a dataview query all still
+  reach it — it is a real note now and excluding it outright would make
+  it unlinkable. NAMES, not paths: the index keys notes by name (a known
+  limit), so a name is already unique here and no path arithmetic is
+  needed to join the two sides.
+
+  🚨 A FILE THAT DID NOT GET WRITTEN IS HIS WRITING NOT ON DISK, so a
+  failed write takes 6.316.0's door — an alert, a notification that
+  survives Focus, the ledger, the CSV row and a sticky line — WITH ITS
+  OWN STREAK GATE, never the store's. Sharing the gate would mean one
+  store failure silences every note failure for that cause, and a
+  readable store over an unwritten note is the half that loses the
+  words. The fallback for a Mac where notices did not load is gated per
+  CAUSE rather than per session, which was 6.316.0's own finding. And a
+  write that works after one that did not SAYS so, or the sticky warning
+  outlives the fault it is about.
+
+  🔎 THE REPORT HAS FOUR STATES on its new 📝 auto line: OFF as a
+  decision with the way back · nothing typed in a tab yet (not a fault)
+  · written, with the file, the clock and the reason · and ⚠️ NOT
+  WRITTEN with macOS's own words. Plus the WAIT explained as a rule
+  rather than reported as a failure, a count of writes that went at once
+  because this Mac would not arm a timer, and how many open tabs have a
+  file — which is what makes the one list answerable without a
+  screenshot.
+
+  📏 COST, NAMED: a tab's words now reach a OneDrive folder a couple of
+  seconds after he stops typing, where before they reached a local JSON
+  and waited for ⌘⇧S. That is what he asked for, and it is a real change
+  to where his writing lives, which is why the switch is kept and the
+  default is the one he chose. `settings = { scratch_pad = { autoWrite
+  = false } }` is 6.386.0's behaviour exactly; `exportToVault = false`
+  still governs both doors.
+
+  🧪 50 checks, and the three that earn their place are the re-arm above,
+  the cross-file JOIN between the set the pad publishes and the key the
+  page looks up (6.352.0 — the join nobody had made), and the two
+  streak gates driven apart. A source check also states the real rule
+  about writes rather than counting io.open sites: both writers are
+  temp-then-rename (6.313.0), because a store opened with "w" is
+  truncated before a byte is written and that is how a crash leaves it
+  at zero bytes.
+
 NEW IN 6.386.0 — 🚪 THE ASANA DASHBOARD LEAVES init.lua: LL, answering
   the question at the end of the 6.385.0 delivery: "Yes, and make this
   move safe-proof and non-destructive for the Asana dashboard both on my

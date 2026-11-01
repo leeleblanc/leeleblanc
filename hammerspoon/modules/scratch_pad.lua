@@ -107,7 +107,8 @@ local M = {
             { "preview",   "_G.scratchPadTasks() shows every task a send WOULD create, and what it did to each T: line — nothing is sent" },
             { "search",    "⇪space finds everything here — tabs and history" },
             { "own window","settings = { scratch_pad = { viaVault = false } } brings the old window back" },
-            { "⌘⇧S",       "Export every tab to <Vault>/Scratch as .md — Obsidian opens them" },
+            { "⌘⇧S",       "Export every tab to <Vault>/Scratch as .md — Obsidian opens them. Since 6.387.0 each tab is ALREADY written there by itself, a couple of seconds after you stop typing, so this is the \"write the lot now\" door rather than the only one" },
+            { "the pause",  "📝 EVERY TAB IS A REAL .md FILE (6.387.0, his word). A tab writes itself into <Vault>/Scratch after a short silence; the file keeps the name it is first given, so a tab whose FIRST LINE is still being typed waits until that line is finished or the tab has been quiet for 20s — and the one list draws it as the TAB it is, never twice. settings = { scratch_pad = { autoWrite = false } } is the way back" },
             { "Console",   "_G.scratchPadReport() · _G.scratchPadSend() · _G.scorpPadExport() — the COMMANDS keep their old names, like the notes' own did in 6.214.0" },
         },
     },
@@ -152,6 +153,28 @@ function M.setup(core)
         exportTag       = "scorp-pad",  -- the front-matter tag every exported note wears
         exported        = {},       -- tab id → the file name it keeps forever
         lastExport      = nil,
+
+        -- 📝 6.387.0 — EVERY TAB IS A REAL .md FILE, ON HIS WORD. LL, asked
+        -- which of two readings he meant: "(a) every tab is a .md
+        -- IMMEDIATELY", and then "Yes" to writing it on the first PAUSE
+        -- rather than the first keystroke. autoWriteSecs is that pause: a
+        -- separate, longer debounce from saveDelay's 0.3 s, because the
+        -- store is one local JSON and this is a write into OneDrive, which
+        -- 6.229.0 priced in wake-ups.
+        autoWrite       = true,     -- false = ⌘⇧S only, exactly as before
+        autoWriteSecs   = 2.0,      -- seconds of silence before a tab's file is written
+        -- 🏷 AND THE NAME IS PINNED FOREVER THE FIRST TIME IT IS WRITTEN,
+        -- which is what makes the first pause the wrong moment to use it:
+        -- a pause after "Buy mi" would name the file "Buy mi.md" and that
+        -- name is the note's identity for every [[link]] that ever points
+        -- at it (vault.lua: the file is NOT renamed, and that is the whole
+        -- safety of it). So a tab whose title is still being typed waits.
+        -- Settled = the first line is FINISHED (something follows it), or
+        -- the tab has been quiet this long.
+        autoNameSecs    = 20,       -- a one-line tab settles after this much silence
+        autoWrites      = { ok = 0, failed = 0, waiting = 0, lastWhy = nil,
+                            lastAt = nil, lastName = nil, lastWait = nil,
+                            lastReason = nil },
 
         viaVault      = true,     -- 6.173.0 — ⇪1 opens inside the ⇪3 Vault window; false = this module's own window
 
@@ -392,6 +415,42 @@ function M.setup(core)
         return first
     end
 
+    -- 📝 6.387.0 — IS THIS TAB'S NAME WORTH KEEPING FOREVER? PURE, so the
+    -- gate proves every branch with no Mac and no clock.
+    --
+    -- 🏷 THE PROBLEM THE FIRST PAUSE CREATES, and it is the whole reason
+    -- this function exists. sp.exportNameFor pins a tab's file name the
+    -- FIRST time it is written and never changes it — deliberately: that
+    -- name is the note's identity for every [[link]] that points at it,
+    -- and vault.lua's own rule is that a file is never renamed. So a pause
+    -- two seconds after "Buy mi" would name the file "Buy mi.md" and leave
+    -- it called that after he finishes typing "Buy milk".
+    --
+    -- 🔑 SO A TITLE IS SETTLED WHEN IT CANNOT STILL BE BEING TYPED:
+    --   · there is a SECOND LINE — the first line is finished, whatever
+    --     it says, because he has moved past it;
+    --   · or the tab has been quiet for `autoNameSecs`, which is the
+    --     answer for the one-line note he types and walks away from.
+    -- Everything else waits, and the report says how many are waiting so
+    -- "nothing has been written" and "nothing was worth writing yet" are
+    -- different sentences (6.196.1).
+    --
+    -- 📏 AND A TAB THAT ALREADY HAS A NAME IS ALWAYS SETTLED: the name is
+    -- spent, so there is nothing left to protect and later keystrokes
+    -- should reach the file at the ordinary pause.
+    function sp.titleSettled(text, idleSecs, named)
+        if named then return true, "its name is already pinned" end
+        local body = tostring(text or "")
+        if trim(body) == "" then return false, "nothing typed yet" end
+        if body:find("\n") then return true, "the first line is finished" end
+        local idle = tonumber(idleSecs)
+        local wait = tonumber(sp.autoNameSecs) or 20
+        if idle and idle >= wait then
+            return true, "one line, quiet for " .. math.floor(idle) .. "s"
+        end
+        return false, "still typing the first line"
+    end
+
     function sp.findTab(id)
         for i, t in ipairs(sp.tabs) do if t.id == id then return t, i end end
         return nil
@@ -585,6 +644,11 @@ function M.setup(core)
             -- reason for a line he has since fixed or deleted.
             t.text, t.updatedAt, t.mark, t.fails = text, os.time(), nil, nil
             sp.scheduleSave()
+            -- 📝 6.387.0 — AND THE SAME KEYSTROKE ARMS THE FILE. Two
+            -- debounces on purpose: the store is a local JSON at 0.3 s,
+            -- the note is a write into a OneDrive folder at autoWriteSecs,
+            -- and 6.229.0 priced what a write into a watched folder costs.
+            sp.scheduleWrite(id, "typing")
         end
         return true
     end
@@ -623,6 +687,14 @@ function M.setup(core)
             local ok, why = sp.fileTab(t)
             if not ok then return false end
             t.filedAs = k.filed .. (why and why ~= "" and (" · " .. tostring(why)) or "")
+        end
+        -- A pending file write for a tab that no longer exists is a held
+        -- timer with nothing to do; the write for a tab with text in it
+        -- has already happened at the pause, and the history row below is
+        -- the record of what it said.
+        if type(sp.writeTimers) == "table" and sp.writeTimers[id] then
+            pcall(function() sp.writeTimers[id]:stop() end)
+            sp.writeTimers[id] = nil
         end
         table.remove(sp.tabs, i)
         if trim(t.text) ~= "" then
@@ -894,6 +966,130 @@ function M.setup(core)
                           wrote = wrote, failed = failed, how = how, summary = summary }
         say("exported " .. summary)
         return failed == 0 and wrote > 0, summary
+    end
+
+    -- 📝 6.387.0 — ONE TAB, ONE FILE. Everything here is sp.exportAll's own
+    -- machinery — exportDir, exportNameFor, exportBody, writeOne — asked
+    -- for one record instead of every record. One function, two callers
+    -- (6.231.0): ⌘⇧S still writes the lot, and a pause writes the one tab
+    -- that was typed in, because writing 20 tabs and 2,000 history rows
+    -- into OneDrive every two seconds is 6.229.0 with a different name.
+    function sp.exportOne(t, why)
+        if sp.exportToVault == false then return false, "export is off" end
+        if type(t) ~= "table" then return false, "no tab" end
+        if trim(t.text or "") == "" then return false, "nothing typed yet" end
+        local dir = sp.exportDir()
+        if not pcall(mkdirpFor, dir) then return false, "could not make " .. dir end
+        local rec = { id = t.id, title = sp.titleOf(t), text = t.text,
+                      createdAt = t.createdAt, updatedAt = t.updatedAt }
+        local name = sp.exportNameFor(rec.id, rec.title)
+        local okW, whyW = writeOne(dir .. "/" .. name, sp.exportBody(rec))
+        local st = sp.autoWrites
+        if okW then
+            st.ok, st.lastAt, st.lastName = st.ok + 1, os.time(), name
+            st.lastWhy, st.lastReason = nil, tostring(why or "export")
+            sp.saveNow()   -- the name it just pinned is part of the store
+            -- 📝 AND A WRITE THAT WORKS AFTER ONE THAT DID NOT SAYS SO, or
+            -- the sticky warning outlives the fault it is about (6.316.0:
+            -- "it stopped complaining" and "it saved" are opposite facts).
+            if sp.writeErrSaid then
+                sp.writeErrSaid = false
+                if _G.notices and type(_G.notices.saveOK) == "function" then
+                    pcall(_G.notices.saveOK, "Hamsidian notes")
+                else
+                    pcall(function() hs.alert.show("🕸 Writing notes again", 2) end)
+                end
+            end
+            return true, name
+        end
+        st.failed, st.lastWhy, st.lastAt = st.failed + 1, tostring(whyW), os.time()
+        st.lastReason = tostring(why or "export")
+        -- 🚨 A FILE THAT DID NOT GET WRITTEN IS HIS WRITING NOT ON DISK, and
+        -- the pad has promised since 6.316.0 that such a failure is
+        -- impossible to miss: an alert, a notification, the ledger and a
+        -- sticky line, through the one door, bounded per cause. THE NOTES
+        -- SIDE HAS ITS OWN STREAK GATE, never the store's: one failure
+        -- must not silence the other, because a readable store over an
+        -- unwritten note is the half that loses his writing.
+        if core and core.warnWriteFailed then
+            pcall(core.warnWriteFailed, "Hamsidian note")
+        end
+        local sticky = dir .. "/" .. name
+        if _G.notices and type(_G.notices.notSaved) == "function" then
+            pcall(_G.notices.notSaved, "Hamsidian notes",
+                  "the note " .. tostring(name), sticky, tostring(whyW))
+        elseif sp.writeErrSaid ~= tostring(whyW) then
+            -- 🔕 per CAUSE, never per session (6.316.0's own finding)
+            pcall(function()
+                hs.alert.show("🕸 NOT WRITTEN — " .. tostring(whyW)
+                              .. "\nThe tab still holds every word; ⌘⇧S retries it.", 10)
+            end)
+            pcall(print, "🚨 Hamsidian note NOT WRITTEN — " .. tostring(whyW)
+                         .. " (" .. sticky .. ")")
+        end
+        sp.writeErrSaid = tostring(whyW)
+        return false, tostring(whyW)
+    end
+
+    -- The pause. A SEPARATE, LONGER debounce from scheduleSave's 0.3 s and
+    -- its own held timer (6.196.1 — an unreferenced hs.timer is collected
+    -- and a collected timer never fires), because the store is one local
+    -- JSON and this is a write into a folder OneDrive watches.
+    function sp.scheduleWrite(id, why)
+        if sp.autoWrite == false or sp.exportToVault == false then return end
+        sp.writeTimers = type(sp.writeTimers) == "table" and sp.writeTimers or {}
+        local old = sp.writeTimers[id]
+        if old then pcall(function() old:stop() end) end
+        local ok, t = pcall(hs.timer.doAfter, tonumber(sp.autoWriteSecs) or 2.0, function()
+            sp.writeTimers[id] = nil
+            local tab = sp.findTab(id)
+            if not tab then return end
+            local idle = os.time() - (tonumber(tab.updatedAt) or os.time())
+            local named = type(sp.exported) == "table" and sp.exported[id] ~= nil
+            local settled, whyS = sp.titleSettled(tab.text, idle, named)
+            if not settled then
+                -- 🔑 NOT A FAILURE AND NOT A WRITE: the title could still be
+                -- being typed, so the name is not worth pinning yet. Ask
+                -- again through THIS SAME DOOR, which holds the timer in
+                -- the one slot -- a second timer shape here was 6.196.1
+                -- exactly: the re-arm went unreferenced, was collected,
+                -- and the tab was never written at all.
+                sp.autoWrites.waiting = sp.autoWrites.waiting + 1
+                sp.autoWrites.lastWait = whyS
+                sp.scheduleWrite(id, "settling")
+                return
+            end
+            sp.exportOne(tab, why or "pause")
+        end)
+        sp.writeTimers[id] = ok and t or nil
+        -- A Mac that will not arm a timer writes at once rather than never:
+        -- an unwritten note is the one failure this release exists to end.
+        -- 🏷 AND IT WRITES WHATEVER THE TITLE LOOKS LIKE, because there is
+        -- no later to wait for -- said in the report rather than hidden.
+        if not ok then
+            local tab = sp.findTab(id)
+            if tab then
+                sp.autoWrites.noTimer = (sp.autoWrites.noTimer or 0) + 1
+                sp.exportOne(tab, "no timer")
+            end
+        end
+    end
+
+    -- 📝 THE NAMES THAT BELONG TO OPEN TABS. Hamsidian's one list (6.333.0)
+    -- draws tabs from sp.tabs and notes from the vault's index, and from
+    -- this release every open tab ALSO has a note — so without this the
+    -- same entry would appear twice, which is the two-sections problem he
+    -- asked to be rid of wearing a new hat. The pad already knows exactly
+    -- which file names are tabs' own; this publishes that set so the list
+    -- can draw each entry ONCE, as the tab it still is.
+    function sp.ownedFiles()
+        local own = {}
+        if type(sp.exported) ~= "table" then return own end
+        for _, t in ipairs(sp.tabs) do
+            local n = sp.exported[t.id]
+            if type(n) == "string" and n ~= "" then own[n] = t.id end
+        end
+        return own
     end
 
     -- The Console door. Prints what happened either way.
@@ -2643,6 +2839,52 @@ t.focus(); try { t.setSelectionRange(CARET, CARET); } catch(e){}
                         .. " (" .. tostring(e.why) .. ")"
                         .. (e.failed > 0 and (" · " .. e.failed .. " failed") or ""))
                         or "never — _G.scorpPadExport() writes them now")
+            -- 📝 6.387.0 — THE PAUSE, AND FOUR STATES. "nothing has been
+            -- written" and "nothing was worth writing yet" are different
+            -- facts (6.196.1), and the second is the ordinary one while
+            -- he is still typing a first line.
+            local st = sp.autoWrites or {}
+            if sp.autoWrite == false then
+                L[#L + 1] = "   📝 auto : OFF — ⌘⇧S only, exactly as before 6.387.0"
+                L[#L + 1] = "     settings = { scratch_pad = { autoWrite = true } } writes "
+                    .. "each tab " .. tostring(sp.autoWriteSecs) .. "s after you stop typing"
+            else
+                local ok, failed = tonumber(st.ok) or 0, tonumber(st.failed) or 0
+                L[#L + 1] = "   📝 auto : every tab is a .md — written "
+                    .. tostring(sp.autoWriteSecs) .. "s after you stop typing · "
+                    .. ok .. " written · " .. failed .. " FAILED"
+                    .. " · " .. (tonumber(st.waiting) or 0) .. " waited for a title to settle"
+                if st.lastName then
+                    L[#L + 1] = "     ↳ last  : " .. tostring(st.lastName)
+                        .. (st.lastAt and (" at " .. os.date("%H:%M:%S", st.lastAt)) or "")
+                        .. (st.lastReason and (" (" .. tostring(st.lastReason) .. ")") or "")
+                elseif ok == 0 and failed == 0 then
+                    L[#L + 1] = "     ↳ nothing typed in a tab yet this session — not a fault"
+                end
+                -- 🏷 THE WAIT IS A STATE, NOT A FAILURE: the name a tab's
+                -- file keeps forever is pinned on the first write, so a
+                -- first line still being typed is deliberately left alone
+                -- until it is finished or quiet for autoNameSecs.
+                if st.lastWait then
+                    L[#L + 1] = "     ↳ waiting: " .. tostring(st.lastWait)
+                        .. " — the file name is pinned forever on the first write, so a "
+                        .. "half-typed first line is not used (" .. tostring(sp.autoNameSecs)
+                        .. "s of quiet settles it)"
+                end
+                if failed > 0 and st.lastWhy then
+                    L[#L + 1] = "     ↳ ⚠️ NOT WRITTEN: " .. tostring(st.lastWhy)
+                        .. " — the tab still holds every word; ⌘⇧S retries it"
+                end
+                local nt = tonumber(st.noTimer) or 0
+                if nt > 0 then
+                    L[#L + 1] = "     ↳ ⚠️ " .. nt .. " write(s) went AT ONCE — this Mac would "
+                        .. "not arm a timer, so the title had no chance to settle"
+                end
+                local own = 0
+                for _ in pairs(sp.ownedFiles()) do own = own + 1 end
+                L[#L + 1] = "     ↳ one list: " .. own .. " open tab(s) have a file, and "
+                    .. "Hamsidian draws each as the TAB it is, never twice"
+            end
         end
         local host = sp.host()
         L[#L + 1] = "   window: " .. (host and "Hamsidian's (⇪N opens the tabs there; viaVault = false for its own)" or "its own")

@@ -1,4 +1,4 @@
-# TESTING — how to score release 6.386.0
+# TESTING — how to score release 6.387.0
 
 You install ONE archive and it carries several releases. Below are the
 steps for each release this archive is new for, newest first. Run the
@@ -27,6 +27,113 @@ scorer; I never mark my own.
 
 ---
 
+## 6.387.0
+
+6.387.0 verify with LL — 📝 EVERY TAB IS A REAL NOTE (KNOWN GROUND)
+WHAT CHANGED: every Hamsidian tab now writes itself into your notes
+folder as a real .md file, a couple of seconds after you stop typing.
+Your answer, both halves: "(a) every tab is a .md IMMEDIATELY", and
+"Yes" to doing it on the first PAUSE rather than the first keystroke.
+🚨 THIS CHANGES WHERE YOUR WRITING LIVES, so read step E1 before you
+decide you like it — it is the one thing in this release that is a
+trade rather than a win.
+
+A. THE HEADLINE — a minute.
+A1. Press ⇪N to open Hamsidian. Press ⌘T for a fresh tab.
+A2. Type two lines — anything, but **press Return at the end of the
+    first one**. That matters, and B is where I explain why.
+A3. Stop typing. Count to three.
+A4. In Finder, open your notes folder and look in **Scratch**:
+    <OneDrive>/Vault/Scratch.
+    EXPECT: a file named after your FIRST LINE, holding what you just
+    typed. You pressed nothing to make that happen.
+    **A FAIL is no file at all** — go straight to D1, the report says
+    which of four things happened.
+A5. Type another word in the same tab, wait three seconds, and open
+    the file again. EXPECT: the new word is in it.
+A6. Press ⇪3 (the notes side of the same window). EXPECT: your tab is
+    in the list ONCE — as the 📝 tab it still is, not twice.
+    **A FAIL is the same thing appearing twice**, once with 📝 and
+    once with 🕸. That is the one regression this release can have and
+    I want to know at once.
+
+B. THE RULE THAT DECIDES WHEN IT WRITES — worth two minutes, because
+   it is the part you would otherwise think was broken.
+B1. New tab (⌘T). Type **just a few letters of a title and stop** —
+    "Buy mi" will do. Do NOT press Return.
+B2. Wait five seconds and look in the Scratch folder.
+    EXPECT: **nothing yet.** That is deliberate, and here is why: the
+    file keeps the name it is first given, for ever — that name is how
+    every [[link]] finds it, and this config never renames a note. So
+    a file written two seconds after "Buy mi" would be called "Buy
+    mi.md" after you had finished typing "Buy milk".
+B3. Now finish the line — type "lk" — and press **Return**.
+    EXPECT: within a few seconds the file appears, called "Buy
+    milk.md". A finished first line is a title you have moved past.
+B4. The other way it settles: new tab, type one line, press no Return,
+    and **leave it alone for twenty-five seconds**.
+    EXPECT: the file appears, named after that line. That is the note
+    you type and walk away from.
+B5. Console: `_G.scratchPadReport()` — the 📝 auto line's "waited for a
+    title to settle" count goes up for B2. **That is a state, not a
+    failure**, and the line under it says so.
+
+C. MUST STILL WORK — this touched the one function every keystroke in
+   Hamsidian passes through, so this half matters more than A.
+C1. Type in a tab, close Hamsidian, reopen it: your words are there.
+C2. ⌘T a new tab, ⌘W close one, ⌘1–⌘9 jump, ⌃Tab cycles.
+C3. ⌘⇧S still exports everything on demand and still says how many.
+C4. 🚨 **⌘Z IN A NOTE** — open a real note on the ⇪3 side, delete a
+    paragraph, wait ten seconds for a background scan to land, then
+    press ⌘Z. EXPECT: your text comes back. That is 6.323.0 and this
+    release had to be careful not to break it; if undo is gone, tell
+    me immediately.
+C5. ⌘F filters the list; ↑↓ walk it; ⏎ opens.
+C6. The ✕ on a tab row still closes the tab. The ✕ on a note row still
+    deletes that note to the bin.
+C7. Obsidian: open the Vault folder. EXPECT your tabs are there as
+    ordinary notes in Scratch, readable and editable.
+
+D. PASTE BACK, PASS OR FAIL.
+D1. `_G.scratchPadReport()` — the whole block. The new 📝 auto line has
+    four states and I want whichever you get:
+    · "N written · 0 FAILED" with a last file named — healthy;
+    · "nothing typed in a tab yet this session" — not a fault;
+    · "⚠️ NOT WRITTEN: …" — **paste this at once**, it names macOS's
+      own reason and your words are still in the tab;
+    · "OFF" — the switch is off.
+D2. The "one list" line in the same block says how many open tabs have
+    a file. That is the number that makes A6 answerable without a
+    screenshot.
+D3. If it ever says "⚠️ N write(s) went AT ONCE", paste it: that Mac
+    would not arm a timer, so a half-typed title was used after all.
+
+E. A JUDGEMENT ONLY YOU CAN MAKE.
+E1. **Do you want this on?** Before today a tab was one local file that
+    nothing else read. Now every tab you type in becomes a note in
+    OneDrive within seconds — searchable in ⇪D, open in Obsidian,
+    synced to the other Mac, and still there after you ⌘W the tab.
+    That is exactly what you asked for; it is also a lot more files
+    than you had yesterday. `settings = { scratch_pad = { autoWrite =
+    false } }` is yesterday's behaviour exactly, and if you would
+    rather have that, say so and I will change the default rather than
+    leave you a line to type.
+E2. **Two seconds and twenty seconds** — the pause before a write, and
+    the quiet before a one-line title is trusted. Both are numbers,
+    not releases. If files appear while you are still thinking, the
+    first wants to be longer.
+E3. 📏 NAMED, NOT FIXED, so it is not a surprise: closing a tab leaves
+    its file behind. Nothing deletes it, which is right — it is your
+    writing — but it does mean a throwaway tab leaves a note. The ✕ on
+    the note row removes it to the bin when you want it gone. Say if
+    you would rather a closed tab's file went with it.
+E4. While this was being built, nothing of yours was at risk and
+    nothing broke — so unless A or C fails I would not log this as a
+    problem at all. If a file ever fails to write and you lose words,
+    that is a different matter and D1 is the evidence.
+
+
+
 ## 6.386.0
 
 6.386.0 verify with LL — 🚪 THE ASANA DASHBOARD MOVED HOUSE (KNOWN GROUND)
@@ -36,7 +143,7 @@ for a file of its own. ⇪L, ⇪C and ⇪B do exactly what they did.
 gate refuses to ship init.lua over 3,800 lines and it had reached 3,795.
 6.385.0 had to delete a release note from the top of the file just to
 fit, which means the next thing you asked for would have cost a feature
-to make room. It is 3,295 now, with 504 lines of headroom.
+to make room. It is 3,313 now, with 486 lines of headroom.
 🚨 SO THIS BLOCK IS A REGRESSION TEST, NOT A FEATURE TOUR. The only
 honest claim is "everything still works", and the only way to know is
 to press the keys. If any step below behaves differently from last
@@ -230,29 +337,6 @@ D3. **Did it miss anything?** Check ~/Library after a removal for a
     looks is in the module and takes one line to extend. It
     deliberately does NOT touch the system /Library or launch daemons
     — those need a password.
-
-
-
-## 6.383.0
-
-6.383.0 verify with LL — 📓 @logs IN ⇪D (KNOWN GROUND)
-WHAT CHANGED: ⇪D has a fifteenth source. Every tool that has failed on
-this Mac is now searchable from the panel you already use.
-🔎 You were right that it was missing — and the uncomfortable part is
-that 6.279.0 named this exact gap when it built the failure log, in
-writing, and then never built it.
-A1. Press ⇪D and type a single `@`.
-    EXPECT **15 sources** now, and **📓 @logs** among them.
-A2. ⏎ on it. EXPECT the failures, newest first, each with the tool,
-    the reason and when.
-A3. Type `@logs hamsidian` (or any tool name). EXPECT it filters.
-A4. `_G.todayReport()` still works and still shows today alone. The
-    two read the same file through the same parser now.
-A5. If @logs ever shows a single row reading "⚠️ the failure log could
-    not be read", paste it. That is deliberate: a log that cannot be
-    read must never come back as an empty list, because "nothing has
-    failed" is the most reassuring thing this config can say and would
-    be a lie on exactly the day the disk is full.
 
 
 

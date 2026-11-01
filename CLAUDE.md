@@ -440,6 +440,48 @@ work Mac.
      ("find the field that separates them BEFORE saying either out
      loud") broken in the direction that costs him the most.
 
+- 🏷 A WRITE THAT PINS AN IDENTITY MAY NOT HAPPEN AT THE FIRST MOMENT IT
+  COULD (6.387.0, modules/scratch_pad.lua — LL: "(a) every tab is a .md
+  IMMEDIATELY", and "Yes" to the first PAUSE rather than the first
+  keystroke). The obvious build writes the file as soon as there is
+  anything to write, and it is wrong for a reason that has nothing to do
+  with cost: `sp.exportNameFor` pins a tab's file name the FIRST time it
+  is written and never changes it, deliberately — that name is the
+  note's identity for every [[link]] that resolves against it, and
+  vault.lua's own rule is that a file is never renamed. So a write two
+  seconds after "Buy mi" calls the note that for ever, and the only
+  thing wrong with it is WHEN it happened.
+  🔑 GENERAL, and it is the half to carry: when a write MINTS something
+  permanent — a file name, an id, a slug, a key — the question is not
+  "may we write yet?" but "is the thing we are about to name FINISHED?".
+  Those are different questions and the first one is always answerable
+  sooner. `sp.titleSettled` is PURE and answers the second: a finished
+  first line settles at once (he has moved past it), a one-line tab
+  settles on silence, an already-named tab is always settled because
+  there is nothing left to protect. Everything else WAITS and the report
+  counts the waits, because "nothing written" and "nothing worth writing
+  yet" are 6.196.1 again.
+  🔁 AND A RE-ARM GOES THROUGH THE DOOR THAT ARMED IT. The first version
+  of the not-settled branch armed a second timer and then stored a
+  different, zero-second no-op in the slot — so the re-arm was
+  unreferenced, collected, and the tab was never written at all: 6.196.1
+  inside the branch whose own comment cites it. Asking again through the
+  SAME function holds the timer in the one slot and makes the bug
+  impossible rather than merely absent. GENERAL: a retry that is a
+  different SHAPE from the original attempt is a second slot to get
+  wrong; re-enter the door instead.
+  🔗 AND WHEN TWO FACTS MUST AGREE, SEND THEM IN ONE PUSH. Every tab now
+  also has a note, so 6.333.0's one list had the same thing twice — the
+  tab and the note a scan had just found. The set of names that are open
+  tabs is therefore sent BY the function that sends the notes
+  (`setIndex`, an additive fourth argument — 6.299.0's shape), never on
+  its own: a name is pinned on the first write and the note only enters
+  the list when a scan finds it, so one push means the two can never
+  disagree about which files are tabs. A second push of its own would be
+  a second thing to keep in step (6.231.0) — and a REBUILD to do it
+  would have destroyed the textarea's undo history, which is 6.323.0's
+  whole finding, on every pinned name.
+
 - 🚪 A MOVE'S READERS ARE NOT ONLY THE CODE THAT CALLS IT — THEY ARE THE
   CHECKS PINNED TO ITS ADDRESS (6.386.0, init.lua §6 → modules/
   asana_dashboard.lua, on LL's "make this move safe-proof and
@@ -6475,6 +6517,7 @@ that must be READ before a new cause is named.
 | "When I select a snippet 99% of the time I want it to instantly paste" | modules/text_expander.lua · it already did; nothing counted it | 6.377.0 | 1 | ask — and the honest answer is that it was already true |
 | "I DON'T KNOW WHAT THIS MEANS" (about a verify step) | the verify blocks themselves, not any module | 6.377.0 | 1 | 🔑 a method defect — see the ⌨️ hard rule |
 | "when I put it in focus mode I have the need to come out of focus mode so that my microphone unmutes" | modules/focus_mode.lua — ⇪Q mutes the input device, on by default | (open) | 0 | 🚨 filed as NOT OURS and it IS ours — see the 🎙 hard rule |
+| "every tab is a .md IMMEDIATELY" · "Yes" to the first pause | modules/scratch_pad.lua · modules/vault.lua — the one list | 6.387.0 | 1 | not a defect — a shape he chose |
 | "Can you make my other windows look like jug player and have (x) at the end of the line/row" | modules/ui_style.lua · §1.5 showPopup — the pickers were the one family the shared style never reached | 6.385.0 | 1 | half of it is impossible on an hs.chooser, and that is now written down |
 | "Build App removal" · "trash do not erase, home folder only" | modules/app_remove.lua — never built in any release | 6.384.0 | 1 | ask |
 | "I don't have at @ search for Logs" | modules/unified_search.lua · core/notices.lua — 6.279.0 named the gap and never built it | 6.383.0 | 1 | ask |
@@ -6571,7 +6614,8 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
-| 6.386.0 | 🚪 The Asana dashboard leaves init.lua — 3,795 lines to 3,295, with ⇪L, ⇪C and ⇪B unchanged | pending |
+| 6.387.0 | 📝 Every Hamsidian tab writes itself into the notes folder as a real .md, named from its first line | pending |
+| 6.386.0 | 🚪 The Asana dashboard leaves init.lua — 3,795 lines to 3,313, with ⇪L, ⇪C and ⇪B unchanged | pending |
 | 6.385.0 | 🎨 Every picker wears the Jug Player's dark card — and a picker cannot have a per-row ✕, which is said rather than discovered | pending |
 | 6.384.0 | 🗑 App removal on ⇪⇧[ — to the Trash, never erased, and the first press only SHOWS | pending |
 | 6.383.0 | 📓 @logs in ⇪D — every tool that has failed, searchable | pending |
@@ -6752,16 +6796,19 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
      hyper+Q. It's fine. / 2. Yes / 3. Yes, and make this move safe-proof
      and non-destructive for the Asana dashboard both on my home and work
      mac"). ⇪Q stays as it is — see the 🎙 hard rule, where his decline is
-     now written beside the finding. §6 is OUT (6.386.0): 3,795 → 3,295,
+     now written beside the finding. §6 is OUT (6.386.0): 3,795 → 3,313,
      504 lines of room, and the measured half of the old note held while
      the remembered half did not. The scratch-tab YES is next.
   📏 STILL OPEN, in the order I would build them:
-     1. **The scratch-tab → .md build, which he has said YES to**: every
-        Hamsidian tab becomes a real .md, written on the FIRST PAUSE
-        rather than the first keystroke, auto-named from its first line.
-        It is the biggest open item because it changes where his writing
-        lives, and it is unblocked now that init.lua has room for its
-        release note.
+     1. ✅ **THE SCRATCH-TAB → .md BUILD IS SHIPPED** — 6.387.0, both
+        halves as he answered them: every tab writes itself into
+        <Vault>/Scratch on the first PAUSE, auto-named from its first
+        line, and the one list draws each entry once. See the 🏷 hard
+        rule above for the half that needed a rule rather than a timer.
+        📏 PENDING HIS WORD on one thing the release does NOT decide:
+        closing a tab leaves its file behind, because nothing in this
+        config deletes his writing — so a throwaway tab leaves a note.
+        The verify block asks; it is one line either way.
      3. ⌘Space launcher · ⌥Tab listing every panel · MANIFEST.txt +
         _G.installCheck() · the draft keeper · the Mug Player sized to
         the film · anchors' cold start · the crop tool · ⇪7's detail.
@@ -8203,6 +8250,109 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.387.0 verify with LL — 📝 EVERY TAB IS A REAL NOTE (KNOWN GROUND)
+  WHAT CHANGED: every Hamsidian tab now writes itself into your notes
+  folder as a real .md file, a couple of seconds after you stop typing.
+  Your answer, both halves: "(a) every tab is a .md IMMEDIATELY", and
+  "Yes" to doing it on the first PAUSE rather than the first keystroke.
+  🚨 THIS CHANGES WHERE YOUR WRITING LIVES, so read step E1 before you
+  decide you like it — it is the one thing in this release that is a
+  trade rather than a win.
+
+  A. THE HEADLINE — a minute.
+  A1. Press ⇪N to open Hamsidian. Press ⌘T for a fresh tab.
+  A2. Type two lines — anything, but **press Return at the end of the
+      first one**. That matters, and B is where I explain why.
+  A3. Stop typing. Count to three.
+  A4. In Finder, open your notes folder and look in **Scratch**:
+      <OneDrive>/Vault/Scratch.
+      EXPECT: a file named after your FIRST LINE, holding what you just
+      typed. You pressed nothing to make that happen.
+      **A FAIL is no file at all** — go straight to D1, the report says
+      which of four things happened.
+  A5. Type another word in the same tab, wait three seconds, and open
+      the file again. EXPECT: the new word is in it.
+  A6. Press ⇪3 (the notes side of the same window). EXPECT: your tab is
+      in the list ONCE — as the 📝 tab it still is, not twice.
+      **A FAIL is the same thing appearing twice**, once with 📝 and
+      once with 🕸. That is the one regression this release can have and
+      I want to know at once.
+
+  B. THE RULE THAT DECIDES WHEN IT WRITES — worth two minutes, because
+     it is the part you would otherwise think was broken.
+  B1. New tab (⌘T). Type **just a few letters of a title and stop** —
+      "Buy mi" will do. Do NOT press Return.
+  B2. Wait five seconds and look in the Scratch folder.
+      EXPECT: **nothing yet.** That is deliberate, and here is why: the
+      file keeps the name it is first given, for ever — that name is how
+      every [[link]] finds it, and this config never renames a note. So
+      a file written two seconds after "Buy mi" would be called "Buy
+      mi.md" after you had finished typing "Buy milk".
+  B3. Now finish the line — type "lk" — and press **Return**.
+      EXPECT: within a few seconds the file appears, called "Buy
+      milk.md". A finished first line is a title you have moved past.
+  B4. The other way it settles: new tab, type one line, press no Return,
+      and **leave it alone for twenty-five seconds**.
+      EXPECT: the file appears, named after that line. That is the note
+      you type and walk away from.
+  B5. Console: `_G.scratchPadReport()` — the 📝 auto line's "waited for a
+      title to settle" count goes up for B2. **That is a state, not a
+      failure**, and the line under it says so.
+
+  C. MUST STILL WORK — this touched the one function every keystroke in
+     Hamsidian passes through, so this half matters more than A.
+  C1. Type in a tab, close Hamsidian, reopen it: your words are there.
+  C2. ⌘T a new tab, ⌘W close one, ⌘1–⌘9 jump, ⌃Tab cycles.
+  C3. ⌘⇧S still exports everything on demand and still says how many.
+  C4. 🚨 **⌘Z IN A NOTE** — open a real note on the ⇪3 side, delete a
+      paragraph, wait ten seconds for a background scan to land, then
+      press ⌘Z. EXPECT: your text comes back. That is 6.323.0 and this
+      release had to be careful not to break it; if undo is gone, tell
+      me immediately.
+  C5. ⌘F filters the list; ↑↓ walk it; ⏎ opens.
+  C6. The ✕ on a tab row still closes the tab. The ✕ on a note row still
+      deletes that note to the bin.
+  C7. Obsidian: open the Vault folder. EXPECT your tabs are there as
+      ordinary notes in Scratch, readable and editable.
+
+  D. PASTE BACK, PASS OR FAIL.
+  D1. `_G.scratchPadReport()` — the whole block. The new 📝 auto line has
+      four states and I want whichever you get:
+      · "N written · 0 FAILED" with a last file named — healthy;
+      · "nothing typed in a tab yet this session" — not a fault;
+      · "⚠️ NOT WRITTEN: …" — **paste this at once**, it names macOS's
+        own reason and your words are still in the tab;
+      · "OFF" — the switch is off.
+  D2. The "one list" line in the same block says how many open tabs have
+      a file. That is the number that makes A6 answerable without a
+      screenshot.
+  D3. If it ever says "⚠️ N write(s) went AT ONCE", paste it: that Mac
+      would not arm a timer, so a half-typed title was used after all.
+
+  E. A JUDGEMENT ONLY YOU CAN MAKE.
+  E1. **Do you want this on?** Before today a tab was one local file that
+      nothing else read. Now every tab you type in becomes a note in
+      OneDrive within seconds — searchable in ⇪D, open in Obsidian,
+      synced to the other Mac, and still there after you ⌘W the tab.
+      That is exactly what you asked for; it is also a lot more files
+      than you had yesterday. `settings = { scratch_pad = { autoWrite =
+      false } }` is yesterday's behaviour exactly, and if you would
+      rather have that, say so and I will change the default rather than
+      leave you a line to type.
+  E2. **Two seconds and twenty seconds** — the pause before a write, and
+      the quiet before a one-line title is trusted. Both are numbers,
+      not releases. If files appear while you are still thinking, the
+      first wants to be longer.
+  E3. 📏 NAMED, NOT FIXED, so it is not a surprise: closing a tab leaves
+      its file behind. Nothing deletes it, which is right — it is your
+      writing — but it does mean a throwaway tab leaves a note. The ✕ on
+      the note row removes it to the bin when you want it gone. Say if
+      you would rather a closed tab's file went with it.
+  E4. While this was being built, nothing of yours was at risk and
+      nothing broke — so unless A or C fails I would not log this as a
+      problem at all. If a file ever fails to write and you lose words,
+      that is a different matter and D1 is the evidence.
+
 - 6.386.0 verify with LL — 🚪 THE ASANA DASHBOARD MOVED HOUSE (KNOWN GROUND)
   WHAT CHANGED: nothing you press. 529 lines of Asana code left init.lua
   for a file of its own. ⇪L, ⇪C and ⇪B do exactly what they did.
@@ -8210,7 +8360,7 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   gate refuses to ship init.lua over 3,800 lines and it had reached 3,795.
   6.385.0 had to delete a release note from the top of the file just to
   fit, which means the next thing you asked for would have cost a feature
-  to make room. It is 3,295 now, with 504 lines of headroom.
+  to make room. It is 3,313 now, with 486 lines of headroom.
   🚨 SO THIS BLOCK IS A REGRESSION TEST, NOT A FEATURE TOUR. The only
   honest claim is "everything still works", and the only way to know is
   to press the keys. If any step below behaves differently from last

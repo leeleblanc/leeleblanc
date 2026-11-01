@@ -4,8 +4,37 @@
 -- =====================================================================
 -- 10-29-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.386.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.387.0
 -- =====================================================================
+
+-- NEW IN 6.387.0 — 📝 EVERY HAMSIDIAN TAB IS A REAL .md FILE
+--   (modules/scratch_pad.lua + modules/vault.lua). LL, asked which of
+--   two readings he meant: "(a) every tab is a .md IMMEDIATELY", and
+--   then "Yes" to writing it on the first PAUSE rather than the first
+--   keystroke, auto-named from its first line. A tab writes itself into
+--   <Vault>/Scratch after autoWriteSecs (2.0) of silence; ⌘⇧S still
+--   writes the lot and is now the "now" door rather than the only one.
+--   🏷 THE PAUSE IS THE WRONG MOMENT TO USE A HALF-TYPED TITLE, and that
+--   is what sp.titleSettled exists for: exportNameFor pins a file name
+--   the FIRST time it is written and the vault never renames a file, so
+--   a pause after "Buy mi" would call the note that for ever. Settled =
+--   the first line is FINISHED, or the tab has been quiet autoNameSecs
+--   (20). Everything else waits, and the report says how many waited —
+--   "nothing written" and "nothing worth writing yet" are different
+--   sentences (6.196.1).
+--   📝 AND THE ONE LIST DRAWS EACH ENTRY ONCE. Every tab now also has a
+--   note, so 6.333.0's single list had the same thing twice — the
+--   two-sections problem he asked to be rid of, in a new hat. The owned
+--   names ride WITH the index through setIndex, because a name is pinned
+--   on the first write and the note only enters the list when a SCAN
+--   finds it: one push, so the two facts cannot disagree. Never a
+--   rebuild — a rebuild destroys the textarea's undo history (6.323.0).
+--   The note stays IN the index, so [[links]], the graph and ⌘⇧F reach
+--   it; only the LIST row is skipped.
+--   🚨 A FILE THAT DID NOT GET WRITTEN IS HIS WRITING NOT ON DISK, so a
+--   failure takes 6.316.0's door with its OWN streak gate, never the
+--   store's: a readable store over an unwritten note is the half that
+--   loses the words. settings = { scratch_pad = { autoWrite = false } }.
 
 -- NEW IN 6.386.0 — 🚪 THE ASANA DASHBOARD LEAVES THIS FILE
 --   (modules/asana_dashboard.lua, was §6). LL: "Yes, and make this move
@@ -13,7 +42,7 @@
 --   home and work mac." 529 lines out; ⇪L, ⇪C and ⇪B unchanged. The
 --   reason is arithmetic rather than taste: the gate fails this file at
 --   3,800 lines and it stood at 3,795, so 6.385.0 had to drop a release
---   note to fit and the ceiling had stopped being a budget. 3,295 now.
+--   note to fit and the ceiling had stopped being a budget. 3,313 now.
 --   📏 THE NOTE THAT SAID IT WAS SAFE WAS A READING, AND IT HAD AGED
 --   (6.324.0). It said ONE global crosses the boundary; FIVE do, and six
 --   checks in tests/test_select_mode were pinned to this file's source —
@@ -32,26 +61,14 @@
 --   🔎 _G.asanaDashboardReport() — it had none, which is why "did the
 --   move work?" could only have been answered by reading the source.
 
--- NEW IN 6.385.0 — 🎨 THE PICKERS WEAR THE JUG PLAYER'S CARD
---   (modules/ui_style.lua + §1.5). LL, with the ⇪⇧V picker beside the
---   Jug Player: "Can you make my other windows look like jug player".
---   This module's header has listed CANVASES and WEBVIEWS since 6.90.0
---   and never hs.chooser — so thirty-three pickers, most of what he
---   looks at, were the one family the shared style never reached. They
---   were light because macOS draws them light, not because anyone chose
---   it. bgDark/fgColor/subTextColor ARE exposed (app_watcher has used
---   all three since 6.16.21), and showPopup is the one door every picker
---   already has to pass through — so one change, not thirty-three.
---   📏 AND A PICKER CANNOT HAVE A PER-ROW ✕, written down where the next
---   attempt will read it: a chooser row is drawn by macOS from a string
---   and has no sub-element to click. The webview panels draw their own
---   rows and do have one.
-
 --   ALSO IN THIS ARCHIVE (full entries in CHANGELOG.md):
---   🗑 6.381.0 the OneDrive watcher is OFF on his word, and the switch
---   he would have reached for did NOTHING: `enabled` shipped true and
---   was read nowhere while a second flag governed (6.276.0 in a switch).
---   One field now. Nothing deleted — the report says what is kept.
+--   🎨 6.385.0 the PICKERS wear the Jug Player's card. ui_style's header
+--   has listed canvases and webviews since 6.90.0 and never hs.chooser,
+--   so thirty-three pickers — most of what he looks at — were the one
+--   family the shared style never reached, light because macOS draws
+--   them light, not because anyone chose it. ONE door (showPopup), not
+--   thirty-three modules. 📏 And a picker cannot have a per-row ✕: macOS
+--   draws a chooser row from a string, with no sub-element to click.
 --   📋 6.382.0 a PICKED snippet is left on the clipboard. Neither route
 --   did: short ones were typed, long ones pasted through a borrow that
 --   put his clipboard back. A keep arms NO restore rather than writing
@@ -66,11 +83,11 @@
 --   that as a RULE; the home-folder guard is a COMPONENT test, checked
 --   immediately before each rename rather than when the list was built.
 
--- (6.384.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.385.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 cut the inline count to
 --  TWO; a gate check proves every entry here is also in CHANGELOG.md.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.386.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.387.0
 -- =====================================================================
 -- The catalogue that used to sit here moved to GUIDE.md ("What each
 -- tool does") in 6.180.0 — 259 lines of prose inside the orchestrator.
@@ -163,7 +180,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.386.0"
+_G.configVersion = "6.387.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- A NO-OP STAND-IN for the diagnostics API, replaced by the real one in

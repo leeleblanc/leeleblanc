@@ -2471,6 +2471,39 @@ function M.setup(core)
         return "{nodes:[" .. table.concat(nodes, ",") .. "],edges:[" .. table.concat(edges, ",") .. "]}"
     end
 
+    -- 📝 6.387.0 — THE NAMES THAT BELONG TO AN OPEN TAB. Every Hamsidian
+    -- tab is a real .md from this release, so the same thing has two rows
+    -- in the one list (6.333.0): the TAB it still is, and the NOTE the
+    -- scan just found. That is the two-sections problem he asked to be
+    -- rid of, wearing a new hat.
+    --
+    -- 🔑 AND IT RIDES WITH THE INDEX, NEVER ON ITS OWN. A name is pinned
+    -- the first time a tab is written, and the note only enters NOTES
+    -- when a SCAN finds it — so this is sent by the one function that
+    -- sends the notes, through the one door, and the two facts cannot
+    -- disagree about which files are tabs. A second push of its own
+    -- would be a second thing to keep in step (6.231.0), and a REBUILD
+    -- would destroy the textarea's undo history, which is 6.323.0's
+    -- whole finding.
+    --
+    -- 📏 NAMES, not paths: the index keys notes by NAME (a known limit —
+    -- a root Daily.md and Templates/Daily.md cannot both be indexed), so
+    -- a name is already unique here and no path arithmetic is needed.
+    function v.ownedJson()
+        local sp = v.sp()
+        if not (sp and type(sp.ownedFiles) == "function") then return "{}" end
+        local ok, own = pcall(sp.ownedFiles)
+        if not (ok and type(own) == "table") then return "{}" end
+        local rows = {}
+        for name in pairs(own) do
+            if type(name) == "string" and name ~= "" then
+                rows[#rows + 1] = jstr(name) .. ":1"
+            end
+        end
+        table.sort(rows)   -- the same set always renders the same page
+        return "{" .. table.concat(rows, ",") .. "}"
+    end
+
     function v.buildHtml()
         local d = v.doc
         local outs, backs = {}, {}
@@ -2801,6 +2834,10 @@ var TABS = []==] .. table.concat(tabsJs, ",") .. [==[], HASPAD = ]==] .. (sp and
 // 🗑 6.254.0 — whether the two kind rows are offered at all. The PAD owns
 // the switch (it owns the kinds); this window only asks.
 var KINDROWS = ]==] .. ((sp and sp.showKindRows) and "true" or "false") .. [==[;
+// 📝 6.387.0 — file name → 1 for every note that IS an open tab. The note
+// loop skips these: the tab row above is the same thing, and drawing both
+// is the duplicate he would report. Refreshed by setIndex, with the notes.
+var OWNED = ]==] .. v.ownedJson() .. [==[;
 // 6.174.0 — Lua's state for the page (page: setMode/drawRows/setRows/setMentions/vaultHint/gotoLine read these)
 var MODE = ]==] .. jstr(v.mode) .. [==[;
 var TAGS = ]==] .. v.tagsJson() .. [==[;
@@ -2919,6 +2956,11 @@ function drawRows(){
   for (var i = 0; i < NOTES.length; i++) {
     var x = NOTES[i];
     if (x.tpl) continue;                                   // 6.174.0 — templates sit in their own section below
+    // 📝 6.387.0 — this note IS the tab drawn above it. Skipped in the
+    // LIST only: it stays in NOTES, so [[links]], the graph, ⌘⇧F body
+    // search and a dataview query all still reach it — it is a real note
+    // and excluding it outright would make it unlinkable.
+    if (HASPAD && OWNED[x.n + '.md']) continue;
     if (tag !== null) { if (!noteHasTag(x, tag, exact)) continue; }
     // 🏷 6.328.0 — the FILTER asks the title too, or a note he renamed in
     // its heading becomes unfindable by the name he can see.
@@ -3128,10 +3170,14 @@ function setMode(m, quiet){
 // his ⌘Z. This assigns the three things a scan can change and redraws
 // the left column, leaving the box he is typing in exactly where it was,
 // with its history and its caret.
-function setIndex(notes, tags, graph){
+function setIndex(notes, tags, graph, owned){
   if (notes) NOTES = notes;
   if (tags)  TAGS  = tags;
   if (graph) GRAPH = graph;
+  // 📝 6.387.0 — additive, and it arrives WITH the notes on purpose: the
+  // set of names that are open tabs has to be as fresh as the list it
+  // filters, or a tab's note is drawn twice for one scan.
+  if (owned) OWNED = owned;
   // 🔎 6.340.0 — reaching here means a find has answered: every caller is
   // v.refreshIndex(), which runs after v.setNotes(). An EMPTY notes array
   // is a real answer and must read as "no notes yet", not as "still
@@ -4271,7 +4317,8 @@ else {
         -- that quietly stops updating for the rest of the session.
         local ok = pcall(function()
             v.webview:evaluateJavaScript("setIndex(" .. v.notesJson() .. ", "
-                   .. v.tagsJson() .. ", " .. v.graphJson() .. ")")
+                   .. v.tagsJson() .. ", " .. v.graphJson() .. ", "
+                   .. v.ownedJson() .. ")")
         end)
         if not ok then return false, "the push threw" end
         v.rowRefresh = v.rowRefresh + 1

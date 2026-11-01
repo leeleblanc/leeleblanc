@@ -2917,5 +2917,366 @@ do
     check("§6.376.0 ran all of its checks (" .. ran .. " of 20)", ran >= 20, ran)
 end
 
+-- =======================================================================
+out("\n📝 6.387.0 — every Hamsidian tab is a real .md file\n")
+-- =======================================================================
+-- LL, asked which of two readings he meant: "(a) every tab is a .md
+-- IMMEDIATELY", and then "Yes" to writing it on the FIRST PAUSE rather
+-- than the first keystroke, auto-named from its first line.
+do
+    local before = pass + fail
+    -- 🔬 the instance that published the report is the one to drive
+    local sp = _G.scratchPad
+
+    -- ---- the rule, PURE: when may a name be pinned? ------------------
+    -- 🏷 sp.exportNameFor pins a tab's file name the FIRST time it is
+    -- written and never changes it (vault.lua never renames a file), so
+    -- a pause two seconds after "Buy mi" would call the note "Buy mi.md"
+    -- for ever. That is what this function exists to prevent.
+    check("a tab with nothing typed is not settled",
+          sp.titleSettled("", 999, false) == false
+          and select(2, sp.titleSettled("   ", 999, false)):find("nothing typed", 1, true) ~= nil)
+    check("a FINISHED first line settles at once, whatever it says",
+          sp.titleSettled("Buy milk\nand bread", 0, false) == true,
+          tostring(select(2, sp.titleSettled("Buy milk\n", 0, false))))
+    check("...and a one-line tab he is still typing in does NOT",
+          sp.titleSettled("Buy mi", 1, false) == false
+          and select(2, sp.titleSettled("Buy mi", 1, false)):find("still typing", 1, true) ~= nil)
+    check("...it settles once the tab has been quiet for autoNameSecs",
+          sp.titleSettled("Buy milk", sp.autoNameSecs, false) == true
+          and sp.titleSettled("Buy milk", sp.autoNameSecs - 1, false) == false)
+    -- 📏 the fixture that BITES: a tab whose name is already spent has
+    -- nothing left to protect, and later keystrokes must reach the file
+    -- at the ordinary pause rather than waiting 20 s every time.
+    check("a tab that ALREADY has a file name is always settled",
+          sp.titleSettled("Buy mi", 0, true) == true
+          and select(2, sp.titleSettled("Buy mi", 0, true)):find("already pinned", 1, true) ~= nil)
+    check("the wait is read from the config, never typed in", (function()
+        local keep = sp.autoNameSecs
+        sp.autoNameSecs = 5
+        local at5 = sp.titleSettled("x", 5, false)
+        local at4 = sp.titleSettled("x", 4, false)
+        sp.autoNameSecs = keep
+        return at5 == true and at4 == false
+    end)())
+
+    -- ---- the controllable world -------------------------------------
+    local FILES2 = {}
+    local keepOpen, keepRename = io.open, os.rename
+    local WFAIL = false
+    io.open = function(path, mode)
+        if (mode or "r"):find("w") then
+            if WFAIL then return nil end
+            local buf = {}
+            return { write = function(_, s) buf[#buf + 1] = s return true end,
+                     close = function() FILES2[path] = table.concat(buf) end }
+        end
+        if FILES2[path] == nil then return nil end
+        local c, done = FILES2[path], false
+        return { read = function() if done then return nil end done = true return c end,
+                 close = function() end }
+    end
+    os.rename = function(a, b)
+        if FILES2[a] == nil then return nil, "no such file" end
+        FILES2[b] = FILES2[a]; FILES2[a] = nil; return true
+    end
+
+    local function reset()
+        FILES2 = {}
+        WFAIL = false
+        sp.tabs, sp.history, sp.exported = {}, {}, {}
+        sp.autoWrite, sp.exportToVault = true, true
+        sp.autoWrites = { ok = 0, failed = 0, waiting = 0 }
+        sp.writeTimers, sp.writeErrSaid = {}, nil
+        sp.active, _G.vault, sp.cloudDir = nil, nil, nil
+        for i = #TIMERS, 1, -1 do TIMERS[i] = nil end
+        for i = #ALERTS, 1, -1 do ALERTS[i] = nil end
+    end
+    local function names()
+        local n = {}
+        for path in pairs(FILES2) do
+            local f = path:match("^/logs/vault/Scratch/(.+)$")
+            if f and not f:find("%.tmp$") then n[#n + 1] = f end
+        end
+        table.sort(n); return n
+    end
+    local function lastTimer()
+        for i = #TIMERS, 1, -1 do
+            if not TIMERS[i].stopped and TIMERS[i].kind == "after" then return TIMERS[i] end
+        end
+    end
+
+    -- ---- one tab, one file ------------------------------------------
+    reset()
+    local a = sp.newTab("Milk\nBread")
+    local b = sp.newTab("Other thought\nmore")
+    local okOne, nameOne = sp.exportOne(a, "test")
+    check("a pause writes the ONE tab that was typed in", okOne == true
+          and nameOne == "Milk.md" and #names() == 1, table.concat(names(), ", "))
+    check("...and not every tab and 2,000 history rows with it (6.229.0 "
+          .. "priced a write into a watched folder)",
+          FILES2["/logs/vault/Scratch/Other thought.md"] == nil)
+    check("the file is a note Obsidian opens, with the text as typed",
+          (FILES2["/logs/vault/Scratch/Milk.md"] or ""):find("\n\nMilk\nBread\n$") ~= nil)
+    check("an empty tab is nothing to write",
+          sp.exportOne(sp.newTab(""), "test") == false)
+    check("the switch is real: autoWrite = false arms no write at the pause",
+          (function()
+              sp.autoWrite = false
+              sp.writeTimers = {}
+              sp.scheduleWrite(a.id, "typing")
+              local armed = sp.writeTimers[a.id]
+              sp.autoWrite = true
+              return armed == nil
+          end)())
+    check("...and exportToVault = false stops it too, so the old switch "
+          .. "still governs the new door",
+          (function()
+              sp.exportToVault = false
+              sp.writeTimers = {}
+              sp.scheduleWrite(a.id, "typing")
+              local armed = sp.writeTimers[a.id]
+              sp.exportToVault = true
+              return armed == nil
+          end)())
+
+    -- ---- the pause is its OWN debounce, not the store's --------------
+    reset()
+    local c = sp.newTab("Thought\nbody")
+    sp.scheduleWrite(c.id, "typing")
+    local t1 = lastTimer()
+    check("a keystroke arms a write at autoWriteSecs, not the store's 0.3 s",
+          t1 ~= nil and t1.delay == sp.autoWriteSecs,
+          tostring(t1 and t1.delay))
+    check("the timer is HELD in its own slot (6.196.1 — an unheld "
+          .. "hs.timer is collected and never fires)",
+          sp.writeTimers[c.id] == t1)
+    t1:fire()
+    check("...and when it fires the note is on disk", #names() == 1, table.concat(names(), ", "))
+    check("a second keystroke replaces the pending write rather than stacking",
+          (function()
+              sp.scheduleWrite(c.id, "typing")
+              local first = sp.writeTimers[c.id]
+              sp.scheduleWrite(c.id, "typing")
+              return first.stopped == true and sp.writeTimers[c.id] ~= first
+          end)())
+
+    -- 🚨 THE CHECK THAT BITES THE RE-ARM, and it is the bug this release
+    -- shipped with before the sweep: an unsettled title armed a SECOND
+    -- timer and then stored a different no-op timer in the slot, so the
+    -- re-arm was unreferenced, collected, and the tab was NEVER written.
+    -- 6.196.1 inside the branch whose own comment cites it.
+    reset()
+    local d = sp.newTab("Buy mi")           -- one line, still being typed
+    d.updatedAt = os.time()
+    sp.scheduleWrite(d.id, "typing")
+    local td = sp.writeTimers[d.id]
+    td:fire()
+    check("an unsettled title writes nothing yet, and says it waited",
+          #names() == 0 and sp.autoWrites.waiting == 1
+          and tostring(sp.autoWrites.lastWait):find("still typing", 1, true) ~= nil)
+    local td2 = sp.writeTimers[d.id]
+    check("...and the re-arm is a LIVE timer held in the same slot",
+          td2 ~= nil and td2 ~= td and td2.stopped == false
+          and td2.delay == sp.autoWriteSecs, tostring(td2 and td2.delay))
+    d.updatedAt = os.time() - (sp.autoNameSecs + 1)
+    td2:fire()
+    check("...and THAT timer writes the note once the title has settled",
+          #names() == 1 and names()[1] == "Buy mi.md", table.concat(names(), ", "))
+
+    -- ---- the one door every keystroke passes through -----------------
+    reset()
+    local e = sp.newTab("")
+    sp.setText(e.id, "Typed by hand\nand a second line")
+    check("sp.setText arms the file write — the one door, so no caller "
+          .. "can forget it", sp.writeTimers[e.id] ~= nil)
+    sp.writeTimers[e.id]:fire()
+    check("...and the note lands", #names() == 1, table.concat(names(), ", "))
+
+    -- ---- a closed tab leaves no timer behind -------------------------
+    reset()
+    local g = sp.newTab("Going away\nnow")
+    sp.scheduleWrite(g.id, "typing")
+    local tg = sp.writeTimers[g.id]
+    sp.closeTab(g.id)
+    check("closing a tab stops its pending write rather than leaving a "
+          .. "held timer with nothing to do",
+          tg.stopped == true and sp.writeTimers[g.id] == nil)
+
+    -- ---- a Mac that will not arm a timer still writes ----------------
+    reset()
+    do
+        local keepAfter = hs.timer.doAfter
+        hs.timer.doAfter = function() error("no timers here") end
+        local h = sp.newTab("No timer\nbody")
+        sp.scheduleWrite(h.id, "typing")
+        hs.timer.doAfter = keepAfter
+        check("a Mac that cannot arm a timer writes AT ONCE rather than "
+              .. "never — an unwritten note is the failure this ends",
+              #names() == 1 and (tonumber(sp.autoWrites.noTimer) or 0) == 1,
+              table.concat(names(), ", "))
+    end
+
+    -- ---- a failed write is impossible to miss (6.316.0's door) -------
+    reset()
+    do
+        local SAID = {}
+        local keepN = _G.notices
+        _G.notices = { notSaved = function(tool, what, path, why)
+                           SAID[#SAID + 1] = { tool = tool, what = what, path = path, why = why }
+                       end,
+                       saveOK = function(tool) SAID[#SAID + 1] = { ok = tool } end }
+        WFAIL = true
+        local n = sp.newTab("Lost words\nbody")
+        local okF, whyF = sp.exportOne(n, "test")
+        check("a write that fails answers false and a reason", okF == false and whyF ~= nil)
+        check("...and takes the 6.316.0 door, naming the NOTES side rather "
+              .. "than the store (one failure must not read as the other)",
+              #SAID == 1 and SAID[1].tool == "Hamsidian notes"
+              and tostring(SAID[1].what):find("Lost words", 1, true) ~= nil,
+              #SAID > 0 and tostring(SAID[1].tool) or "nothing said")
+        check("...and the count and the reason are on the report's own state",
+              sp.autoWrites.failed == 1 and sp.autoWrites.lastWhy == whyF)
+        -- 🚨 THE FIXTURE THAT BITES THE STREAK GATE: a write that works
+        -- after one that did not must SAY so, or the sticky warning
+        -- outlives the fault (6.316.0 — "it stopped complaining" and "it
+        -- saved" are opposite facts).
+        WFAIL = false
+        sp.exportOne(n, "test")
+        check("...and a write that works again clears it, out loud",
+              SAID[#SAID] ~= nil and SAID[#SAID].ok == "Hamsidian notes",
+              tostring(SAID[#SAID] and (SAID[#SAID].ok or SAID[#SAID].tool)))
+        _G.notices = keepN
+    end
+
+    -- ---- the fallback, on a Mac where notices did not load -----------
+    reset()
+    do
+        local keepN = _G.notices
+        _G.notices = nil
+        WFAIL = true
+        local n2 = sp.newTab("Also lost\nbody")
+        sp.exportOne(n2, "test")
+        local shouted = false
+        for _, m in ipairs(ALERTS) do if m:find("NOT WRITTEN", 1, true) then shouted = true end end
+        check("with no notices module it still shouts on screen",
+              shouted == true, table.concat(ALERTS, " | "))
+        -- 🔕 per CAUSE, never per session — 6.316.0's own finding
+        local n1 = #ALERTS
+        sp.exportOne(n2, "test")
+        check("...once per CAUSE, so it does not shout on every keystroke",
+              #ALERTS == n1)
+        _G.notices = keepN
+    end
+
+    -- ---- the one list draws each entry ONCE --------------------------
+    reset()
+    local p1 = sp.newTab("Shopping\nlist")
+    local p2 = sp.newTab("Untyped")
+    sp.exportOne(p1, "test")
+    local own = sp.ownedFiles()
+    check("the names that belong to open tabs are published by name",
+          own["Shopping.md"] == p1.id, tostring(next(own)))
+    check("...and a tab with no file yet is not in the set",
+          own["Untyped.md"] == nil)
+    check("...and the set is keyed by the file name WITH .md, which is "
+          .. "what the page joins against (a cross-file join, 6.352.0)",
+          (function() for k in pairs(own) do if not k:find("%.md$") then return false end end
+                      return next(own) ~= nil end)())
+    sp.closeTab(p1.id)
+    check("a CLOSED tab's note is no longer owned — its file stays on "
+          .. "disk and the list may draw it as the note it now is",
+          sp.ownedFiles()["Shopping.md"] == nil)
+
+    -- ---- the report, four states ------------------------------------
+    reset()
+    local r0 = _G.scratchPadReport()
+    check("the report says nothing has been typed yet rather than 0 written",
+          r0:find("nothing typed in a tab yet", 1, true) ~= nil,
+          r0:match("📝 auto[^\n]*"))
+    local q = sp.newTab("Reported\nbody")
+    sp.exportOne(q, "pause")
+    local r1 = _G.scratchPadReport()
+    check("...names the last file written, with the reason", 
+          r1:find("Reported.md", 1, true) ~= nil and r1:find("(pause)", 1, true) ~= nil,
+          r1:match("↳ last[^\n]*"))
+    check("...and says how many open tabs have a file, so the one list is answerable",
+          r1:find("one list:", 1, true) ~= nil)
+    sp.autoWrites.lastWait = "still typing the first line"
+    check("...the WAIT is explained as a rule, not reported as a failure",
+          _G.scratchPadReport():find("pinned forever", 1, true) ~= nil)
+    sp.autoWrite = false
+    check("...and OFF reads as a decision, with the way back",
+          (function()
+              local r = _G.scratchPadReport()
+              return r:find("auto : OFF", 1, true) ~= nil
+                 and r:find("autoWrite = true", 1, true) ~= nil
+          end)())
+    sp.autoWrite = true
+
+    io.open, os.rename = keepOpen, keepRename
+
+    -- ---- the source rules ------------------------------------------
+    do
+        local fh = realIoOpen(HS .. "/modules/scratch_pad.lua", "r")
+        local msrc = fh:read("a"); fh:close()
+        local nc = msrc:gsub("%-%-[^\n]*", "")
+        check("the pause and the store are two debounces, in two slots",
+              nc:find("sp.writeTimers", 1, true) ~= nil
+              and nc:find("sp.saveTimer", 1, true) ~= nil)
+        check("every hs.timer result in the module is still assigned (held)",
+              not nc:find("\n%s*hs%.timer%.do"))
+        -- 🚪 ONE WRITER: exportOne and exportAll both go through writeOne,
+        -- so temp-then-rename (6.313.0) cannot be half-applied.
+        local writers, safe = 0, 0
+        for arg in nc:gmatch('io%.open%(([^,]+), "w"%)') do
+            writers = writers + 1
+            if arg == "tmp" then safe = safe + 1 end
+        end
+        check("every write in the module is temp-then-rename (6.313.0) — "
+              .. "a store opened with \"w\" is truncated BEFORE a byte is "
+              .. "written, which is how a crash leaves it at zero bytes",
+              writers == safe and writers >= 2, writers .. " write(s), " .. safe .. " safe")
+        check("...and there are exactly two writers: the store, and the "
+              .. "one function both export doors go through",
+              writers == 2, writers)
+        check("sp.titleSettled is PURE — the clock is an argument, not os.time",
+              (function()
+                  local body = nc:match("function sp%.titleSettled.-\n    end")
+                  return body ~= nil and body:find("os.time", 1, true) == nil
+              end)())
+    end
+
+    -- ---- and the window that draws the one list --------------------
+    do
+        local vf = realIoOpen(HS .. "/modules/vault.lua", "r")
+        local vsrc = vf:read("a"); vf:close()
+        check("vault.lua publishes the owned-name set",
+              vsrc:find("function v%.ownedJson") ~= nil)
+        check("...the note list skips a note an open tab owns",
+              vsrc:find("OWNED%[x%.n %+ '%.md'%]") ~= nil)
+        check("...setIndex takes it, so it is as fresh as the notes it "
+              .. "filters (one push, never two things to keep in step)",
+              vsrc:find("function setIndex(notes, tags, graph, owned)", 1, true) ~= nil
+              and vsrc:find("if (owned) OWNED = owned;", 1, true) ~= nil)
+        check("...and the push really sends it", (function()
+            local push = vsrc:match('evaluateJavaScript%("setIndex%(.-%)%)')
+            return push ~= nil and push:find("ownedJson", 1, true) ~= nil
+        end)())
+        -- 🚨 NOT A REBUILD: v.render() rebuilds the page, and a rebuild
+        -- destroys the textarea's undo history — 6.323.0's whole finding.
+        check("...and it never asks for a REBUILD to do it (⌘Z would go "
+              .. "with the page — 6.323.0)",
+              vsrc:match("function v%.ownedJson.-\n    end"):find("v.render", 1, true) == nil)
+        check("...the note stays IN the index, so [[links]], the graph and "
+              .. "⌘⇧F still reach it",
+              vsrc:find("Skipped in the\n    -- LIST only", 1, true) ~= nil
+              or vsrc:find("LIST only", 1, true) ~= nil)
+    end
+
+    local ran = (pass + fail) - before
+    check("§6.387.0 ran all of its checks (" .. ran .. " of 38+)", ran >= 38, ran)
+end
+
 out(string.format("\n%d passed, %d failed\n", pass, fail))
 os.exit(fail == 0 and 0 or 1)
