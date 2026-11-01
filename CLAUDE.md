@@ -6441,6 +6441,14 @@ THE METHOD, when something breaks after a stacked zip:
    until the vault suite's pad stub grew an `ownedFiles` of its own
    (6.290.0); the one-list COUNT hard-coded to 0 under a check that
    asked only for the words; and a needle that matched five places).
+   · 6.388.0 7b88ea4 (the code and the ceremony; cbcd2ce the sweep's own
+   two findings — 40 of 40 mutations bit and the no-op control survived,
+   and both first-sweep survivors were MISSING CHECKS: the WALK's call
+   site in ar.list, driven by nothing because ownDataIn was proven in
+   isolation while the fixture's container did not exist on the virtual
+   disk; and HALF A CROSS-FILE JOIN — app_remove's suite proved it ASKS
+   clipboard_history for the row clamp and nothing proved that module
+   ANSWERS, so deleting its provide line passed the whole gate).
    Keep this list current: one line per release, appended at ceremony
    time.
 4. A BISECT IS AN OPTION, NOT THE FIRST MOVE — it costs him an install
