@@ -646,8 +646,13 @@ check("a folder with none answers zero, not a crash",
       select(1, M.ownDataIn("/nothing", lister, 50)) == 0)
 check("no lister at all answers zero rather than guessing",
       select(1, M.ownDataIn("/c", nil, 50)) == 0)
+-- 🧪 THE TEST PCALLS ITS OWN CALL (6.186.0). Without the guard inside
+-- ownDataIn this raises, and a raise inside a check's expression ends the
+-- run with "0 failed" never printed — a PASS, to a gate that reads the
+-- tail. A test helper answers falsely; it does not die.
+local tOK2, tN2 = pcall(M.ownDataIn, "/c", function() error("refused") end, 50)
 check("🔔 a lister that THROWS answers zero rather than taking the run with it",
-      select(1, M.ownDataIn("/c", function() error("refused") end, 50)) == 0)
+      tOK2 == true and tN2 == 0, tostring(tOK2) .. "/" .. tostring(tN2))
 
 -- 📏 THE BOUND IS A STATE, NOT A FOOTNOTE (6.197.2). Counting is a
 -- directory read on the main thread, so it stops — and a count taken
@@ -655,6 +660,45 @@ check("🔔 a lister that THROWS answers zero rather than taking the run with it
 local n2, capped2 = M.ownDataIn("/c", lister, 2)
 check("📏 it stops at the bound", n2 == 2, n2)
 check("📏 …and SAYS it stopped, so the number reads as 'or more'", capped2 == true)
+
+-- 🚨 AND THE CALL SITE IS DRIVEN, not just the function. The sweep found
+-- this: every check above proves M.ownDataIn, and deleting the WALK in
+-- ar.list passed all of them, because the fixture's container does not
+-- exist on the virtual disk so the walk never ran with an answer in it.
+-- Proving a pure function is not proving that anything calls it with the
+-- values that matter (6.273.0).
+freshDisk()
+FS[HOME .. "/Library/Containers/com.vendor.Thing"] = { dir = true, size = 4096 }
+FS[HOME .. "/Library/Containers/com.vendor.Thing/Data"] = { dir = true }
+FS[HOME .. "/Library/Containers/com.vendor.Thing/Data/Documents"] = { dir = true }
+for _, n in ipairs({ "letter.pages", "tax.numbers", "notes.txt" }) do
+    FS[HOME .. "/Library/Containers/com.vendor.Thing/Data/Documents/" .. n] = { size = 9 }
+end
+local cp = ar.list("Thing")
+local crow
+for _, it in ipairs(cp.items) do
+    if it.path == HOME .. "/Library/Containers/com.vendor.Thing" then crow = it end
+end
+check("the container is on the list", crow ~= nil)
+check("🚨 …and ar.list really WALKED it", crow and crow.ownFiles == 3,
+      crow and tostring(crow.ownFiles))
+check("…so the row's own reason carries the NUMBER, not a maybe",
+      crow and tostring(crow.risk):find("3 FILE", 1, true) ~= nil, crow and crow.risk)
+check("…and it is careful, so it starts kept", crow and crow.verdict == "careful")
+check("🚨 …and a press does NOT take his documents", (function()
+          ar.go()
+          return FS[HOME .. "/Library/Containers/com.vendor.Thing"] ~= nil
+      end)())
+-- 📏 and a row that CANNOT hold his files is not walked at all, which is
+-- what keeps this to two directory reads rather than one per row
+freshDisk()
+local pp = ar.list("Thing")
+for _, it in ipairs(pp.items) do
+    if it.kind == "prefs" or it.kind == "caches" then
+        check("📏 a " .. it.kind .. " row is not walked for documents",
+              it.ownFiles == nil, tostring(it.ownFiles))
+    end
+end
 
 -- ---- which rows start selected -------------------------------------
 -- 🔑 THE DIRECTION IS THE WHOLE SAFETY OF THE RELEASE (6.319.0), and

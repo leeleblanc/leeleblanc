@@ -469,6 +469,16 @@ work Mac.
   guess about something we already knew, and the first unusual folder
   name makes it a wrong guess. A kind nobody taught it is CAREFUL, never
   safe (6.276.0 — an unverifiable promise fails closed).
+  🧪 AND THE SWEEP FOUND HALF A JOIN AND AN UNDRIVEN CALL SITE, which is
+  why it is run. Deleting the WALK in `ar.list` passed every check,
+  because `M.ownDataIn` was proven in isolation while the fixture's
+  container did not exist on the virtual disk — so nothing ever called it
+  with an answer in it (6.273.0). And deleting clipboard_history's
+  `provide` line passed the whole gate: app_remove's suite proves it
+  ASKS, and nothing proved the other module ANSWERS. GENERAL, and it is
+  6.352.0's rule stated from the other end: A CROSS-FILE JOIN NEEDS A
+  CHECK ON BOTH SIDES — one that the asker asks, and one that the
+  publisher publishes — or half of it is a contract nobody holds.
   🧪 AND TWO EXISTING CHECKS WERE ASSERTING THE OLD CONSTANT (6.248.0,
   seventh time): "the second press moves them — all four" is false by
   design now. The sharper half is what happened to the GUARD section —

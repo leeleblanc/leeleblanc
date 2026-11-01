@@ -1456,6 +1456,32 @@ do
           (pass + fail) - n == 11, (pass + fail) - n)
 end
 
+-- =====================================================================
+-- 🔗 6.388.0 — THE CLAMP IS PUBLISHED, because another module asks it
+-- =====================================================================
+-- app_remove rebuilds its picker on EVERY row he toggles, and hs.chooser
+-- drops the selection on every :choices() (6.227.0) — so it needs this
+-- arithmetic, and asking for it is better than keeping a second copy
+-- (6.231.0). Its own suite proves it ASKS; nothing proved this module
+-- ANSWERS, so deleting the provide line passed the whole gate. That is
+-- half a join, and half a join is a cross-file contract nobody holds
+-- (6.352.0).
+do
+    local n = pass + fail
+    local f = PROVIDED["clipboard.rowAfterRebuild"]
+    check("🔗 the row clamp is published for other modules to ask",
+          type(f) == "function", type(f))
+    if type(f) == "function" then
+        check("…and an empty list has no row at all", f(3, 0) == nil)
+        check("…and a row past the end lands on the LAST one",
+              f(99, 4) == 4, tostring(f(99, 4)))
+        check("…and below the first lands on the first", f(0, 4) == 1)
+        check("…and a row inside the list is left where it is", f(2, 4) == 2)
+    end
+    check("the 6.388.0 section ran every one of its checks",
+          (pass + fail) - n == 5, (pass + fail) - n)
+end
+
 if fail > 0 then
     out("FAILURES:\n")
     for _, f in ipairs(failures) do out("   ❌ " .. f .. "\n") end
