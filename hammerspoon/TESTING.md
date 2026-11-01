@@ -1,4 +1,4 @@
-# TESTING — how to score release 6.387.0
+# TESTING — how to score release 6.388.0
 
 You install ONE archive and it carries several releases. Below are the
 steps for each release this archive is new for, newest first. Run the
@@ -26,6 +26,117 @@ else is a LOSS and I fix it before building further. You are the only
 scorer; I never mark my own.
 
 ---
+
+## 6.388.0
+
+6.388.0 verify with LL — 🗳 IT SAYS WHAT IS DAMAGING (KNOWN GROUND)
+WHAT CHANGED: App Removal now tells you, file by file, whether removing
+it is safe — and lets you leave any one of them behind.
+🔎 WHAT 6.384.0 WAS MISSING, because it is the whole release: it showed
+you the list and then moved ALL of it on the second press. There was no
+middle. Now every file is a row you can press Return on, the risky ones
+are NOT selected until you say so, and ⏎ on the top row moves only what
+is still selected.
+
+A. THE HEADLINE — use something you do not mind losing.
+A1. Press **⇪⇧[** — hold Caps Lock and Shift and press the **[** key,
+    just right of P. Pick an app and press **Return**.
+    EXPECT: the picker now lists EVERY file, one row each, and each row
+    starts either **[ MOVE ]** or **[ keep ]** with a ✅ or ⚠️ after it.
+    **A FAIL is the old single confirmation row with nothing under it.**
+A2. Read the second line of a few rows. EXPECT: the word "safe" or
+    "careful", then WHY in plain words — "a cache — rebuilt
+    automatically, holds nothing of yours", or "a sandboxed app's own
+    Documents live inside this".
+A3. Look at which rows start **[ keep ]**.
+    EXPECT: the ⚠️ ones. Nothing risky is selected until you ask.
+    That is the reverse of last week and it is the point: the thing
+    this tool can get wrong is moving a folder with your files in it.
+A4. Read the row at the very top.
+    EXPECT: "✅ Move “<app>” — the N selected row(s), <size> — to the
+    Trash". **N is how many are SELECTED, not how many were found** —
+    if your app has a ⚠️ row, N is smaller than the total, and that is
+    the release working.
+A5. Press **Return on the top row**. EXPECT: the selected files go to
+    the Trash and the ⚠️ ones are STILL THERE. Check one in Finder.
+
+B. LEAVING A FILE, AND TAKING IT ANYWAY — the iterative half.
+B1. Press ⇪⇧[ again, pick an app, Return.
+B2. Put the highlight on any **[ MOVE ]** row and press **Return**.
+    EXPECT: it flips to **[ keep ]**, the list STAYS OPEN, and the top
+    row's count goes down by one.
+    **A FAIL is the list closing, or the highlight jumping back to the
+    top.** That second one is what would make this unusable, so it is
+    worth watching for specifically.
+B3. Press Return on it again. EXPECT: back to [ MOVE ], count back up.
+B4. Near the top there are three rows: "☑ Keep everything",
+    "☐ Select everything" and "↺ Back to what this tool suggests".
+    Try each. EXPECT: the [ MOVE ]/[ keep ] marks all change, and the
+    count at the top follows.
+B5. With "☑ Keep everything" chosen, read the top row.
+    EXPECT: **"🚫 every row is marked KEEP — nothing is selected to
+    move"** — NOT "there is nothing to move". Those are different
+    facts: one is your decision, the other is an empty folder.
+B6. "◂ Back to the app list" forgets the listing and moves nothing.
+
+C. THE ONE WORTH THIRTY SECONDS — the count that is an artefact.
+C1. Pick a SANDBOXED app you have actually used — something from the
+    App Store, or anything that keeps documents of its own.
+    EXPECT, on its Container or Application Support row: **"HOLDS N
+    FILE(S) THAT LOOK LIKE YOURS"** with a real number.
+    That number is why this release exists. A label saying a folder
+    might hold your files is a warning you learn to ignore; a number
+    saying it holds twelve is something you can act on.
+C2. If a row ever says the count stopped at 50, that is deliberate —
+    counting is work on the thread that carries your keyboard, so it
+    stops, and the row says so rather than reporting 50 as a total.
+
+D. MUST STILL WORK — this is the tool that moves files, so this half
+   matters more than A.
+D1. The first press still MOVES NOTHING. Press ⇪⇧[, pick an app, read
+    the list, press Escape. Check the app is still in /Applications.
+D2. Nothing is ever erased. Everything that moves goes to the **Trash**
+    and Finder → Trash → **Put Back** undoes it.
+D3. Try to remove an app that is OPEN. EXPECT: it refuses by name and
+    tells you to quit it first. Nothing moves.
+D4. A ⚠️ row's reason still says when it was matched by NAME rather
+    than by the app's own id — and such a row is careful even when it
+    is only a cache.
+D5. 🚨 It must never touch anything outside your home folder or
+    /Applications. If it ever does, stop and tell me at once.
+
+E. THE CONSOLE, if you prefer reading to clicking.
+E1. `_G.appRemove("Transmission")` — prints the whole analysis: one
+    line per file, its verdict, the reason, the size, and whether it is
+    selected. Moves nothing.
+E2. `_G.appRemoveKeep(3)` toggles row 3 · `_G.appRemoveKeepAll()` ·
+    `_G.appRemoveKeepNone()` · `_G.appRemoveSuggested()`.
+E3. `_G.appRemoveGo()` moves what is selected.
+E4. `_G.appRemoveReport()` — a new `select :` line says how many of how
+    many are selected, whether any change was YOURS, and NAMES every
+    row it thinks could be damaging. PASTE THAT after a real listing.
+
+F. ❓ QUESTIONS — answers wanted, nothing to run.
+F1. **Are the verdicts right for how you work?** I call Application
+    Support "careful" because apps keep real data there, which means it
+    starts kept and you have to opt in on nearly every app. If that is
+    a nuisance and you would rather it were safe-by-default, say so —
+    it is one line, and it is your Mac.
+F2. **Is "careful" the right word?** The alternatives are "⚠️ your data
+    may be in here" or just "ask me". It is what you will read dozens
+    of times.
+F3. **Should a ⚠️ row ever be moved without a second look?** Right now
+    ☐ Select everything can take all of them in one press. That is
+    deliberate — it is your call — but say if you would rather it asked
+    again before moving a row that holds files.
+F4. **The other half of your ask is NOT in this release**, said rather
+    than left for you to notice: apps that run only off a disk image
+    and are never installed. Those leave preferences behind with no app
+    to point this tool at, so the scan has to work backwards — find the
+    leftovers first and ask which have no app anywhere. That is its own
+    release and it is next unless you redirect me.
+
+
 
 ## 6.387.0
 
@@ -274,69 +385,6 @@ D2. **Which windows did you mean by "my other windows"?** If you meant
     different and bigger release I did not want to guess at.
 D3. On a picker the nearest thing to a ✕ is a KEY on the highlighted
     row. ⇪⇧V already deletes that way. Want that on others — and which?
-
-
-
-## 6.384.0
-
-6.384.0 verify with LL — 🗑 REMOVE AN APP (NEW GROUND — it moves files)
-WHAT CHANGED: there is a new tool. **⇪⇧[** — hold Caps Lock and Shift
-and press the **[** key, just right of P — removes an app AND the
-leftovers it keeps in your home folder.
-🚨 NOTHING IS EVER ERASED. Everything goes to the **Trash**, and you
-empty the Trash yourself. If it ever takes something you wanted,
-Finder → Trash → **Put Back**.
-🚨 AND THE FIRST PRESS MOVES NOTHING. It SHOWS you the list first.
-
-A. THE HEADLINE — use something you do not mind losing.
-A1. Press **⇪⇧[**. EXPECT: a picker listing your applications.
-A2. Type part of an app's name and press ⏎.
-    EXPECT: an alert naming the app, how many items and how big — and
-    saying NOTHING HAS MOVED. **Check your Applications folder: the
-    app must still be there.**
-A3. Open the Console. EXPECT a list, one line per item: the .app
-    itself, then each leftover, with its size and the rule that found
-    it. **READ THAT LIST.** It is the whole point of the tool.
-A4. Any line with a ⚠️ was matched by the app's NAME rather than its
-    bundle id — a guess. Another app's folder can be called the same
-    thing. Read those before step A5.
-A5. Press ⇪⇧[ again. EXPECT the FIRST row now reads
-    "✅ Move “<app>” to the Trash — N item(s), …". Press ⏎ on it.
-    EXPECT: an alert saying how many moved, and the app is gone from
-    Applications and sitting in your Trash.
-A6. Open the Trash. EXPECT the .app and each leftover, each stamped
-    with the date and time. Put one back to prove it works.
-
-B. THE REFUSALS — these are the tool working, not failing.
-B1. Try to remove an app that is OPEN. EXPECT it refuses and tells you
-    to quit it first. Nothing moves.
-B2. `_G.appRemove("NoSuchApp")` in the Console. EXPECT it says it
-    cannot find it rather than guessing.
-B3. 🚨 If it EVER moves something outside your home folder or
-    /Applications, stop and tell me at once. It is built so it cannot:
-    every path is checked immediately before it moves, and the test
-    suite puts /etc/passwd into a list on purpose and requires the
-    move to turn it away.
-
-C. THE CONSOLE DOORS, if you prefer typing.
-C1. `_G.appRemove("Transmission")` — lists, moves nothing.
-C2. `_G.appRemoveGo()` — moves what was just listed.
-C3. `_G.appRemoveReport()` — what it last listed or moved.
-
-D. A JUDGEMENT ONLY YOU CAN MAKE.
-D1. **Is ⇪⇧[ a key you will remember?** It is one of only two free
-    shifted keys left (the other is ⇪⇧]), and I picked it rather than
-    take one you use. Say if you want it somewhere else.
-D2. **Is the Trash the right answer for the caches?** You said "delete
-    any temp files" — I read that as "take the caches WITH the app"
-    rather than "erase them", because erasing is the one thing with no
-    way back. If you want caches erased outright rather than trashed,
-    say so; it is a decision, not an oversight.
-D3. **Did it miss anything?** Check ~/Library after a removal for a
-    folder with that app's name still in it. The list of places it
-    looks is in the module and takes one line to extend. It
-    deliberately does NOT touch the system /Library or launch daemons
-    — those need a password.
 
 
 

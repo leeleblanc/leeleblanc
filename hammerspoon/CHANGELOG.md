@@ -5,6 +5,96 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.388.0 — 🗳 APP REMOVAL SAYS WHAT IS DAMAGING, AND HE CAN LEAVE
+  A FILE: LL, asked to build it: "this tool should be present me with a
+  list of all files that are going to be removed, and it should say, if
+  it is damaging or not, it should give me the option to leave files, so
+  it should be a very iterative process period, but the ultimate outcome
+  is a solid analysis of what can be removed. And then give me an option
+  for what to remove safely." 6.384.0 built the two ends of that — the
+  list, and the move — and nothing in the middle: it showed every file
+  and then moved ALL of it on the second press. This is the middle.
+  🔑 THE VERDICT IS COMPUTED FROM WHAT THE THING IS, NEVER GUESSED OFF
+  ITS PATH. Every row already carried the RULE that found it (a bundle id
+  or a name); it now also carries its KIND, recorded in `leftoverPlan`
+  where the path is chosen and the answer is known rather than
+  pattern-matched out of a string later — a verdict inferred from a path
+  is a guess about something we already knew. `M.riskOf` is PURE and
+  reads the kind: the .app, a cache, a preferences plist, its logs, a
+  saved window state, WebKit data, cookies and a login item are ✅ SAFE;
+  a CONTAINER, Application Support and a GROUP container are ⚠️ CAREFUL,
+  because a sandboxed app's own Documents live inside the first, apps
+  keep his data in the second, and the third is shared with the vendor's
+  other apps, so removing it can break one he still has. A kind nobody
+  taught it is CAREFUL — 6.276.0's rule, since an unverifiable promise
+  must fail closed, and "safe" is the one wrong default for a leftover
+  shape that arrives in six months.
+  🚨 AND SAFE ROWS START SELECTED WHILE CAREFUL ROWS START KEPT. That
+  direction is the whole safety of the release, and it reverses 6.384.0
+  on a rule rather than on taste: 6.319.0 says a default is chosen
+  against the damage its own feature can do, and the damage here is
+  moving a folder with his documents in it. The cost of defaulting it
+  off is one keypress; the cost of defaulting it on is his files. ⏎ on
+  any row toggles it between [ MOVE ] and [ keep ], the list stays open
+  — "a very iterative process", in his words — and three bulk rows do
+  keep-everything, keep-nothing and back-to-what-this-tool-suggests.
+  🔎 THE EVIDENCE OUTRANKS THE LABEL. "This folder MIGHT hold your
+  files" is a warning; "this folder holds 12 files that look like yours"
+  is an artefact, and he can act on the second. `M.ownDataIn` walks
+  <folder>/Data/Documents, /Documents and /Data/Desktop and counts, and
+  only the two kinds that can hold his data are walked — two directory
+  reads for a typical app rather than one per row, because an expensive
+  main thread is a mouse this Mac has lost (6.228.0). 📏 AND THE BOUND
+  IS A STATE, NOT A FOOTNOTE (6.197.2): it stops at `ownCap` (50) and
+  SAYS it stopped, so the number reads as "or more" rather than as a
+  total. A count of 0 leaves a safe row safe; anything above 0 makes any
+  row careful, whatever its kind.
+  ⚠️ A GUESS IS NEVER SAFE, whatever it is a guess ABOUT — the bundle id
+  is what macOS files a leftover under, and a name match is this
+  config's own inference, which can land on another app's folder. Such a
+  row is careful even when its kind is a cache, and that reason is
+  printed BEFORE the kind's, because "this might be your data" and "this
+  might not even be this app's" send him to two different places
+  (6.196.1). The fixture that bites is the one where the kind and the
+  rule disagree (6.230.0).
+  📐 THE TOGGLE REBUILDS THE PICKER, AND hs.chooser DROPS THE SELECTION
+  ON EVERY :choices() (6.227.0) — so without putting the row back he is
+  bounced to the top on every press and "a very iterative process" is a
+  list he cannot walk. clipboard_history has done that arithmetic since
+  6.227.0, so this module ASKS it through a new `clipboard.rowAfterRebuild`
+  service and keeps `M.rowAfterRebuild` as the floor for a Mac where that
+  module did not load. The gate JOINS the two — it lifts the real
+  function out of clipboard_history's source and requires the answers to
+  agree over nine inputs (6.231.0 · 6.273.0) — so a copy cannot drift,
+  and a separate check drives the picker with the service present to
+  prove the shipped path asks it rather than always taking the floor.
+  🔎 `ar.go()` MOVES ONLY WHAT IS SELECTED, and the answer counts a row
+  HE kept apart from one kept FOR him: a single "kept 2" would read his
+  own decision as the tool's. `goVerdict` gained a fifth answer for the
+  same reason — "every row is marked KEEP" is his decision and "there is
+  nothing to move" is a fact about the disk, and one sentence for both
+  would read as a fault. The Console carries the whole analysis, one
+  line per file with its verdict, the reason, its size and whether it is
+  selected, because "the ultimate outcome is a solid analysis" is what
+  he asked for and the picker is where he acts, not where he reads.
+  🔌 NEW DOORS: `_G.appRemoveKeep(n)` toggles one row,
+  `_G.appRemoveKeepAll()`, `_G.appRemoveKeepNone()` and
+  `_G.appRemoveSuggested()` are the three bulk rows from the Console.
+  🧪 AND TWO SECTIONS OF THE EXISTING SUITE WERE ASSERTING 6.384.0's
+  CONSTANT rather than its rule (6.248.0): "the second press moves them
+  — all four" is false now by design, and the fixture's fourth row is
+  the NAME-matched one, so it is the row that must survive. The guard
+  section — the one that puts /etc/passwd into a plan by hand and
+  requires the move to turn it away — now selects every row first, on
+  purpose: coupling the one check that stands between a wrong path and
+  his disk to which rows a verdict happens to select is how that check
+  goes quiet the next time a risk label moves.
+  📏 NAMED, NOT BUILT: an app that was NEVER INSTALLED — run from a disk
+  image and thrown away — leaves preferences behind with no .app to
+  start from, so that scan is the inverse of this one and its own
+  release. He asked for it in the same breath and it is not smuggled in
+  here.
+
 NEW IN 6.387.0 — 📝 EVERY HAMSIDIAN TAB IS A REAL .md FILE: LL, asked
   which of the two readings of his own sentence he meant, picked "(a)
   every tab is a .md IMMEDIATELY" and then answered "Yes" to the shape

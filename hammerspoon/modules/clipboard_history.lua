@@ -1338,6 +1338,12 @@ function M.setup(core)
         return clip.stats
     end
 
+    -- 📏 6.388.0 — the row-after-rebuild clamp is PURE and app removal
+    -- needs the same arithmetic for the same reason (hs.chooser drops
+    -- the selection on every :choices()). Published rather than copied:
+    -- 6.231.0, one function and two callers.
+    core.provide("clipboard.rowAfterRebuild",
+                 function(want, total) return clip.rowAfterRebuild(want, total) end)
     core.provide("clipboard.add",   function(t) return clip.add(t)   end)
     core.provide("clipboard.save",  function()  return clip.save()   end)
     core.provide("clipboard.count", function()  return #_G.clipboardCache end)

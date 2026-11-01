@@ -193,9 +193,20 @@ ok, why = M.goVerdict({ app = "/Applications/X.app", name = "X",
                         running = false, count = 0 })
 check("nothing to move → no, and that is a different sentence",
       ok == false and why:find("nothing to move", 1, true) ~= nil, why)
-ok = M.goVerdict({ app = "/Applications/X.app", name = "X",
-                   running = false, count = 3 })
-check("a quit app with items → yes", ok == true)
+ok = M.goVerdict({ app = "/Applications/X.app", name = "X", running = false,
+                   count = 3, items = { { kind = "caches" }, { kind = "prefs" } },
+                   keep = {} })
+check("a quit app with rows selected → yes", ok == true)
+
+-- 🗳 6.388.0 — AND A FIFTH ANSWER, because he can now keep every row:
+-- "you have kept all of them" is his decision and "the folder is empty"
+-- is a fact about the disk. One sentence for both would read as a fault.
+ok, why = M.goVerdict({ app = "/Applications/X.app", name = "X", running = false,
+                        count = 2, items = { { kind = "caches" }, { kind = "prefs" } },
+                        keep = { true, true } })
+check("every row kept → no, and it is NOT the 'nothing to move' sentence",
+      ok == false and why:find("marked KEEP", 1, true) ~= nil
+      and why:find("nothing to move", 1, true) == nil, why)
 
 -- =====================================================================
 out("\n=== 5. SIZES IN WORDS ===")
@@ -328,14 +339,24 @@ check("…and every file is still exactly where it was",
       FS["/Applications/Thing.app"] ~= nil
       and FS[HOME .. "/Library/Caches/com.vendor.Thing"] ~= nil)
 
+-- 🗳 6.388.0 CHANGED WHAT THE SECOND PRESS MOVES, and this is the check
+-- that states it rather than a count from before the change (6.248.0).
+-- Three of these four rows are safe and start selected; the fourth —
+-- ~/Library/Logs/Thing — was found by NAME rather than by the bundle id,
+-- so it is ⚠️ careful and starts KEPT. It must survive the move.
 local okG, res = ar.go()
-check("the second press moves them", okG == true and res.moved == 4,
+check("the second press moves the SELECTED rows", okG == true and res.moved == 3,
       okG and res.moved or tostring(res))
+check("🚨 …and the row matched only by NAME is still on disk",
+      FS[HOME .. "/Library/Logs/Thing"] ~= nil)
+check("…and the report counts it as kept FOR him, not by him",
+      res.keptCareful == 1 and res.keptSafe == 0,
+      tostring(res.keptCareful) .. "/" .. tostring(res.keptSafe))
 check("…into ~/.Trash and nowhere else", (function()
           for _, r in ipairs(RENAMES) do
               if r.to:sub(1, #(HOME .. "/.Trash/")) ~= HOME .. "/.Trash/" then return false end
           end
-          return #RENAMES == 4
+          return #RENAMES == 3
       end)(), #RENAMES)
 check("…and the app really is gone from /Applications",
       FS["/Applications/Thing.app"] == nil)
@@ -346,6 +367,19 @@ check("…and is sitting in the Trash, not erased", (function()
           return false
       end)())
 
+-- 🗳 AND HE CAN TAKE IT ANYWAY — that is the other half of the ask. One
+-- call selects every row, including the risky one, and then all four go.
+freshDisk()
+ar.list("Thing")
+ar.keepNone()
+local okAll, resAll = ar.go()
+check("selecting everything moves all four", okAll == true and resAll.moved == 4,
+      okAll and resAll.moved or tostring(resAll))
+check("…and nothing is reported as kept", resAll.keptCareful == 0 and resAll.keptSafe == 0)
+
+freshDisk()
+ar.list("Thing")
+ar.go()
 -- 🚨 THE PLAN IS SPENT. A second confirmation must not try to move paths
 -- that are already in the Trash, and a stale plan is how a later press
 -- acts on a listing he has forgotten making.
@@ -384,6 +418,11 @@ table.insert(ar.plan.items, { path = "/Library/Application Support/Adobe",
 table.insert(ar.plan.items, { path = "/Users/lee-evil/Documents",
                               why = "injected", sure = true, size = 1 })
 ar.plan.count = #ar.plan.items
+-- 🗳 SELECT EVERY ROW, deliberately: this section is about the guard on
+-- the move, not about which rows 6.388.0 selects by default. Leaving the
+-- default in would couple the one check that stands between a wrong path
+-- and his disk to a number that moves whenever a risk verdict does.
+ar.keepNone()
 local gOK, gRes = ar.go()
 check("the legitimate items still moved", gOK == true and gRes.moved == 4, gRes and gRes.moved)
 check("🚨 /etc/passwd was REFUSED", FS["/etc/passwd"] ~= nil)
@@ -405,6 +444,7 @@ check("🔔 …and he is TOLD, rather than reading about it in a log",
 freshDisk()
 ar.list("Thing")
 REFUSE[HOME .. "/Library/Caches/com.vendor.Thing"] = true
+ar.keepNone()
 local fOK, fRes = ar.go()
 check("a refused rename is counted, not announced as moved",
       fOK == true and fRes.moved == 3 and fRes.failed == 1,
@@ -468,13 +508,51 @@ local function row1(k)
 end
 check("with a plan in hand the picker offers the confirmation FIRST",
       row1("go") == true, row1("text"))
+check("…and it says how many rows are SELECTED, not how many were found",
+      tostring(row1("text")):find("3 selected row", 1, true) ~= nil, row1("text"))
 check("…and says what it is about to move, in words",
       tostring(row1("text")):find("Thing", 1, true) ~= nil
       and tostring(row1("text")):find("Trash", 1, true) ~= nil, row1("text"))
 check("…and says it is undoable",
       tostring(row1("subText")):find("Put Back", 1, true) ~= nil, row1("subText"))
+-- 🔁 6.388.0 — EVERY FILE IS A ROW HE CAN PRESS ⏎ ON, which is what
+-- "the option to leave files" means at the keyboard rather than in a
+-- settings line.
+check("…and every leftover is its own row", (function()
+          local n = 0
+          for _, r in ipairs(ch2.rows_ or {}) do if r.toggle then n = n + 1 end end
+          return n == 4
+      end)(), #(ch2.rows_ or {}))
+check("…each saying whether it is safe and why", (function()
+          for _, r in ipairs(ch2.rows_ or {}) do
+              if r.toggle and not (tostring(r.subText):find("safe", 1, true)
+                                   or tostring(r.subText):find("careful", 1, true)) then
+                  return false
+              end
+          end
+          return true
+      end)())
+check("…and whether ⏎ would move it or keep it", (function()
+          for _, r in ipairs(ch2.rows_ or {}) do
+              if r.toggle and not (tostring(r.text):find("[ MOVE ]", 1, true)
+                                   or tostring(r.text):find("[ keep ]", 1, true)) then
+                  return false
+              end
+          end
+          return true
+      end)())
+check("…and the three bulk rows are offered", (function()
+          local seen = {}
+          for _, r in ipairs(ch2.rows_ or {}) do if r.bulk then seen[r.bulk] = true end end
+          return seen.all and seen.none and seen["default"]
+      end)())
+check("…and a way back to the app list that moves nothing", (function()
+          for _, r in ipairs(ch2.rows_ or {}) do if r.back then return true end end
+          return false
+      end)())
 if type(ch2.rows_[1]) == "table" then ch2.cb(ch2.rows_[1]) end
-check("…and choosing it moves them", #RENAMES == 4, #RENAMES)
+check("…and choosing the confirmation moves the selected rows",
+      #RENAMES == 3, #RENAMES)
 
 -- 🧊 A REFUSED SHOW IS NOT RECORDED AS AN OPEN PICKER (6.265.0 · 6.326.0)
 freshDisk()
@@ -485,6 +563,255 @@ check("🧊 a picker macOS refuses answers false", rOK2 == false, tostring(rOK2)
 check("…and is NOT left recorded as open", _G.choosers.appRemove == nil)
 check("🔔 …and he is told", #DEGRADED > 0, #DEGRADED)
 POPUPREFUSE = false
+
+-- =====================================================================
+out("\n=== 9. 6.388.0 — IS IT DAMAGING, AND MAY I LEAVE THAT ONE? ===")
+-- =====================================================================
+-- LL: "it should say, if it is damaging or not, it should give me the
+-- option to leave files, so it should be a very iterative process …
+-- the ultimate outcome is a solid analysis of what can be removed. And
+-- then give me an option for what to remove safely."
+
+-- ---- the verdict is read off WHAT THE THING IS ----------------------
+local function verdictOf(k, extra)
+    local e = { kind = k, sure = true }
+    if extra then for a, b in pairs(extra) do e[a] = b end end
+    return M.riskOf(e)
+end
+check("the app itself is safe — it is re-downloadable", verdictOf("app") == "safe")
+check("a cache is safe", verdictOf("caches") == "safe")
+check("its settings are safe — losing them is the point", verdictOf("prefs") == "safe")
+check("saved window state is safe", verdictOf("savedstate") == "safe")
+check("cookies are safe", verdictOf("cookies") == "safe")
+check("what starts it at login is safe", verdictOf("launchagents") == "safe")
+
+-- 🚨 THE THREE THAT CAN TAKE HIS OWN FILES WITH THEM. These are the
+-- reason the question needed answering at all.
+check("🚨 a sandboxed app's CONTAINER is careful — its Documents live in it",
+      verdictOf("containers") == "careful")
+check("🚨 Application Support is careful — apps keep his data there too",
+      verdictOf("appsupport") == "careful")
+check("🚨 a GROUP container is careful — it is shared with the vendor's other apps",
+      verdictOf("groupcontainers") == "careful")
+local _, gcWhy = verdictOf("groupcontainers")
+check("…and the reason says it could break an app he still has",
+      gcWhy:find("still have", 1, true) ~= nil, gcWhy)
+
+-- 🚨 AND A KIND NOBODY TAUGHT IT FAILS CLOSED. An unknown row is the
+-- shape a future leftover arrives in, and guessing "safe" there is the
+-- one wrong default (6.276.0 — an unverifiable promise fails closed).
+local uv, uw = verdictOf("something_new")
+check("🚨 an unknown kind is CAREFUL, never safe", uv == "careful", uv)
+check("…and says plainly that it does not know",
+      uw:find("does not know", 1, true) ~= nil, uw)
+check("🚨 a row with no kind at all is careful", M.riskOf({ sure = true }) == "careful")
+check("🚨 …and so is something that is not a row", M.riskOf(nil) == "careful")
+
+-- 🚨 A GUESS IS NEVER SAFE, WHATEVER IT IS A GUESS ABOUT. This is the
+-- fixture where the kind and the matching rule disagree, which is the
+-- only input where "read the kind" and "read both" must differ (6.230.0).
+local nv, nw = M.riskOf({ kind = "caches", sure = false })
+check("🚨 a cache matched by NAME is careful, though a cache is safe",
+      nv == "careful", nv)
+check("…and the reason names the guess BEFORE the kind",
+      nw:find("NAME", 1, true) ~= nil
+      and nw:find("NAME", 1, true) < (nw:find("cache", 1, true) or 1e9), nw)
+
+-- 🚨 AND THE EVIDENCE OUTRANKS THE LABEL. A folder that demonstrably
+-- holds twelve of his files is not a maybe, and the number is what he
+-- can act on (6.229.0's yield line, in a verdict).
+local ov, ow = M.riskOf({ kind = "caches", sure = true, ownFiles = 12 })
+check("🚨 a row holding his own files is careful whatever its kind",
+      ov == "careful", ov)
+check("…and SAYS HOW MANY rather than warning in the abstract",
+      ow:find("12 FILE", 1, true) ~= nil, ow)
+check("zero files found does not make a safe row careful",
+      M.riskOf({ kind = "caches", sure = true, ownFiles = 0 }) == "safe")
+
+-- ---- how many of his files are in there ----------------------------
+local DIRS = {
+    ["/c/Data/Documents"] = { "a.pages", "b.pages", "c.pages" },
+    ["/c/Documents"]      = { ".", "..", "d.txt" },
+}
+local function lister(d)
+    local v = DIRS[d]
+    if not v then error("no such directory") end
+    return v
+end
+local n, capped = M.ownDataIn("/c", lister, 50)
+check("it counts his documents inside a container", n == 4, n)
+check("…and does not count . and ..", n == 4, n)
+check("…and says it did not stop early", capped == false)
+check("a folder with none answers zero, not a crash",
+      select(1, M.ownDataIn("/nothing", lister, 50)) == 0)
+check("no lister at all answers zero rather than guessing",
+      select(1, M.ownDataIn("/c", nil, 50)) == 0)
+check("🔔 a lister that THROWS answers zero rather than taking the run with it",
+      select(1, M.ownDataIn("/c", function() error("refused") end, 50)) == 0)
+
+-- 📏 THE BOUND IS A STATE, NOT A FOOTNOTE (6.197.2). Counting is a
+-- directory read on the main thread, so it stops — and a count taken
+-- under a bound is a FLOOR, which the row has to say.
+local n2, capped2 = M.ownDataIn("/c", lister, 2)
+check("📏 it stops at the bound", n2 == 2, n2)
+check("📏 …and SAYS it stopped, so the number reads as 'or more'", capped2 == true)
+
+-- ---- which rows start selected -------------------------------------
+-- 🔑 THE DIRECTION IS THE WHOLE SAFETY OF THE RELEASE (6.319.0), and
+-- 6.384.0 made the other choice, so this is the check that would catch a
+-- revert to it.
+local ITEMS = {
+    { kind = "app",        sure = true },               -- 1 safe
+    { kind = "caches",     sure = true },               -- 2 safe
+    { kind = "containers", sure = true },               -- 3 careful
+    { kind = "logs",       sure = false },              -- 4 careful: a NAME guess
+}
+local K = M.defaultKeep(ITEMS)
+check("✅ a safe row starts SELECTED for removal", K[1] == nil and K[2] == nil)
+check("🚨 a risky row starts KEPT — he opts in", K[3] == true)
+check("🚨 …and so does a row that is only a name guess", K[4] == true)
+check("🚨 NOTHING risky is selected by default", (function()
+          for i, it in ipairs(ITEMS) do
+              if M.riskOf(it) ~= "safe" and not K[i] then return false end
+          end
+          return true
+      end)())
+
+-- ---- what would actually move --------------------------------------
+local mv, mb, ks, kc = M.selectedItems(
+    { { kind = "app", sure = true, size = 100 },
+      { kind = "caches", sure = true, size = 50 },
+      { kind = "containers", sure = true, size = 9 } },
+    { [2] = true, [3] = true })
+check("only the unkept rows move", #mv == 1 and mv[1].kind == "app", #mv)
+check("…and the size is the size of THOSE rows", mb == 100, mb)
+check("🔎 a row HE kept is counted apart from one kept FOR him",
+      ks == 1 and kc == 1, tostring(ks) .. "/" .. tostring(kc))
+check("…and summing them would hide his own decision", ks + kc == 2)
+check("with no keep table at all everything moves",
+      #(M.selectedItems({ { kind = "app" }, { kind = "app" } }, nil)) == 2)
+check("nothing is not a crash", #(M.selectedItems(nil, nil)) == 0)
+
+-- ---- the iterative part: ⏎ on one row ------------------------------
+freshDisk()
+ar.list("Thing")
+local before = #(M.selectedItems(ar.plan.items, ar.plan.keep))
+local tOK, tWhat = ar.toggle(4)          -- the ⚠️ NAME-matched Logs row
+check("⏎ on a kept row selects it", tOK == true and tWhat == "will move", tWhat)
+check("…and one more row would now move",
+      #(M.selectedItems(ar.plan.items, ar.plan.keep)) == before + 1)
+ar.toggle(4)
+check("⏎ again keeps it", #(M.selectedItems(ar.plan.items, ar.plan.keep)) == before)
+check("🔎 and his own changes are counted, so the report can tell them from mine",
+      ar.plan.touched == 2, ar.plan.touched)
+check("a row number that is not there is refused rather than inventing one",
+      select(1, ar.toggle(99)) == false)
+check("…and so is nothing at all", select(1, ar.toggle(nil)) == false)
+
+-- the three bulk doors
+ar.keepAll()
+check("☑ keep everything selects nothing",
+      #(M.selectedItems(ar.plan.items, ar.plan.keep)) == 0)
+local bOK, bWhy = M.goVerdict(ar.plan)
+check("…and the move then refuses, with HIS reason rather than 'nothing found'",
+      bOK == false and bWhy:find("marked KEEP", 1, true) ~= nil, bWhy)
+ar.keepNone()
+check("☐ select everything selects every row",
+      #(M.selectedItems(ar.plan.items, ar.plan.keep)) == ar.plan.count)
+ar.keepDefaults()
+check("↺ back to suggested restores safe-selected, risky-kept",
+      #(M.selectedItems(ar.plan.items, ar.plan.keep)) == before)
+
+-- ---- the analysis, in words ----------------------------------------
+freshDisk()
+ar.list("Thing")
+PRINTED = {}
+local realP = print
+print = function(...) local t = {}
+    for i = 1, select("#", ...) do t[#t+1] = tostring((select(i, ...))) end
+    PRINTED[#PRINTED + 1] = table.concat(t, " ") end
+_G.appRemove("Thing")
+print = realP
+local analysis = table.concat(PRINTED, "\n")
+check("the analysis names every file", (function()
+          for _, it in ipairs(ar.plan.items) do
+              if not analysis:find(it.path, 1, true) then return false end
+          end
+          return true
+      end)())
+check("…and says of each whether it is safe or careful",
+      select(2, analysis:gsub("safe", "")) >= 3
+      and analysis:find("careful", 1, true) ~= nil)
+check("…and whether it is selected or kept",
+      analysis:find("[ MOVE ]", 1, true) ~= nil
+      and analysis:find("[ keep ]", 1, true) ~= nil)
+check("…and that nothing has moved", analysis:find("NOTHING HAS MOVED", 1, true) ~= nil)
+check("🚨 …and it really had not", #RENAMES == 0, #RENAMES)
+
+-- ---- the clamp, joined to the module that owns it -------------------
+-- 🔗 6.231.0 — ONE FUNCTION, TWO CALLERS. clipboard_history has done
+-- this arithmetic since 6.227.0 and this module asks IT at run time;
+-- what follows is the floor for a Mac where that module did not load,
+-- and the two must not drift. Lifted from the real source rather than
+-- retyped, so no copy of the rule lives in this file (6.273.0).
+local cf = io.open(HS .. "/modules/clipboard_history.lua", "r")
+local CSRC = cf and cf:read("*a") or ""
+if cf then cf:close() end
+check("the join below really read clipboard_history", #CSRC > 10000, #CSRC)
+local lifted = CSRC:match("(function clip%.rowAfterRebuild.-\n    end)")
+check("…and found its clamp to compare against", lifted ~= nil)
+if lifted then
+    local env = { tonumber = tonumber, clip = {} }
+    local chunk = load(lifted, "clip.rowAfterRebuild", "t", env)
+    check("…and it loads on its own", chunk ~= nil)
+    if chunk then
+        chunk()
+        local same = true
+        for _, pair in ipairs({ {0,0}, {1,0}, {1,1}, {2,1}, {3,5}, {9,5},
+                                {-4,5}, {nil,5}, {1,-1} }) do
+            local a = M.rowAfterRebuild(pair[1], pair[2])
+            local b = env.clip.rowAfterRebuild(pair[1], pair[2])
+            if a ~= b then same = false end
+        end
+        check("🔗 our floor answers exactly what clipboard_history answers", same)
+    end
+end
+check("an empty list has no row at all", M.rowAfterRebuild(3, 0) == nil)
+check("a row past the end lands on the LAST one, not the top",
+      M.rowAfterRebuild(99, 4) == 4)
+check("…and below the first lands on the first", M.rowAfterRebuild(0, 4) == 1)
+
+-- 🔗 AND THE PICKER ASKS THE OTHER MODULE WHEN IT IS THERE. A service
+-- that answers must be preferred over our own copy, or the join above
+-- proves two functions agree while the shipped path uses neither.
+freshDisk()
+local ASKED = {}
+_G.service = {
+    has  = function(n) return n == "clipboard.rowAfterRebuild" end,
+    call = function(n, want, total) ASKED[#ASKED + 1] = n ; return 2 end,
+}
+ar.list("Thing")
+SHOWN = {}
+ar.show(3)
+check("🔗 the picker ASKS clipboard_history where to land", #ASKED == 1, #ASKED)
+_G.service = nil
+SHOWN = {}
+ar.show(3)
+check("…and a Mac without it still lands somewhere", #SHOWN == 1, #SHOWN)
+
+-- ---- the report ----------------------------------------------------
+freshDisk()
+ar.list("Thing")
+local rep = _G.appRemoveReport()
+check("the report says how many rows are selected",
+      rep:find("selected", 1, true) ~= nil, rep:match("[^\n]*selected[^\n]*"))
+check("…and NAMES the rows that could be damaging rather than counting them",
+      rep:find("Logs/Thing", 1, true) ~= nil)
+check("…and says they are not selected", rep:find("NOT selected", 1, true) ~= nil)
+ar.toggle(4)
+local rep2 = _G.appRemoveReport()
+check("🔎 …and once he changes one, it says the change was HIS",
+      rep2:find("of YOURS", 1, true) ~= nil, rep2:match("[^\n]*YOURS[^\n]*"))
 
 -- =====================================================================
 out("\n=== 8. THE REPORT, AND THE SOURCE PROMISE ===")

@@ -440,6 +440,46 @@ work Mac.
      ("find the field that separates them BEFORE saying either out
      loud") broken in the direction that costs him the most.
 
+- 🗳 A DEFAULT THAT ACTS ON EVERYTHING IS A DEFAULT CHOSEN BEFORE THE
+  TOOL COULD TELL THE ROWS APART (6.388.0, modules/app_remove.lua — LL:
+  "it should say, if it is damaging or not, it should give me the option
+  to leave files, so it should be a very iterative process"). 6.384.0
+  listed every file and then moved ALL of it, and that was the right
+  shape while every row was equally opaque: with nothing to distinguish
+  a cache from a sandboxed app's Documents folder, "all of it" is the
+  only honest answer. The moment the tool can SAY which is which, the
+  same default is a different decision — and it is the wrong one, by
+  6.319.0: a default is chosen against the damage its own feature can
+  do, and the damage here is moving a folder with his files in it.
+  🔑 GENERAL, and it is the half to carry: WHEN A RELEASE ADDS THE
+  ABILITY TO TELL TWO CASES APART, GO BACK AND RE-ASK EVERY DEFAULT THAT
+  WAS SET WHILE THEY LOOKED THE SAME. Those defaults are not wrong
+  decisions; they are decisions whose premise has expired (6.311.0), and
+  they read as settled because nothing about them changed.
+  🔎 AND THE EVIDENCE OUTRANKS THE LABEL, which is what makes the
+  verdict actionable rather than a hedge: "this folder MIGHT hold your
+  files" is a warning he learns to scroll past, and "this folder holds 12
+  files that look like yours" is an artefact he can act on. So the two
+  kinds that can hold his data are WALKED and the number is printed —
+  bounded, and the bound is a STATE so the count reads as a floor
+  (6.197.2 · 6.229.0's yield line, in a verdict).
+  🚨 THE VERDICT IS RECORDED WHERE THE ANSWER IS KNOWN. `leftoverPlan`
+  chooses each path and therefore knows what it IS, so the kind is
+  written there; inferring it later by pattern-matching the path is a
+  guess about something we already knew, and the first unusual folder
+  name makes it a wrong guess. A kind nobody taught it is CAREFUL, never
+  safe (6.276.0 — an unverifiable promise fails closed).
+  🧪 AND TWO EXISTING CHECKS WERE ASSERTING THE OLD CONSTANT (6.248.0,
+  seventh time): "the second press moves them — all four" is false by
+  design now. The sharper half is what happened to the GUARD section —
+  the one that puts /etc/passwd into a plan by hand and requires the move
+  to turn it away. Left on the new defaults it silently measured three
+  rows instead of four, so it now selects EVERY row first, deliberately:
+  coupling the one check that stands between a wrong path and his disk to
+  which rows a risk verdict happens to select is how that check goes
+  quiet the next time a label moves. GENERAL: a check about a GUARD is
+  decoupled from every default the feature has.
+
 - 🏷 A WRITE THAT PINS AN IDENTITY MAY NOT HAPPEN AT THE FIRST MOMENT IT
   COULD (6.387.0, modules/scratch_pad.lua — LL: "(a) every tab is a .md
   IMMEDIATELY", and "Yes" to the first PAUSE rather than the first
@@ -6382,6 +6422,15 @@ THE METHOD, when something breaks after a stacked zip:
    in. Only two share a module (6.374.0 and 6.375.0, both in ⇪I, and
    they fail differently: one hides your apps' files, the other holds a
    type back).
+   · 6.387.0 6c81d4c (the code and the ceremony; 0544a93 the sweep's own
+   four findings — 38 of 38 mutations bit and the no-op control survived,
+   and all four first-sweep survivors were MISSING CHECKS: the SCHEDULED
+   path calling exportAll rather than exportOne, which writes every tab
+   and the whole history into a OneDrive folder every two seconds while
+   staying green; ownedJson trusting a THROW from the pad, undrivable
+   until the vault suite's pad stub grew an `ownedFiles` of its own
+   (6.290.0); the one-list COUNT hard-coded to 0 under a check that
+   asked only for the words; and a needle that matched five places).
    Keep this list current: one line per release, appended at ceremony
    time.
 4. A BISECT IS AN OPTION, NOT THE FIRST MOVE — it costs him an install
@@ -6519,7 +6568,7 @@ that must be READ before a new cause is named.
 | "when I put it in focus mode I have the need to come out of focus mode so that my microphone unmutes" | modules/focus_mode.lua — ⇪Q mutes the input device, on by default | (open) | 0 | 🚨 filed as NOT OURS and it IS ours — see the 🎙 hard rule |
 | "every tab is a .md IMMEDIATELY" · "Yes" to the first pause | modules/scratch_pad.lua · modules/vault.lua — the one list | 6.387.0 | 1 | not a defect — a shape he chose |
 | "Can you make my other windows look like jug player and have (x) at the end of the line/row" | modules/ui_style.lua · §1.5 showPopup — the pickers were the one family the shared style never reached | 6.385.0 | 1 | half of it is impossible on an hs.chooser, and that is now written down |
-| "Build App removal" · "trash do not erase, home folder only" | modules/app_remove.lua — never built in any release | 6.384.0 | 1 | ask |
+| "Build App removal" · "trash do not erase, home folder only" · "it should say, if it is damaging or not" · "give me the option to leave files" | modules/app_remove.lua — never built in any release | 6.384.0 · 6.388.0 | 2 | ask |
 | "I don't have at @ search for Logs" | modules/unified_search.lua · core/notices.lua — 6.279.0 named the gap and never built it | 6.383.0 | 1 | ask |
 | "A picked snippet needs to land on the clipboard" | modules/text_expander.lua — neither route left it there | 6.382.0 | 1 | ask |
 | "Turn off the OneDrive watcher and park the development" | modules/onedrive_check.lua — `enabled` was read nowhere | 6.381.0 | 1 | ask |
@@ -6614,6 +6663,7 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
+| 6.388.0 | 🗳 App removal says of every file whether it is safe, and ⏎ leaves one behind — risky rows start KEPT | pending |
 | 6.387.0 | 📝 Every Hamsidian tab writes itself into the notes folder as a real .md, named from its first line | pending |
 | 6.386.0 | 🚪 The Asana dashboard leaves init.lua — 3,795 lines to 3,313, with ⇪L, ⇪C and ⇪B unchanged | pending |
 | 6.385.0 | 🎨 Every picker wears the Jug Player's dark card — and a picker cannot have a per-row ✕, which is said rather than discovered | pending |
@@ -6809,6 +6859,19 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
         closing a tab leaves its file behind, because nothing in this
         config deletes his writing — so a throwaway tab leaves a note.
         The verify block asks; it is one line either way.
+     2. ✅ **THE ITERATIVE APP-REMOVAL REVIEW IS SHIPPED** — 6.388.0,
+        the half of his item 4 that is about judgement: a verdict per
+        file (safe / careful, with the reason), a COUNT of his own files
+        inside a risky folder, ⏎ on a row to leave it, three bulk rows,
+        and a move that takes only what is selected. Risky rows start
+        KEPT, which reverses 6.384.0 — see the 🗳 hard rule above.
+        📏 STILL OWED, and he asked for it in the same breath: apps run
+        only off a DISK IMAGE and never installed. There is no .app to
+        point the tool at, so the scan inverts — walk the leftover
+        folders, group by bundle id, and name the ids no .app anywhere
+        answers for. Its own safety story too: an orphan may belong to
+        something he is going to reinstall, so "no app found" cannot
+        simply mean safe. Next unless he redirects.
      3. ⌘Space launcher · ⌥Tab listing every panel · MANIFEST.txt +
         _G.installCheck() · the draft keeper · the Mug Player sized to
         the film · anchors' cold start · the crop tool · ⇪7's detail.
@@ -8250,6 +8313,113 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.388.0 verify with LL — 🗳 IT SAYS WHAT IS DAMAGING (KNOWN GROUND)
+  WHAT CHANGED: App Removal now tells you, file by file, whether removing
+  it is safe — and lets you leave any one of them behind.
+  🔎 WHAT 6.384.0 WAS MISSING, because it is the whole release: it showed
+  you the list and then moved ALL of it on the second press. There was no
+  middle. Now every file is a row you can press Return on, the risky ones
+  are NOT selected until you say so, and ⏎ on the top row moves only what
+  is still selected.
+
+  A. THE HEADLINE — use something you do not mind losing.
+  A1. Press **⇪⇧[** — hold Caps Lock and Shift and press the **[** key,
+      just right of P. Pick an app and press **Return**.
+      EXPECT: the picker now lists EVERY file, one row each, and each row
+      starts either **[ MOVE ]** or **[ keep ]** with a ✅ or ⚠️ after it.
+      **A FAIL is the old single confirmation row with nothing under it.**
+  A2. Read the second line of a few rows. EXPECT: the word "safe" or
+      "careful", then WHY in plain words — "a cache — rebuilt
+      automatically, holds nothing of yours", or "a sandboxed app's own
+      Documents live inside this".
+  A3. Look at which rows start **[ keep ]**.
+      EXPECT: the ⚠️ ones. Nothing risky is selected until you ask.
+      That is the reverse of last week and it is the point: the thing
+      this tool can get wrong is moving a folder with your files in it.
+  A4. Read the row at the very top.
+      EXPECT: "✅ Move “<app>” — the N selected row(s), <size> — to the
+      Trash". **N is how many are SELECTED, not how many were found** —
+      if your app has a ⚠️ row, N is smaller than the total, and that is
+      the release working.
+  A5. Press **Return on the top row**. EXPECT: the selected files go to
+      the Trash and the ⚠️ ones are STILL THERE. Check one in Finder.
+
+  B. LEAVING A FILE, AND TAKING IT ANYWAY — the iterative half.
+  B1. Press ⇪⇧[ again, pick an app, Return.
+  B2. Put the highlight on any **[ MOVE ]** row and press **Return**.
+      EXPECT: it flips to **[ keep ]**, the list STAYS OPEN, and the top
+      row's count goes down by one.
+      **A FAIL is the list closing, or the highlight jumping back to the
+      top.** That second one is what would make this unusable, so it is
+      worth watching for specifically.
+  B3. Press Return on it again. EXPECT: back to [ MOVE ], count back up.
+  B4. Near the top there are three rows: "☑ Keep everything",
+      "☐ Select everything" and "↺ Back to what this tool suggests".
+      Try each. EXPECT: the [ MOVE ]/[ keep ] marks all change, and the
+      count at the top follows.
+  B5. With "☑ Keep everything" chosen, read the top row.
+      EXPECT: **"🚫 every row is marked KEEP — nothing is selected to
+      move"** — NOT "there is nothing to move". Those are different
+      facts: one is your decision, the other is an empty folder.
+  B6. "◂ Back to the app list" forgets the listing and moves nothing.
+
+  C. THE ONE WORTH THIRTY SECONDS — the count that is an artefact.
+  C1. Pick a SANDBOXED app you have actually used — something from the
+      App Store, or anything that keeps documents of its own.
+      EXPECT, on its Container or Application Support row: **"HOLDS N
+      FILE(S) THAT LOOK LIKE YOURS"** with a real number.
+      That number is why this release exists. A label saying a folder
+      might hold your files is a warning you learn to ignore; a number
+      saying it holds twelve is something you can act on.
+  C2. If a row ever says the count stopped at 50, that is deliberate —
+      counting is work on the thread that carries your keyboard, so it
+      stops, and the row says so rather than reporting 50 as a total.
+
+  D. MUST STILL WORK — this is the tool that moves files, so this half
+     matters more than A.
+  D1. The first press still MOVES NOTHING. Press ⇪⇧[, pick an app, read
+      the list, press Escape. Check the app is still in /Applications.
+  D2. Nothing is ever erased. Everything that moves goes to the **Trash**
+      and Finder → Trash → **Put Back** undoes it.
+  D3. Try to remove an app that is OPEN. EXPECT: it refuses by name and
+      tells you to quit it first. Nothing moves.
+  D4. A ⚠️ row's reason still says when it was matched by NAME rather
+      than by the app's own id — and such a row is careful even when it
+      is only a cache.
+  D5. 🚨 It must never touch anything outside your home folder or
+      /Applications. If it ever does, stop and tell me at once.
+
+  E. THE CONSOLE, if you prefer reading to clicking.
+  E1. `_G.appRemove("Transmission")` — prints the whole analysis: one
+      line per file, its verdict, the reason, the size, and whether it is
+      selected. Moves nothing.
+  E2. `_G.appRemoveKeep(3)` toggles row 3 · `_G.appRemoveKeepAll()` ·
+      `_G.appRemoveKeepNone()` · `_G.appRemoveSuggested()`.
+  E3. `_G.appRemoveGo()` moves what is selected.
+  E4. `_G.appRemoveReport()` — a new `select :` line says how many of how
+      many are selected, whether any change was YOURS, and NAMES every
+      row it thinks could be damaging. PASTE THAT after a real listing.
+
+  F. ❓ QUESTIONS — answers wanted, nothing to run.
+  F1. **Are the verdicts right for how you work?** I call Application
+      Support "careful" because apps keep real data there, which means it
+      starts kept and you have to opt in on nearly every app. If that is
+      a nuisance and you would rather it were safe-by-default, say so —
+      it is one line, and it is your Mac.
+  F2. **Is "careful" the right word?** The alternatives are "⚠️ your data
+      may be in here" or just "ask me". It is what you will read dozens
+      of times.
+  F3. **Should a ⚠️ row ever be moved without a second look?** Right now
+      ☐ Select everything can take all of them in one press. That is
+      deliberate — it is your call — but say if you would rather it asked
+      again before moving a row that holds files.
+  F4. **The other half of your ask is NOT in this release**, said rather
+      than left for you to notice: apps that run only off a disk image
+      and are never installed. Those leave preferences behind with no app
+      to point this tool at, so the scan has to work backwards — find the
+      leftovers first and ask which have no app anywhere. That is its own
+      release and it is next unless you redirect me.
+
 - 6.387.0 verify with LL — 📝 EVERY TAB IS A REAL NOTE (KNOWN GROUND)
   WHAT CHANGED: every Hamsidian tab now writes itself into your notes
   folder as a real .md file, a couple of seconds after you stop typing.

@@ -4,8 +4,45 @@
 -- =====================================================================
 -- 10-29-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.387.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.388.0
 -- =====================================================================
+
+-- NEW IN 6.388.0 — 🗳 APP REMOVAL SAYS WHAT IS DAMAGING, AND HE CAN
+--   LEAVE A FILE (modules/app_remove.lua). LL: "this tool should be
+--   present me with a list of all files that are going to be removed,
+--   and it should say, if it is damaging or not, it should give me the
+--   option to leave files, so it should be a very iterative process …
+--   the ultimate outcome is a solid analysis of what can be removed. And
+--   then give me an option for what to remove safely." 6.384.0 showed
+--   the list and then moved ALL of it; what was missing is the middle.
+--   🔑 THE VERDICT IS COMPUTED FROM WHAT THE THING IS, never guessed off
+--   its path: every row already carried the RULE that found it and now
+--   carries its KIND, recorded where the path is chosen and the answer
+--   is known. A cache, a plist, a saved window state and the .app are
+--   ✅ safe; a CONTAINER, Application Support and a GROUP container are
+--   ⚠️ careful, because a sandboxed app's own Documents live inside the
+--   first and the third is shared with the vendor's other apps. A kind
+--   nobody taught it is careful, not safe (6.276.0 — fail closed).
+--   🚨 AND SAFE ROWS START SELECTED WHILE CAREFUL ROWS START KEPT. That
+--   direction is the whole safety of the release and it reverses
+--   6.384.0 on evidence rather than taste: 6.319.0's rule is that a
+--   default is chosen against the damage its own feature can do, and the
+--   damage here is a folder with his documents in it. ⏎ on a row toggles
+--   it, the list stays open, and three bulk rows do all · none · what
+--   this tool suggests.
+--   🔎 THE EVIDENCE OUTRANKS THE LABEL: the two kinds that can hold his
+--   files are WALKED, bounded, and a folder holding twelve of them says
+--   the number rather than warning in the abstract (6.229.0's yield
+--   line, in a verdict) — and the bound is a STATE, so a count taken
+--   under it reads as a floor (6.197.2). A NAME match is never safe
+--   whatever its kind, and that reason is printed BEFORE the kind's.
+--   📐 The toggle rebuilds the picker, and hs.chooser drops the selection
+--   on every :choices() (6.227.0) — so the row is put back by asking
+--   clipboard_history's own clamp, with a floor here for a Mac where it
+--   did not load and a gate check that JOINS the two (6.231.0).
+--   🔎 ar.go() moves only what is selected, and counts a row HE kept
+--   apart from one kept FOR him: summing them would read his decision as
+--   the tool's (6.196.1).
 
 -- NEW IN 6.387.0 — 📝 EVERY HAMSIDIAN TAB IS A REAL .md FILE
 --   (modules/scratch_pad.lua + modules/vault.lua). LL, asked which of
@@ -36,32 +73,15 @@
 --   store's: a readable store over an unwritten note is the half that
 --   loses the words. settings = { scratch_pad = { autoWrite = false } }.
 
--- NEW IN 6.386.0 — 🚪 THE ASANA DASHBOARD LEAVES THIS FILE
---   (modules/asana_dashboard.lua, was §6). LL: "Yes, and make this move
---   safe-proof and non-destructive for the Asana dashboard both on my
---   home and work mac." 529 lines out; ⇪L, ⇪C and ⇪B unchanged. The
---   reason is arithmetic rather than taste: the gate fails this file at
---   3,800 lines and it stood at 3,795, so 6.385.0 had to drop a release
---   note to fit and the ceiling had stopped being a budget. 3,313 now.
---   📏 THE NOTE THAT SAID IT WAS SAFE WAS A READING, AND IT HAD AGED
---   (6.324.0). It said ONE global crosses the boundary; FIVE do, and six
---   checks in tests/test_select_mode were pinned to this file's source —
---   the move would have turned every one red with the feature perfectly
---   fine. 6.268.0: grep every READER, and a suite is a reader.
---   🪜 AND THE ORDERING FACT THAT DECIDED ITS SHAPE: all three combos are
---   in §0.4's migration map, so hs.hotkey.bind does not register them —
---   it appends to _G.hyperMigrations, which §7's hyperFinalize DRAINS
---   ONCE, after the loader. setup() is the last moment such a bind can
---   be made; in warm() all three keys would be silently dead. The suite
---   models that drain and drives both sides of it.
---   🔑 THE BIND STAYS hs.hotkey.bind, NOT core.hyperAddShortcut: a
---   migrated combo never enters the cheat-sheet auditors, which is what
---   lets core/cheatsheet.lua keep the ✅ ASANA card without printing
---   ⇪B/⇪C/⇪L on two cards (6.90.1's complaint).
---   🔎 _G.asanaDashboardReport() — it had none, which is why "did the
---   move work?" could only have been answered by reading the source.
-
 --   ALSO IN THIS ARCHIVE (full entries in CHANGELOG.md):
+--   🚪 6.386.0 the ASANA DASHBOARD leaves this file (§6 →
+--   modules/asana_dashboard.lua), 529 lines out, ⇪L ⇪C ⇪B unchanged:
+--   the gate fails this file at 3,800 and it stood at 3,795, so the
+--   ceiling had stopped being a budget. A MOVE'S READERS ARE NOT ONLY ITS
+--   CALLERS — seven checks were pinned to this file's source text and
+--   would have gone red with the feature fine (6.268.0). And the binds
+--   stay in setup(), because §0.4 migrates all three combos and
+--   hyperFinalize drains that list ONCE, after the loader.
 --   🎨 6.385.0 the PICKERS wear the Jug Player's card. ui_style's header
 --   has listed canvases and webviews since 6.90.0 and never hs.chooser,
 --   so thirty-three pickers — most of what he looks at — were the one
@@ -83,11 +103,11 @@
 --   that as a RULE; the home-folder guard is a COMPONENT test, checked
 --   immediately before each rename rather than when the list was built.
 
--- (6.385.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.386.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 cut the inline count to
 --  TWO; a gate check proves every entry here is also in CHANGELOG.md.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.387.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.388.0
 -- =====================================================================
 -- The catalogue that used to sit here moved to GUIDE.md ("What each
 -- tool does") in 6.180.0 — 259 lines of prose inside the orchestrator.
@@ -180,7 +200,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.387.0"
+_G.configVersion = "6.388.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- A NO-OP STAND-IN for the diagnostics API, replaced by the real one in

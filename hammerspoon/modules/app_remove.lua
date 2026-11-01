@@ -58,18 +58,29 @@ local M = {
         title = "🗑 APP REMOVAL (⇪⇧[ — to the Trash, never erased)",
         entries = {
             { "⇪⇧[",    "Pick an app — ⇧ plus the [ key, right of P" },
-            { "⏎",      "SHOWS what would move: the app and every leftover," },
-            { "",       "each with its size and the rule that found it." },
-            { "",       "Nothing moves on this press." },
-            { "⏎ again","Moves all of it to the Trash. You empty the Trash." },
-            { "⚠️ rows", "Matched by NAME, not by bundle id — a guess. Read" },
-            { "",       "those before the second press." },
+            { "⏎",      "SHOWS every file it would move, one row each, with" },
+            { "",       "its size and whether removing it is safe. Nothing" },
+            { "",       "moves on this press, or on any press but the last." },
+            { "verdict","✅ safe — a cache, its settings, the app itself." },
+            { "",       "⚠️ careful — it may hold YOUR OWN files, or it was" },
+            { "",       "matched by name rather than by the app\'s id." },
+            { "",       "A row that holds files of yours SAYS HOW MANY." },
+            { "start",  "✅ rows start selected · ⚠️ rows start KEPT, so" },
+            { "",       "nothing risky moves unless you ask for it" },
+            { "⏎ a row","Toggles that one between [ MOVE ] and [ keep ]." },
+            { "",       "The list stays open — change as many as you like." },
+            { "bulk",   "Rows at the top: keep everything · keep nothing ·" },
+            { "",       "back to what this tool suggests" },
+            { "✅ Move","The row at the top of the list does it, for the" },
+            { "",       "selected rows only. Everything kept stays put." },
             { "where",  "Leftovers: your home folder only. The app itself:" },
             { "",       "/Applications or ~/Applications. Nowhere else." },
             { "running","It refuses to remove an app that is open — quit it" },
             { "",       "first (⇪⇧X ends a process)" },
             { "undo",   "Finder → Trash → Put Back, like any other file" },
-            { "console","_G.appRemove(\"Name\") lists · _G.appRemoveGo() does it" },
+            { "console","_G.appRemove(\"Name\") lists · _G.appRemoveKeep(3)" },
+            { "",       "toggles row 3 · _G.appRemoveGo() moves the rest" },
+            { "",       "_G.appRemoveKeepAll() · ...KeepNone() · ...Suggested()" },
             { "check",  "_G.appRemoveReport() — what it last listed or moved" },
         },
     },
@@ -133,9 +144,15 @@ end
 -- no Mac and a wrong rule is visible in a test rather than on his disk.
 function M.leftoverPlan(home, bundleId, appName)
     local out = {}
-    local function add(path, why, sure)
+    -- 🗳 6.388.0 — EVERY ROW CARRIES WHAT KIND OF THING IT IS, and the
+    -- kind is what M.riskOf reads to say whether removing it is safe. It
+    -- is recorded here, where the path is chosen and the answer is known,
+    -- rather than inferred from the path later: a verdict worked out by
+    -- pattern-matching a string is a guess about a thing we already knew.
+    local function add(path, why, sure, kind)
         if type(path) == "string" and path ~= "" then
-            out[#out + 1] = { path = path, why = why, sure = sure and true or false }
+            out[#out + 1] = { path = path, why = why, sure = sure and true or false,
+                              kind = kind }
         end
     end
     home = tostring(home or ""):gsub("/+$", "")
@@ -144,26 +161,26 @@ function M.leftoverPlan(home, bundleId, appName)
     if type(bundleId) == "string" and bundleId ~= "" then
         -- 🪪 BY BUNDLE ID — what macOS itself files these under, so each
         -- of these is an answer rather than a guess.
-        add(L .. "/Preferences/" .. bundleId .. ".plist",        "bundle id", true)
-        add(L .. "/Caches/" .. bundleId,                          "bundle id", true)
-        add(L .. "/Containers/" .. bundleId,                      "bundle id", true)
-        add(L .. "/Application Support/" .. bundleId,             "bundle id", true)
-        add(L .. "/HTTPStorages/" .. bundleId,                    "bundle id", true)
-        add(L .. "/HTTPStorages/" .. bundleId .. ".binarycookies","bundle id", true)
-        add(L .. "/WebKit/" .. bundleId,                          "bundle id", true)
-        add(L .. "/Cookies/" .. bundleId .. ".binarycookies",     "bundle id", true)
+        add(L .. "/Preferences/" .. bundleId .. ".plist",        "bundle id", true, "prefs")
+        add(L .. "/Caches/" .. bundleId,                          "bundle id", true, "caches")
+        add(L .. "/Containers/" .. bundleId,                      "bundle id", true, "containers")
+        add(L .. "/Application Support/" .. bundleId,             "bundle id", true, "appsupport")
+        add(L .. "/HTTPStorages/" .. bundleId,                    "bundle id", true, "httpstorages")
+        add(L .. "/HTTPStorages/" .. bundleId .. ".binarycookies","bundle id", true, "httpstorages")
+        add(L .. "/WebKit/" .. bundleId,                          "bundle id", true, "webkit")
+        add(L .. "/Cookies/" .. bundleId .. ".binarycookies",     "bundle id", true, "cookies")
         add(L .. "/Saved Application State/" .. bundleId .. ".savedState",
-                                                                  "bundle id", true)
-        add(L .. "/LaunchAgents/" .. bundleId .. ".plist",        "bundle id", true)
-        add(L .. "/Group Containers/" .. bundleId,                "bundle id", true)
+                                                                  "bundle id", true, "savedstate")
+        add(L .. "/LaunchAgents/" .. bundleId .. ".plist",        "bundle id", true, "launchagents")
+        add(L .. "/Group Containers/" .. bundleId,                "bundle id", true, "groupcontainers")
     end
     if type(appName) == "string" and appName ~= "" then
         -- ⚠️ BY NAME — a guess, and marked as one. Most apps really do
         -- call their support folder after themselves, and some other
         -- app's folder is called the same thing.
-        add(L .. "/Application Support/" .. appName,              "the app's NAME", false)
-        add(L .. "/Logs/" .. appName,                             "the app's NAME", false)
-        add(L .. "/Caches/" .. appName,                           "the app's NAME", false)
+        add(L .. "/Application Support/" .. appName,              "the app's NAME", false, "appsupport")
+        add(L .. "/Logs/" .. appName,                             "the app's NAME", false, "logs")
+        add(L .. "/Caches/" .. appName,                           "the app's NAME", false, "caches")
     end
     -- 🔑 DE-DUPLICATE BY PATH, FIRST WINS — and that is only correct
     -- because the BUNDLE-ID rows above are added before the NAME rows,
@@ -206,7 +223,169 @@ function M.goVerdict(plan)
     if (tonumber(plan.count) or 0) == 0 then
         return false, "there is nothing to move"
     end
+    -- 🗳 6.388.0 — AND "you have kept every row" IS A DIFFERENT ANSWER
+    -- from "there is nothing to move". One is his decision and one is an
+    -- empty folder; a shared sentence would read as a fault (6.196.1).
+    local moving = M.selectedItems(plan.items, plan.keep)
+    if #moving == 0 then
+        return false, "every row is marked KEEP — nothing is selected to move"
+    end
     return true, "ready"
+end
+
+-- =====================================================================
+-- 🗳 6.388.0 — IS IT DAMAGING? AND MAY I LEAVE THAT ONE?
+-- =====================================================================
+-- LL: "this tool should be present me with a list of all files that are
+-- going to be removed, and it should say, if it is damaging or not, it
+-- should give me the option to leave files, so it should be a very
+-- iterative process … the ultimate outcome is a solid analysis of what
+-- can be removed. And then give me an option for what to remove safely."
+--
+-- 6.384.0 showed the list and then moved ALL of it. What was missing is
+-- the middle: a verdict per file, and a way to say no to one row without
+-- saying no to the removal.
+--
+-- 🔑 AND THE VERDICT IS COMPUTED FROM WHAT THE THING IS, never guessed.
+-- Every row already carries the RULE that found it; this adds what KIND
+-- of thing it is, and the kind is what decides the risk. A cache is
+-- rebuilt the next time the app runs. A preferences plist is settings he
+-- is removing on purpose. A CONTAINER is where a sandboxed app keeps its
+-- own Documents — that is the one row in this list that can take his
+-- files with it, and it is the reason the question needed answering.
+local RISK = {
+    -- kind                 verdict    why, in his words
+    app              = { "safe",    "the app itself — re-downloadable" },
+    prefs            = { "safe",    "its settings — losing them is the point of removing it" },
+    caches           = { "safe",    "a cache — rebuilt automatically, holds nothing of yours" },
+    logs             = { "safe",    "its own log files" },
+    savedstate       = { "safe",    "which windows were open last time" },
+    webkit           = { "safe",    "web data it cached" },
+    httpstorages     = { "safe",    "cookies and web storage" },
+    cookies          = { "safe",    "cookies" },
+    launchagents     = { "safe",    "what starts it automatically — removing it stops that" },
+    appsupport       = { "careful", "APPS KEEP YOUR OWN DATA HERE as well as settings" },
+    containers       = { "careful", "a sandboxed app's own Documents live inside this" },
+    groupcontainers  = { "careful", "SHARED with the vendor's other apps — removing it can "
+                                 .. "break one you still have" },
+}
+
+-- 🗳 PURE — the verdict and the reason for one row. Two things can make a
+-- row risky and they are different risks, so both are said:
+--   · WHAT it is (a container may hold his documents);
+--   · HOW it was found (a NAME match may be another app's folder).
+-- A row that is risky on both counts gets both sentences, because "this
+-- might be your data" and "this might not even be this app's" send him
+-- to two different places (6.196.1).
+function M.riskOf(entry)
+    if type(entry) ~= "table" then return "careful", "nothing is known about this row" end
+    local r = RISK[tostring(entry.kind or "")]
+    local verdict, why = "careful", "this tool does not know what kind of file this is"
+    if r then verdict, why = r[1], r[2] end
+    -- ⚠️ A GUESS IS NEVER SAFE, whatever it is a guess ABOUT. The bundle
+    -- id is what macOS files a leftover under; a name match is this
+    -- config's own inference and can land on another app's folder.
+    if entry.sure == false then
+        verdict = "careful"
+        why = "matched by its NAME, not by the bundle id — this folder may belong to "
+              .. "another app · " .. why
+    end
+    -- 🚨 AND THE EVIDENCE OUTRANKS THE LABEL. A container is "careful"
+    -- because it MIGHT hold his files; one that demonstrably holds twelve
+    -- of them is not a maybe, and saying the number is the difference
+    -- between a warning and an artefact (6.229.0's yield line, in a
+    -- verdict).
+    local own = tonumber(entry.ownFiles) or 0
+    if own > 0 then
+        verdict = "careful"
+        why = "HOLDS " .. own .. " FILE(S) THAT LOOK LIKE YOURS — " .. why
+    end
+    return verdict, why
+end
+
+-- 🗳 PURE — which rows start out selected for removal. SAFE rows do;
+-- CAREFUL rows do NOT, and he opts in.
+--
+-- 🔑 THAT DIRECTION IS THE WHOLE SAFETY OF THE RELEASE, and it is
+-- 6.319.0's rule: a default is chosen against the damage its own feature
+-- can do. The damage here is moving a folder with his documents in it;
+-- the cost of defaulting it off is that he presses ⏎ on one row. 6.384.0
+-- moved everything, which is the other choice, and it is the wrong one
+-- now that the tool can tell the two apart.
+function M.defaultKeep(items)
+    local keep = {}
+    if type(items) ~= "table" then return keep end
+    for i, it in ipairs(items) do
+        local verdict = M.riskOf(it)
+        if verdict ~= "safe" then keep[i] = true end
+    end
+    return keep
+end
+
+-- 🗳 PURE — the rows that would actually move, and what they weigh.
+-- Counted apart: what he left alone, and what was left alone FOR him.
+-- A number that summed the two would make his decision read as the
+-- tool's (6.378.0 — a first reading is not a change).
+function M.selectedItems(items, keep)
+    local out, bytes, keptSafe, keptCareful = {}, 0, 0, 0
+    if type(items) ~= "table" then return out, 0, 0, 0 end
+    keep = type(keep) == "table" and keep or {}
+    for i, it in ipairs(items) do
+        if keep[i] then
+            if M.riskOf(it) == "safe" then keptSafe = keptSafe + 1
+            else keptCareful = keptCareful + 1 end
+        else
+            out[#out + 1] = it
+            bytes = bytes + (tonumber(it.size) or 0)
+        end
+    end
+    return out, bytes, keptSafe, keptCareful
+end
+
+-- 🔎 PURE given a lister — HOW MANY OF HIS OWN FILES ARE IN THERE. A
+-- sandboxed app keeps its documents at <container>/Data/Documents, and an
+-- unsandboxed one sometimes at <folder>/Documents. A label saying a
+-- folder MIGHT hold his files is a warning; a number saying it holds
+-- twelve is an artefact, and he can act on the second.
+--
+-- 📏 BOUNDED, and the bound is a STATE rather than a footnote (6.197.2):
+-- counting is a directory read on the main thread (6.228.0), so it stops
+-- at `cap` and the caller is told it stopped. A count taken under a bound
+-- is a FLOOR, and the row says "N or more".
+function M.ownDataIn(path, lister, cap)
+    cap = tonumber(cap) or 50
+    if type(path) ~= "string" or path == "" then return 0, false end
+    if type(lister) ~= "function" then return 0, false end
+    local n, capped = 0, false
+    for _, sub in ipairs({ "/Data/Documents", "/Documents", "/Data/Desktop" }) do
+        local ok, entries = pcall(lister, path .. sub)
+        if ok and type(entries) == "table" then
+            for _, e in ipairs(entries) do
+                if e ~= "." and e ~= ".." then
+                    n = n + 1
+                    if n >= cap then capped = true break end
+                end
+            end
+        end
+        if capped then break end
+    end
+    return n, capped
+end
+
+-- 📏 PURE — which row a picker lands on after its own list was rebuilt.
+-- hs.chooser DROPS the selection on every :choices() (6.227.0), and this
+-- list is rebuilt on EVERY toggle — so without this the highlight goes
+-- back to the top each time and "a very iterative process" is a list he
+-- cannot walk. Asked of clipboard_history's own copy when that module is
+-- up (one function, two callers — 6.231.0); this is the floor for a Mac
+-- where it did not load, and the gate JOINS the two so they cannot drift.
+function M.rowAfterRebuild(want, total)
+    total = tonumber(total) or 0
+    if total <= 0 then return nil end
+    want = tonumber(want) or 0
+    if want < 1 then return 1 end
+    if want > total then return total end
+    return want
 end
 
 function M.setup(core)
@@ -217,6 +396,7 @@ function M.setup(core)
     ar.mods      = { "shift" }
     ar.key       = "["
     ar.maxRows   = 60          -- leftovers listed; a bound, and a state
+    ar.ownCap    = 50          -- files counted inside a risky folder before the count is a FLOOR
     ar.plan      = nil         -- what the last listing found
     ar.moved     = { runs = 0, items = 0, bytes = 0, last = nil, fails = 0, why = nil }
 
@@ -293,26 +473,92 @@ function M.setup(core)
         end
         local bundleId = bundleOf(app)
         local items = { { path = app, why = "the app itself", sure = true,
-                          size = sizeOf(app) } }
+                          size = sizeOf(app), kind = "app" } }
         local capped = false
         for _, e in ipairs(M.leftoverPlan(home, bundleId, name)) do
             if #items >= ar.maxRows then capped = true break end
             local a = stat(e.path)
             if a then
                 items[#items + 1] = { path = e.path, why = e.why, sure = e.sure,
-                                      size = sizeOf(e.path) }
+                                      kind = e.kind, size = sizeOf(e.path) }
             end
+        end
+        -- 🔎 6.388.0 — ASK THE RISKY ROWS WHAT THEY ARE HOLDING. Only the
+        -- two kinds that can hold his own files are walked, so the cost
+        -- is two directory reads for a typical app rather than one per
+        -- row (6.228.0 — a busy main thread is a mouse this Mac has
+        -- lost), and the answer turns a label into a number.
+        local function listDir(d)
+            local out = {}
+            local ok = pcall(function()
+                for e in hs.fs.dir(d) do out[#out + 1] = e end
+            end)
+            if not ok then return nil end
+            return out
+        end
+        for _, it in ipairs(items) do
+            if it.kind == "containers" or it.kind == "appsupport" then
+                local n, cappedOwn = M.ownDataIn(it.path, listDir, ar.ownCap)
+                it.ownFiles, it.ownCapped = n, cappedOwn
+            end
+            it.verdict, it.risk = M.riskOf(it)
         end
         local bytes = 0
         for _, it in ipairs(items) do bytes = bytes + (tonumber(it.size) or 0) end
         ar.plan = { name = name, app = app, bundleId = bundleId,
                     items = items, count = #items, bytes = bytes,
                     capped = capped, running = isRunning(name, bundleId),
-                    at = os.time(), guesses = 0 }
+                    at = os.time(), guesses = 0, careful = 0,
+                    -- 🗳 6.388.0 — SAFE rows start selected, CAREFUL rows
+                    -- start KEPT, and he opts in. 6.319.0: a default is
+                    -- chosen against the damage its own feature can do,
+                    -- and the damage here is a folder with his documents
+                    -- in it. 6.384.0 moved everything; that was the other
+                    -- choice, and it was the wrong one once the tool
+                    -- could tell the two apart.
+                    keep = M.defaultKeep(items),
+                    touched = 0 }
         for _, it in ipairs(items) do
             if not it.sure then ar.plan.guesses = ar.plan.guesses + 1 end
+            if it.verdict ~= "safe" then ar.plan.careful = ar.plan.careful + 1 end
         end
         return ar.plan
+    end
+
+    -- 🔁 6.388.0 — THE ITERATIVE HALF, and it is one line of state. His
+    -- words: "it should give me the option to leave files, so it should
+    -- be a very iterative process". A row is kept or not; ⏎ flips it;
+    -- the list is drawn again. `touched` counts HIS decisions apart from
+    -- the tool's defaults, so a report can say which is which.
+    function ar.toggle(i)
+        if not ar.plan then return false, "nothing is listed" end
+        i = tonumber(i)
+        local it = i and ar.plan.items[i]
+        if not it then return false, "there is no row " .. tostring(i) end
+        ar.plan.keep[i] = (not ar.plan.keep[i]) or nil
+        ar.plan.touched = ar.plan.touched + 1
+        return true, ar.plan.keep[i] and "kept" or "will move"
+    end
+
+    -- 🗳 Keep every row, or keep only the risky ones — the two bulk
+    -- answers, so a long list does not need sixty presses.
+    function ar.keepAll()
+        if not ar.plan then return false, "nothing is listed" end
+        for i in ipairs(ar.plan.items) do ar.plan.keep[i] = true end
+        ar.plan.touched = ar.plan.touched + 1
+        return true
+    end
+    function ar.keepNone()
+        if not ar.plan then return false, "nothing is listed" end
+        ar.plan.keep = {}
+        ar.plan.touched = ar.plan.touched + 1
+        return true
+    end
+    function ar.keepDefaults()
+        if not ar.plan then return false, "nothing is listed" end
+        ar.plan.keep = M.defaultKeep(ar.plan.items)
+        ar.plan.touched = ar.plan.touched + 1
+        return true
     end
 
     -- 🗑 AND THIS IS THE ONLY THING THAT MOVES ANYTHING.
@@ -329,7 +575,12 @@ function M.setup(core)
             return false, "there is no ~/.Trash to move anything into"
         end
         local taken, done, failed, bytes = {}, {}, {}, 0
-        for _, it in ipairs(plan.items) do
+        -- 🗳 6.388.0 — ONLY WHAT IS SELECTED. The rows he kept are not
+        -- failures and are not skipped silently: they are counted and
+        -- named in the answer, because "I left that one" and "it would
+        -- not move" are opposite facts (6.196.1).
+        local moving, _, keptSafe, keptCareful = M.selectedItems(plan.items, plan.keep)
+        for _, it in ipairs(moving) do
             -- 🔒 THE GUARD RUNS HERE, immediately before the move, over
             -- the path that is ACTUALLY about to be renamed — not when
             -- the list was built. A check on a list is not a check on
@@ -355,8 +606,11 @@ function M.setup(core)
         ar.moved.items = ar.moved.items + #done
         ar.moved.bytes = ar.moved.bytes + bytes
         ar.moved.fails = ar.moved.fails + #failed
+        ar.moved.kept  = (ar.moved.kept or 0) + keptSafe + keptCareful
         ar.moved.last  = { name = plan.name, moved = #done, failed = #failed,
-                           bytes = bytes, at = os.time() }
+                           bytes = bytes, at = os.time(),
+                           keptSafe = keptSafe, keptCareful = keptCareful,
+                           touched = plan.touched }
         if #failed > 0 then
             ar.moved.why = tostring(failed[1].why)
             core.degrade("App removal",
@@ -367,49 +621,101 @@ function M.setup(core)
         -- are already in the Trash, and a stale plan is how a later
         -- press acts on a listing he has forgotten making
         ar.plan = nil
-        return true, { moved = #done, failed = #failed, bytes = bytes }
+        -- 🔎 THE ANSWER CARRIES WHAT WAS LEFT, counted apart: a row HE
+        -- kept and a row kept FOR him are different facts, and a caller
+        -- that only hears "moved 3" cannot tell either from "3 is all
+        -- there was" (6.196.1).
+        return true, { moved = #done, failed = #failed, bytes = bytes,
+                       keptSafe = keptSafe, keptCareful = keptCareful }
     end
 
-    -- ---- the picker ---------------------------------------------------
+    -- ---- the analysis, in words ---------------------------------------
+    -- 🔎 "the ultimate outcome is a solid analysis of what can be
+    -- removed" — his words, so the Console carries the whole thing: one
+    -- line per file, its verdict, WHY, its size, and whether it is
+    -- selected. The picker is where he acts; this is where he reads.
+    local MARK = { safe = "✅", careful = "⚠️" }
     local function describe(plan)
         local L = {}
-        L[#L + 1] = "🗑 " .. plan.name .. " — " .. plan.count .. " item(s), "
-                    .. M.prettySize(plan.bytes) .. " → the Trash"
+        local moving, movBytes, keptSafe, keptCareful =
+            M.selectedItems(plan.items, plan.keep)
+        L[#L + 1] = "🗑 " .. plan.name .. " — " .. plan.count .. " item(s) found, "
+                    .. #moving .. " selected (" .. M.prettySize(movBytes) .. ")"
         L[#L + 1] = plan.bundleId and ("   bundle : " .. plan.bundleId)
                     or "   bundle : ⚠️ this Mac would not say — every row below is a NAME guess"
-        for _, it in ipairs(plan.items) do
-            L[#L + 1] = "   " .. (it.sure and "·" or "⚠️") .. " " .. it.path
-                        .. "   (" .. it.why .. ", " .. M.prettySize(it.size) .. ")"
+        L[#L + 1] = "   NOTHING HAS MOVED. ⏎ on a row keeps it or selects it again."
+        for i, it in ipairs(plan.items) do
+            local keep = plan.keep[i] and true or false
+            L[#L + 1] = "   " .. (keep and "[ keep ]" or "[ MOVE ]") .. " "
+                        .. (MARK[it.verdict] or "⚠️") .. " " .. it.path
+            L[#L + 1] = "            " .. tostring(it.verdict) .. " — " .. tostring(it.risk)
+                        .. " · " .. M.prettySize(it.size)
+                        .. (it.ownCapped and " · the count stopped at " .. ar.ownCap
+                                           .. ", so it is a FLOOR" or "")
         end
         if plan.capped then
             L[#L + 1] = "   ⚠️ STOPPED AT " .. ar.maxRows .. " ROWS — there may be more"
         end
         if plan.running then
             L[#L + 1] = "   ⚠️ " .. plan.name .. " IS OPEN — quit it first; nothing will move"
-        elseif plan.guesses > 0 then
-            L[#L + 1] = "   ⚠️ " .. plan.guesses .. " row(s) matched by NAME, not by bundle"
-                        .. " id — read those before you say yes"
         end
-        L[#L + 1] = "   Nothing has moved. Press ⇪⇧[ again and pick “✅ Move it all to"
-                    .. " the Trash” — or _G.appRemoveGo()"
+        if keptSafe + keptCareful > 0 then
+            L[#L + 1] = "   kept   : " .. keptCareful .. " risky row(s) and " .. keptSafe
+                        .. " safe row(s) are NOT selected"
+        end
+        if plan.careful > 0 then
+            L[#L + 1] = "   ⚠️ " .. plan.careful .. " row(s) need reading before you say yes."
+                        .. " They are NOT selected by default."
+        end
+        L[#L + 1] = "   ⏎ on “✅ Move the selected…” does it · _G.appRemoveGo()"
         return table.concat(L, "\n")
     end
 
-    function ar.show()
-        -- a plan already in hand → offer the confirmation first
+    -- 🔁 6.388.0 — THE REVIEW IS THE PICKER. With a plan in hand every
+    -- file is a row he can press ⏎ on, so "leave that one" is one
+    -- keystroke rather than a settings line. Without one it is the app
+    -- list, exactly as before.
+    local function reviewRows()
+        local plan = ar.plan
         local rows = {}
-        if ar.plan then
-            local can, why = M.goVerdict(ar.plan)
+        local moving, movBytes = M.selectedItems(plan.items, plan.keep)
+        local can, why = M.goVerdict(plan)
+        rows[#rows + 1] = {
+            text    = can and ("✅ Move “" .. tostring(plan.name) .. "” — the "
+                               .. #moving .. " selected row(s), "
+                               .. M.prettySize(movBytes) .. " — to the Trash")
+                        or ("🚫 " .. tostring(why)),
+            subText = can and ("Nothing is erased. Finder → Trash → Put Back undoes it."
+                               .. (plan.careful > 0 and ("  ⚠️ " .. plan.careful
+                                   .. " risky row(s) found — read them first") or ""))
+                        or "⏎ a row below to select it, or go back",
+            go      = can and true or false,
+        }
+        rows[#rows + 1] = { text = "◂ Back to the app list",
+                            subText = "Forget this listing — nothing moves", back = true }
+        rows[#rows + 1] = { text = "☑ Keep everything (select nothing)",
+                            subText = "Then pick the rows you DO want moved", bulk = "all" }
+        rows[#rows + 1] = { text = "☐ Select everything (keep nothing)",
+                            subText = "⚠️ including the rows that may hold your own files",
+                            bulk = "none" }
+        rows[#rows + 1] = { text = "↺ Back to what this tool suggests",
+                            subText = "Safe rows selected, risky rows kept", bulk = "default" }
+        for i, it in ipairs(plan.items) do
+            local keep = plan.keep[i] and true or false
             rows[#rows + 1] = {
-                text    = can and ("✅ Move “" .. ar.plan.name .. "” to the Trash — "
-                                   .. ar.plan.count .. " item(s), "
-                                   .. M.prettySize(ar.plan.bytes))
-                            or ("🚫 " .. tostring(why)),
-                subText = can and "Nothing is erased. Finder → Trash → Put Back undoes it."
-                            or "Pick another app below",
-                go      = can and true or false,
+                text    = (keep and "[ keep ] " or "[ MOVE ] ")
+                          .. (MARK[it.verdict] or "⚠️") .. " " .. it.path,
+                subText = tostring(it.verdict) .. " — " .. tostring(it.risk)
+                          .. " · " .. M.prettySize(it.size)
+                          .. "   ·   ⏎ " .. (keep and "selects it" or "keeps it"),
+                toggle  = i,
             }
         end
+        return rows
+    end
+
+    local function appRows()
+        local rows = {}
         local apps, seen = {}, {}
         for _, root in ipairs(ar.appRoots) do
             pcall(function()
@@ -426,6 +732,26 @@ function M.setup(core)
             rows[#rows + 1] = { text = n, subText = "⏎ shows what would move — nothing moves yet",
                                 app = n }
         end
+        return rows
+    end
+
+    -- 📏 hs.chooser DROPS the selection on every :choices() (6.227.0),
+    -- and this list is rebuilt on EVERY toggle — so without putting the
+    -- row back he is bounced to the top each time and "a very iterative
+    -- process" is a list he cannot walk. clipboard_history has done this
+    -- arithmetic since 6.227.0; ask IT when it is loaded (one function,
+    -- two callers — 6.231.0) and fall back to our own copy, which the
+    -- gate joins to it so the two cannot drift.
+    local function rowAfter(want, total)
+        if _G.service and _G.service.has and _G.service.has("clipboard.rowAfterRebuild") then
+            local r = _G.service.call("clipboard.rowAfterRebuild", want, total)
+            if r ~= nil then return r end
+        end
+        return M.rowAfterRebuild(want, total)
+    end
+
+    function ar.show(wantRow)
+        local rows = ar.plan and reviewRows() or appRows()
         if #rows == 0 then
             core.degrade("App removal", "no applications could be listed")
             return false, "no applications could be listed"
@@ -438,6 +764,25 @@ function M.setup(core)
         local ch = hs.chooser.new(function(row)
             _G.choosers.appRemove = nil
             if not row then return end
+            -- 🔁 the iterative rows: each one re-opens the review with
+            -- the highlight where he left it.
+            if row.toggle then
+                local ok, what = ar.toggle(row.toggle)
+                if ok then ar.show(row.toggle + 5) end
+                return
+            end
+            if row.bulk then
+                if row.bulk == "all"  then ar.keepAll()
+                elseif row.bulk == "none" then ar.keepNone()
+                else ar.keepDefaults() end
+                ar.show(1)
+                return
+            end
+            if row.back then
+                ar.plan = nil
+                ar.show()
+                return
+            end
             if row.go then
                 local okG, res = ar.go()
                 if okG then
@@ -456,16 +801,30 @@ function M.setup(core)
                     return
                 end
                 print(describe(plan))
-                hs.alert.show("🗑 " .. plan.name .. " — " .. plan.count .. " item(s), "
-                              .. M.prettySize(plan.bytes)
-                              .. "\nNOTHING HAS MOVED. The Console lists every one."
-                              .. "\n⇪⇧[ again to confirm.", 7)
+                local moving = M.selectedItems(plan.items, plan.keep)
+                hs.alert.show("🗑 " .. plan.name .. " — " .. plan.count .. " item(s) found, "
+                              .. #moving .. " selected"
+                              .. (plan.careful > 0 and ("\n⚠️ " .. plan.careful
+                                  .. " need reading — they are NOT selected") or "")
+                              .. "\nNOTHING HAS MOVED. Read the list, press ⏎ on a row"
+                              .. " to keep or select it.", 7)
+                -- 🔁 straight into the review, so the list he was just
+                -- told to read is the thing in front of him
+                ar.show(1)
             end
         end)
         if not ch then return false, "macOS would not open the picker" end
         ch:choices(rows)
-        ch:placeholderText("Remove an app — to the Trash, never erased")
+        ch:placeholderText(ar.plan
+            and ("Review " .. ar.plan.name .. " — ⏎ a row to keep or select it")
+            or "Remove an app — to the Trash, never erased")
         _G.choosers.appRemove = ch
+        -- put the highlight back where he was (6.227.0)
+        if wantRow then
+            local r = rowAfter(wantRow, #rows)
+            ar.lastRow = r
+            if r then pcall(function() ch:selectedRow(r) end) end
+        end
         -- 🧊 AND THE ANSWER IS READ. A refused show leaves a picker that
         -- is not on screen while this module thinks one is open
         -- (6.265.0 · 6.326.0 — a published handle is a claim about the
@@ -488,11 +847,28 @@ function M.setup(core)
         print(describe(plan))
         return plan
     end
+    -- 🔁 the same decisions from the Console, for a long list
+    _G.appRemoveKeep = function(i)
+        local ok, why = ar.toggle(i)
+        print("🗑 " .. (ok and ("row " .. tostring(i) .. " — " .. tostring(why))
+                        or tostring(why)))
+        if ok then print(describe(ar.plan)) end
+        return ok, why
+    end
+    _G.appRemoveKeepAll   = function() local ok = ar.keepAll()
+        if ok then print(describe(ar.plan)) end return ok end
+    _G.appRemoveKeepNone  = function() local ok = ar.keepNone()
+        if ok then print(describe(ar.plan)) end return ok end
+    _G.appRemoveSuggested = function() local ok = ar.keepDefaults()
+        if ok then print(describe(ar.plan)) end return ok end
+
     _G.appRemoveGo = function()
         local ok, res = ar.go()
         if not ok then print("🗑 " .. tostring(res)) ; return false, res end
         print("🗑 Moved " .. res.moved .. " item(s), " .. M.prettySize(res.bytes)
               .. " to the Trash" .. (res.failed > 0 and (" · ⚠️ " .. res.failed .. " refused") or "")
+              .. ((res.kept or 0) > 0 and ("\n   " .. res.kept .. " row(s) were KEPT — they are "
+                  .. "still where they were") or "")
               .. "\n   Nothing was erased — Finder → Trash → Put Back undoes it.")
         return true, res
     end
@@ -511,6 +887,32 @@ function M.setup(core)
             L[#L + 1] = "   ↳ " .. (ar.plan.bundleId or "⚠️ no bundle id — every row is a guess")
             if ar.plan.guesses > 0 then
                 L[#L + 1] = "   ↳ ⚠️ " .. ar.plan.guesses .. " row(s) matched by NAME"
+            end
+            -- 🗳 6.388.0 — THE SELECTION, AND WHOSE IT IS. "he kept that
+            -- row" and "this tool never offered it" are different facts
+            -- and a single number would read as the tool's decision
+            -- (6.378.0 — a first reading is not a change).
+            local moving, movBytes, keptSafe, keptCareful =
+                M.selectedItems(ar.plan.items, ar.plan.keep)
+            L[#L + 1] = "   select : " .. #moving .. " of " .. ar.plan.count
+                        .. " selected to move (" .. M.prettySize(movBytes) .. ") · "
+                        .. keptCareful .. " risky and " .. keptSafe .. " safe row(s) kept"
+            L[#L + 1] = "   ↳ " .. (ar.plan.touched > 0
+                        and (ar.plan.touched .. " change(s) of YOURS — the rest is what this "
+                             .. "tool suggested")
+                        or "untouched — this is what this tool suggests, not what you chose")
+            if ar.plan.careful > 0 then
+                L[#L + 1] = "   ⚠️ " .. ar.plan.careful .. " row(s) could be damaging and are "
+                            .. "NOT selected by default:"
+                for _, it in ipairs(ar.plan.items) do
+                    if it.verdict ~= "safe" then
+                        L[#L + 1] = "        " .. it.path
+                        L[#L + 1] = "          ↳ " .. tostring(it.risk)
+                    end
+                end
+            else
+                L[#L + 1] = "   ✅ every row is SAFE — a cache, a plist or the app itself; "
+                            .. "nothing here holds your own files"
             end
         end
         if ar.moved.runs == 0 then
