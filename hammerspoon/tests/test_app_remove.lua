@@ -234,6 +234,8 @@ os.rename = function(a, b)
 end
 
 local DEGRADED, COPYREFUSE = {}, false
+local TASKS, BELTS = {}, {}
+local TASKREFUSE, TASKNIL, TIMERNIL = false, false, false
 local SHOWN, POPUPREFUSE = {}, false
 local core = {
     homeDir = HOME,
@@ -261,9 +263,14 @@ local core = {
 _G.choosers = {}
 _G.hs = {
     fs = {
+        -- 🔬 macOS ANSWERS A MODIFICATION TIME, and 6.389.0's verdict
+        -- reads it: a stub without one makes every orphan row say "nothing
+        -- could be read about when it was last used" and the age branches
+        -- are unreachable from the gate (6.290.0).
         attributes = function(p) local e = FS[p]
             if not e then return nil end
-            return { mode = e.dir and "directory" or "file", size = e.size or 0 } end,
+            return { mode = e.dir and "directory" or "file", size = e.size or 0,
+                     modification = e.mtime } end,
         dir = function(p)
             local names = {}
             for k in pairs(FS) do
@@ -291,6 +298,28 @@ _G.hs = {
         end,
     },
     alert = { show = function() end },
+    -- 🔬 hs.task:start() REFUSES BY RETURNING FALSE and never throws
+    -- (6.304.0, read in libtask.m), so the stub can say no; and the
+    -- callback is held rather than fired, so a test decides WHEN the
+    -- search answers and the belt can win the race.
+    task = { new = function(bin, cb, args)
+        TASKS[#TASKS + 1] = { bin = bin, cb = cb, args = args }
+        local t = TASKS[#TASKS]
+        function t:start()
+            if TASKREFUSE then return false end
+            self.started = true ; return true
+        end
+        function t:terminate() self.killed = true ; return true end
+        if TASKNIL then TASKS[#TASKS] = nil ; return nil end
+        return t
+    end },
+    timer = { doAfter = function(secs, fn)
+        if TIMERNIL then return nil end
+        BELTS[#BELTS + 1] = { secs = secs, fn = fn }
+        local b = BELTS[#BELTS]
+        function b:stop() self.stopped = true ; return self end
+        return b
+    end },
     chooser = { new = function(cb)
         local c = { cb = cb }
         function c:choices(x) self.rows_ = x ; return c end
@@ -858,6 +887,349 @@ check("🔎 …and once he changes one, it says the change was HIS",
       rep2:find("of YOURS", 1, true) ~= nil, rep2:match("[^\n]*YOURS[^\n]*"))
 
 -- =====================================================================
+-- =====================================================================
+out("\n=== 10. 6.389.0 — LEFTOVERS FROM AN APP THAT WAS NEVER INSTALLED ===")
+-- =====================================================================
+-- LL, in the same breath as the review: "this is both for applications
+-- that are installed in the applications folder, and applications that
+-- are run anywhere else that I install, and also applications that run
+-- only off of a disk image that are never installed." That third
+-- population has no .app, so the scan goes the other way.
+
+-- ---- what looks like a bundle id ------------------------------------
+local function idOK(n) return (M.looksLikeBundleId(n)) end
+check("a reverse-DNS name looks like a bundle id", idOK("com.vendor.Thing") == true)
+check("…two components are enough", idOK("io.thing") == true)
+check("a single word is not one", idOK("Backblaze") == false)
+check("a name with a space is not one", idOK("Google Chrome") == false)
+check("a hidden file is not one", idOK(".DS_Store") == false)
+check("a path is not one", idOK("com.x/../../etc") == false)
+check("nothing is not one", idOK(nil) == false and idOK("") == false)
+check("a dot with nothing either side is not one", idOK(".x") == false)
+
+-- 🚨 APPLE'S OWN ARE REFUSED, and this one is load-bearing rather than
+-- tidy: ~/Library/Preferences is mostly com.apple.* — the Dock, the
+-- Finder, the keyboard — and offering those is how a removal tool
+-- deletes the way his Mac works.
+check("🚨 com.apple.dock is REFUSED", idOK("com.apple.dock") == false)
+check("🚨 …whatever its case", idOK("COM.APPLE.Dock") == false)
+local _, aWhy2 = M.looksLikeBundleId("com.apple.finder")
+check("…and it says WHY, in words he can read",
+      aWhy2:find("your Mac is set up", 1, true) ~= nil, aWhy2)
+check("🚨 this config's own settings are refused too",
+      idOK("org.hammerspoon.Hammerspoon") == false)
+-- but a vendor that merely CONTAINS the word is not Apple
+check("…and a vendor called something-apple is NOT refused",
+      idOK("com.appleseed.Thing") == true)
+
+-- ---- the verdict, and the state of the search ------------------------
+-- 🚨 "NO APP FOUND" IS NOT "SAFE TO REMOVE". These three fixtures are
+-- the whole safety of this half.
+local v1, w1 = M.orphanVerdict({ days = 200 }, "everywhere")
+check("🚨 an orphan is CAREFUL even when the whole disk was searched",
+      v1 == "careful", v1)
+check("…and says the whole disk was asked",
+      w1:find("anywhere on this Mac", 1, true) ~= nil, w1)
+local v2, w2 = M.orphanVerdict({ days = 200 }, "folders")
+check("🚨 …and a NARROW search says so in capitals, in the row's own reason",
+      v2 == "careful" and w2:find("THAT IS ALL THAT WAS ASKED", 1, true) ~= nil, w2)
+check("…because an app he keeps elsewhere looks exactly like this",
+      w2:find("anywhere else looks like this too", 1, true) ~= nil, w2)
+local v3, w3 = M.orphanVerdict({ days = 200 }, nil)
+check("🚨 a search that did not happen is an UNANSWERED QUESTION, not an orphan",
+      v3 == "careful" and w3:find("unanswered question", 1, true) ~= nil, w3)
+check("…and it does not claim nothing answers for the id",
+      w3:find("no application", 1, true) == nil, w3)
+
+-- 🕰 THE AGE IS THE EVIDENCE. "Nothing answers for it" is true of an app
+-- he removed last year and of one on a disk he unplugged this morning.
+local _, wNew = M.orphanVerdict({ days = 2 }, "everywhere")
+check("🕰 something touched in the last week SHOUTS",
+      wNew:find("IN THE LAST WEEK", 1, true) ~= nil, wNew)
+check("…and names the disk-image case, which is the one he asked about",
+      wNew:find("disk image", 1, true) ~= nil, wNew)
+local _, wMid = M.orphanVerdict({ days = 30 }, "everywhere")
+check("🕰 a month is said in days", wMid:find("30 days ago", 1, true) ~= nil, wMid)
+local _, wOld = M.orphanVerdict({ days = 400 }, "everywhere")
+check("🕰 a year is said in months", wOld:find("13 month", 1, true) ~= nil, wOld)
+local _, wNone = M.orphanVerdict({}, "everywhere")
+check("🕰 and an age that could not be read says so rather than reading as old",
+      wNone:find("could be read about when", 1, true) ~= nil, wNone)
+
+-- ---- the rows -------------------------------------------------------
+local FOUND = {
+    ["com.a.one"]   = { paths = { "/p/1" }, size = 300, days = 100 },
+    ["com.b.two"]   = { paths = { "/p/2" }, size = 900, days = 100 },
+    ["com.c.three"] = { paths = { "/p/3" }, size = 100, days = 100 },
+}
+local rows = M.orphanRows(FOUND, { ["com.c.three"] = true }, "everywhere")
+check("an id that IS installed never appears", #rows == 2, #rows)
+check("…and it is the installed one that is gone", (function()
+          for _, r in ipairs(rows) do if r.id == "com.c.three" then return false end end
+          return true
+      end)())
+check("the biggest is first, because that is what he is deciding about",
+      rows[1].id == "com.b.two", rows[1] and rows[1].id)
+check("…and every row carries its verdict and reason",
+      rows[1].verdict == "careful" and type(rows[1].risk) == "string")
+check("a case-different installed id still counts as installed",
+      #(M.orphanRows({ ["Com.A.One"] = { size = 1 } },
+                     { ["com.a.one"] = true }, "everywhere")) == 0)
+local capRows, capped = M.orphanRows(FOUND, {}, "everywhere", 2)
+check("📏 the list is bounded", #capRows == 2, #capRows)
+check("📏 …and SAYS it stopped, so it reads as the top and not the whole", capped == true)
+check("…keeping the BIGGEST, which is what a bound is for here",
+      capRows[1].id == "com.b.two" and capRows[2].id == "com.a.one")
+check("nothing found is not a crash", #(M.orphanRows(nil, nil, "everywhere")) == 0)
+
+-- ---- reading Spotlight's answer --------------------------------------
+local MD = table.concat({
+  "/Applications/Thing.app    kMDItemCFBundleIdentifier = com.vendor.Thing",
+  "/Users/lee/Downloads/Other.app\tkMDItemCFBundleIdentifier = com.other.Other",
+  "/Volumes/DiskImage/Live.app    kMDItemCFBundleIdentifier = com.live.Live",
+  "/Applications/Broken.app    kMDItemCFBundleIdentifier = (null)",
+  "a line with no attribute at all",
+}, "\n")
+local ids, nIds = M.idsInMdfind(MD)
+check("it reads an id per line", nIds == 3, nIds)
+check("…including one in Downloads — 'anywhere else that I install'",
+      ids["com.other.Other"] == true)
+check("…and one on a mounted disk image, which is the case he named",
+      ids["com.live.Live"] == true)
+check("🚨 an app Spotlight indexed with NO id is skipped, not guessed at",
+      ids["(null)"] == nil)
+check("…and a line that is not an answer is skipped", nIds == 3)
+check("nothing is not a crash", select(2, M.idsInMdfind(nil)) == 0)
+-- 🚨 A PATH CAN HOLD ANYTHING, including the separator itself, so the id
+-- is taken from the LAST occurrence (6.187.0 — a splitter a value can
+-- defeat is not a splitter).
+local tricky = M.idsInMdfind(
+    "/Users/lee/kMDItemCFBundleIdentifier = evil/App.app    "
+    .. "kMDItemCFBundleIdentifier = com.real.Real")
+check("🚨 a path containing the separator does not fool it",
+      tricky["com.real.Real"] == true and tricky["evil/App.app"] == nil)
+
+-- ---- the scan, end to end -------------------------------------------
+local function orphanDisk()
+    FS = {
+        ["/Applications"] = { dir = true },
+        ["/Applications/Thing.app"] = { dir = true, size = 100, bundle = "com.vendor.Thing" },
+        [HOME] = { dir = true },
+        [HOME .. "/.Trash"] = { dir = true },
+        -- an app he still has: its leftovers must NOT be offered
+        [HOME .. "/Library/Preferences/com.vendor.Thing.plist"] = { size = 10, mtime = os.time() },
+        -- an app that is gone: two folders, one id
+        [HOME .. "/Library/Preferences/com.gone.Gone.plist"] = { size = 20,
+                                                 mtime = os.time() - 200 * 86400 },
+        [HOME .. "/Library/Containers/com.gone.Gone"] = { dir = true, size = 4000,
+                                                 mtime = os.time() - 200 * 86400 },
+        -- Apple's own, which must never be offered
+        [HOME .. "/Library/Preferences/com.apple.dock.plist"] = { size = 5, mtime = os.time() },
+        -- and something that is not an id at all
+        [HOME .. "/Library/Preferences/ByHost"] = { dir = true, size = 1 },
+        __running = {},
+    }
+    RENAMES, REFUSE, DEGRADED = {}, {}, {}
+    TASKS, BELTS = {}, {}
+    TASKREFUSE, TASKNIL, TIMERNIL = false, false, false
+    ar.plan, ar.orphan = nil, nil
+    ar.orphanBusy, ar.orphanTask, ar.orphanBelt, ar.orphanIds = false, nil, nil, nil
+    ar.moved = { runs = 0, items = 0, bytes = 0, last = nil, fails = 0, why = nil }
+end
+
+orphanDisk()
+local started = ar.orphans()
+check("the scan starts", started == true, tostring(started))
+check("…by asking macOS, off the main thread", #TASKS == 1, #TASKS)
+check("…with mdfind and the attribute it needs", (function()
+          local t = TASKS[1]
+          if not t then return false end
+          return t.bin == "/usr/bin/mdfind"
+                 and table.concat(t.args or {}, " "):find("kMDItemCFBundleIdentifier", 1, true)
+      end)())
+check("🛟 …and a belt armed BEFORE the ask, in its own slot",
+      #BELTS == 1 and ar.orphanBelt ~= nil, #BELTS)
+check("🚨 and NOTHING has been scanned or moved yet",
+      ar.orphan == nil and #RENAMES == 0)
+
+-- Spotlight answers
+TASKS[1].cb(0, "/Applications/Thing.app  kMDItemCFBundleIdentifier = com.vendor.Thing")
+local o = ar.orphan
+check("the scan finishes when macOS answers", o ~= nil)
+check("…and knows it asked the whole disk", o and o.searched == "everywhere", o and o.searched)
+check("the app he STILL HAS is not offered", (function()
+          for _, r in ipairs(o.rows) do
+              if r.id == "com.vendor.Thing" then return false end
+          end
+          return true
+      end)())
+check("🚨 Apple's own is not offered", (function()
+          for _, r in ipairs(o.rows) do if r.id:find("apple") then return false end end
+          return true
+      end)())
+check("…and it was COUNTED as refused rather than silently dropped",
+      o.refused >= 2, o.refused)
+check("the app that is GONE is offered, once, with both its folders", (function()
+          for _, r in ipairs(o.rows) do
+              if r.id == "com.gone.Gone" then return #r.paths == 2 end
+          end
+          return false
+      end)())
+check("🚨 NOTHING IS SELECTED — nothing starts selected in this half",
+      (function()
+          for i in ipairs(o.rows) do if not o.keep[i] then return false end end
+          return #o.rows > 0
+      end)())
+local gOK3, gWhy3 = ar.orphanGo()
+check("🚨 …so a press moves nothing, and says why that is not a fault",
+      gOK3 == false and gWhy3:find("not", 1, true) ~= nil, tostring(gWhy3))
+check("…and really moved nothing", #RENAMES == 0, #RENAMES)
+check("🛟 the belt was stopped when the answer landed",
+      ar.orphanBelt == nil and BELTS[1].stopped == true)
+
+-- ⏎ selects, and then it moves BOTH folders of that one id
+local which
+for i, r in ipairs(o.rows) do if r.id == "com.gone.Gone" then which = i end end
+check("the gone app has a row", which ~= nil)
+ar.orphanToggle(which)
+local gOK4, res4 = ar.orphanGo()
+check("⏎ then the top row moves it", gOK4 == true and res4.moved == 2,
+      gOK4 and res4.moved or tostring(res4))
+check("…both of its folders", FS[HOME .. "/Library/Preferences/com.gone.Gone.plist"] == nil
+      and FS[HOME .. "/Library/Containers/com.gone.Gone"] == nil)
+check("…into the Trash, not erased", (function()
+          for _, r in ipairs(RENAMES) do
+              if r.to:sub(1, #(HOME .. "/.Trash/")) ~= HOME .. "/.Trash/" then return false end
+          end
+          return #RENAMES == 2
+      end)(), #RENAMES)
+check("🚨 and the app he still has was NOT touched",
+      FS[HOME .. "/Library/Preferences/com.vendor.Thing.plist"] ~= nil)
+check("🚨 …nor Apple's", FS[HOME .. "/Library/Preferences/com.apple.dock.plist"] ~= nil)
+check("the scan is SPENT, like a plan", ar.orphan == nil)
+check("…and a second press says so rather than acting on a stale list",
+      select(1, ar.orphanGo()) == false)
+
+-- 🚨 THE NARROW SEARCH, which is the state that must never read like the
+-- wide one. Every one of these is a Mac where Spotlight says nothing.
+orphanDisk()
+TASKREFUSE = true
+ar.orphans()
+check("🚨 macOS refusing to RUN the search still produces an answer",
+      ar.orphan ~= nil)
+check("…marked as the NARROW search", ar.orphan and ar.orphan.searched == "folders")
+check("…and every row's own reason says so", (function()
+          for _, r in ipairs(ar.orphan.rows) do
+              if not tostring(r.risk):find("THAT IS ALL THAT WAS ASKED", 1, true) then
+                  return false
+              end
+          end
+          return #ar.orphan.rows > 0
+      end)())
+check("…and it says WHY it was narrow", ar.orphan
+      and tostring(ar.orphan.why):find("refused", 1, true) ~= nil, ar.orphan and ar.orphan.why)
+
+orphanDisk()
+TASKNIL = true
+ar.orphans()
+check("🚨 a Mac that cannot CREATE the search still answers, narrowly",
+      ar.orphan ~= nil and ar.orphan.searched == "folders")
+
+orphanDisk()
+ar.orphans()
+TASKS[1].cb(1, "")
+check("🚨 mdfind answering non-zero is the narrow search, not a crash",
+      ar.orphan ~= nil and ar.orphan.searched == "folders")
+check("…and it quotes the code", ar.orphan
+      and tostring(ar.orphan.why):find("1", 1, true) ~= nil, ar.orphan and ar.orphan.why)
+
+-- 🛟 THE BELT: a search that never answers must not leave the tool busy
+-- for the session (6.304.0's wedge, in a new place).
+orphanDisk()
+ar.orphans()
+check("the tool is busy while it waits", ar.orphanBusy == true)
+BELTS[1].fn()
+check("🛟 the belt finishes it", ar.orphan ~= nil and ar.orphanBusy == false)
+check("…narrowly, and saying the search did not answer", ar.orphan
+      and tostring(ar.orphan.why):find("did not answer", 1, true) ~= nil,
+      ar.orphan and ar.orphan.why)
+check("🚨 …and the task it gave up on was KILLED", TASKS[1].killed == true)
+-- and a late answer after the belt must not reopen a finished scan
+local rowsBefore = #ar.orphan.rows
+TASKS[1].cb(0, "/x.app  kMDItemCFBundleIdentifier = com.gone.Gone")
+check("🚨 an answer arriving after the belt is DROPPED", #ar.orphan.rows == rowsBefore)
+
+orphanDisk()
+TIMERNIL = true
+ar.orphans()
+check("a Mac with no timer still asks", #TASKS == 1)
+TASKS[1].cb(0, "")
+check("…and still answers", ar.orphan ~= nil)
+
+-- two scans at once
+orphanDisk()
+ar.orphans()
+check("a second scan while one is running is refused rather than stacking",
+      select(1, ar.orphans()) == false)
+
+-- ---- the picker's third face ----------------------------------------
+orphanDisk()
+SHOWN, POPUPREFUSE = {}, false
+ar.show()
+local chA = SHOWN[1] or { rows_ = {} }
+check("the app list offers the scan", (function()
+          for _, r in ipairs(chA.rows_ or {}) do if r.scan then return true end end
+          return false
+      end)())
+check("…and says nothing moves", (function()
+          for _, r in ipairs(chA.rows_ or {}) do
+              if r.scan then return tostring(r.subText):find("nothing moves", 1, true) ~= nil end
+          end
+          return false
+      end)())
+check("…and names the disk-image case he asked about", (function()
+          for _, r in ipairs(chA.rows_ or {}) do
+              if r.scan then return tostring(r.subText):find("disk image", 1, true) ~= nil end
+          end
+          return false
+      end)())
+
+ar.orphans()
+TASKS[1].cb(0, "")
+SHOWN = {}
+ar.show()
+local chB = SHOWN[1] or { rows_ = {} }
+check("with a scan in hand the picker shows the orphan rows", (function()
+          local n = 0
+          for _, r in ipairs(chB.rows_ or {}) do if r.otoggle then n = n + 1 end end
+          return n == #ar.orphan.rows and n > 0
+      end)())
+check("…the top row refuses while nothing is selected",
+      chB.rows_[1] and chB.rows_[1].orphanGo == false, chB.rows_[1] and chB.rows_[1].text)
+check("…and a way back that moves nothing", (function()
+          for _, r in ipairs(chB.rows_ or {}) do if r.back then return true end end
+          return false
+      end)())
+
+-- ---- the report, and its four states --------------------------------
+orphanDisk()
+local r1 = _G.appRemoveReport()
+check("with no scan the report says NOT SCANNED, not 'none found'",
+      r1:find("not scanned", 1, true) ~= nil, r1:match("[^\n]*orphans[^\n]*"))
+ar.orphans()
+TASKS[1].cb(0, "")
+local r2 = _G.appRemoveReport()
+check("after a wide scan it says the whole Mac was asked",
+      r2:find("asked every app", 1, true) ~= nil, r2:match("[^\n]*asked[^\n]*"))
+orphanDisk()
+TASKREFUSE = true
+ar.orphans()
+local r3 = _G.appRemoveReport()
+check("🚨 after a NARROW scan it says so, in capitals",
+      r3:find("ONLY your two app folders", 1, true) ~= nil, r3:match("[^\n]*ONLY[^\n]*"))
+check("…and warns that an app kept elsewhere looks like an orphan",
+      r3:find("looks like an orphan", 1, true) ~= nil)
+
 out("\n=== 8. THE REPORT, AND THE SOURCE PROMISE ===")
 -- =====================================================================
 freshDisk()

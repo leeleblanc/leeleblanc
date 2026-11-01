@@ -440,6 +440,48 @@ work Mac.
      ("find the field that separates them BEFORE saying either out
      loud") broken in the direction that costs him the most.
 
+- 🔄 A POPULATION WITH NOTHING TO START FROM NEEDS THE SCAN RUN
+  BACKWARDS, AND THAT IS A DIFFERENT RELEASE (6.389.0,
+  modules/app_remove.lua — LL, in one sentence: "this is both for
+  applications that are installed in the applications folder, and
+  applications that are run anywhere else that I install, and also
+  applications that run only off of a disk image that are never
+  installed"). The first two are the same tool with a wider search. The
+  third has NO .app — nothing to point the tool at and no name to look
+  leftovers up by — so it cannot be a widening of anything: the walk
+  has to go the other way, reading the bundle ids that are THERE and
+  asking which no application answers for.
+  🔑 GENERAL: when one ask names several populations, check whether they
+  share a STARTING POINT before scoping it as one release. A population
+  the existing scan cannot even begin on is not an edge case of it.
+  🚨 AND THE INVERTED SCAN KNOWS LESS, WHICH HAS TO REACH THE ROW. "No
+  app answers for this id" is ALSO true of an app on an unplugged disk,
+  an app Spotlight has not indexed, a plug-in that was never an app, and
+  something he is about to reinstall. So nothing here is called safe,
+  nothing starts selected, and the state of the SEARCH rides into every
+  row's own reason — an orphan with respect to two folders is a weaker
+  claim than an orphan with respect to the disk, and the two reading
+  alike is 6.196.1 in the place where being wrong costs him a working
+  app's settings. The report carries four states for the same reason.
+  🕰 AND THE EVIDENCE THAT DECIDES IT IS A CLOCK, not a better rule: no
+  rule here can tell an app removed last year from one on a disk he
+  unplugged this morning, and the folder's own modification time can.
+  Under a week SHOUTS and names the disk-image case. 6.312.0's lesson in
+  a new place — when a story fits every field, find the field that
+  carries a clock.
+  🚨 A LIST READ BACKWARDS WILL CONTAIN THE SYSTEM, and refusing it is
+  load-bearing rather than tidy: ~/Library/Preferences is mostly
+  com.apple.* — the Dock's settings, the Finder's, the keyboard's — so a
+  scan that reads ids out of that folder and offers what it finds is a
+  removal tool that deletes the way his Mac works. Refused by name, with
+  this config's own beside it, and COUNTED rather than silently dropped.
+  📏 AND APPLICATION SUPPORT IS LEFT OUT OF THE INVERTED WALK ON PURPOSE,
+  though the forward scan reads it: it is named after the APP rather than
+  its id, so reading ids out of it turns every folder with a dot in its
+  name into an orphan. The same folder is evidence in one direction and
+  noise in the other, which is worth knowing before adding a folder to
+  either list.
+
 - 🗳 A DEFAULT THAT ACTS ON EVERYTHING IS A DEFAULT CHOSEN BEFORE THE
   TOOL COULD TELL THE ROWS APART (6.388.0, modules/app_remove.lua — LL:
   "it should say, if it is damaging or not, it should give me the option
@@ -6586,7 +6628,7 @@ that must be READ before a new cause is named.
 | "when I put it in focus mode I have the need to come out of focus mode so that my microphone unmutes" | modules/focus_mode.lua — ⇪Q mutes the input device, on by default | (open) | 0 | 🚨 filed as NOT OURS and it IS ours — see the 🎙 hard rule |
 | "every tab is a .md IMMEDIATELY" · "Yes" to the first pause | modules/scratch_pad.lua · modules/vault.lua — the one list | 6.387.0 | 1 | not a defect — a shape he chose |
 | "Can you make my other windows look like jug player and have (x) at the end of the line/row" | modules/ui_style.lua · §1.5 showPopup — the pickers were the one family the shared style never reached | 6.385.0 | 1 | half of it is impossible on an hs.chooser, and that is now written down |
-| "Build App removal" · "trash do not erase, home folder only" · "it should say, if it is damaging or not" · "give me the option to leave files" | modules/app_remove.lua — never built in any release | 6.384.0 · 6.388.0 | 2 | ask |
+| "Build App removal" · "trash do not erase, home folder only" · "it should say, if it is damaging or not" · "give me the option to leave files" · "applications that run only off of a disk image that are never installed" | modules/app_remove.lua — never built in any release | 6.384.0 · 6.388.0 · 6.389.0 | 3 | ask |
 | "I don't have at @ search for Logs" | modules/unified_search.lua · core/notices.lua — 6.279.0 named the gap and never built it | 6.383.0 | 1 | ask |
 | "A picked snippet needs to land on the clipboard" | modules/text_expander.lua — neither route left it there | 6.382.0 | 1 | ask |
 | "Turn off the OneDrive watcher and park the development" | modules/onedrive_check.lua — `enabled` was read nowhere | 6.381.0 | 1 | ask |
@@ -6681,6 +6723,7 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
+| 6.389.0 | 🔎 Leftovers from an app that was never installed — the ids no app answers for, nothing selected | pending |
 | 6.388.0 | 🗳 App removal says of every file whether it is safe, and ⏎ leaves one behind — risky rows start KEPT | pending |
 | 6.387.0 | 📝 Every Hamsidian tab writes itself into the notes folder as a real .md, named from its first line | pending |
 | 6.386.0 | 🚪 The Asana dashboard leaves init.lua — 3,795 lines to 3,313, with ⇪L, ⇪C and ⇪B unchanged | pending |
@@ -6877,7 +6920,16 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
         closing a tab leaves its file behind, because nothing in this
         config deletes his writing — so a throwaway tab leaves a note.
         The verify block asks; it is one line either way.
-     2. ✅ **THE ITERATIVE APP-REMOVAL REVIEW IS SHIPPED** — 6.388.0,
+     2. ✅ **BOTH HALVES OF HIS ITEM 4 ARE SHIPPED** — 6.388.0 the
+        iterative review, 6.389.0 the never-installed half (the ids no
+        app answers for, read backwards out of six Library folders;
+        nothing is called safe and nothing starts selected, because "no
+        app answers for it" is not "safe to remove" — see the 🔄 hard
+        rule above). 📏 WHAT THEY ASK HIM: whether the verdicts match how
+        he works, how long the orphan list is on his Mac, and whether
+        `mdfind -attr` answers there at all — that last one is NEW GROUND
+        and his report decides whether the wide search is usable.
+     2b. ✅ **THE ITERATIVE APP-REMOVAL REVIEW IS SHIPPED** — 6.388.0,
         the half of his item 4 that is about judgement: a verdict per
         file (safe / careful, with the reason), a COUNT of his own files
         inside a risky folder, ⏎ on a row to leave it, three bulk rows,
@@ -8331,6 +8383,116 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.389.0 verify with LL — 🔎 LEFTOVERS WITH NO APP (NEW GROUND)
+  WHAT CHANGED: App Removal can now work BACKWARDS — find the settings
+  left behind by apps you no longer have, including ones you only ever
+  ran straight off a disk image and never installed.
+  🔑 WHY IT IS A SEPARATE RELEASE and not just a wider search: everything
+  before this starts at an app and works out what it left behind. An app
+  you ran off a disk image has no app left to point at. So the scan goes
+  the other way round — it reads the bundle ids that are sitting in your
+  Library folders and asks which of them no application anywhere answers
+  for.
+  🚨 AND NOTHING HERE IS CALLED SAFE, deliberately. "No app answers for
+  this id" is also true of an app on a disk you have unplugged, an app
+  Spotlight has not indexed, a plug-in that was never an app, and
+  something you are about to reinstall. So every row is ⚠️ and NOTHING is
+  selected until you say so.
+
+  A. THE HEADLINE — about two minutes.
+  A1. Press **⇪⇧[** — hold Caps Lock and Shift and press the **[** key,
+      just right of P.
+      EXPECT: at the TOP of the app list, a new row reading
+      **"🔎 Leftovers with no app"**.
+  A2. Press **Return** on it.
+      EXPECT: "🔎 Looking for settings left by apps you no longer have…",
+      then a list of bundle ids — things like `com.vendor.SomeApp` — each
+      with a size, and each starting **[ keep ]**.
+      **A FAIL is nothing happening at all.**
+  A3. Read the second line of a few rows.
+      EXPECT: the reason, and the AGE — "last touched 14 months ago", or,
+      if something touched it recently, a line in capitals saying so and
+      mentioning a disk image. That age is the thing worth reading: it is
+      what separates an app you got rid of last year from one sitting on
+      a disk you unplugged this morning.
+  A4. Look at the top row.
+      EXPECT: **"🚫 Nothing is selected — ⏎ a row below to select it"**.
+      That is not a failure. Nothing starts selected here on purpose.
+  A5. Open the Console and read the whole analysis — it is printed there,
+      one row per id, with every folder listed underneath it.
+      **PASTE THAT.** It is the artefact this release exists to produce,
+      and I have never seen what your Mac's Library folders hold.
+
+  B. 🚨 THE LINE I MOST WANT YOU TO CHECK — read this one before B2.
+  B1. In that Console output, find the line beginning **"asked :"**.
+      Two possible answers and they mean very different things:
+      · "asked : every application on this Mac (N answered)" — the search
+        worked, and a row really is an orphan as far as this Mac knows.
+      · "⚠️ ONLY /Applications and ~/Applications" — the whole-disk search
+        did not answer, so **an app you keep anywhere else looks like an
+        orphan here**. Every row then says so in its own reason too.
+      PASTE WHICHEVER YOU GET. The second one is not a bug — it is the
+      tool refusing to overstate what it asked — but it changes what the
+      list is worth, and I cannot know from here which your Mac does.
+  B2. Scan the list for anything you RECOGNISE and still use. There
+      should be nothing — an app you have installed is never listed.
+      **If something you use every day is in that list, stop and tell
+      me.** That is the one failure that matters here.
+  B3. 🚨 Check there is nothing beginning **com.apple.** anywhere in the
+      list. Those are your Dock, your Finder, your keyboard settings, and
+      they are refused by name. The analysis says how many names it
+      turned away.
+
+  C. SELECTING ONE, AND TAKING IT.
+  C1. Put the highlight on a row you are sure about — something you
+      genuinely removed long ago — and press **Return**.
+      EXPECT: it flips to **[ MOVE ]**, the list stays open, and the top
+      row now reads "✅ Move the 1 selected id(s) to the Trash".
+  C2. Press Return on that top row.
+      EXPECT: its folders go to the Trash — one row can be several
+      folders, and they all go together.
+  C3. Open the Trash. EXPECT them there, stamped with the date and time.
+      **Nothing is erased.** Finder → Trash → Put Back undoes it.
+  C4. "◂ Back to the app list" forgets the scan and moves nothing.
+
+  D. MUST STILL WORK — this release lifted the code that does the moving
+     so both halves share it, so the ordinary removal is what to check.
+  D1. ⇪⇧[, pick an app, Return. EXPECT the per-file review from 6.388.0,
+      unchanged: ✅ and ⚠️ rows, safe ones selected, risky ones kept.
+  D2. ⏎ on a row still toggles it; the three bulk rows still work.
+  D3. ⏎ on the top row still moves only the selected rows.
+  D4. 🚨 It must still refuse an app that is OPEN, and must still never
+      touch anything outside your home folder or /Applications.
+
+  E. THE CONSOLE DOORS.
+  E1. `_G.appOrphans()` — runs the scan and prints the analysis.
+  E2. `_G.appOrphanKeep(2)` — toggles row 2.
+  E3. `_G.appOrphanGo()` — moves what is selected.
+  E4. `_G.appRemoveReport()` — a new `orphans:` line with four states:
+      not scanned · asked the whole Mac · ⚠️ asked narrowly · ⚠️ nothing
+      answered. The last two are warnings about the QUESTION, not the
+      answer.
+
+  F. ❓ QUESTIONS — answers wanted, nothing to run.
+  F1. **How long is the list on your Mac?** If it is hundreds of rows,
+      that tells me the folders I chose are too broad and I will narrow
+      them. If it is a handful, this is working as intended.
+  F2. **Is the age the right evidence?** I show when the folder was last
+      touched because it is the one fact that separates "gone for good"
+      from "on a disk that is unplugged". If something more useful would
+      help you decide — the total size, how many folders, the date it was
+      created — say which.
+  F3. **Should it ever pre-select a row?** Right now nothing is, ever. If
+      you find yourself pressing ⏎ on twenty rows in a row, I can make
+      "nothing touched it in over a year AND the whole disk was searched"
+      start selected — but that is me deciding about your files, so it is
+      your call and not mine to take.
+  F4. **Six folders are read.** Preferences, Containers, HTTPStorages,
+      WebKit, Caches and Saved Application State. Application Support is
+      deliberately left out, because it is named after the app rather
+      than its id and every folder with a dot in its name would look like
+      an orphan. Say if you want it in anyway.
+
 - 6.388.0 verify with LL — 🗳 IT SAYS WHAT IS DAMAGING (KNOWN GROUND)
   WHAT CHANGED: App Removal now tells you, file by file, whether removing
   it is safe — and lets you leave any one of them behind.

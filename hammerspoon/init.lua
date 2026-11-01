@@ -4,8 +4,45 @@
 -- =====================================================================
 -- 10-29-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.388.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.389.0
 -- =====================================================================
+
+-- NEW IN 6.389.0 — 🔎 LEFTOVERS FROM AN APP THAT WAS NEVER INSTALLED
+--   (modules/app_remove.lua). The other half of his own sentence, asked
+--   in the same breath as 6.388.0: "this is both for applications that
+--   are installed in the applications folder, and applications that are
+--   run anywhere else that I install, and also applications that run
+--   only off of a disk image that are never installed."
+--   🔑 THAT THIRD POPULATION INVERTS THE SCAN. Everything in 6.384.0 and
+--   6.388.0 starts at an .app and works out what it left behind; an app
+--   run from a disk image and thrown away HAS no .app, so there is
+--   nothing to start from. The only trace is its bundle id sitting in
+--   the Library folders — so the walk goes the other way: collect the
+--   ids that are THERE, and ask which of them no application anywhere
+--   answers for. A row in the ⇪⇧[ picker, never a key of its own
+--   (6.182.0), and the same Trash through the same guard: the move loop
+--   was LIFTED so both halves take one door rather than two copies of
+--   the only line between a wrong path and his disk (6.231.0).
+--   🚨 AND "NO APP FOUND" IS NOT "SAFE TO REMOVE", which is the whole
+--   safety of this half: the app may be on a disk that is unplugged, or
+--   unindexed, or the id may belong to a plug-in rather than an app, or
+--   he may be about to reinstall it. So EVERY row is ⚠️ careful, NOTHING
+--   starts selected, and the deliverable is the analysis he asked for
+--   with the removal left to the ⏎ he presses per row. The age is the
+--   evidence he can act on — something touched in the last week SHOUTS,
+--   because that is what a disk image still mounted looks like.
+--   🚨 APPLE'S OWN ARE REFUSED BY NAME, and that is load-bearing rather
+--   than tidy: ~/Library/Preferences is mostly com.apple.* — the Dock's
+--   settings, the Finder's, the keyboard's — and offering those is how a
+--   removal tool deletes the way his Mac works. So is this config's own.
+--   🔎 NEW GROUND, SAID SO: whether `mdfind -attr` answers and whether
+--   Spotlight has indexed his apps are facts only his Mac can settle, so
+--   the search is ASKED, off the main thread, with a belt in its own slot
+--   — and when it does not answer, the fallback reads only the two app
+--   folders and EVERY ROW'S OWN REASON SAYS SO IN CAPITALS, because an
+--   orphan with respect to two folders is a weaker claim than an orphan
+--   with respect to the disk and the two must not read alike (6.196.1).
+--   _G.appOrphans() · _G.appOrphanKeep(2) · _G.appOrphanGo().
 
 -- NEW IN 6.388.0 — 🗳 APP REMOVAL SAYS WHAT IS DAMAGING, AND HE CAN
 --   LEAVE A FILE (modules/app_remove.lua). LL: "this tool should be
@@ -44,36 +81,15 @@
 --   apart from one kept FOR him: summing them would read his decision as
 --   the tool's (6.196.1).
 
--- NEW IN 6.387.0 — 📝 EVERY HAMSIDIAN TAB IS A REAL .md FILE
---   (modules/scratch_pad.lua + modules/vault.lua). LL, asked which of
---   two readings he meant: "(a) every tab is a .md IMMEDIATELY", and
---   then "Yes" to writing it on the first PAUSE rather than the first
---   keystroke, auto-named from its first line. A tab writes itself into
---   <Vault>/Scratch after autoWriteSecs (2.0) of silence; ⌘⇧S still
---   writes the lot and is now the "now" door rather than the only one.
---   🏷 THE PAUSE IS THE WRONG MOMENT TO USE A HALF-TYPED TITLE, and that
---   is what sp.titleSettled exists for: exportNameFor pins a file name
---   the FIRST time it is written and the vault never renames a file, so
---   a pause after "Buy mi" would call the note that for ever. Settled =
---   the first line is FINISHED, or the tab has been quiet autoNameSecs
---   (20). Everything else waits, and the report says how many waited —
---   "nothing written" and "nothing worth writing yet" are different
---   sentences (6.196.1).
---   📝 AND THE ONE LIST DRAWS EACH ENTRY ONCE. Every tab now also has a
---   note, so 6.333.0's single list had the same thing twice — the
---   two-sections problem he asked to be rid of, in a new hat. The owned
---   names ride WITH the index through setIndex, because a name is pinned
---   on the first write and the note only enters the list when a SCAN
---   finds it: one push, so the two facts cannot disagree. Never a
---   rebuild — a rebuild destroys the textarea's undo history (6.323.0).
---   The note stays IN the index, so [[links]], the graph and ⌘⇧F reach
---   it; only the LIST row is skipped.
---   🚨 A FILE THAT DID NOT GET WRITTEN IS HIS WRITING NOT ON DISK, so a
---   failure takes 6.316.0's door with its OWN streak gate, never the
---   store's: a readable store over an unwritten note is the half that
---   loses the words. settings = { scratch_pad = { autoWrite = false } }.
-
 --   ALSO IN THIS ARCHIVE (full entries in CHANGELOG.md):
+--   📝 6.387.0 EVERY HAMSIDIAN TAB IS A REAL .md FILE, on his "(a) every
+--   tab is a .md IMMEDIATELY" and his "Yes" to the first PAUSE rather than
+--   the first keystroke. A WRITE THAT PINS AN IDENTITY MAY NOT HAPPEN AT
+--   THE FIRST MOMENT IT COULD: exportNameFor pins a name for ever and the
+--   vault never renames, so sp.titleSettled waits for a FINISHED first
+--   line. The owned names ride WITH the index through setIndex, so the one
+--   list draws each entry once and no rebuild costs the textarea's undo
+--   history (6.323.0).
 --   🚪 6.386.0 the ASANA DASHBOARD leaves this file (§6 →
 --   modules/asana_dashboard.lua), 529 lines out, ⇪L ⇪C ⇪B unchanged:
 --   the gate fails this file at 3,800 and it stood at 3,795, so the
@@ -103,11 +119,11 @@
 --   that as a RULE; the home-folder guard is a COMPONENT test, checked
 --   immediately before each rename rather than when the list was built.
 
--- (6.386.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.387.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 cut the inline count to
 --  TWO; a gate check proves every entry here is also in CHANGELOG.md.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.388.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.389.0
 -- =====================================================================
 -- The catalogue that used to sit here moved to GUIDE.md ("What each
 -- tool does") in 6.180.0 — 259 lines of prose inside the orchestrator.
@@ -200,7 +216,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.388.0"
+_G.configVersion = "6.389.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- A NO-OP STAND-IN for the diagnostics API, replaced by the real one in

@@ -5,6 +5,80 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.389.0 — 🔎 LEFTOVERS FROM AN APP THAT WAS NEVER INSTALLED: the
+  other half of his own sentence, asked in the same breath as the review
+  and deliberately not smuggled into it — "this is both for applications
+  that are installed in the applications folder, and applications that
+  are run anywhere else that I install, and also applications that run
+  only off of a disk image that are never installed."
+  🔑 THAT THIRD POPULATION INVERTS THE SCAN, and that is why it is its
+  own release rather than a widening of 6.388.0. Everything built so far
+  starts at an .app and works out what it left behind. An app run from a
+  disk image and thrown away HAS no .app — there is nothing to point the
+  tool at, and no name to look leftovers up by. The only trace it leaves
+  is its bundle id sitting in the folders that file BY id, so the walk
+  goes the other way: read the ids that are there, and ask which of them
+  no application anywhere answers for. Six folders are read — Preferences,
+  Containers, HTTPStorages, WebKit, Caches and Saved Application State —
+  and Application Support is deliberately NOT among them, because it is
+  named after the app rather than its id, so reading ids out of it would
+  turn every folder with a dot in its name into an orphan.
+  🚨 AND "NO APP FOUND" IS NOT "SAFE TO REMOVE". That is the whole safety
+  of this half and there are four honest ways a real app looks orphaned:
+  it lives on a disk that is not plugged in; Spotlight has not indexed
+  it; the id belongs to a plug-in or a helper rather than an application;
+  or he is about to reinstall it. So EVERY row is ⚠️ careful, NOTHING
+  starts selected, and the thing this release delivers is the ANALYSIS he
+  asked for — "a solid analysis of what can be removed" — with the
+  removal left to the ⏎ he presses per row, 6.388.0's door.
+  🕰 THE AGE IS THE EVIDENCE HE CAN ACT ON, because "nothing answers for
+  this id" is equally true of an app he removed last year and of one on an
+  external disk he unplugged this morning, and no rule here can tell those
+  apart. So the row carries the last time anything touched the folder:
+  under a week SHOUTS, in capitals, and names the disk-image case, which
+  is exactly the population he asked about.
+  🚨 APPLE'S OWN ARE REFUSED BY NAME, and that refusal is load-bearing
+  rather than tidy: ~/Library/Preferences is mostly com.apple.* — the
+  Dock's settings, the Finder's, the keyboard's — and offering those is
+  how a removal tool deletes the way his Mac works. So is this config's
+  own, because a tool that offers to remove its own settings while
+  running is a tool that can take its own guards with it. Both are
+  COUNTED as refused rather than silently dropped, so the number is
+  readable in the analysis.
+  🔎 NEW GROUND, SAID RATHER THAN ASSUMED: whether `mdfind -attr` is on
+  his Mac and whether Spotlight has indexed his applications are facts
+  only his Mac can settle, so the search is ASKED — off the main thread,
+  with a belt armed BEFORE the ask in its own slot (6.246.0 · 6.196.1),
+  reading :start()'s return because hs.task refuses by returning false
+  and never throws (6.304.0), and killing the task it gives up on. When
+  it does not answer, the fallback reads only the two app folders — and
+  EVERY ROW'S OWN REASON SAYS SO IN CAPITALS, because an orphan with
+  respect to two folders is a weaker claim than an orphan with respect to
+  the whole disk, and the two reading alike is 6.196.1's exact failure in
+  the place where being wrong costs him a working app's settings. The
+  report has four states for the same reason: never scanned · asked the
+  whole Mac · asked NARROWLY · nothing answered at all.
+  🚪 ONE DOOR MOVES THINGS, and the move loop was LIFTED out of ar.go so
+  both halves take it: a second copy of that loop is a second copy of the
+  guard, and the guard — a component test on the path, run immediately
+  before each rename rather than when the list was built — is the only
+  line between a wrong path and his disk (6.231.0). An orphan row is
+  several folders, so one row is several renames, and the row only counts
+  as moved when every path in it went.
+  📐 A PATH CAN CONTAIN THE SEPARATOR, and a check found it before his
+  Mac did: `mdfind -attr` prints "<path>  kMDItemCFBundleIdentifier =
+  <id>", and Lua's match takes the LEFTMOST occurrence — so a path that
+  itself contains that string handed back the path and the id glued
+  together. A greedy prefix pushes the match to the last occurrence,
+  which is the real separator (6.187.0 — a splitter a value can defeat
+  is not a splitter).
+  📏 NAMED, NOT FIXED: this reads six folders on the main thread, over
+  DIRECTORY ENTRIES only — a name is read, never a file, because reading
+  a cloud placeholder is a frozen Mac (6.357.0) and these folders can
+  hold one. And the id list is bounded at 40 rows, biggest first, with
+  the bound said as a STATE so the list reads as the top of the list
+  rather than all of it (6.197.2).
+
 NEW IN 6.388.0 — 🗳 APP REMOVAL SAYS WHAT IS DAMAGING, AND HE CAN LEAVE
   A FILE: LL, asked to build it: "this tool should be present me with a
   list of all files that are going to be removed, and it should say, if

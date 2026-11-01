@@ -1,5 +1,5 @@
 ========================================================================
-RESOLVED FEATURE REQUESTS — Hammerspoon config 6.388.0
+RESOLVED FEATURE REQUESTS — Hammerspoon config 6.389.0
 Every feature and how to use it. Generated from the modules' own
 cheat sheets (the rows ⇪/ draws), so it is never out of date.
 ⇪ = Caps Lock held (the hyper key). ⇪⇧X = Caps Lock + Shift + X.
@@ -417,6 +417,15 @@ In the Console, _G.<tool>Report() prints any tool's own report.
   console   _G.appRemove("Name") lists · _G.appRemoveKeep(3)
             toggles row 3 · _G.appRemoveGo() moves the rest
             _G.appRemoveKeepAll() · ...KeepNone() · ...Suggested()
+  no app    A row at the top of the app list: 🔎 Leftovers with
+            no app — settings left behind by apps you no longer
+            have, INCLUDING ones you only ever ran off a disk
+            image. ⏎ scans; nothing is selected and nothing
+            moves. ⏎ a row to select it.
+            ⚠️ every row is careful: "no app answers for it" is
+            not "safe to remove" — it may be on a disk that is
+            unplugged, or something you will reinstall.
+            _G.appOrphans() · _G.appOrphanKeep(2) · ...Go()
   check     _G.appRemoveReport() — what it last listed or moved
 
 ☁️ ONEDRIVE CHECK (Console) — the watch is OFF (6.381.0)   [modules/onedrive_check.lua]
@@ -868,6 +877,7 @@ In the Console, _G.<tool>Report() prints any tool's own report.
 
 📜 RELEASE INDEX — newest first, one line per release (the full story of each is in CHANGELOG.md)
 ------------------------------------------------------------------------
+  6.389.0  🔎 LEFTOVERS FROM AN APP THAT WAS NEVER INSTALLED: the
   6.388.0  🗳 APP REMOVAL SAYS WHAT IS DAMAGING, AND HE CAN LEAVE
   6.387.0  📝 EVERY HAMSIDIAN TAB IS A REAL .md FILE: LL, asked
   6.386.0  🚪 THE ASANA DASHBOARD LEAVES init.lua: LL, answering

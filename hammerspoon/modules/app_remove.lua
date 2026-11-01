@@ -81,6 +81,15 @@ local M = {
             { "console","_G.appRemove(\"Name\") lists · _G.appRemoveKeep(3)" },
             { "",       "toggles row 3 · _G.appRemoveGo() moves the rest" },
             { "",       "_G.appRemoveKeepAll() · ...KeepNone() · ...Suggested()" },
+            { "no app",  "A row at the top of the app list: 🔎 Leftovers with" },
+            { "",        "no app — settings left behind by apps you no longer" },
+            { "",        "have, INCLUDING ones you only ever ran off a disk" },
+            { "",        "image. ⏎ scans; nothing is selected and nothing" },
+            { "",        "moves. ⏎ a row to select it." },
+            { "",        "⚠️ every row is careful: \"no app answers for it\" is" },
+            { "",        "not \"safe to remove\" — it may be on a disk that is" },
+            { "",        "unplugged, or something you will reinstall." },
+            { "",        "_G.appOrphans() · _G.appOrphanKeep(2) · ...Go()" },
             { "check",  "_G.appRemoveReport() — what it last listed or moved" },
         },
     },
@@ -388,6 +397,145 @@ function M.rowAfterRebuild(want, total)
     return want
 end
 
+-- =====================================================================
+-- 🔎 6.389.0 — THE OTHER HALF: AN APP THAT WAS NEVER INSTALLED
+-- =====================================================================
+-- LL, in the same breath as the review: "this is both for applications
+-- that are installed in the applications folder, and applications that
+-- are run anywhere else that I install, and also applications that run
+-- only off of a disk image that are never installed."
+--
+-- 🔑 THAT THIRD POPULATION INVERTS THE SCAN. Everything above starts at
+-- an .app and works out what it left behind; an app run from a disk
+-- image and thrown away HAS no .app, so there is nothing to start from.
+-- The only trace is its bundle id sitting in the Library folders, so the
+-- walk goes the other way: collect the ids that are THERE, and ask which
+-- of them no application anywhere answers for.
+--
+-- 🚨 AND "NO APP FOUND" IS NOT "SAFE TO REMOVE", which is the whole
+-- safety of this half. Four honest reasons a real app can look orphaned:
+-- it lives on a disk that is not plugged in; Spotlight has not indexed
+-- it; the id belongs to a plug-in or a helper rather than an app; or he
+-- is about to reinstall it. So EVERY orphan row is ⚠️ careful, nothing
+-- is selected, and the release's deliverable is the ANALYSIS — his
+-- words, "a solid analysis of what can be removed" — with the removal
+-- left to the ⏎ he presses per row (6.388.0's door).
+
+-- 🏷 PURE — does this name look like a bundle id at all? The Library
+-- folders hold plenty that is not: ByHost, .DS_Store, an app's own
+-- support folder named after itself.
+--
+-- 🚨 APPLE'S OWN ARE REFUSED BY NAME, and that refusal is load-bearing
+-- rather than tidy: ~/Library/Preferences is mostly com.apple.* — the
+-- Dock's settings, the Finder's, the keyboard's — and offering those is
+-- how a removal tool deletes the way his Mac works. So is this config's
+-- own, because a tool that offers to remove its own settings while
+-- running is a tool that can take its own guards with it.
+function M.looksLikeBundleId(name)
+    if type(name) ~= "string" or name == "" then return false, "not a name" end
+    if #name > 200 then return false, "too long to be a bundle id" end
+    if name:sub(1, 1) == "." then return false, "a hidden file, not an app" end
+    if name:find("/", 1, true) then return false, "a path, not a name" end
+    if name:find("%s") then return false, "a bundle id has no spaces" end
+    local dot = name:find(".", 1, true)
+    if not dot then return false, "a bundle id is reverse-DNS and has a dot in it" end
+    -- each side of the first dot has to be a real component
+    local head = name:sub(1, dot - 1)
+    local tail = name:sub(dot + 1)
+    if head == "" or tail == "" then return false, "a dot with nothing either side" end
+    local low = name:lower()
+    if low:sub(1, 10) == "com.apple." or low == "com.apple" then
+        return false, "Apple's own — this is how your Mac is set up, not an app you installed"
+    end
+    if low:sub(1, 16) == "org.hammerspoon." then
+        return false, "this config's own settings"
+    end
+    return true, "reverse-DNS, so it looks like a bundle id"
+end
+
+-- 🔎 PURE — the verdict for one orphan row, and the reason is the whole
+-- point of the row. The state of the SEARCH rides in, because an orphan
+-- found by looking in two folders and an orphan found by asking the
+-- whole disk are different claims and only one of them is worth acting
+-- on (6.196.1).
+function M.orphanVerdict(entry, searched)
+    if type(entry) ~= "table" then return "careful", "nothing is known about this row" end
+    local base = "no application on this Mac answers for this id"
+    if searched == "folders" then
+        base = "no app in /Applications or ~/Applications answers for it — and THAT IS ALL "
+               .. "THAT WAS ASKED, so an app anywhere else looks like this too"
+    elseif searched == "everywhere" then
+        base = "no application anywhere on this Mac answers for this id"
+    else
+        return "careful", "this Mac would not say which applications are installed, so "
+               .. "nothing here is an orphan — it is an unanswered question"
+    end
+    -- 🕰 THE AGE IS THE EVIDENCE HE CAN ACT ON. "Nothing answers for it"
+    -- is true of an app he uninstalled last year and of one sitting on an
+    -- external disk he unplugged this morning; the last time anything
+    -- touched the folder tells those apart better than any rule here can.
+    local days = tonumber(entry.days)
+    local age
+    if days == nil then age = "and nothing could be read about when it was last used"
+    elseif days < 7 then age = "BUT SOMETHING TOUCHED IT IN THE LAST WEEK — it may be "
+                               .. "running from a disk image, or you are still using it"
+    elseif days < 90 then age = "last touched " .. math.floor(days) .. " days ago"
+    else age = "last touched " .. math.floor(days / 30) .. " month(s) ago" end
+    return "careful", base .. " · " .. age
+end
+
+-- 🔎 PURE — the orphan rows, given the ids found and the ids installed.
+-- An id that IS installed is not an orphan and never appears; the whole
+-- list is sorted biggest first, because what he is deciding about is
+-- space and the big ones are the ones worth reading.
+function M.orphanRows(found, installed, searched, max)
+    local rows = {}
+    if type(found) ~= "table" then return rows end
+    installed = type(installed) == "table" and installed or {}
+    for id, info in pairs(found) do
+        if not installed[id] and not installed[tostring(id):lower()] then
+            local e = { id = id,
+                        paths = info.paths or {},
+                        size  = tonumber(info.size) or 0,
+                        days  = info.days }
+            e.verdict, e.risk = M.orphanVerdict(e, searched)
+            rows[#rows + 1] = e
+        end
+    end
+    table.sort(rows, function(a, b)
+        if a.size ~= b.size then return a.size > b.size end
+        return tostring(a.id) < tostring(b.id)
+    end)
+    max = tonumber(max) or 40
+    local capped = false
+    while #rows > max do rows[#rows] = nil ; capped = true end
+    return rows, capped
+end
+
+-- 🪪 PURE — the bundle ids in one mdfind answer. `mdfind -attr` prints
+-- "<path>    kMDItemCFBundleIdentifier = <id>" per line, and a path can
+-- hold anything, so the id is taken from the LAST occurrence of the
+-- separator rather than the first (6.187.0's rule about a splitter that
+-- a value can defeat). A line with no id is an app Spotlight indexed
+-- without one and is skipped rather than guessed at.
+function M.idsInMdfind(text)
+    local out, n = {}, 0
+    if type(text) ~= "string" then return out, 0 end
+    for line in (text .. "\n"):gmatch("([^\n]*)\n") do
+        -- 🚨 THE GREEDY PREFIX IS THE WHOLE POINT, and a check found it:
+        -- without `.*` in front, Lua matches the LEFTMOST occurrence, so
+        -- a path that itself contains "kMDItemCFBundleIdentifier =" hands
+        -- back the path and the id glued together. `.*` pushes the match
+        -- to the LAST one, which is the real separator (6.187.0 — a
+        -- splitter a value can defeat is not a splitter).
+        local id = line:match(".*kMDItemCFBundleIdentifier%s*=%s*(.-)%s*$")
+        if id and id ~= "" and id ~= "(null)" then
+            out[id] = true ; out[id:lower()] = true ; n = n + 1
+        end
+    end
+    return out, n
+end
+
 function M.setup(core)
     local ar = {}
     M.ar = ar
@@ -561,26 +709,189 @@ function M.setup(core)
         return true
     end
 
+    -- =================================================================
+    -- 🔎 6.389.0 — LEFTOVERS WITH NO APP
+    -- =================================================================
+    ar.orphanMax  = 40         -- rows listed; a bound, and a state
+    ar.orphan     = nil        -- the last scan
+    ar.orphanBusy = false
+    ar.orphanTask = nil        -- its own slot (6.196.1)
+    ar.orphanSecs = 25         -- a belt, well under anything that waits on it
+
+    -- 🗂 WHERE A BUNDLE ID SHOWS UP. These are the folders that file by
+    -- id rather than by name, which is what makes them readable backwards.
+    -- Application Support is deliberately NOT here: it is mostly named
+    -- after the app rather than its id, so reading ids out of it would
+    -- turn every folder with a dot in its name into an orphan.
+    ar.idFolders = {
+        { "/Library/Preferences",             "%.plist$" },
+        { "/Library/Containers",              nil },
+        { "/Library/HTTPStorages",            nil },
+        { "/Library/WebKit",                  nil },
+        { "/Library/Caches",                  nil },
+        { "/Library/Saved Application State", "%.savedState$" },
+    }
+
+    -- 🪪 THE IDS THAT ARE CERTAINLY INSTALLED — read off the two app
+    -- folders. This half needs no Spotlight, no index and no external
+    -- command, so it answers on every Mac including a work one that has
+    -- Spotlight switched off.
+    local function installedFromFolders()
+        local set, n = {}, 0
+        for _, root in ipairs(ar.appRoots) do
+            pcall(function()
+                for e in hs.fs.dir(root) do
+                    if e:match("%.app$") then
+                        local id = bundleOf(root .. "/" .. e)
+                        if id then set[id] = true ; set[id:lower()] = true ; n = n + 1 end
+                    end
+                end
+            end)
+        end
+        return set, n
+    end
+
+    -- 🗂 THE IDS THAT ARE THERE — one bounded pass per folder, on the
+    -- main thread but over DIRECTORY ENTRIES only: a name is read, never
+    -- a file (6.357.0 — reading a cloud placeholder is a frozen Mac, and
+    -- these folders can hold one).
+    local function idsOnDisk()
+        local found, looked, refused = {}, 0, 0
+        for _, row in ipairs(ar.idFolders) do
+            local dir, strip = home .. row[1], row[2]
+            pcall(function()
+                for e in hs.fs.dir(dir) do
+                    if e ~= "." and e ~= ".." then
+                        looked = looked + 1
+                        local name = strip and e:gsub(strip, "") or e
+                        local ok = M.looksLikeBundleId(name)
+                        if ok then
+                            local p = dir .. "/" .. e
+                            local f = found[name]
+                            if not f then f = { paths = {}, size = 0 } ; found[name] = f end
+                            f.paths[#f.paths + 1] = p
+                            f.size = f.size + (sizeOf(p) or 0)
+                            local a = stat(p)
+                            local mt = a and tonumber(a.modification)
+                            if mt then
+                                local d = (os.time() - mt) / 86400
+                                if f.days == nil or d < f.days then f.days = d end
+                            end
+                        else
+                            refused = refused + 1
+                        end
+                    end
+                end
+            end)
+        end
+        return found, looked, refused
+    end
+
+    -- 🚪 ONE DOOR, AND EVERY WAY THE SCAN CAN END GOES THROUGH IT
+    -- (6.299.0 · 6.354.0). The belt, the task's answer, a refused start
+    -- and a Mac with no hs.task all arrive here exactly once.
+    local function orphanFinish(searched, mdCount, why, cb)
+        if not ar.orphanBusy then return end
+        ar.orphanBusy = false
+        if ar.orphanTask then
+            pcall(function() ar.orphanTask:terminate() end)
+            ar.orphanTask = nil
+        end
+        if ar.orphanBelt then
+            pcall(function() ar.orphanBelt:stop() end)
+            ar.orphanBelt = nil
+        end
+        local installed, nFolders = installedFromFolders()
+        -- 🚨 THE EXTENDED ANSWER IS MERGED, NEVER TRUSTED ALONE. If
+        -- Spotlight answered, its ids join the folder walk's; if it did
+        -- not, `searched` stays "folders" and EVERY row's own reason says
+        -- so, because an orphan with respect to two folders is a weaker
+        -- claim than an orphan with respect to the disk.
+        if ar.orphanIds then
+            for id in pairs(ar.orphanIds) do installed[id] = true end
+        end
+        local found, looked, refused = idsOnDisk()
+        local rows, capped = M.orphanRows(found, installed, searched, ar.orphanMax)
+        local bytes = 0
+        for _, r in ipairs(rows) do bytes = bytes + (r.size or 0) end
+        ar.orphan = { rows = rows, count = #rows, capped = capped, bytes = bytes,
+                      searched = searched, why = why, at = os.time(),
+                      looked = looked, refused = refused,
+                      installed = nFolders, mdCount = mdCount or 0,
+                      keep = {}, touched = 0 }
+        -- ⏎ selects; nothing starts selected, because "no app answers for
+        -- it" is not "safe to remove" and this half knows less than the
+        -- app-first half does.
+        for i in ipairs(rows) do ar.orphan.keep[i] = true end
+        ar.orphanIds = nil
+        if type(cb) == "function" then pcall(cb, ar.orphan) end
+        return ar.orphan
+    end
+
+    -- 🔎 ASK THE WHOLE DISK, and NEW GROUND: whether `mdfind -attr` is
+    -- on this Mac and whether Spotlight has indexed his apps are facts
+    -- only his Mac can answer, so the command is ASKED and whatever it
+    -- says is reported rather than assumed (6.351.0 — when a release
+    -- rests on an unproven platform fact, the release is the thing that
+    -- establishes it). Off the main thread, with a belt.
+    function ar.orphans(cb)
+        if ar.orphanBusy then return false, "a scan is already running" end
+        ar.orphanBusy, ar.orphanIds = true, nil
+        if not (hs.task and hs.task.new) then
+            return orphanFinish("folders", 0, "this Hammerspoon has no hs.task", cb) and true
+        end
+        local okNew, t = pcall(hs.task.new, "/usr/bin/mdfind",
+            function(code, stdout)
+                if not ar.orphanBusy then return end
+                if code == 0 and type(stdout) == "string" then
+                    local ids, n = M.idsInMdfind(stdout)
+                    ar.orphanIds = ids
+                    orphanFinish("everywhere", n, nil, cb)
+                else
+                    orphanFinish("folders", 0,
+                                 "mdfind answered " .. tostring(code), cb)
+                end
+            end,
+            { "-attr", "kMDItemCFBundleIdentifier",
+              "kMDItemContentType == 'com.apple.application-bundle'" })
+        if not okNew or not t then
+            return orphanFinish("folders", 0, "macOS would not create the search", cb) and true
+        end
+        -- 🛟 THE BELT IS ARMED BEFORE THE ASK (6.246.0), in its own slot
+        if hs.timer and hs.timer.doAfter then
+            ar.orphanBelt = hs.timer.doAfter(ar.orphanSecs, function()
+                orphanFinish("folders", 0,
+                             "the search did not answer in " .. ar.orphanSecs .. " s", cb)
+            end)
+        end
+        ar.orphanTask = t
+        local okStart = false
+        pcall(function() okStart = t:start() and true or false end)
+        if not okStart then
+            -- 6.304.0 — hs.task:start() REFUSES by returning false and
+            -- never throws, so the return is read rather than the pcall
+            ar.orphanTask = nil
+            return orphanFinish("folders", 0, "macOS refused to run the search", cb) and true
+        end
+        return true, "asking"
+    end
+
     -- 🗑 AND THIS IS THE ONLY THING THAT MOVES ANYTHING.
-    function ar.go()
-        local ok, why = M.goVerdict(ar.plan)
-        if not ok then return false, why end
-        local plan = ar.plan
+    -- 🚪 6.389.0 — ONE DOOR MOVES THINGS, and both halves of the tool
+    -- take it: the app-first listing and the orphan scan. A second copy
+    -- of this loop is a second copy of the guard, and the guard is the
+    -- only line between a wrong path and his disk (6.231.0).
+    local function moveThese(moving)
         local trash = home .. "/.Trash"
         -- the Trash has to exist and be ours before anything is renamed
         if not stat(trash) then
             pcall(function() hs.fs.mkdir(trash) end)
         end
         if not stat(trash) then
-            return false, "there is no ~/.Trash to move anything into"
+            return nil, "there is no ~/.Trash to move anything into"
         end
         local taken, done, failed, bytes = {}, {}, {}, 0
-        -- 🗳 6.388.0 — ONLY WHAT IS SELECTED. The rows he kept are not
-        -- failures and are not skipped silently: they are counted and
-        -- named in the answer, because "I left that one" and "it would
-        -- not move" are opposite facts (6.196.1).
-        local moving, _, keptSafe, keptCareful = M.selectedItems(plan.items, plan.keep)
-        for _, it in ipairs(moving) do
+        for _, it in ipairs(moving or {}) do
             -- 🔒 THE GUARD RUNS HERE, immediately before the move, over
             -- the path that is ACTUALLY about to be renamed — not when
             -- the list was built. A check on a list is not a check on
@@ -602,6 +913,20 @@ function M.setup(core)
                 end
             end
         end
+        return done, failed, bytes
+    end
+
+    function ar.go()
+        local ok, why = M.goVerdict(ar.plan)
+        if not ok then return false, why end
+        local plan = ar.plan
+        -- 🗳 6.388.0 — ONLY WHAT IS SELECTED. The rows he kept are not
+        -- failures and are not skipped silently: they are counted and
+        -- named in the answer, because "I left that one" and "it would
+        -- not move" are opposite facts (6.196.1).
+        local moving, _, keptSafe, keptCareful = M.selectedItems(plan.items, plan.keep)
+        local done, failed, bytes = moveThese(moving)
+        if not done then return false, failed end
         ar.moved.runs  = ar.moved.runs + 1
         ar.moved.items = ar.moved.items + #done
         ar.moved.bytes = ar.moved.bytes + bytes
@@ -627,6 +952,98 @@ function M.setup(core)
         -- there was" (6.196.1).
         return true, { moved = #done, failed = #failed, bytes = bytes,
                        keptSafe = keptSafe, keptCareful = keptCareful }
+    end
+
+    -- 🗑 6.389.0 — THE ORPHAN MOVE. Same door, same guard, same Trash.
+    -- An orphan row is several paths, so one row is several renames; the
+    -- row is only reported moved when every path in it went.
+    function ar.orphanGo()
+        local o = ar.orphan
+        if not o or #o.rows == 0 then
+            return false, "no orphan scan has been run — _G.appOrphans() does it"
+        end
+        local moving = {}
+        for i, r in ipairs(o.rows) do
+            if not o.keep[i] then
+                for _, p in ipairs(r.paths or {}) do
+                    moving[#moving + 1] = { path = p, size = r.size }
+                end
+            end
+        end
+        if #moving == 0 then
+            -- 🗳 the same distinction 6.388.0 drew: nothing is selected
+            -- because nothing STARTS selected here, so this is the
+            -- ordinary state rather than a fault, and it says which
+            return false, "nothing is selected — ⏎ on a row selects it. Nothing starts "
+                          .. "selected here, because “no app answers for it” is not "
+                          .. "“safe to remove”"
+        end
+        local done, failed, bytes = moveThese(moving)
+        if not done then return false, failed end
+        ar.moved.runs  = ar.moved.runs + 1
+        ar.moved.items = ar.moved.items + #done
+        ar.moved.bytes = ar.moved.bytes + bytes
+        ar.moved.fails = ar.moved.fails + #failed
+        ar.moved.last  = { name = "orphan leftovers", moved = #done, failed = #failed,
+                           bytes = bytes, at = os.time(), orphan = true,
+                           touched = o.touched }
+        if #failed > 0 then
+            ar.moved.why = tostring(failed[1].why)
+            core.degrade("App removal",
+                         #failed .. " orphan path(s) could NOT be moved — "
+                         .. tostring(failed[1].path) .. ": " .. tostring(failed[1].why))
+        end
+        ar.orphan = nil     -- spent, like a plan
+        return true, { moved = #done, failed = #failed, bytes = bytes }
+    end
+
+    function ar.orphanToggle(i)
+        local o = ar.orphan
+        i = tonumber(i)
+        if not o or not i or not o.rows[i] then return false, "no such row" end
+        o.keep[i] = (not o.keep[i]) or nil
+        o.touched = o.touched + 1
+        return true, o.keep[i] and "kept" or "will move"
+    end
+
+    -- 🔎 THE ANALYSIS — his words again, "a solid analysis of what can be
+    -- removed". The state of the SEARCH is the first line, because every
+    -- row under it means less if the search was narrow.
+    local function describeOrphans(o)
+        local L = {}
+        local sel = 0
+        for i in ipairs(o.rows) do if not o.keep[i] then sel = sel + 1 end end
+        L[#L + 1] = "🔎 LEFTOVERS WITH NO APP — " .. o.count .. " id(s), "
+                    .. M.prettySize(o.bytes) .. ", " .. sel .. " selected"
+        if o.searched == "everywhere" then
+            L[#L + 1] = "   asked   : every application on this Mac (" .. o.mdCount
+                        .. " answered), plus " .. o.installed .. " in your app folders"
+        elseif o.searched == "folders" then
+            L[#L + 1] = "   asked   : ⚠️ ONLY /Applications and ~/Applications ("
+                        .. o.installed .. " apps) — the whole-disk search did not answer"
+                        .. (o.why and (": " .. o.why) or "")
+            L[#L + 1] = "   ⚠️ SO AN APP YOU KEEP ANYWHERE ELSE LOOKS LIKE AN ORPHAN HERE."
+        else
+            L[#L + 1] = "   asked   : ⚠️ nothing answered — these are not orphans, they "
+                        .. "are an unanswered question"
+        end
+        L[#L + 1] = "   looked  : " .. o.looked .. " name(s) in "
+                    .. #ar.idFolders .. " folder(s) · " .. o.refused
+                    .. " were not bundle ids (Apple's own are never offered)"
+        if o.capped then
+            L[#L + 1] = "   📏 STOPPED AT " .. ar.orphanMax .. " ROWS — biggest first, so "
+                        .. "this is the top of the list and not all of it"
+        end
+        L[#L + 1] = "   NOTHING HAS MOVED, and nothing is selected. ⏎ on a row selects it."
+        for i, r in ipairs(o.rows) do
+            L[#L + 1] = "   " .. (o.keep[i] and "[ keep ]" or "[ MOVE ]")
+                        .. " ⚠️ " .. r.id .. "  " .. M.prettySize(r.size)
+                        .. "  " .. #r.paths .. " folder(s)"
+            L[#L + 1] = "            " .. tostring(r.risk)
+            for _, p in ipairs(r.paths) do L[#L + 1] = "              · " .. p end
+        end
+        L[#L + 1] = "   ⏎ on “✅ Move the selected…” does it · _G.appOrphanGo()"
+        return table.concat(L, "\n")
     end
 
     -- ---- the analysis, in words ---------------------------------------
@@ -714,6 +1131,49 @@ function M.setup(core)
         return rows
     end
 
+    -- 🔎 6.389.0 — THE ORPHAN LIST IS A THIRD FACE of the same picker,
+    -- and it is reached by a ROW rather than a key of its own: a tool
+    -- that lives inside another tool's window does not also get a hyper
+    -- key (6.182.0), and this is the same tool looking the other way.
+    local function orphanRows()
+        local o = ar.orphan
+        local rows = {}
+        local sel, bytes = 0, 0
+        for i, r in ipairs(o.rows) do
+            if not o.keep[i] then sel = sel + 1 ; bytes = bytes + (r.size or 0) end
+        end
+        rows[#rows + 1] = {
+            text = sel > 0
+                   and ("✅ Move the " .. sel .. " selected id(s) to the Trash — "
+                        .. M.prettySize(bytes))
+                   or "🚫 Nothing is selected — ⏎ a row below to select it",
+            subText = sel > 0
+                   and "Nothing is erased. Finder → Trash → Put Back undoes it."
+                   or ("Nothing starts selected here: “no app answers for it” is not "
+                       .. "“safe to remove”"),
+            orphanGo = sel > 0 or false,
+        }
+        rows[#rows + 1] = { text = "◂ Back to the app list",
+                            subText = "Forget this scan — nothing moves", back = true }
+        if o.searched ~= "everywhere" then
+            rows[#rows + 1] = {
+                text = "⚠️ Only your two app folders were searched",
+                subText = (o.why or "the whole-disk search did not answer")
+                          .. " — an app you keep anywhere else looks like an orphan here",
+                note = true }
+        end
+        for i, r in ipairs(o.rows) do
+            rows[#rows + 1] = {
+                text    = (o.keep[i] and "[ keep ] " or "[ MOVE ] ") .. "⚠️ " .. r.id
+                          .. "   " .. M.prettySize(r.size),
+                subText = tostring(r.risk) .. "   ·   " .. #r.paths .. " folder(s)   ·   ⏎ "
+                          .. (o.keep[i] and "selects it" or "keeps it"),
+                otoggle = i,
+            }
+        end
+        return rows
+    end
+
     local function appRows()
         local rows = {}
         local apps, seen = {}, {}
@@ -728,6 +1188,11 @@ function M.setup(core)
             end)
         end
         table.sort(apps)
+        rows[#rows + 1] = {
+            text = "🔎 Leftovers with no app — settings left by apps you no longer have",
+            subText = "Includes apps you ran straight off a disk image and never installed. "
+                      .. "⏎ scans; nothing moves",
+            scan = true }
         for _, n in ipairs(apps) do
             rows[#rows + 1] = { text = n, subText = "⏎ shows what would move — nothing moves yet",
                                 app = n }
@@ -751,7 +1216,8 @@ function M.setup(core)
     end
 
     function ar.show(wantRow)
-        local rows = ar.plan and reviewRows() or appRows()
+        local rows = ar.plan and reviewRows()
+                     or (ar.orphan and orphanRows() or appRows())
         if #rows == 0 then
             core.degrade("App removal", "no applications could be listed")
             return false, "no applications could be listed"
@@ -779,8 +1245,40 @@ function M.setup(core)
                 return
             end
             if row.back then
-                ar.plan = nil
+                ar.plan, ar.orphan = nil, nil
                 ar.show()
+                return
+            end
+            if row.note then ar.show(1) ; return end
+            -- 🔎 6.389.0 — the orphan rows
+            if row.otoggle then
+                local ok = ar.orphanToggle(row.otoggle)
+                if ok then ar.show(row.otoggle + 3) end
+                return
+            end
+            if row.orphanGo then
+                local okO, resO = ar.orphanGo()
+                if okO then
+                    hs.alert.show("🗑 Moved " .. resO.moved .. " folder(s) to the Trash"
+                                  .. (resO.failed > 0 and (" · ⚠️ " .. resO.failed
+                                      .. " refused") or "")
+                                  .. "\nFinder → Trash → Put Back undoes it", 5)
+                else
+                    hs.alert.show("🚫 " .. tostring(resO), 5)
+                end
+                return
+            end
+            if row.scan then
+                hs.alert.show("🔎 Looking for settings left by apps you no longer have…", 3)
+                ar.orphans(function(o)
+                    print(describeOrphans(o))
+                    hs.alert.show("🔎 " .. o.count .. " id(s) with no app — "
+                                  .. M.prettySize(o.bytes)
+                                  .. (o.searched ~= "everywhere"
+                                      and "\n⚠️ only your app folders were searched" or "")
+                                  .. "\nNOTHING IS SELECTED. ⏎ a row to select it.", 7)
+                    ar.show(1)
+                end)
                 return
             end
             if row.go then
@@ -817,7 +1315,9 @@ function M.setup(core)
         ch:choices(rows)
         ch:placeholderText(ar.plan
             and ("Review " .. ar.plan.name .. " — ⏎ a row to keep or select it")
-            or "Remove an app — to the Trash, never erased")
+            or (ar.orphan
+                and "Leftovers with no app — ⏎ a row to select it for the Trash"
+                or "Remove an app — to the Trash, never erased"))
         _G.choosers.appRemove = ch
         -- put the highlight back where he was (6.227.0)
         if wantRow then
@@ -862,6 +1362,27 @@ function M.setup(core)
     _G.appRemoveSuggested = function() local ok = ar.keepDefaults()
         if ok then print(describe(ar.plan)) end return ok end
 
+    -- 🔎 6.389.0 — the orphan doors
+    _G.appOrphans = function()
+        local ok, why = ar.orphans(function(o) print(describeOrphans(o)) end)
+        if not ok then print("🔎 " .. tostring(why)) end
+        return ok
+    end
+    _G.appOrphanKeep = function(i)
+        local ok, why = ar.orphanToggle(i)
+        if ok and ar.orphan then print(describeOrphans(ar.orphan))
+        else print("🔎 " .. tostring(why)) end
+        return ok
+    end
+    _G.appOrphanGo = function()
+        local ok, res = ar.orphanGo()
+        if not ok then print("🔎 " .. tostring(res)) ; return false end
+        print("🗑 moved " .. res.moved .. " folder(s), " .. M.prettySize(res.bytes)
+              .. (res.failed > 0 and (" · ⚠️ " .. res.failed .. " refused") or "")
+              .. " — they are in the Trash, not erased")
+        return true
+    end
+
     _G.appRemoveGo = function()
         local ok, res = ar.go()
         if not ok then print("🗑 " .. tostring(res)) ; return false, res end
@@ -878,6 +1399,40 @@ function M.setup(core)
         L[#L + 1] = "   switch : " .. (ar.enabled and "on" or "OFF")
                     .. " · ⇪⇧[ · leftovers are looked for in " .. home .. " ONLY"
         L[#L + 1] = "   apps   : " .. table.concat(ar.appRoots, " · ")
+        -- 🔎 6.389.0 — FOUR STATES, and the first three are not the same
+        -- fact: never scanned · scanned and found none · scanned NARROWLY
+        -- so the answer means less · scanned and found some (6.196.1).
+        if not ar.orphan then
+            L[#L + 1] = "   orphans: not scanned this session — the 🔎 row in ⇪⇧[, or "
+                        .. "_G.appOrphans()"
+        else
+            local o = ar.orphan
+            local sel = 0
+            for i in ipairs(o.rows) do if not o.keep[i] then sel = sel + 1 end end
+            L[#L + 1] = "   orphans: " .. o.count .. " id(s) with no app, "
+                        .. M.prettySize(o.bytes) .. " · " .. sel .. " selected"
+                        .. (o.capped and ("  📏 STOPPED AT " .. ar.orphanMax) or "")
+            if o.searched == "everywhere" then
+                L[#L + 1] = "   ↳ asked every app on this Mac (" .. o.mdCount .. " answered)"
+            elseif o.searched == "folders" then
+                L[#L + 1] = "   ↳ ⚠️ ONLY your two app folders were searched"
+                            .. (o.why and (" — " .. o.why) or "")
+                            .. "; an app you keep elsewhere looks like an orphan"
+            else
+                L[#L + 1] = "   ↳ ⚠️ nothing answered — these are an unanswered question, "
+                            .. "not orphans"
+            end
+            for i, r in ipairs(o.rows) do
+                if i <= 5 then
+                    L[#L + 1] = "        " .. (o.keep[i] and "[ keep ]" or "[ MOVE ]")
+                                .. " " .. r.id .. "  " .. M.prettySize(r.size)
+                end
+            end
+            if o.count > 5 then
+                L[#L + 1] = "        … " .. (o.count - 5) .. " more — _G.appOrphans() "
+                            .. "prints them all"
+            end
+        end
         if not ar.plan then
             L[#L + 1] = "   listed : nothing is listed right now — press ⇪⇧[ and pick an app"
         else

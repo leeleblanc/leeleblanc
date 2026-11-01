@@ -1,4 +1,4 @@
-# TESTING — how to score release 6.388.0
+# TESTING — how to score release 6.389.0
 
 You install ONE archive and it carries several releases. Below are the
 steps for each release this archive is new for, newest first. Run the
@@ -26,6 +26,120 @@ else is a LOSS and I fix it before building further. You are the only
 scorer; I never mark my own.
 
 ---
+
+## 6.389.0
+
+6.389.0 verify with LL — 🔎 LEFTOVERS WITH NO APP (NEW GROUND)
+WHAT CHANGED: App Removal can now work BACKWARDS — find the settings
+left behind by apps you no longer have, including ones you only ever
+ran straight off a disk image and never installed.
+🔑 WHY IT IS A SEPARATE RELEASE and not just a wider search: everything
+before this starts at an app and works out what it left behind. An app
+you ran off a disk image has no app left to point at. So the scan goes
+the other way round — it reads the bundle ids that are sitting in your
+Library folders and asks which of them no application anywhere answers
+for.
+🚨 AND NOTHING HERE IS CALLED SAFE, deliberately. "No app answers for
+this id" is also true of an app on a disk you have unplugged, an app
+Spotlight has not indexed, a plug-in that was never an app, and
+something you are about to reinstall. So every row is ⚠️ and NOTHING is
+selected until you say so.
+
+A. THE HEADLINE — about two minutes.
+A1. Press **⇪⇧[** — hold Caps Lock and Shift and press the **[** key,
+    just right of P.
+    EXPECT: at the TOP of the app list, a new row reading
+    **"🔎 Leftovers with no app"**.
+A2. Press **Return** on it.
+    EXPECT: "🔎 Looking for settings left by apps you no longer have…",
+    then a list of bundle ids — things like `com.vendor.SomeApp` — each
+    with a size, and each starting **[ keep ]**.
+    **A FAIL is nothing happening at all.**
+A3. Read the second line of a few rows.
+    EXPECT: the reason, and the AGE — "last touched 14 months ago", or,
+    if something touched it recently, a line in capitals saying so and
+    mentioning a disk image. That age is the thing worth reading: it is
+    what separates an app you got rid of last year from one sitting on
+    a disk you unplugged this morning.
+A4. Look at the top row.
+    EXPECT: **"🚫 Nothing is selected — ⏎ a row below to select it"**.
+    That is not a failure. Nothing starts selected here on purpose.
+A5. Open the Console and read the whole analysis — it is printed there,
+    one row per id, with every folder listed underneath it.
+    **PASTE THAT.** It is the artefact this release exists to produce,
+    and I have never seen what your Mac's Library folders hold.
+
+B. 🚨 THE LINE I MOST WANT YOU TO CHECK — read this one before B2.
+B1. In that Console output, find the line beginning **"asked :"**.
+    Two possible answers and they mean very different things:
+    · "asked : every application on this Mac (N answered)" — the search
+      worked, and a row really is an orphan as far as this Mac knows.
+    · "⚠️ ONLY /Applications and ~/Applications" — the whole-disk search
+      did not answer, so **an app you keep anywhere else looks like an
+      orphan here**. Every row then says so in its own reason too.
+    PASTE WHICHEVER YOU GET. The second one is not a bug — it is the
+    tool refusing to overstate what it asked — but it changes what the
+    list is worth, and I cannot know from here which your Mac does.
+B2. Scan the list for anything you RECOGNISE and still use. There
+    should be nothing — an app you have installed is never listed.
+    **If something you use every day is in that list, stop and tell
+    me.** That is the one failure that matters here.
+B3. 🚨 Check there is nothing beginning **com.apple.** anywhere in the
+    list. Those are your Dock, your Finder, your keyboard settings, and
+    they are refused by name. The analysis says how many names it
+    turned away.
+
+C. SELECTING ONE, AND TAKING IT.
+C1. Put the highlight on a row you are sure about — something you
+    genuinely removed long ago — and press **Return**.
+    EXPECT: it flips to **[ MOVE ]**, the list stays open, and the top
+    row now reads "✅ Move the 1 selected id(s) to the Trash".
+C2. Press Return on that top row.
+    EXPECT: its folders go to the Trash — one row can be several
+    folders, and they all go together.
+C3. Open the Trash. EXPECT them there, stamped with the date and time.
+    **Nothing is erased.** Finder → Trash → Put Back undoes it.
+C4. "◂ Back to the app list" forgets the scan and moves nothing.
+
+D. MUST STILL WORK — this release lifted the code that does the moving
+   so both halves share it, so the ordinary removal is what to check.
+D1. ⇪⇧[, pick an app, Return. EXPECT the per-file review from 6.388.0,
+    unchanged: ✅ and ⚠️ rows, safe ones selected, risky ones kept.
+D2. ⏎ on a row still toggles it; the three bulk rows still work.
+D3. ⏎ on the top row still moves only the selected rows.
+D4. 🚨 It must still refuse an app that is OPEN, and must still never
+    touch anything outside your home folder or /Applications.
+
+E. THE CONSOLE DOORS.
+E1. `_G.appOrphans()` — runs the scan and prints the analysis.
+E2. `_G.appOrphanKeep(2)` — toggles row 2.
+E3. `_G.appOrphanGo()` — moves what is selected.
+E4. `_G.appRemoveReport()` — a new `orphans:` line with four states:
+    not scanned · asked the whole Mac · ⚠️ asked narrowly · ⚠️ nothing
+    answered. The last two are warnings about the QUESTION, not the
+    answer.
+
+F. ❓ QUESTIONS — answers wanted, nothing to run.
+F1. **How long is the list on your Mac?** If it is hundreds of rows,
+    that tells me the folders I chose are too broad and I will narrow
+    them. If it is a handful, this is working as intended.
+F2. **Is the age the right evidence?** I show when the folder was last
+    touched because it is the one fact that separates "gone for good"
+    from "on a disk that is unplugged". If something more useful would
+    help you decide — the total size, how many folders, the date it was
+    created — say which.
+F3. **Should it ever pre-select a row?** Right now nothing is, ever. If
+    you find yourself pressing ⏎ on twenty rows in a row, I can make
+    "nothing touched it in over a year AND the whole disk was searched"
+    start selected — but that is me deciding about your files, so it is
+    your call and not mine to take.
+F4. **Six folders are read.** Preferences, Containers, HTTPStorages,
+    WebKit, Caches and Saved Application State. Application Support is
+    deliberately left out, because it is named after the app rather
+    than its id and every folder with a dot in its name would look like
+    an orphan. Say if you want it in anyway.
+
+
 
 ## 6.388.0
 
@@ -327,64 +441,6 @@ E2. 🔨 Nothing was broken and nothing was lost — so unless a key below
     fail, tell me which letter and what happened instead; a move that
     breaks a key is the one kind of regression where the fix is
     obvious once it is named.
-
-
-
-## 6.385.0
-
-6.385.0 verify with LL — 🎨 THE PICKERS LOOK LIKE THE JUG PLAYER
-(KNOWN GROUND)
-WHAT CHANGED: every picker in this config now wears the Jug Player's
-dark card instead of macOS's white one.
-🔎 AND HALF YOUR ASK IS NOT POSSIBLE, said first rather than found out
-later. You asked for two things: the LOOK, and an **(x) at the end of
-every row**. The look is done. The ✕ is not, on these windows, and
-cannot be: the ⇪⇧V window in your screenshot is an `hs.chooser` — a
-list macOS draws for us from plain strings — and there is no
-sub-element in a row to click and no way to put one there. The Jug
-Player HAS a ✕ because it is a web page we draw ourselves, every
-pixel of it. That is the whole difference between those two
-screenshots.
-🔬 I nearly told you the colours were impossible too, and that would
-have been wrong — hs.chooser does expose bgDark, fgColor and
-subTextColor, and one of your own tools (the app-quit popup) has used
-all three since 6.16.21.
-
-A. THE HEADLINE — ten seconds.
-A1. Press ⇪V (clipboard) or ⇪⇧V. EXPECT: a DARK panel, white text,
-    dimmer second line — the Jug Player's colours.
-    **A FAIL is the white panel in your screenshot.**
-A2. Now press several more: ⇪space, ⇪Y, ⇪⇧S, ⇪., ⇪⇧;, ⇪T.
-    EXPECT: every one of them dark, and all of them the SAME dark.
-    That sameness is the release — they read one table now.
-A3. ⇪D (unified search) was already dark. EXPECT: unchanged, and the
-    two now look like each other.
-
-B. MUST STILL WORK — this touched the one door every picker opens
-   through, so this half matters more than A.
-B1. Type to filter in ⇪V. ↑↓ walk. ⏎ picks. Esc closes.
-B2. ⌘-drag a picker somewhere, close it, open it again: it reopens
-    where you put it.
-B3. ⌃⌥⌘ + an arrow nudges an open picker; ⌃⌥⌘R clears the nudge.
-B4. The preview pane beside ⇪⇧V and ⇪⇧S still follows the rows.
-B5. ⌘⌘ still opens the clipboard; ⌥⌥ still opens the menus.
-
-C. PASTE BACK.
-C1. If ANY picker is still light, name it — that would mean it is
-    opening without going through the shared door, which is a real
-    finding and a different bug.
-
-D. A JUDGEMENT ONLY YOU CAN MAKE.
-D1. Too dark? Too much? `settings = { ui_style = { pickerDark =
-    false } }` puts macOS's own light pickers back everywhere at once.
-    Say the word and I change the default rather than leaving you a
-    line to type.
-D2. **Which windows did you mean by "my other windows"?** If you meant
-    the ones that CAN have a ✕ — Hamsidian, the pads, the task form —
-    say so: those are web pages, they can have anything, and that is a
-    different and bigger release I did not want to guess at.
-D3. On a picker the nearest thing to a ✕ is a KEY on the highlighted
-    row. ⇪⇧V already deletes that way. Want that on others — and which?
 
 
 
