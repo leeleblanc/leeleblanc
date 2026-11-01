@@ -3053,6 +3053,25 @@ do
           sp.writeTimers[c.id] == t1)
     t1:fire()
     check("...and when it fires the note is on disk", #names() == 1, table.concat(names(), ", "))
+    -- 🚨 THE CHECK THAT BITES THE SCHEDULED PATH: proving exportOne writes
+    -- one record proves nothing about what the TIMER calls. A pause that
+    -- reached exportAll would write every tab and the whole history into
+    -- a OneDrive folder every two seconds — 6.229.0 with a new name, and
+    -- invisible to every check above (6.273.0: the missing CHECK is the
+    -- finding, not the line).
+    check("...and the pause wrote ONLY the tab that was typed in, never "
+          .. "every tab and the whole history with it",
+          (function()
+              local other = sp.newTab("Someone else\nentirely")
+              sp.history = { { id = "h9", title = "Old row", text = "was thinking", closedAt = 1 } }
+              sp.scheduleWrite(c.id, "typing")
+              sp.writeTimers[c.id]:fire()
+              local n = names()
+              for _, f in ipairs(n) do
+                  if f == "Someone else.md" or f == "Old row.md" then return false end
+              end
+              return #n == 1
+          end)(), table.concat(names(), ", "))
     check("a second keystroke replaces the pending write rather than stacking",
           (function()
               sp.scheduleWrite(c.id, "typing")
@@ -3200,8 +3219,13 @@ do
     check("...names the last file written, with the reason", 
           r1:find("Reported.md", 1, true) ~= nil and r1:find("(pause)", 1, true) ~= nil,
           r1:match("↳ last[^\n]*"))
-    check("...and says how many open tabs have a file, so the one list is answerable",
-          r1:find("one list:", 1, true) ~= nil)
+    -- 🚨 A SENTENCE WITH NO EVIDENCE UNDER IT is 6.229.0's yield line
+    -- again: asking only for the words passes with the count hard-coded
+    -- to 0, which is the reassuring answer and the wrong one.
+    check("...and says how many open tabs have a file, so the one list is "
+          .. "answerable without a screenshot",
+          r1:find("one list: 1 open tab", 1, true) ~= nil,
+          r1:match("one list[^\n]*"))
     sp.autoWrites.lastWait = "still typing the first line"
     check("...the WAIT is explained as a rule, not reported as a failure",
           _G.scratchPadReport():find("pinned forever", 1, true) ~= nil)

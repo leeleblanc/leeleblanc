@@ -621,6 +621,13 @@ do
     function PAD.onHostClose() PAD.closedHost = PAD.closedHost + 1 end
     function PAD.send() PAD.sent = PAD.sent + 1; return true, "sent" end
     function PAD.saveNow() PAD.saves = PAD.saves + 1 end
+    -- 📝 6.387.0 — the real pad publishes this, so the stub must too
+    -- (6.290.0: a stub gentler than the provider certifies the bug).
+    PAD.owned, PAD.ownedThrows = {}, false
+    function PAD.ownedFiles()
+        if PAD.ownedThrows then error("the pad threw", 0) end
+        return PAD.owned
+    end
     PAD.newTab("groceries\nmilk [[Alpha]]"); PAD.newTab("", "capture"); PAD.active = "t1"
     _G.scratchPad = PAD
 
@@ -3346,6 +3353,108 @@ do
 
     local ran = (pass + fail) - before
     check("§6.340.0 ran all of its checks (" .. ran .. " of 7)", ran >= 7, ran)
+end
+
+-- =======================================================================
+out("\n📝 6.387.0 — a tab's own note is drawn once, not twice\n")
+-- =======================================================================
+-- Every Hamsidian tab is a real .md from 6.387.0, so 6.333.0's one list
+-- had the same thing in it twice: the TAB it still is, and the NOTE a
+-- scan has just found. That is the two-sections problem he asked to be
+-- rid of, in a new hat.
+do
+    local before = pass + fail
+
+    check("with no pad loaded the owned set is empty, never a throw",
+          (function()
+              local keep = _G.scratchPad
+              _G.scratchPad = nil
+              local j = v.ownedJson()
+              _G.scratchPad = keep
+              return j == "{}"
+          end)(), tostring(v.ownedJson()))
+
+    -- 🔬 6.290.0 — a stub that models the provider. The real pad
+    -- publishes ownedFiles from 6.387.0; without it here the whole dedup
+    -- path is unreachable from this suite and every check would be green.
+    local keepPad = _G.scratchPad
+    local P = { viaVault = true, tabs = {}, history = {}, historyRows = 200,
+                owned = {}, throws = false, kinds = {} }
+    function P.setText() return true end
+    function P.titleOf(t) return (t.text or ""):match("[^\n]*") end
+    function P.kindOf() return nil end
+    function P.activeTab() return P.tabs[1] end
+    function P.findTab(id) for i, t in ipairs(P.tabs) do if t.id == id then return t, i end end end
+    function P.ownedFiles()
+        if P.throws then error("the pad threw", 0) end
+        return P.owned
+    end
+    _G.scratchPad = P
+
+    check("a pad with no ownedFiles at all is survived (an older pad "
+          .. "beside a newer vault)",
+          (function()
+              local f = P.ownedFiles
+              P.ownedFiles = nil
+              local j = v.ownedJson()
+              P.ownedFiles = f
+              return j == "{}"
+          end)())
+
+    -- 🚨 A PAD THAT THROWS MUST NOT TAKE THE LIST WITH IT: ownedFiles
+    -- walks the pad's own tables, and a raise there would fail the page
+    -- build and leave him with no left column at all (6.282.0 — an
+    -- instrument that can RAISE is worse than one that lies).
+    P.throws = true
+    check("a pad whose ownedFiles RAISES costs the dedup, never the list",
+          v.ownedJson() == "{}", tostring(v.ownedJson()))
+    P.throws = false
+
+    P.owned = { ["Gamma.md"] = "t1" }
+    check("the names an open tab owns are published for the page",
+          v.ownedJson():find("Gamma.md", 1, true) ~= nil, v.ownedJson())
+    P.owned = { ["B.md"] = "t2", ["A.md"] = "t1" }
+    check("...sorted, so the same set always renders the same page",
+          v.ownedJson() == '{"A.md":1,"B.md":1}', v.ownedJson())
+    P.owned = { [""] = "t1", [123] = "t2" }
+    check("...and a blank or non-string name is refused rather than "
+          .. "written into the page as a key",
+          v.ownedJson() == "{}", v.ownedJson())
+
+    -- the page half, on the real built document
+    P.owned = {}
+    P.tabs = { { id = "t1", text = "groceries\nmilk" } }
+    P.active = "t1"
+    v.openNote("Gamma")
+    local without = v.buildHtml()
+    check("with nothing owned, the page carries an empty owned set",
+          without:find("var OWNED = {}", 1, true) ~= nil, "OWNED")
+    P.owned = { ["Gamma.md"] = "t1" }
+    local with = v.buildHtml()
+    check("...and the set reaches the page when a tab owns a file",
+          with:find('var OWNED = {"Gamma.md":1}', 1, true) ~= nil,
+          with:match("var OWNED[^\n]*"))
+    check("...the page is told to skip a note an open tab owns",
+          with:find("OWNED[x.n + '.md']", 1, true) ~= nil)
+    -- 📏 AND IT IS SKIPPED IN THE LIST ONLY: the note stays in NOTES, so
+    -- [[links]], the graph, ⌘⇧F and a dataview query all still reach it.
+    check("...while the note is still IN the index, so links, the graph "
+          .. "and body search reach it — only the LIST row is skipped",
+          (function()
+              -- the index is whatever the last scan left; whichever note
+              -- it holds, notesJson must still carry it
+              local n = with:match("var NOTES = (%b[])") or ""
+              return n:find("n:", 1, true) ~= nil
+          end)(), (with:match("var NOTES = [^\n]*") or ""):sub(1, 120))
+    check("...and setIndex refreshes it WITH the notes, so the set is as "
+          .. "fresh as the list it filters",
+          with:find("function setIndex(notes, tags, graph, owned)", 1, true) ~= nil
+          and with:find("if (owned) OWNED = owned;", 1, true) ~= nil)
+
+    _G.scratchPad = keepPad
+
+    local ran = (pass + fail) - before
+    check("§6.387.0 ran all of its checks (" .. ran .. " of 11)", ran >= 11, ran)
 end
 
 out(string.format("\n%d passed, %d failed\n", pass, fail))

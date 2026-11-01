@@ -98,7 +98,7 @@ NEW IN 6.387.0 — 📝 EVERY HAMSIDIAN TAB IS A REAL .md FILE: LL, asked
   = false } }` is 6.386.0's behaviour exactly; `exportToVault = false`
   still governs both doors.
 
-  🧪 50 checks, and the three that earn their place are the re-arm above,
+  🧪 63 checks, and the ones that earn their place are the re-arm above,
   the cross-file JOIN between the set the pad publishes and the key the
   page looks up (6.352.0 — the join nobody had made), and the two
   streak gates driven apart. A source check also states the real rule
@@ -106,6 +106,24 @@ NEW IN 6.387.0 — 📝 EVERY HAMSIDIAN TAB IS A REAL .md FILE: LL, asked
   temp-then-rename (6.313.0), because a store opened with "w" is
   truncated before a byte is written and that is how a crash leaves it
   at zero bytes.
+  🧪 38 mutations, 38 bitten, and the no-op control survived. FOUR
+  survived the first sweep and every one was a MISSING CHECK rather than
+  a spare line (6.273.0):
+    · the SCHEDULED path calling exportAll instead of exportOne — proving
+      exportOne writes one record proves nothing about what the TIMER
+      calls, and that mutation writes every tab and the whole history
+      into a OneDrive folder every two seconds while staying green;
+    · `v.ownedJson` trusting a THROW from the pad, which would fail the
+      page build and leave him with no left column at all (6.282.0) —
+      and it could not be driven until the vault suite's pad stub grew
+      an `ownedFiles` of its own, because the real pad publishes one from
+      this release and a stub gentler than the provider certifies the
+      bug (6.290.0, and the stub also models the raise);
+    · the one-list COUNT hard-coded to 0 — the check asked only for the
+      words, which is 6.229.0's yield line again: a sentence with no
+      evidence under it;
+    · and a needle that matched five places, which is not a finding but
+      is recorded because a SKIPPED mutation reads like a passing one.
 
 NEW IN 6.386.0 — 🚪 THE ASANA DASHBOARD LEAVES init.lua: LL, answering
   the question at the end of the 6.385.0 delivery: "Yes, and make this
