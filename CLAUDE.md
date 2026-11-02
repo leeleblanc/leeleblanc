@@ -6491,6 +6491,29 @@ THE METHOD, when something breaks after a stacked zip:
    disk; and HALF A CROSS-FILE JOIN — app_remove's suite proved it ASKS
    clipboard_history for the row clamp and nothing proved that module
    ANSWERS, so deleting its provide line passed the whole gate).
+   · 6.389.0 b10130d (the code and the ceremony; 90751b0 the sweep's own
+   EIGHT findings — 45 of 45 mutations bit, 44 killed and the no-op
+   control survived, restore SHA-verified. Three first-sweep survivors
+   were bad needles; all eight real ones were MISSING CHECKS, and the
+   two to carry are these. 🚪 THE ONE EXIT HAS TWO GUARDS COVERING
+   OPPOSITE ORDERS, which is why it read as 6.363.0's twin and is not
+   one: the task callback's own guard covers an answer arriving after
+   the belt, and `orphanFinish`'s covers the BELT firing after the
+   answer — which nothing drove, and without which that belt replaces a
+   WIDE answer with a NARROW one, turning a good scan into the exact
+   lie this half exists to avoid. 🔬 AND THE BELT STUB LET A STOPPED
+   TIMER FIRE, which macOS never does (6.290.0, fourteenth time), so
+   the check could not be written until the stub refused in that
+   direction — its one honest exception, a `:stop()` macOS REFUSED and
+   the module pcall'd, is what makes that order reachable at all.
+   Also: TWO bundle-id guards with no fixture where they were the only
+   thing saying no, one of them UNKILLABLE by any verdict and earning
+   its place on the true REASON (6.243.0); the Spotlight merge, which
+   only an app in Downloads can drive — his own second population; the
+   lower-case twin, load-bearing in one direction only; a refusal
+   asserted with `find("not")`, which matches inside the word
+   "nothing"; the picker's scan row asserted by a FLAG and never by its
+   TEXT; and the analysis's "nothing is selected" line, unasserted).
    Keep this list current: one line per release, appended at ceremony
    time.
 4. A BISECT IS AN OPTION, NOT THE FIRST MOVE — it costs him an install
