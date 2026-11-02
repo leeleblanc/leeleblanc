@@ -236,6 +236,7 @@ end
 local DEGRADED, COPYREFUSE = {}, false
 local TASKS, BELTS = {}, {}
 local TASKREFUSE, TASKNIL, TIMERNIL = false, false, false
+local BELTREFUSESTOP = false
 local SHOWN, POPUPREFUSE = {}, false
 local core = {
     homeDir = HOME,
@@ -315,9 +316,20 @@ _G.hs = {
     end },
     timer = { doAfter = function(secs, fn)
         if TIMERNIL then return nil end
-        BELTS[#BELTS + 1] = { secs = secs, fn = fn }
+        BELTS[#BELTS + 1] = { secs = secs, raw = fn }
         local b = BELTS[#BELTS]
-        function b:stop() self.stopped = true ; return self end
+        -- 🔬 A STOPPED TIMER DOES NOT FIRE, and the stub has to refuse in
+        -- THAT direction too (6.304.0 — a stub models the provider's
+        -- refusals both ways) or a check can drive something macOS never
+        -- does. The one honest exception is a stop macOS REFUSED: the
+        -- module pcalls `:stop()` and swallows a throw, so that belt is
+        -- still armed. BELTREFUSESTOP is that Mac, and it is the only way
+        -- to reach the belt-after-the-answer order.
+        function b.fn(...) if b.stopped then return end ; return b.raw(...) end
+        function b:stop()
+            if BELTREFUSESTOP then error("macOS refused to stop the timer", 0) end
+            self.stopped = true ; return self
+        end
         return b
     end },
     chooser = { new = function(cb)
@@ -906,6 +918,25 @@ check("a hidden file is not one", idOK(".DS_Store") == false)
 check("a path is not one", idOK("com.x/../../etc") == false)
 check("nothing is not one", idOK(nil) == false and idOK("") == false)
 check("a dot with nothing either side is not one", idOK(".x") == false)
+-- 🚨 AND BOTH OF THOSE GUARDS NEEDED A FIXTURE WHERE THEY ARE THE ONLY
+-- THING SAYING NO (6.230.0, and the sweep found it): "Google Chrome"
+-- has no dot either, so the reverse-DNS rule turns it away whether or
+-- not the space rule exists. A name with a dot AND a space is the only
+-- input where the two implementations must differ.
+check("🏷 a name with a dot AND a space is still not one",
+      idOK("com.vendor.My App") == false)
+local _, spWhy = M.looksLikeBundleId("com.vendor.My App")
+check("…and it is the SPACE it names, not the dot",
+      tostring(spWhy):find("no spaces", 1, true) ~= nil, spWhy)
+-- 🔑 AND THE HIDDEN-FILE RULE CANNOT BE KILLED BY A VERDICT, ever: a
+-- name starting with a dot has its first dot at position 1, so the
+-- dot-with-nothing-either-side rule always catches it too. What the
+-- branch earns its place with is the TRUE REASON (6.243.0) — ".DS_Store
+-- is a hidden file" is actionable and "a dot with nothing either side"
+-- is a lie about what it is.
+local _, hidWhy = M.looksLikeBundleId(".DS_Store")
+check("🏷 a hidden file is refused for being HIDDEN, not for its dot",
+      tostring(hidWhy):find("hidden file", 1, true) ~= nil, hidWhy)
 
 -- 🚨 APPLE'S OWN ARE REFUSED, and this one is load-bearing rather than
 -- tidy: ~/Library/Preferences is mostly com.apple.* — the Dock, the
@@ -1008,6 +1039,16 @@ local tricky = M.idsInMdfind(
     .. "kMDItemCFBundleIdentifier = com.real.Real")
 check("🚨 a path containing the separator does not fool it",
       tricky["com.real.Real"] == true and tricky["evil/App.app"] == nil)
+-- 🚨 THE LOWER-CASE TWIN IS LOAD-BEARING IN ONE DIRECTION ONLY, and
+-- only the two halves together show it. `orphanRows` lowers the id it
+-- FOUND, so Spotlight answering in lower case over a mixed-case folder
+-- is already covered. The case that needs the twin is the other way
+-- round: Spotlight answers MIXED and the folder on disk is lower. Join
+-- the two functions over that pair or the twin reads as spare (6.352.0
+-- — a cross-file join needs both sides driven).
+local mixed = M.idsInMdfind("/Applications/T.app  kMDItemCFBundleIdentifier = com.Vendor.Thing")
+check("🚨 an app Spotlight names in MIXED case still covers its lower-case folder",
+      #(M.orphanRows({ ["com.vendor.thing"] = { size = 1 } }, mixed, "everywhere")) == 0)
 
 -- ---- the scan, end to end -------------------------------------------
 local function orphanDisk()
@@ -1032,6 +1073,7 @@ local function orphanDisk()
     RENAMES, REFUSE, DEGRADED = {}, {}, {}
     TASKS, BELTS = {}, {}
     TASKREFUSE, TASKNIL, TIMERNIL = false, false, false
+    BELTREFUSESTOP = false
     ar.plan, ar.orphan = nil, nil
     ar.orphanBusy, ar.orphanTask, ar.orphanBelt, ar.orphanIds = false, nil, nil, nil
     ar.moved = { runs = 0, items = 0, bytes = 0, last = nil, fails = 0, why = nil }
@@ -1083,6 +1125,9 @@ check("🚨 NOTHING IS SELECTED — nothing starts selected in this half",
 local gOK3, gWhy3 = ar.orphanGo()
 check("🚨 …so a press moves nothing, and says why that is not a fault",
       gOK3 == false and gWhy3:find("not", 1, true) ~= nil, tostring(gWhy3))
+check("…and the sentence says WHY nothing starts selected, not just that it did not",
+      gWhy3:find("safe to remove", 1, true) ~= nil
+      and gWhy3:find("on a row selects it", 1, true) ~= nil, tostring(gWhy3))
 check("…and really moved nothing", #RENAMES == 0, #RENAMES)
 check("🛟 the belt was stopped when the answer landed",
       ar.orphanBelt == nil and BELTS[1].stopped == true)
@@ -1156,8 +1201,41 @@ check("…narrowly, and saying the search did not answer", ar.orphan
 check("🚨 …and the task it gave up on was KILLED", TASKS[1].killed == true)
 -- and a late answer after the belt must not reopen a finished scan
 local rowsBefore = #ar.orphan.rows
+local oAfterBelt = ar.orphan
 TASKS[1].cb(0, "/x.app  kMDItemCFBundleIdentifier = com.gone.Gone")
 check("🚨 an answer arriving after the belt is DROPPED", #ar.orphan.rows == rowsBefore)
+check("🚨 …and the finished scan is the SAME answer, not a fresh one",
+      ar.orphan == oAfterBelt)
+check("…still marked NARROW, because the belt is what ended it",
+      ar.orphan.searched == "folders", ar.orphan.searched)
+check("…and still saying the search never answered", ar.orphan
+      and tostring(ar.orphan.why):find("did not answer", 1, true) ~= nil,
+      ar.orphan and ar.orphan.why)
+
+-- 🚪 AND THE SAME ONE EXIT IN THE OPPOSITE ORDER, which is the half the
+-- callback's own guard cannot cover: the ANSWER lands first and the BELT
+-- fires afterwards. On a real Mac `:stop()` ends it — but that stop is
+-- pcall'd, so a Mac that refuses it leaves the belt armed over a scan
+-- that has already finished. Without the one-exit guard that belt
+-- replaces a WIDE answer with a NARROW one, which turns a good scan into
+-- "ONLY your two app folders were searched" — the exact lie this half of
+-- the release exists to avoid.
+orphanDisk()
+BELTREFUSESTOP = true
+ar.orphans()
+TASKS[1].cb(0, "/Applications/Thing.app  kMDItemCFBundleIdentifier = com.vendor.Thing")
+local oWide = ar.orphan
+check("the wide answer landed", oWide ~= nil and oWide.searched == "everywhere",
+      oWide and oWide.searched)
+check("…and this Mac refused to stop the belt, so it is still armed",
+      BELTS[1].stopped ~= true)
+BELTS[1].fn()
+check("🚨 a belt firing AFTER the answer does not replace a wide scan with a narrow one",
+      ar.orphan == oWide and ar.orphan.searched == "everywhere",
+      ar.orphan and ar.orphan.searched)
+check("…and the reason is not overwritten either", ar.orphan.why == nil,
+      tostring(ar.orphan and ar.orphan.why))
+BELTREFUSESTOP = false
 
 orphanDisk()
 TIMERNIL = true
@@ -1172,6 +1250,40 @@ ar.orphans()
 check("a second scan while one is running is refused rather than stacking",
       select(1, ar.orphans()) == false)
 
+-- 🚨 AND SPOTLIGHT'S ANSWER HAS TO BE MERGED, which only an app the
+-- FOLDER WALK CANNOT SEE can prove. com.vendor.Thing is in
+-- /Applications, so the two folders find it with or without the merge
+-- (6.230.0, again). com.else.Elsewhere lives in Downloads — which is
+-- his own second population, "applications that are run anywhere else
+-- that I install" — so Spotlight is the ONLY thing that can know it is
+-- installed, and without the merge its settings are offered for removal
+-- while the app is sitting there working.
+orphanDisk()
+FS[HOME .. "/Library/Preferences/com.else.Elsewhere.plist"] =
+    { size = 30, mtime = os.time() - 300 * 86400 }
+ar.orphans()
+TASKS[1].cb(0, table.concat({
+    "/Applications/Thing.app  kMDItemCFBundleIdentifier = com.vendor.Thing",
+    "/Users/lee/Downloads/Elsewhere.app  kMDItemCFBundleIdentifier = com.else.Elsewhere",
+}, "\n"))
+check("🚨 an app installed OUTSIDE the two folders is not offered as an orphan",
+      (function()
+          for _, r in ipairs(ar.orphan.rows) do
+              if r.id == "com.else.Elsewhere" then return false end
+          end
+          return #ar.orphan.rows > 0
+      end)(), (function()
+          local n = {}
+          for _, r in ipairs(ar.orphan.rows) do n[#n + 1] = r.id end
+          return table.concat(n, ", ")
+      end)())
+check("…and the one that really is gone is still offered beside it", (function()
+          for _, r in ipairs(ar.orphan.rows) do
+              if r.id == "com.gone.Gone" then return true end
+          end
+          return false
+      end)())
+
 -- ---- the picker's third face ----------------------------------------
 orphanDisk()
 SHOWN, POPUPREFUSE = {}, false
@@ -1179,6 +1291,14 @@ ar.show()
 local chA = SHOWN[1] or { rows_ = {} }
 check("the app list offers the scan", (function()
           for _, r in ipairs(chA.rows_ or {}) do if r.scan then return true end end
+          return false
+      end)())
+check("…by NAME, so a row he cannot read is not an offer", (function()
+          for _, r in ipairs(chA.rows_ or {}) do
+              if r.scan then
+                  return tostring(r.text):find("Leftovers with no app", 1, true) ~= nil
+              end
+          end
           return false
       end)())
 check("…and says nothing moves", (function()
@@ -1210,6 +1330,30 @@ check("…and a way back that moves nothing", (function()
           for _, r in ipairs(chB.rows_ or {}) do if r.back then return true end end
           return false
       end)())
+check("…each one saying which way ⏎ goes, because nothing starts selected", (function()
+          local n = 0
+          for _, r in ipairs(chB.rows_ or {}) do
+              if r.otoggle then
+                  if tostring(r.text):sub(1, 9) ~= "[ keep ] " then return false end
+                  n = n + 1
+              end
+          end
+          return n > 0
+      end)(), chB.rows_[2] and chB.rows_[2].text)
+check("…and the mark FOLLOWS the selection rather than being decoration", (function()
+          local i
+          for k, r in ipairs(ar.orphan.rows) do if r.id == "com.gone.Gone" then i = k end end
+          if not i then return false end
+          ar.orphanToggle(i)
+          SHOWN = {}
+          ar.show()
+          for _, r in ipairs(SHOWN[1].rows_ or {}) do
+              if r.otoggle == i then
+                  return tostring(r.text):sub(1, 9) == "[ MOVE ] "
+              end
+          end
+          return false
+      end)())
 
 -- ---- the report, and its four states --------------------------------
 orphanDisk()
@@ -1229,6 +1373,36 @@ check("🚨 after a NARROW scan it says so, in capitals",
       r3:find("ONLY your two app folders", 1, true) ~= nil, r3:match("[^\n]*ONLY[^\n]*"))
 check("…and warns that an app kept elsewhere looks like an orphan",
       r3:find("looks like an orphan", 1, true) ~= nil)
+
+-- 🗳 AND THE ANALYSIS SAYS NOTHING IS SELECTED, in the block he reads
+-- before deciding anything. "nothing has moved" and "nothing is
+-- selected" are two different facts and he needs both: the first is
+-- about what this press did, the second about what the NEXT press would
+-- do (6.384.0's first-press rule, said where the list is).
+orphanDisk()
+PRINTED = {}
+local realP2 = print
+print = function(...) local t = {}
+    for i = 1, select("#", ...) do t[#t+1] = tostring((select(i, ...))) end
+    PRINTED[#PRINTED + 1] = table.concat(t, " ") end
+_G.appOrphans()
+TASKS[1].cb(0, "")
+print = realP2
+local oAnalysis = table.concat(PRINTED, "\n")
+check("the analysis is printed for him to read", oAnalysis:find("LEFTOVERS", 1, true) ~= nil
+      or oAnalysis:find("orphan", 1, true) ~= nil, oAnalysis:sub(1, 120))
+check("🗳 …and it says NOTHING IS SELECTED, not only that nothing has moved",
+      oAnalysis:find("nothing is selected", 1, true) ~= nil,
+      oAnalysis:match("[^\n]*NOTHING HAS MOVED[^\n]*"))
+check("…and names every folder of every row, so the list is the artefact",
+      (function()
+          for _, r in ipairs(ar.orphan.rows) do
+              for _, p in ipairs(r.paths) do
+                  if not oAnalysis:find(p, 1, true) then return false end
+              end
+          end
+          return #ar.orphan.rows > 0
+      end)())
 
 out("\n=== 8. THE REPORT, AND THE SOURCE PROMISE ===")
 -- =====================================================================
