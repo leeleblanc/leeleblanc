@@ -235,7 +235,7 @@ Open the Console (menu bar hammer → *Console*). A healthy boot is two
 lines:
 
 ```
-🧭 Lees-MacBook-Air  ·  76 modules  ·  108 ⇪ shortcuts  ·  0.13s
+🧭 Lees-MacBook-Air  ·  77 modules  ·  111 ⇪ shortcuts  ·  0.13s
    All green.  ⇪ is proven on your next Caps Lock press.  ⇪⇧D diagnostic report
 ```
 

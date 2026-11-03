@@ -112,7 +112,11 @@ if [ "$NEEDS_CORE" = "1" ]; then
     for n in diagnostics cheatsheet boot_report boot_cost key_trail capabilities notices coexist hyper_key changelog_csv console lag double_tap; do
         [ -f "$SRC/core/$n.lua" ] || die "core/$n.lua is missing from your download. Re-download."
     done
-    say "   core/    : 9 files ✅ present"
+    # 📏 COUNTED, NEVER TYPED. This line read "9 files" while the loop
+    # above walked THIRTEEN names and the verify below checked thirteen —
+    # a number printed to a human is a lie the moment a file is added
+    # (6.261.0). It is now the real count of what is there.
+    say "   core/    : $(ls -1 "$SRC/core"/*.lua 2>/dev/null | wc -l | tr -d ' ') files ✅ present"
 else
     say "   core/    : not required by this version"
 fi
@@ -121,6 +125,18 @@ if [ -d "$SRC/modules" ]; then
     say "   modules/ : $(ls -1 "$SRC/modules"/*.lua 2>/dev/null | wc -l | tr -d ' ') files"
 else
     say "   modules/ : not in this download — your existing ones are kept"
+fi
+
+# 🩺 MANIFEST.txt (6.399.0) — one row per runtime file with its byte
+# count, so _G.installCheck() on the Mac can answer "did the whole
+# release land?". It is OPTIONAL here on purpose: an older archive has
+# none, and refusing to install one would make this script the thing that
+# cannot install a rollback.
+if [ -f "$SRC/MANIFEST.txt" ]; then
+    MANVER=$(grep -m1 '^# *version' "$SRC/MANIFEST.txt" | sed 's/.*[:=] *//')
+    say "   MANIFEST : $(grep -c "	" "$SRC/MANIFEST.txt" | tr -d ' ') file row(s), for ${MANVER:-an unnamed release}"
+else
+    say "   MANIFEST : not in this download — _G.installCheck() will say so"
 fi
 
 # 📦 SHIPPED SNIPPETS (6.105.0). This script did not copy snippets/ for
@@ -189,6 +205,10 @@ if [ -d "$SRC/modules" ]; then
     cp "$SRC/modules"/*.lua "$HS/modules/" || die "could not write modules/"
     say "   modules/ ✅ $(ls -1 "$HS/modules"/*.lua | wc -l | tr -d ' ') files"
 fi
+if [ -f "$SRC/MANIFEST.txt" ]; then
+    cp "$SRC/MANIFEST.txt" "$HS/MANIFEST.txt" || die "could not write MANIFEST.txt"
+    say "   MANIFEST ✅"
+fi
 if [ -d "$SRC/tools" ]; then
     mkdir -p "$HS/tools"
     cp "$SRC/tools"/*.sh "$HS/tools/" 2>/dev/null
@@ -244,6 +264,20 @@ if [ "$NEEDS_CORE" = "1" ]; then
             fail="$fail core/$n-not-an-initialiser"
         fi
     done
+fi
+
+# 🩺 AND THE MANIFEST MUST DESCRIBE THE TREE UNDER IT. A new
+# MANIFEST.txt beside an old init.lua reads as a clean install to every
+# instrument on the Mac — it is the half-install one level up, and it is
+# the one thing _G.installCheck() cannot catch by itself, because it is
+# the file the check trusts.
+if [ -f "$SRC/MANIFEST.txt" ]; then
+    if [ ! -s "$HS/MANIFEST.txt" ]; then
+        fail="$fail manifest-missing"
+    else
+        IMV=$(grep -m1 '^# *version' "$HS/MANIFEST.txt" | sed 's/.*[:=] *//')
+        [ "$IMV" = "$NEWVER" ] || fail="$fail manifest-for-$IMV-not-$NEWVER"
+    fi
 fi
 
 if [ -n "$fail" ]; then

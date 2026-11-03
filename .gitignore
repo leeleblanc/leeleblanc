@@ -26,12 +26,23 @@
 #   lua5.4 hammerspoon/tools/build-snippets.lua hammerspoon           ← builds the table
 #   lua5.4 hammerspoon/tools/build-feature-list.lua hammerspoon       ← 6.217.0: RESOLVED-FEATURE-REQUESTS.txt
 #   lua5.4 hammerspoon/tools/build-test-plan.lua hammerspoon          ← 6.271.0: TESTING.md
+#   lua5.4 hammerspoon/tools/build-manifest.lua hammerspoon           ← 6.399.0: MANIFEST.txt
+#         🩺 AFTER the three version stamps are in init.lua — it reads the
+#            stamp and REFUSES to write a manifest without one, and it
+#            records init.lua's own byte count, which every stamp moves.
+#            It must be the LAST generator to run.
 #   cp -R hammerspoon/init.lua hammerspoon/core hammerspoon/modules \
 #         hammerspoon/tools hammerspoon/tests hammerspoon/snippets \
 #         hammerspoon/GUIDE.md hammerspoon/INSTALL.md hammerspoon/HAMSIDIAN.md \
 #         hammerspoon/CHANGELOG.md hammerspoon/RESOLVED-FEATURE-REQUESTS.txt \
-#         hammerspoon/TESTING.md /tmp/pkg/
+#         hammerspoon/TESTING.md hammerspoon/MANIFEST.txt /tmp/pkg/
 #   lua5.4 hammerspoon/tools/build-snippets.lua hammerspoon --check   ← REQUIRED
+#   lua5.4 hammerspoon/tools/build-manifest.lua /tmp/pkg --check      ← REQUIRED
+#         🩺 RUN AGAINST /tmp/pkg, NOT THE WORKING TREE. The manifest is a
+#            claim about the bytes in the ARCHIVE, and verifying the tree
+#            it was generated from proves only that the generator is
+#            deterministic (6.263.0: verify the artefact, never the
+#            intention). A mismatch here means the cp was partial.
 #   find /tmp/pkg/snippets -mindepth 1 -depth ! -name bundled.lua -delete
 #   (cd /tmp/pkg && zip -qr ../hammerspoonX.Y.Z.zip .)
 #

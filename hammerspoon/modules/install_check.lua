@@ -246,18 +246,24 @@ function M.setup(core)
         return s
     end
 
+    -- 📏 A BOUNDED WALK ANSWERS WHETHER IT FINISHED (6.197.2). The cap is
+    -- real work-avoidance -- hs.fs.dir hands back filesystem order, so a
+    -- folder somebody has emptied a download into could be thousands of
+    -- entries -- and a count taken under a bound is a FLOOR. Reporting it
+    -- as "strays: none" would be the most reassuring sentence this module
+    -- can print about a folder it stopped reading half way down.
     local function listDir(rel)
-        local names, ok = {}, false       -- declared FIRST (6.230.0's trap)
+        local names, capped, ok = {}, false, false   -- declared FIRST (6.230.0)
         ok = pcall(function()
             local n = 0
             for e in hs.fs.dir(ic.dir .. "/" .. rel) do
                 n = n + 1
-                if n > (ic.strayMax or 300) then break end
+                if n > (ic.strayMax or 300) then capped = true ; break end
                 names[#names + 1] = e
             end
         end)
         if not ok then return nil end
-        return names
+        return names, capped
     end
 
     -- =============================================================
@@ -267,7 +273,8 @@ function M.setup(core)
     function ic.run()
         ic.runs = ic.runs + 1
         local res = { state = nil, why = nil, rows = 0, ok = 0,
-                      bad = {}, strays = {}, version = nil, unread = {} }
+                      bad = {}, strays = {}, version = nil, unread = {},
+                      capped = {} }
         pcall(function() ic.lastAt = os.date("%H:%M:%S") end)
 
         local text = readAll(ic.dir .. "/" .. ic.file)
@@ -303,10 +310,11 @@ function M.setup(core)
         end
 
         for _, d in ipairs(ic.strayDirs or {}) do
-            local names = listDir(d)
+            local names, capped = listDir(d)
             if names == nil then
                 res.unread[#res.unread + 1] = d
             else
+                if capped then res.capped[#res.capped + 1] = d end
                 for _, s in ipairs(ic.straysIn(d, names, seen)) do
                     res.strays[#res.strays + 1] = s
                 end
@@ -387,6 +395,8 @@ function M.setup(core)
             L[#L + 1] = "      ↳ §1.12 loads an explicit list, so a stray is IGNORED and"
             L[#L + 1] = "        the original stays loaded — a drag that answered Finder's"
             L[#L + 1] = "        'Keep Both' looks exactly like a finished install."
+        elseif #res.capped > 0 or #res.unread > 0 then
+            L[#L + 1] = "   strays  : none SO FAR — but a folder below was not read whole"
         else
             L[#L + 1] = "   strays  : none — core/ and modules/ hold only what shipped"
         end
@@ -394,6 +404,11 @@ function M.setup(core)
         if #res.unread > 0 then
             L[#L + 1] = "      ⚠️ could not list: " .. table.concat(res.unread, ", ")
                         .. " — the stray half says nothing about those folders"
+        end
+        if #res.capped > 0 then
+            L[#L + 1] = "      ⚠️ STOPPED AT " .. tostring(ic.strayMax or 300)
+                        .. " ENTRIES in: " .. table.concat(res.capped, ", ")
+                        .. " — the stray count above is a FLOOR, not a total"
         end
         if res.badRow then
             L[#L + 1] = "      ⚠️ " .. tostring(res.badRow)
