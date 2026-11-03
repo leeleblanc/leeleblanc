@@ -6633,6 +6633,22 @@ THE METHOD, when something breaks after a stacked zip:
    asserted with `find("not")`, which matches inside the word
    "nothing"; the picker's scan row asserted by a FLAG and never by its
    TEXT; and the analysis's "nothing is selected" line, unasserted).
+   · 6.390.0–6.399.0 04b5c14 (6.399.0's suite and the plumbing) ·
+   **66df046 is the ceremony and the archive, and 66df046 is the SHA
+   every link to it must carry** — a branch-pinned link dies the moment
+   the next release deletes the file, which is why 6.356.0–6.358.0 never
+   reached his Downloads.
+   🔑 TEN RELEASES IN TEN DIFFERENT PLACES on purpose — music_player
+   (6.390.0), init.lua's webview door (6.391.0), ocr_engine (6.392.0 and
+   6.395.0), screenshots (6.393.0 and 6.394.0), app_remove (6.396.0),
+   activity_tracker (6.397.0), scratch_pad (6.398.0) and a NEW module
+   (6.399.0) — so a break still names its version by which tool fails.
+   The earlier commits: 0bf338e (6.390.0 · 6.391.0) · 9a0e451 (their
+   sweep's three findings) · cb05403 (6.392.0–6.394.0) · 641b3e4
+   (6.395.0–6.398.0). 49 of 49 mutations bit on 6.399.0 and the no-op
+   control survived, restore sha-verified; the sweep's own findings are
+   in the 🩺 hard rule above, and the sharpest is the one that deleted a
+   guard no input could ever fail (6.199.0, EIGHTH time).
    Keep this list current: one line per release, appended at ceremony
    time.
 4. A BISECT IS AN OPTION, NOT THE FIRST MOVE — it costs him an install
@@ -6865,6 +6881,16 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
+| 6.399.0 | 🩺 Did the whole release land? MANIFEST.txt and one command that names every file that disagrees | pending |
+| 6.398.0 | 📝 Closing a Hamsidian tab leaves its note — and says so, with the way to remove it | pending |
+| 6.397.0 | ✏️ The document edit opens the real window — the last picker still on macOS's one-line dialog | pending |
+| 6.396.0 | 🗳 His own words for a risky row: "⚠️ Attention: your data may be in here ⚠️" | pending |
+| 6.395.0 | 🖱 The edit window drags — every part was built and one line ended it 16 ms in | pending |
+| 6.394.0 | 🔌 watchFolder = false really stops the watcher, not just the handler | pending |
+| 6.393.0 | ⏱ One hung OCR no longer wedges every later screenshot out of the naming queue | pending |
+| 6.392.0 | 🆔 A file reference is resolved by a bookmark — realpath's answer looks perfect and cannot be opened | pending |
+| 6.391.0 | 🪟 One door for every webview show — a webview refuses in two directions and no panel read either | pending |
+| 6.390.0 | 🪟 The Jug Player's drop catcher reads its own show — 6.352.0's line, in its twin | pending |
 | 6.389.0 | 🔎 Leftovers from an app that was never installed — the ids no app answers for, nothing selected | pending |
 | 6.388.0 | 🗳 App removal says of every file whether it is safe, and ⏎ leaves one behind — risky rows start KEPT | pending |
 | 6.387.0 | 📝 Every Hamsidian tab writes itself into the notes folder as a real .md, named from its first line | pending |
