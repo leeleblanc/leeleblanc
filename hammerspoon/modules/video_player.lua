@@ -1566,8 +1566,18 @@ function seekBy(d){
         end
 
         vid.shows = (tonumber(vid.shows) or 0) + 1
-        local shown = false
-        pcall(function() shown = view:show() ~= false end)
+        -- 🪟 6.391.0 — THROUGH THE ONE DOOR. 6.326.0 and 6.352.0 got
+        -- this right by hand (`~= false` catches the decline, the pcall
+        -- catches the throw) and the door does exactly that plus the
+        -- count — so `_G.webviewShowReport()` can answer for EVERY panel
+        -- rather than the ones that happened to be instrumented.
+        local shown
+        if _G.showWebviewSafely then
+            shown = _G.showWebviewSafely(view, "Mug Player")
+        else
+            shown = false
+            pcall(function() shown = view:show() ~= false end)
+        end
         if shown then landed() ; return true end
 
         -- 🚨 macOS REFUSED TO ORDER THE WINDOW ON SCREEN, and his
@@ -1598,8 +1608,15 @@ function seekBy(d){
                 if vid.webview or vid.showToken ~= token then
                     pcall(function() view:delete() end) ; return
                 end
-                local ok2 = false
-                pcall(function() ok2 = view:show() ~= false end)
+                -- 🪟 6.391.0 — the retry goes through the door too, so a
+                -- second refusal is counted rather than only degraded.
+                local ok2
+                if _G.showWebviewSafely then
+                    ok2 = _G.showWebviewSafely(view, "Mug Player (retry)")
+                else
+                    ok2 = false
+                    pcall(function() ok2 = view:show() ~= false end)
+                end
                 if ok2 then
                     vid.recovered = (tonumber(vid.recovered) or 0) + 1
                     landed()

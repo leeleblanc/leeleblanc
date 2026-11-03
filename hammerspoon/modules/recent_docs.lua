@@ -1213,7 +1213,13 @@ if (q.focus) q.focus();
             pcall(_G.capturePad.applyNonActivating, view)
         end
         pcall(function() view:html(rd.buildHtml()) end)
-        pcall(function() view:show() end)
+        -- 🪟 6.391.0 — the shared door reads BOTH refusals (a throw and
+        -- a false return). Guarded, so a build without it still opens.
+        if _G.showWebviewSafely then
+            _G.showWebviewSafely(view, "Recent documents")
+        else
+            pcall(function() view:show() end)
+        end
         pcall(function() view:bringToFront(true) end)
         say(#rd.entries .. " rows shown")
         return true

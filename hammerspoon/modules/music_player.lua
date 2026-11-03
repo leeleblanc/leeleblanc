@@ -286,6 +286,8 @@ function M.setup(core)
         pos       = nil,              -- where he last dragged it, or nil
         posWhy    = "not opened yet",
         catcher   = nil,              -- the canvas that takes the drop
+        catcherOn = false,            -- did macOS really put it on screen?
+        catcherRefused = 0,           -- how many times it would not
         dropWhy   = "not opened yet",
         dragSeen  = "no drag yet this session",
         dropReader = nil,             -- which pasteboard reader answered
@@ -1742,9 +1744,33 @@ say({a:'ready'});
             pcall(function() cv:delete() end)
             return degrade(mp.dropWhy)
         end
-        pcall(function() cv:show() end)
-        mp.catcher = cv
-        mp.dropWhy = "ready"
+        -- 🪟 A HANDLE RECORDED BEFORE THE WINDOW IS UP IS A HANDLE
+        -- THAT LIES (6.326.0), and this is 6.352.0's bug VERBATIM in the
+        -- other player: that release fixed the Mug Player's catcher and
+        -- named this one as its twin, left on purpose for its own release.
+        -- hs.canvas:show() THROWS when AppKit refuses to order the window
+        -- on screen, and this Mac measurably refuses (6.265.0 · 6.274.0
+        -- · 6.314.0 · 6.348.0) — so discarding that answer recorded a
+        -- catcher which is NOT on screen as "ready", and a catcher that is
+        -- not on screen catches nothing at all.
+        local okS = pcall(function() cv:show() end)
+        if not okS then
+            pcall(function() cv:delete() end)
+            mp.catcher        = nil
+            mp.catcherOn      = false
+            mp.catcherRefused = (mp.catcherRefused or 0) + 1
+            mp.dropWhy = "macOS would not put the drop catcher on screen"
+            -- 🚪 NOT THE WHOLE FEATURE, and the report must say so rather
+            -- than reading as a dead drop: this page carries its own
+            -- dragover/drop handlers, so a drag that lands ON the card is
+            -- still read. What is lost is the catcher UNDERNEATH it, which
+            -- is what takes a drag the page itself refuses.
+            return degrade(mp.dropWhy .. " — the card's own drop handler "
+                           .. "still works; drag the file onto the card")
+        end
+        mp.catcher   = cv
+        mp.catcherOn = true
+        mp.dropWhy   = "ready"
         return true
     end
 
@@ -1753,6 +1779,7 @@ say({a:'ready'});
             pcall(function() mp.catcher:delete() end)
             mp.catcher = nil
         end
+        mp.catcherOn = false
     end
 
     function mp.moveCatcher(f)
@@ -2024,8 +2051,18 @@ say({a:'ready'});
         -- the card is closed — macOS keeps the key` is a healthy card
         -- answering correctly. This is a latent defect closed on
         -- reading, not the explanation for a symptom.
-        local shown = false
-        pcall(function() shown = view:show() ~= false end)
+        -- 🪟 6.391.0 — THROUGH THE ONE DOOR. 6.326.0 and 6.352.0 got
+        -- this right by hand (`~= false` catches the decline, the pcall
+        -- catches the throw) and the door does exactly that plus the
+        -- count — so `_G.webviewShowReport()` can answer for EVERY panel
+        -- rather than the ones that happened to be instrumented.
+        local shown
+        if _G.showWebviewSafely then
+            shown = _G.showWebviewSafely(view, mp.brandText(mp.brand))
+        else
+            shown = false
+            pcall(function() shown = view:show() ~= false end)
+        end
         if not shown then
             -- 🪟 TORN DOWN, not abandoned (6.265.0/6.266.0): a window
             -- left behind keeps its page, its bridge and its Esc claim,
@@ -2571,8 +2608,16 @@ say({a:'ready'});
             end)())
         line("   ↳ .flac and .ogg do NOT play through macOS's own audio —")
         line("     each refused file says so by name")
-        line("   drop     : " .. (mp.catcher and "catcher up — a dragged "
+        -- 🔎 THE FLAG, NEVER THE HANDLE: `mp.catcher` only says an
+        -- object was made, and 6.390.0 is the release that learned those
+        -- are different facts. `catcherOn` is written AFTER macOS agreed.
+        line("   drop     : " .. (mp.catcherOn and "catcher up — a dragged "
              .. "file lands on the card" or ("⚠️ " .. tostring(mp.dropWhy))))
+        if (mp.catcherRefused or 0) > 0 then
+            line("   ↳ ⚠️ macOS refused the catcher "
+                 .. mp.catcherRefused .. " time(s) this session — the card's "
+                 .. "own drop handler still reads a drag that lands on it")
+        end
         line("   ↳ " .. tostring(mp.dragSeen)
              .. (mp.dropReader and (" · read by " .. mp.dropReader) or ""))
         line("   ↳ " .. tostring(mp.dropRefs)

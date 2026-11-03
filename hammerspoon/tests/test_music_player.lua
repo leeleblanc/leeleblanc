@@ -217,6 +217,13 @@ hs = {
 -- whose canvas refuses to show, because both are real Macs.
 CANVASES, NO_CANVAS, NO_DRAGCB = {}, false, false
     NO_SEEK = false
+-- 🔬 MISSING IS NOT REFUSING (6.265.0, and this is the fifth time it
+-- has decided a release). NO_CANVAS is a Hammerspoon with no hs.canvas;
+-- CANVAS_REFUSE_SHOW is the shape this Mac actually has — a canvas that
+-- is created, wired and then REFUSED by AppKit at the moment it is
+-- ordered on screen. hs.canvas:show() signals that by THROWING, so a
+-- stub whose show always succeeds cannot reach the branch at all.
+CANVAS_REFUSE_SHOW = false
 hs.canvas = {
     windowLevels = { dragging = 500, screenSaver = 1000, floating = 3 },
     new = function(rect)
@@ -224,7 +231,13 @@ hs.canvas = {
         local c = { rect = rect, elements = {} }
         function c:level(l) if l == nil then return self.lvl end self.lvl = l return self end
         function c:mouseCallback(f) self.mouseCb = f return self end
-        function c:show() self.shown = true return self end
+        function c:show()
+            if CANVAS_REFUSE_SHOW then
+                error("NSInternalInconsistencyException: AppKit refused "
+                      .. "to order the window on screen", 0)
+            end
+            self.shown = true ; return self
+        end
         function c:hide() self.shown = false return self end
         function c:delete() self.deleted = true return self end
         function c:frame(f) if f == nil then return self.rect end self.rect = f return self end
@@ -461,11 +474,13 @@ local function reset()
     FOCUSED_WIN, NO_HSWINDOW, REFUSE_FOCUS = nil, false, false
     SCREENS = { { x = 0, y = 0, w = 1440, h = 900 } }
     CANVASES, NO_CANVAS, NO_DRAGCB = {}, false, false
+    CANVAS_REFUSE_SHOW = false
     NO_SEEK = false
     PB = { url = nil, str = nil, contents = nil, uti = nil, types = nil,
            plist = nil, throw = {}, throwMsg = nil }
     BOOKMARKS, NO_BOOKMARK, BOOKMARK_THROW = {}, false, false
     mp.catcher, mp.dropReader = nil, nil
+    mp.catcherOn, mp.catcherRefused = false, 0
     mp.dropWhy, mp.dragSeen = "not opened yet", "no drag yet this session"
     mp.dropRefs = "nothing read yet"
 end
@@ -1573,6 +1588,58 @@ check("🔔 ...and a Mac whose hs.canvas REFUSES to make the window is a "
 check("🔔 ...and THAT one takes the door too — every way the drop can "
       .. "fail is a break he is shown, not one he finds later",
       #DEGRADED > 0, table.concat(DEGRADED, " | "))
+
+-- =====================================================================
+-- 🪟 6.390.0 — A CATCHER macOS REFUSED IS NOT A CATCHER THAT IS UP
+-- =====================================================================
+-- 6.352.0 fixed this exact line in the Mug Player and NAMED this one as
+-- its twin. The show's answer was thrown away, so a canvas AppKit had
+-- refused was recorded as `ready` — and the report said so, about a
+-- surface that is not on screen and therefore catches nothing.
+-- 🔎 WHY IT SURVIVED 157 RELEASES: this page has its OWN dragover/drop
+-- handlers, so the card went on reading drags that land on it. Only the
+-- catcher UNDERNEATH was lost, which is a drag the page itself refuses.
+reset()
+CANVAS_REFUSE_SHOW = true
+local okRef = mp.show()
+check("🪟 the card still OPENS when macOS refuses the drop catcher",
+      okRef == true and mp.webview ~= nil)
+check("🚨 ...and the catcher is NOT recorded — a handle to a window "
+      .. "that is not on screen is a handle that lies (6.326.0)",
+      mp.catcher == nil, tostring(mp.catcher))
+check("...and the MEASURED flag says so, which is what the report reads",
+      mp.catcherOn == false)
+check("...and the refused canvas is TORN DOWN, never left holding its "
+      .. "dragging level with nothing able to reach it (6.265.0)",
+      #CANVASES == 1 and CANVASES[1].deleted == true)
+check("🔔 ...and it takes the 🔔 door, naming macOS as the refuser",
+      #DEGRADED > 0 and table.concat(DEGRADED, " | ")
+      :find("would not put the drop catcher on screen", 1, true) ~= nil,
+      table.concat(DEGRADED, " | "))
+local refRep = report()
+check("🔎 ...and the report does NOT say 'catcher up' about it",
+      refRep:find("catcher up", 1, true) == nil, refRep)
+check("...and counts the refusal, with the half that STILL works beside "
+      .. "it — a one-door failure and a two-door one are different facts",
+      refRep:find("macOS refused the catcher 1 time(s)", 1, true) ~= nil
+      and refRep:find("own drop handler", 1, true) ~= nil, refRep)
+-- 🧪 THE FIXTURE THAT BITES, and it is the whole release: on the OLD
+-- code `mp.catcher` was assigned regardless, so the report read "catcher
+-- up" and every check above passes only because the answer is read.
+CANVAS_REFUSE_SHOW = false
+
+-- ✅ AND THE HEALTHY CASE MUST STILL BE HEALTHY (6.269.0 — a new
+-- instrument is measured against the working Mac FIRST).
+reset()
+mp.show()
+check("✅ a Mac that shows the catcher records it, and says 'catcher up'",
+      mp.catcher ~= nil and mp.catcherOn == true
+      and report():find("catcher up", 1, true) ~= nil)
+check("...with no refusal line at all on a healthy Mac",
+      report():find("macOS refused the catcher", 1, true) == nil)
+check("...and closing the card clears the MEASURED flag too, or the next "
+      .. "report describes a catcher that was deleted (6.308.0)",
+      (function() mp.hide() ; return mp.catcherOn == false end)())
 
 reset()
 NO_DRAGCB = true

@@ -1255,7 +1255,13 @@ function M.setup(core)
                 deleteLabel = opts.deleteLabel,
             }))
         end)
-        pcall(function() view:show() end)
+        -- 🪟 6.391.0 — the shared door reads BOTH refusals (a throw and
+        -- a false return). Guarded, so a build without it still opens.
+        if _G.showWebviewSafely then
+            _G.showWebviewSafely(view, "Edit window")
+        else
+            pcall(function() view:show() end)
+        end
         -- 🎯 DELIBERATELY ACTIVATING, unlike Window Pin's editor. That one
         -- must not pull Hammerspoon forward because it hides its note when
         -- the app loses focus. This box has no such rule and one job —

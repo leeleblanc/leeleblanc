@@ -1466,6 +1466,89 @@ function _G.canvasShowReport()
     print(table.concat(L, "\n"))
 end
 
+-- =====================================================================
+-- 🪟 6.391.0 — ONE DOOR FOR EVERY WEBVIEW SHOW
+-- =====================================================================
+-- 🔎 A WEBVIEW REFUSES IN TWO DIRECTIONS AND SIX PANELS READ NEITHER.
+-- `hs.webview:show()` can THROW (the AppKit family that cost 6.265.0 the
+-- canvas, 6.266.0 the frozen grid box, 6.274.0 three refused alerts in
+-- eight hours of his own Console, 6.314.0 the chooser and 6.348.0 the Mug
+-- Player's window) — and it can also simply RETURN FALSE, which no throw
+-- guard can see. Every one of these sites was `pcall(function()
+-- view:show() end)`, which discards both answers, so a window macOS never
+-- put on screen was indistinguishable from one that opened.
+--
+-- 🚨 AND ONE SITE WAS WORSE THAN THE REST, which is why this is a door
+-- and not six edits: screenshot_editor's `showAgain` read
+-- `local shown = pcall(...)`. That LOOKS like it reads the answer and
+-- does not — pcall's first value is only "it did not throw", so a
+-- `false` return was recorded as a window that came back. That window is
+-- the one ⌘D and ⌘F hide on purpose, and the belt that returns it.
+--
+-- 🔑 THE CALLER DECIDES, never this helper (6.266.0): it answers and
+-- counts, and does NOT retry. A retry that acts a turn later is acting on
+-- a decision that may have been reversed, and it holds the only reference
+-- to the thing it acts on.
+_G.webviewShows = _G.webviewShows or
+    { asked = 0, refused = 0, last = nil, lastAt = nil, why = nil }
+
+-- PURE. The whole rule, provable with no Mac: a throw and a false return
+-- are the same verdict and DIFFERENT reasons (6.196.1), because one says
+-- AppKit raised and the other says it declined — and a diagnosis that
+-- cannot tell them apart sends the next release to the wrong place.
+function _G.webviewShowVerdict(threw, answer)
+    if threw then
+        return false, "macOS raised while ordering the window on screen"
+    end
+    if answer == false then
+        return false, "macOS declined to put the window on screen"
+    end
+    return true, "on screen"
+end
+
+function _G.showWebviewSafely(view, label)
+    if not view then return false, "there is no window to show" end
+    local name = tostring(label or "panel")
+    _G.webviewShows.asked = _G.webviewShows.asked + 1
+    local answer
+    local ok = pcall(function() answer = view:show() end)
+    local shown, why = _G.webviewShowVerdict(not ok, answer)
+    if shown then return true, why end
+
+    _G.webviewShows.refused = _G.webviewShows.refused + 1
+    _G.webviewShows.last    = name
+    _G.webviewShows.why     = why
+    pcall(function() _G.webviewShows.lastAt = os.date("%H:%M:%S") end)
+    print("⚠️ " .. name .. ": " .. why
+          .. " — usually another app's popup was mid-transition. "
+          .. "Press the key again.")
+    if _G.notices then
+        pcall(_G.notices.record, "runtime", name, why)
+        pcall(_G.notices.tell, "A panel would not open",
+              name .. " — press the key again",
+              { key = "webview:" .. name, every = 300 })
+    end
+    return false, why
+end
+
+-- 🔎 The six panels had no shared number at all, so "it sometimes does
+-- not open" could only ever be a sentence. asked vs refused is the whole
+-- answer, and `last` names WHICH panel and in which of the two ways.
+function _G.webviewShowReport()
+    local w = _G.webviewShows or {}
+    local L = { "🪟 WEBVIEW SHOW" }
+    L[#L + 1] = "   asked   : " .. tostring(w.asked or 0) .. " window(s)"
+    if (w.refused or 0) == 0 then
+        L[#L + 1] = "   refused : none — macOS put every panel on screen"
+    else
+        L[#L + 1] = "   refused : ⚠️ " .. tostring(w.refused)
+        L[#L + 1] = "   last    : " .. tostring(w.last)
+            .. (w.lastAt and (" at " .. tostring(w.lastAt)) or "")
+        L[#L + 1] = "   ↳ " .. tostring(w.why)
+    end
+    print(table.concat(L, "\n"))
+end
+
 -- 6.88.0 — hs.alert draws with hs.canvas underneath, so ITS show hits
 -- the same throw. Wrapped ONCE, here: every alert everywhere survives.
 -- 🚨 6.100.1 — THE PHANTOM PILL: the throw lands MID-draw and leaves an

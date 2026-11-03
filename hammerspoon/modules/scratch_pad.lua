@@ -2396,7 +2396,14 @@ t.focus(); try { t.setSelectionRange(CARET, CARET); } catch(e){}
     function sp.blur()
         if not sp.webview then return end
         pcall(function() sp.webview:hide() end)
-        pcall(function() sp.webview:show() end)
+        -- 🪟 6.391.0 — see vault.blur: a refused re-show leaves a window
+        -- that exists and cannot be seen, which nothing else can detect.
+        if _G.showWebviewSafely then
+            _G.showWebviewSafely(sp.webview,
+                                 "Hamsidian tabs (handing focus back)")
+        else
+            pcall(function() sp.webview:show() end)
+        end
     end
 
     function sp.hide()
@@ -2606,7 +2613,13 @@ t.focus(); try { t.setSelectionRange(CARET, CARET); } catch(e){}
             end
         end
         sp.render()
-        pcall(function() view:show() end)
+        -- 🪟 6.391.0 — the shared door reads BOTH refusals (a throw and
+        -- a false return). Guarded, so a build without it still opens.
+        if _G.showWebviewSafely then
+            _G.showWebviewSafely(view, "Hamsidian tabs")
+        else
+            pcall(function() view:show() end)
+        end
         if sp.focusOnOpen then pcall(function() view:bringToFront(true) end) end
         -- 6.165.1 — this pad has the keyboard now; nobody holds ⇪ through
         -- that. If the F18 keyUp was lost on the way in, the watchdog

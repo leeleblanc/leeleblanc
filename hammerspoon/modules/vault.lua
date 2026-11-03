@@ -4660,7 +4660,14 @@ else {
     function v.blur()
         if not v.webview then return end
         pcall(function() v.webview:hide() end)
-        pcall(function() v.webview:show() end)
+        -- 🪟 6.391.0 — a refusal HERE is the worst of the family: the
+        -- window still exists and the handle is still right, so nothing
+        -- downstream can tell it is invisible. Counted, never silent.
+        if _G.showWebviewSafely then
+            _G.showWebviewSafely(v.webview, "Hamsidian (handing focus back)")
+        else
+            pcall(function() v.webview:show() end)
+        end
     end
 
     function v.hide()
@@ -5450,7 +5457,13 @@ else {
             end
         end
         v.render()
-        pcall(function() view:show() end)
+        -- 🪟 6.391.0 — the shared door reads BOTH refusals (a throw and
+        -- a false return). Guarded, so a build without it still opens.
+        if _G.showWebviewSafely then
+            _G.showWebviewSafely(view, "Hamsidian")
+        else
+            pcall(function() view:show() end)
+        end
         if v.focusOnOpen then pcall(function() view:bringToFront(true) end) end
         if _G.hyperExpectRelease then pcall(_G.hyperExpectRelease, 1.5, "the vault") end
         v.opens = v.opens + 1

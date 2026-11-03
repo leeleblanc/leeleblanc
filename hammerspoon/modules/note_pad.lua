@@ -686,7 +686,13 @@ function M.setup(core)
             end
         end
         np.render()
-        pcall(function() view:show() end)
+        -- 🪟 6.391.0 — the shared door reads BOTH refusals (a throw and
+        -- a false return). Guarded, so a build without it still opens.
+        if _G.showWebviewSafely then
+            _G.showWebviewSafely(view, "Note pad")
+        else
+            pcall(function() view:show() end)
+        end
         if np.focusOnOpen then
             pcall(function() view:bringToFront(true) end)
         end

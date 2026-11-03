@@ -1719,7 +1719,17 @@ function M.setup(core)
     -- by the belt, and by every refusal on the way in.
     function ed.showAgain()
         if not ed.webview then ed.hidden = false return false end
-        local shown = pcall(function() ed.webview:show() end)
+        -- 🚨 6.391.0 — THIS LINE LOOKED LIKE IT READ THE ANSWER AND DID
+        -- NOT. pcall's first value is "it did not throw"; a webview that
+        -- RETURNS false was recorded as a window that came back. This is
+        -- the window ⌘D and ⌘F hide on purpose and the belt returns, so
+        -- a wrong answer here is an editor he cannot see and did not close.
+        local shown
+        if _G.showWebviewSafely then
+            shown = _G.showWebviewSafely(ed.webview, "Screenshot editor")
+        else
+            shown = pcall(function() ed.webview:show() end)
+        end
         pcall(function() ed.webview:bringToFront(true) end)
         -- 6.251.0 — bringToFront RAISES; it does not make KEY, and only a
         -- key window is handed the keyboard. ONE attempt, not a chase: the
@@ -2312,7 +2322,13 @@ function M.setup(core)
             end)
             say("restored the work kept from the last close")
         end
-        pcall(function() view:show() end)
+        -- 🪟 6.391.0 — the shared door reads BOTH refusals (a throw and
+        -- a false return). Guarded, so a build without it still opens.
+        if _G.showWebviewSafely then
+            _G.showWebviewSafely(view, "Screenshot editor")
+        else
+            pcall(function() view:show() end)
+        end
         pcall(function() view:bringToFront(true) end)
         say("editing " .. (path:match("[^/]+$") or path))
         return true

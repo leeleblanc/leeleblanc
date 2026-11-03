@@ -1399,7 +1399,13 @@ function M.setup(core)
             end
         end
         pad.render()
-        pcall(function() view:show() end)
+        -- 🪟 6.391.0 — the shared door reads BOTH refusals (a throw and
+        -- a false return). Guarded, so a build without it still opens.
+        if _G.showWebviewSafely then
+            _G.showWebviewSafely(view, "Capture pad")
+        else
+            pcall(function() view:show() end)
+        end
 
         -- 🐛 6.44.6 — THE CONSOLE USED TO JUMP FORWARD WITH THE PAD. There
         -- was an hs.application.launchOrFocus("Hammerspoon") here, added to

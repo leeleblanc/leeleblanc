@@ -3396,6 +3396,146 @@ do
           #bad == 0, table.concat(bad, " \194\183 "))
 end
 
+-- =====================================================================
+-- 🪟 6.391.0 — ONE DOOR FOR EVERY WEBVIEW SHOW
+-- =====================================================================
+-- Six panels called `pcall(function() view:show() end)`, which discards
+-- BOTH of the ways a webview refuses: a throw, and a plain `false`
+-- return. So a window macOS never put on screen read exactly like one
+-- that opened — and the sharpest of them, screenshot_editor's
+-- `showAgain`, wrote `local shown = pcall(...)`, which LOOKS like it
+-- reads the answer and only ever says "it did not throw".
+do
+    local before = pass + fail
+    local okSection, secErr = pcall(function()
+
+    local f = io.open(HS .. "/init.lua", "r")
+    local init = f and f:read("*a") or ""
+    if f then f:close() end
+
+    local vSrc = init:match(
+        "(function _G%.webviewShowVerdict%(threw, answer%).-\nend)")
+    check("🪟 the verdict rule was lifted out of init.lua", vSrc ~= nil)
+    -- A stand-in that ANSWERS FALSELY rather than throwing, so a mutation
+    -- fails a check instead of killing the run (6.186.0, seventh time).
+    local verdict = function() return nil, "the rule could not be read" end
+    if vSrc then
+        local chunk = load(vSrc .. "\nreturn _G.webviewShowVerdict")
+        if chunk then verdict = chunk() or verdict end
+    end
+
+    local ok1, why1 = verdict(false, nil)
+    check("🪟 a show that neither threw nor said no is ON SCREEN",
+          ok1 == true, tostring(why1))
+    local ok2, why2 = verdict(true, nil)
+    check("🚨 a show that THREW is a refusal",
+          ok2 == false and why2:find("raised", 1, true) ~= nil, tostring(why2))
+    local ok3, why3 = verdict(false, false)
+    check("🚨 ...and a show that RETURNED FALSE is a refusal too — the "
+          .. "half no throw guard can see, which is why six panels missed it",
+          ok3 == false and why3:find("declined", 1, true) ~= nil, tostring(why3))
+    -- 🔎 6.196.1: the two refusals share a VERDICT and must not share a
+    -- REASON. One says AppKit raised, the other says it declined, and a
+    -- diagnosis that cannot tell them apart sends the next release to the
+    -- wrong place. A check asserting only `ok == false` passes with the
+    -- two branches collapsed into one.
+    check("🔎 ...and the two refusals do NOT read alike",
+          tostring(why2) ~= tostring(why3), tostring(why2) .. " / " .. tostring(why3))
+
+    -- ---- the SOURCE SENTRY, which is what closes the class -----------
+    -- 6.282.0's rule: fixing ten sites fixes ten instances; a sentry
+    -- stops the eleventh. Comments stripped (6.262.0), and the window
+    -- ends at the statement's own boundary (6.263.0) — six lines back,
+    -- which is where the `if _G.showWebviewSafely then` of a correct
+    -- fallback sits.
+    local mods = {}
+    do
+        local pipe = io.popen("ls " .. HS .. "/modules/*.lua 2>/dev/null")
+        if pipe then
+            for line in pipe:lines() do mods[#mods + 1] = line end
+            pipe:close()
+        end
+    end
+    check("🪟 the sentry really has a haystack — a scan over an empty set "
+          .. "is green and measures nothing (6.313.0)", #mods >= 40, #mods)
+
+    local function offenders(src)
+        -- strip FULL-LINE comments only; a trailing `--` can carry an
+        -- argument (6.303.0 ate an argv with the naive strip).
+        src = (src:gsub("[^\n]*", function(line)
+            if line:match("^%s*%-%-") then return "" end
+            return line
+        end))
+        local out, lines = {}, {}
+        for line in (src .. "\n"):gmatch("([^\n]*)\n") do lines[#lines + 1] = line end
+        for i, line in ipairs(lines) do
+            -- a WEBVIEW handle has "view" in its name; a canvas (c, cv),
+            -- a chooser (ch, *Chooser) and an alert do not, and each of
+            -- those has its own door already.
+            local name = line:match("([%w_%.]*[Vv]iew[%w_%.]*):show%(%)")
+            if name then
+                local win = {}
+                for j = math.max(1, i - 6), i do win[#win + 1] = lines[j] end
+                if not table.concat(win, "\n"):find("showWebviewSafely", 1, true) then
+                    out[#out + 1] = "line " .. i .. ": " .. (line:gsub("^%s+", ""))
+                end
+            end
+        end
+        return out
+    end
+
+    -- 🧪 PROVEN IN BOTH DIRECTIONS before it is trusted (6.269.0 — a new
+    -- instrument is measured against the healthy case first).
+    check("🪟 the sentry FIRES on a bare webview show",
+          #offenders("        pcall(function() view:show() end)\n") == 1)
+    check("🪟 ...and stands down when the door is two lines above it",
+          #offenders("        if _G.showWebviewSafely then\n"
+                     .. "            _G.showWebviewSafely(view, \"x\")\n"
+                     .. "        else\n"
+                     .. "            pcall(function() view:show() end)\n"
+                     .. "        end\n") == 0)
+    check("🪟 ...and says nothing about a CANVAS or a CHOOSER, which have "
+          .. "their own doors — a sentry that cries wolf is switched off "
+          .. "inside a week (6.269.0)",
+          #offenders("        pcall(function() c:show() end)\n"
+                     .. "        pcall(function() ch:show() end)\n"
+                     .. "        pcall(function() cv:show() end)\n") == 0)
+    check("🪟 ...and is not satisfied by a COMMENT naming the door",
+          #offenders("        -- showWebviewSafely is the door\n"
+                     .. "        pcall(function() view:show() end)\n") == 1)
+
+    local bad, seen = {}, 0
+    for _, path in ipairs(mods) do
+        local fh = io.open(path, "r")
+        local src = fh and fh:read("*a") or ""
+        if fh then fh:close() end
+        for _ in src:gmatch("[%w_%.]*[Vv]iew[%w_%.]*:show%(%)") do seen = seen + 1 end
+        for _, o in ipairs(offenders(src)) do
+            bad[#bad + 1] = path:match("[^/]+$") .. ": " .. o
+        end
+    end
+    check("🪟 the sentry found the webview shows — zero here means it is "
+          .. "passing over nothing", seen >= 8, seen)
+    check("🚨 🪟 EVERY WEBVIEW SHOW IN modules/ GOES THROUGH THE ONE DOOR, "
+          .. "so a window macOS refused can never again be recorded as "
+          .. "open — and a new panel cannot reopen the class",
+          #bad == 0, #bad .. " bare: " .. table.concat(bad, " | "))
+
+    -- 🚪 AND THE DOOR MUST ANSWER, not merely exist.
+    check("🪟 showWebviewSafely is published by init.lua",
+          init:find("function _G.showWebviewSafely(view, label)", 1, true) ~= nil)
+    check("🪟 ...and so is its report, so a refusal is a NUMBER and not a "
+          .. "sentence (6.274.0 — 'intermittent' is a count, not a sample)",
+          init:find("function _G.webviewShowReport()", 1, true) ~= nil)
+
+    end)
+    if not okSection then
+        check("🪟 the 6.391.0 section ran to the end", false, tostring(secErr))
+    end
+    check("🪟 the 6.391.0 section ran all of its checks",
+          (pass + fail) - before >= 14, (pass + fail) - before)
+end
+
 realPrint(table.concat(printed, "\n"))
 out("\n")
 if fail > 0 then
