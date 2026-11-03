@@ -480,7 +480,7 @@ local function reset()
            plist = nil, throw = {}, throwMsg = nil }
     BOOKMARKS, NO_BOOKMARK, BOOKMARK_THROW = {}, false, false
     mp.catcher, mp.dropReader = nil, nil
-    mp.catcherOn, mp.catcherRefused = false, 0
+    mp.catcherRefused = 0
     mp.dropWhy, mp.dragSeen = "not opened yet", "no drag yet this session"
     mp.dropRefs = "nothing read yet"
 end
@@ -1607,8 +1607,9 @@ check("🪟 the card still OPENS when macOS refuses the drop catcher",
 check("🚨 ...and the catcher is NOT recorded — a handle to a window "
       .. "that is not on screen is a handle that lies (6.326.0)",
       mp.catcher == nil, tostring(mp.catcher))
-check("...and the MEASURED flag says so, which is what the report reads",
-      mp.catcherOn == false)
+check("...and nothing else holds a second opinion about it — the handle "
+      .. "IS the answer now, because the refusal nils it",
+      mp.catcher == nil and mp.catcherRefused == 1)
 check("...and the refused canvas is TORN DOWN, never left holding its "
       .. "dragging level with nothing able to reach it (6.265.0)",
       #CANVASES == 1 and CANVASES[1].deleted == true)
@@ -1633,13 +1634,13 @@ CANVAS_REFUSE_SHOW = false
 reset()
 mp.show()
 check("✅ a Mac that shows the catcher records it, and says 'catcher up'",
-      mp.catcher ~= nil and mp.catcherOn == true
-      and report():find("catcher up", 1, true) ~= nil)
+      mp.catcher ~= nil and report():find("catcher up", 1, true) ~= nil)
 check("...with no refusal line at all on a healthy Mac",
       report():find("macOS refused the catcher", 1, true) == nil)
-check("...and closing the card clears the MEASURED flag too, or the next "
-      .. "report describes a catcher that was deleted (6.308.0)",
-      (function() mp.hide() ; return mp.catcherOn == false end)())
+check("...and closing the card clears the handle, or the next report "
+      .. "describes a catcher that was deleted (6.308.0)",
+      (function() mp.hide() ; return mp.catcher == nil
+       and report():find("catcher up", 1, true) == nil end)())
 
 reset()
 NO_DRAGCB = true

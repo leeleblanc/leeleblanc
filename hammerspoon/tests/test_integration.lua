@@ -3521,6 +3521,102 @@ do
           .. "open — and a new panel cannot reopen the class",
           #bad == 0, #bad .. " bare: " .. table.concat(bad, " | "))
 
+    -- 🚪 AND THE DOOR IS DRIVEN, not grepped for. The mutation sweep
+    -- found this: the pure verdict was proven and the sentry was proven
+    -- in both directions, and NOTHING called showWebviewSafely with a
+    -- window that refuses — so deleting its whole refusal count passed
+    -- every check. 6.264.0 word for word: proving a pure decision
+    -- function is not proving that anything CALLS it with the values
+    -- that matter, and 6.273.0's finding is that the missing CHECK is
+    -- the finding, never the line.
+    local doorSrc = init:match(
+        "(function _G%.showWebviewSafely%(view, label%).-\n    return false, why\nend)")
+    local repSrc = init:match("(function _G%.webviewShowReport%(%).-\nend)")
+    check("🪟 showWebviewSafely was lifted out of init.lua", doorSrc ~= nil)
+    check("🪟 ...and its report with it", repSrc ~= nil)
+
+    if doorSrc and vSrc and repSrc then
+        -- The env is deliberately bare: the door may use nothing but what
+        -- it is given, which is the price of running the SHIPPED text
+        -- instead of a copy of it (6.314.0's lifted showPopup).
+        local said = {}
+        local env = {
+            tostring = tostring, os = { date = function() return "12:00:00" end },
+            table = table, math = math, type = type, pcall = pcall,
+            print = function(x) said[#said + 1] = tostring(x) end,
+        }
+        env._G = env
+        local chunk = load(vSrc .. "\n" .. doorSrc .. "\n" .. repSrc
+                           .. "\nreturn _G", "door", "t", env)
+        local G = chunk and chunk() or nil
+        check("🪟 the lifted door loaded with nothing but what it is given",
+              G ~= nil and type(G.showWebviewSafely) == "function")
+
+        if G then
+            G.webviewShows = { asked = 0, refused = 0 }
+            -- ① a window macOS ORDERS ON SCREEN
+            local okA = G.showWebviewSafely({ show = function() return true end }, "Good")
+            check("🪟 a window that shows answers TRUE and is not counted "
+                  .. "as a refusal", okA == true
+                  and G.webviewShows.asked == 1 and G.webviewShows.refused == 0)
+            check("...and says nothing at all on a healthy Mac (6.269.0 — "
+                  .. "an instrument that talks on day one is switched off "
+                  .. "long before it meets the fault it was built for)",
+                  #said == 0, table.concat(said, " | "))
+
+            -- ② a window macOS RAISES on — the shape that cost 6.265.0,
+            --    6.266.0, 6.274.0, 6.314.0 and 6.348.0
+            local okB, whyB = G.showWebviewSafely(
+                { show = function() error("NSInternalInconsistency", 0) end },
+                "Thrower")
+            check("🚨 a show that THREW answers false, with macOS's half "
+                  .. "of it named", okB == false
+                  and tostring(whyB):find("raised", 1, true) ~= nil, tostring(whyB))
+            check("...and is COUNTED — this is the number the whole "
+                  .. "release exists to make askable",
+                  G.webviewShows.asked == 2 and G.webviewShows.refused == 1)
+            check("...and names the panel, so 'a window did not open' is "
+                  .. "never the whole report", G.webviewShows.last == "Thrower")
+            check("...and is SEEN, not only logged (6.214.0)", #said == 1
+                  and said[1]:find("Thrower", 1, true) ~= nil, table.concat(said, " | "))
+
+            -- ③ a window that simply SAYS NO. No throw, so every pcall
+            --    guard in this config was blind to it.
+            local okC, whyC = G.showWebviewSafely(
+                { show = function() return false end }, "Decliner")
+            check("🚨 a show that RETURNED FALSE answers false too",
+                  okC == false
+                  and tostring(whyC):find("declined", 1, true) ~= nil, tostring(whyC))
+            check("...and is counted as its own refusal",
+                  G.webviewShows.asked == 3 and G.webviewShows.refused == 2)
+
+            -- ④ nothing to show at all
+            check("🪟 no window is refused without being counted as asked — "
+                  .. "a nil view is turned away before the tally",
+                  G.showWebviewSafely(nil, "None") == false
+                  and G.webviewShows.asked == 3)
+
+            -- ⑤ THE REPORT, which is what he pastes
+            said = {}
+            G.webviewShowReport()
+            local rep = table.concat(said, "\n")
+            check("🔎 the report names the count, the panel and WHICH of "
+                  .. "the two refusals it was",
+                  rep:find("asked   : 3", 1, true) ~= nil
+                  and rep:find("refused : ⚠️ 2", 1, true) ~= nil
+                  and rep:find("Decliner", 1, true) ~= nil
+                  and rep:find("declined", 1, true) ~= nil, rep)
+            said = {}
+            G.webviewShows = { asked = 4, refused = 0 }
+            G.webviewShowReport()
+            check("🔎 ...and a healthy Mac reads as health, never as a "
+                  .. "blank where a number should be (6.196.1)",
+                  table.concat(said, "\n"):find("none — macOS put every panel",
+                                                1, true) ~= nil,
+                  table.concat(said, "\n"))
+        end
+    end
+
     -- 🚪 AND THE DOOR MUST ANSWER, not merely exist.
     check("🪟 showWebviewSafely is published by init.lua",
           init:find("function _G.showWebviewSafely(view, label)", 1, true) ~= nil)
@@ -3533,7 +3629,7 @@ do
         check("🪟 the 6.391.0 section ran to the end", false, tostring(secErr))
     end
     check("🪟 the 6.391.0 section ran all of its checks",
-          (pass + fail) - before >= 14, (pass + fail) - before)
+          (pass + fail) - before >= 28, (pass + fail) - before)
 end
 
 realPrint(table.concat(printed, "\n"))

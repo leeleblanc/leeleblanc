@@ -286,8 +286,7 @@ function M.setup(core)
         pos       = nil,              -- where he last dragged it, or nil
         posWhy    = "not opened yet",
         catcher   = nil,              -- the canvas that takes the drop
-        catcherOn = false,            -- did macOS really put it on screen?
-        catcherRefused = 0,           -- how many times it would not
+        catcherRefused = 0,           -- how many times macOS would not
         dropWhy   = "not opened yet",
         dragSeen  = "no drag yet this session",
         dropReader = nil,             -- which pasteboard reader answered
@@ -1756,8 +1755,11 @@ say({a:'ready'});
         local okS = pcall(function() cv:show() end)
         if not okS then
             pcall(function() cv:delete() end)
-            mp.catcher        = nil
-            mp.catcherOn      = false
+            -- 🗑 NO `mp.catcher = nil` HERE, and the sweep is why: this
+            -- function opens with stopCatcher(), so the handle is already
+            -- nil and the assignment below is the ONLY one — nothing could
+            -- ever tell the two apart. A guard no test can fail is dead
+            -- code with a comment on it (6.199.0, NINTH time).
             mp.catcherRefused = (mp.catcherRefused or 0) + 1
             mp.dropWhy = "macOS would not put the drop catcher on screen"
             -- 🚪 NOT THE WHOLE FEATURE, and the report must say so rather
@@ -1769,7 +1771,6 @@ say({a:'ready'});
                            .. "still works; drag the file onto the card")
         end
         mp.catcher   = cv
-        mp.catcherOn = true
         mp.dropWhy   = "ready"
         return true
     end
@@ -1779,7 +1780,6 @@ say({a:'ready'});
             pcall(function() mp.catcher:delete() end)
             mp.catcher = nil
         end
-        mp.catcherOn = false
     end
 
     function mp.moveCatcher(f)
@@ -2608,10 +2608,13 @@ say({a:'ready'});
             end)())
         line("   ↳ .flac and .ogg do NOT play through macOS's own audio —")
         line("     each refused file says so by name")
-        -- 🔎 THE FLAG, NEVER THE HANDLE: `mp.catcher` only says an
-        -- object was made, and 6.390.0 is the release that learned those
-        -- are different facts. `catcherOn` is written AFTER macOS agreed.
-        line("   drop     : " .. (mp.catcherOn and "catcher up — a dragged "
+        -- 🔎 AND THE HANDLE IS THE TRUTH AGAIN, because the refusal
+        -- path above NILS it. The first version of this release carried a
+        -- second `catcherOn` field beside it — and no mutation could kill
+        -- it, because the two can never disagree. A guard no test can fail
+        -- is dead code with a comment on it (6.199.0, EIGHTH time), and a
+        -- fact written twice is a fact that will be half-updated (6.363.0).
+        line("   drop     : " .. (mp.catcher and "catcher up — a dragged "
              .. "file lands on the card" or ("⚠️ " .. tostring(mp.dropWhy))))
         if (mp.catcherRefused or 0) > 0 then
             line("   ↳ ⚠️ macOS refused the catcher "
