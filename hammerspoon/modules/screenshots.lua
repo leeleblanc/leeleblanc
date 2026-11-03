@@ -397,6 +397,9 @@ function M.setup(core)
     shots.watchFolder = true
     shots.watchSettle = 2.5      -- seconds a new file must be still before OCR
     shots.watchCap    = 20       -- arrivals queued at once; the rest wait for ⌘9
+    shots.ocrMaxSecs  = 45       -- ⏱ 6.393.0: a `shortcuts` that goes quiet is
+                                 -- stopped after this, so the naming queue
+                                 -- cannot wedge for the rest of the session
     -- 🔁 6.281.0 — AND A FILE THAT OCR'd TO NOTHING IS NOT OFFERED AGAIN.
     -- wantsName() only stops matching once a name holds " — ", and a name is
     -- only written when OCR returns words — so a word-less image re-qualified
@@ -2572,6 +2575,9 @@ function M.setup(core)
     -- applies there, not here). Failure costs the new name only — the
     -- file itself is never at risk, rename is the ONLY write.
     shots.nameTasks = {}
+    shots.killers   = {}          -- ⏱ 6.393.0, one belt per running OCR
+    shots.ocrKilled = 0           -- how many went quiet and were stopped
+    shots.ocrNoBelt = 0           -- Macs that could not arm one
 
     -- 🔁 6.281.0 — WHAT THIS MODULE HAS ALREADY TRIED.
     -- FAILURES ONLY, and that is the whole economy of it: a SUCCESS renames
@@ -2647,6 +2653,13 @@ function M.setup(core)
             t = hs.task.new("/usr/bin/shortcuts", function(code, sout)
                 shots.nameTask = nil
                 shots.nameTasks[t] = nil
+                -- ⏱ 6.393.0 — the belt is spent the moment this answers,
+                -- or it fires later for a process that finished fine and
+                -- hands the caller a second answer (6.299.0: exactly once).
+                if shots.killers[t] then
+                    pcall(function() shots.killers[t]:stop() end)
+                    shots.killers[t] = nil
+                end
                 local newPath
                 local text = tostring(sout or ""):match("^%s*(.-)%s*$") or ""
                 -- 🔎 6.281.0 — FOUR OUTCOMES, NOT TWO. This handed back
@@ -2749,7 +2762,13 @@ function M.setup(core)
                 end
                 if onDone then onDone(newPath, why) end
             end, { "run", shots.ocrShortcut, "-i", path })
-            t:start()
+            -- 🔬 6.393.0 — AND ITS ANSWER IS READ. hs.task:start()
+            -- REFUSES BY RETURNING FALSE and never throws
+            -- (extensions/task/libtask.m, `task_launch`: the success path
+            -- pushes the task, the @catch pushes a boolean), so the pcall
+            -- around it succeeded on a refusal and this counted a process
+            -- that was never spawned. 6.304.0, in a second module.
+            if t:start() == false then t = nil end
         end)
         if not (okNew and t) then
             shots.ocrNotRun = shots.ocrNotRun + 1
@@ -2762,6 +2781,43 @@ function M.setup(core)
         -- and a queue waiting on that callback would have waited forever.
         shots.nameTask = t
         shots.nameTasks[t] = true
+        -- =================================================================
+        -- ⏱ 6.393.0 — A HUNG `shortcuts` NO LONGER WEDGES THE QUEUE
+        -- =================================================================
+        -- 🚨 THE WEDGE: `nameBusy` is cleared ONLY in this task's
+        -- callback, so a `shortcuts` process that never answers leaves it
+        -- true for the rest of the session — and `drainQueue` returns at
+        -- its first line while every later arrival piles up behind it,
+        -- silently. 6.304.0's rule, in a second module: a guard only a
+        -- SUCCESS can release is a wedge.
+        -- 🔑 THE BELT IS ARMED AFTER THE TASK REALLY EXISTS, in its own
+        -- held slot (6.196.1), and the callback above cancels it — so a
+        -- belt can only ever fire for a process that genuinely went quiet.
+        -- A Mac that cannot arm one still OCRs, and the miss is COUNTED
+        -- rather than leaving a Mac reading as healthy (6.246.0).
+        local okK, killer = pcall(hs.timer.doAfter, shots.ocrMaxSecs or 45,
+            function()
+                if not shots.nameTasks[t] then return end   -- it answered
+                shots.nameTasks[t] = nil
+                if shots.nameTask == t then shots.nameTask = nil end
+                shots.killers[t] = nil
+                shots.ocrKilled = (tonumber(shots.ocrKilled) or 0) + 1
+                pcall(function() t:terminate() end)
+                -- 🔔 SEEN, never only logged (6.214.0): a naming that
+                -- stops happening is otherwise invisible until he asks.
+                if core.degrade then
+                    pcall(core.degrade, "Screenshot naming",
+                          "the OCR Shortcut did not answer in "
+                          .. tostring(shots.ocrMaxSecs or 45) .. "s — it was "
+                          .. "stopped so the queue can carry on")
+                end
+                if onDone then onDone(nil, "timed out") end
+            end)
+        if okK and killer then
+            shots.killers[t] = killer
+        else
+            shots.ocrNoBelt = (tonumber(shots.ocrNoBelt) or 0) + 1
+        end
         -- counted HERE, where a process really exists — not at the gate.
         -- nameByText can answer nil synchronously without spawning, and
         -- drainQueue re-enters itself on that path (6.229.0: count the
@@ -3552,14 +3608,21 @@ function M.setup(core)
     end
 
     -- ---- keys & services -------------------------------------------------
-    -- 👀 The watcher starts at boot ONLY if the folder is already there —
-    -- one stat, no mkdir, no alert; ensureDir() starts it on first use
-    -- otherwise. (The hostile Mac with no OneDrive boots without it.)
-    if shots.enabled and shots.watchFolder then
-        local mode
-        pcall(function() mode = hs.fs.attributes(shots.dir, "mode") end)
-        if mode == "directory" then shots.startWatch() end
-    end
+    -- 👀 THE WATCHER STARTS IN warm(), NEVER HERE.
+    -- 🔌 6.394.0 — A SWITCH IS ONLY REAL IF THE THING IT GOVERNS STARTS
+    -- AFTER setup. init.lua applies a profile's `settings` AFTER setup
+    -- returns, so a module that STARTS a watcher inside setup can only
+    -- ever be stopped by an override, never started — the flag is
+    -- written and nobody reads it again. `watchFolder = false` DID stop
+    -- the handler (onFolderEvent returns at its first line) and did NOT
+    -- stop the pathwatcher, so macOS went on waking the main thread for
+    -- every file event in a OneDrive folder, for a feature switched off.
+    -- 6.228.0 named this module as carrying that shape; this is the
+    -- release that pays it, and 6.259.0 is the precedent.
+    -- 📏 WHAT IT COSTS: the watcher now starts seconds after boot rather
+    -- than during it, so a screenshot that lands in that window waits
+    -- for ⌘9. That is the right trade — it is also one less stat and one
+    -- less pathwatcher on the boot path (6.267.0).
     if shots.enabled then
         core.hyperAddShortcut({}, shots.key, function() shots.capture() end,
                               "screenshot — save + copy")
@@ -3652,6 +3715,31 @@ function M.setup(core)
     _G.screenshots = shots
     M.shots  = shots
     M.config = shots
+end
+
+-- 🔌 6.394.0 — see the note in setup(): the watcher starts HERE so that
+-- `settings = { screenshots = { watchFolder = false } }` is real in both
+-- directions. Its own pcall (6.33.0), and a warm that throws is named.
+function M.warm()
+    local shots = M.config
+    if not (shots.enabled and shots.watchFolder) then
+        shots.watchWhy = (shots.enabled == false)
+            and "the module is switched off"
+            or "settings = { screenshots = { watchFolder = false } }"
+        return
+    end
+    local mode
+    pcall(function() mode = hs.fs.attributes(shots.dir, "mode") end)
+    if mode ~= "directory" then
+        -- The hostile Mac with no OneDrive: ensureDir() starts it on
+        -- first use instead. Not a fault, and SAID so rather than
+        -- reading like one (6.196.1).
+        shots.watchWhy = "the folder is not there yet — ensureDir() starts "
+                         .. "the watcher on the first capture"
+        return
+    end
+    shots.startWatch()
+    shots.watchWhy = shots.watcher and "watching" or "startWatch refused"
 end
 
 return M

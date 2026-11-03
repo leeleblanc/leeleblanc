@@ -81,6 +81,7 @@ local ALERTS, TASKS, CHOICES_SET = {}, {}, nil
 local DEGRADES = {}
 local DEFER_TIMERS = false   -- §12 turns this on to hold the debounce
 local PENDING       = {}     -- timers queued while DEFER_TIMERS is true
+local BELTS = {}   -- ⏱ 6.393.0: long watchdogs, fired by hand
 local CLIP  = { kind = "empty" }
 -- 🔬 6.319.0 — THE STUB WAS GENTLER THAN macOS IN TWO WAYS THAT DECIDE
 -- a release (6.290.0). It had NO changeCount at all, so the one fact the
@@ -278,7 +279,23 @@ hs = {
               doAfter = function(secs, fn)
                   local t = { secs = secs, fn = fn, stopped = false }
                   function t:stop() self.stopped = true end
-                  if DEFER_TIMERS then
+                  -- ⏱ 6.393.0 — A LONG BELT IS NEVER FIRED ON THE SPOT.
+                  -- This stub ran every callback the instant it was armed,
+                  -- which is a fine model for a 0.4 s settle and no model
+                  -- at all for a 45 s watchdog: a belt that fires before
+                  -- the thing it is watching has had a moment to answer
+                  -- kills every healthy process, so the suite would have
+                  -- proven the opposite of the rule (6.290.0, and the
+                  -- gentler-than-macOS stub is the costliest shape here).
+                  -- Anything 10 s or longer is QUEUED and the checks fire
+                  -- it by hand, like doEvery's polls.
+                  -- …and into its OWN list, not PENDING: the sections that
+                  -- drain PENDING are draining a DEBOUNCE, and a watchdog
+                  -- swept up with them pre-empts the very process it is
+                  -- watching. A check fires a belt by hand, deliberately.
+                  if (tonumber(secs) or 0) >= 10 then
+                      BELTS[#BELTS + 1] = t
+                  elseif DEFER_TIMERS then
                       PENDING[#PENDING + 1] = t
                   else
                       fn()
@@ -3957,6 +3974,159 @@ do
 end
 
 -- =====================================================================
+-- =====================================================================
+out("\n   -- ⏱ 6.393.0 — a hung OCR no longer wedges the naming queue --\n")
+-- =====================================================================
+-- 🚨 THE WEDGE: `nameBusy` is cleared ONLY in the task's callback, so a
+-- `shortcuts` process that never answers leaves it true for the rest of
+-- the session — drainQueue returns at its first line and every later
+-- arrival piles up behind it, in silence. 6.304.0's rule, in a second
+-- module: a guard only a SUCCESS can release is a wedge.
+do
+    local before = pass + fail
+    -- 🧪 THE PRECONDITIONS ARE SET BY NAME, never inherited: twenty
+    -- sections run before this one and each leaves the module where its
+    -- own checks needed it. A section that assumes the state it was
+    -- handed is a section that passes or fails on where it sits in the
+    -- file, which is not a fact about the code.
+    S.dir = NDIR
+    S.watchFolder, S.enabled = true, true
+    _G.ocrShortcutAvailable = true
+    S.own = {}
+    S.tried, S.triedSeq, S.triedLast = {}, {}, nil
+    S.triedMax = 3
+    S.queue, S.pending, S.nameBusy = {}, {}, false
+    S.ocrStarted, S.ocrNotRun = 0, 0
+    S.ocrKilled, S.ocrNoBelt = 0, 0
+    S.killers = {}
+    BELTS = {}
+    DEGRADES = {}
+    local hung = NDIR .. "/SCR-20261103-hung.png"
+    FILES[hung] = { mode = "file", size = 900, modification = mtScr }
+    PENDING = {}
+    W.fn({ hung })
+    for _, pend in ipairs(PENDING) do pend.fn() end
+    check("⏱ the arrival spawned an OCR", #TASKS > 0 and S.nameBusy == true)
+    check("⏱ …and a belt was armed for it, in its own slot",
+          #BELTS == 1 and (BELTS[1].secs or 0) >= 10, #BELTS)
+
+    -- a second arrival, which is the one that would be lost for ever
+    local waiting = NDIR .. "/SCR-20261103-waiting.png"
+    FILES[waiting] = { mode = "file", size = 900, modification = mtScr }
+    PENDING = {}
+    W.fn({ waiting })
+    for _, pend in ipairs(PENDING) do pend.fn() end
+    check("⏱ …and a second arrival is QUEUED behind it, not spawned — one "
+          .. "`shortcuts` at a time is the design", #S.queue == 1, #S.queue)
+
+    -- 🧪 A HELPER THAT ANSWERS FALSELY, never one that indexes a nil
+    -- (6.186.0, eighth time): a mutation must FAIL a check, not end the
+    -- run with "0 failed" never printed.
+    local function fireBelt(i)
+        local b = BELTS[i]
+        if type(b) ~= "table" or type(b.fn) ~= "function" then return false end
+        b.fn() ; return true
+    end
+    local tasksBefore = #TASKS
+    local stuck = TASKS[#TASKS] or { terminated = "NO TASK" }
+    check("⏱ there is a belt to fire", fireBelt(1), #BELTS)
+    check("🚨 ⏱ the belt STOPS the process it was watching — a `shortcuts` "
+          .. "left running is the thing that wedged the queue",
+          stuck.terminated == true)
+    check("🚨 ⏱ …and the queue carries on: nameBusy is released and the "
+          .. "arrival behind it is spawned. On every build before this "
+          .. "one that file waited for a reload.",
+          #TASKS == tasksBefore + 1, #TASKS - tasksBefore)
+    check("⏱ …and it is COUNTED, so a Mac whose OCR keeps hanging is a "
+          .. "number rather than a feeling (6.229.0)", S.ocrKilled == 1,
+          S.ocrKilled)
+    check("🔔 …and SEEN, never only logged (6.214.0) — a naming that stops "
+          .. "happening is otherwise invisible until he asks",
+          #DEGRADES > 0
+          and tostring(DEGRADES[#DEGRADES].why):find("did not answer", 1, true) ~= nil
+          and tostring(DEGRADES[#DEGRADES].tool):find("naming", 1, true) ~= nil,
+          #DEGRADES > 0 and (DEGRADES[#DEGRADES].tool .. ": "
+                             .. DEGRADES[#DEGRADES].why) or "none")
+
+    -- 🚨 AND A BELT MUST NOT FIRE FOR A PROCESS THAT ANSWERED. Without
+    -- this the caller is handed a SECOND answer for one OCR (6.299.0:
+    -- exactly once, through one door), and a healthy run is terminated.
+    S.ocrKilled, BELTS = 0, {}
+    S.queue, S.nameBusy, S.killers = {}, false, {}
+    local fine = NDIR .. "/SCR-20261103-fine.png"
+    FILES[fine] = { mode = "file", size = 900, modification = mtScr }
+    PENDING = {}
+    W.fn({ fine })
+    for _, pend in ipairs(PENDING) do pend.fn() end
+    local good = TASKS[#TASKS]
+    check("⏱ a healthy OCR armed a belt too", #BELTS == 1)
+    good.cb(0, "some words here", "")   -- it answers normally
+    check("🚨 ⏱ …and answering CANCELS the belt — a spent belt that fires "
+          .. "later terminates a process that finished fine and hands the "
+          .. "caller a second answer",
+          BELTS[1] and BELTS[1].stopped == true,
+          BELTS[1] and tostring(BELTS[1].stopped) or "no belt")
+    fireBelt(1)                          -- fire it anyway: it must no-op
+    check("⏱ …and even fired by hand it does nothing, because the run it "
+          .. "was watching is no longer outstanding",
+          S.ocrKilled == 0 and good.terminated == false, S.ocrKilled)
+
+    -- 🔬 6.304.0 — hs.task:start() REFUSES BY RETURNING FALSE and never
+    -- throws, so the pcall around it succeeded on a refusal and this
+    -- counted a process that was never spawned.
+    S.ocrStarted, S.ocrNotRun, S.nameBusy = 0, 0, false
+    local realNew = hs.task.new
+    hs.task.new = function(cmd, cb, args)
+        local t = realNew(cmd, cb, args)
+        function t:start() self.started = false ; return false end
+        return t
+    end
+    local started = S.nameByText(NDIR .. "/SCR-20261103-refused.png",
+                                 function() end)
+    hs.task.new = realNew
+    check("🔬 ⏱ a start macOS REFUSED is 'not run', never a counted "
+          .. "process — MISSING is not REFUSING (6.265.0 · 6.304.0)",
+          started == false and S.ocrStarted == 0 and S.ocrNotRun == 1,
+          tostring(started) .. " started=" .. S.ocrStarted
+          .. " notRun=" .. S.ocrNotRun)
+    check("⏱ the 6.393.0 section ran all of its checks",
+          (pass + fail) - before >= 12, (pass + fail) - before)
+end
+
+-- =====================================================================
+out("\n   -- 🔌 6.394.0 — watchFolder = false really stops the watcher --\n")
+-- =====================================================================
+-- 🔌 A SWITCH IS ONLY REAL IF THE THING IT GOVERNS STARTS AFTER setup.
+-- init.lua applies a profile's `settings` AFTER setup returns, so a
+-- module that STARTS a watcher inside setup can only ever be stopped by
+-- an override, never started. `watchFolder = false` DID stop the handler
+-- and did NOT stop the pathwatcher, so macOS went on waking the main
+-- thread for every file event in a OneDrive folder, for a feature that
+-- was switched off. 6.228.0 named this module; this pays it.
+do
+    local before = pass + fail
+    local src = (function()
+        local fh = io.open(HS .. "/modules/screenshots.lua", "r")
+        local t = fh and fh:read("*a") or "" ; if fh then fh:close() end
+        return t
+    end)()
+    check("🔌 the source was read", #src > 20000, #src)
+    check("🔌 this module HAS a warm — it was the one in its family with "
+          .. "none, which is why its switch could only ever be half real",
+          src:find("function M.warm()", 1, true) ~= nil)
+    check("🚨 🔌 …and setup() no longer starts the watcher itself",
+          src:match("function M%.setup.-if mode == \"directory\" then shots%.startWatch%(%) end")
+          == nil)
+    check("🔌 …and warm REFUSES when the switch is off, rather than "
+          .. "starting something the setting says must not run",
+          src:find("if not (shots.enabled and shots.watchFolder) then", 1, true) ~= nil)
+    check("🔎 …and SAYS which of the reasons it was (6.196.1): off, no "
+          .. "folder yet, or watching",
+          src:find("shots.watchWhy", 1, true) ~= nil)
+    check("🔌 the 6.394.0 section ran all of its checks",
+          (pass + fail) - before >= 5, (pass + fail) - before)
+end
+
 out(("\n%d passed, %d failed\n"):format(pass, fail))
 for _, f in ipairs(failures) do out("    ❌ " .. f .. "\n") end
 out("\n")

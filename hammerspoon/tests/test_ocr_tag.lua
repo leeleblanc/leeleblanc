@@ -1119,6 +1119,103 @@ do
 end
 
 -- =====================================================================
+-- 🆔 6.392.0 — A FILE REFERENCE IS RESOLVED BY A BOOKMARK
+-- =====================================================================
+-- 6.237.0 established, with the file named, that realpath does NOT
+-- resolve a /.file/id= reference: it walks the path a component at a
+-- time and replaces each with the real NAME, so it hands back
+-- "/.file/<the real name>.png" — the right name in a folder that holds
+-- nothing, ENDING IN A REAL EXTENSION. That is the plausible wrong
+-- answer, and it is worse than no answer because everything downstream
+-- judges a path by its suffix.
+do
+    local before = pass + fail
+    local M = dofile(HS .. "/modules/ocr_engine.lua")
+    pcall(M.setup, CORE)
+    local ocr = M.config
+    check("🆔 the reference test is on the module table", type(ocr.isRefPath) == "function")
+    check("🆔 ...and so is the resolver", type(ocr.refResolver) == "function")
+
+    check("🆔 a /.file/ path IS a reference", ocr.isRefPath("/.file/id=6571367.15194583"))
+    check("🆔 an ordinary path is not",
+          ocr.isRefPath("/Users/lee/Pictures/a.png") == false)
+    check("🆔 ...and neither is a path that merely CONTAINS it — the test "
+          .. "is the PREFIX, because that is where macOS puts it",
+          ocr.isRefPath("/Users/lee/.file/x.png") == false)
+    check("🆔 and a non-string is never a reference", ocr.isRefPath(nil) == false)
+
+    -- 🚨 THE ONE THAT IS THE WHOLE RELEASE. On a Mac with no bookmark
+    -- support the resolver must answer nil rather than hand back
+    -- something that looks resolved.
+    local realFs = hs.fs
+    hs.fs = { }
+    check("🆔 a Hammerspoon with no bookmark support answers NIL, never a "
+          .. "guess", ocr.refResolver("/.file/id=1.2") == nil)
+    hs.fs = {
+        pathToBookmark   = function() return "BM" end,
+        -- 🚨 THE TRAP, EXACTLY AS macOS SETS IT: an answer that is STILL a
+        -- reference but now carries a real name and a real extension.
+        pathFromBookmark = function() return "/.file/Max McNown.mp3" end,
+    }
+    check("🚨 🆔 an answer that is STILL A REFERENCE is refused, however "
+          .. "plausible its name and extension — this is 6.237.0's "
+          .. "finding, and the ONLY fixture where the right and wrong "
+          .. "implementations differ (6.230.0)",
+          ocr.refResolver("/.file/id=1.2") == nil)
+    hs.fs = {
+        pathToBookmark   = function() return "BM" end,
+        pathFromBookmark = function() return "relative/not/absolute.png" end,
+    }
+    check("🆔 ...and so is an answer that is not ABSOLUTE",
+          ocr.refResolver("/.file/id=1.2") == nil)
+    hs.fs = {
+        pathToBookmark   = function() return "BM" end,
+        pathFromBookmark = function() return "/Users/lee/Pictures/real.png" end,
+    }
+    check("✅ 🆔 ...and a real absolute path IS the answer",
+          ocr.refResolver("/.file/id=1.2") == "/Users/lee/Pictures/real.png")
+    hs.fs = {
+        pathToBookmark   = function() error("macOS said no", 0) end,
+        pathFromBookmark = function() return "/x.png" end,
+    }
+    check("🆔 a bookmark call that THROWS degrades to nil — this runs on a "
+          .. "keypress and must never take the press with it",
+          ocr.refResolver("/.file/id=1.2") == nil)
+    hs.fs = realFs
+
+    -- 🔗 TWO READERS OF ONE FILESYSTEM FACT DRIFT (6.231.0), so the gate
+    -- joins them (6.187.0). music_player has the twin since 6.237.0.
+    local MP = dofile(HS .. "/modules/music_player.lua")
+    pcall(MP.setup, CORE)
+    local mp = MP.config
+    if type(mp.isRefPath) == "function" then
+        local agree = true
+        for _, f in ipairs({ "/.file/id=1.2", "/Users/lee/a.png", "",
+                             "/.file/", "/Users/lee/.file/x" }) do
+            if ocr.isRefPath(f) ~= mp.isRefPath(f) then agree = false end
+        end
+        check("🔗 the OCR tag and the Jug Player agree, over every input, "
+              .. "about what a file reference IS — two copies of one idea "
+              .. "is how they come to disagree", agree)
+    else
+        check("🔗 music_player still has the twin to join against", false)
+    end
+
+    -- 🚪 AND THE RULE IS CALLED (6.264.0 — proving a pure function is not
+    -- proving anything calls it with the values that matter).
+    local fh = io.open(HS .. "/modules/ocr_engine.lua", "r")
+    local src = fh and fh:read("*a") or "" ; if fh then fh:close() end
+    check("🆔 the clipboard reader ASKS the bookmark route", 
+          src:find("ocr.refResolver(ref)", 1, true) ~= nil)
+    check("🚨 🆔 ...and realpath's answer is now checked for STILL being a "
+          .. "reference — the old guard took any non-empty string, so the "
+          .. "route most likely to answer was the one least able to",
+          src:find("and not ocr.isRefPath(resolved) then", 1, true) ~= nil)
+    check("🆔 the 6.392.0 section ran all of its checks",
+          (pass + fail) - before >= 13, (pass + fail) - before)
+end
+
+-- =====================================================================
 -- 🖱 6.395.0 — THE EDIT WINDOW DRAGS
 -- =====================================================================
 -- LL, with a screenshot of it: "I can't drag that window." Every part of

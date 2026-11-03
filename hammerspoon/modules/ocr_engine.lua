@@ -499,6 +499,29 @@ function M.setup(core)
     -- the reliable route — with readURL and plain-text paths kept as
     -- fallbacks for other tools. 6.98.0: narration is errors-only, same
     -- rule the OCR indexer follows — a normal miss prints nothing.
+    -- 🆔 6.392.0 — the two halves of resolving a file REFERENCE, kept
+    -- PURE-ish and on the module table so the gate can join them to
+    -- music_player's twin. Two readers of one filesystem fact drift
+    -- (6.231.0), so the gate runs BOTH over shared fixtures and fails on
+    -- disagreement — 6.187.0's answer to two unavoidable readers.
+    function ocr.isRefPath(p)
+        return type(p) == "string" and p:sub(1, 7) == "/.file/"
+    end
+
+    -- Degrades to nil, never throws: this is called from a pasteboard
+    -- read that runs on a keypress.
+    function ocr.refResolver(p)
+        if not (hs.fs and hs.fs.pathToBookmark and hs.fs.pathFromBookmark) then
+            return nil
+        end
+        local okB, data = pcall(hs.fs.pathToBookmark, p)
+        if not (okB and type(data) == "string" and data ~= "") then return nil end
+        local okP, got = pcall(hs.fs.pathFromBookmark, data)
+        if not (okP and type(got) == "string" and got ~= "") then return nil end
+        if not (got:sub(1, 1) == "/" and not ocr.isRefPath(got)) then return nil end
+        return got
+    end
+
     function ocr.clipboardFiles()
         local paths, seen, sawFileURL = {}, {}, false
         local firstMiss = nil  -- first GENUINE anomaly, for diagnosis (6.98.0)
@@ -513,11 +536,47 @@ function M.setup(core)
             -- extension found" (LL hit exactly this). The filesystem itself
             -- translates the id form (realpath), so resolve FIRST, then
             -- judge the real name.
-            if candidate:find("/.file/", 1, true) == 1 then
+            if ocr.isRefPath(candidate) then
                 local ref = (candidate:gsub("/+$", ""))
                 local resolved, via
-                pcall(function() resolved = hs.fs.pathToAbsolute(ref) end)
-                if type(resolved) == "string" and resolved ~= "" then via = "realpath" end
+                -- =========================================================
+                -- 🆔 6.392.0 — THE BOOKMARK FIRST, AND REALPATH CHECKED
+                -- =========================================================
+                -- 🚨 REALPATH ANSWERS, AND ITS ANSWER IS A TRAP. 6.237.0
+                -- established this in the music player, with the file
+                -- named: realpath walks a path a component at a time and
+                -- REPLACES each with the real NAME getattrlist gives, so
+                -- /.file/id=6571367.15194583 comes back as
+                -- "/.file/Max McNown - A Lot More Free.mp3" — the right
+                -- name, in a folder that holds nothing, ENDING IN A REAL
+                -- EXTENSION. That is the plausible wrong answer: it has
+                -- a suffix, so every judgement downstream accepts it, and
+                -- the file cannot be opened.
+                -- 🔒 AND THE OLD GUARD HERE TOOK ANY NON-EMPTY STRING. The
+                -- SECOND route three lines down already refused an answer
+                -- that is still a reference; this one did not, so the
+                -- route most likely to answer was the one least able to.
+                -- 🔑 A BOOKMARK IS WHAT ACTUALLY RESOLVES ONE: making one
+                -- records where the file IS, and reading it back answers
+                -- that path. Asked first, because it is the route 6.237.0
+                -- proved, and the others stay for the builds without it.
+                local okB = pcall(function()
+                    local got = ocr.refResolver(ref)
+                    if got then resolved, via = got, "bookmark" end
+                end)
+                if not okB then resolved, via = nil, nil end
+                if not via then
+                    pcall(function() resolved = hs.fs.pathToAbsolute(ref) end)
+                    -- 🔒 AN ANSWER IS ONLY AN ANSWER IF IT STOPPED BEING A
+                    -- REFERENCE. This is the whole of 6.392.0.
+                    if type(resolved) == "string" and resolved ~= ""
+                       and resolved:sub(1, 1) == "/"
+                       and not ocr.isRefPath(resolved) then
+                        via = "realpath"
+                    else
+                        resolved = nil
+                    end
+                end
                 -- 6.155.0 — A SECOND ROUTE. CoreFoundation resolves file
                 -- reference URLs itself (tracking a file by id is what
                 -- they are for); hs.fs.pathFromURL hands that answer back
