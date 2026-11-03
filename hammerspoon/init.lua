@@ -2,128 +2,108 @@
 -- * Working VERSION *
 -- =====================================================================
 -- =====================================================================
--- 10-29-26 using Claude          ← EDITED date. Bumped with every release.
+-- 11-03-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.389.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.399.0
 -- =====================================================================
 
--- NEW IN 6.389.0 — 🔎 LEFTOVERS FROM AN APP THAT WAS NEVER INSTALLED
---   (modules/app_remove.lua). The other half of his own sentence, asked
---   in the same breath as 6.388.0: "this is both for applications that
---   are installed in the applications folder, and applications that are
---   run anywhere else that I install, and also applications that run
---   only off of a disk image that are never installed."
---   🔑 THAT THIRD POPULATION INVERTS THE SCAN. Everything in 6.384.0 and
---   6.388.0 starts at an .app and works out what it left behind; an app
---   run from a disk image and thrown away HAS no .app, so there is
---   nothing to start from. The only trace is its bundle id sitting in
---   the Library folders — so the walk goes the other way: collect the
---   ids that are THERE, and ask which of them no application anywhere
---   answers for. A row in the ⇪⇧[ picker, never a key of its own
---   (6.182.0), and the same Trash through the same guard: the move loop
---   was LIFTED so both halves take one door rather than two copies of
---   the only line between a wrong path and his disk (6.231.0).
---   🚨 AND "NO APP FOUND" IS NOT "SAFE TO REMOVE", which is the whole
---   safety of this half: the app may be on a disk that is unplugged, or
---   unindexed, or the id may belong to a plug-in rather than an app, or
---   he may be about to reinstall it. So EVERY row is ⚠️ careful, NOTHING
---   starts selected, and the deliverable is the analysis he asked for
---   with the removal left to the ⏎ he presses per row. The age is the
---   evidence he can act on — something touched in the last week SHOUTS,
---   because that is what a disk image still mounted looks like.
---   🚨 APPLE'S OWN ARE REFUSED BY NAME, and that is load-bearing rather
---   than tidy: ~/Library/Preferences is mostly com.apple.* — the Dock's
---   settings, the Finder's, the keyboard's — and offering those is how a
---   removal tool deletes the way his Mac works. So is this config's own.
---   🔎 NEW GROUND, SAID SO: whether `mdfind -attr` answers and whether
---   Spotlight has indexed his apps are facts only his Mac can settle, so
---   the search is ASKED, off the main thread, with a belt in its own slot
---   — and when it does not answer, the fallback reads only the two app
---   folders and EVERY ROW'S OWN REASON SAYS SO IN CAPITALS, because an
---   orphan with respect to two folders is a weaker claim than an orphan
---   with respect to the disk and the two must not read alike (6.196.1).
---   _G.appOrphans() · _G.appOrphanKeep(2) · _G.appOrphanGo().
+-- NEW IN 6.399.0 — 🩺 DID THE WHOLE RELEASE LAND? (MANIFEST.txt +
+--   modules/install_check.lua). LL, after a Console installer had put one
+--   module file in place by hand: "Will this be added as
+--   'Get-Jug-Player-going.md' … so I don't have to remember?" Yes, and
+--   NOT as a file named after one tool — seventy-seven modules can
+--   half-install, so such a document is right about one of them and
+--   silently misleading about the other seventy-six (6.276.0's hand-kept
+--   register, deleted twice already). The archive carries MANIFEST.txt,
+--   one row per runtime file with its byte count, GENERATED at ceremony
+--   time; _G.installCheck() stats each row and names what disagrees.
+--   🔎 THE FAILURE IS MEASURED: 6.311.0's hand-placed module left his
+--   _G.musicReport() unable to emit a line the new file always emits,
+--   and a probe read `bytes : 107414` against the 116,595 the release
+--   carried. The config booted green, the stamp was right, the feature
+--   was simply absent.
+--   📏 SIZE, NOT A HASH — a stat reads nothing, so it costs nothing on
+--   the main thread (6.228.0) and cannot hydrate a placeholder. The
+--   limit is NAMED in the report: a file edited to exactly the same
+--   LENGTH reads as a match. The hash path the earlier plan promised is
+--   deliberately not built — hs.hash's presence is a platform fact this
+--   container cannot read in the source (6.233.0) and a guard for a case
+--   that has never happened is dead code with a comment on it (6.199.0).
+--   🔎 AND THE HALF A MANIFEST WALK CANNOT SEE is a file the manifest
+--   does NOT name: §1.12 loads an explicit list, so Finder's Keep Both
+--   copy is ignored while the original stays loaded. 6.276.0 from the
+--   other end — core/ and modules/ are listed too, strays are reported,
+--   and a folder read only as far as its 300-entry bound says the count
+--   is a FLOOR rather than printing "none" (6.197.2).
+--   🔕 SILENT WHEN HEALTHY (6.269.0) — nothing, ever, on a matching
+--   install. It speaks from M.warm and takes the 🔔 door, because a green
+--   boot with a feature absent is what 6.311.0 cost. From warm, never
+--   setup (6.267.0); a Mac that cannot arm a timer checks at once and the
+--   miss is counted. 🏷 And the manifest's own version is checked against
+--   _G.configVersion — the half-install one level up.
+--   📝 CHANGELOG.md and snippets/bundled.lua are deliberately OUT, and
+--   the report says so: changelog_csv already checks this version's ENTRY
+--   (a better question than its length — 6.317.0), and bundled.lua is
+--   generated and legitimately rebuilt from packs the archive never saw.
 
--- NEW IN 6.388.0 — 🗳 APP REMOVAL SAYS WHAT IS DAMAGING, AND HE CAN
---   LEAVE A FILE (modules/app_remove.lua). LL: "this tool should be
---   present me with a list of all files that are going to be removed,
---   and it should say, if it is damaging or not, it should give me the
---   option to leave files, so it should be a very iterative process …
---   the ultimate outcome is a solid analysis of what can be removed. And
---   then give me an option for what to remove safely." 6.384.0 showed
---   the list and then moved ALL of it; what was missing is the middle.
---   🔑 THE VERDICT IS COMPUTED FROM WHAT THE THING IS, never guessed off
---   its path: every row already carried the RULE that found it and now
---   carries its KIND, recorded where the path is chosen and the answer
---   is known. A cache, a plist, a saved window state and the .app are
---   ✅ safe; a CONTAINER, Application Support and a GROUP container are
---   ⚠️ careful, because a sandboxed app's own Documents live inside the
---   first and the third is shared with the vendor's other apps. A kind
---   nobody taught it is careful, not safe (6.276.0 — fail closed).
---   🚨 AND SAFE ROWS START SELECTED WHILE CAREFUL ROWS START KEPT. That
---   direction is the whole safety of the release and it reverses
---   6.384.0 on evidence rather than taste: 6.319.0's rule is that a
---   default is chosen against the damage its own feature can do, and the
---   damage here is a folder with his documents in it. ⏎ on a row toggles
---   it, the list stays open, and three bulk rows do all · none · what
---   this tool suggests.
---   🔎 THE EVIDENCE OUTRANKS THE LABEL: the two kinds that can hold his
---   files are WALKED, bounded, and a folder holding twelve of them says
---   the number rather than warning in the abstract (6.229.0's yield
---   line, in a verdict) — and the bound is a STATE, so a count taken
---   under it reads as a floor (6.197.2). A NAME match is never safe
---   whatever its kind, and that reason is printed BEFORE the kind's.
---   📐 The toggle rebuilds the picker, and hs.chooser drops the selection
---   on every :choices() (6.227.0) — so the row is put back by asking
---   clipboard_history's own clamp, with a floor here for a Mac where it
---   did not load and a gate check that JOINS the two (6.231.0).
---   🔎 ar.go() moves only what is selected, and counts a row HE kept
---   apart from one kept FOR him: summing them would read his decision as
---   the tool's (6.196.1).
+-- NEW IN 6.398.0 — 📝 CLOSING A HAMSIDIAN TAB LEAVES ITS NOTE, AND SAYS
+--   SO (modules/scratch_pad.lua). 6.387.0 asked whether a closed tab's
+--   .md should go with it; LL: "How do I know?" — so the decision is
+--   mine and the reasoning is in the module.
+--   🔑 IT STAYS, and not for the obvious reason. "Nothing here deletes
+--   your writing" (6.280.0) is the weaker half. The sharper half is what
+--   ⌘W MEANS: a tab is a SURFACE and a note is a DOCUMENT, so closing a
+--   tab tidies the desk rather than throwing the paper away. If ⌘W
+--   deleted the note, the key he presses to clear his screen would be
+--   destructive — and a key you have to think before pressing is a key
+--   you stop pressing. The way out exists: the ✕ on its row in ⇪3, to
+--   the bin, with an undo (6.321.0).
+--   🚨 THE DEFECT WAS NEVER THE POLICY — IT WAS THAT IT WAS SILENT. A
+--   file stayed behind and nothing said so, which is what makes a
+--   correct default feel like a leak. Said at the moment it happens now,
+--   with the way to remove it in the same breath, and COUNTED.
 
 --   ALSO IN THIS ARCHIVE (full entries in CHANGELOG.md):
---   📝 6.387.0 EVERY HAMSIDIAN TAB IS A REAL .md FILE, on his "(a) every
---   tab is a .md IMMEDIATELY" and his "Yes" to the first PAUSE rather than
---   the first keystroke. A WRITE THAT PINS AN IDENTITY MAY NOT HAPPEN AT
---   THE FIRST MOMENT IT COULD: exportNameFor pins a name for ever and the
---   vault never renames, so sp.titleSettled waits for a FINISHED first
---   line. The owned names ride WITH the index through setIndex, so the one
---   list draws each entry once and no rebuild costs the textarea's undo
---   history (6.323.0).
---   🚪 6.386.0 the ASANA DASHBOARD leaves this file (§6 →
---   modules/asana_dashboard.lua), 529 lines out, ⇪L ⇪C ⇪B unchanged:
---   the gate fails this file at 3,800 and it stood at 3,795, so the
---   ceiling had stopped being a budget. A MOVE'S READERS ARE NOT ONLY ITS
---   CALLERS — seven checks were pinned to this file's source text and
---   would have gone red with the feature fine (6.268.0). And the binds
---   stay in setup(), because §0.4 migrates all three combos and
---   hyperFinalize drains that list ONCE, after the loader.
---   🎨 6.385.0 the PICKERS wear the Jug Player's card. ui_style's header
---   has listed canvases and webviews since 6.90.0 and never hs.chooser,
---   so thirty-three pickers — most of what he looks at — were the one
---   family the shared style never reached, light because macOS draws
---   them light, not because anyone chose it. ONE door (showPopup), not
---   thirty-three modules. 📏 And a picker cannot have a per-row ✕: macOS
---   draws a chooser row from a string, with no sub-element to click.
---   📋 6.382.0 a PICKED snippet is left on the clipboard. Neither route
---   did: short ones were typed, long ones pasted through a borrow that
---   put his clipboard back. A keep arms NO restore rather than writing
---   on top of one (6.246.0). Pick only — a typed trigger fires thousands
---   of times a day.
---   📓 6.383.0 @logs in ⇪D: every tool that has failed, searchable.
---   6.279.0 named this gap when it built the ledger and never built it.
---   ONE parser — todayReport asks the same reader.
---   🗑 6.384.0 APP REMOVAL (⇪⇧[), to the Trash and never erased — his
---   ask, never built in any release. The FIRST press only SHOWS what
---   would move. There is no os.remove in the file and a sentry states
---   that as a RULE; the home-folder guard is a COMPONENT test, checked
---   immediately before each rename rather than when the list was built.
+--   ✏️ 6.397.0 the DOCUMENT EDIT takes the real window — the last picker
+--   in the config still on hs.dialog.textPrompt, a one-line NSAlert that
+--   opens behind what is in front. The prompt stays as the degrade,
+--   asked at PRESS time, and both doors end in applyDocEdit (6.231.0).
+--   🗳 6.396.0 HIS WORDS for a risky row: "⚠️ Attention: your data may be
+--   in here ⚠️", from ONE table. The verdict KEY stays `careful` — the
+--   word he reads and the word the code decides on are different things,
+--   and a sentence in twenty comparisons is how a label becomes a bug.
+--   🖱 6.395.0 the EDIT WINDOW DRAGS. Every part was built and one line
+--   killed it: the first tick asked checkMouseButtons and ended the drag
+--   when it did not say yes, but a press the page CONSUMED never updates
+--   the button state. coexist carries that sentence verbatim and 6.337.0
+--   is the night it cost ⇪4 — A RULE QUOTED IS NOT A RULE APPLIED.
+--   🔌 6.394.0 watchFolder = false really STOPS the watcher. It stopped
+--   the handler and not the pathwatcher, so macOS woke the main thread
+--   for every file event in a OneDrive folder for a switched-off feature
+--   (6.228.0 named this module; 6.259.0 is the precedent).
+--   ⏱ 6.393.0 a HUNG OCR no longer wedges the naming queue: nameBusy was
+--   cleared only in the callback, so one silent `shortcuts` process left
+--   every later screenshot piling up until a reload (6.304.0's wedge, in
+--   a second module). And t:start()'s FALSE was being thrown away.
+--   🆔 6.392.0 a FILE REFERENCE is resolved by a BOOKMARK. realpath hands
+--   back the right name in a folder that holds nothing, ending in a real
+--   extension — the plausible wrong answer, which sails through every
+--   suffix check downstream and cannot be opened (6.237.0, with the file
+--   named). The gate joins this reader to music_player's twin.
+--   🪟 6.391.0 ONE DOOR for every webview show. A webview refuses in TWO
+--   directions and no panel read either — it can THROW and it can RETURN
+--   FALSE. My own list of the sites was a SAMPLE: the queue named five,
+--   the grep found ELEVEN (6.319.0, broken by the person who wrote it).
+--   🪟 6.390.0 the JUG PLAYER's catcher reads its own show — 6.352.0's
+--   line, in its twin, named then and left for its own release. A
+--   two-door feature losing ONE door is invisible, which is why it
+--   needed a grep rather than a report.
 
--- (6.387.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.397.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 cut the inline count to
 --  TWO; a gate check proves every entry here is also in CHANGELOG.md.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.389.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.399.0
 -- =====================================================================
 -- The catalogue that used to sit here moved to GUIDE.md ("What each
 -- tool does") in 6.180.0 — 259 lines of prose inside the orchestrator.
@@ -216,7 +196,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.389.0"
+_G.configVersion = "6.399.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- A NO-OP STAND-IN for the diagnostics API, replaced by the real one in
@@ -2781,7 +2761,7 @@ local BASE = {
     "write_ledger",       -- 💾 _G.saved() — proof the logs are saving (no key)
     "install_check",      -- 🩺 _G.installCheck() — every runtime file against
                           --    MANIFEST.txt; silent unless something disagrees
-                          --    (no key, 6.399.0 — beside write_ledger because
+                          --    (no key, 6.399.0 — order 13.365, beside write_ledger because
                           --     both answer "is what should be on disk, on disk?",
                           --     and apart from it because that one is deliberately
                           --     LOUD when healthy and this one must not be)

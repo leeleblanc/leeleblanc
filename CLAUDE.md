@@ -440,6 +440,125 @@ work Mac.
      ("find the field that separates them BEFORE saying either out
      loud") broken in the direction that costs him the most.
 
+- 🩺 A DELIVERY THAT ASKS "DID IT ALL LAND?" IS ANSWERED BY A STAT, NOT A
+  DOCUMENT (6.399.0, MANIFEST.txt + modules/install_check.lua — LL, after
+  a Console installer had placed one module by hand: "Will this be added
+  as 'Get-Jug-Player-going.md' … so I don't have to remember?"). Yes, and
+  not as a file named after one tool: seventy-seven modules can
+  half-install, so such a document is right about one of them and
+  silently misleading about the other seventy-six — 6.276.0's hand-kept
+  register, which this project has already deleted twice. The archive
+  carries one row per runtime file with its byte count, GENERATED at
+  ceremony time, and `_G.installCheck()` names what disagrees.
+  📏 SIZE, NOT A HASH, AND THE LIMIT NAMED IN THE REPORT. A stat reads no
+  bytes, so it costs nothing on the main thread and cannot hydrate a
+  cloud placeholder; what it cannot see is a file edited to exactly the
+  same LENGTH. The hash path the earlier plan promised is NOT built, on
+  two counts that are both rules here: hs.hash's presence is a platform
+  fact this container cannot read in the source (6.233.0), and a guard
+  for a case that has never happened is dead code with a comment on it
+  (6.199.0). If it ever happens the manifest gains a column.
+  🔑 AND THE HALF A MANIFEST WALK STRUCTURALLY CANNOT SEE IS THE OTHER
+  SIDE OF 6.276.0's JOIN: it answers "is everything I shipped here?" and
+  says nothing about a file on his disk the manifest does not name. §1.12
+  loads an EXPLICIT list, so Finder's Keep Both copy is ignored while the
+  original stays loaded — the install looks done and nothing changed. So
+  the folders are LISTED too and any unnamed .lua is a stray. GENERAL:
+  when a check works by joining two things, ask what it says about a row
+  with only ONE of them, and put a different instrument on that.
+  📏 AND A BOUNDED WALK ANSWERS WHETHER IT FINISHED (6.197.2), which the
+  SUITE found rather than his Mac: the stray walk stops at 300 entries a
+  folder and was reporting its count as a total. "strays: none" about a
+  folder read half way down is the most reassuring sentence the module
+  can print, so the bound is a STATE — the count reads as a FLOOR with
+  the bound quoted, and the clean sentence is withheld.
+  🗑 AND THE SWEEP DELETED A GUARD NO INPUT COULD EVER FAIL (6.199.0,
+  EIGHTH time): `.` and `..` cannot end in ".lua", so the extension test
+  already turned them away. Removed rather than left with a comment on
+  it — and the check that replaced it asserts the OUTCOME, plus the
+  fixture where a `find` and an ENDING must differ (`boot_cost.lua.bak`
+  is not a stray .lua — 6.236.0's boundary rule, third time).
+  🚫 AND ONE SENTRY WAS WRITTEN AND TAKEN OUT AGAIN: "setup() never calls
+  ic.run" went RED on correct code, because `ic.block` legitimately falls
+  back to running the check and is DEFINED inside setup. GENERAL, and it
+  is the sharper half: A TEXTUAL SENTRY CANNOT TELL "CALLED WHILE setup
+  EXECUTES" FROM "CALLED FROM A FUNCTION setup DEFINED" — that is a
+  question about WHEN, and only a counter read the instant setup returns
+  can answer it. A guard that fails on correct code is switched off
+  inside a week (6.269.0).
+
+- 🪟 A WEBVIEW REFUSES IN TWO DIRECTIONS AND A pcall SEES ONE (6.391.0,
+  init.lua `_G.showWebviewSafely`). `view:show()` can THROW and it can
+  simply RETURN FALSE, and no throw guard can see the second. Eleven
+  sites across modules/ read neither.
+  🚨 AND ONE WAS WORSE THAN BARE, which is why this is a DOOR rather than
+  six edits: screenshot_editor's `showAgain` read `local shown =
+  pcall(...)`. That LOOKS like it reads the answer and does not — pcall's
+  first value is only "it did not throw" — so a webview that RETURNED
+  false was recorded as a window that came back. That is the window ⌘D
+  and ⌘F hide on purpose, so a wrong answer there is an editor he cannot
+  see and did not close. GENERAL: `local ok = pcall(f)` where f answers
+  true/false is a reading that is wrong exactly when it matters, and it
+  reads as careful code.
+  🔎 AND MY OWN LIST OF THE SITES WAS A SAMPLE — 6.319.0, broken by the
+  person who wrote it down. The queue named five; the grep found ELEVEN.
+  A sentry closes the class (6.282.0): the gate fails any `*view:show()`
+  in modules/ without the door within six lines, comments stripped
+  (6.262.0), the window ended at the statement's own boundary (6.263.0),
+  and proven in BOTH directions before it is trusted (6.269.0).
+
+- 🖱 A RULE QUOTED IS NOT A RULE APPLIED — SECOND PAYMENT, AND IT IS THE
+  SAME INSTRUMENT (6.395.0, modules/ocr_engine.lua — LL, with a
+  screenshot: "I can't drag that window"). Every part of the drag was
+  built and one line killed it: the 16 ms timer's FIRST tick asked
+  `hs.eventtap.checkMouseButtons` and ended the drag when it did not say
+  yes. The mousedown is CONSUMED by the page, and a consumed press does
+  not update the session's button state, so macOS reported nothing held
+  and the drag stopped before the window moved a pixel.
+  🚨 window_move 6.156.0 is the original, core/coexist.lua carries the
+  sentence verbatim, and 6.337.0 is the release where quoting that rule
+  and then building its opposite cost ⇪4 for a night. THE INSTRUMENT HAS
+  TO BE CONSULTED IN THE SAME POSITION, not merely with the same name:
+  believed only when it positively says "still down". An instrument that
+  has never once said "down" during THIS drag is UNINFORMATIVE, never
+  negative. ⏱ And a stand-down cannot run for ever, so a clock ends it —
+  otherwise this trades a drag that will not start for a window that
+  follows the pointer all day, which is strictly worse.
+  🔗 It is deliberately the SAME rule as `shots.beltVerdict` (6.336.0),
+  so the gate runs BOTH over shared fixtures and fails if they ever
+  disagree — 6.187.0's answer to two unavoidable readers of one idea.
+
+- 📝 A CORRECT DEFAULT THAT IS SILENT FEELS LIKE A LEAK (6.398.0,
+  modules/scratch_pad.lua). 6.387.0 asked whether closing a tab should
+  delete the .md it had written; LL: "How do I know?" — so the decision
+  was mine.
+  🔑 IT STAYS, and not for the obvious reason. "Nothing here deletes your
+  writing" (6.280.0) is the weaker half. The sharper half is what ⌘W
+  MEANS: a tab is a SURFACE and a note is a DOCUMENT, so closing a tab
+  tidies the desk rather than throwing the paper away. If ⌘W deleted the
+  note, the key he presses to clear his screen would be destructive — and
+  a key you have to think before pressing is a key you stop pressing.
+  🚨 SO THE DEFECT WAS NEVER THE POLICY, IT WAS THAT THE POLICY WAS
+  SILENT. GENERAL: when a default leaves something behind on purpose, say
+  so AT THE MOMENT it happens with the way to undo it in the same breath,
+  and COUNT it — an unannounced correct default is indistinguishable from
+  a tool quietly accumulating files.
+
+- 🆔 THE PLAUSIBLE WRONG ANSWER IS WORSE THAN NO ANSWER (6.392.0,
+  modules/ocr_engine.lua). realpath does NOT resolve a `/.file/id=`
+  reference — it walks the path a component at a time and replaces each
+  with the real NAME getattrlist answers, so it hands back
+  "/.file/<the real name>.png": the right name, in a folder that holds
+  nothing, ENDING IN A REAL EXTENSION. Everything downstream judges a
+  path by its suffix, so a resolved-LOOKING path sails through every
+  check and cannot be opened.
+  🔑 AND THE ROUTE MOST LIKELY TO ANSWER WAS THE ONE LEAST ABLE TO: this
+  guard took ANY non-empty string, while the second route three lines
+  below it already refused an answer that is still a reference. GENERAL:
+  when two routes answer one question, check the guards are as strong on
+  the route that usually wins — the weaker one is invisible precisely
+  because the other rarely runs.
+
 - 🔄 A POPULATION WITH NOTHING TO START FROM NEEDS THE SCAN RUN
   BACKWARDS, AND THAT IS A DIFFERENT RELEASE (6.389.0,
   modules/app_remove.lua — LL, in one sentence: "this is both for
@@ -6965,17 +7084,21 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
         answers for. Its own safety story too: an orphan may belong to
         something he is going to reinstall, so "no app found" cannot
         simply mean safe. Next unless he redirects.
-     3. ⌘Space launcher · ⌥Tab listing every panel · MANIFEST.txt +
-        _G.installCheck() · the draft keeper · the Mug Player sized to
-        the film · anchors' cold start · the crop tool · ⇪7's detail.
+     3. ✅ **MANIFEST.txt + _G.installCheck() IS SHIPPED** — 6.399.0, and
+        it is the promise from 6.311.0's verify block that he RAN and got
+        nil from. See the 🩺 hard rule above. Still open after it:
+        ⌘Space launcher · ⌥Tab listing every panel · the draft keeper ·
+        the Mug Player sized to the film · anchors' cold start · the crop
+        tool · ⇪7's detail.
      4. tests/test_lint.lua — hs-lint has no suite and every rule in it
         is a bug that cost a release.
-     5. The half-swept classes: the Jug Player's catcher (its show's
-        answer is thrown away — 6.352.0's bug, verbatim, at
-        music_player.lua:1745), five bare webview shows, the OCR tag
-        resolving a file reference with realpath instead of the bookmark
-        round trip 6.237.0 proved correct, nameByText's missing killer
-        timer, screenshots having no M.warm.
+     5. ✅ THE HALF-SWEPT CLASSES ARE CLOSED — all six, 6.390.0–6.394.0:
+        the Jug Player's catcher (6.390.0), the bare webview shows, which
+        were ELEVEN and not five (6.391.0 — my own list was a sample),
+        the OCR tag's reference resolution (6.392.0), nameByText's
+        missing killer timer (6.393.0), and screenshots having no M.warm,
+        which is what made `watchFolder = false` only half real
+        (6.394.0).
   🎙 AND ONE THING THAT IS NOT A FEATURE: ⇪Q mutes his microphone, by
      default, and this file said it was not ours. See the 🎙 hard rule.
 
@@ -7045,9 +7168,8 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
      1. ⌥Tab listing EVERY PANEL (his answer; the pickers stay out —
         a picker you ⌥Tab into cannot be ⌥Tab'd out of). 6.379.0's ⏱
         card is a thirteenth panel for that list when it is built.
-     2. MANIFEST.txt + `_G.installCheck()` — he RAN that command this
-        round and got nil, which is a promise of mine from 6.311.0's
-        verify block that was never kept.
+     2. ✅ SHIPPED AS 6.399.0 — MANIFEST.txt + `_G.installCheck()`, the
+        promise from 6.311.0's verify block he ran and got nil from.
      3. The draft keeper (his "ONLY 90 DAYS" answers the last question).
      4. Size the Mug Player to the film ("like VLC").
      5. Anchors' cold start · the crop tool · ⇪7's macOS detail.
@@ -8406,6 +8528,222 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.399.0 verify with LL — 🩺 DID THE WHOLE RELEASE LAND? (KNOWN GROUND)
+  WHAT CHANGED: one new command. `_G.installCheck()` compares every file
+  this release carries against what is actually on your Mac, and says
+  which ones disagree.
+  🔎 WHY: your own question, from September — "so I don't have to
+  remember". When a release half-installs, the config boots green, the
+  version stamp is right, and the feature is simply ABSENT. That is what
+  cost you the Jug Player for three days: init.lua was new, the module
+  file was old, and nothing anywhere could say so. The archive now
+  carries a MANIFEST.txt listing every runtime file with its byte count,
+  and this reads it.
+  🔕 AND ON A HEALTHY MAC IT SAYS NOTHING, ever. That silence is the
+  feature, so step A is "go and look", not "wait for a message".
+
+  A. THE HEADLINE — one command, and it should be boring.
+  A1. Console: `_G.installCheck()`.
+      EXPECT, on a clean install:
+        🩺 INSTALL CHECK — 6.399.0
+           version : 6.399.0 — the manifest is for this release
+           files   : ✅ all 92 runtime file(s) are here at the size the
+                     release carried
+           strays  : none — core/ and modules/ hold only what shipped
+      **PASTE THAT.** It is the first build on which that question has an
+      answer, and I want to see what your Mac says on a good day.
+  A2. Read the `files` line. **A FAIL is a ⚠️ naming files that disagree**
+      — which would mean this install is partial, and the line names
+      which files and both byte counts.
+  A3. Read the `version` line. It must name 6.399.0 twice. If it says THE
+      MANIFEST IS FOR <something else>, one half of the install did not
+      land — that is the whole-archive version of the same bug.
+  A4. Reload Hammerspoon and watch the Console for a minute.
+      EXPECT: **nothing at all** about the install check. On a matching
+      install it never speaks. If you get a ⚠️ line at boot, paste it:
+      that is the 🔔 door firing and it means something really did not
+      land.
+
+  B. THE STATE THAT MATTERS MOST — "I cannot tell" is not "all clear".
+  B1. This one you can see on purpose. In Finder, open ~/.hammerspoon
+      (Go ▸ Go to Folder, type `~/.hammerspoon`) and RENAME MANIFEST.txt
+      to MANIFEST.old.
+  B2. Console: `_G.installCheck()`.
+      EXPECT: `⏳ NOTHING CAN BE SAID`, and under it that this install
+      predates the check and that this is **NOT** 'all clear'.
+      **A FAIL is a ✅ anywhere in that block.** A check that cannot run
+      must never read like a check that passed — that is the one thing
+      this release had to get right, and it is the state every install
+      you have today is in.
+  B3. Rename it back. `_G.installCheck()` is green again.
+
+  C. THE ONE A DRAG CAUSES — worth two minutes, because it is one click
+     wide and you would never see it.
+  C1. In ~/.hammerspoon/modules, duplicate any file (⌘D in Finder). You
+      get something like `music_player copy.lua`.
+  C2. Console: `_G.installCheck()`.
+      EXPECT: a `strays` line naming it, and under it the explanation —
+      the loader reads an explicit list, so a stray is IGNORED and the
+      ORIGINAL stays loaded. That is why dragging a file onto a folder
+      and answering Finder's "Keep Both" looks exactly like a finished
+      install and changes nothing.
+  C3. Delete the duplicate. The line goes back to "none".
+
+  D. MUST STILL WORK — this release touched the installer and the module
+     loader, so this half matters more than A.
+  D1. Boot: All green, **77 modules** (was 76 — this release adds one),
+      and the same ⇪ shortcut count as before. A different shortcut count
+      is a finding: this module binds no key at all.
+  D2. A spread of keys across different tools: ⇪T, ⇪D, ⇪N, ⇪3, ⇪X, ⇪4,
+      ⇪space, ⇪V, ⇪/, ⇪⇧[.
+  D3. ⇪/ and search `install` — the 🩺 card is there, filed under CONFIG.
+  D4. `_G.saved()` — the write ledger still prints. These two sit beside
+      each other on purpose and answer different halves of "is what
+      should be on disk, on disk?".
+
+  E. A JUDGEMENT ONLY YOU CAN MAKE.
+  E1. **Is the Console the right place?** It is a command you run when
+      something feels absent. The alternative is a line at every boot
+      saying "all 92 files are here", which is what `_G.saved()` does for
+      the stores because you asked for the healthy case in writing — and
+      I did NOT do it here, because a line you read every morning is a
+      line you stop reading. Say if you would rather have it.
+  E2. 📏 THE LIMIT, named rather than discovered: this compares SIZES. A
+      file edited to exactly the same length reads as a match. I did not
+      build the hash version: it needs a platform fact I cannot check
+      from here, and it guards a case that has never happened. If it ever
+      does, the manifest gains a column.
+  E3. 📏 AND TWO FILES ARE DELIBERATELY NOT IN IT, both printed in the
+      report so they are decisions rather than gaps: CHANGELOG.md, which
+      already has a better instrument (it checks whether THIS version's
+      entry is in it, which is what caught a half-install in 6.311.0),
+      and snippets/bundled.lua, which is generated and which you can
+      legitimately rebuild on your own Mac from packs the archive never
+      saw. Say if you want either in anyway.
+
+- 6.398.0 verify with LL — 📝 A CLOSED TAB LEAVES ITS NOTE (KNOWN GROUND)
+  WHAT CHANGED: when you ⌘W a Hamsidian tab, the .md file it wrote stays
+  — and it now SAYS so, with the way to remove it.
+  🗳 YOU ASKED "How do I know?" and you were right to: the decision was
+  mine to make and I had left it silent. It stays, and the reason is not
+  the obvious one. ⌘W is the key you press to clear your screen. If it
+  deleted the note, that key would be destructive — and a key you have to
+  think before pressing is a key you stop pressing. A tab is a surface; a
+  note is a document.
+
+  A. THE HEADLINE — thirty seconds.
+  A1. ⇪N, ⌘T for a new tab, type two lines with a Return between them,
+      wait three seconds for it to write itself.
+  A2. Press ⌘W to close that tab.
+      EXPECT: a short message saying the note stayed, naming it, and
+      telling you the ✕ on its row in ⇪3 removes it.
+      **A FAIL is silence** — that is the old behaviour, and it is what
+      made a correct default feel like a leak.
+  A3. Press ⇪3. EXPECT: that note in the list, with a 🕸 icon.
+  A4. Click its ✕. EXPECT: it goes to the bin, recoverable
+      (`_G.vaultTrash()` lists it, and a click in the 🗑 bin restores it).
+
+  B. PASTE BACK.
+  B1. `_G.scratchPadReport()` — a new count of how many notes have been
+      left behind this way. That number turns "how many am I
+      accumulating?" into something you can read rather than guess.
+
+  C. A JUDGEMENT ONLY YOU CAN MAKE.
+  C1. Now that you can see it happening: is leaving the note right? If
+      you would rather ⌘W took the note with it, say so — but know that
+      it makes ⌘W a destructive key, which is the reason I chose the
+      other way.
+
+- 6.397.0 verify with LL — ✏️ THE DOCUMENT EDIT WINDOW (KNOWN GROUND)
+  WHAT CHANGED: editing a document's recorded time now opens the same
+  window the clipboard editor uses — front, big, with the caret already
+  in it, and draggable.
+  🔎 Your words, with the two side by side: "Make the edit window like the
+  edit window for clipboard entries." This was the LAST thing in the
+  config still using macOS's little one-line dialog, which opens behind
+  whatever is in front of it.
+
+  A. THE HEADLINE.
+  A1. ⇪⇧W to open the documents list. Pick a row and choose to edit it.
+      EXPECT: a dark window comes to the FRONT, as big as the text, with
+      the caret already blinking in the box. Type at once — no click.
+  A2. EXPECT a line above the box naming the date, the app and how long.
+  A3. Drag it by its ⠿ grip (that is 6.395.0, below — try it here too).
+  A4. Save. EXPECT the change lands. Then edit again and press Esc:
+      EXPECT nothing changes.
+  A5. Empty the box completely and save. EXPECT whatever it did before —
+      the rule that decides what an empty box means is written once and
+      both doors ask it, so the window and the old dialog cannot disagree.
+
+  B. THE DEGRADE.
+  B1. On a Mac where the window cannot be built you get the old one-line
+      dialog instead, and it still works. You should not see it; if you
+      DO, that is a finding and I want to know.
+
+- 6.396.0 verify with LL — 🗳 YOUR WORDS FOR A RISKY ROW (KNOWN GROUND)
+  WHAT CHANGED: App Removal says exactly what you asked it to say.
+  🗳 You answered 6.388.0's question with the words: "⚠️ Attention: your
+  data may be in here ⚠️". That is what every risky row reads now.
+
+  A. THE HEADLINE — twenty seconds.
+  A1. Press **⇪⇧[** — hold Caps Lock and Shift and press the **[** key,
+      just right of P. Pick an app and press Return.
+  A2. Find a row with a ⚠️ on it.
+      EXPECT its second line to read **⚠️ Attention: your data may be in
+      here ⚠️** — your words, verbatim. **A FAIL is the old "careful".**
+  A3. Console: the same wording in the printed analysis.
+  A4. ⇪/ and search `app removal` — the card says it too. One table, three
+      surfaces, so they cannot drift.
+
+  B. MUST STILL WORK — the wording changed and the LOGIC must not have.
+  B1. Risky rows still start **[ keep ]**; safe rows still start
+      **[ MOVE ]**. ⏎ on a row still toggles it. The three bulk rows
+      still work, and ⏎ on the top row still moves only what is selected.
+  B2. It still refuses an app that is OPEN, and still never touches
+      anything outside your home folder or /Applications.
+  B3. Everything still goes to the **Trash** and Finder ▸ Put Back undoes
+      it.
+
+  C. A JUDGEMENT ONLY YOU CAN MAKE.
+  C1. Read it a few times in the picker. Too long for the row? Too
+      shouty? It is one table and one line to change — and it is pinned
+      by a check now, so a later release cannot quietly reword a thing
+      you were asked about and answered.
+
+- 6.390.0–6.395.0 verify with LL — 🔧 SIX THINGS THAT WERE NAMED AND NOT
+  FIXED (KNOWN GROUND). These closed a list that had been sitting in my
+  notes since 6.281.0. Five of them you cannot see on a healthy Mac;
+  one you can, and it is the first step.
+  A1. 🖱 **6.395.0 — the edit window drags.** ⇪⇧V, Return on a row to
+      open the editor, then press on the **⠿ grip** at its top and drag.
+      EXPECT: the window follows. **A FAIL is it not moving at all**,
+      which is the bug: every part of the drag was built and one line
+      ended it 16 milliseconds in, before the window had moved a pixel.
+  A2. 🪟 **6.390.0 — the Jug Player's drop.** ⇪⇧. and drag an mp3 onto
+      the card. EXPECT it queues and plays, as always. `_G.musicReport()`
+      has a `drop :` line that now reads a MEASURED flag rather than
+      "ready" — if it ever says macOS refused the catcher, paste it.
+  A3. 🪟 **6.391.0 — every window that opens.** Open a spread of panels:
+      ⇪N, ⇪3, ⇪T, ⇪D, ⇪⇧1, ⇪⇧S, ⇪I, ⇪⇧,. EXPECT: all of them open
+      exactly as before. Then `_G.webviewShowReport()` — new; on a
+      healthy Mac "refused : none". If a panel ever does nothing when you
+      press its key, THAT is the command to run.
+  A4. 🆔 **6.392.0 — the OCR tag.** Copy an image FILE in Finder (⌘C on
+      the file, not on the pixels) and press the OCR tag key. EXPECT it
+      reads the image. Before this, a file Finder handed over by its
+      internal id was turned into a path that looks perfect and cannot be
+      opened.
+  A5. ⏱ **6.393.0 — the naming queue.** Take several screenshots in a
+      row. EXPECT all of them get renamed after their words within a few
+      seconds. Before this, ONE OCR that never answered left every later
+      screenshot piling up in silence until a reload.
+  A6. 🔌 **6.394.0 — the watcher switch.** Nothing to press. The screenshot
+      folder watcher now starts a few seconds after boot rather than
+      during it, which also means `settings = { screenshots =
+      { watchFolder = false } }` really stops it. `_G.screenshotsReport()`
+      has a `watch :` line with three states — paste it if it ever reads
+      a ⚠️.
+
 - 6.389.0 verify with LL — 🔎 LEFTOVERS WITH NO APP (NEW GROUND)
   WHAT CHANGED: App Removal can now work BACKWARDS — find the settings
   left behind by apps you no longer have, including ones you only ever

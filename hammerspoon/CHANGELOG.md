@@ -5,6 +5,322 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.399.0 — 🩺 DID THE WHOLE RELEASE LAND? (MANIFEST.txt +
+  modules/install_check.lua). LL, 2026-09-29, once a Console installer
+  had put one module file in place by hand: "Will this be added as
+  'Get-Jug-Player-going.md' as part of the init.lua zip file with an
+  entry on the cheat sheet under Jug player so I don't have to
+  remember?" The answer is yes, and NOT as a file named after one tool.
+  🚪 WHY AN INSTRUMENT AND NOT A DOCUMENT: seventy-seven modules can
+  half-install, so a document called Get-Jug-Player-going.md is right
+  about one of them and silently misleading about the other seventy-six
+  — 6.276.0's hand-kept register, which this project has already
+  deleted twice. The archive carries MANIFEST.txt instead, one row per
+  runtime file with its byte count, GENERATED at ceremony time
+  (tools/build-manifest.lua) like TESTING.md and RESOLVED-FEATURE-
+  REQUESTS.txt, because a hand-kept one is stale the first time a file
+  changes. `_G.installCheck()` stats each row and names every file that
+  disagrees.
+  🔎 THE FAILURE IT EXISTS FOR IS MEASURED, NOT IMAGINED. 6.311.0
+  shipped as four loose files to be placed by hand; his
+  `_G.musicReport()` came back reading `🎵 JUG PLAYER — ⇪⇧pad.` with no
+  `doors :` line, which the new file cannot emit. init.lua was new and
+  modules/music_player.lua was old. THE CONFIG BOOTED GREEN, the
+  version stamp was right, and the feature was simply absent. A later
+  probe read the loader's own path and answered `bytes : 107414`
+  against the 116,595 the release carried — one number, and it was the
+  whole diagnosis.
+  📏 SIZE, NOT A HASH, AND THE LIMIT IS NAMED IN THE REPORT.
+  hs.fs.attributes(p).size is a STAT: it reads no bytes, so it costs
+  nothing on the main thread (6.228.0) and cannot hydrate a cloud
+  placeholder. What it cannot see is said out loud rather than left to
+  be discovered — a file edited to exactly the same LENGTH reads as a
+  match. The earlier plan for this module promised an
+  `installCheck(true)` hash path for that case and it is deliberately
+  NOT built, on two counts: hs.hash's presence is a platform fact this
+  container cannot check in the source and 6.233.0 forbids designing on
+  a belief, and every release moves init.lua's version stamp so a
+  same-size different-content file needs somebody to have hand-edited
+  one to the byte. A guard for a case that has never happened is dead
+  code with a comment on it (6.199.0). If it ever happens the manifest
+  gains a column.
+  🔎 AND THE HALF A MANIFEST WALK STRUCTURALLY CANNOT SEE. Walking the
+  manifest answers "is every file I shipped here, at the right size?"
+  and says NOTHING about a file on his disk the manifest does not name
+  — and §1.12 loads an EXPLICIT module list, so a stray
+  `music_player 2.lua` (Finder's Keep Both, one click wide) is ignored
+  entirely while the ORIGINAL stays loaded. The install looks done,
+  Finder shows the new file, and nothing has changed. That is 6.276.0's
+  rule from the other end: when a check works by joining two things,
+  ask what it says about a row with only ONE of them. So core/ and
+  modules/ are LISTED too and any .lua the manifest does not name is
+  reported as a stray, with the folders it could not list named
+  separately.
+  📏 AND A BOUNDED WALK ANSWERS WHETHER IT FINISHED (6.197.2) — found
+  by writing the suite, not by shipping it. The stray walk stops at 300
+  entries per folder, which is real work-avoidance (hs.fs.dir hands
+  back filesystem order, so a folder somebody has emptied a download
+  into is thousands of entries), and it was reporting its count as a
+  TOTAL. "strays: none" about a folder read half way down is the most
+  reassuring sentence this module can print, so the bound is a STATE:
+  the block says the count is a FLOOR with the bound quoted, and the
+  clean "only what shipped" sentence is withheld for any folder that
+  was not read whole.
+  🔕 SILENT WHEN HEALTHY (6.269.0): on a matching install it prints
+  NOTHING, ever. It speaks from M.warm only when something disagrees,
+  and then it takes the 🔔 door — a config that boots green with a
+  feature silently absent is exactly what 6.311.0 cost, and a report
+  line alone is a break found a week later (6.214.0). From warm and
+  never setup, because disk work at setup is a tax every other module
+  and every key pays (6.267.0); a Mac that cannot arm a timer checks at
+  once and the miss is counted, since saying nothing is not one of the
+  options in a module whose whole subject is not being told.
+  🔎 FOUR STATES FOR THE CHECK AND FOUR PER FILE. The check: no
+  manifest (this install predates it and NOTHING CAN BE SAID) · the
+  manifest could not be read · every file matches · N disagree. Each
+  file: matches · DIFFERENT SIZE with BOTH numbers · MISSING · macOS
+  WOULD NOT SAY. The last two are not the same fact and send you to
+  different places. 🏷 And the manifest's own version is checked against
+  _G.configVersion, which is the half-install one level up: a new
+  MANIFEST.txt beside an old init.lua reads as a clean install to every
+  other instrument.
+  📝 WHAT IS DELIBERATELY NOT IN IT, so the omission is a decision
+  rather than a gap: CHANGELOG.md, which core/changelog_csv.lua really
+  does read at runtime — it already has a BETTER instrument, checking
+  whether this release's ENTRY is there, which is what caught 6.311.0's
+  second half-installed file, and a size row beside it would be two
+  answers to one question (6.317.0). snippets/bundled.lua is out too:
+  it is generated, and legitimately rebuildable on his own Mac from
+  packs the archive never saw, so a size row would disagree for a
+  reason that is not a half-install. Both are printed in the report.
+  🧪 191 checks against REAL FILES in a temp tree, 49 of 49 mutations
+  killed and the no-op control survived. The sweep's own findings: a
+  guard no input could ever fail (`.` and `..` cannot end in ".lua", so
+  the extension test already turned them away — 6.199.0, EIGHTH time,
+  removed rather than left with a comment on it); a verdict check that
+  asserted the BRANCH where the fix is the SENTENCE, because in Lua a
+  string never equals a number so a non-number size lands in "size"
+  either way and claims a byte count macOS never gave (6.212.0 ·
+  6.248.0 — assert what is unique to the branch); and a `.lua` test
+  that a `find` would satisfy, so `boot_cost.lua.bak` would be called a
+  stray (6.236.0's rule, THIRD time — any sentry that looks for a name
+  looks for its boundary too). 🚫 One sentry was written and taken out
+  again: "setup() never calls ic.run" went RED on correct code, because
+  ic.block legitimately falls back to running the check and is DEFINED
+  inside setup — a textual sentry cannot tell "called while setup
+  executes" from "called from a function setup defined", so it would
+  have been switched off inside a week (6.269.0). The functional check
+  replaces it: ic.runs and ic.last are read the instant setup returns
+  and must be 0 and nil.
+  📋 tools/hs-install.sh copies MANIFEST.txt, names its row count and
+  the release it is for before installing, and VERIFIES that the
+  installed manifest's version is this release's. It is optional
+  throughout — an older archive carries none, and refusing such an
+  install would make that script the thing that cannot install a
+  rollback. And its "core/ : 9 files ✅ present" line is COUNTED now: it
+  sat beside a loop over THIRTEEN names and a verify that checks
+  thirteen, and a number printed to a human is a lie the moment a file
+  is added (6.261.0).
+
+NEW IN 6.398.0 — 📝 CLOSING A HAMSIDIAN TAB LEAVES ITS NOTE, AND SAYS
+  SO (modules/scratch_pad.lua). 6.387.0's verify block asked whether a
+  closed tab's .md should go with it. LL: "How do I know?" — so the
+  decision is mine and the reasoning is in the module rather than in a
+  message he reads once.
+  🔑 IT STAYS, and the reason is not the obvious one. "Nothing in this
+  config deletes your writing" (6.280.0) is true and is the weaker
+  half. The sharper half is what ⌘W MEANS: a tab is a SURFACE and a
+  note is a DOCUMENT, so closing a tab tidies the desk rather than
+  throwing the paper away. If ⌘W deleted the note, the key he presses
+  to clear his screen would be destructive — and a key you have to
+  think before pressing is a key you stop pressing. The note already
+  has a way out: the ✕ on its row in ⇪3, to the bin, with an undo
+  (6.321.0).
+  🚨 SO THE DEFECT WAS NEVER THE POLICY — IT WAS THAT THE POLICY WAS
+  SILENT. He closed a tab, a file stayed behind, and nothing anywhere
+  said so, which is exactly what makes a correct default feel like a
+  leak. It is said at the moment it happens now, with the way to remove
+  it in the same breath, and COUNTED in the report so "how many have I
+  left behind" is a number rather than a feeling (6.229.0).
+  🧪 And its first sentry read the module through this suite's FAKE
+  io.open and got "" — green over an empty haystack (6.273.0 ·
+  6.313.0). It uses realIoOpen and asserts the size now. A second read
+  the whole file for `os.remove`; the window ends at closeTab's own
+  boundary (6.263.0), because a scanner with an unbounded window can be
+  answered by its neighbour.
+
+NEW IN 6.397.0 — ✏️ THE DOCUMENT EDIT TAKES THE REAL WINDOW
+  (modules/activity_tracker.lua). LL, with a screenshot of each side by
+  side: "Make the edit window like the edit window for clipboard
+  entries." The clipboard's is ocr_engine's `editor.open` — front,
+  caret already in the box, as big as the text, and draggable as of
+  6.395.0. This was the LAST picker in the config still on
+  hs.dialog.textPrompt, a fixed one-line NSAlert that opens behind
+  whatever is in front (6.190.0).
+  🚪 The prompt stays as the DEGRADE, asked at PRESS time rather than
+  cached at setup, and BOTH doors end in `applyDocEdit` — so the rule
+  that decides what an empty box means is written once (6.231.0). The
+  date · app · duration line and the session count are built once and
+  handed to both, so the window cannot say one thing while the prompt
+  says another.
+
+NEW IN 6.396.0 — 🗳 HIS WORDS FOR A RISKY ROW (modules/app_remove.lua).
+  6.388.0 asked whether "careful" was the right word for a folder that
+  may hold his files. He answered: "⚠️ Attention: your data may be in
+  here ⚠️". That is what every row says now — the picker, the Console
+  analysis and the ⇪/ card, from ONE table.
+  🔑 THE VERDICT KEY STAYS `careful`. The word he READS and the word
+  the code DECIDES on are different things, and renaming the verdict
+  itself would put a sentence with spaces and emoji into twenty
+  comparisons, which is how a label change becomes a logic bug.
+  🧪 Two checks asserted the literal word and went red — 6.248.0,
+  EIGHTH time: they were reading the label rather than the rule, so
+  they would have failed on the day he chose different words with
+  nothing to say about the change they existed to prove. They ask the
+  module's own renderer now, plus a new row that pins his wording
+  verbatim so a later release cannot quietly reword a thing he was
+  asked about and answered.
+
+NEW IN 6.395.0 — 🖱 THE EDIT WINDOW DRAGS (modules/ocr_engine.lua). LL,
+  with a screenshot of it: "I can't drag that window."
+  🔎 EVERY PART OF THE DRAG WAS BUILT AND ONE LINE KILLED IT. The ⠿
+  grip, the mousedown, the message, the frame read and the 16 ms timer
+  are all there — and that timer's FIRST tick asked
+  hs.eventtap.checkMouseButtons and ended the drag when it did not say
+  yes. The mousedown is consumed by the page, and a consumed press does
+  not update the session's button state, so macOS reported nothing held
+  and the drag stopped ~16 ms in, before the window had moved a pixel.
+  🚨 THIS CONFIG HAS PAID FOR THAT TWICE AND WROTE IT DOWN BOTH TIMES.
+  window_move 6.156.0 is the original; core/coexist.lua carries the
+  sentence verbatim — checkMouseButtons is asked as a VETO ONLY, and a
+  consumed press reads as released on the first tick and ends a drag
+  before it moves — and 6.337.0 is the release where quoting that rule
+  and then building its opposite cost ⇪4 for a night. A RULE QUOTED IS
+  NOT A RULE APPLIED: the instrument has to be consulted in the same
+  POSITION, not merely with the same name.
+  `ocr.dragVerdict` is PURE with three answers (6.196.1) and only the
+  middle one may end anything: an instrument that has never once said
+  "down" during THIS drag is UNINFORMATIVE, not negative. `sawHeld` is
+  per drag and never global. It is deliberately the SAME rule as
+  `shots.beltVerdict` (6.336.0), so the gate runs BOTH over shared
+  fixtures and fails if they ever disagree — 6.187.0's answer to two
+  unavoidable readers of one idea.
+  ⏱ AND A STAND-DOWN CANNOT RUN FOR EVER: on a Mac that never reports a
+  held button the verdict never says "ended", so a clock does. Without
+  it this would trade a drag that will not start for a window that
+  follows the pointer all day, which is strictly worse. 🔬 The button
+  reader also takes BOTH keys macOS answers under, as coexist's has
+  since 6.306.0.
+
+NEW IN 6.394.0 — 🔌 watchFolder = false REALLY STOPS THE WATCHER
+  (modules/screenshots.lua). A switch is only real if the thing it
+  governs starts AFTER setup. init.lua applies a profile's `settings`
+  after setup returns, so a module that starts a watcher inside setup
+  can only ever be STOPPED by an override, never started.
+  `watchFolder = false` did stop the handler (onFolderEvent returns at
+  its first line) and did NOT stop the pathwatcher — so macOS went on
+  waking the main thread for every file event in a OneDrive folder, for
+  a feature that was switched off. 6.228.0 named this module as
+  carrying that shape; this pays it, with 6.259.0 as the precedent. The
+  watcher starts in M.warm — this module was the one in its family with
+  no warm at all — and `watchWhy` says which of three states it is in,
+  because "off on your word" and "macOS refused the watcher" are
+  opposite facts.
+
+NEW IN 6.393.0 — ⏱ A HUNG OCR NO LONGER WEDGES THE NAMING QUEUE
+  (modules/screenshots.lua). `nameBusy` was cleared ONLY in the task's
+  callback, so a `shortcuts` process that never answered left it true
+  for the rest of the session: drainQueue returns at its first line,
+  and every screenshot that arrived afterwards piled up behind it in
+  silence until a reload. 6.304.0's rule in a second module — a guard
+  only a SUCCESS can release is a wedge.
+  One belt per running OCR, armed after the task really exists, in its
+  own held slot (6.196.1), CANCELLED by the callback — so a belt can
+  only ever fire for a process that genuinely went quiet, and a spent
+  one cannot terminate a healthy run or hand the caller a second answer
+  (6.299.0). It takes the 🔔 door (6.214.0), counts the kills, and
+  counts the Macs that could not arm one rather than reading as
+  healthy.
+  🔬 AND `t:start()`'s ANSWER WAS THROWN AWAY. hs.task:start() REFUSES
+  BY RETURNING FALSE and never throws (libtask.m, task_launch: the
+  success path pushes the task, the @catch pushes a boolean), so the
+  pcall around it succeeded on a refusal and this counted a process
+  that was never spawned. 6.304.0, found again in a second module.
+
+NEW IN 6.392.0 — 🆔 A FILE REFERENCE IS RESOLVED BY A BOOKMARK
+  (modules/ocr_engine.lua). 6.237.0 established, with the file named,
+  that realpath does NOT resolve a /.file/id= reference: it walks the
+  path a component at a time and replaces each with the real NAME
+  getattrlist answers, so it hands back "/.file/<the real name>.png" —
+  the right name, in a folder that holds nothing, ENDING IN A REAL
+  EXTENSION.
+  🚨 THAT IS THE PLAUSIBLE WRONG ANSWER, and it is worse than no
+  answer: everything downstream judges a path by its suffix, so a
+  resolved-looking path sails through every check and cannot be opened.
+  The guard here took ANY non-empty string — while the second route
+  three lines below it already refused an answer that is still a
+  reference. The route most likely to answer was the one least able to.
+  The bookmark round trip (pathToBookmark → pathFromBookmark) is asked
+  FIRST, because it is the route 6.237.0 proved; realpath stays as a
+  last resort with its answer checked for still being a reference, and
+  for being absolute. 🔗 Two readers of one filesystem fact drift
+  (6.231.0), so the gate joins ocr.isRefPath to music_player's twin
+  over shared fixtures and fails on disagreement — 6.187.0's answer to
+  two unavoidable readers.
+
+NEW IN 6.391.0 — 🪟 ONE DOOR FOR EVERY WEBVIEW SHOW (init.lua
+  `_G.showWebviewSafely`). A webview refuses in TWO directions and no
+  panel read either: it can THROW, and it can simply RETURN FALSE,
+  which no throw guard can see. The door reads both, counts them, takes
+  the notices door and ANSWERS — it never retries, because a retry that
+  acts a turn later is acting on a decision that may have been reversed
+  and holds the only reference to the thing it acts on (6.266.0).
+  `_G.webviewShowVerdict` is PURE with the two refusals carrying
+  DIFFERENT reasons (6.196.1: "AppKit raised" and "AppKit declined"
+  send the next release to different places).
+  🚨 ONE SITE WAS WORSE THAN THE REST, and it is why this is a door
+  rather than six edits: screenshot_editor's `showAgain` read
+  `local shown = pcall(...)`. That LOOKS like it reads the answer and
+  does not — pcall's first value is only "it did not throw" — so a
+  webview that RETURNED false was recorded as a window that came back.
+  That is the window ⌘D and ⌘F hide on purpose and the belt returns, so
+  a wrong answer there is an editor he cannot see and did not close.
+  🔎 AND MY OWN LIST OF THE SITES WAS A SAMPLE (6.319.0, broken by the
+  person who wrote it). The queue named five; the grep found ELEVEN —
+  recent_docs, ocr_engine, unified_search and task_form were nowhere in
+  it, and music_player/video_player's three correct-by-hand sites were
+  outside the count. All eleven go through the door now, so
+  `_G.webviewShowReport()` can answer for EVERY panel rather than for
+  the ones that happened to be instrumented.
+  🔒 THE SENTRY IS WHAT CLOSES THE CLASS (6.282.0): fixing eleven sites
+  fixes eleven instances, and the gate now fails any `*view:show()` in
+  modules/ without the door within six lines. Comments stripped
+  (6.262.0), the window ended at the statement's own boundary
+  (6.263.0), and proven in BOTH directions before it is trusted
+  (6.269.0) — it fires on a bare show, stands down on a correct
+  fallback, and says nothing about a canvas.
+
+NEW IN 6.390.0 — 🪟 THE JUG PLAYER'S CATCHER READS ITS OWN SHOW
+  (modules/music_player.lua). The drop catcher's show was
+  `pcall(function() cv:show() end)` followed by recording the canvas
+  and the word "ready" regardless. 6.352.0 fixed this exact line in the
+  Mug Player and NAMED this one as its twin, left for its own release.
+  hs.canvas:show() THROWS when AppKit refuses to order the window on
+  screen, and this Mac measurably refuses (6.265.0 · 6.274.0 · 6.314.0
+  · 6.348.0), so a canvas that is not on screen was recorded as ready —
+  and a catcher that is not on screen catches nothing.
+  🔎 WHY IT SURVIVED 157 RELEASES: this page carries its OWN
+  dragover/drop handlers, so the card went on reading drags that land
+  on it. Only the catcher UNDERNEATH was lost, which is the one that
+  takes a drag the page itself refuses. A two-door feature losing one
+  door is invisible; that is the whole reason it needed a grep rather
+  than a report.
+  The report reads the MEASURED flag now (`mp.catcherOn`, written after
+  macOS agreed) rather than the handle, which only ever said an object
+  was made. A refusal is counted and the line beside it says the card's
+  own handler still works — a one-door failure and a two-door one are
+  different facts.
+
 NEW IN 6.389.0 — 🔎 LEFTOVERS FROM AN APP THAT WAS NEVER INSTALLED: the
   other half of his own sentence, asked in the same breath as the review
   and deliberately not smuggled into it — "this is both for applications

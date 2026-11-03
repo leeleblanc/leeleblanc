@@ -58,7 +58,7 @@ Nothing else is affected.
 │   ├── lag.lua               which tap is eating the keystroke — OFF unless ~/.hammerspoon/LAGPROBE exists
 │   ├── double_tap.lua        ⌘⌘ and ⌥⌥ — one watcher, many gestures
 │   └── notices.lua           the failure ledger — nothing fails silently
-├── modules/              76 files, loaded by the §1.12 loader
+├── modules/              77 files, loaded by the §1.12 loader
 ├── snippets/
 │   └── bundled.lua       1,926 public snippets — ships in the archive
 ├── tools/                hs-doctor.sh · hs-install.sh · run-tests.sh · hs-stall-guard.sh

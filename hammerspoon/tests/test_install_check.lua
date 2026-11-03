@@ -172,6 +172,39 @@ local SRC = assert(slurp(HS .. "/modules/install_check.lua"))
 -- here and nowhere else.
 local RUNS_AT_SETUP, LAST_AT_SETUP = ic.runs, ic.last
 
+-- 🧪 A TEST HELPER ANSWERS FALSELY RATHER THAN INDEXING A NIL (6.186.0,
+-- eighth time in this project). A mutation that stops warm arming a
+-- timer, or stops sizeOf catching a raise, or stops the door pcalling
+-- itself, must fail a CHECK — a suite that dies mid-file prints
+-- "0 failed" and reads as a pass.
+local function fireTimer(n)
+    local t = TIMERS[n or 1]
+    if not t or type(t.fn) ~= "function" then return false, "no timer was armed" end
+    local ok, err = pcall(t.fn)
+    return ok, err
+end
+-- …and the PURE functions get the same treatment: a mutation that lets
+-- relInside index a nil, or straysIn walk one, must fail a check.
+local function pureSafe(fn, ...)
+    local ok, a = pcall(fn, ...)
+    if not ok then return "RAISED" end
+    return a
+end
+local function straysSafe(dir, names, seen)
+    local ok, a = pcall(ic.straysIn, dir, names, seen)
+    if not ok then return nil, tostring(a) end
+    return a
+end
+local function sizeOfSafe(rel)
+    local ok, a, b = pcall(ic.sizeOf, rel)
+    if not ok then return nil, "RAISED: " .. tostring(a) end
+    return a, b
+end
+local function doorSafe()
+    local ok, err = pcall(_G.installCheck)
+    return ok, err
+end
+
 -- =====================================================================
 out("\n=== 1. it loads, publishes its doors, and claims no key ===\n")
 -- =====================================================================
@@ -211,7 +244,7 @@ check("it never calls hs.hotkey",
 -- The key column of the cheat sheet is WORDS, so 6.196.0's auditor reads
 -- the card as a pointer rather than a claim about a combo it never bound.
 local keyCols = {}
-for _, row in ipairs(M.cheatsheet.entries) do keyCols[#keyCols + 1] = row[1] end
+for _, row in ipairs(M.cheatsheet.entries or {}) do keyCols[#keyCols + 1] = row[1] end
 check("no cheat-sheet row claims a ⇪ combo",
       not table.concat(keyCols, " "):find("⇪", 1, true),
       table.concat(keyCols, " "))
@@ -240,8 +273,12 @@ check("an absolute path is refused", not ic.relInside("/etc/passwd"))
 check("a doubled slash is refused", not ic.relInside("core//x.lua"))
 check("a trailing slash is refused", not ic.relInside("core/"))
 check("an empty string is refused", not ic.relInside(""))
-check("a non-string is refused", not ic.relInside(nil))
-check("a number is refused", not ic.relInside(12))
+check("🚨 a non-string is refused rather than indexed",
+      pureSafe(ic.relInside, nil) == false, pureSafe(ic.relInside, nil))
+check("a number is refused rather than indexed",
+      pureSafe(ic.relInside, 12) == false, pureSafe(ic.relInside, 12))
+check("a table is refused rather than indexed",
+      pureSafe(ic.relInside, {}) == false, pureSafe(ic.relInside, {}))
 
 -- =====================================================================
 out("\n=== 3. parseManifest — it answers rows + meta, or nil + why ===\n")
@@ -339,9 +376,18 @@ check("…and quotes the reason macOS gave",
       words:find("no size in the answer", 1, true) ~= nil, words)
 st = ic.verdict(500, nil, nil)
 check("a refusal with no reason at all is still `unknown`", st == "unknown", st)
-st = ic.verdict(500, "107414")
-check("a size that is a STRING is not a match — a stub's value, not macOS's",
-      st ~= "ok", st)
+-- 🚨 ASSERT WHAT IS UNIQUE TO THE BRANCH (6.212.0 · 6.248.0). `st ~= "ok"`
+-- survived the mutation that reads `got ~= nil` instead of
+-- `type(got) == "number"`, because in Lua a string never equals a number
+-- so it lands in `size` either way. The DIFFERENCE is the sentence: that
+-- branch claims "this Mac has 107414", which is macOS reporting a size it
+-- did not report. A plausible wrong answer in a report is worse than one
+-- that says it does not know (6.338.0).
+st, words = ic.verdict(500, "107414")
+check("🚨 a size that is a STRING is `unknown`, not a size this Mac reported",
+      st == "unknown", st)
+check("…and the words do not claim a byte count macOS never gave",
+      words:find("107414", 1, true) == nil, words)
 check("a zero-byte file is a SIZE disagreement, never a match",
       select(1, ic.verdict(500, 0)) == "size")
 check("…and a genuinely zero-byte file the release carried matches",
@@ -362,48 +408,70 @@ check("🚨 Finder's 'Keep Both' copy is a stray", #s2 == 1 and s2[1] == "core/b
 local s3 = ic.straysIn("core", { "notes.md", "README", "boot_cost.lua" }, seen)
 check("a non-.lua file is not a stray — this is not a file browser", #s3 == 0,
       table.concat(s3, ","))
+-- 🚨 THE FIXTURE WHERE THE TWO IMPLEMENTATIONS MUST DIFFER (6.230.0), and
+-- the sweep is what asked for it: a test that merely CONTAINS ".lua"
+-- calls a backup file a stray .lua. 6.236.0's rule — any sentry that
+-- looks for a NAME looks for its boundary too, third time in this
+-- project — and §1.12 would not load either of these, so reporting them
+-- as runtime strays is a wrong answer about somebody's own files.
+local s3b = ic.straysIn("core", { "boot_cost.lua.bak", "notes.luajit",
+                                  "x.lua.orig" }, seen)
+check("🚨 a name that merely CONTAINS .lua is not a stray — the test is the ending",
+      #s3b == 0, table.concat(s3b, ","))
 local s4 = ic.straysIn("core", { ".", "..", ".hidden.lua" }, seen)
 check("a hidden .lua IS a stray — §1.12 would ignore it just the same",
       #s4 == 1, table.concat(s4, ","))
+-- 🗑 `.` and `..` are turned away BY THE EXTENSION TEST, not by a guard of
+-- their own: neither can end in ".lua". The sweep is what established
+-- that, and the check asserts the OUTCOME rather than the mechanism.
+check("…and . and .. are not among them", s4[1] == "core/.hidden.lua", s4[1])
+check("a file called ..lua IS a stray — it is a real name, not a folder",
+      (ic.straysIn("core", { "..lua" }, {}))[1] == "core/..lua",
+      (ic.straysIn("core", { "..lua" }, {}))[1])
 local s5 = ic.straysIn("modules", { "z.lua", "a.lua", "m.lua" }, {})
 check("the answer is sorted, so the report reads the same every run",
       s5[1] == "modules/a.lua" and s5[3] == "modules/z.lua",
       table.concat(s5, ","))
-check("nil names answer an empty list rather than raising",
-      #ic.straysIn("core", nil, seen) == 0)
-check(". and .. are never strays",
-      #ic.straysIn("core", { ".", ".." }, {}) == 0)
+local sNil, sErr = straysSafe("core", nil, seen)
+check("🚨 nil names answer an empty list rather than raising",
+      sNil ~= nil and #sNil == 0, sErr)
+local sDots = straysSafe("core", { ".", ".." }, {})
+check(". and .. are never strays", sDots and #sDots == 0,
+      sDots and table.concat(sDots, ","))
 
 -- =====================================================================
 out("\n=== 6. sizeOf — three outcomes against a real disk ===\n")
 -- =====================================================================
-local got, why = ic.sizeOf("init.lua")
+local got, why = sizeOfSafe("init.lua")
 check("a real file answers its real size", got == #FILES["init.lua"], got or why)
-got, why = ic.sizeOf("modules/no-such-file.lua")
+got, why = sizeOfSafe("modules/no-such-file.lua")
 check("a missing file answers nil", got == nil)
 check("…with the reason `missing`, which verdict reads", why == "missing", why)
-got, why = ic.sizeOf("core")
+got, why = sizeOfSafe("core")
 -- A FOLDER where a file should be is not a size, and not an absence.
 check("🚨 a FOLDER in a file's place is not a size", got == nil)
 check("…and says a folder is there", tostring(why):find("FOLDER", 1, true) ~= nil, why)
 -- 6.265.0: driving a path with the dependency MISSING is not the same as
 -- driving it with the dependency REFUSING.
 FS_ATTR_OVERRIDE = function() return { mode = "file" } end       -- no size
-got, why = ic.sizeOf("init.lua")
+got, why = sizeOfSafe("init.lua")
 check("🚨 a stat that answers without a size is not a size", got == nil)
 check("…and says there was no size in the answer",
       tostring(why):find("no size", 1, true) ~= nil, why)
 FS_ATTR_OVERRIDE = function() return "not a table" end
-got, why = ic.sizeOf("init.lua")
+got, why = sizeOfSafe("init.lua")
 check("🚨 a stat that answers something odd is refused, not indexed",
       got == nil and tostring(why):find("odd", 1, true) ~= nil, why)
 FS_ATTR_OVERRIDE = function() error("hs.fs blew up", 0) end
-got, why = ic.sizeOf("init.lua")
+got, why = sizeOfSafe("init.lua")
 check("🚨 a stat that RAISES is caught — a report that throws is worse than one that lies",
       got == nil and tostring(why):find("raised", 1, true) ~= nil, why)
 FS_ATTR_OVERRIDE = nil
 check("…and the real stat still works afterwards",
-      ic.sizeOf("init.lua") == #FILES["init.lua"])
+      sizeOfSafe("init.lua") == #FILES["init.lua"])
+check("🚨 …and the guard is the module's, not the suite's — sizeOf itself "
+      .. "never raised", select(2, sizeOfSafe("init.lua")) == nil
+      or tostring(select(2, sizeOfSafe("init.lua"))):find("RAISED") == nil)
 
 -- =====================================================================
 out("\n=== 7. the whole check, on real files ===\n")
@@ -633,7 +701,8 @@ check("…and HOLDS it, or an unreferenced timer is collected and never fires",
 check("…late, off the boot path", TIMERS[1] and TIMERS[1].secs == ic.sayAfter,
       TIMERS[1] and TIMERS[1].secs)
 check("…and nothing has been said yet", #printed == 0 and #DEGRADES == 0)
-TIMERS[1].fn()
+local fired, ferr = fireTimer()
+check("the armed timer could be fired at all", fired, ferr)
 check("🔕 a healthy install says NOTHING when the timer lands",
       #DEGRADES == 0 and #printed == 0,
       table.concat(printed, " | ") .. " / " .. tostring(#DEGRADES))
@@ -643,7 +712,8 @@ check("…and the held timer is released once it has fired", ic.bootTimer == nil
 put(CFG .. "/init.lua", "-- short\n")
 printed, DEGRADES, TIMERS = {}, {}, {}
 M.warm()
-TIMERS[1].fn()
+fired, ferr = fireTimer()
+check("the armed timer could be fired at all (off)", fired, ferr)
 check("🔔 a half-install takes the degrade door", #DEGRADES == 1, #DEGRADES)
 check("…named as the Install check", DEGRADES[1] and DEGRADES[1].tool == "Install check",
       DEGRADES[1] and DEGRADES[1].tool)
@@ -658,7 +728,7 @@ local keptDegrade = _G.degrade
 _G.degrade = nil
 printed, TIMERS = {}, {}
 M.warm()
-TIMERS[1].fn()
+fireTimer()
 check("🚨 a Mac where notices did not load still prints the line",
       #printed == 1 and printed[1]:find("Install check", 1, true) ~= nil,
       table.concat(printed, " | "))
@@ -688,7 +758,8 @@ ic.enabled = true
 out("\n=== 14. the door prints, and never throws ===\n")
 -- =====================================================================
 printed = {}
-_G.installCheck()
+local doorOk = doorSafe()
+check("the door does not raise on a healthy install", doorOk)
 check("the door prints one block, as one string", #printed == 1, #printed)
 check("…headed with the tool's name",
       printed[1] and printed[1]:find("🩺 INSTALL CHECK", 1, true) == 1,
@@ -698,7 +769,8 @@ check("…headed with the tool's name",
 local keptRun = ic.run
 ic.run = function() error("the check itself blew up", 0) end
 printed = {}
-_G.installCheck()
+doorOk = doorSafe()
+check("🚨 a check that throws does NOT take the Console with it", doorOk)
 check("🚨 a check that throws still prints a line", #printed == 1, #printed)
 check("…saying the check failed rather than taking the Console with it",
       printed[1] and printed[1]:find("the check itself failed", 1, true) ~= nil,

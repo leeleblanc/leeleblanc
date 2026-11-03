@@ -91,7 +91,14 @@
 
 local M = {
     name  = "Install Check",
-    order = 13.37,
+    -- 13.365 sits between write_ledger (13.36) and the Hamsidian tabs
+    -- (13.37), which already held 13.37 — a TIE makes the cheat sheet's
+    -- running order depend on table iteration, which is not stable, and
+    -- test_integration fails the gate for one. Beside write_ledger
+    -- because both answer "is what should be on disk, on disk?", and
+    -- apart from it because that one is deliberately LOUD when healthy
+    -- and this one must not be.
+    order = 13.365,
     family = "config",
     cheatsheet = {
         title = "🩺 INSTALL CHECK (did the whole release land?)",
@@ -208,10 +215,17 @@ function M.setup(core)
 
     -- A stray is a .lua in a watched folder that the manifest does not
     -- name. PURE: both lists are arguments, so the gate moves them.
+    -- 🗑 AND THERE IS NO `.`/`..` GUARD HERE, which the sweep is what
+    -- decided: neither "." nor ".." can end in ".lua", so the extension
+    -- test already turns both away and no input could ever make the
+    -- longer condition matter. A guard no test can fail is dead code
+    -- with a comment on it (6.199.0, eighth time in this project).
+    -- `..lua` — a real file somebody could really make — DOES end in
+    -- ".lua", is neither of those names, and is correctly a stray.
     function ic.straysIn(dir, names, manifestPaths)
         local out = {}
         for _, name in ipairs(names or {}) do
-            if name ~= "." and name ~= ".." and name:sub(-4) == ".lua" then
+            if name:sub(-4) == ".lua" then
                 local rel = dir .. "/" .. name
                 if not manifestPaths[rel] then out[#out + 1] = rel end
             end

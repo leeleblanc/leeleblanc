@@ -1,4 +1,4 @@
-# TESTING — how to score release 6.389.0
+# TESTING — how to score release 6.399.0
 
 You install ONE archive and it carries several releases. Below are the
 steps for each release this archive is new for, newest first. Run the
@@ -27,420 +27,201 @@ scorer; I never mark my own.
 
 ---
 
-## 6.389.0
+## 6.399.0
 
-6.389.0 verify with LL — 🔎 LEFTOVERS WITH NO APP (NEW GROUND)
-WHAT CHANGED: App Removal can now work BACKWARDS — find the settings
-left behind by apps you no longer have, including ones you only ever
-ran straight off a disk image and never installed.
-🔑 WHY IT IS A SEPARATE RELEASE and not just a wider search: everything
-before this starts at an app and works out what it left behind. An app
-you ran off a disk image has no app left to point at. So the scan goes
-the other way round — it reads the bundle ids that are sitting in your
-Library folders and asks which of them no application anywhere answers
-for.
-🚨 AND NOTHING HERE IS CALLED SAFE, deliberately. "No app answers for
-this id" is also true of an app on a disk you have unplugged, an app
-Spotlight has not indexed, a plug-in that was never an app, and
-something you are about to reinstall. So every row is ⚠️ and NOTHING is
-selected until you say so.
+6.399.0 verify with LL — 🩺 DID THE WHOLE RELEASE LAND? (KNOWN GROUND)
+WHAT CHANGED: one new command. `_G.installCheck()` compares every file
+this release carries against what is actually on your Mac, and says
+which ones disagree.
+🔎 WHY: your own question, from September — "so I don't have to
+remember". When a release half-installs, the config boots green, the
+version stamp is right, and the feature is simply ABSENT. That is what
+cost you the Jug Player for three days: init.lua was new, the module
+file was old, and nothing anywhere could say so. The archive now
+carries a MANIFEST.txt listing every runtime file with its byte count,
+and this reads it.
+🔕 AND ON A HEALTHY MAC IT SAYS NOTHING, ever. That silence is the
+feature, so step A is "go and look", not "wait for a message".
 
-A. THE HEADLINE — about two minutes.
-A1. Press **⇪⇧[** — hold Caps Lock and Shift and press the **[** key,
-    just right of P.
-    EXPECT: at the TOP of the app list, a new row reading
-    **"🔎 Leftovers with no app"**.
-A2. Press **Return** on it.
-    EXPECT: "🔎 Looking for settings left by apps you no longer have…",
-    then a list of bundle ids — things like `com.vendor.SomeApp` — each
-    with a size, and each starting **[ keep ]**.
-    **A FAIL is nothing happening at all.**
-A3. Read the second line of a few rows.
-    EXPECT: the reason, and the AGE — "last touched 14 months ago", or,
-    if something touched it recently, a line in capitals saying so and
-    mentioning a disk image. That age is the thing worth reading: it is
-    what separates an app you got rid of last year from one sitting on
-    a disk you unplugged this morning.
-A4. Look at the top row.
-    EXPECT: **"🚫 Nothing is selected — ⏎ a row below to select it"**.
-    That is not a failure. Nothing starts selected here on purpose.
-A5. Open the Console and read the whole analysis — it is printed there,
-    one row per id, with every folder listed underneath it.
-    **PASTE THAT.** It is the artefact this release exists to produce,
-    and I have never seen what your Mac's Library folders hold.
+A. THE HEADLINE — one command, and it should be boring.
+A1. Console: `_G.installCheck()`.
+    EXPECT, on a clean install:
+      🩺 INSTALL CHECK — 6.399.0
+         version : 6.399.0 — the manifest is for this release
+         files   : ✅ all 92 runtime file(s) are here at the size the
+                   release carried
+         strays  : none — core/ and modules/ hold only what shipped
+    **PASTE THAT.** It is the first build on which that question has an
+    answer, and I want to see what your Mac says on a good day.
+A2. Read the `files` line. **A FAIL is a ⚠️ naming files that disagree**
+    — which would mean this install is partial, and the line names
+    which files and both byte counts.
+A3. Read the `version` line. It must name 6.399.0 twice. If it says THE
+    MANIFEST IS FOR <something else>, one half of the install did not
+    land — that is the whole-archive version of the same bug.
+A4. Reload Hammerspoon and watch the Console for a minute.
+    EXPECT: **nothing at all** about the install check. On a matching
+    install it never speaks. If you get a ⚠️ line at boot, paste it:
+    that is the 🔔 door firing and it means something really did not
+    land.
 
-B. 🚨 THE LINE I MOST WANT YOU TO CHECK — read this one before B2.
-B1. In that Console output, find the line beginning **"asked :"**.
-    Two possible answers and they mean very different things:
-    · "asked : every application on this Mac (N answered)" — the search
-      worked, and a row really is an orphan as far as this Mac knows.
-    · "⚠️ ONLY /Applications and ~/Applications" — the whole-disk search
-      did not answer, so **an app you keep anywhere else looks like an
-      orphan here**. Every row then says so in its own reason too.
-    PASTE WHICHEVER YOU GET. The second one is not a bug — it is the
-    tool refusing to overstate what it asked — but it changes what the
-    list is worth, and I cannot know from here which your Mac does.
-B2. Scan the list for anything you RECOGNISE and still use. There
-    should be nothing — an app you have installed is never listed.
-    **If something you use every day is in that list, stop and tell
-    me.** That is the one failure that matters here.
-B3. 🚨 Check there is nothing beginning **com.apple.** anywhere in the
-    list. Those are your Dock, your Finder, your keyboard settings, and
-    they are refused by name. The analysis says how many names it
-    turned away.
+B. THE STATE THAT MATTERS MOST — "I cannot tell" is not "all clear".
+B1. This one you can see on purpose. In Finder, open ~/.hammerspoon
+    (Go ▸ Go to Folder, type `~/.hammerspoon`) and RENAME MANIFEST.txt
+    to MANIFEST.old.
+B2. Console: `_G.installCheck()`.
+    EXPECT: `⏳ NOTHING CAN BE SAID`, and under it that this install
+    predates the check and that this is **NOT** 'all clear'.
+    **A FAIL is a ✅ anywhere in that block.** A check that cannot run
+    must never read like a check that passed — that is the one thing
+    this release had to get right, and it is the state every install
+    you have today is in.
+B3. Rename it back. `_G.installCheck()` is green again.
 
-C. SELECTING ONE, AND TAKING IT.
-C1. Put the highlight on a row you are sure about — something you
-    genuinely removed long ago — and press **Return**.
-    EXPECT: it flips to **[ MOVE ]**, the list stays open, and the top
-    row now reads "✅ Move the 1 selected id(s) to the Trash".
-C2. Press Return on that top row.
-    EXPECT: its folders go to the Trash — one row can be several
-    folders, and they all go together.
-C3. Open the Trash. EXPECT them there, stamped with the date and time.
-    **Nothing is erased.** Finder → Trash → Put Back undoes it.
-C4. "◂ Back to the app list" forgets the scan and moves nothing.
+C. THE ONE A DRAG CAUSES — worth two minutes, because it is one click
+   wide and you would never see it.
+C1. In ~/.hammerspoon/modules, duplicate any file (⌘D in Finder). You
+    get something like `music_player copy.lua`.
+C2. Console: `_G.installCheck()`.
+    EXPECT: a `strays` line naming it, and under it the explanation —
+    the loader reads an explicit list, so a stray is IGNORED and the
+    ORIGINAL stays loaded. That is why dragging a file onto a folder
+    and answering Finder's "Keep Both" looks exactly like a finished
+    install and changes nothing.
+C3. Delete the duplicate. The line goes back to "none".
 
-D. MUST STILL WORK — this release lifted the code that does the moving
-   so both halves share it, so the ordinary removal is what to check.
-D1. ⇪⇧[, pick an app, Return. EXPECT the per-file review from 6.388.0,
-    unchanged: ✅ and ⚠️ rows, safe ones selected, risky ones kept.
-D2. ⏎ on a row still toggles it; the three bulk rows still work.
-D3. ⏎ on the top row still moves only the selected rows.
-D4. 🚨 It must still refuse an app that is OPEN, and must still never
-    touch anything outside your home folder or /Applications.
-
-E. THE CONSOLE DOORS.
-E1. `_G.appOrphans()` — runs the scan and prints the analysis.
-E2. `_G.appOrphanKeep(2)` — toggles row 2.
-E3. `_G.appOrphanGo()` — moves what is selected.
-E4. `_G.appRemoveReport()` — a new `orphans:` line with four states:
-    not scanned · asked the whole Mac · ⚠️ asked narrowly · ⚠️ nothing
-    answered. The last two are warnings about the QUESTION, not the
-    answer.
-
-F. ❓ QUESTIONS — answers wanted, nothing to run.
-F1. **How long is the list on your Mac?** If it is hundreds of rows,
-    that tells me the folders I chose are too broad and I will narrow
-    them. If it is a handful, this is working as intended.
-F2. **Is the age the right evidence?** I show when the folder was last
-    touched because it is the one fact that separates "gone for good"
-    from "on a disk that is unplugged". If something more useful would
-    help you decide — the total size, how many folders, the date it was
-    created — say which.
-F3. **Should it ever pre-select a row?** Right now nothing is, ever. If
-    you find yourself pressing ⏎ on twenty rows in a row, I can make
-    "nothing touched it in over a year AND the whole disk was searched"
-    start selected — but that is me deciding about your files, so it is
-    your call and not mine to take.
-F4. **Six folders are read.** Preferences, Containers, HTTPStorages,
-    WebKit, Caches and Saved Application State. Application Support is
-    deliberately left out, because it is named after the app rather
-    than its id and every folder with a dot in its name would look like
-    an orphan. Say if you want it in anyway.
-
-
-
-## 6.388.0
-
-6.388.0 verify with LL — 🗳 IT SAYS WHAT IS DAMAGING (KNOWN GROUND)
-WHAT CHANGED: App Removal now tells you, file by file, whether removing
-it is safe — and lets you leave any one of them behind.
-🔎 WHAT 6.384.0 WAS MISSING, because it is the whole release: it showed
-you the list and then moved ALL of it on the second press. There was no
-middle. Now every file is a row you can press Return on, the risky ones
-are NOT selected until you say so, and ⏎ on the top row moves only what
-is still selected.
-
-A. THE HEADLINE — use something you do not mind losing.
-A1. Press **⇪⇧[** — hold Caps Lock and Shift and press the **[** key,
-    just right of P. Pick an app and press **Return**.
-    EXPECT: the picker now lists EVERY file, one row each, and each row
-    starts either **[ MOVE ]** or **[ keep ]** with a ✅ or ⚠️ after it.
-    **A FAIL is the old single confirmation row with nothing under it.**
-A2. Read the second line of a few rows. EXPECT: the word "safe" or
-    "careful", then WHY in plain words — "a cache — rebuilt
-    automatically, holds nothing of yours", or "a sandboxed app's own
-    Documents live inside this".
-A3. Look at which rows start **[ keep ]**.
-    EXPECT: the ⚠️ ones. Nothing risky is selected until you ask.
-    That is the reverse of last week and it is the point: the thing
-    this tool can get wrong is moving a folder with your files in it.
-A4. Read the row at the very top.
-    EXPECT: "✅ Move “<app>” — the N selected row(s), <size> — to the
-    Trash". **N is how many are SELECTED, not how many were found** —
-    if your app has a ⚠️ row, N is smaller than the total, and that is
-    the release working.
-A5. Press **Return on the top row**. EXPECT: the selected files go to
-    the Trash and the ⚠️ ones are STILL THERE. Check one in Finder.
-
-B. LEAVING A FILE, AND TAKING IT ANYWAY — the iterative half.
-B1. Press ⇪⇧[ again, pick an app, Return.
-B2. Put the highlight on any **[ MOVE ]** row and press **Return**.
-    EXPECT: it flips to **[ keep ]**, the list STAYS OPEN, and the top
-    row's count goes down by one.
-    **A FAIL is the list closing, or the highlight jumping back to the
-    top.** That second one is what would make this unusable, so it is
-    worth watching for specifically.
-B3. Press Return on it again. EXPECT: back to [ MOVE ], count back up.
-B4. Near the top there are three rows: "☑ Keep everything",
-    "☐ Select everything" and "↺ Back to what this tool suggests".
-    Try each. EXPECT: the [ MOVE ]/[ keep ] marks all change, and the
-    count at the top follows.
-B5. With "☑ Keep everything" chosen, read the top row.
-    EXPECT: **"🚫 every row is marked KEEP — nothing is selected to
-    move"** — NOT "there is nothing to move". Those are different
-    facts: one is your decision, the other is an empty folder.
-B6. "◂ Back to the app list" forgets the listing and moves nothing.
-
-C. THE ONE WORTH THIRTY SECONDS — the count that is an artefact.
-C1. Pick a SANDBOXED app you have actually used — something from the
-    App Store, or anything that keeps documents of its own.
-    EXPECT, on its Container or Application Support row: **"HOLDS N
-    FILE(S) THAT LOOK LIKE YOURS"** with a real number.
-    That number is why this release exists. A label saying a folder
-    might hold your files is a warning you learn to ignore; a number
-    saying it holds twelve is something you can act on.
-C2. If a row ever says the count stopped at 50, that is deliberate —
-    counting is work on the thread that carries your keyboard, so it
-    stops, and the row says so rather than reporting 50 as a total.
-
-D. MUST STILL WORK — this is the tool that moves files, so this half
-   matters more than A.
-D1. The first press still MOVES NOTHING. Press ⇪⇧[, pick an app, read
-    the list, press Escape. Check the app is still in /Applications.
-D2. Nothing is ever erased. Everything that moves goes to the **Trash**
-    and Finder → Trash → **Put Back** undoes it.
-D3. Try to remove an app that is OPEN. EXPECT: it refuses by name and
-    tells you to quit it first. Nothing moves.
-D4. A ⚠️ row's reason still says when it was matched by NAME rather
-    than by the app's own id — and such a row is careful even when it
-    is only a cache.
-D5. 🚨 It must never touch anything outside your home folder or
-    /Applications. If it ever does, stop and tell me at once.
-
-E. THE CONSOLE, if you prefer reading to clicking.
-E1. `_G.appRemove("Transmission")` — prints the whole analysis: one
-    line per file, its verdict, the reason, the size, and whether it is
-    selected. Moves nothing.
-E2. `_G.appRemoveKeep(3)` toggles row 3 · `_G.appRemoveKeepAll()` ·
-    `_G.appRemoveKeepNone()` · `_G.appRemoveSuggested()`.
-E3. `_G.appRemoveGo()` moves what is selected.
-E4. `_G.appRemoveReport()` — a new `select :` line says how many of how
-    many are selected, whether any change was YOURS, and NAMES every
-    row it thinks could be damaging. PASTE THAT after a real listing.
-
-F. ❓ QUESTIONS — answers wanted, nothing to run.
-F1. **Are the verdicts right for how you work?** I call Application
-    Support "careful" because apps keep real data there, which means it
-    starts kept and you have to opt in on nearly every app. If that is
-    a nuisance and you would rather it were safe-by-default, say so —
-    it is one line, and it is your Mac.
-F2. **Is "careful" the right word?** The alternatives are "⚠️ your data
-    may be in here" or just "ask me". It is what you will read dozens
-    of times.
-F3. **Should a ⚠️ row ever be moved without a second look?** Right now
-    ☐ Select everything can take all of them in one press. That is
-    deliberate — it is your call — but say if you would rather it asked
-    again before moving a row that holds files.
-F4. **The other half of your ask is NOT in this release**, said rather
-    than left for you to notice: apps that run only off a disk image
-    and are never installed. Those leave preferences behind with no app
-    to point this tool at, so the scan has to work backwards — find the
-    leftovers first and ask which have no app anywhere. That is its own
-    release and it is next unless you redirect me.
-
-
-
-## 6.387.0
-
-6.387.0 verify with LL — 📝 EVERY TAB IS A REAL NOTE (KNOWN GROUND)
-WHAT CHANGED: every Hamsidian tab now writes itself into your notes
-folder as a real .md file, a couple of seconds after you stop typing.
-Your answer, both halves: "(a) every tab is a .md IMMEDIATELY", and
-"Yes" to doing it on the first PAUSE rather than the first keystroke.
-🚨 THIS CHANGES WHERE YOUR WRITING LIVES, so read step E1 before you
-decide you like it — it is the one thing in this release that is a
-trade rather than a win.
-
-A. THE HEADLINE — a minute.
-A1. Press ⇪N to open Hamsidian. Press ⌘T for a fresh tab.
-A2. Type two lines — anything, but **press Return at the end of the
-    first one**. That matters, and B is where I explain why.
-A3. Stop typing. Count to three.
-A4. In Finder, open your notes folder and look in **Scratch**:
-    <OneDrive>/Vault/Scratch.
-    EXPECT: a file named after your FIRST LINE, holding what you just
-    typed. You pressed nothing to make that happen.
-    **A FAIL is no file at all** — go straight to D1, the report says
-    which of four things happened.
-A5. Type another word in the same tab, wait three seconds, and open
-    the file again. EXPECT: the new word is in it.
-A6. Press ⇪3 (the notes side of the same window). EXPECT: your tab is
-    in the list ONCE — as the 📝 tab it still is, not twice.
-    **A FAIL is the same thing appearing twice**, once with 📝 and
-    once with 🕸. That is the one regression this release can have and
-    I want to know at once.
-
-B. THE RULE THAT DECIDES WHEN IT WRITES — worth two minutes, because
-   it is the part you would otherwise think was broken.
-B1. New tab (⌘T). Type **just a few letters of a title and stop** —
-    "Buy mi" will do. Do NOT press Return.
-B2. Wait five seconds and look in the Scratch folder.
-    EXPECT: **nothing yet.** That is deliberate, and here is why: the
-    file keeps the name it is first given, for ever — that name is how
-    every [[link]] finds it, and this config never renames a note. So
-    a file written two seconds after "Buy mi" would be called "Buy
-    mi.md" after you had finished typing "Buy milk".
-B3. Now finish the line — type "lk" — and press **Return**.
-    EXPECT: within a few seconds the file appears, called "Buy
-    milk.md". A finished first line is a title you have moved past.
-B4. The other way it settles: new tab, type one line, press no Return,
-    and **leave it alone for twenty-five seconds**.
-    EXPECT: the file appears, named after that line. That is the note
-    you type and walk away from.
-B5. Console: `_G.scratchPadReport()` — the 📝 auto line's "waited for a
-    title to settle" count goes up for B2. **That is a state, not a
-    failure**, and the line under it says so.
-
-C. MUST STILL WORK — this touched the one function every keystroke in
-   Hamsidian passes through, so this half matters more than A.
-C1. Type in a tab, close Hamsidian, reopen it: your words are there.
-C2. ⌘T a new tab, ⌘W close one, ⌘1–⌘9 jump, ⌃Tab cycles.
-C3. ⌘⇧S still exports everything on demand and still says how many.
-C4. 🚨 **⌘Z IN A NOTE** — open a real note on the ⇪3 side, delete a
-    paragraph, wait ten seconds for a background scan to land, then
-    press ⌘Z. EXPECT: your text comes back. That is 6.323.0 and this
-    release had to be careful not to break it; if undo is gone, tell
-    me immediately.
-C5. ⌘F filters the list; ↑↓ walk it; ⏎ opens.
-C6. The ✕ on a tab row still closes the tab. The ✕ on a note row still
-    deletes that note to the bin.
-C7. Obsidian: open the Vault folder. EXPECT your tabs are there as
-    ordinary notes in Scratch, readable and editable.
-
-D. PASTE BACK, PASS OR FAIL.
-D1. `_G.scratchPadReport()` — the whole block. The new 📝 auto line has
-    four states and I want whichever you get:
-    · "N written · 0 FAILED" with a last file named — healthy;
-    · "nothing typed in a tab yet this session" — not a fault;
-    · "⚠️ NOT WRITTEN: …" — **paste this at once**, it names macOS's
-      own reason and your words are still in the tab;
-    · "OFF" — the switch is off.
-D2. The "one list" line in the same block says how many open tabs have
-    a file. That is the number that makes A6 answerable without a
-    screenshot.
-D3. If it ever says "⚠️ N write(s) went AT ONCE", paste it: that Mac
-    would not arm a timer, so a half-typed title was used after all.
+D. MUST STILL WORK — this release touched the installer and the module
+   loader, so this half matters more than A.
+D1. Boot: All green, **77 modules** (was 76 — this release adds one),
+    and the same ⇪ shortcut count as before. A different shortcut count
+    is a finding: this module binds no key at all.
+D2. A spread of keys across different tools: ⇪T, ⇪D, ⇪N, ⇪3, ⇪X, ⇪4,
+    ⇪space, ⇪V, ⇪/, ⇪⇧[.
+D3. ⇪/ and search `install` — the 🩺 card is there, filed under CONFIG.
+D4. `_G.saved()` — the write ledger still prints. These two sit beside
+    each other on purpose and answer different halves of "is what
+    should be on disk, on disk?".
 
 E. A JUDGEMENT ONLY YOU CAN MAKE.
-E1. **Do you want this on?** Before today a tab was one local file that
-    nothing else read. Now every tab you type in becomes a note in
-    OneDrive within seconds — searchable in ⇪D, open in Obsidian,
-    synced to the other Mac, and still there after you ⌘W the tab.
-    That is exactly what you asked for; it is also a lot more files
-    than you had yesterday. `settings = { scratch_pad = { autoWrite =
-    false } }` is yesterday's behaviour exactly, and if you would
-    rather have that, say so and I will change the default rather than
-    leave you a line to type.
-E2. **Two seconds and twenty seconds** — the pause before a write, and
-    the quiet before a one-line title is trusted. Both are numbers,
-    not releases. If files appear while you are still thinking, the
-    first wants to be longer.
-E3. 📏 NAMED, NOT FIXED, so it is not a surprise: closing a tab leaves
-    its file behind. Nothing deletes it, which is right — it is your
-    writing — but it does mean a throwaway tab leaves a note. The ✕ on
-    the note row removes it to the bin when you want it gone. Say if
-    you would rather a closed tab's file went with it.
-E4. While this was being built, nothing of yours was at risk and
-    nothing broke — so unless A or C fails I would not log this as a
-    problem at all. If a file ever fails to write and you lose words,
-    that is a different matter and D1 is the evidence.
+E1. **Is the Console the right place?** It is a command you run when
+    something feels absent. The alternative is a line at every boot
+    saying "all 92 files are here", which is what `_G.saved()` does for
+    the stores because you asked for the healthy case in writing — and
+    I did NOT do it here, because a line you read every morning is a
+    line you stop reading. Say if you would rather have it.
+E2. 📏 THE LIMIT, named rather than discovered: this compares SIZES. A
+    file edited to exactly the same length reads as a match. I did not
+    build the hash version: it needs a platform fact I cannot check
+    from here, and it guards a case that has never happened. If it ever
+    does, the manifest gains a column.
+E3. 📏 AND TWO FILES ARE DELIBERATELY NOT IN IT, both printed in the
+    report so they are decisions rather than gaps: CHANGELOG.md, which
+    already has a better instrument (it checks whether THIS version's
+    entry is in it, which is what caught a half-install in 6.311.0),
+    and snippets/bundled.lua, which is generated and which you can
+    legitimately rebuild on your own Mac from packs the archive never
+    saw. Say if you want either in anyway.
 
 
 
-## 6.386.0
+## 6.398.0
 
-6.386.0 verify with LL — 🚪 THE ASANA DASHBOARD MOVED HOUSE (KNOWN GROUND)
-WHAT CHANGED: nothing you press. 529 lines of Asana code left init.lua
-for a file of its own. ⇪L, ⇪C and ⇪B do exactly what they did.
-🔎 WHY IT WAS WORTH A RELEASE, since there is nothing new to use: the
-gate refuses to ship init.lua over 3,800 lines and it had reached 3,795.
-6.385.0 had to delete a release note from the top of the file just to
-fit, which means the next thing you asked for would have cost a feature
-to make room. It is 3,313 now, with 486 lines of headroom.
-🚨 SO THIS BLOCK IS A REGRESSION TEST, NOT A FEATURE TOUR. The only
-honest claim is "everything still works", and the only way to know is
-to press the keys. If any step below behaves differently from last
-week, that is the release and I want to know at once.
+6.398.0 verify with LL — 📝 A CLOSED TAB LEAVES ITS NOTE (KNOWN GROUND)
+WHAT CHANGED: when you ⌘W a Hamsidian tab, the .md file it wrote stays
+— and it now SAYS so, with the way to remove it.
+🗳 YOU ASKED "How do I know?" and you were right to: the decision was
+mine to make and I had left it silent. It stays, and the reason is not
+the obvious one. ⌘W is the key you press to clear your screen. If it
+deleted the note, that key would be destructive — and a key you have to
+think before pressing is a key you stop pressing. A tab is a surface; a
+note is a document.
 
-A. THE HEADLINE — three keys, about two minutes.
-A1. Press **⇪L** (hold Caps Lock, press L).
-    EXPECT: "🔄 Syncing Asana Tasks…", then your task list, searchable,
-    with the colour legend strip — Overdue, Due today, Due this week,
-    Due later, No due date — sitting ABOVE the search field.
-    **A FAIL is nothing happening at all**, which is what a mis-moved
-    key looks like. Go straight to D1 if so.
-A2. Press ⏎ on a task. EXPECT: it opens in your browser.
-A3. Press **⇪C**. EXPECT: the same list, but the placeholder now reads
-    "💬 Pick a task to comment on…". Pick one, type a comment, Post.
-    EXPECT: it lands in Asana.
-A4. Press **⇪B**. EXPECT: your Asana team, searchable. Type part of a
-    team name — "core" — and the list narrows, because the team is
-    folded into each row's second line.
-A5. Press ⏎ on a person. EXPECT: "📋 Copied <name> — paste into the
-    Assignee field", and ⌘V gives you that name.
+A. THE HEADLINE — thirty seconds.
+A1. ⇪N, ⌘T for a new tab, type two lines with a Return between them,
+    wait three seconds for it to write itself.
+A2. Press ⌘W to close that tab.
+    EXPECT: a short message saying the note stayed, naming it, and
+    telling you the ✕ on its row in ⇪3 removes it.
+    **A FAIL is silence** — that is the old behaviour, and it is what
+    made a correct default feel like a leak.
+A3. Press ⇪3. EXPECT: that note in the list, with a 🕸 icon.
+A4. Click its ✕. EXPECT: it goes to the bin, recoverable
+    (`_G.vaultTrash()` lists it, and a click in the 🗑 bin restores it).
 
-B. SELECT MODE AND THE DELETE — the one verb here that destroys
-   something, so it is worth the five minutes.
-B1. ⇪L, then ⏎ on the first row, "☑️ Select several to delete…".
-    EXPECT: the list comes back with a "✕ Leave select mode" row.
-B2. ⏎ on two or three tasks. EXPECT: each gains a ✓.
-B3. ⏎ on the "🗑 Delete N selected" row at the top.
-    EXPECT: a dialog NAMING the tasks and saying they go to Asana's
-    trash, restorable for 30 days. **Press Cancel.**
-    EXPECT: "🗑 Nothing deleted", and all of them still in Asana.
-B4. Only if you have a task you really want gone: do B1–B3 and press
-    Delete. EXPECT: it goes, and the list re-fetches.
-B5. ⇪L, then hold ⌥ and press ⏎ on one row. EXPECT: the same
-    confirmation for that one task.
+B. PASTE BACK.
+B1. `_G.scratchPadReport()` — a new count of how many notes have been
+    left behind this way. That number turns "how many am I
+    accumulating?" into something you can read rather than guess.
 
-C. THE LEGEND STRIP, which is the fiddliest thing in the release.
-C1. With ⇪L open, hold ⌃⌥⌘ and press an arrow key to nudge the picker.
-    EXPECT: the colour strip MOVES WITH IT. That is the one wire that
-    crosses between this file and init.lua, and if the strip gets left
-    behind, this is where it shows.
-C2. ⌃⌥⌘R to clear the nudge. EXPECT: both go back.
-C3. ⇪L on your OTHER monitor. EXPECT: the strip is on that monitor,
-    above the picker, fully on screen.
-C4. Esc. EXPECT: the picker AND the strip both go.
+C. A JUDGEMENT ONLY YOU CAN MAKE.
+C1. Now that you can see it happening: is leaving the note right? If
+    you would rather ⌘W took the note with it, say so — but know that
+    it makes ⌘W a destructive key, which is the reason I chose the
+    other way.
 
-D. PASTE BACK, PASS OR FAIL.
-D1. Console: `_G.asanaDashboardReport()` — NEW; this tool has never had
-    one, which is why "did it move correctly?" could only have been
-    answered by me reading the code.
-    EXPECT the `keys` line to read **"3 of 3 bound in setup() — ⇪L · ⇪C
-    · ⇪B"**. Two other things it can say and each is a real finding:
-    "⏳ setup has NOT run" means the module did not load at all;
-    "⚠️ setup ran and bound NOTHING" means macOS refused the keys and
-    names why. PASTE WHICHEVER YOU GET.
-D2. The `↳ seven` line should read "every helper this module moved away
-    from is on the core table". A ⚠️ MISSING there is the one failure
-    that would make a key die at the moment you press it.
-D3. The boot line: **76 modules** now, not 75, and the same ⇪ shortcut
-    count as before. A different shortcut count is a finding.
 
-E. A JUDGEMENT ONLY YOU CAN MAKE.
-E1. One thing really did change, and it is a fix I found while moving
-    the line past: ⇪B's "📋 Copied" used to be printed whether or not
-    macOS took the clipboard write. If it ever now says "⚠️ macOS
-    refused the clipboard write", that is real and I want to know —
-    before this release you would simply have had nothing to paste.
-E2. 🔨 Nothing was broken and nothing was lost — so unless a key below
-    fails, I would not log this as a problem at all. If something DOES
-    fail, tell me which letter and what happened instead; a move that
-    breaks a key is the one kind of regression where the fix is
-    obvious once it is named.
+
+## 6.397.0
+
+6.397.0 verify with LL — ✏️ THE DOCUMENT EDIT WINDOW (KNOWN GROUND)
+WHAT CHANGED: editing a document's recorded time now opens the same
+window the clipboard editor uses — front, big, with the caret already
+in it, and draggable.
+🔎 Your words, with the two side by side: "Make the edit window like the
+edit window for clipboard entries." This was the LAST thing in the
+config still using macOS's little one-line dialog, which opens behind
+whatever is in front of it.
+
+A. THE HEADLINE.
+A1. ⇪⇧W to open the documents list. Pick a row and choose to edit it.
+    EXPECT: a dark window comes to the FRONT, as big as the text, with
+    the caret already blinking in the box. Type at once — no click.
+A2. EXPECT a line above the box naming the date, the app and how long.
+A3. Drag it by its ⠿ grip (that is 6.395.0, below — try it here too).
+A4. Save. EXPECT the change lands. Then edit again and press Esc:
+    EXPECT nothing changes.
+A5. Empty the box completely and save. EXPECT whatever it did before —
+    the rule that decides what an empty box means is written once and
+    both doors ask it, so the window and the old dialog cannot disagree.
+
+B. THE DEGRADE.
+B1. On a Mac where the window cannot be built you get the old one-line
+    dialog instead, and it still works. You should not see it; if you
+    DO, that is a finding and I want to know.
+
+
+
+## 6.396.0
+
+6.396.0 verify with LL — 🗳 YOUR WORDS FOR A RISKY ROW (KNOWN GROUND)
+WHAT CHANGED: App Removal says exactly what you asked it to say.
+🗳 You answered 6.388.0's question with the words: "⚠️ Attention: your
+data may be in here ⚠️". That is what every risky row reads now.
+
+A. THE HEADLINE — twenty seconds.
+A1. Press **⇪⇧[** — hold Caps Lock and Shift and press the **[** key,
+    just right of P. Pick an app and press Return.
+A2. Find a row with a ⚠️ on it.
+    EXPECT its second line to read **⚠️ Attention: your data may be in
+    here ⚠️** — your words, verbatim. **A FAIL is the old "careful".**
+A3. Console: the same wording in the printed analysis.
+A4. ⇪/ and search `app removal` — the card says it too. One table, three
+    surfaces, so they cannot drift.
+
+B. MUST STILL WORK — the wording changed and the LOGIC must not have.
+B1. Risky rows still start **[ keep ]**; safe rows still start
+    **[ MOVE ]**. ⏎ on a row still toggles it. The three bulk rows
+    still work, and ⏎ on the top row still moves only what is selected.
+B2. It still refuses an app that is OPEN, and still never touches
+    anything outside your home folder or /Applications.
+B3. Everything still goes to the **Trash** and Finder ▸ Put Back undoes
+    it.
+
+C. A JUDGEMENT ONLY YOU CAN MAKE.
+C1. Read it a few times in the picker. Too long for the row? Too
+    shouty? It is one table and one line to change — and it is pinned
+    by a check now, so a later release cannot quietly reword a thing
+    you were asked about and answered.
 
 
 

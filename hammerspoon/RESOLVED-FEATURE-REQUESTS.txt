@@ -1,5 +1,5 @@
 ========================================================================
-RESOLVED FEATURE REQUESTS — Hammerspoon config 6.389.0
+RESOLVED FEATURE REQUESTS — Hammerspoon config 6.399.0
 Every feature and how to use it. Generated from the modules' own
 cheat sheets (the rows ⇪/ draws), so it is never out of date.
 ⇪ = Caps Lock held (the hyper key). ⇪⇧X = Caps Lock + Shift + X.
@@ -398,8 +398,9 @@ In the Console, _G.<tool>Report() prints any tool's own report.
             its size and whether removing it is safe. Nothing
             moves on this press, or on any press but the last.
   verdict   ✅ safe — a cache, its settings, the app itself.
-            ⚠️ careful — it may hold YOUR OWN files, or it was
-            matched by name rather than by the app's id.
+            ⚠️ Attention: your data may be in here ⚠️ — it
+            may hold YOUR OWN files, or it was matched by
+            name rather than by the app's id.
             A row that holds files of yours SAYS HOW MANY.
   start     ✅ rows start selected · ⚠️ rows start KEPT, so
             nothing risky moves unless you ask for it
@@ -422,7 +423,8 @@ In the Console, _G.<tool>Report() prints any tool's own report.
             have, INCLUDING ones you only ever ran off a disk
             image. ⏎ scans; nothing is selected and nothing
             moves. ⏎ a row to select it.
-            ⚠️ every row is careful: "no app answers for it" is
+            ⚠️ every row says Attention: "no app answers for
+            it" is
             not "safe to remove" — it may be on a disk that is
             unplugged, or something you will reinstall.
             _G.appOrphans() · _G.appOrphanKeep(2) · ...Go()
@@ -754,6 +756,16 @@ In the Console, _G.<tool>Report() prints any tool's own report.
   _G.stores() WHERE every store is and when each last saved — printed at boot
             🚨 and it SHOUTS when the notes folder is local instead of OneDrive
 
+🩺 INSTALL CHECK (did the whole release land?)   [modules/install_check.lua]
+  _G.installCheck() Every runtime file against MANIFEST.txt — size by size
+  at boot   Says NOTHING unless something disagrees
+  disagrees MISSING · DIFFERENT SIZE (both numbers) · macOS would not say
+  strays    A .lua in core/ or modules/ the manifest does not name —
+            Finder's Keep Both writes 'music_player 2.lua' and §1.12 ignores it
+  version   The manifest's own version against _G.configVersion
+  no manifest An install from before 6.399.0 — says so, never 'all clear'
+  size only A file edited to exactly the same length reads as a match
+
 ⌨️ KEY CASTER (⇪⇧B — show the keys you press)   [modules/key_caster.lua]
   ⇪⇧B   Turn the panel on / off (it starts OFF)
   shows     Shortcuts only — ⌘⌃⌥fn⇪ combos, ⎋ ⇥ ⏎ arrows, F-keys
@@ -877,6 +889,16 @@ In the Console, _G.<tool>Report() prints any tool's own report.
 
 📜 RELEASE INDEX — newest first, one line per release (the full story of each is in CHANGELOG.md)
 ------------------------------------------------------------------------
+  6.399.0  🩺 DID THE WHOLE RELEASE LAND? (MANIFEST.txt +
+  6.398.0  📝 CLOSING A HAMSIDIAN TAB LEAVES ITS NOTE, AND SAYS
+  6.397.0  ✏️ THE DOCUMENT EDIT TAKES THE REAL WINDOW
+  6.396.0  🗳 HIS WORDS FOR A RISKY ROW (modules/app_remove.lua).
+  6.395.0  🖱 THE EDIT WINDOW DRAGS (modules/ocr_engine.lua). LL,
+  6.394.0  🔌 watchFolder = false REALLY STOPS THE WATCHER
+  6.393.0  ⏱ A HUNG OCR NO LONGER WEDGES THE NAMING QUEUE
+  6.392.0  🆔 A FILE REFERENCE IS RESOLVED BY A BOOKMARK
+  6.391.0  🪟 ONE DOOR FOR EVERY WEBVIEW SHOW (init.lua
+  6.390.0  🪟 THE JUG PLAYER'S CATCHER READS ITS OWN SHOW
   6.389.0  🔎 LEFTOVERS FROM AN APP THAT WAS NEVER INSTALLED: the
   6.388.0  🗳 APP REMOVAL SAYS WHAT IS DAMAGING, AND HE CAN LEAVE
   6.387.0  📝 EVERY HAMSIDIAN TAB IS A REAL .md FILE: LL, asked
