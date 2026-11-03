@@ -564,15 +564,31 @@ check("…and every leftover is its own row", (function()
           for _, r in ipairs(ch2.rows_ or {}) do if r.toggle then n = n + 1 end end
           return n == 4
       end)(), #(ch2.rows_ or {}))
+-- 🗳 6.396.0 — ASK THE RULE, NEVER THE LABEL (6.248.0, eighth time).
+-- This asserted the literal word "careful", so it went red the day he
+-- chose different words for the same verdict — with nothing to say about
+-- the change it existed to prove. It joins the row to the module's own
+-- renderer now, so the two cannot disagree whatever the wording is.
 check("…each saying whether it is safe and why", (function()
           for _, r in ipairs(ch2.rows_ or {}) do
-              if r.toggle and not (tostring(r.subText):find("safe", 1, true)
-                                   or tostring(r.subText):find("careful", 1, true)) then
-                  return false
+              if r.toggle then
+                  local sub = tostring(r.subText)
+                  local okWord = false
+                  for _, v in ipairs({ "safe", "careful" }) do
+                      if sub:find(M.verdictWords(v), 1, true) then okWord = true end
+                  end
+                  if not okWord then return false end
               end
           end
           return true
       end)())
+check("🗳 …and the risky word is HIS, verbatim — he was asked and he "
+      .. "answered, so a later release must not quietly reword it",
+      M.verdictWords("careful") == "⚠️ Attention: your data may be in here ⚠️",
+      M.verdictWords("careful"))
+check("🔑 …and the VERDICT KEY is untouched, because the word he reads "
+      .. "and the word the code decides on are different things",
+      ({ M.riskOf({ kind = "containers" }) })[1] == "careful")
 check("…and whether ⏎ would move it or keep it", (function()
           for _, r in ipairs(ch2.rows_ or {}) do
               if r.toggle and not (tostring(r.text):find("[ MOVE ]", 1, true)
@@ -824,9 +840,9 @@ check("the analysis names every file", (function()
           end
           return true
       end)())
-check("…and says of each whether it is safe or careful",
+check("…and says of each whether it is safe or needs attention",
       select(2, analysis:gsub("safe", "")) >= 3
-      and analysis:find("careful", 1, true) ~= nil)
+      and analysis:find(M.verdictWords("careful"), 1, true) ~= nil)
 check("…and whether it is selected or kept",
       analysis:find("[ MOVE ]", 1, true) ~= nil
       and analysis:find("[ keep ]", 1, true) ~= nil)

@@ -1093,11 +1093,53 @@ function M.setup(core)
         return nil
     end
 
+    -- 🔬 macOS answers this table under TWO keys and coexist's own
+    -- reader has taken both since 6.306.0; this one asked only `.left`,
+    -- so a Mac that answers under [1] alone read as "nothing is held".
     local function leftButtonDown()
         local ok, down = pcall(function()
-            return hs.eventtap.checkMouseButtons().left == true
+            local b = hs.eventtap.checkMouseButtons()
+            return type(b) == "table" and (b.left == true or b[1] == true)
         end)
-        return ok and down
+        return ok and down == true
+    end
+
+    -- =====================================================================
+    -- 🖱 6.395.0 — THE VETO, ASKED IN THE RIGHT DIRECTION
+    -- =====================================================================
+    -- LL, with a screenshot of this very window: "I can't drag that window."
+    -- 🔎 EVERY PART OF THE DRAG WAS BUILT AND ONE LINE KILLED IT. The
+    -- header sends {a:'drag'}, beginDrag reads the frame and arms a 16 ms
+    -- timer — and that timer's FIRST tick asked checkMouseButtons and ended
+    -- the drag when it did not say yes. The mousedown is consumed by the
+    -- page, and a consumed press does not update the session's button
+    -- state, so on the first tick macOS reports nothing held and the drag
+    -- stops ~16 ms in, before the window has moved a pixel.
+    --
+    -- 🚨 THIS CONFIG HAS PAID FOR THAT TWICE AND WROTE IT DOWN BOTH
+    -- TIMES. window_move 6.156.0 is the original; core/coexist.lua:824
+    -- carries the sentence — "checkMouseButtons is asked as a VETO ONLY
+    -- … a consumed press reads as released on the first tick and ends a
+    -- drag before it moves" — and 6.337.0 is the release where quoting
+    -- that rule and then building its opposite cost ⇪4 for a night.
+    -- A RULE QUOTED IS NOT A RULE APPLIED: the instrument has to be
+    -- consulted in the same POSITION, not merely with the same name.
+    --
+    -- 🔑 SO AN INSTRUMENT THAT HAS NEVER SAID "DOWN" DURING THIS DRAG IS
+    -- UNINFORMATIVE, NOT NEGATIVE. Three answers (6.196.1), and only the
+    -- middle one may end anything. PURE, so the whole rule is provable
+    -- with no Mac — and it is deliberately the SAME rule as
+    -- `shots.beltVerdict` (6.336.0). Two readers of one idea are a drift
+    -- risk, so the gate runs BOTH over shared fixtures and fails if they
+    -- ever disagree (6.187.0's answer to exactly this situation).
+    function ocr.dragVerdict(sawHeld, down)
+        if down then return "held", "a button is still down" end
+        if not sawHeld then
+            return "standDown", "this Mac has not once reported a held "
+                   .. "button during this drag — the watch cannot tell a "
+                   .. "release from a press it never saw, so it does nothing"
+        end
+        return "ended", "the button came up"
     end
 
     function ocr.endDrag()
@@ -1107,6 +1149,9 @@ function M.setup(core)
 
     function ocr.beginDrag()
         ocr.endDrag()
+        ocr.sawHeld = false        -- per DRAG, never global (see dragVerdict)
+        ocr.dragStartedAt = (hs.timer and hs.timer.secondsSinceEpoch
+                             and hs.timer.secondsSinceEpoch()) or 0
         if not ocr.editorView then return false end
         local okF, f = pcall(function() return ocr.editorView:frame() end)
         if not (okF and f) then return false end
@@ -1116,7 +1161,28 @@ function M.setup(core)
         local okT = pcall(function()
             ocr.dragTimer = hs.timer.doEvery(0.016, function()
                 if not (ocr.editorView and ocr.dragOffset) then ocr.endDrag() return end
-                if not leftButtonDown() then ocr.endDrag() return end
+                -- 🖱 6.395.0 — the veto, in the one direction it is safe
+                -- in. `sawHeld` is per DRAG and never global: a Mac that
+                -- reports a held button on one drag may not on the next.
+                local down = leftButtonDown()
+                if down then ocr.sawHeld = true end
+                local how = ocr.dragVerdict(ocr.sawHeld, down)
+                if how == "ended" then ocr.endDrag() return end
+                -- ⏱ AND A DRAG CANNOT RUN FOR EVER. On a Mac that never
+                -- reports a held button the verdict above never says
+                -- "ended", so the only thing that can stop it is a clock —
+                -- without this, standing down would trade a drag that
+                -- never starts for a window that follows the pointer all
+                -- day, which is strictly worse (6.342.0's belt rule).
+                local now = (hs.timer and hs.timer.secondsSinceEpoch
+                             and hs.timer.secondsSinceEpoch()) or 0
+                if (ocr.dragStartedAt or 0) > 0
+                   and (now - ocr.dragStartedAt) > (ocr.dragMaxSecs or 20) then
+                    ocr.endDrag() ; return
+                end
+                -- "standDown" falls through on purpose: the window keeps
+                -- following the pointer, and the WATCHDOG below is what
+                -- ends a drag this Mac can never report the end of.
                 local p = mousePosition()
                 if not p then ocr.endDrag() return end
                 pcall(function()

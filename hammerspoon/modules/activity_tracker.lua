@@ -1621,36 +1621,74 @@ function M.setup(core)
         end
 
         local hits = docSessionsFor(row)
+        local sessions = #hits .. " session" .. ((#hits == 1) and "" or "s")
+        local facts = row.date .. "  ·  " .. (row.app or "?") .. "  ·  "
+                      .. core.formatDuration(row.secs)
+
+        -- ✏️ 6.397.0 — ONE RULE, TWO DOORS (6.231.0). LL, with a
+        -- screenshot of each window side by side: "Make the edit window
+        -- like the edit window for clipboard entries."
+        -- 🔎 WHAT THE DIFFERENCE ACTUALLY WAS: the clipboard's editor is
+        -- the real window ocr_engine publishes as `editor.open` — it
+        -- comes to the front, takes the caret, is as big as the text and
+        -- can be dragged. hs.dialog.textPrompt is a fixed one-line
+        -- NSAlert that opens behind whatever is in front (6.190.0), and
+        -- this was the LAST picker in the config still on it.
+        -- 🚪 THE PROMPT STAYS AS THE DEGRADE for a Mac with no
+        -- hs.webview, asked at PRESS time rather than cached at setup
+        -- (6.190.0's rule) — and BOTH doors end in `applyDocEdit`, so the
+        -- rule that decides what an empty box means is written once.
+        local function applyDocEdit(raw)
+            local text = tostring(raw or ""):gsub("^%s+", ""):gsub("%s+$", "")
+            if text == "" then
+                local removed = docDelete(row)
+                if rewriteActivityLog(atLog()) then
+                    hs.alert.show("🗑 Deleted " .. row.file
+                                  .. " (" .. removed .. " sessions)")
+                else
+                    hs.alert.show("⚠️ Could not write activity_history.csv", 6)
+                end
+            elseif text ~= row.file then
+                -- The filename IS the title for these rows once the app
+                -- suffix is stripped, so writing the new name straight
+                -- into the title is what makes it come back as the new
+                -- name.
+                for _, i in ipairs(hits) do atLog()[i].title = text end
+                if rewriteActivityLog(atLog()) then
+                    hs.alert.show("✏️ Renamed to " .. text)
+                else
+                    hs.alert.show("⚠️ Could not write activity_history.csv", 6)
+                end
+            end
+        end
+
+        local opened = false
+        if _G.service and _G.service.has and _G.service.has("editor.open") then
+            opened = _G.service.call("editor.open", {
+                title       = "✏️ Edit document entry",
+                windowTitle = "Edit document entry",
+                sub         = "⌘⏎ saves · Esc cancels · empty the box, or "
+                              .. "Delete, to remove this entry and its "
+                              .. sessions .. "   ·   " .. facts,
+                placeholder = "The file name for this entry. Empty it to "
+                              .. "delete it.",
+                text        = row.file,
+                rows        = 3,
+                deleteLabel = "Delete entry",
+                onSave      = applyDocEdit,
+                onDelete    = function() applyDocEdit("") end,
+            }) == true
+        end
+        if opened then return end
+
         local button, text = hs.dialog.textPrompt(
             "Edit document entry",
             "File name for this entry.\nClear the field and press OK to DELETE it — "
-                .. "that removes its " .. #hits .. " session"
-                .. ((#hits == 1) and "" or "s")
-                .. ", so the time leaves the app totals too.\n\n"
-                .. row.date .. "  ·  " .. (row.app or "?") .. "  ·  "
-                .. core.formatDuration(row.secs),
+                .. "that removes its " .. sessions
+                .. ", so the time leaves the app totals too.\n\n" .. facts,
             row.file, "OK", "Cancel")
         if button ~= "OK" then return end
-        text = tostring(text or ""):gsub("^%s+", ""):gsub("%s+$", "")
-
-        if text == "" then
-            local removed = docDelete(row)
-            if rewriteActivityLog(atLog()) then
-                hs.alert.show("🗑 Deleted " .. row.file .. " (" .. removed .. " sessions)")
-            else
-                hs.alert.show("⚠️ Could not write activity_history.csv", 6)
-            end
-        elseif text ~= row.file then
-            -- The filename IS the title for these rows once the app suffix
-            -- is stripped, so writing the new name straight into the title
-            -- is what makes it come back as the new name.
-            for _, i in ipairs(hits) do atLog()[i].title = text end
-            if rewriteActivityLog(atLog()) then
-                hs.alert.show("✏️ Renamed to " .. text)
-            else
-                hs.alert.show("⚠️ Could not write activity_history.csv", 6)
-            end
-        end
+        applyDocEdit(text)
     end)
     _G.choosers.activityDocsEdit:placeholderText("Edit or delete a document entry")
     _G.choosers.activityDocsEdit:queryChangedCallback(function(q)

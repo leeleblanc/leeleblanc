@@ -708,6 +708,37 @@ function M.setup(core)
         if #sp.tabs == 0 then sp.newTab("") end
         if sp.active == id then sp.active = sp.tabs[math.min(i, #sp.tabs)].id end
         sp.saveNow()
+        -- =================================================================
+        -- 📝 6.398.0 — CLOSING A TAB LEAVES ITS NOTE, AND SAYS SO
+        -- =================================================================
+        -- 6.387.0's verify block asked whether a closed tab's .md should
+        -- go with it. LL: "How do I know?" — so the decision is mine and
+        -- the reasoning is written here rather than left as a shrug.
+        --
+        -- 🔑 IT STAYS, and the reason is not the obvious one. "Nothing
+        -- in this config deletes your writing" (6.280.0) is true and is
+        -- the weaker half; the sharper half is what ⌘W MEANS. A tab is a
+        -- SURFACE and a note is a DOCUMENT, and closing a tab is tidying
+        -- the desk, not throwing the paper away. If ⌘W deleted the note,
+        -- the key he presses to clear his screen would be destructive —
+        -- and a key you have to think before pressing is a key you stop
+        -- pressing. The note already HAS a way out: the ✕ on its row in
+        -- the ⇪3 list, which deletes it to the bin with an undo (6.321.0).
+        --
+        -- 🚨 SO THE DEFECT WAS NEVER THE POLICY — IT WAS THAT THE POLICY
+        -- WAS SILENT. He closed a tab, a file stayed behind, and nothing
+        -- anywhere said so, which is the one thing that makes a correct
+        -- default feel like a leak. It is said at the moment it happens.
+        local left = type(sp.exported) == "table" and sp.exported[id] or nil
+        if left and trim(t.text) ~= "" then
+            sp.notesLeft = (tonumber(sp.notesLeft) or 0) + 1
+            sp.lastNoteLeft = left
+            pcall(function()
+                hs.alert.show("📝 Tab closed — its note stays as "
+                              .. tostring(left) .. "\n✕ on its row in ⇪3 "
+                              .. "removes it (recoverable from the bin)", 3)
+            end)
+        end
         return true
     end
 
@@ -2873,6 +2904,20 @@ t.focus(); try { t.setSelectionRange(CARET, CARET); } catch(e){}
                         .. (st.lastReason and (" (" .. tostring(st.lastReason) .. ")") or "")
                 elseif ok == 0 and failed == 0 then
                     L[#L + 1] = "     ↳ nothing typed in a tab yet this session — not a fault"
+                end
+                -- 📝 6.398.0 — WHAT CLOSING A TAB LEAVES BEHIND. The
+                -- policy is that the note STAYS (⌘W tidies the desk; it
+                -- does not throw the paper away), and the defect was that
+                -- nothing said so. Counted here as well as alerted, so
+                -- "how many notes have I left behind?" is a number.
+                local leftN = tonumber(sp.notesLeft) or 0
+                if leftN > 0 then
+                    L[#L + 1] = "     ↳ kept   : " .. leftN .. " closed tab(s) left "
+                        .. "their note behind — that is the rule, not a leak"
+                        .. (sp.lastNoteLeft
+                            and ("  ·  last: " .. tostring(sp.lastNoteLeft)) or "")
+                    L[#L + 1] = "       ✕ on its row in ⇪3 removes one (recoverable "
+                        .. "from the bin — _G.vaultTrash())"
                 end
                 -- 🏷 THE WAIT IS A STATE, NOT A FAILURE: the name a tab's
                 -- file keeps forever is pinned on the first write, so a

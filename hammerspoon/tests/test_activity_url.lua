@@ -1170,6 +1170,69 @@ out("\n")
 -- The runner greps for "N passed, M failed" — print it in that exact shape
 -- whatever the outcome, or a green suite is reported as one that crashed.
 if fail == 0 then
+-- =====================================================================
+-- ✏️ 6.397.0 — THE DOCUMENT EDIT TAKES THE REAL WINDOW
+-- =====================================================================
+-- LL, with a screenshot of each window side by side: "Make the edit
+-- window like the edit window for clipboard entries." The clipboard's
+-- is ocr_engine's `editor.open` — front, caret, big, draggable. This
+-- one was still hs.dialog.textPrompt, a fixed one-line NSAlert that
+-- opens behind whatever is in front (6.190.0), and it was the LAST
+-- picker in the config on it.
+do
+    local before = pass + fail
+    local fh = io.open(HS .. "/modules/activity_tracker.lua", "r")
+    local src = fh and fh:read("*a") or ""
+    if fh then fh:close() end
+    check("✏️ the source was read — a sentry over an empty haystack is "
+          .. "green and measures nothing (6.313.0)", #src > 10000, #src)
+
+    check("✏️ the document edit asks for the real window",
+          src:find('_G.service.call("editor.open"', 1, true) ~= nil)
+    check("✏️ ...at PRESS time, never cached at setup — a session where "
+          .. "ocr_engine failed to load would otherwise strand the key "
+          .. "(6.190.0's rule)",
+          src:find('_G.service.has("editor.open")', 1, true) ~= nil)
+    check("🚪 ...and the prompt STAYS as the degrade for a Mac with no "
+          .. "hs.webview — it degrades, it never breaks",
+          src:find("hs.dialog.textPrompt(", 1, true) ~= nil)
+
+    -- 🔑 ONE RULE, TWO DOORS (6.231.0). The thing that must be true is
+    -- not that both doors exist but that they end in the SAME place: two
+    -- copies of "an empty box means delete" is how one comes to delete
+    -- and the other to rename.
+    -- The three call sites, asserted BY NAME rather than counted: a count
+    -- missed that `onSave = applyDocEdit` carries no parentheses, which
+    -- is a check measuring its own needle rather than the rule.
+    check("🔑 both doors end in ONE rule — the window's onSave",
+          src:find("onSave      = applyDocEdit", 1, true) ~= nil)
+    check("🔑 ...its Delete button", 
+          src:find('applyDocEdit("")', 1, true) ~= nil)
+    check("🔑 ...and the prompt that degrades for it",
+          src:find("applyDocEdit(text)", 1, true) ~= nil)
+    check("🔑 ...and the rule itself is declared ONCE",
+          select(2, src:gsub("local function applyDocEdit", "")) == 1)
+    check("🔑 ...and the window's Delete button means the same thing an "
+          .. "empty box does, rather than a second opinion about it",
+          src:find('onDelete      = function() applyDocEdit("") end', 1, true) ~= nil
+          or src:find('onDelete    = function() applyDocEdit("") end', 1, true) ~= nil)
+    check("✏️ ...and nothing still trims the text at a call site — the "
+          .. "rule does it once, inside, or the two doors disagree about "
+          .. "what a box of spaces means",
+          src:find('text = tostring(text or ""):gsub("^%s+", "")', 1, true) == nil)
+
+    -- 🔎 THE FACTS HE READS ARE BUILT ONCE and handed to both doors, so
+    -- the window cannot say "30s" while the prompt says something else.
+    check("🔎 the date · app · duration line is built once for both doors",
+          src:find("local facts = row.date", 1, true) ~= nil
+          and select(2, src:gsub("%.%. facts", "")) >= 2)
+    check("🔎 ...and so is the session count, which is the number that "
+          .. "tells him what a delete costs",
+          src:find("local sessions = #hits", 1, true) ~= nil)
+    check("✏️ the 6.397.0 section ran all of its checks",
+          (pass + fail) - before >= 9, (pass + fail) - before)
+end
+
     out(string.format("✅ test_activity_url: %d passed, %d failed\n", pass, fail))
 else
     out(string.format("❌ test_activity_url: %d passed, %d failed\n", pass, fail))

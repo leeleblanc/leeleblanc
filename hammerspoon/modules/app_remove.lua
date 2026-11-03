@@ -62,8 +62,9 @@ local M = {
             { "",       "its size and whether removing it is safe. Nothing" },
             { "",       "moves on this press, or on any press but the last." },
             { "verdict","✅ safe — a cache, its settings, the app itself." },
-            { "",       "⚠️ careful — it may hold YOUR OWN files, or it was" },
-            { "",       "matched by name rather than by the app\'s id." },
+            { "",       "⚠️ Attention: your data may be in here ⚠️ — it" },
+            { "",       "may hold YOUR OWN files, or it was matched by" },
+            { "",       "name rather than by the app\'s id." },
             { "",       "A row that holds files of yours SAYS HOW MANY." },
             { "start",  "✅ rows start selected · ⚠️ rows start KEPT, so" },
             { "",       "nothing risky moves unless you ask for it" },
@@ -86,7 +87,8 @@ local M = {
             { "",        "have, INCLUDING ones you only ever ran off a disk" },
             { "",        "image. ⏎ scans; nothing is selected and nothing" },
             { "",        "moves. ⏎ a row to select it." },
-            { "",        "⚠️ every row is careful: \"no app answers for it\" is" },
+            { "",        "⚠️ every row says Attention: \"no app answers for" },
+            { "",        "it\" is" },
             { "",        "not \"safe to remove\" — it may be on a disk that is" },
             { "",        "unplugged, or something you will reinstall." },
             { "",        "_G.appOrphans() · _G.appOrphanKeep(2) · ...Go()" },
@@ -262,6 +264,21 @@ end
 -- is removing on purpose. A CONTAINER is where a sandboxed app keeps its
 -- own Documents — that is the one row in this list that can take his
 -- files with it, and it is the reason the question needed answering.
+-- 🗳 6.396.0 — THE WORD HE READS, AND IT IS HIS. 6.388.0 asked whether
+-- "careful" was the right word for a folder that may hold his files,
+-- because he would read it dozens of times; he answered "⚠️ Attention:
+-- your data may be in here ⚠️" and that is what every row says now.
+-- 🔑 THE VERDICT KEY STAYS `careful`. The word he READS and the word the
+-- code DECIDES on are different things — renaming the verdict itself
+-- would put a sentence with spaces and emoji into twenty comparisons,
+-- which is how a label change becomes a logic bug. One table, asked by
+-- every surface, so the two can never drift (6.296.0's rule for a name).
+local VERDICT_WORDS = {
+    safe    = "safe",
+    careful = "⚠️ Attention: your data may be in here ⚠️",
+}
+function M.verdictWords(v) return VERDICT_WORDS[v] or tostring(v) end
+
 local RISK = {
     -- kind                 verdict    why, in his words
     app              = { "safe",    "the app itself — re-downloadable" },
@@ -1065,7 +1082,8 @@ function M.setup(core)
             local keep = plan.keep[i] and true or false
             L[#L + 1] = "   " .. (keep and "[ keep ]" or "[ MOVE ]") .. " "
                         .. (MARK[it.verdict] or "⚠️") .. " " .. it.path
-            L[#L + 1] = "            " .. tostring(it.verdict) .. " — " .. tostring(it.risk)
+            L[#L + 1] = "            " .. M.verdictWords(it.verdict)
+                        .. " — " .. tostring(it.risk)
                         .. " · " .. M.prettySize(it.size)
                         .. (it.ownCapped and " · the count stopped at " .. ar.ownCap
                                            .. ", so it is a FLOOR" or "")
@@ -1122,7 +1140,7 @@ function M.setup(core)
             rows[#rows + 1] = {
                 text    = (keep and "[ keep ] " or "[ MOVE ] ")
                           .. (MARK[it.verdict] or "⚠️") .. " " .. it.path,
-                subText = tostring(it.verdict) .. " — " .. tostring(it.risk)
+                subText = M.verdictWords(it.verdict) .. " — " .. tostring(it.risk)
                           .. " · " .. M.prettySize(it.size)
                           .. "   ·   ⏎ " .. (keep and "selects it" or "keeps it"),
                 toggle  = i,

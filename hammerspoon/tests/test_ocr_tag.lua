@@ -1118,5 +1118,92 @@ do
     check("T8 ran every one of its checks", mine == 25, mine)
 end
 
+-- =====================================================================
+-- 🖱 6.395.0 — THE EDIT WINDOW DRAGS
+-- =====================================================================
+-- LL, with a screenshot of it: "I can't drag that window." Every part of
+-- the drag was built — the ⠿ grip, the mousedown, the message, the frame
+-- read, the 16 ms timer — and the timer's FIRST tick asked macOS whether
+-- a button was down and ended the drag when it did not say yes. The
+-- mousedown is consumed by the page, a consumed press does not update
+-- the session's button state, so the drag died ~16 ms in, every time.
+do
+    local before = pass + fail
+    local M = dofile(HS .. "/modules/ocr_engine.lua")
+    pcall(M.setup, CORE)
+    local ocr = M.config
+    check("🖱 the drag rule is PURE and reachable from the module table",
+          type(ocr.dragVerdict) == "function")
+
+    local how, why = ocr.dragVerdict(false, true)
+    check("🖱 a button that IS down → held, whatever came before",
+          how == "held", tostring(why))
+    how, why = ocr.dragVerdict(true, false)
+    check("🖱 it said down earlier and does not now → ENDED",
+          how == "ended", tostring(why))
+    -- 🚨 THE ONE THAT IS THE WHOLE RELEASE. Every other input agrees with
+    -- the old code; this is the only fixture where the right and wrong
+    -- implementations must differ (6.230.0).
+    how, why = ocr.dragVerdict(false, false)
+    check("🚨 🖱 an instrument that has NEVER said down during this drag is "
+          .. "UNINFORMATIVE, not negative — the old line read this as "
+          .. "'released' and ended the drag before the window moved",
+          how == "standDown", tostring(how) .. " / " .. tostring(why))
+    check("...and it says WHY, so a drag that stands down is not a "
+          .. "silence (6.196.1 — three answers, never two)",
+          tostring(why):find("never", 1, true) ~= nil
+          and tostring(why):find("does nothing", 1, true) ~= nil, tostring(why))
+
+    -- 🔗 TWO READERS OF ONE IDEA DRIFT, so the gate joins them (6.187.0).
+    -- shots.beltVerdict is the same rule for the screenshot selector; if
+    -- either is ever changed alone, this fails by name.
+    local SM = dofile(HS .. "/modules/screenshots.lua")
+    pcall(SM.setup, CORE)
+    local shots = SM.config
+    if type(shots.beltVerdict) == "function" then
+        local agree = true, nil
+        for _, f in ipairs({ { false, false }, { true, false },
+                             { false, true }, { true, true } }) do
+            local a = ocr.dragVerdict(f[1], f[2])
+            local b = shots.beltVerdict(f[1], f[2] and { left = true } or {})
+            if a ~= b then agree = false end
+        end
+        check("🔗 the edit window's drag rule and the screenshot selector's "
+              .. "belt rule are the SAME rule, over every input — two "
+              .. "copies of one idea is how they come to disagree (6.231.0)",
+              agree)
+    else
+        check("🔗 shots.beltVerdict is still there to join against",
+              false, "screenshots has no beltVerdict")
+    end
+
+    -- 🚪 AND THE RULE MUST BE CALLED, not merely correct (6.264.0 — proving
+    -- a pure decision function is not proving anything calls it).
+    local src = (function()
+        local fh = io.open(HS .. "/modules/ocr_engine.lua", "r")
+        local t = fh and fh:read("*a") or "" ; if fh then fh:close() end
+        return t
+    end)()
+    check("🖱 the drag timer ASKS the rule — it used to end the drag off a "
+          .. "bare checkMouseButtons",
+          src:find("ocr.dragVerdict(ocr.sawHeld, down)", 1, true) ~= nil)
+    check("🖱 ...and nothing in this module still ends a drag on a bare "
+          .. "negative from that instrument",
+          src:find("if not leftButtonDown() then ocr.endDrag()", 1, true) == nil)
+    check("🖱 `sawHeld` is cleared per DRAG, never left global — a Mac that "
+          .. "reported a held button once would otherwise end every later "
+          .. "drag on its first tick",
+          src:find("ocr.sawHeld = false", 1, true) ~= nil)
+    check("⏱ and a drag that can never be told to stop has a clock, or "
+          .. "standing down trades a drag that will not start for a window "
+          .. "that follows the pointer all day",
+          src:find("ocr.dragMaxSecs", 1, true) ~= nil)
+    check("🔬 the button reader takes BOTH keys macOS answers under, as "
+          .. "core/coexist.lua's has since 6.306.0",
+          src:find("b.left == true or b[1] == true", 1, true) ~= nil)
+    check("🖱 the 6.395.0 section ran all of its checks",
+          (pass + fail) - before >= 11, (pass + fail) - before)
+end
+
 out(("\n── test_ocr_tag: %d passed, %d failed\n"):format(pass, fail))
 os.exit(fail == 0 and 0 or 1)

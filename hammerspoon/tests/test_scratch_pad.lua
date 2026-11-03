@@ -3302,5 +3302,64 @@ do
     check("§6.387.0 ran all of its checks (" .. ran .. " of 38+)", ran >= 38, ran)
 end
 
+-- =====================================================================
+-- 📝 6.398.0 — CLOSING A TAB LEAVES ITS NOTE, AND SAYS SO
+-- =====================================================================
+-- 6.387.0 asked whether a closed tab's .md should go with it. LL: "How
+-- do I know?" — so the decision is made here and the reasoning is in
+-- the module: a tab is a SURFACE and a note is a DOCUMENT, so ⌘W tidies
+-- the desk rather than throwing the paper away. If ⌘W deleted the note,
+-- the key he presses to clear his screen would be destructive, and a
+-- key you have to think before pressing is a key you stop pressing.
+-- 🚨 THE DEFECT WAS NEVER THE POLICY — IT WAS THE SILENCE. He closed a
+-- tab, a file stayed, and nothing said so, which is what makes a
+-- correct default feel like a leak.
+do
+    local before = pass + fail
+    -- 🔌 realIoOpen, NEVER io.open: this suite replaces io.open with a
+    -- virtual disk, so a source sentry reading through the stub gets ""
+    -- and passes over an empty haystack — green, and measuring nothing
+    -- (6.273.0 · 6.313.0). The size is asserted for the same reason.
+    local fh = realIoOpen(HS .. "/modules/scratch_pad.lua", "r")
+    local src = fh and fh:read("*a") or ""
+    if fh then fh:close() end
+    check("📝 the source was really read — through the REAL opener, not "
+          .. "this suite's virtual disk", #src > 10000, #src)
+
+    -- 🔎 THE WINDOW ENDS AT THE FUNCTION'S OWN BOUNDARY (6.263.0). The
+    -- first version of this check searched the WHOLE file for os.remove
+    -- and was satisfied or not by code three thousand lines away — a
+    -- scanner with an unbounded window is a scanner that can be answered
+    -- by its neighbour.
+    local closeBody = src:match("(function sp%.closeTab%(id%).-\n    end)")
+    check("📝 the close path was found and bounded", closeBody ~= nil
+          and #closeBody > 400, closeBody and #closeBody or "nil")
+    check("🚨 📝 closing a tab does NOT delete its note — nothing in the "
+          .. "close path removes or renames a file, and an unrecoverable "
+          .. "delete of his writing is the one failure in this config "
+          .. "with no way back (6.280.0)",
+          closeBody ~= nil
+          and closeBody:find("os.remove", 1, true) == nil
+          and closeBody:find("os.rename", 1, true) == nil)
+    check("📝 ...and the tab's file is NAMED when it is left behind, so "
+          .. "the policy is legible rather than silent",
+          src:find("Tab closed — its note stays as", 1, true) ~= nil)
+    check("📝 ...with the way to remove it in the same breath — a default "
+          .. "he cannot undo is a default he has to live with",
+          src:find("removes it (recoverable from the bin)", 1, true) ~= nil)
+    check("🔎 ...and it is COUNTED, so 'how many notes have I left behind' "
+          .. "is a number and not a feeling (6.229.0)",
+          src:find("sp.notesLeft", 1, true) ~= nil
+          and src:find("closed tab(s) left ", 1, true) ~= nil)
+    check("🔕 ...and a tab with NOTHING in it says nothing — an empty tab "
+          .. "left no note, so announcing one would be a lie",
+          src:find('if left and trim(t.text) ~= "" then', 1, true) ~= nil)
+    check("🔕 ...and so does a tab that never got as far as a file — "
+          .. "`left` is the recorded name, never an assumption",
+          src:find("local left = type(sp.exported)", 1, true) ~= nil)
+    check("📝 the 6.398.0 section ran all of its checks",
+          (pass + fail) - before >= 7, (pass + fail) - before)
+end
+
 out(string.format("\n%d passed, %d failed\n", pass, fail))
 os.exit(fail == 0 and 0 or 1)
