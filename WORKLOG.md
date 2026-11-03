@@ -43,25 +43,25 @@ said yes and it is not to be re-asked.
 
 | # | what | where | state |
 |---|---|---|---|
-| A1 | The Jug Player's catcher throws away its own `:show()` answer — 6.352.0's bug verbatim in the other player | `music_player.lua:1745-1746` | ☐ |
-| A2 | Five bare webview shows — a refused window is recorded as open | `vault.lua:4663,5453` · `scratch_pad.lua:2399,2609` · `capture_pad.lua:1402` · `note_pad.lua:689` · `screenshot_editor.lua:1722,2315` | ☐ |
-| A3 | The OCR tag resolves a file reference with realpath, not the bookmark round trip 6.237.0 proved | `ocr_engine.lua:514-525` | ☐ |
-| A4 | `nameByText` has no killer timer — a hung `shortcuts` wedges the OCR queue for the session | `screenshots.lua:2801-2929` | ☐ |
-| A5 | `screenshots.lua` has no `M.warm`, so `watchFolder = false` cannot stop the FSEvents wake-up | `screenshots.lua` | ☐ |
+| A1 | The Jug Player's catcher throws away its own `:show()` answer | `music_player.lua:1745-1746` | ✅ **6.390.0** |
+| A2 | Bare webview shows — a refused window recorded as open. **The list was a sample: the grep found ELEVEN, not five** | one door in init.lua + 11 sites + a gate sentry | ✅ **6.391.0** |
+| A3 | The OCR tag resolved a file reference with realpath | `ocr_engine.lua` | ✅ **6.392.0** |
+| A4 | `nameByText` had no killer timer — a hung `shortcuts` wedged the queue for the session. Also `t:start()`'s answer was discarded | `screenshots.lua` | ✅ **6.393.0** |
+| A5 | `screenshots.lua` had no `M.warm`, so `watchFolder = false` could not stop the pathwatcher | `screenshots.lua` | ✅ **6.394.0** |
 
 ### B — THE TWO WINDOWS HE IS LOOKING AT (screenshots, 2026-11-03)
 
 | # | what | state |
 |---|---|---|
-| B1 | "I can't drag that window" — the `editor.open` window (⇪⇧V's edit box) is not movable | ☐ |
-| B2 | "Make the edit window like the edit window for clipboard entries" — ⇪⇧E's document-entry edit is still the tiny macOS dialog | ☐ |
+| B1 | "I can't drag that window" — the drag was fully built and its first tick ended it: it asked `checkMouseButtons` as an ORACLE, which `core/coexist.lua:824` forbids in writing | ✅ **6.395.0** |
+| B2 | ⇪⇧E's document-entry edit moved onto `editor.open`. It was the LAST picker in the config still on `hs.dialog.textPrompt` | ✅ **6.397.0** |
 
 ### C — ANSWERS HE HAS JUST GIVEN (one line each, no design left)
 
 | # | what | his word | state |
 |---|---|---|---|
-| C1 | App removal's risky-row label | "⚠️ Attention: your data may be in here ⚠️" | ☐ |
-| C2 | Does a closed Hamsidian tab's `.md` go with it? | "How do I know?" — so I decide and say why | ☐ |
+| C1 | App removal's risky-row label | "⚠️ Attention: your data may be in here ⚠️" | ✅ **6.396.0** |
+| C2 | Does a closed tab's `.md` go with it? | **Decided: it STAYS.** ⌘W tidies the desk; it does not throw the paper away. The defect was that the policy was SILENT — it now says so, names the file, and counts it | ✅ **6.398.0** |
 
 ### D — FEATURES HE HAS SAID YES TO
 
@@ -107,6 +107,21 @@ said yes and it is not to be re-asked.
 | F2 | The 73-second lockup: time every lazy extension load in `M.warm` (his 04:15 boot shows six of them AFTER the summary, and `762 ms — this Mac usually takes 220`) | ☐ |
 | F3 | (see D2 — MANIFEST/installCheck) | — |
 
-## ✅ DONE
+## ✅ DONE IN THIS RUN — nine releases
 
-(nothing yet in this run — rows move here with the release that closed them)
+| release | what | commit |
+|---|---|---|
+| 6.390.0 | The Jug Player's catcher reads its own show | `0bf338e` |
+| 6.391.0 | One door for every webview show (11 sites + sentry) | `0bf338e` |
+| — | the sweep's three findings | `9a0e451` |
+| 6.395.0 | The edit window drags | `641b3e4` |
+| 6.396.0 | "⚠️ Attention: your data may be in here ⚠️" | `641b3e4` |
+| 6.397.0 | The document edit takes the real window | `641b3e4` |
+| 6.398.0 | Closing a tab leaves its note, and says so | `641b3e4` |
+| 6.392.0 | A file reference is resolved by a bookmark | `cb05403` |
+| 6.393.0 | A hung OCR no longer wedges the naming queue | `cb05403` |
+| 6.394.0 | `watchFolder = false` really stops the watcher | `cb05403` |
+
+Gate: **13,817 checks**, every stage green. init.lua 3,449 lines, 350 of
+room. Ceremony (version stamps, CHANGELOG, GUIDE totals, feature list,
+TESTING.md) is written once for the whole batch at the end.
