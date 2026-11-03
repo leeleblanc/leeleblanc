@@ -2779,6 +2779,12 @@ local BASE = {
                           -- (AFTER both: it reads their services, no key)
     -- 6.116.0
     "write_ledger",       -- 💾 _G.saved() — proof the logs are saving (no key)
+    "install_check",      -- 🩺 _G.installCheck() — every runtime file against
+                          --    MANIFEST.txt; silent unless something disagrees
+                          --    (no key, 6.399.0 — beside write_ledger because
+                          --     both answer "is what should be on disk, on disk?",
+                          --     and apart from it because that one is deliberately
+                          --     LOUD when healthy and this one must not be)
     "right_click",        -- 🖱 ⇪⇧F a real right-click at the pointer
     "mouse_follows",      -- 🖱 ⇪⇧3 the pointer goes where focus goes (opt-in, 6.160.2)
     -- 6.119.0 — THE PUNCTUATION TIER. Every ⇪ letter and every ⇪⇧ letter
