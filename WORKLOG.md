@@ -107,6 +107,40 @@ said yes and it is not to be re-asked.
 | F2 | The 73-second lockup: time every lazy extension load in `M.warm` (his 04:15 boot shows six of them AFTER the summary, and `762 ms — this Mac usually takes 220`) | ☐ |
 | F3 | (see D2 — MANIFEST/installCheck) | — |
 
+## 📦 DELIVERY — 2026-11-03
+
+**6.389.0 sent inline**, on his word ("I didn't receive build 389, send it
+now"). Verified three ways before it left:
+
+| | |
+|---|---|
+| integrity | `tar -tzf` reads clean |
+| entries | 210 |
+| bytes | 3,577,991 (3.41 MB) |
+| version, grepped from the unpacked init.lua | line 7 `6.389.0`, `_G.configVersion = "6.389.0"` |
+| not stale | 6.389.0's `appOrphans` present · 6.391.0's `showWebviewSafely` absent |
+| gate, run from INSIDE the unpacked package | 13,708 checks · 89 stages green · GUIDE.md agrees · init.lua 3,366 lines |
+
+🚨 AND IT DOES NOT CLAIM TO FIX HIS LOCKUP. He sent "Hammerspoon just
+locked up" in the same breath as asking for it, and nothing in
+6.386.0–6.389.0 touches that. Said to him plainly rather than letting the
+delivery imply a fix (6.198.0).
+
+🔑 THE INSTRUMENT IS ALREADY ON HIS MAC. 6.330.0's breadcrumb rides in the
+stall guard's heartbeat (`<epoch>\t<what>\t<who>\t<since>`) and 6.385.0
+carries it, so the lockup that just happened has already written its own
+evidence. Asked for `_G.stallGuardReport()` and the log. `in flight:
+nothing was marked` rules out all 109 ⇪ shortcuts in one line and leaves
+the ONE named, unmeasured candidate: Hammerspoon's lazy extension loads
+on the main thread — 42 s after a 0.24 s boot on 2026-10-04, `mouse` 18 s
+after a 0.21 s boot on 2026-10-12. That is F2 below, and his report
+decides whether it is built next.
+
+**D2 was interrupted mid-file** and is committed as WIP at `8b248c7` —
+module, generator and MANIFEST.txt in, suite and ceremony owed. The
+commit message carries the three decisions that overturn the earlier plan
+(no hash path · CHANGELOG.md out · bundled.lua out) with their reasons.
+
 ## ✅ DONE IN THIS RUN — nine releases
 
 | release | what | commit |
