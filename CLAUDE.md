@@ -6813,7 +6813,11 @@ THE METHOD, when something breaks after a stacked zip:
    ⏎ that copies instead of pasting may be either release. The ⏎ clip
    line in `_G.unifiedSearchReport()` and `_G.focusReport()` separate
    them in one run.
-   · 6.403.0 1c271a0 (the code) · 6ef83de (the sweep's own finding —
+   · 6.403.0 1c271a0 (the code) · f134521 (the ceremony) · **ff192e1 is
+   the archive, and ff192e1 is the SHA every link to it must carry** — a
+   branch-pinned link dies the moment the next release deletes the file,
+   which is why 6.356.0–6.358.0 never reached his Downloads (6.360.0).
+   6ef83de (the sweep's own finding —
    ABSENT is not REFUSING, 6.265.0 for the sixth time: probeWait turns
    away a Mac with NO hs.timer.doAfter in one branch and a doAfter that
    REFUSES in another, each with its own counter, and the degrade check
