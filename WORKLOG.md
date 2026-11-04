@@ -301,3 +301,128 @@ the keyUp depends entirely on the tap seeing it — which makes "the F18
 event tap was NOT running" a far more plausible storm cause here than on
 a Mac where Carbon is carrying the keys. 6.403.0's `tap :` row is the one
 that answers it.
+
+## I — HIS 2026-11-04 ANSWERS AND THE 11:13 CONSOLE (6.403.0)
+
+### I1 🚨 THE OCR FILE-REFERENCE WARNING IS LIVE ON 6.403.0 — AND I TOLD
+###    HIM IT WAS FIXED
+
+```
+2026-11-04 11:14:51  (boot 11:13:10, version 6.403.0)
+⚠️ OCR tag: clipboard file URL(s) matched no usable image — a
+   file-reference path macOS would not resolve — raw value:
+   "/.file/id=6571367.39722786"
+```
+H5 filed this as "already fixed in what he has — that is 6.392.0's bug".
+**That was wrong.** 6.392.0 is installed and this is a 6.403.0 boot. The
+warning is honest and the feature is still failing.
+🔎 WHAT THE MESSAGE'S OWN SHAPE SAYS, read rather than guessed: the line
+carries NO "(the filesystem calls it a …)" clause, which that branch adds
+whenever `hs.fs.attributes(ref, "mode")` answers. So the filesystem would
+not stat the reference AT ALL — all three resolvers (bookmark, realpath,
+pathFromURL) correctly refused, and the folder exemption could not fire.
+🔑 AND THE FIX IS A RULE THIS REPO ALREADY OWNS, UNPORTED. 6.237.0 settled
+this in the music player and wrote down BOTH halves: **the plain-path
+flavour is asked FIRST** (`NSFilenamesPboardType` is a plist array of real
+POSIX paths, "so where macOS still offers it none of this arises"), and
+**the pasteboard's FLAVOURS ride into the report** ("a second 'it did not
+work' is not an artefact"). Measured: `NSFilenames` appears in
+music_player.lua and **zero times** in ocr_engine.lua, and
+`pasteboardTypes` likewise. 6.392.0 ported the RESOLVER and never the
+READER ORDER.
+🔑 GENERAL, and it is 6.231.0 · 6.305.0 · 6.319.0 for the fourth time in
+this pair: when two modules read the same platform surface and one of them
+learns a lesson, the port is the WHOLE lesson — the order it asks in and
+what it records, not only the function that does the arithmetic. A rule
+ported halfway reads as a closed class.
+📏 BOUNDED, not a loop: the caller is init.lua's clipboard CHANGE handler
+(`_G.clipboardPollStats` is in the same block), so one unresolvable copy
+warns once. Not 6.281.0's shape.
+🗳 NEW GROUND for this surface — whether Finder still offers the plain
+flavour on his macOS is a platform fact this container cannot read, so the
+release ships the reader AND the flavour list, and the next occurrence
+names its own cause.
+
+### I2 📏 FOUR EXTENSIONS ARE STILL PAID ON A KEYPRESS — F2, with names
+
+His 11:13 boot, measured off the Console's own timestamps:
+```
+11:13:11  🧭 boot complete — 0.64s
+11:13:12  sound · menubar                    ← warm, ~2 s after boot
+11:13:13  webview · drawing · base64 · canvas · pathwatcher   ← warm
+11:13:58  axuielement · mouse               ← 48 s AFTER boot
+11:16:22  image · geometry                   ← 3 m 12 s AFTER boot
+```
+The 11:13:12–13 group is 6.348.0's warm touch working — `vid.warmed`
+deliberately pays webview, drawing and base64. The two LATE groups are
+paid by whatever keypress first touched them, on the main thread.
+🔑 So F2 is no longer "time the lazy loads"; it is four named extensions
+and 6.348.0's move applied to them. Likely first-touchers: `mouse` and
+`geometry` → mouse_grid / mouse_follows / window_move (⇪X, ⇪⇧L);
+`axuielement` → doc_memory / anchors / focus_mode / the selection read;
+`image` → any picker drawing app icons, which is ⇪space.
+📏 AND IT IS NOT THE WHOLE OF ⇪space. His trail has ⇪space at 1567 ms AND
+1571 ms in one session, so the second press paid no dylib load. A dylib
+load explains the FIRST press of a key, never every press.
+
+### I3 ✅ ⇪space IS PERCEPTIBLY SLOW — CONFIRMED, AND PARKED ON HIS WORD
+
+LL: "hyper+space did feel slow, and it seems ok, seems that is, ok for
+now." So the symptom is real and FELT, not only a number — which rules out
+"the clock is lying" and leaves the three candidates standing. He has
+deprioritised it; it is not built next.
+📏 THE MEASUREMENT STILL MATTERS, because it is arithmetic in the storm:
+six shortcuts at ~1.5 s is nine seconds of hold on their own, and the
+storm rule needs five. Slowness did not CAUSE the latch (no keyUp arrived
+— that is the latch) but it does make both storm conditions cheaper to
+reach. Keep that beside any future storm file.
+
+### I4 📋 `__G.stormReport()` — HIS TYPO, AND MEASURED AS NOT OURS
+
+```
+> __G.stormReport()
+[string "..."]:1: attempt to index a nil value (global '__G')
+```
+Grepped: `__G.` appears **nowhere** in any shipped file, so no message of
+ours prints a doubled underscore. The boot line was correct
+(`_G.stormReport() prints it`).
+✅ AND THE BELT IS WHAT SAVED IT: that same boot line names the FILE and
+says "(send that file)", and he sent the file. A command that fails and an
+artefact that arrives anyway is the design working.
+🗳 WORTH ASKING, NOT BUILDING: a command he must retype is a command that
+can be mistyped, and a Lua traceback is a refusal he cannot act on
+(6.320.0). Putting the command on the CLIPBOARD when the storm boot line
+prints would make it a paste. One line, his call.
+
+### I5 📂 Saved_URLs.txt IS AN ORPHAN — 116 days quiet, written by nothing
+
+`_G.stores()` names it as the quietest file in the Logs folder. Grepped:
+nothing in this config writes or reads `Saved_URLs`. So it is either a
+leftover from a deleted tool or a file he keeps by hand.
+🚨 IT IS NOT DELETED AND WILL NOT BE: 6.280.0 — nothing here erases
+something of his without him asking. Reported, and the question is his.
+
+### I6 🖱 VLC REFUSED AN ACCESSIBILITY WATCHER — working as designed
+
+`🖱 Mouse Follows Focus: VLC didn't accept an Accessibility watcher (said
+once per app per session)`. A degrade, named once per app, exactly as
+6.215.0's door requires. No action.
+
+### I7 🗳 THE FOCUS-DOOR QUESTION IS UNANSWERABLE BY HIM — SO I DECIDE
+
+LL: "I don't remember what picker or window did this. But it did happen."
+Asking again would be asking him to remember something he has told me he
+does not (6.364.0's lesson about ⌥↓/⌥⌫, and 6.312.0's about E1).
+🔑 SO IT IS CHOSEN FROM HIS OWN KEY TRAIL rather than from taste:
+`⇪n scratch pad` appears THREE times in 24 presses, more than any other
+panel, and Hamsidian is the one panel in this config he TYPES PARAGRAPHS
+in — which is where losing the caret costs most. **Hamsidian takes the
+focus door next**, and the remaining four (the task form, the screenshot
+editor, both players) follow one per release.
+
+### I8 ✅ G2 IS CLOSED ON HIS WORD
+
+LL: "Nevermind, I forgot about the @tools. We're good." So `@tool` in ⇪D
+plus ⇪⇧/ is the picker, no key is owed, and the row is struck. 6.317.0's
+shape confirmed for the sixth time — the instrument existed and the DOOR
+was what he could not find.
