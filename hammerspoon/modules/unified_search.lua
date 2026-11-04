@@ -1572,7 +1572,14 @@ if (q.focus) q.focus();
                 -- hs.pasteboard.setContents refuses by RETURNING FALSE and
                 -- never throws, so the pcall was true either way and a
                 -- refused write was announced as a copy (6.198.0).
-                if core.copyText(row.full or row.text or "", "⇪D") then
+                -- 📋 6.402.0 — a CLIPBOARD row is pasted at the caret
+                -- rather than only copied; everything else keeps copying,
+                -- because pasting a file path or a shortcut's keys into
+                -- whatever he was typing in is not what ⏎ means there.
+                if row.tag == "clip" then
+                    uni.pasteRow(row.full or row.text or "", row.src or "Clipboard")
+                    return                 -- pasteRow closes the panel itself
+                elseif core.copyText(row.full or row.text or "", "⇪D") then
                     hs.alert.show("📋 Copied — " .. (row.src or "text"))
                 end
             end
@@ -1582,11 +1589,116 @@ if (q.focus) q.focus();
     uni.handleMessage = handleMessage   -- exposed for the test suite
 
     -- ---- window -------------------------------------------------------------
-    function uni.hide()
+    -- 🎯 6.402.0 — CLOSING THIS PANEL PUTS YOU BACK WHERE YOU WERE.
+    -- It takes the keyboard (it is typed into), which activates
+    -- Hammerspoon — 6.251.0's price, unpaid here as it was in the edit
+    -- window. `keepFocus` is passed by the two callers that are about to
+    -- take the keyboard again themselves (show's "never two at once",
+    -- and the paste below, which hands the focus back itself and then
+    -- needs to know whether it really came back).
+    function uni.hide(keepFocus)
         if uni.webview then
             pcall(function() uni.webview:delete() end)
             uni.webview = nil
         end
+        -- AFTER the window is gone, never before: a window still on
+        -- screen takes the focus straight back off the app we activated.
+        if not keepFocus and _G.focusReturn then
+            pcall(_G.focusReturn, "⇪D")
+        end
+    end
+
+    -- =================================================================
+    -- 📋 6.402.0 — ⏎ ON A CLIPBOARD ROW PASTES IT
+    -- =================================================================
+    -- LL: "First result from history clipboard list is not pasted when
+    -- selected and it should be."
+    --
+    -- 🔎 AND THE FIRST ROW IS WHY IT READ AS BROKEN RATHER THAN AS A
+    -- MISSING FEATURE. ⏎ has always COPIED, and the first row of the
+    -- clipboard history IS whatever is already on the clipboard — so ⏎
+    -- there wrote back what was already there, pasted nothing, and
+    -- changed nothing observable. Every other row at least leaves ⌘V
+    -- carrying something different afterwards; row one does not, so the
+    -- one row he would try first is the one that looks dead. GENERAL:
+    -- when a tool is reported broken for one particular item, ask what
+    -- is unique about that item before looking at the mechanism.
+    --
+    -- 🚨 A ⌘V IS ONLY POSTED ONCE THE FOCUS IS PROVEN BACK. Posted while
+    -- this panel still has the keyboard it goes nowhere; posted after he
+    -- has moved on himself it lands in whatever he moved to, which could
+    -- be a document he did not mean to type into. Both are worse than
+    -- leaving the text on the clipboard — which 6.325.0's door has
+    -- already done by the time we get here — so a focus that did not
+    -- come back means COPY ONLY, said out loud, never a blind paste.
+    uni.pasteOnPick    = true    -- ✏️ false = ⏎ copies, as before 6.402.0
+    uni.pasteSettleSecs = 0.12   -- macOS activates an app on its own turn
+    uni.pastes = { asked = 0, posted = 0, copiedOnly = 0, last = nil }
+    uni.pasteTimer = nil
+
+    function uni.pasteRow(text, src)
+        local st = uni.pastes
+        st.asked = st.asked + 1
+        local function copiedOnly(why)
+            st.copiedOnly = st.copiedOnly + 1
+            st.last = { ok = false, why = why, src = src }
+            hs.alert.show("📋 It is on your clipboard — ⌘V pastes it\n"
+                          .. why, 4)
+            return false
+        end
+        -- The write comes first and through the one door, so a refusal is
+        -- announced by it and nothing below pretends otherwise (6.325.0).
+        if not core.copyText(text, "⇪D") then
+            st.copiedOnly = st.copiedOnly + 1
+            st.last = { ok = false, src = src,
+                        why = "macOS refused the clipboard write" }
+            return false
+        end
+        uni.hide(true)                 -- keep the loan; we return it below
+        if not uni.pasteOnPick then
+            st.last = { ok = false, src = src, why = "pasteOnPick is off" }
+            hs.alert.show("📋 Copied — " .. tostring(src or "text"), 3)
+            return false
+        end
+        local back = false
+        if _G.focusReturn then
+            back = (_G.focusReturn("⇪D") == true)
+        end
+        if not back then
+            return copiedOnly("the app you were in could not be brought back")
+        end
+        if not (hs.timer and hs.timer.doAfter) then
+            return copiedOnly("this Mac would not arm a timer")
+        end
+        -- 🪜 A HELD TIMER IN ITS OWN SLOT (6.196.1): activating an app
+        -- happens on macOS's own turn, so a ⌘V posted on this line
+        -- arrives before the app is in front.
+        if uni.pasteTimer then pcall(function() uni.pasteTimer:stop() end) end
+        uni.pasteTimer = hs.timer.doAfter(uni.pasteSettleSecs, function()
+            uni.pasteTimer = nil
+            -- 🚨 THROUGH THE SHARED INJECTION GUARD (6.218.0): a posted
+            -- ⌘V comes back through this config's own taps as typing, and
+            -- autocorrect is watching the same keystrokes.
+            local ok = (_G.withInjection or pcall)(function()
+                hs.eventtap.keyStroke({ "cmd" }, "v", 0)
+            end)
+            if ok then
+                st.posted = st.posted + 1
+                -- POSTED, not "pasted": 6.299.0 — a return that means
+                -- accepted is not a return that means delivered, and
+                -- nothing here can see where the keystroke landed.
+                st.last = { ok = true, src = src }
+            else
+                st.copiedOnly = st.copiedOnly + 1
+                st.last = { ok = false, src = src,
+                            why = "macOS refused the ⌘V" }
+                pcall(function()
+                    hs.alert.show("📋 It is on your clipboard — ⌘V pastes it\n"
+                                  .. "macOS refused the keystroke", 4)
+                end)
+            end
+        end)
+        return true
     end
 
     -- 🖐 WHERE YOU LEFT IT, ACROSS RELOADS (6.107.0) ----------------------
@@ -1725,6 +1837,33 @@ if (q.focus) q.focus();
             L[#L + 1] = "   ↳ a FAILED store is a bug to chase, not an empty one:"
                         .. " its rows are missing from every search until it loads."
         end
+        -- 📋 6.402.0 — THREE STATES, because "nothing has been picked"
+        -- and "every pick only made it to the clipboard" are different
+        -- facts and the second is the one worth chasing (6.196.1).
+        do
+            local ps = uni.pastes or {}
+            if not uni.pasteOnPick then
+                L[#L + 1] = "   ⏎ clip : OFF — ⏎ copies rather than pasting"
+                            .. "  (settings = { unified_search = { pasteOnPick = true } })"
+            elseif (ps.asked or 0) == 0 then
+                L[#L + 1] = "   ⏎ clip : no clipboard row has been picked this session"
+            else
+                L[#L + 1] = "   ⏎ clip : " .. ps.asked .. " picked · "
+                            .. tostring(ps.posted or 0) .. " ⌘V posted · "
+                            .. tostring(ps.copiedOnly or 0) .. " left on the clipboard only"
+                if (ps.copiedOnly or 0) > 0 then
+                    L[#L + 1] = "   ↳ NOT A FAILURE: the text is on the clipboard either"
+                                .. " way. A ⌘V is only posted once the app you came from"
+                                .. " is really back, because a blind one lands anywhere."
+                end
+                if ps.last then
+                    L[#L + 1] = "   ↳ last  : " .. (ps.last.ok and "✅ posted ⌘V"
+                                                    or "📋 clipboard only")
+                                .. " · " .. tostring(ps.last.src or "?")
+                                .. (ps.last.why and (" — " .. ps.last.why) or "")
+                end
+            end
+        end
         print(table.concat(L, "\n"))
         return true
     end
@@ -1759,7 +1898,7 @@ if (q.focus) q.focus();
 
     function uni.show(prefill)
         if not uni.enabled then return end
-        uni.hide()
+        uni.hide(true)                     -- never two at once; keep the loan
         if not (hs.webview and hs.webview.usercontent) then
             hs.alert.show("🔎 Unified Search needs hs.webview, which this "
                           .. "Hammerspoon does not have")
@@ -1826,6 +1965,10 @@ if (q.focus) q.focus();
         else
             pcall(function() view:show() end)
         end
+        -- 🎯 6.402.0 — BORROW THE FOCUS BEFORE TAKING IT, so closing
+        -- gives it back and ⏎ on a clipboard row can paste into the app
+        -- he came from rather than into nothing.
+        if _G.focusBorrow then pcall(_G.focusBorrow, "⇪D") end
         pcall(function() view:bringToFront(true) end)
 
         -- ⌨️ 6.193.0 — THE ⇪ RELEASE HANDSHAKE, which this panel never had.

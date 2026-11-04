@@ -75,6 +75,7 @@ end
 local LAST_HTML, BRIDGE, VIEW = nil, nil, nil
 local EVALS = {}            -- 6.204.0 — every script Lua pushed into the page
 local DRAGGED = {}
+local KEYS = {}            -- 6.402.0 — every keystroke this panel posted
 _G.beginPanelDrag = function(name) DRAGGED[#DRAGGED + 1] = name return true end
 
 hs = {
@@ -134,6 +135,17 @@ hs = {
         writeObjects = function(o) CLIPOBJ = o return true end,
     },
     alert = { show = function(m) ALERTS[#ALERTS + 1] = tostring(m) end },
+    -- 📋 6.402.0 — posting a ⌘V is how a pick is pasted. The stub records
+    -- the keystroke AND can REFUSE it, because a refusal is a state the
+    -- feature has to report rather than a branch nothing can reach
+    -- (6.265.0 — MISSING is not REFUSING; 6.290.0 — a stub that always
+    -- succeeds certifies the bug).
+    eventtap = {
+        keyStroke = function(mods, key)
+            if _G.KEYSTROKE_REFUSES then error("macOS refused the keystroke", 0) end
+            KEYS[#KEYS + 1] = table.concat(mods or {}, "+") .. "+" .. tostring(key)
+        end,
+    },
     timer = {
         secondsSinceEpoch = function() return 1000.4231 end,
         -- runTool defers by one run-loop turn so the panel is gone before
@@ -1426,14 +1438,20 @@ do
     local before = pass + fail
     U.show()
     if U.gather then pcall(U.gather) end
+    -- 🚨 DELIBERATELY NOT A CLIPBOARD ROW. 6.402.0 made ⏎ on one of those
+    -- PASTE rather than announce a copy, so this section — which is about
+    -- "a refused write is never announced as a copy" — would otherwise be
+    -- asserting a sentence that is false by design (6.248.0, and the
+    -- refusal rule it exists for is unchanged on both paths).
     local row
     for _, r in ipairs(U.rows or {}) do
-        if (r.full or r.text) and (r.full or r.text) ~= "" and r.kind ~= "image" then
+        if (r.full or r.text) and (r.full or r.text) ~= ""
+           and r.kind ~= "image" and r.tag ~= "clip" then
             row = r break
         end
     end
-    check("🧪 the section has a row with text to copy (without one it "
-          .. "proves nothing)", row ~= nil, #(U.rows or {}))
+    check("🧪 the section has a NON-clipboard row with text to copy "
+          .. "(without one it proves nothing)", row ~= nil, #(U.rows or {}))
     if not row then row = { id = "none", full = "" } end
 
     PB, ALERTS = nil, {}
@@ -1478,6 +1496,200 @@ end
 
 
 -- =====================================================================
+-- =====================================================================
+out("\n=== 9. 📋 6.402.0 — ⏎ ON A CLIPBOARD ROW PASTES IT ===\n")
+-- =====================================================================
+-- LL: "First result from history clipboard list is not pasted when
+-- selected and it should be."
+--
+-- 🔎 AND THE FIRST ROW IS WHY IT READ AS BROKEN RATHER THAN MISSING. ⏎
+-- has always COPIED, and the first row of the clipboard history IS
+-- whatever is already on the clipboard — so ⏎ there wrote back what was
+-- already there, pasted nothing, and changed nothing observable. Every
+-- other row at least leaves ⌘V carrying something new; row one does
+-- not, so the one row he would try first is the one that looks dead.
+do
+    local before = pass + fail
+    local BORROWS, RETURNS = {}, {}
+    local realBorrow, realReturn, realInject =
+        _G.focusBorrow, _G.focusReturn, _G.withInjection
+    local RETURN_ANSWER = true
+    _G.focusBorrow = function(who) BORROWS[#BORROWS + 1] = who return true end
+    _G.focusReturn = function(who) RETURNS[#RETURNS + 1] = who return RETURN_ANSWER end
+    local INJECTED = 0
+    _G.withInjection = function(fn) INJECTED = INJECTED + 1 return pcall(fn) end
+
+    local function clipRow()
+        U.show()
+        if U.gather then pcall(U.gather) end
+        for _, r in ipairs(U.rows or {}) do
+            if r.tag == "clip" and (r.full or r.text) and (r.full or r.text) ~= "" then
+                return r
+            end
+        end
+    end
+    local row = clipRow()
+    check("🧪 the section has a clipboard row (without one it proves nothing)",
+          row ~= nil, #(U.rows or {}))
+    if not row then row = { id = "none", full = "", tag = "clip" } end
+
+    -- 1. the happy path: copied, panel closed, focus back, ⌘V posted
+    U.show()
+    PB, ALERTS, KEYS, RETURNS, INJECTED = nil, {}, {}, {}, 0
+    U.pastes = { asked = 0, posted = 0, copiedOnly = 0, last = nil }
+    RETURN_ANSWER = true
+    BRIDGE({ body = { a = "pick", id = row.id } })
+    check("📋 the row reaches the clipboard first — whatever happens next, "
+          .. "⌘V carries it (6.325.0's door answers for the write)",
+          PB == row.full, tostring(PB))
+    check("📋 the panel is CLOSED before anything is posted — a ⌘V that "
+          .. "arrives while this window has the keyboard goes nowhere",
+          U.webview == nil)
+    check("🎯 ...and the focus is handed back to the app he came from",
+          #RETURNS == 1 and RETURNS[1] == "⇪D",
+          #RETURNS .. " · " .. tostring(RETURNS[1]))
+    check("📋 nothing is posted on THIS turn — macOS activates an app on "
+          .. "its own turn, so a ⌘V on this line beats the app to the front",
+          #KEYS == 0, #KEYS)
+    drain()
+    check("📋 a turn later the ⌘V is posted",
+          #KEYS == 1 and KEYS[1] == "cmd+v", table.concat(KEYS, ","))
+    check("🚨 ...THROUGH the shared injection guard, or our own taps read "
+          .. "it as him typing and autocorrect reads the pasted text "
+          .. "(6.218.0)", INJECTED == 1, INJECTED)
+    check("📋 and it is counted as POSTED, never as pasted — nothing here "
+          .. "can see where the keystroke landed (6.299.0)",
+          U.pastes.posted == 1 and U.pastes.copiedOnly == 0,
+          U.pastes.posted .. " posted · " .. U.pastes.copiedOnly .. " copied only")
+
+    -- 2. 🚨 THE GUARD: the focus did NOT come back, so NOTHING is posted.
+    U.show()
+    PB, ALERTS, KEYS, RETURNS, INJECTED = nil, {}, {}, {}, 0
+    U.pastes = { asked = 0, posted = 0, copiedOnly = 0, last = nil }
+    RETURN_ANSWER = false
+    BRIDGE({ body = { a = "pick", id = row.id } })
+    drain()
+    check("🚨 with the focus NOT back, no ⌘V is posted at all — a blind one "
+          .. "lands in whatever he moved to, which is worse than leaving "
+          .. "the text on the clipboard",
+          #KEYS == 0 and U.pastes.posted == 0, #KEYS)
+    check("🚨 ...the text is still on the clipboard, so nothing is lost",
+          PB == row.full, tostring(PB))
+    check("🔎 ...and he is TOLD, with the way to use it — silence here is "
+          .. "a key that looks dead, which is the bug being fixed",
+          (ALERTS[#ALERTS] or ""):find("⌘V pastes it", 1, true) ~= nil,
+          ALERTS[#ALERTS] or "(no alert)")
+    check("🔎 ...and it is counted apart from a posted paste (6.196.1)",
+          U.pastes.copiedOnly == 1, U.pastes.copiedOnly)
+
+    -- 3. a refused clipboard write never claims a paste
+    U.show()
+    PB, ALERTS, KEYS = nil, {}, {}
+    U.pastes = { asked = 0, posted = 0, copiedOnly = 0, last = nil }
+    RETURN_ANSWER = true
+    _G.COPY_REFUSES = true
+    BRIDGE({ body = { a = "pick", id = row.id } })
+    _G.COPY_REFUSES = false
+    drain()
+    check("🚨 a clipboard write macOS REFUSES posts no ⌘V and claims "
+          .. "nothing — there is nothing on the clipboard to paste",
+          #KEYS == 0 and PB == nil and U.pastes.posted == 0,
+          #KEYS .. " key(s) · " .. tostring(PB))
+
+    -- 4. a macOS that refuses the keystroke itself
+    U.show()
+    PB, ALERTS, KEYS = nil, {}, {}
+    U.pastes = { asked = 0, posted = 0, copiedOnly = 0, last = nil }
+    RETURN_ANSWER = true
+    _G.KEYSTROKE_REFUSES = true
+    BRIDGE({ body = { a = "pick", id = row.id } })
+    drain()
+    _G.KEYSTROKE_REFUSES = false
+    check("🔑 a ⌘V macOS REFUSES is counted as clipboard-only and SAID — "
+          .. "not announced as a paste that happened (6.265.0)",
+          U.pastes.posted == 0 and U.pastes.copiedOnly == 1
+          and (ALERTS[#ALERTS] or ""):find("⌘V pastes it", 1, true) ~= nil,
+          U.pastes.posted .. "/" .. U.pastes.copiedOnly)
+
+    -- 5. the switch is real in both directions
+    U.show()
+    PB, ALERTS, KEYS = nil, {}, {}
+    U.pastes = { asked = 0, posted = 0, copiedOnly = 0, last = nil }
+    U.pasteOnPick = false
+    BRIDGE({ body = { a = "pick", id = row.id } })
+    drain()
+    check("🔌 pasteOnPick = false copies and announces it, exactly as "
+          .. "before 6.402.0, and posts nothing",
+          #KEYS == 0 and PB == row.full
+          and (ALERTS[#ALERTS] or ""):find("Copied", 1, true) ~= nil,
+          ALERTS[#ALERTS] or "(no alert)")
+    U.pasteOnPick = true
+
+    -- 6. 🚨 EVERY OTHER SOURCE STILL COPIES. Pasting a file path or a
+    --    shortcut's keys into whatever he was typing in is not what ⏎
+    --    means there, and this is the check that keeps the change narrow.
+    U.show()
+    if U.gather then pcall(U.gather) end
+    local other
+    for _, r in ipairs(U.rows or {}) do
+        if r.tag ~= "clip" and (r.full or r.text) and (r.full or r.text) ~= ""
+           and r.kind ~= "image" and not r.service then other = r break end
+    end
+    if other then
+        PB, ALERTS, KEYS = nil, {}, {}
+        BRIDGE({ body = { a = "pick", id = other.id } })
+        drain()
+        check("🚨 a NON-clipboard row still only COPIES — no ⌘V is posted "
+              .. "into the app he was in",
+              #KEYS == 0 and (ALERTS[#ALERTS] or ""):find("Copied", 1, true) ~= nil,
+              ALERTS[#ALERTS] or "(no alert)")
+    else
+        check("🧪 a non-clipboard row was available to prove the change "
+              .. "stays narrow", false, "none found")
+    end
+
+    -- 7. opening the panel BORROWS the focus, so closing can give it back
+    BORROWS = {}
+    U.show()
+    check("🎯 opening the panel borrows the focus, naming itself",
+          #BORROWS == 1 and BORROWS[1] == "⇪D",
+          #BORROWS .. " · " .. tostring(BORROWS[1]))
+    RETURNS = {}
+    U.hide()
+    check("🎯 ...and an ordinary close gives it back, so Esc puts him back "
+          .. "where he was too", #RETURNS == 1 and RETURNS[1] == "⇪D",
+          #RETURNS)
+    RETURNS = {}
+    U.show()
+    check("🚨 ...but show's own close does NOT, because it is about to take "
+          .. "the keyboard again and the first loan names his app",
+          #RETURNS == 0, #RETURNS)
+
+    -- 8. the report's three states
+    U.pastes = { asked = 0, posted = 0, copiedOnly = 0, last = nil }
+    printed = {}
+    _G.unifiedSearchReport()
+    check("🔎 the report says nothing has been picked rather than printing "
+          .. "a row of zeros",
+          (printed[1] or ""):find("no clipboard row has been picked", 1, true) ~= nil,
+          printed[1])
+    U.pastes = { asked = 2, posted = 1, copiedOnly = 1,
+                 last = { ok = false, src = "Clipboard", why = "a reason" } }
+    printed = {}
+    _G.unifiedSearchReport()
+    check("🔎 ...and names the clipboard-only picks as NOT a failure, "
+          .. "because the text is on the clipboard either way",
+          (printed[1] or ""):find("NOT A FAILURE", 1, true) ~= nil
+          and (printed[1] or ""):find("1 ⌘V posted", 1, true) ~= nil,
+          printed[1])
+
+    _G.focusBorrow, _G.focusReturn, _G.withInjection =
+        realBorrow, realReturn, realInject
+    U.pastes = { asked = 0, posted = 0, copiedOnly = 0, last = nil }
+    local ran = (pass + fail) - before
+    check("📋 the 6.402.0 section ran all of its checks", ran >= 21, ran)
+end
+
 out("\n8. 📓 6.383.0 — @logs: every tool that has failed, searchable\n")
 -- =====================================================================
 -- LL: "I don't have at @ search for Logs." He was right. 6.279.0 built
