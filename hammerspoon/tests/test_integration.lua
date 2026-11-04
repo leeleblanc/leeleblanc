@@ -3854,9 +3854,24 @@ do
     -- ---- the ORDER in the file, which is the opening rule's claim ----
     -- The rule means "this config's output starts here", so any print of
     -- OURS above it is a lie. §0.2's dock-icon line was one.
-    local atRule  = init:find('_G.consoleRuleSay("▶ BOOT")', 1, true)
-    local atDock  = init:find("🖥 Dock icon hidden", 1, true)
-    local atReq   = init:find("local function safeRequire(mod)", 1, true)
+    -- 🚨 BOTH HALVES OF THIS CAME FROM THE SWEEP, and both are the same
+    -- old defect in a new place. The first version read the raw file, so
+    -- it found its own needle inside a COMMENTED-OUT call and stayed
+    -- green while nothing printed at all (6.262.0 · 6.359.0, which found
+    -- exactly this in its own test file). And it used find(), which
+    -- answers the FIRST position — so a SECOND call added below the
+    -- dock-icon line was invisible, and the "first thing we print" claim
+    -- was satisfied by the call that was still above it. So: strip the
+    -- comments, COUNT, and require the one call that exists to be above.
+    -- FULL-LINE comments only — a naive strip eats an argv (6.303.0).
+    local live = init:gsub("\n%s*%-%-[^\n]*", "\n")
+    local nCalls = select(2, live:gsub('_G%.consoleRuleSay%("▶ BOOT"%)', ""))
+    check("🧵 the opening rule is printed EXACTLY ONCE in live code — a "
+          .. "commented-out call prints nothing, and a second one lower "
+          .. "down puts a line of ours above the mark", nCalls == 1, nCalls)
+    local atRule  = live:find('_G.consoleRuleSay("▶ BOOT")', 1, true)
+    local atDock  = live:find("🖥 Dock icon hidden", 1, true)
+    local atReq   = live:find("local function safeRequire(mod)", 1, true)
     check("🧵 the opening rule is printed before the dock-icon line — the "
           .. "first thing this config prints",
           atRule and atDock and atRule < atDock,
@@ -3879,7 +3894,7 @@ do
         check("🧵 the 6.400.0 section ran to the end", false, tostring(secErr))
     end
     check("🧵 the 6.400.0 section ran all of its checks",
-          (pass + fail) - before >= 22, (pass + fail) - before)
+          (pass + fail) - before >= 23, (pass + fail) - before)
 end
 
 realPrint(table.concat(printed, "\n"))
