@@ -1,6 +1,6 @@
 # MANIFEST — what this release carries, one row per runtime file
-# version: 6.399.0
-# 92 file(s), 4735060 bytes
+# version: 6.402.0
+# 92 file(s), 4759116 bytes
 #
 # Read by modules/install_check.lua: _G.installCheck() stats each path
 # below, relative to ~/.hammerspoon, and names every file that disagrees.
@@ -11,13 +11,13 @@
 # ENTRY for this version, which is a better question than its length) ·
 # snippets/bundled.lua (generated, and rebuildable on his own Mac) · the
 # docs, tests/ and the other tools (not loaded or started by the config).
-init.lua	178067
+init.lua	181671
 core/boot_cost.lua	18672
 core/boot_report.lua	9305
 core/capabilities.lua	37112
 core/changelog_csv.lua	2651
 core/cheatsheet.lua	109926
-core/coexist.lua	44630
+core/coexist.lua	55971
 core/console.lua	13649
 core/diagnostics.lua	20763
 core/double_tap.lua	20818
@@ -70,7 +70,7 @@ modules/net_tools.lua	54342
 modules/net_watch.lua	24061
 modules/note_pad.lua	39972
 modules/numpad_layer.lua	44786
-modules/ocr_engine.lua	87552
+modules/ocr_engine.lua	88787
 modules/onedrive_check.lua	79898
 modules/pomodoro.lua	57299
 modules/power_tools.lua	121135
@@ -91,7 +91,7 @@ modules/text_case.lua	17160
 modules/text_expander.lua	131955
 modules/timer.lua	51105
 modules/ui_style.lua	13120
-modules/unified_search.lua	93374
+modules/unified_search.lua	101250
 modules/universal_actions.lua	36244
 modules/update_tracker.lua	35418
 modules/url_cleaner.lua	21584

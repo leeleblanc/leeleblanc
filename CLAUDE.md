@@ -487,6 +487,99 @@ work Mac.
   can answer it. A guard that fails on correct code is switched off
   inside a week (6.269.0).
 
+- 🎯 A PANEL THAT TAKES THE KEYBOARD OWES IT BACK (6.401.0 · 6.402.0,
+  core/coexist.lua's focus door — LL, on 6.397.0's edit window: "window
+  does not return cursour/ mouse to the active field it was already in
+  like this text box. I just use my trackpad to get back here. That
+  doesn't right as the cheat sheet doesn't do this").
+  🔑 HIS COMPARISON IS THE EXPLANATION: ⇪/ never takes focus, so it has
+  nothing to give back. A panel that must be TYPED INTO has no such
+  option — macOS hands the keyboard only to a KEY window and making one
+  of ours key activates the app (6.225.0 · 6.251.0). Both those releases
+  PAID that price and NAMED it in their reports, and neither built the
+  other half. A cost named is not a cost handled.
+  🚨 AND THE OBVIOUS BUILD IS WRONG, which only reading the callers
+  showed: ⇪⇧V, ⇪⇧O and ⇪⇧W open a CHOOSER first and the window after it,
+  so by the time the window opens the front app is already Hammerspoon
+  and "remember whatever was in front" records US — restoring nothing on
+  exactly the keys he uses, while passing any test that opened the window
+  straight from a document. GENERAL: when a panel is reached THROUGH
+  another panel of ours, "what was in front a moment ago" is the wrong
+  question; ask what was in front before ANY of ours was. A watcher that
+  ignores our own activations keeps that answer, and one door then serves
+  every caller with no call-site changes (6.266.0 · 6.391.0).
+  🚨 RETURNED ONLY IF WE ARE STILL FRONTMOST. A close can happen long
+  after the borrow — a belt, another window opening, a panic step — and
+  by then he may have clicked somewhere himself; activating the
+  remembered app then YANKS his focus out of what he moved to, which is
+  worse than the bug. 6.266.0's rule: a retry acting a turn later is
+  acting on a decision that may have been reversed, so it asks the world
+  first. Counted as MOVED ON, never as a refusal — and activate()'s own
+  answer is READ (6.325.0), because an app that quit meanwhile refuses.
+  📏 NAMED, NOT SWEPT: the edit window and ⇪D have taken the door. Every
+  other panel that takes the keyboard — Hamsidian, the task form, the
+  screenshot editor, both players — still leaves the focus with
+  Hammerspoon. One per release, the one he names next.
+
+- 📋 WHEN A TOOL IS REPORTED BROKEN FOR ONE PARTICULAR ITEM, ASK WHAT IS
+  UNIQUE ABOUT THAT ITEM (6.402.0, modules/unified_search.lua — LL:
+  "First result from history clipboard list is not pasted when selected
+  and it should be"). ⏎ in ⇪D had always COPIED, never pasted — so the
+  feature was missing for every row. What made him report the FIRST one
+  is that the first row of the clipboard history IS whatever is already
+  on the clipboard: ⏎ there wrote back what was already there, pasted
+  nothing, and changed nothing observable. Every other row at least
+  leaves ⌘V carrying something different afterwards. The item he named
+  was the one where a no-op and a correct copy are indistinguishable.
+  🚨 AND A POSTED ⌘V IS ONLY SAFE ONCE THE FOCUS IS PROVEN BACK. Posted
+  while the panel holds the keyboard it goes nowhere; posted after he has
+  moved on it lands in whatever he moved to. Both are worse than leaving
+  the text on the clipboard, which the 6.325.0 door has already done — so
+  a focus that did not come back means COPY ONLY, said out loud with the
+  way to use it. GENERAL: a keystroke this config posts into somebody
+  else's window is only ever posted against a PROVEN destination.
+  🪜 With a held timer in its own slot between the two (6.196.1 — macOS
+  activates an app on its own turn), through _G.withInjection (6.218.0),
+  and counted as POSTED rather than pasted (6.299.0 — nothing here can
+  see where it landed). Only a @clip row pastes: a path or a shortcut's
+  keys typed into his document is not what ⏎ means there.
+
+- 🧵 A MARKER THAT MUST SIT BESIDE AN EVENT YOU DO NOT CONTROL IS WRITTEN
+  FROM BOTH SIDES (6.400.0, init.lua §0.0 and §3.12a — LL: "please create
+  a divider above this line so I can see where one section ends and this
+  begins. It's not easy to find when I need to copy paste").
+  🔑 Hammerspoon prints "Lazy extension loading enabled" and "Loading
+  ~/.hammerspoon/init.lua" ITSELF, before any Lua of ours exists, so
+  nothing written from inside a boot can reach above them — but something
+  written before one can. A CLOSING rule from hs.shutdownCallback is the
+  last line of a session and lands exactly where he asked; an OPENING
+  rule covers the boots with no closing rule above them (cold start,
+  force quit, guard kill, panic, crash). One of the two will be the side
+  that happened, and a boot with no closing rule above it is itself a
+  fact worth reading.
+  🚪 CHAINED, NEVER ASSIGNED. That callback already carries the ⇪ remap
+  restore (6.65.1) and stall_guard chains its quit marker onto what it
+  finds (6.208.0). Assigning it would drop the restore SILENTLY and
+  nothing functional would notice — the cost lands on his keyboard after
+  a quit. A decoration never gets to cost the one piece of cleanup that
+  must run, so: print, then call what was there, each in its own pcall,
+  rule FIRST.
+  🚪 AND THE LEADING NEWLINE IS LOAD-BEARING TWICE — the gap that makes
+  it findable, and what takes core/console.lua's MULTI-LINE passthrough
+  (that gate silences a short line shown twice with DIGITS NORMALISED,
+  which is this line's exact shape). Its byte passthrough was built,
+  measured and thrown away: at three bytes per "═" it needed 106 visible
+  characters, which wraps in his Console. GENERAL: when two passthroughs
+  are open, take the one whose side effect is something you wanted.
+  📏 AND A BUDGET CHECK MOVED IN THE RELEASE THAT NEEDED IT, said rather
+  than buried. test_asana_dashboard asserted a bare `n < 3500` — 6.248.0's
+  defect, a literal standing in for a rule — and went red on a 70-line
+  divider while the real 3,800 ceiling sat 295 lines away. The ceiling is
+  unchanged; the check states the WORKING MARGIN (200 lines) now. The
+  release trimmed itself 120 → 70 lines FIRST. GENERAL: when a budget
+  check blocks your own work, trim before touching the number, and write
+  down that you touched it.
+
 - 🪟 A WEBVIEW REFUSES IN TWO DIRECTIONS AND A pcall SEES ONE (6.391.0,
   init.lua `_G.showWebviewSafely`). `view:show()` can THROW and it can
   simply RETURN FALSE, and no throw guard can see the second. Eleven
@@ -6649,6 +6742,26 @@ THE METHOD, when something breaks after a stacked zip:
    control survived, restore sha-verified; the sweep's own findings are
    in the 🩺 hard rule above, and the sharpest is the one that deleted a
    guard no input could ever fail (6.199.0, EIGHTH time).
+   · 6.400.0–6.402.0 936bb2d (6.400.0's divider) · bd4f22d (its sweep's
+   two findings, both in the checks: a sentry that found its own needle
+   inside a comment, and a find() that could not see a SECOND call added
+   below) · 88662ad (6.401.0's focus door) · 83e889e (its sweep's
+   finding: a harness clock that never moved, so "the oldest loan" was
+   arbitrary and right and wrong agreed — 6.230.0) · 7feae5c (6.402.0's
+   paste) · ac9e440 (its sweep's finding: a settle timer not held in a
+   named slot, which NO functional test can see because the suite's timer
+   table holds every timer whether the module does or not — asserted
+   against the SOURCE, as 6.196.1's task slots are).
+   🔑 THREE RELEASES IN THREE DIFFERENT PLACES on purpose — init.lua's
+   own boot and shutdown (6.400.0), core/coexist.lua plus ocr_engine
+   (6.401.0) and unified_search (6.402.0) — so a break still names its
+   version by which thing fails: no divider is 6.400.0, a trackpad reach
+   after an edit is 6.401.0, a ⏎ that does not paste is 6.402.0.
+   📏 AND 6.401.0 AND 6.402.0 SHARE A MECHANISM, which is worth knowing
+   before bisecting: the paste CANNOT work without the focus door, so a
+   ⏎ that copies instead of pasting may be either release. The ⏎ clip
+   line in `_G.unifiedSearchReport()` and `_G.focusReport()` separate
+   them in one run.
    Keep this list current: one line per release, appended at ceremony
    time.
 4. A BISECT IS AN OPTION, NOT THE FIRST MOVE — it costs him an install
@@ -6792,6 +6905,10 @@ that must be READ before a new cause is named.
 | "Turn off the OneDrive watcher and park the development" | modules/onedrive_check.lua — `enabled` was read nowhere | 6.381.0 | 1 | ask |
 | "add a simple timer I can launch using a shortcut key" · "I like hyper+shift+t if that is not taken" | modules/timer.lua · and ⇪⇧T was taken | 6.379.0 | 1 | a new tool, not a defect — nothing was broken |
 | "Fix the Asana dashboard or tell me what this means?" · "make this move safe-proof and non-destructive … both on my home and work mac" | init.lua §6 → modules/asana_dashboard.lua | 6.386.0 | 1 | not a defect — init.lua was five lines under its ceiling |
+| "window does not return cursour/ mouse to the active field it was already in" · "I just use my trackpad to get back here" | core/coexist.lua's focus door · modules/ocr_engine.lua · unified_search | 6.401.0 · 6.402.0 | 1 | degraded — nothing broke; a panel borrowed the keyboard and never gave it back |
+| "First result from history clipboard list is not pasted when selected" | modules/unified_search.lua — ⏎ copied, and row one IS the clipboard | 6.402.0 | 1 | ask |
+| "create a divider above this line so I can see where one section ends and this begins" | init.lua §0.0 · §3.12a — the Console had no mark between sessions | 6.400.0 | 1 | not a defect — a readability ask |
+| "⌘+hyper does not actuate a picker for every single Hammerspoon tool" | modules/unified_search.lua — @tool already lists every tool, on ⇪⇧/ | (open — a DOOR, not an instrument) | 0 | 6.317.0's shape again; the key is his to name |
 
 📏 SEEDED FROM THE RECORD, NOT INVENTED: every row above is a real
 report with a real release beside it, and the pass counts are countable
@@ -6881,9 +6998,12 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
-| 6.399.0 | 🩺 Did the whole release land? MANIFEST.txt and one command that names every file that disagrees | pending |
-| 6.398.0 | 📝 Closing a Hamsidian tab leaves its note — and says so, with the way to remove it | pending |
-| 6.397.0 | ✏️ The document edit opens the real window — the last picker still on macOS's one-line dialog | pending |
+| 6.402.0 | 📋 ⏎ on a clipboard row pastes it where you were typing — and the first row was why it looked dead | pending |
+| 6.401.0 | 🎯 The focus comes back when an edit window closes — no trackpad | pending |
+| 6.400.0 | 🧵 A divider in the Console, written from both sides of a boot | pending |
+| 6.399.0 | 🩺 Did the whole release land? MANIFEST.txt and one command that names every file that disagrees | **his own `_G.installCheck()` came back `✅ all 92 runtime file(s) are here at the size the release carried`, version matched, no strays (2026-11-04). NOT SCORED — he pasted the output, not a verdict** |
+| 6.398.0 | 📝 Closing a Hamsidian tab leaves its note — and says so, with the way to remove it | **WIN** — LL, 2026-11-04: "Closing Hamsidian tab works." |
+| 6.397.0 | ✏️ The document edit opens the real window — the last picker still on macOS's one-line dialog | pending — LL: "Document edit works but window does not return cursour/ mouse to the active field it was already in." The window is right; the focus was never given back, which is older than this release and is 6.401.0 |
 | 6.396.0 | 🗳 His own words for a risky row: "⚠️ Attention: your data may be in here ⚠️" | pending |
 | 6.395.0 | 🖱 The edit window drags — every part was built and one line ended it 16 ms in | pending |
 | 6.394.0 | 🔌 watchFolder = false really stops the watcher, not just the handler | pending |
@@ -8554,6 +8674,191 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.402.0 verify with LL — 📋 ⏎ PASTES A CLIPBOARD ROW (KNOWN GROUND)
+  WHAT CHANGED: in ⇪V (and ⇪D), pressing Return on a clipboard row now
+  PASTES it where you were typing, instead of only copying it.
+  🔎 AND YOUR FIRST-ROW REPORT WAS THE WHOLE DIAGNOSIS. ⏎ has always
+  copied — and the FIRST row of the clipboard history is whatever is
+  already on your clipboard. So ⏎ there wrote back what was already
+  there, pasted nothing, and changed nothing you could see. Every other
+  row at least leaves ⌘V carrying something different afterwards; row one
+  does not. The one row you would try first is the only one that looks
+  completely dead.
+
+  A. THE HEADLINE — thirty seconds, and it is your own test.
+  A1. Click into a text box you can type in — this one, a Chrome field,
+      a Word document. Leave the caret there.
+  A2. Press ⇪V. Press **Return on the FIRST row**, without moving.
+      EXPECT: the panel closes, you are back in your text box, and the
+      text appears at the caret.
+      **A FAIL is nothing happening** — that is the old behaviour exactly.
+  A3. Do it again on the third or fourth row. Same thing.
+  A4. ⇪V, arrow down a few rows, Return. Same.
+
+  B. THE ONES THAT PROTECT YOU — these matter more than A.
+  B1. Press ⇪V and then press **Escape**.
+      EXPECT: nothing is pasted anywhere, AND you are back in your text
+      box (that part is new too — see 6.401.0's block).
+  B2. Open ⇪V from the Hammerspoon **Console** (click the Console first),
+      then Return on a row.
+      EXPECT: it does NOT paste. You get "📋 It is on your clipboard —
+      ⌘V pastes it" and a reason. That is deliberate: there was no app to
+      go back to, and a ⌘V with nowhere to land is a keystroke that goes
+      into whatever happens to be in front.
+  B3. If you ever get that message when you DID come from a real app,
+      paste `_G.unifiedSearchReport()` — the ⏎ clip line names which of
+      four reasons it was.
+
+  C. MUST STILL WORK — this touched the panel every ⇪D search opens.
+  C1. ⇪D and search for something. ↑↓ walk, the preview pane follows.
+  C2. ⏎ on a **non-clipboard** row — an @ocr reading, an @shots path, a
+      @vault note. EXPECT: it still only COPIES and says "📋 Copied".
+      It must NOT type a file path into your document; that is the check
+      that keeps this change narrow.
+  C3. ⌘⏎ on a row still copies its path; ⌥⏎ still opens it.
+  C4. ⇪O and ⇪⇧space still open the panel pinned to their own source.
+  C5. ⌘⌘ still opens the clipboard history.
+  C6. ⇪⇧V (the editing picker) is untouched — it still edits and deletes.
+
+  D. PASTE BACK, PASS OR FAIL.
+  D1. `_G.unifiedSearchReport()` — the new ⏎ clip line:
+        ⏎ clip : 4 picked · 4 ⌘V posted · 0 left on the clipboard only
+      "left on the clipboard only" is NOT a failure — the text is on your
+      clipboard either way — but if that number is climbing I want to
+      know, because it means the focus is not coming back.
+
+  E. A JUDGEMENT ONLY YOU CAN MAKE.
+  E1. Should ⏎ paste for OTHER sources too? I deliberately limited it to
+      the clipboard, because typing a file path or a shortcut's keys into
+      whatever you were writing in is not what Return means there. If you
+      want @ocr readings pasted as well, say so — that is a one-line
+      change and it is your call.
+  E2. `settings = { unified_search = { pasteOnPick = false } }` puts the
+      old copy-only behaviour back. Say the word and I change the default
+      instead of leaving you a line to type.
+
+- 6.401.0 verify with LL — 🎯 THE FOCUS COMES BACK (KNOWN GROUND)
+  WHAT CHANGED: when an edit window closes, you are put back in the app —
+  and the field — you were in. No trackpad.
+  🔑 AND YOU NAMED THE COMPARISON THAT EXPLAINS IT: "the cheat sheet
+  doesn't do this." It does not, because ⇪/ never takes the keyboard. A
+  window you TYPE INTO has no such option — macOS hands the keyboard only
+  to an active window, and making one of ours active activates
+  Hammerspoon. Two earlier releases paid that price and wrote it down;
+  neither gave the focus back afterwards.
+
+  A. THE HEADLINE — a minute, and do it from a real text box.
+  A1. Click into a text box and type a word, leaving the caret there.
+  A2. Press **⇪⇧W** to open the documents list. Pick a row and edit it.
+      Change something and save (⌘⏎), or press Escape.
+  A3. EXPECT: you are back in your text box, with the caret in it. Type
+      immediately — you should not have to click or touch the trackpad.
+      **A FAIL is the caret not being there** — that is the bug.
+  A4. Do the same from ⇪⇧V (Return on a row opens the editor) and from
+      ⇪⇧O. All three go through the same window, so all three should
+      behave the same.
+
+  B. THE ONE THAT PROTECTS YOU — worth the thirty seconds.
+  B1. Open an edit window (⇪⇧V, Return on a row). Now, **before closing
+      it**, click into a different app yourself — Chrome, Finder,
+      anything.
+  B2. Go back and close the edit window (Escape).
+      EXPECT: you stay where YOU put yourself. It must NOT drag you back
+      to the app you originally came from.
+      That is deliberate: by then you have moved on, and the focus is not
+      ours to move. If it yanks you somewhere, tell me at once — that is
+      worse than the bug this fixes.
+
+  C. MUST STILL WORK.
+  C1. The edit window still comes to the front with the caret already in
+      it, as it has since 6.397.0 — the new half is only what happens
+      when it CLOSES.
+  C2. It still drags by its ⠿ grip (6.395.0).
+  C3. Save, delete and cancel all still do what they did.
+  C4. ⇪/ the cheat sheet still opens without taking the keyboard at all —
+      nothing about it changed, and it is the comparison you used.
+
+  D. PASTE BACK, PASS OR FAIL.
+  D1. Console: `_G.focusReport()` — NEW. On a healthy Mac:
+        asked   : 3 borrow(s) · returned 3 · nothing to give back 0 · already held 0
+        watching: yes · last app seen: Google Chrome
+        refused : none — every app asked for came back
+        holding : nothing — no panel owes the focus back
+      **PASTE THAT.** Three lines are worth reading:
+      · `watching:` — if it ever says ⚠️ NO, this Mac would not give us an
+        application watcher and a window reached through a picker cannot
+        give the focus back at all. That is a real finding.
+      · `refused :` — an app that quit while you were editing.
+      · `moved on:` — step B. NOT a fault, and the report says so.
+
+  E. A JUDGEMENT ONLY YOU CAN MAKE.
+  E1. 📏 NAMED, NOT SWEPT, so it is not a surprise: this release gave the
+      focus back from the EDIT WINDOW (and 6.402.0 adds ⇪D). Every other
+      panel that takes the keyboard — Hamsidian, the task form, the
+      screenshot editor, the Mug and Jug Players — still leaves it with
+      Hammerspoon when it closes. Tell me which of those annoys you most
+      and it takes the same door next; one per release, as always.
+      Hamsidian is my guess, because you write in it.
+
+- 6.400.0 verify with LL — 🧵 A DIVIDER IN THE CONSOLE (KNOWN GROUND)
+  WHAT CHANGED: there is now a line across the Console at the start and
+  the end of every session, so you can see where one boot's output stops
+  and the next one begins.
+  🔑 WHY THERE ARE TWO. Hammerspoon prints its own first two lines —
+  "Lazy extension loading enabled" and "Loading ~/.hammerspoon/init.lua"
+  — before any of my code exists, so nothing written during a boot can
+  ever get above them. But something written as the PREVIOUS session ends
+  can. So you get a closing line when you reload or quit, which lands
+  exactly where you asked for it, and an opening line for the boots that
+  have no closing line above them (a cold start, a force quit, a crash).
+
+  A. THE HEADLINE — ten seconds.
+  A1. Reload Hammerspoon (⌘⌃R, or the menu).
+  A2. Look at the Console.
+      EXPECT, in this order: a blank line, then
+        ═══════ ⏹ SESSION END · 6.402.0 · 2026-11-04 05:12:33 ══════════
+      then Hammerspoon's own two lines, then a blank line and
+        ═══════ ▶ BOOT · 6.402.0 · 2026-11-04 05:12:35 ════════════════
+      and then the boot you already know.
+      **A FAIL is no line at all.**
+  A3. Now do the thing you asked for it for: select from the ⏹ SESSION
+      END line down to the bottom and copy it. That is one whole session,
+      cleanly bounded.
+  A4. Reload once more and check you get BOTH lines again, with the right
+      version and the right time.
+
+  B. THE CASE WITH ONLY ONE LINE.
+  B1. Quit Hammerspoon properly (⌘Q) and start it again.
+      EXPECT: a ⏹ SESSION END line from the old session, then a ▶ BOOT.
+  B2. If Hammerspoon is ever force-quit, killed by the stall guard, or
+      crashes, there is no SESSION END — just the ▶ BOOT. That is the
+      point of having both, and it also tells you something: a boot with
+      no SESSION END above it means the last session did not end cleanly.
+
+  C. MUST STILL WORK — this touched the file every key passes through,
+     and the shutdown path that gives Caps Lock back.
+  C1. 🚨 THE IMPORTANT ONE: reload, then press ⇪ and use a few shortcuts —
+      ⇪T, ⇪D, ⇪N, ⇪X, ⇪4, ⇪space.
+      EXPECT: all normal. The closing line shares the shutdown path with
+      the code that stops Caps Lock sending F18 to nothing after
+      Hammerspoon goes away, so if Caps Lock ever behaves oddly after a
+      quit, that is this release and I want to know immediately.
+  C2. Quit Hammerspoon and then type. EXPECT: Caps Lock types capitals
+      again, normally. That is the restore still running.
+      If it does not: `hidutil property --set '{"UserKeyMapping":[]}'` in
+      Terminal fixes it, and tell me.
+  C3. The boot line still reads All green, 77 modules, and the same ⇪
+      shortcut count as before.
+  C4. ⇪⇧D still prints the diagnostic report; `_G.saved()` still prints.
+
+  D. A JUDGEMENT ONLY YOU CAN MAKE.
+  D1. Is the line the right WIDTH? It is 72 characters so it does not wrap
+      in a normal Console window. If it wraps on your screen, or if it is
+      too short to stand out, it is a number and not a release.
+  D2. Should it carry anything else — the Mac's name, the boot time? It
+      has the version and the clock now, which is what I would want for
+      pasting, but you are the one pasting it.
+  D3. `_G.consoleRules = false` silences both lines for a session.
 - 6.399.0 verify with LL — 🩺 DID THE WHOLE RELEASE LAND? (KNOWN GROUND)
   WHAT CHANGED: one new command. `_G.installCheck()` compares every file
   this release carries against what is actually on your Mac, and says

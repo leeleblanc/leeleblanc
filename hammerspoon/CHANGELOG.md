@@ -5,6 +5,193 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.402.0 — 📋 ⏎ ON A CLIPBOARD ROW PASTES IT
+  (modules/unified_search.lua). LL, 2026-11-04: "First result from
+  history clipboard list is not pasted when selected and it should be."
+  🔎 AND THE FIRST ROW IS WHY IT READ AS BROKEN RATHER THAN AS A MISSING
+  FEATURE, which is the half worth keeping. ⏎ in ⇪D has always COPIED —
+  `core.copyText(row.full, "⇪D")` — and the first row of the clipboard
+  history IS whatever is already on the clipboard. So ⏎ there wrote back
+  what was already there, pasted nothing, and changed nothing
+  observable at all. Every other row at least leaves ⌘V carrying
+  something different afterwards; row one does not. The one row he would
+  try first is the only one that looks completely dead. GENERAL: when a
+  tool is reported broken for one particular ITEM, ask what is unique
+  about that item before looking at the mechanism — here the item was
+  identical to the state the tool was about to put the Mac in.
+  🚨 A ⌘V IS ONLY POSTED ONCE THE FOCUS IS PROVEN BACK, and that is the
+  whole safety of the release rather than a detail of it. A ⌘V posted
+  while this panel still has the keyboard goes nowhere; one posted after
+  he has moved on himself lands in whatever he moved to, which could be
+  a document he never meant to type into. Both are worse than leaving
+  the text on the clipboard — which 6.325.0's door has already done by
+  the time we get there — so a focus that did not come back means COPY
+  ONLY, said out loud with the way to use it, and never a blind paste.
+  Driven four ways: the focus refused, the clipboard write refused, the
+  keystroke refused, and the switch off.
+  🪜 A HELD TIMER IN ITS OWN SLOT between the two (6.196.1): macOS
+  activates an app on its own turn, so a ⌘V posted on the line after
+  the focus is handed back beats the app to the front. No timer → copy
+  only, said. The sweep found that slot unheld and no functional test
+  could see it, because the suite's timer table holds every timer
+  whether the module does or not (6.290.0) — so it is asserted against
+  the SOURCE, exactly as 6.196.1's Secure Input task slots are.
+  🚨 THROUGH THE SHARED INJECTION GUARD (6.218.0): a posted ⌘V comes
+  back through this config's own taps as typing, and autocorrect is
+  watching the same keystrokes.
+  📏 COUNTED AS POSTED, NEVER AS PASTED (6.299.0) — nothing here can see
+  where the keystroke landed, so the report says what is known.
+  🚨 AND THE CHANGE STAYS NARROW: only a @clip row pastes. Pasting a
+  file path or a shortcut's keys into whatever he was typing in is not
+  what ⏎ means there, and a check keeps it that way.
+  🎯 ⇪D also BORROWS and RETURNS the focus (6.401.0's door, taken by its
+  second caller), so Esc on the panel puts him back where he was too.
+  🧪 AND AN EXISTING CHECK WAS ASSERTING THE OLD SENTENCE: 6.325.0's
+  section picked the first row with text — a clipboard row — and
+  asserted "📋 Copied", which is false by design now (6.248.0). It takes
+  a NON-clipboard row, so it still proves the rule it was written for.
+  📏 `settings = { unified_search = { pasteOnPick = false } }` is the way
+  back. `_G.unifiedSearchReport()`'s ⏎ clip line, three states.
+
+NEW IN 6.401.0 — 🎯 THE FOCUS IS GIVEN BACK (core/coexist.lua +
+  modules/ocr_engine.lua). LL, 2026-11-04, on 6.397.0's document edit
+  window: "Document edit works but window does not return cursour/ mouse
+  to the active field it was already in like this text box. I just use
+  my trackpad to get back here. That doesn't right as the cheat sheet
+  doesn't do this."
+  🔑 HE IS RIGHT, AND HE NAMED THE COMPARISON THAT EXPLAINS IT. The
+  cheat sheet is opened WITHOUT taking focus, so it has nothing to give
+  back. A panel that must be TYPED INTO has no such option: 6.225.0 and
+  6.251.0 established that macOS hands the keyboard only to a KEY window
+  and that making one of ours key activates Hammerspoon. Both releases
+  paid that price and named it in their reports; neither built the other
+  half. The focus was borrowed and never returned, so every edit ended
+  at the trackpad.
+  🚨 AND THE OBVIOUS BUILD IS WRONG, which only reading the callers
+  showed rather than a test. "Remember whichever app was in front when
+  the panel opened" fails on BOTH of the real paths: ⇪⇧V, ⇪⇧O and ⇪⇧W
+  open a CHOOSER first and the edit window after it, and a chooser takes
+  the keyboard — so by the time the window opens the app in front is
+  already Hammerspoon and the borrow records "you came from ourselves".
+  It would have restored nothing on exactly the keys he uses, while
+  passing any test that opened an editor straight from a document.
+  GENERAL: when a panel is reached through another panel of ours, "what
+  was in front a moment ago" is not the question — ask what was in front
+  before ANY of ours was.
+  🔑 SO A WATCHER KEEPS THE ANSWER: the last app that was frontmost and
+  was not this one. One hs.application.watcher, a callback that stores a
+  handle and nothing else, and every caller is served by one door with
+  no call-site changes at all (6.266.0 · 6.391.0 — close the class, do
+  not edit N modules). Started at boot rather than lazily, on purpose:
+  the FIRST edit of a session is the one he would test, and a watcher
+  that starts on first use has no history to answer from. COST, NAMED:
+  one more application watcher, which is cheap to create and does
+  nothing per event but a comparison.
+  🚨 THE RULE THAT MAKES IT SAFE: the focus is returned ONLY IF
+  HAMMERSPOON IS STILL FRONTMOST at the moment of the return. A close
+  can happen long after the borrow — a belt firing, another editor
+  opening, a panic step — and by then he may have clicked into something
+  himself. Activating the remembered app then would YANK his focus out
+  of whatever he moved to, which is worse than the bug this fixes.
+  6.266.0's rule in a new place: a retry that acts a turn later is
+  acting on a decision that may already have been reversed, so it asks
+  the world first. Counted as MOVED ON, never as a refusal — different
+  facts, and only one of them is a fault.
+  🔑 AND THE RETURN READS activate()'s ANSWER (6.325.0). An app that
+  quit since the borrow answers false or throws; both are refusals,
+  named and counted. Saying "done" over a refusal means he reaches for
+  the trackpad anyway with nothing recorded.
+  🚪 Separate slots keyed by who borrowed (6.196.1 · 6.304.0), bounded,
+  and a SECOND borrow keeps the FIRST loan — replacing an open box must
+  not re-record us as the app to go back to. The return happens AFTER
+  the window is torn down, never before: a window still on screen takes
+  the focus straight back off the app we just activated.
+  🕒 AND THE SWEEP FOUND A REAL ONE UNDER A DEAD FIXTURE. The loan was
+  stamped with the app's last ACTIVATION time, so an app in front an
+  hour ago but borrowed just now looked like the oldest loan and would
+  be dropped first by the bound — "oldest loan" quietly meant "least
+  recently used app". It carries its own borrow time now. The survivor
+  that exposed it was only visible once the harness clock could MOVE: it
+  was a constant, so every loan shared a timestamp and the right and
+  wrong implementations agreed (6.230.0).
+  🏠 It lives in core/coexist.lua on its merits — that file answers "two
+  features want the same resource, who gets it?", and FOCUS is such a
+  resource exactly as the pasteboard and the POINTER there are (6.306.0
+  moved the drag engine there for the same reason).
+  🔬 The suite's stub had no hs.application at all, so every refusal
+  branch was unreachable; it models both (a false return AND a throw —
+  6.265.0, MISSING is not REFUSING) and captures the watcher so
+  activations can be fired. `_G.focusReport()`.
+
+NEW IN 6.400.0 — 🧵 A BOOT IS FINDABLE IN THE CONSOLE (init.lua §0.0 and
+  §3.12a). LL, 2026-11-04: "If possible, please create a divider above
+  this line so I can see where one section ends and this begins. It's
+  not easy to find when I need to copy paste." One session's lines ran
+  straight into the previous session's with no mark between them, so
+  finding where a boot STARTS meant hunting for "Lazy extension loading
+  enabled" and trusting that the line above it belonged to the run
+  before.
+  🔑 TWO RULES, EACH COVERING THE OTHER'S GAP. Hammerspoon prints "Lazy
+  extension loading enabled" and "Loading ~/.hammerspoon/init.lua"
+  ITSELF, before any Lua of ours exists, so nothing written from this
+  side of a boot can get above them — but something written before one
+  can. A CLOSING rule from hs.shutdownCallback is the last line of a
+  session and therefore sits directly above the next session's first
+  line, which is literally where he asked for it; an OPENING rule in
+  §0.0 covers the boots that have no closing rule above them (a cold
+  start, a force quit, a stall-guard kill, a panic, a crash). A clean
+  reload brackets Hammerspoon's own two lines; an unclean one still
+  carries a mark. GENERAL: when a marker has to sit beside an event you
+  do not control, write it from BOTH sides — one of them will be the
+  side that happened.
+  🚪 CHAINED, NEVER ASSIGNED. hs.shutdownCallback already carries the ⇪
+  remap restore (6.65.1), without which Caps Lock goes on sending F18 to
+  nothing after Hammerspoon is gone, and modules/stall_guard.lua chains
+  its quit marker onto whatever it finds (6.208.0). Assigning the
+  callback here would have dropped that restore silently, and nothing
+  functional in this config would ever have noticed — the cost lands on
+  his keyboard after a quit. So: print, then call what was already
+  there, each in its own pcall, with the rule FIRST so a cleanup that
+  hangs still leaves the mark. Driven four ways: a prev that runs, a
+  rule that throws, a prev that throws, and no prev at all.
+  🚪 THE LEADING NEWLINE IS LOAD-BEARING TWICE — it is the gap that
+  makes the rule findable at a glance, and it takes core/console.lua's
+  MULTI-LINE passthrough. That gate silences a short line it has shown
+  twice with DIGITS NORMALISED, which is this line's exact shape. Its
+  other passthrough (a line over 200 bytes) was built, measured and
+  thrown away: at three bytes per "═" it needed 106 visible characters,
+  which wraps in his Console. GENERAL: when two passthroughs are open,
+  take the one whose side effect is something you wanted anyway.
+  📏 THE WIDTH IS COUNTED IN CHARACTERS, NOT BYTES, and the fixture that
+  bites says why: a byte-counted pad stops at 72 bytes, about 24 visible
+  characters, so right and wrong differ by a factor of three here and
+  nowhere on an all-ASCII fixture (6.230.0 · 6.226.0 read the right way
+  round — count in the unit the budget is ABOUT).
+  📏 `_G.configVersion` is assigned in §0.0 now rather than beside the
+  boot clock: the rule claims "this config's output starts here", so any
+  line of OURS above it is a lie and §0.2's dock-icon line was one. The
+  stamp MOVED, it was not copied — still exactly one literal, asserted.
+  🚨 THE SWEEP FOUND BOTH OF ITS SURVIVORS IN THE CHECKS THEMSELVES, and
+  both are old rules in a new place. A sentry read the raw file, so
+  commenting the opening rule out left it green while nothing printed at
+  all — its own needle was still there inside the comment (6.262.0, and
+  6.359.0 found exactly this in its own test file). And find() answers
+  the FIRST position, so a SECOND call added BELOW the dock-icon line
+  was invisible: the "first thing this config prints" claim was
+  satisfied by the call still above it. The check COUNTS now, over
+  source with full-line comments stripped (6.303.0 — a naive strip eats
+  an argv).
+  📏 AND A BUDGET CHECK MOVED, SAID PLAINLY BECAUSE IT WAS THIS RELEASE
+  THAT NEEDED IT. test_asana_dashboard asserted a bare `n < 3500`, which
+  is 6.248.0's defect — a literal standing in for a rule — and it went
+  red on a 70-line divider while the real ceiling sat 295 lines away.
+  The ceiling is unchanged at 3,800; the check now states the WORKING
+  MARGIN 6.386.0's move bought (200 lines), and it is still 195 lines
+  tighter than where 6.385.0 sat. The release paid its own way first:
+  the block was trimmed from 120 lines to 70 and its story moved here,
+  before that number was touched.
+  📏 `_G.consoleRules = false` silences both rules for a session.
+
 NEW IN 6.399.0 — 🩺 DID THE WHOLE RELEASE LAND? (MANIFEST.txt +
   modules/install_check.lua). LL, 2026-09-29, once a Console installer
   had put one module file in place by hand: "Will this be added as

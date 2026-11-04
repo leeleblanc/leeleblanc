@@ -4,66 +4,69 @@
 -- =====================================================================
 -- 11-03-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.400.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.402.0
 -- =====================================================================
 
--- NEW IN 6.399.0 — 🩺 DID THE WHOLE RELEASE LAND? (MANIFEST.txt +
---   modules/install_check.lua). LL, after a Console installer had put one
---   module file in place by hand: "Will this be added as
---   'Get-Jug-Player-going.md' … so I don't have to remember?" Yes, and
---   NOT as a file named after one tool — seventy-seven modules can
---   half-install, so such a document is right about one of them and
---   silently misleading about the other seventy-six (6.276.0's hand-kept
---   register, deleted twice already). The archive carries MANIFEST.txt,
---   one row per runtime file with its byte count, GENERATED at ceremony
---   time; _G.installCheck() stats each row and names what disagrees.
---   🔎 THE FAILURE IS MEASURED: 6.311.0's hand-placed module left his
---   _G.musicReport() unable to emit a line the new file always emits,
---   and a probe read `bytes : 107414` against the 116,595 the release
---   carried. The config booted green, the stamp was right, the feature
---   was simply absent.
---   📏 SIZE, NOT A HASH — a stat reads nothing, so it costs nothing on
---   the main thread (6.228.0) and cannot hydrate a placeholder. The
---   limit is NAMED in the report: a file edited to exactly the same
---   LENGTH reads as a match. The hash path the earlier plan promised is
---   deliberately not built — hs.hash's presence is a platform fact this
---   container cannot read in the source (6.233.0) and a guard for a case
---   that has never happened is dead code with a comment on it (6.199.0).
---   🔎 AND THE HALF A MANIFEST WALK CANNOT SEE is a file the manifest
---   does NOT name: §1.12 loads an explicit list, so Finder's Keep Both
---   copy is ignored while the original stays loaded. 6.276.0 from the
---   other end — core/ and modules/ are listed too, strays are reported,
---   and a folder read only as far as its 300-entry bound says the count
---   is a FLOOR rather than printing "none" (6.197.2).
---   🔕 SILENT WHEN HEALTHY (6.269.0) — nothing, ever, on a matching
---   install. It speaks from M.warm and takes the 🔔 door, because a green
---   boot with a feature absent is what 6.311.0 cost. From warm, never
---   setup (6.267.0); a Mac that cannot arm a timer checks at once and the
---   miss is counted. 🏷 And the manifest's own version is checked against
---   _G.configVersion — the half-install one level up.
---   📝 CHANGELOG.md and snippets/bundled.lua are deliberately OUT, and
---   the report says so: changelog_csv already checks this version's ENTRY
---   (a better question than its length — 6.317.0), and bundled.lua is
---   generated and legitimately rebuilt from packs the archive never saw.
+-- NEW IN 6.402.0 — 📋 ⏎ ON A CLIPBOARD ROW PASTES IT
+--   (modules/unified_search.lua). LL: "First result from history
+--   clipboard list is not pasted when selected and it should be."
+--   🔎 AND THE FIRST ROW IS WHY IT READ AS BROKEN RATHER THAN MISSING.
+--   ⏎ has always COPIED, and the first row of the clipboard history IS
+--   whatever is already on the clipboard — so ⏎ there wrote back what
+--   was already there, pasted nothing, and changed nothing observable.
+--   Every other row at least leaves ⌘V carrying something different
+--   afterwards; row one does not, so the one row he would try first is
+--   the one that looks dead. GENERAL: when a tool is reported broken
+--   for one particular ITEM, ask what is unique about that item before
+--   looking at the mechanism.
+--   🚨 A ⌘V IS ONLY POSTED ONCE THE FOCUS IS PROVEN BACK. Posted while
+--   the panel still has the keyboard it goes nowhere; posted after he
+--   has moved on himself it lands in whatever he moved to. Both are
+--   worse than leaving the text on the clipboard, which 6.325.0's door
+--   has already done — so a focus that did not come back means COPY
+--   ONLY, said out loud with the way to use it, never a blind paste.
+--   🪜 A held timer in its own slot between the two (6.196.1): macOS
+--   activates an app on its own turn. Through _G.withInjection
+--   (6.218.0). Counted as POSTED, never pasted (6.299.0). Only a @clip
+--   row pastes — a path or a shortcut's keys must not be typed into his
+--   document. `pasteOnPick = false` is the way back.
 
--- NEW IN 6.398.0 — 📝 CLOSING A HAMSIDIAN TAB LEAVES ITS NOTE, AND SAYS
---   SO (modules/scratch_pad.lua). 6.387.0 asked whether a closed tab's
---   .md should go with it; LL: "How do I know?" — so the decision is
---   mine and the reasoning is in the module.
---   🔑 IT STAYS, and not for the obvious reason. "Nothing here deletes
---   your writing" (6.280.0) is the weaker half. The sharper half is what
---   ⌘W MEANS: a tab is a SURFACE and a note is a DOCUMENT, so closing a
---   tab tidies the desk rather than throwing the paper away. If ⌘W
---   deleted the note, the key he presses to clear his screen would be
---   destructive — and a key you have to think before pressing is a key
---   you stop pressing. The way out exists: the ✕ on its row in ⇪3, to
---   the bin, with an undo (6.321.0).
---   🚨 THE DEFECT WAS NEVER THE POLICY — IT WAS THAT IT WAS SILENT. A
---   file stayed behind and nothing said so, which is what makes a
---   correct default feel like a leak. Said at the moment it happens now,
---   with the way to remove it in the same breath, and COUNTED.
+-- NEW IN 6.401.0 — 🎯 THE FOCUS IS GIVEN BACK (core/coexist.lua +
+--   modules/ocr_engine.lua). LL, on 6.397.0's edit window: "window does
+--   not return cursour/ mouse to the active field it was already in
+--   like this text box. I just use my trackpad to get back here. That
+--   doesn't right as the cheat sheet doesn't do this." He is right, and
+--   he named the comparison that explains it: the cheat sheet never
+--   takes focus. A window that must be TYPED INTO has no such option
+--   (6.225.0 · 6.251.0 named that price), and neither release built the
+--   other half — the focus was borrowed and never returned.
+--   🚨 AND THE OBVIOUS BUILD IS WRONG, which only reading the callers
+--   showed. "Remember whatever was in front when the panel opened"
+--   fails on BOTH real paths: ⇪⇧V, ⇪⇧O and ⇪⇧W open a CHOOSER first, so
+--   by the time the window opens the front app is already Hammerspoon.
+--   GENERAL: when a panel is reached through another panel of ours, ask
+--   what was in front before ANY of ours was. A watcher keeps that
+--   answer, and one door serves every caller with no call-site changes.
+--   🚨 RETURNED ONLY IF HAMMERSPOON IS STILL FRONTMOST: a close can
+--   happen long after the borrow, and activating the remembered app
+--   then would YANK his focus out of what he moved to (6.266.0).
+--   Counted as MOVED ON, never as a refusal. activate()'s answer is
+--   READ (6.325.0). _G.focusReport().
 
 --   ALSO IN THIS ARCHIVE (full entries in CHANGELOG.md):
+--   🧵 6.400.0 a BOOT IS FINDABLE in the Console — LL: "create a divider
+--   above this line so I can see where one section ends and this
+--   begins." TWO rules: a CLOSING one from hs.shutdownCallback lands
+--   above the NEXT session's first line, which is where he asked for
+--   it, and an OPENING one covers the boots with no closing rule above
+--   them. CHAINED, never assigned, so the ⇪ remap restore (6.65.1)
+--   cannot be dropped. The leading newline takes core/console.lua's
+--   multi-line passthrough.
+--   🩺 6.399.0 _G.installCheck() + MANIFEST.txt — every runtime file
+--   against the size the release carried, so "did it all land?" is
+--   answered by a stat rather than a document.
+--   📝 6.398.0 closing a Hamsidian tab leaves its note AND SAYS SO — a
+--   correct default that is silent is indistinguishable from a leak.
 --   ✏️ 6.397.0 the DOCUMENT EDIT takes the real window — the last picker
 --   in the config still on hs.dialog.textPrompt, a one-line NSAlert that
 --   opens behind what is in front. The prompt stays as the degrade,
@@ -99,11 +102,11 @@
 --   two-door feature losing ONE door is invisible, which is why it
 --   needed a grep rather than a report.
 
--- (6.397.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.400.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 cut the inline count to
 --  TWO; a gate check proves every entry here is also in CHANGELOG.md.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.400.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.402.0
 -- =====================================================================
 -- The catalogue that used to sit here moved to GUIDE.md ("What each
 -- tool does") in 6.180.0 — 259 lines of prose inside the orchestrator.
@@ -192,7 +195,7 @@ function _G.consoleRuleSay(what)
     return true
 end
 
-_G.configVersion = "6.400.0"
+_G.configVersion = "6.402.0"
 _G.consoleRuleSay("▶ BOOT")
 
 local function safeRequire(mod)

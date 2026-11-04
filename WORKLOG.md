@@ -8,31 +8,26 @@ moves a row, the way GUIDE.md's counts are — a stale worklog is worse than
 none, because it is what gets read when deciding what to build next
 (6.319.0: a list of what is left is a SAMPLE until somebody greps).
 
-## 🚨 BEFORE ANYTHING: HE IS FOUR RELEASES BEHIND
+## ✅ HE IS CURRENT, AND THE INSTALL CHECK PROVED IT
 
-His boot log, 2026-11-03 04:15:10:
+His boot log and his own `_G.installCheck()`, 2026-11-04 04:58–05:00:
 
-    📌 init.lua ARCHITECTURE VERSION: 6.385.0
-    🧭 Lees-MacBook-Air · 75 modules · 111 ⇪ shortcuts · 0.85s
+    📌 init.lua ARCHITECTURE VERSION: 6.399.0
+    🧭 Lees-MacBook-Air · 77 modules · 111 ⇪ shortcuts · 0.57s
+    🩺 INSTALL CHECK — 6.399.0
+       version : 6.399.0 — the manifest is for this release
+       files   : ✅ all 92 runtime file(s) are here at the size the release carried
+       strays  : none — core/ and modules/ hold only what shipped
 
-The repo is at 6.389.0 (76 modules). So **6.386.0, 6.387.0, 6.388.0 and
-6.389.0 are built, gated, committed and not installed.** The archive
-`hammerspoon6.389.0.tar.gz` was delivered inline on 2026-11-02 and his Mac
-has never run it.
+So the ten-release archive ARRIVED, INSTALLED and LOADED — all four links
+of 6.263.0's chain paid at once — and 6.399.0's own instrument says the
+whole release landed rather than a boot line implying it. That is the
+first time this project has been able to answer "did it ALL land?" with
+a measurement, and it answered on the first run.
 
-WHAT THAT EXPLAINS, so neither of us chases it as a bug:
-  · `_G.appOrphans()` → nil. It is 6.389.0 code.
-  · `_G.appRemoveReport()` → "🗑 APP REMOVAL 6.385.0" — the version IS the
-    diagnosis, and it is why that report has no `orphans:` line.
-  · Hamsidian tabs last written 13 days ago — 6.387.0's auto-write is not
-    running there.
+THE ONE-LINE CHECK stays the first thing in every delivery from here:
 
-THE ONE-LINE CHECK, and it is the first thing in every delivery from here:
-
-    sed -n 7p ~/.hammerspoon/init.lua
-
-NOT A BUG, measured: `_G.installCheck()` returning nil is correct on every
-build ever shipped. It has never been written. It is row F3 below.
+    _G.installCheck()
 
 ## 📋 THE QUEUE
 
@@ -68,7 +63,7 @@ said yes and it is not to be re-asked.
 | # | what | his word | state |
 |---|---|---|---|
 | D1 | ⌘Space launcher | "I already said yes" | ☐ |
-| D2 | MANIFEST.txt + `_G.installCheck()` | ran it four times, got nil | ☐ |
+| D2 | MANIFEST.txt + `_G.installCheck()` | ran it four times, got nil | ✅ **6.399.0** — and it came back green on his Mac |
 | D3 | The draft keeper | "Already said yes" | ☐ |
 | D4 | Size the Mug Player to the film | "Already said yes" | ☐ |
 | D5 | ⇪7's macOS detail | "yes" | ☐ |
@@ -106,6 +101,31 @@ said yes and it is not to be re-asked.
 | F1 | `tests/test_lint.lua` — hs-lint has no suite and every rule in it is a bug that cost a release | ☐ |
 | F2 | The 73-second lockup: time every lazy extension load in `M.warm` (his 04:15 boot shows six of them AFTER the summary, and `762 ms — this Mac usually takes 220`) | ☐ |
 | F3 | (see D2 — MANIFEST/installCheck) | — |
+
+### G — HIS 2026-11-04 REPORT, all ten items
+
+| # | his words | what it is | state |
+|---|---|---|---|
+| G1 | "First result from history clipboard list is not pasted when selected and it should be." | REAL. ⏎ in ⇪V has always COPIED, and row one IS the clipboard — so ⏎ there changed nothing observable. The first row was the diagnosis | ✅ **6.402.0** |
+| G2 | "⌘+hyper does not actuate a picker for every single Hammerspoon tool I've created and it should." | **A DOOR, not an instrument (6.317.0, sixth time).** `@tool` in ⇪D already lists every tool and shortcut this config has, and **⇪⇧/ opens the panel pinned to it**. So the picker exists; the key he reached for does not open it. NEEDS ONE WORD FROM HIM: which key — and ⌘⇪ as a chord has to be checked against the registry first | ❓ asked |
+| G3 | "Closing Hamsidian tab works." | 6.398.0 confirmed | ✅ **WIN, scored** |
+| G4 | "Document edit works but window does not return cursour/ mouse to the active field… I just use my trackpad to get back here. That doesn't right as the cheat sheet doesn't do this." | REAL, and his comparison explains it: ⇪/ never takes focus. Older than 6.397.0 — the window has always activated Hammerspoon and never given it back | ✅ **6.401.0** |
+| G5 | "Not sure if this happens: 🔌 watchFolder = false really stops the watcher" | **HE CANNOT SEE IT, and that is my fault for listing it as if he could.** It is invisible unless he sets the setting. The evidence is the `watch :` line in `_G.screenshotsReport()`, which has three states | ❓ answered in words |
+| G6 | "Not sure if happens: ⏱ One hung OCR no longer wedges the naming queue" | Same: invisible on a healthy Mac. It only shows when a `shortcuts` run hangs, and then the queue keeps draining instead of stopping for the session | ❓ answered in words |
+| G7 | "How to test? 🆔 A file reference is resolved by a bookmark" | There IS a recipe: ⌘C an image FILE in Finder (the file, not the pixels) and press the OCR tag key. Before 6.392.0 that path produced a plausible-looking path that could not be opened | ❓ answered in words |
+| G8 | "Uncertain: 🪟 One door for every webview show" | Invisible on a healthy Mac by design. `_G.webviewShowReport()` is the evidence; on a good day it reads "refused : none" | ❓ answered in words |
+| G9 | "🪟 The Jug Player's catcher reads its own show is for music. Mugplayer is for movies." | **He is right and nothing is wrong.** 6.390.0 IS the Jug Player (music); the Mug Player's own catcher was fixed in 6.352.0. Two tools, two releases, named correctly | ❓ confirmed |
+| G10 | "please create a divider above this line so I can see where one section ends and this begins. It's not easy to find when I need to copy paste." | REAL, and cheap. Written from BOTH sides of a boot, because Hammerspoon's own first two lines are printed before any Lua of ours exists | ✅ **6.400.0** |
+
+🔑 WHAT G5–G9 HAVE IN COMMON, and it is a method defect of mine rather
+than five questions of his: I listed ten releases in a delivery message
+as if each were something he could go and check. Five of them are
+INVISIBLE ON A HEALTHY MAC by design — that silence is the feature
+(6.269.0) — so "not sure if this happens" is the only honest thing he
+could say. GENERAL, past this project: when a release's whole claim is
+that something no longer goes wrong, the delivery message says HOW HE
+WOULD KNOW, or it does not mention it at all. A list of fixes he cannot
+verify reads as a list of promises.
 
 ## 📦 DELIVERY — 2026-11-03
 
