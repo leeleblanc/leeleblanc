@@ -3632,6 +3632,256 @@ do
           (pass + fail) - before >= 28, (pass + fail) - before)
 end
 
+-- =====================================================================
+-- 🧵 6.400.0 — A BOOT IS FINDABLE IN THE CONSOLE
+-- =====================================================================
+-- LL: "please create a divider above this line so I can see where one
+-- section ends and this begins. It's not easy to find when I need to
+-- copy paste." Two rules, written from both sides of a boot, because
+-- Hammerspoon's own first two lines are printed before any Lua of ours
+-- exists and nothing from this side can get above them.
+do
+    local before = pass + fail
+    local okSection, secErr = pcall(function()
+
+    local f = io.open(HS .. "/init.lua", "r")
+    local init = f and f:read("*a") or ""
+    if f then f:close() end
+    check("🧵 init.lua was read", #init > 0)
+
+    local rSrc = init:match("(function _G%.consoleRuleLine.-\nend)")
+    check("🧵 the rule builder was lifted out of init.lua", rSrc ~= nil)
+    -- A stand-in that ANSWERS FALSELY rather than throwing, so a
+    -- mutation fails a check instead of killing the run (6.186.0).
+    local ruleLine = function() return "" end
+    if rSrc then
+        local chunk = load(rSrc .. "\nreturn _G.consoleRuleLine")
+        if chunk then ruleLine = chunk() or ruleLine end
+    end
+
+    _G.consoleRuleWidth = 72
+    local boot = ruleLine("▶ BOOT", "6.400.0", "2026-11-04 04:58:02")
+
+    check("🧵 the rule names what happened, the release and the clock",
+          boot:find("▶ BOOT", 1, true) and boot:find("6.400.0", 1, true)
+          and boot:find("2026%-11%-04 04:58:02") ~= nil, boot)
+
+    -- 🚪 THE PASSTHROUGH. core/console.lua's repeat gate silences a short
+    -- line it has shown twice with DIGITS NORMALISED — which is this
+    -- line's exact shape — and passes anything MULTI-LINE straight
+    -- through. The newline is therefore not decoration: it is the reason
+    -- the gate can never eat a rule, whatever that gate's memory does in
+    -- some later release.
+    check("🧵 the rule begins with a newline, which is what takes "
+          .. "core/console.lua's multi-line passthrough (and is the gap "
+          .. "that makes it findable)",
+          boot:find("\n", 1, true) == 1)
+    check("🧵 ...and it is the ONLY newline, so one rule is one line",
+          select(2, boot:gsub("\n", "")) == 1,
+          select(2, boot:gsub("\n", "")))
+
+    -- 6.239.0 — MOVE THE CONFIG AND REQUIRE THE DRAWING TO FOLLOW. The
+    -- shipped 72 is asserted nowhere: a width typed into the check as
+    -- well as the code is a check that cannot notice the code changing.
+    local function widthOf(s) return (utf8.len(s) or #s) - 1 end
+    check("🧵 the rule is drawn to the width the config asks for",
+          widthOf(boot) == 72, widthOf(boot))
+    _G.consoleRuleWidth = 101
+    local wide = ruleLine("▶ BOOT", "6.400.0", "2026-11-04 04:58:02")
+    check("🧵 ...and it follows the config when the width MOVES",
+          widthOf(wide) == 101, widthOf(wide))
+
+    -- 🚨 THE FIXTURE THAT BITES: a byte-counted pad stops at 72 BYTES,
+    -- which is about 24 visible characters once "═" costs three each —
+    -- so a correct and an incorrect implementation differ by a factor of
+    -- three here, and NOWHERE on an all-ASCII fixture (6.230.0 — pick
+    -- the input where right and wrong must differ).
+    _G.consoleRuleWidth = 72
+    local again = ruleLine("▶ BOOT", "6.400.0", "2026-11-04 04:58:02")
+    check("🧵 the width is counted in CHARACTERS, not bytes — the line is "
+          .. "longer in bytes than in characters, which a byte-counted "
+          .. "pad could never be (6.226.0)",
+          #again > widthOf(again) + 1, ("%d bytes, %d chars")
+              :format(#again, widthOf(again)))
+
+    check("🧵 a rule with no label still says BOOT rather than drawing an "
+          .. "unlabelled bar",
+          ruleLine():find("BOOT", 1, true) ~= nil, ruleLine())
+    check("🧵 ...and a rule with no version and no clock is still a rule",
+          widthOf(ruleLine("▶ BOOT")) == 72)
+
+    -- ---- the printer ------------------------------------------------
+    local sSrc = init:match("(function _G%.consoleRuleSay.-\nend)")
+    check("🧵 the printer was lifted out of init.lua", sSrc ~= nil)
+    if sSrc then
+        local said = {}
+        local env = setmetatable({
+            print = function(s) said[#said + 1] = tostring(s) end,
+            os = os, pcall = pcall, tostring = tostring, tonumber = tonumber,
+            utf8 = utf8, type = type,
+        }, { __index = _G })
+        env._G = env
+        env.consoleRuleLine = ruleLine
+        local chunk = load(sSrc .. "\nreturn _G.consoleRuleSay", "say", "t", env)
+        local say = chunk and chunk()
+        check("🧵 the printer loaded in a bare env", type(say) == "function")
+        if say then
+            env.consoleRules = true
+            local ok1 = say("▶ BOOT")
+            check("🧵 it prints the rule and says so", ok1 == true and #said == 1,
+                  tostring(ok1) .. " / " .. #said)
+
+            -- 6.196.1 — "switched off" and "it threw" must not read alike,
+            -- which is the whole reason this answers a REASON as well.
+            env.consoleRules = false
+            local ok2, why2 = say("▶ BOOT")
+            check("🧵 switched off, it prints nothing and says it was "
+                  .. "switched off — never the same answer as a failure",
+                  ok2 == false and tostring(why2):find("off", 1, true) ~= nil
+                  and #said == 1, tostring(why2))
+
+            -- A rule that THROWS must not take the boot, or the shutdown,
+            -- with it: this sits beside the ⇪ remap restore.
+            env.consoleRules = true
+            env.consoleRuleLine = function() error("on purpose", 0) end
+            local ok3, why3 = say("▶ BOOT")
+            check("🧵 a builder that THROWS is caught, answered false, and "
+                  .. "given a different reason from being switched off",
+                  ok3 == false and tostring(why3):find("on purpose", 1, true),
+                  tostring(why3))
+        end
+    end
+
+    -- ---- 🚪 THE CHAIN, which is the load-bearing half ---------------
+    -- hs.shutdownCallback already carries the ⇪ remap restore (6.65.1):
+    -- without it Caps Lock goes on sending F18 to nothing after
+    -- Hammerspoon is gone. ASSIGNING the callback here instead of
+    -- CHAINING it would drop that silently, and nothing functional in
+    -- this config would ever notice — the cost lands on his keyboard
+    -- after a quit. So the block is RUN, with a previous callback in
+    -- place, and both halves are required to happen.
+    local cSrc = init:match("(do\n    local prev = hs and hs%.shutdownCallback.-\nend)")
+    check("🧵 the closing-rule block was lifted out of init.lua", cSrc ~= nil)
+    if cSrc then
+        local ranPrev, ruleSaid = 0, {}
+        local order = {}
+        local fakeHs = { shutdownCallback = function()
+            ranPrev = ranPrev + 1 ; order[#order + 1] = "prev"
+        end }
+        local env = setmetatable({
+            hs = fakeHs, type = type, pcall = pcall, tostring = tostring,
+        }, { __index = _G })
+        env._G = env
+        env.consoleRuleSay = function(what)
+            ruleSaid[#ruleSaid + 1] = tostring(what)
+            order[#order + 1] = "rule"
+            return true
+        end
+        local chunk = load(cSrc, "chain", "t", env)
+        check("🧵 the closing-rule block loaded", chunk ~= nil)
+        if chunk then
+            chunk()
+            fakeHs.shutdownCallback()
+            check("🧵 the shutdown callback CHAINS: the ⇪ remap restore that "
+                  .. "was already there still runs (replacing it would cost "
+                  .. "Caps Lock after every quit, silently — 6.65.1)",
+                  ranPrev == 1, ranPrev)
+            check("🧵 ...and the closing rule is printed too",
+                  #ruleSaid == 1 and ruleSaid[1]:find("SESSION END", 1, true),
+                  table.concat(ruleSaid, "|"))
+            check("🧵 ...with the RULE FIRST, so a cleanup that hangs still "
+                  .. "leaves the mark above the next boot",
+                  order[1] == "rule" and order[2] == "prev",
+                  table.concat(order, " → "))
+        end
+
+        -- A rule that throws must not cost the remap restore, and a
+        -- restore that throws must not cost the rule. Both own pcalls.
+        local ranPrev2 = 0
+        local fakeHs2 = { shutdownCallback = function() ranPrev2 = ranPrev2 + 1 end }
+        local env2 = setmetatable({
+            hs = fakeHs2, type = type, pcall = pcall, tostring = tostring,
+        }, { __index = _G })
+        env2._G = env2
+        env2.consoleRuleSay = function() error("the rule threw", 0) end
+        local chunk2 = load(cSrc, "chain2", "t", env2)
+        if chunk2 then
+            chunk2()
+            local okRun = pcall(fakeHs2.shutdownCallback)
+            check("🧵 a closing rule that THROWS still leaves the ⇪ remap "
+                  .. "restore to run — a decoration never costs the one "
+                  .. "piece of cleanup that must happen",
+                  okRun and ranPrev2 == 1, tostring(okRun) .. " / " .. ranPrev2)
+        end
+
+        local saidOnly = 0
+        local fakeHs3 = { shutdownCallback = function() error("prev threw", 0) end }
+        local env3 = setmetatable({
+            hs = fakeHs3, type = type, pcall = pcall, tostring = tostring,
+        }, { __index = _G })
+        env3._G = env3
+        env3.consoleRuleSay = function() saidOnly = saidOnly + 1 ; return true end
+        local chunk3 = load(cSrc, "chain3", "t", env3)
+        if chunk3 then
+            chunk3()
+            local okRun = pcall(fakeHs3.shutdownCallback)
+            check("🧵 ...and a previous callback that throws does not take "
+                  .. "the shutdown down either", okRun and saidOnly == 1,
+                  tostring(okRun) .. " / " .. saidOnly)
+        end
+
+        -- A build with NO previous callback (hyperEnabled = false) must
+        -- still print its rule rather than refusing to run at all.
+        local saidBare = 0
+        local fakeHs4 = {}
+        local env4 = setmetatable({
+            hs = fakeHs4, type = type, pcall = pcall, tostring = tostring,
+        }, { __index = _G })
+        env4._G = env4
+        env4.consoleRuleSay = function() saidBare = saidBare + 1 ; return true end
+        local chunk4 = load(cSrc, "chain4", "t", env4)
+        if chunk4 then
+            chunk4()
+            if type(fakeHs4.shutdownCallback) == "function" then
+                fakeHs4.shutdownCallback()
+            end
+            check("🧵 with no previous callback at all (hyperEnabled = false) "
+                  .. "the rule is still printed and nothing throws",
+                  saidBare == 1, saidBare)
+        end
+    end
+
+    -- ---- the ORDER in the file, which is the opening rule's claim ----
+    -- The rule means "this config's output starts here", so any print of
+    -- OURS above it is a lie. §0.2's dock-icon line was one.
+    local atRule  = init:find('_G.consoleRuleSay("▶ BOOT")', 1, true)
+    local atDock  = init:find("🖥 Dock icon hidden", 1, true)
+    local atReq   = init:find("local function safeRequire(mod)", 1, true)
+    check("🧵 the opening rule is printed before the dock-icon line — the "
+          .. "first thing this config prints",
+          atRule and atDock and atRule < atDock,
+          tostring(atRule) .. " vs " .. tostring(atDock))
+    check("🧵 ...and before the module requires, so a missing module's "
+          .. "warning lands UNDER the rule for the boot it belongs to",
+          atRule and atReq and atRule < atReq)
+
+    -- 6.363.0 — the version moved, it was not copied. A second literal
+    -- is a second thing to keep in step, and the ceremony greps one.
+    local nVer = select(2, init:gsub('\n_G%.configVersion = "', ""))
+    check("🧵 the release is still assigned EXACTLY ONCE in init.lua — the "
+          .. "stamp moved to the top, it was not duplicated there "
+          .. "(6.363.0)", nVer == 1, nVer)
+
+    _G.consoleRuleWidth = nil
+
+    end)
+    if not okSection then
+        check("🧵 the 6.400.0 section ran to the end", false, tostring(secErr))
+    end
+    check("🧵 the 6.400.0 section ran all of its checks",
+          (pass + fail) - before >= 22, (pass + fail) - before)
+end
+
 realPrint(table.concat(printed, "\n"))
 out("\n")
 if fail > 0 then

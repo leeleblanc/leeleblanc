@@ -4,7 +4,7 @@
 -- =====================================================================
 -- 11-03-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.399.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.400.0
 -- =====================================================================
 
 -- NEW IN 6.399.0 — 🩺 DID THE WHOLE RELEASE LAND? (MANIFEST.txt +
@@ -103,7 +103,7 @@
 --  reason trimming this header is safe. 6.180.0 cut the inline count to
 --  TWO; a gate check proves every entry here is also in CHANGELOG.md.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.399.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.400.0
 -- =====================================================================
 -- The catalogue that used to sit here moved to GUIDE.md ("What each
 -- tool does") in 6.180.0 — 259 lines of prose inside the orchestrator.
@@ -141,6 +141,60 @@
 -- =====================================================================
 -- 0. CORE ENVIRONMENT & DEPENDENCIES
 -- =====================================================================
+-- =====================================================================
+-- §0.0  A BOOT IS FINDABLE IN THE CONSOLE  (🧵 6.400.0)
+-- =====================================================================
+-- TWO RULES, each covering the other's gap: a CLOSING one from
+-- hs.shutdownCallback (§3.12a) lands above the NEXT session's first line,
+-- where he asked for it; this OPENING one covers the boots with no
+-- closing rule above them (cold start, force quit, guard kill, panic).
+-- GENERAL: a marker that must sit beside an event you do not control is
+-- written from BOTH sides. Story: CHANGELOG 6.400.0.
+-- 🚪 THE LEADING NEWLINE IS LOAD-BEARING TWICE — the gap that makes the
+-- rule findable, and what takes core/console.lua's MULTI-LINE passthrough
+-- (that gate silences a short line shown twice with DIGITS NORMALISED,
+-- which is this line's exact shape).
+-- 📏 `_G.configVersion` is assigned HERE: this rule claims "our output
+-- starts here", so any line of OURS above it is a lie and §0.2's
+-- dock-icon line was one. Still ONE literal (6.363.0) — moved, not copied.
+_G.consoleRules     = true   -- false silences BOTH rules for this session
+_G.consoleRuleWidth = 72     -- VISIBLE characters, not bytes; see below
+
+-- PURE, clock as an ARGUMENT (6.234.0) — proven with no Mac and no clock.
+function _G.consoleRuleLine(what, version, when)
+    local label = tostring(what or "")
+    if label == "" then label = "BOOT" end
+    local line = "═══════ " .. label
+    for _, part in ipairs({ version, when }) do
+        part = tostring(part or "")
+        if part ~= "" then line = line .. " · " .. part end
+    end
+    -- CHARACTERS, not bytes: "═" is three bytes, so a byte budget draws
+    -- a third of the rule. 6.226.0 — count in the unit the budget is ABOUT.
+    local want = tonumber(_G.consoleRuleWidth) or 72
+    local n = (utf8 and utf8.len(line)) or #line   -- `or` covers a nil
+    line = line .. " " ; n = n + 1
+    while n < want do line = line .. "═" ; n = n + 1 end
+    return "\n" .. line
+end
+
+-- 🚨 NEVER THROWS, AND NEVER COSTS WHAT IT SITS BESIDE: the closing rule
+-- shares hs.shutdownCallback with the ⇪ remap restore (6.65.1). Answers a
+-- REASON, so "switched off" and "it threw" do not read alike (6.196.1).
+function _G.consoleRuleSay(what)
+    -- `== false` on purpose: an UNSET switch prints. He asked for this.
+    if _G.consoleRules == false then return false, "switched off" end
+    local ok, err = pcall(function()
+        print(_G.consoleRuleLine(what, _G.configVersion,
+                                 os.date("%Y-%m-%d %H:%M:%S")))
+    end)
+    if not ok then return false, tostring(err) end
+    return true
+end
+
+_G.configVersion = "6.400.0"
+_G.consoleRuleSay("▶ BOOT")
+
 local function safeRequire(mod)
     local s, r = pcall(require, mod)
     if not s then print('⚠️ Architecture Fault - Missing Module: ' .. mod) return nil end
@@ -196,7 +250,6 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.399.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- A NO-OP STAND-IN for the diagnostics API, replaced by the real one in
@@ -2456,6 +2509,23 @@ if hyperEnabled then
     end
 else
     print("🎹 Hyper key disabled in config (hyperEnabled = false) — Caps Lock untouched")
+end
+
+-- ---- §3.12a  THE CLOSING RULE (🧵 6.400.0) ----------------------------
+-- §0.0's other half, printed as this session ends so it sits directly
+-- above the next run's "Lazy extension loading enabled".
+-- 🚪 CHAINED, NEVER ASSIGNED: hs.shutdownCallback already carries the ⇪
+-- remap restore (6.65.1) and stall_guard chains onto what it finds
+-- (6.208.0), so replacing it would silently drop that restore. Rule
+-- FIRST, own pcalls — a cleanup that hangs still leaves the mark.
+do
+    local prev = hs and hs.shutdownCallback
+    pcall(function()
+        hs.shutdownCallback = function()
+            pcall(function() _G.consoleRuleSay("⏹ SESSION END") end)
+            if type(prev) == "function" then pcall(prev) end
+        end
+    end)
 end
 
 -- Loaded HERE, not next to core/diagnostics.lua where it belongs
