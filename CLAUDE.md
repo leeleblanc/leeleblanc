@@ -6742,7 +6742,11 @@ THE METHOD, when something breaks after a stacked zip:
    control survived, restore sha-verified; the sweep's own findings are
    in the 🩺 hard rule above, and the sharpest is the one that deleted a
    guard no input could ever fail (6.199.0, EIGHTH time).
-   · 6.400.0–6.402.0 936bb2d (6.400.0's divider) · bd4f22d (its sweep's
+   · 6.400.0–6.402.0 **85e96df is the ceremony and the archive, and
+   85e96df is the SHA every link to it must carry** — a branch-pinned
+   link dies the moment the next release deletes the file, which is why
+   6.356.0–6.358.0 never reached his Downloads (6.360.0). The code:
+   936bb2d (6.400.0's divider) · bd4f22d (its sweep's
    two findings, both in the checks: a sentry that found its own needle
    inside a comment, and a find() that could not see a SECOND call added
    below) · 88662ad (6.401.0's focus door) · 83e889e (its sweep's
