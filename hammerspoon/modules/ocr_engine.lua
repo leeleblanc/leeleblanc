@@ -1256,7 +1256,12 @@ function M.setup(core)
         return true
     end
 
-    function ocr.closeEditor()
+    -- 🎯 6.401.0 — `keepFocus` is passed only by openTextEditor's own
+    -- "never two at once" close: that path is about to take the keyboard
+    -- again, so handing it back first is a flicker and a wasted activate.
+    -- Every other door — cancel, save, delete, the Esc router, ⇪⇧O's
+    -- re-read — means the person is finished, so the focus goes back.
+    function ocr.closeEditor(keepFocus)
         ocr.endDrag()
         -- the caret chase never outlives the window it was chasing
         if ocr.editorFocusTimer then
@@ -1267,6 +1272,13 @@ function M.setup(core)
             pcall(function() ocr.editorView:delete() end)
         end
         ocr.editorView, ocr.editorUc, ocr.editorIdx, ocr.editorHooks = nil, nil, nil, nil
+        -- 🎯 AFTER the window is gone, never before: a window still on
+        -- screen can take the focus straight back off the app we just
+        -- activated. Guarded, so a build without core/coexist.lua still
+        -- closes — it simply leaves the focus where 6.397.0 left it.
+        if not keepFocus and _G.focusReturn then
+            pcall(_G.focusReturn, "Edit window")
+        end
     end
 
     -- ✍️ 6.213.5 — THE WINDOW ANSWERS TO HOOKS, NOT TO AN INDEX. The page
@@ -1336,7 +1348,7 @@ function M.setup(core)
         if not (hs.webview and hs.webview.usercontent) then
             return false, "no hs.webview on this Mac"
         end
-        ocr.closeEditor()                      -- never two at once
+        ocr.closeEditor(true)                  -- never two at once; keep the loan
 
         local screen = (core.resolveBaseScreen and core.resolveBaseScreen())
                        or hs.screen.mainScreen()
@@ -1380,6 +1392,12 @@ function M.setup(core)
                 deleteLabel = opts.deleteLabel,
             }))
         end)
+        -- 🎯 6.401.0 — BORROW THE FOCUS BEFORE TAKING IT, so closing this
+        -- window can give it back. The app recorded is the last one that
+        -- was not Hammerspoon, which is what makes this right when the
+        -- window was reached through a picker of ours (⇪⇧V, ⇪⇧O, ⇪⇧W all
+        -- do) rather than straight from his document.
+        if _G.focusBorrow then pcall(_G.focusBorrow, "Edit window") end
         -- 🪟 6.391.0 — the shared door reads BOTH refusals (a throw and
         -- a false return). Guarded, so a build without it still opens.
         if _G.showWebviewSafely then

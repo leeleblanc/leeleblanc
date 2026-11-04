@@ -84,7 +84,46 @@ local function mkCanvas(x, y, w, h)
   return c
 end
 
+-- 🎯 6.401.0 — APPS, MODELLED WITH BOTH REFUSALS. hs.application's
+-- activate() answers a BOOLEAN and an app that has quit since the borrow
+-- answers false or throws; a stub that always succeeded would make the
+-- refusal branches unreachable (6.290.0 · 6.265.0 — MISSING is not
+-- REFUSING). The watcher is captured so the suite can fire activations.
+local HS_BUNDLE = "org.hammerspoon.Hammerspoon"
+local FRONT, APP_WATCHERS, WATCHER_REFUSES = nil, {}, false
+local function mkApp(name, bundle, how)
+  local a = { nm = name, bid = bundle or ("com.test." .. name), activated = 0 }
+  function a:name() return self.nm end
+  function a:bundleID() return self.bid end
+  function a:activate()
+    self.activated = self.activated + 1
+    if how == "throw" then error("macOS refused to activate " .. self.nm, 0) end
+    if how == "false" then return false end
+    return true
+  end
+  return a
+end
+local function fireActivated(app)
+  for _, w in ipairs(APP_WATCHERS) do
+    if w.on and w.fn then w.fn(app and app:name(), 1, app) end
+  end
+end
+
 hs = {
+  processInfo = { bundleID = HS_BUNDLE },
+  application = {
+    frontmostApplication = function() return FRONT end,
+    watcher = {
+      activated = 1,
+      new = function(fn)
+        if WATCHER_REFUSES then error("no watcher on this Mac", 0) end
+        local w = { fn = fn, on = false }
+        function w:start() self.on = true; return self end
+        function w:stop()  self.on = false; return self end
+        table.insert(APP_WATCHERS, w); return w
+      end,
+    },
+  },
   eventtap = {
     event = { types = T },
     checkMouseButtons = function() return BUTTONS end,
@@ -498,6 +537,184 @@ do
 
   hs.alert.show = keptAlert
   _G.degrade = keptDeg
+end
+
+-- =====================================================================
+-- 🎯 6.401.0 — THE FOCUS, GIVEN BACK
+-- =====================================================================
+-- LL, on the 6.397.0 document edit window: "window does not return
+-- cursour/ mouse to the active field it was already in like this text
+-- box. I just use my trackpad to get back here. That doesn't right as
+-- the cheat sheet doesn't do this." The cheat sheet does not do it
+-- because it never takes focus; a window that must be TYPED INTO has no
+-- such option (6.225.0 · 6.251.0). Those releases paid the price and
+-- named it. Neither built the other half.
+do
+  check("🎯 coexist publishes the focus door",
+        type(_G.focusBorrow) == "function" and type(_G.focusReturn) == "function"
+        and type(_G.focusReport) == "function")
+  check("🎯 ...and started the application watcher AT LOAD, so the FIRST "
+        .. "edit of a session has an app to go back to",
+        #APP_WATCHERS == 1 and APP_WATCHERS[1].on == true,
+        #APP_WATCHERS .. " watcher(s)")
+
+  local function reset()
+    _G.focusLoans = {}
+    _G.focusState = { asked = 0, returned = 0, refused = 0, moved = 0,
+                      wasUs = 0, dropped = 0, kept = 0, last = nil }
+    _G.focusLast = nil
+  end
+
+  local chrome = mkApp("Google Chrome")
+  local me     = mkApp("Hammerspoon", HS_BUNDLE)
+
+  -- 🚨 THE FIXTURE THAT BITES, and it is the whole mechanism. ⇪⇧V, ⇪⇧O
+  -- and ⇪⇧W all open a CHOOSER first and the edit window after it, so by
+  -- the time the window opens the front app is already Hammerspoon.
+  -- "Remember whatever was in front" records US on exactly the paths he
+  -- uses. Only a watcher that IGNORES our own activations gets Chrome.
+  reset()
+  fireActivated(chrome)
+  fireActivated(me)          -- the chooser comes up: this must be ignored
+  local okB, whyB = _G.focusBorrow("Edit window")
+  check("🚨 a borrow made from behind our OWN picker still names HIS app — "
+        .. "the watcher ignores Hammerspoon's activations, which is what "
+        .. "makes ⇪⇧V, ⇪⇧O and ⇪⇧W work rather than only a bare editor",
+        okB == true and _G.focusLoans["Edit window"]
+        and _G.focusLoans["Edit window"].name == "Google Chrome",
+        tostring(whyB) .. " · "
+        .. tostring(_G.focusLoans["Edit window"] and _G.focusLoans["Edit window"].name))
+
+  -- the return, with us still in front
+  FRONT = me
+  chrome.activated = 0
+  local okR, whyR = _G.focusReturn("Edit window")
+  check("🎯 the return activates the app he came from, and says so",
+        okR == true and chrome.activated == 1 and whyR == nil,
+        tostring(okR) .. " · activated " .. chrome.activated)
+  check("🎯 ...and the loan is spent, so a second return moves nothing",
+        _G.focusLoans["Edit window"] == nil
+        and select(1, _G.focusReturn("Edit window")) == false
+        and chrome.activated == 1, chrome.activated)
+
+  -- 🚨 THE GUARD: he moved on himself, so the focus is not ours to move.
+  reset()
+  fireActivated(chrome)
+  _G.focusBorrow("Edit window")
+  FRONT = mkApp("Microsoft Word")     -- he clicked into Word meanwhile
+  chrome.activated = 0
+  local okG, whyG = _G.focusReturn("Edit window")
+  check("🚨 if he has already moved on, the focus is LEFT where he put it "
+        .. "— activating the remembered app then would yank it out of "
+        .. "whatever he moved to (6.266.0)",
+        okG == false and chrome.activated == 0
+        and tostring(whyG):find("moved on", 1, true) ~= nil, tostring(whyG))
+  check("🎯 ...and that is counted as MOVED ON, never as a refusal — they "
+        .. "are different facts and only one is a fault",
+        _G.focusState.moved == 1 and _G.focusState.refused == 0,
+        _G.focusState.moved .. " moved · " .. _G.focusState.refused .. " refused")
+
+  -- an app that REFUSES to come back (it quit since the borrow)
+  reset()
+  local gone = mkApp("Transmission", nil, "false")
+  fireActivated(gone)
+  _G.focusBorrow("Edit window")
+  FRONT = me
+  local okF, whyF = _G.focusReturn("Edit window")
+  check("🔑 an app that answers FALSE is a refusal, named — the return "
+        .. "reads activate()'s answer rather than assuming it (6.325.0)",
+        okF == false and _G.focusState.refused == 1
+        and tostring(whyF):find("Transmission", 1, true) ~= nil, tostring(whyF))
+
+  -- ...and one that THROWS. MISSING is not REFUSING (6.265.0).
+  reset()
+  local dead = mkApp("Preview", nil, "throw")
+  fireActivated(dead)
+  _G.focusBorrow("Edit window")
+  FRONT = me
+  local okT = _G.focusReturn("Edit window")
+  check("🔑 an app whose activate THROWS is a refusal too, not a crash",
+        okT == false and _G.focusState.refused == 1, tostring(okT))
+
+  -- nothing but us has ever been in front
+  reset()
+  fireActivated(me)
+  local okU, whyU = _G.focusBorrow("Edit window")
+  check("🔎 with nothing but Hammerspoon ever in front, the borrow SAYS "
+        .. "there is nothing to give back rather than storing us",
+        okU == true and _G.focusLoans["Edit window"] == nil
+        and _G.focusState.wasUs == 1
+        and tostring(whyU):find("nothing to give back", 1, true) ~= nil,
+        tostring(whyU))
+
+  -- 🔑 a second borrow KEEPS the first loan (replacing an open editor)
+  reset()
+  fireActivated(chrome)
+  _G.focusBorrow("Edit window")
+  fireActivated(me)                     -- our own window is front now
+  local okK, whyK = _G.focusBorrow("Edit window")
+  check("🔑 a SECOND borrow keeps the FIRST loan — replacing an open box "
+        .. "must not re-record us as the app to go back to",
+        okK == true and _G.focusLoans["Edit window"].name == "Google Chrome"
+        and _G.focusState.kept == 1
+        and tostring(whyK):find("already borrowed", 1, true) ~= nil,
+        tostring(whyK))
+
+  -- 🚪 SEPARATE SLOTS: one panel returning never releases another's claim
+  reset()
+  fireActivated(chrome)
+  _G.focusBorrow("Edit window")
+  local word = mkApp("Microsoft Word")
+  fireActivated(word)
+  _G.focusBorrow("⇪D")
+  FRONT = me
+  _G.focusReturn("Edit window")
+  check("🚪 two panels hold SEPARATE slots — returning one leaves the "
+        .. "other's loan standing (6.196.1 · 6.304.0)",
+        _G.focusLoans["Edit window"] == nil
+        and _G.focusLoans["⇪D"] ~= nil
+        and _G.focusLoans["⇪D"].name == "Microsoft Word",
+        tostring(_G.focusLoans["⇪D"] and _G.focusLoans["⇪D"].name))
+
+  -- the bound, and the bound is a STATE (6.197.2)
+  reset()
+  _G.focusLoanMax = 3
+  for i = 1, 5 do
+    fireActivated(mkApp("App" .. i))
+    _G.focusBorrow("panel" .. i)
+  end
+  local held = 0
+  for _ in pairs(_G.focusLoans) do held = held + 1 end
+  check("📏 the loan register is BOUNDED and says how many it dropped — a "
+        .. "register that grows for ever is a leak, and one that drops "
+        .. "silently is a panel that cannot give the focus back",
+        held <= 3 and _G.focusState.dropped == 2,
+        held .. " held · " .. _G.focusState.dropped .. " dropped")
+  check("📏 ...and the NEWEST loan survives the bound, because the newest "
+        .. "is the one a close is about to ask for",
+        _G.focusLoans["panel5"] ~= nil)
+  _G.focusLoanMax = 12
+
+  -- the report: three states, and it names the watcher
+  reset()
+  fireActivated(chrome)
+  _G.focusBorrow("Edit window")
+  local rep = _G.focusReport()
+  check("🔎 the report names what is still holding the focus",
+        rep:find("Edit window", 1, true) ~= nil
+        and rep:find("holding", 1, true) ~= nil, rep)
+  check("🔎 ...and says whether the watcher is running at all — without it "
+        .. "a panel reached through a picker cannot give the focus back, "
+        .. "and that is the one state no count would reveal",
+        rep:find("watching", 1, true) ~= nil
+        and rep:find("Google Chrome", 1, true) ~= nil, rep)
+  FRONT = me
+  _G.focusReturn("Edit window")
+  local rep2 = _G.focusReport()
+  check("🔎 ...and reads as healthy when nothing owes the focus back",
+        rep2:find("nothing — no panel owes", 1, true) ~= nil
+        and rep2:find("refused : none", 1, true) ~= nil, rep2)
+  reset()
 end
 
 print(("\n%s  %d passed, %d failed"):format(FAIL == 0 and "✅" or "❌", PASS, FAIL))

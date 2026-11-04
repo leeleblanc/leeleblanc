@@ -355,6 +355,235 @@ function _G.clipboardWriteReport()
 end
 
 -- =====================================================================
+-- 🎯 THE FOCUS, GIVEN BACK (6.401.0)
+-- =====================================================================
+-- LL, on 6.397.0's document edit window: "window does not return
+-- cursour/ mouse to the active field it was already in like this text
+-- box. I just use my trackpad to get back here. That doesn't right as
+-- the cheat sheet doesn't do this."
+--
+-- He is right, and he named the comparison that explains it: the cheat
+-- sheet is opened WITHOUT taking focus, so there is nothing to give
+-- back. A panel that must be TYPED INTO has no such option — 6.225.0
+-- and 6.251.0 established that macOS hands the keyboard only to a KEY
+-- window, and making one of ours key activates Hammerspoon. Those
+-- releases paid that price and named it; what neither of them built is
+-- the other half. The focus was borrowed and never returned, so every
+-- edit ended with him reaching for the trackpad.
+--
+-- 🏠 IT LIVES HERE ON ITS MERITS: this file answers "two features want
+-- the same resource, who gets it?", and FOCUS is such a resource —
+-- exactly as the pasteboard above and the POINTER below it are. 6.306.0
+-- moved the drag engine here for the same reason.
+--
+-- 🚨 THE RULE THAT MAKES IT SAFE, and it is the whole design: the focus
+-- is returned ONLY IF HAMMERSPOON IS STILL THE FRONTMOST APP at the
+-- moment of the return. A close can happen long after the borrow — a
+-- belt firing, another editor opening, a panic step — and by then he may
+-- have clicked into something else himself. Activating the remembered
+-- app then would YANK his focus out of whatever he had moved to, which
+-- is worse than the bug this fixes. 6.266.0's rule in a new place: a
+-- retry that acts a turn later is acting on a decision that may already
+-- have been reversed, so it asks the world first.
+--
+-- 🚨 AND THE OBVIOUS BUILD IS WRONG, which only reading the callers
+-- showed. "Remember whichever app was in front when the panel opened"
+-- fails on BOTH of the real paths: ⇪⇧V and ⇪⇧O open a CHOOSER first and
+-- the edit window after it, and a chooser takes the keyboard — so by the
+-- time the window opens, the app in front is already Hammerspoon and the
+-- borrow records "you came from ourselves". It would have restored
+-- nothing on exactly the two keys he uses, while passing any test that
+-- opened an editor straight from an app. GENERAL: when a panel is
+-- reached through another panel of ours, "what was in front a moment
+-- ago" is not the question — ask what was in front before ANY of ours
+-- was.
+-- 🔑 SO A WATCHER KEEPS THE ANSWER: the last app that was frontmost and
+-- was NOT this one. One hs.application.watcher, a callback that stores a
+-- handle and nothing else, and every caller is served by one door with
+-- no call-site changes at all (6.266.0 · 6.391.0 — close the class, do
+-- not edit N modules). COST, NAMED: one more application watcher on this
+-- Mac, which is cheap to create and does no work per event beyond a
+-- comparison; it is started at boot rather than lazily on purpose,
+-- because the FIRST edit of a session is the one he would test and a
+-- watcher that starts on first use has no history to answer from.
+-- 🚪 SEPARATE SLOTS, KEYED BY WHO BORROWED (6.196.1 · 6.304.0), so one
+-- panel returning the focus can never release another panel's claim.
+-- Bounded, because `who` is a caller's string and a bounded table is the
+-- difference between a register and a leak.
+_G.focusLoans = {}
+_G.focusState = { asked = 0, returned = 0, refused = 0, moved = 0,
+                  wasUs = 0, dropped = 0, kept = 0, last = nil }
+_G.focusLoanMax = 12
+_G.focusLast    = nil    -- { app, name, at } — the last app that was NOT us
+_G.focusWatcher = nil
+
+local function focusIsMine(app)
+    local mine = false
+    pcall(function() mine = (app:bundleID() == hs.processInfo.bundleID) end)
+    return mine
+end
+
+local function focusRemember(app, name)
+    if not app or focusIsMine(app) then return false end
+    local at
+    pcall(function() at = hs.timer.secondsSinceEpoch() end)
+    if not name then pcall(function() name = app:name() end) end
+    _G.focusLast = { app = app, name = name,
+                     at = (type(at) == "number") and at or os.time() }
+    return true
+end
+
+pcall(function()
+    -- Seeded with whatever is in front right now, so the first borrow of
+    -- a session has an answer before any activation event has happened.
+    focusRemember(hs.application.frontmostApplication())
+    _G.focusWatcher = hs.application.watcher.new(function(name, event, app)
+        if event == hs.application.watcher.activated then
+            pcall(focusRemember, app, name)
+        end
+    end)
+    if _G.focusWatcher then _G.focusWatcher:start() end
+end)
+
+local function focusNote(ok, why, who, app)
+    local st = _G.focusState
+    local at
+    -- 🕒 the EPOCH, never a formatted string (6.282.0).
+    pcall(function() at = hs.timer.secondsSinceEpoch() end)
+    st.last = { ok = ok, why = why, who = who, app = app,
+                at = (type(at) == "number") and at or os.time() }
+    return ok, why
+end
+
+-- Called BEFORE the panel takes focus. Answers the app it will have to
+-- give the focus back to, and WHY when there is none — three states, not
+-- two, because "nothing has been in front but us" and "you already have
+-- a loan outstanding" are different facts (6.196.1).
+function _G.focusBorrow(who)
+    who = tostring(who or "a panel")
+    local st = _G.focusState
+    st.asked = st.asked + 1
+    -- 🔑 A SECOND BORROW KEEPS THE FIRST LOAN. Opening an edit window
+    -- while one is already up tears the first down (`never two at once`),
+    -- and the app he came from is the FIRST one — re-borrowing there would
+    -- replace it with whatever is in front now, which is us.
+    local held = _G.focusLoans[who]
+    if held then
+        st.kept = st.kept + 1
+        return true, "already borrowed — keeping " .. tostring(held.name)
+    end
+    local seen = _G.focusLast
+    local app  = seen and seen.app
+    local name = seen and seen.name
+    if not app then
+        _G.focusLoans[who] = nil
+        st.wasUs = st.wasUs + 1
+        return focusNote(true, "nothing but Hammerspoon has been in front — "
+                         .. "nothing to give back", who, nil)
+    end
+    -- Bounded. The oldest loan goes rather than the newest, because the
+    -- newest is the one a close is about to ask for.
+    local n = 0
+    for _ in pairs(_G.focusLoans) do n = n + 1 end
+    if n >= (tonumber(_G.focusLoanMax) or 12) and not _G.focusLoans[who] then
+        local oldestWho, oldestAt
+        for k, v in pairs(_G.focusLoans) do
+            if not oldestAt or (v.at or 0) < oldestAt then
+                oldestWho, oldestAt = k, (v.at or 0)
+            end
+        end
+        if oldestWho then
+            _G.focusLoans[oldestWho] = nil
+            st.dropped = st.dropped + 1
+        end
+    end
+    _G.focusLoans[who] = { app = app, name = name,
+                           at = (seen and seen.at) or os.time() }
+    return focusNote(true, nil, who, name)
+end
+
+-- Called AFTER the panel's window is gone. Order matters: a window that
+-- is still on screen can take the focus straight back.
+function _G.focusReturn(who)
+    who = tostring(who or "a panel")
+    local st = _G.focusState
+    local loan = _G.focusLoans[who]
+    _G.focusLoans[who] = nil
+    if not loan or not loan.app then
+        return focusNote(false, "nothing was borrowed", who, nil)
+    end
+    -- 🚨 THE GUARD. If we are not the front app any more, he has moved on
+    -- by himself and the focus is not ours to move.
+    local stillUs = false
+    pcall(function()
+        local front = hs.application.frontmostApplication()
+        stillUs = front and focusIsMine(front)
+    end)
+    if not stillUs then
+        st.moved = st.moved + 1
+        return focusNote(false, "you had already moved on — the focus was not "
+                         .. "ours to give back", who, loan.name)
+    end
+    -- 🔑 READ THE ANSWER. hs.application:activate() returns a boolean and
+    -- an app that has QUIT since the borrow answers false or throws —
+    -- 6.325.0's lesson, in the place where saying "done" over a refusal
+    -- means he reaches for the trackpad anyway and nothing recorded it.
+    local back = false
+    pcall(function() back = loan.app:activate() ~= false end)
+    if not back then
+        st.refused = st.refused + 1
+        return focusNote(false, "macOS would not bring " .. tostring(loan.name)
+                         .. " back — it may have quit", who, loan.name)
+    end
+    st.returned = st.returned + 1
+    return focusNote(true, nil, who, loan.name)
+end
+
+function _G.focusReport()
+    local st = _G.focusState
+    local L = { "🎯 FOCUS — panels that take the keyboard, and give it back" }
+    L[#L + 1] = "   asked   : " .. st.asked .. " borrow(s) · returned "
+                .. st.returned .. " · nothing to give back " .. st.wasUs
+                .. " · already held " .. st.kept
+    L[#L + 1] = "   watching: " .. (_G.focusWatcher and "yes" or "⚠️ NO — this "
+                .. "Mac would not give us an application watcher, so a panel "
+                .. "reached through a picker cannot give the focus back")
+                .. " · last app seen: "
+                .. tostring((_G.focusLast and _G.focusLast.name) or "none yet")
+    if st.refused > 0 then
+        L[#L + 1] = "   ⚠️ REFUSED: " .. st.refused
+                    .. " — macOS would not bring the app back (it may have quit)"
+    else
+        L[#L + 1] = "   refused : none — every app asked for came back"
+    end
+    if st.moved > 0 then
+        L[#L + 1] = "   moved on: " .. st.moved .. " — you were already somewhere"
+                    .. " else, so the focus was left where you put it. NOT a fault."
+    end
+    if st.dropped > 0 then
+        L[#L + 1] = "   ⚠️ dropped: " .. st.dropped .. " loan(s) past the bound of "
+                    .. tostring(_G.focusLoanMax) .. " — those panels cannot give focus back"
+    end
+    local open = {}
+    for k in pairs(_G.focusLoans) do open[#open + 1] = k end
+    table.sort(open)
+    L[#L + 1] = "   holding : " .. (#open > 0 and table.concat(open, ", ")
+                                    or "nothing — no panel owes the focus back")
+    if st.last then
+        L[#L + 1] = "   last    : " .. (st.last.ok and "✅ " or "❌ ") .. st.last.who
+                    .. (st.last.app and (" → " .. tostring(st.last.app)) or "")
+                    .. " · " .. os.date("%H:%M:%S",
+                                        math.floor(tonumber(st.last.at) or 0))
+                    .. (st.last.why and (" — " .. st.last.why) or "")
+    else
+        L[#L + 1] = "   last    : no panel has borrowed the focus yet"
+    end
+    local out = table.concat(L, "\n")
+    print(out)
+    return out
+end
+
+-- =====================================================================
 -- ⎋ WHO GETS ESCAPE (6.68.0)
 -- =====================================================================
 -- LL: "Everytime I hit escape the shortcut windows disappear. And, the

@@ -734,6 +734,118 @@ do
               mine == 11, mine)
     end
 
+    -- ---- 🎯 6.401.0 — THE FOCUS IS GIVEN BACK ------------------------
+    -- LL, on 6.397.0: "window does not return cursour/ mouse to the
+    -- active field it was already in like this text box. I just use my
+    -- trackpad to get back here." Taking the keyboard activates
+    -- Hammerspoon (6.251.0 named that price); nothing ever gave it back.
+    do
+        local mine = 0
+        local function ck(label, cond, extra)
+            mine = mine + 1; check(label, cond, extra)
+        end
+
+        local BORROWS, RETURNS = {}, {}
+        local realBorrow, realReturn = _G.focusBorrow, _G.focusReturn
+        _G.focusBorrow = function(who)
+            -- Captured AT THE MOMENT of the call: if the borrow ever moves
+            -- below bringToFront, the window is already front and the real
+            -- door would read Hammerspoon as the app to go back to.
+            BORROWS[#BORROWS + 1] = { who = who,
+                sawFront = (VIEWS[#VIEWS] and VIEWS[#VIEWS].front) or false }
+            return true
+        end
+        _G.focusReturn = function(who)
+            -- Captured likewise: a return BEFORE the teardown hands the
+            -- focus to an app a live window can take straight back.
+            RETURNS[#RETURNS + 1] = { who = who, sawView = E.editorView }
+            return true
+        end
+
+        -- 1. opening borrows, before the window is in front
+        BORROWS, RETURNS = {}, {}
+        E.openTextEditor({ text = "give it back" })
+        ck("🎯 opening the box BORROWS the focus, naming itself",
+           #BORROWS == 1 and BORROWS[1].who == "Edit window",
+           #BORROWS .. " · " .. tostring(BORROWS[1] and BORROWS[1].who))
+        ck("🎯 ...and borrows BEFORE the window is brought to the front, so "
+           .. "the app it records is his, not ours",
+           BORROWS[1] and BORROWS[1].sawFront == false,
+           tostring(BORROWS[1] and BORROWS[1].sawFront))
+        ck("🎯 ...and nothing is given back while the box is still open",
+           #RETURNS == 0, #RETURNS)
+
+        -- 2. closing gives it back, AFTER the window is gone
+        E.closeEditor()
+        ck("🎯 closing the box gives the focus back, once",
+           #RETURNS == 1 and RETURNS[1].who == "Edit window",
+           #RETURNS .. " · " .. tostring(RETURNS[1] and RETURNS[1].who))
+        ck("🚨 ...AFTER the window is torn down, never before — a window "
+           .. "still on screen takes the focus straight back off the app "
+           .. "we just activated",
+           RETURNS[1] and RETURNS[1].sawView == nil,
+           tostring(RETURNS[1] and RETURNS[1].sawView))
+
+        -- 3. 🚨 REPLACING AN OPEN BOX MUST NOT HAND THE FOCUS BACK. That
+        -- path is about to take the keyboard again, so returning first is
+        -- a flicker, and re-borrowing from in front of our own window
+        -- would record Hammerspoon as the app to go back to.
+        BORROWS, RETURNS = {}, {}
+        E.openTextEditor({ text = "first" })
+        E.openTextEditor({ text = "second — replaces the first" })
+        ck("🚨 opening a SECOND box does not give the focus back — the loan "
+           .. "from the first is the one that names his app",
+           #RETURNS == 0, #RETURNS)
+        E.closeEditor()
+        ck("...and closing the second gives it back exactly once",
+           #RETURNS == 1, #RETURNS)
+
+        -- 4. every other door means he is finished, so every other door
+        --    gives the focus back. 6.286.0 — a promise kept by one door
+        --    is not kept.
+        for _, how in ipairs({ "cancel", "save", "delete" }) do
+            BORROWS, RETURNS = {}, {}
+            E.openTextEditor({ text = "x", onSave = function() end,
+                               onDelete = function() end,
+                               onCancel = function() end })
+            E.handleEditorMessage({ a = how, text = (how == "delete") and "" or "x" })
+            ck("🎯 the " .. how .. " door gives the focus back too",
+               #RETURNS == 1, #RETURNS)
+        end
+
+        -- 5. the Esc router's close is a door as well
+        BORROWS, RETURNS = {}, {}
+        E.openTextEditor({ text = "escape me" })
+        local claimed
+        for _, c in ipairs(ESC_CLAIMS or {}) do
+            if c.name == "ocredit" then claimed = c end
+        end
+        if claimed and claimed.handle then
+            claimed.handle()
+            ck("🎯 the Esc router's close gives the focus back as well",
+               #RETURNS == 1, #RETURNS)
+        else
+            E.closeEditor()
+            ck("🎯 the Esc router's close gives the focus back as well "
+               .. "(driven through closeEditor — no claim was captured)",
+               #RETURNS == 1, #RETURNS)
+        end
+
+        -- 6. IT DEGRADES: a build with no core/coexist.lua still opens and
+        --    closes, it simply leaves the focus where 6.397.0 left it.
+        _G.focusBorrow, _G.focusReturn = nil, nil
+        local okBare = pcall(function()
+            E.openTextEditor({ text = "no door at all" })
+            E.closeEditor()
+        end)
+        ck("🎯 with no focus door at all the box still opens and closes",
+           okBare and E.editorView == nil, tostring(okBare))
+
+        _G.focusBorrow, _G.focusReturn = realBorrow, realReturn
+        check("the 6.401.0 focus section ran every one of its checks",
+              mine == 12, mine)
+    end
+
     -- ---- a Mac WITHOUT a webview (the managed work Mac) --------------
     hs.webview = nil
     _G.movablePanels, _G.choosers = {}, {}
