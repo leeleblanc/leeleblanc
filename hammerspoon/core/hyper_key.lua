@@ -225,6 +225,30 @@ _G.hyperWakesSeen    = 0            -- wake events seen this session
 _G.hyperWakeReleases = 0            -- ...that found ⇪ held. NOT a latch.
 _G.hyperWakeState    = "not started"
 
+-- 🔬 6.403.0 — THE THREE ANSWERS, RENDERED IN ONE PLACE. The storm
+-- report asks the same probe this report does (a storm is the other
+-- moment these three facts decide something), and two copies of these
+-- sentences is how the two come to disagree about what "could not be
+-- asked" means — 6.231.0, one rule two callers. PURE: the probe table
+-- is an ARGUMENT, so the gate proves every state with no Mac.
+--
+-- 🚨 EACH HAS THREE STATES AND THE THIRD IS "COULD NOT BE ASKED",
+-- which must never render as health: a Mac that would not answer about
+-- Secure Input and one that answered "clear" are opposite facts, and
+-- this row is the one that reads as reassurance when it is wrong.
+function _G.hyperProbeAnswers(P)
+    P = type(P) == "table" and P or {}
+    return (P.remap == true and "Caps Lock → F18 still set"
+            or P.remap == false and "⚠️ GONE — ⇪ had stopped existing"
+            or "⚠️ could not be read (hidutil did not answer)"),
+           (P.tap == true and "the F18 event tap is running"
+            or P.tap == false and "⚠️ the F18 event tap was NOT running"
+            or "no tap on this Mac (Carbon only), or it could not be asked"),
+           (P.secure == "clear" and "Secure Input clear"
+            or P.secure and ("⚠️ Secure Input held by " .. tostring(P.secure))
+            or "not known — capabilities.lua has not answered yet")
+end
+
 -- 🔎 THREE STATES, READABLE AFTER THE FACT (6.196.1). Until this release
 -- there was one counter and it summed a fault with two kinds of health.
 function _G.hyperKeyReport()
@@ -270,15 +294,11 @@ function _G.hyperKeyReport()
              .. os.date("%H:%M:%S", math.floor(tonumber(P.at) or 0)))
         -- Each of the three has THREE states, and the third is always
         -- "could not be asked" — which must never read like health.
-        line("      remap : " .. (P.remap == true and "Caps Lock → F18 still set"
-             or P.remap == false and "⚠️ GONE — ⇪ had stopped existing"
-             or "⚠️ could not be read (hidutil did not answer)"))
-        line("      tap   : " .. (P.tap == true and "the F18 event tap is running"
-             or P.tap == false and "⚠️ the F18 event tap was NOT running"
-             or "no tap on this Mac (Carbon only), or it could not be asked"))
-        line("      secure: " .. (P.secure == "clear" and "Secure Input clear"
-             or P.secure and ("⚠️ Secure Input held by " .. tostring(P.secure))
-             or "not known — capabilities.lua has not answered yet"))
+        -- 6.403.0 — asked of the one renderer the storm report shares.
+        local pRemap, pTap, pSecure = _G.hyperProbeAnswers(P)
+        line("      remap : " .. pRemap)
+        line("      tap   : " .. pTap)
+        line("      secure: " .. pSecure)
         line("      counts: " .. (tonumber(P.reads) or 0) .. " read(s) · "
              .. (tonumber(P.failed) or 0) .. " could not be read · "
              .. (tonumber(P.repaired) or 0) .. " remap(s) put back"

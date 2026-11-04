@@ -30,6 +30,41 @@
 -- `st.window` (600 s) also PAUSES the config (⇪⇧Esc resumes), because
 -- two latches in ten minutes is a Mac that will latch a third time.
 --
+-- 🔬 6.403.0 — AND IT NOW ASKS WHY. LL's 2026-11-04 Console caught ⇪
+-- latching TWICE in forty-five seconds (05:14:39, held 7 s, 7 keys;
+-- 05:15:24, held 14.4 s, 6 keys — and the second one PAUSED the
+-- config). The guard did its job both times. What neither file could
+-- say is WHICH of the three things that can latch ⇪ with the key
+-- physically up had happened — the hidutil Caps Lock → F18 remap, the
+-- F18 event tap, or Secure Input — because 6.303.0 built the probe
+-- that reads all three and wired it to WAKE EVENTS ONLY. A storm is
+-- the other moment those three facts decide something, and it is the
+-- moment nobody is there to run a command.
+--
+-- 🔑 GENERAL, and it is the half to carry: WHEN A GUARD CATCHES A
+-- FAULT, ASK THE QUESTIONS WHOSE ANSWERS DECIDE THE FIX, AT THAT
+-- MOMENT. `before :` has always carried COUNTS — how many latches,
+-- handovers, relays, autorepeats — and a count says how often, never
+-- why. The probe is free on a healthy Mac because it only runs when a
+-- storm fires, and it is the only reading taken while the fault is
+-- still on the Mac.
+--
+-- 🚪 THE RELEASE COMES FIRST AND THE PROBE SECOND, asserted by a check
+-- on the ORDER rather than on both having happened (6.220.0): the
+-- release is what gets his keyboard back, and a probe that throws must
+-- never be able to cost it.
+-- 🪜 ITS ANSWERS ARRIVE LATE, because reading the remap is an out-of-
+-- process task (6.228.0 — this runs while he is typing). So the file
+-- is written AT ONCE without them, and a held timer APPENDS the three
+-- answers a beat later. An append cannot shrink a file (6.279.0), so a
+-- failed append costs the section and never the report.
+-- 🚨 AND A SECOND STORM MUST NOT STOMP THE FIRST ONE'S PENDING APPEND —
+-- his own log is two storms forty-five seconds apart, so that is not
+-- hypothetical. One timer, a LIST of waiting files, drained together:
+-- one probe answer serves every storm still waiting, and there is no
+-- generation to get wrong (6.304.0's problem, dissolved rather than
+-- guarded).
+--
 -- THE REPORT is a file he can hand over: ~/.hammerspoon/.storm/
 -- storm-<epoch>.txt — version, Mac, time, how long the hold lasted,
 -- every key that fired in it with the module that owns it, what panel
@@ -57,6 +92,7 @@ local M = {
             { "automatic", "⇪ held 5 s with 6 different shortcuts fired and no Caps Lock autorepeat → the hold is a phantom: released" },
             { "report",    "~/.hammerspoon/.storm/storm-<epoch>.txt — send that file; the alert names it" },
             { "twice",     "a second storm in 10 min also pauses Hammerspoon — ⇪⇧Esc resumes" },
+            { "why",       "a storm now ASKS which of three things latched ⇪ — the Caps Lock remap, the F18 tap, Secure Input — and appends the answers to its own file" },
             { "console",   "_G.stormReport() — the last storm, the counts, the newest report's text" },
             { "endings",   "_G.hyperKeyReport() — how the ⇪ hold ended: relay · handover · wake · LATCH." },
             { "",          "Only a latch is a fault; a panel taking the keyboard is not (6.285.0)" },
@@ -79,6 +115,11 @@ function M.setup(core)
         settingsKey = "hyperStorm.seenEpoch",
         readMax     = 8192,     -- bytes of a report echoed by _G.stormReport()
         sectionMax  = 6000,     -- bytes kept of each gathered report
+        -- 6.403.0 — the probe asked when a storm fires
+        probeOn     = true,
+        probeSecs   = 2.5,      -- beat before the answers are appended
+        probeFresh  = 8,        -- a reading this old still describes this storm
+        probeWaitMax = 8,       -- files that may be waiting for an append
         -- state
         holdId      = nil,      -- _G.hyperEnteredAt of the hold being watched
         seen        = {},       -- combo → true, for the hold being watched
@@ -89,6 +130,9 @@ function M.setup(core)
         last        = nil,      -- { at, age, keys, path, why, paused }
         announced   = nil,
         announceWhy = nil,
+        probeWaiting = {},      -- { {path, at}, ... } awaiting the answers
+        probeTimer  = nil,      -- held: an unreferenced timer never fires
+        probes      = { asked = 0, landed = 0, noTimer = 0, dropped = 0, failed = 0 },
     }
     M.config = st
     _G.hyperStorm = st
@@ -110,6 +154,56 @@ function M.setup(core)
         end
         print("⚠️ Hyper storm guard: " .. tostring(why))
         return false, why
+    end
+
+    -- ---- why, pure --------------------------------------------------------
+    -- 🔬 6.403.0 — the three things that can latch ⇪ with the key up,
+    -- rendered from a probe table handed IN (6.234.0: the clock is an
+    -- argument too, so the gate proves every state with no Mac).
+    --
+    -- 🔎 THREE FRESHNESS STATES, AND THEY MUST NOT READ ALIKE (6.196.1).
+    -- A reading taken AT this storm answers about this storm. A reading
+    -- left over from a wake forty minutes ago does NOT, and the middle
+    -- state is the trap: printed without its age it is word-for-word
+    -- the first, and it is exactly the state every file would have been
+    -- in while the probe was wired to wakes alone. Never asked is
+    -- neither of them.
+    function st.probeLines(P, t)
+        local L = {}
+        local function add(x) L[#L + 1] = x end
+        if type(P) ~= "table" or type(P.at) ~= "number" then
+            add("why    : ⏳ NOT ASKED — the three things that can latch ⇪ with "
+                .. "the key up were not read, so this file cannot say which")
+            return L, "never"
+        end
+        local age = math.floor((tonumber(t) or P.at) - P.at)
+        local fresh = age <= (tonumber(st.probeFresh) or 8)
+        if fresh then
+            add("why    : measured AT this storm (" .. tostring(P.why or "?")
+                .. ", " .. os.date("%H:%M:%S", math.floor(P.at)) .. ")")
+        else
+            add(string.format("why    : ⚠️ AN OLD READING — taken %s at %s, "
+                .. "%d s before this storm. It does NOT describe this storm.",
+                tostring(P.why or "?"), os.date("%H:%M:%S", math.floor(P.at)), age))
+        end
+        -- One renderer, two readers (6.231.0): core/hyper_key.lua owns
+        -- these sentences and _G.hyperKeyReport() prints the same three.
+        -- A core that did not load must not cost the storm file, so the
+        -- fallback says the words could not be built rather than health.
+        local a, b, c
+        if type(_G.hyperProbeAnswers) == "function" then
+            local ok
+            ok, a, b, c = pcall(_G.hyperProbeAnswers, P)
+            if not ok then a, b, c = nil, nil, nil end
+        end
+        add("   remap : " .. tostring(a or "⚠️ could not be rendered (core/hyper_key.lua)"))
+        add("   tap   : " .. tostring(b or "⚠️ could not be rendered (core/hyper_key.lua)"))
+        add("   secure: " .. tostring(c or "⚠️ could not be rendered (core/hyper_key.lua)"))
+        add(string.format("   counts: %d read(s) · %d could not be read · %d remap(s) put back%s",
+            tonumber(P.reads) or 0, tonumber(P.failed) or 0, tonumber(P.repaired) or 0,
+            (tonumber(P.repairFailed) or 0) > 0
+                and (" · ⚠️ " .. P.repairFailed .. " repair(s) FAILED") or ""))
+        return L, (fresh and "fresh" or "stale")
     end
 
     -- ---- the rule, pure ---------------------------------------------------
@@ -229,6 +323,20 @@ function M.setup(core)
                           tonumber(_G.hyperWakesSeen) or 0,
                           tostring(_G.hyperWakeState or "not started"),
                           tonumber(_G.hyperRepeats) or 0, st.storms))
+        -- 🔬 6.403.0 — CAUSES BESIDE THE COUNTS. Everything above this
+        -- line says how OFTEN; nothing said WHICH, and the fix differs
+        -- for each of the three. At this instant the fresh reading has
+        -- not landed (the remap is read out of process), so what prints
+        -- here is whatever was last known — honestly labelled — and the
+        -- fresh one is appended at the end of the file.
+        add("")
+        for _, x in ipairs(st.probeLines(_G.hyperWakeProbe, t)) do add(x) end
+        if st.probeOn ~= false then
+            add("   ↳ a FRESH reading was asked for the moment this storm "
+                .. "fired; it is appended at the END of this file a few "
+                .. "seconds later, and _G.hyperKeyReport() has it either way.")
+        end
+        add("")
         add("keys   : (in order, combo · owner)")
         for i, k in ipairs(st.order) do add(string.format("   %2d. ⇪%s · %s", i, k[1], k[2])) end
         add("")
@@ -262,6 +370,72 @@ function M.setup(core)
         return path
     end
 
+    -- 📎 APPEND, NEVER REWRITE. An append cannot shrink a file
+    -- (6.279.0), so a refused append costs this one section and can
+    -- never cost the storm report already on disk. The write's own
+    -- return is READ (6.325.0): io.write refuses by answering nil, and
+    -- a pcall around it is true either way.
+    function st.appendSection(path, name, lines)
+        if type(path) ~= "string" or path == "" then return false, "no path" end
+        local text = "\n── " .. tostring(name) .. " ──\n"
+            .. table.concat(lines, "\n") .. "\n"
+        local f, err = io.open(path, "a")
+        if not f then return false, "cannot append to " .. path .. " (" .. tostring(err) .. ")" end
+        local wrote, werr = f:write(text)
+        f:close()
+        if not wrote then return false, "the append was refused — " .. tostring(werr) end
+        return true
+    end
+
+    -- 🪜 ONE TIMER, A LIST OF WAITING FILES. A second storm inside the
+    -- beat ADDS to the list rather than taking the slot — his own log
+    -- is two storms forty-five seconds apart, and a single slot would
+    -- have dropped the first one's answers in silence. One probe answer
+    -- serves every storm still waiting, so there is no generation to
+    -- get wrong (6.304.0's problem dissolved rather than guarded).
+    function st.probeWait(path, t)
+        if #st.probeWaiting >= (tonumber(st.probeWaitMax) or 8) then
+            st.probes.dropped = st.probes.dropped + 1
+            return false, "too many files already waiting"
+        end
+        st.probeWaiting[#st.probeWaiting + 1] = { path = path, at = t }
+        if st.probeTimer then return true, "a beat is already on its way" end
+        if not (hs.timer and hs.timer.doAfter) then
+            st.probes.noTimer = st.probes.noTimer + 1
+            return false, "no hs.timer.doAfter on this Mac"
+        end
+        local ok
+        ok, st.probeTimer = pcall(hs.timer.doAfter, tonumber(st.probeSecs) or 2.5,
+                                  function() pcall(st.probeLand) end)
+        if not ok or not st.probeTimer then
+            st.probeTimer = nil
+            st.probes.noTimer = st.probes.noTimer + 1
+            return false, "could not arm the beat"
+        end
+        return true
+    end
+
+    -- The answers have landed in _G.hyperWakeProbe; give them to every
+    -- file still waiting. Each one is rendered against ITS OWN storm
+    -- time, so a file that waited through a second storm still reports
+    -- its own freshness honestly.
+    function st.probeLand()
+        st.probeTimer = nil
+        local pending = st.probeWaiting
+        st.probeWaiting = {}
+        for _, w in ipairs(pending) do
+            local lines = st.probeLines(_G.hyperWakeProbe, w.at)
+            local ok, why = st.appendSection(w.path, "why (measured at the storm)", lines)
+            if ok then
+                st.probes.landed = st.probes.landed + 1
+            else
+                st.probes.failed = st.probes.failed + 1
+                st.probeWhy = why
+            end
+        end
+        return true
+    end
+
     -- ---- the storm ----------------------------------------------------------
     function st.fire(age, t)
         t = t or now()
@@ -277,6 +451,17 @@ function M.setup(core)
         elseif type(_G.hyperReleaseSeen) == "function" then
             released = _G.hyperReleaseSeen("the ⇪ storm guard") == true
         end
+        -- 🚪 THE PROBE COMES AFTER THE RELEASE, and a check asserts the
+        -- ORDER rather than that both happened (6.220.0). The release is
+        -- what lets his next key type; the probe is diagnosis, and a
+        -- probe that throws must never be able to cost it.
+        local asked = false
+        if st.probeOn ~= false and type(_G.hyperWakeProbeRun) == "function" then
+            st.probes.asked = st.probes.asked + 1
+            asked = pcall(_G.hyperWakeProbeRun, "the ⇪ storm guard") and true or false
+            if not asked then st.probes.failed = st.probes.failed + 1 end
+            if path then st.probeWait(path, t) end
+        end
         local paused = false
         if recent >= st.pauseAt then
             _G.hsPaused = true
@@ -288,7 +473,9 @@ function M.setup(core)
             path and ("Report: " .. path) or ("report NOT written — " .. tostring(werr)))
         if paused then msg = msg .. string.format(" — %d storms in %d min: PAUSED, %s resumes",
                                                   recent, math.floor(st.window / 60), _G.hsPauseHint or "⇪⇧Esc") end
-        st.last = { at = t, age = age, keys = #st.order, path = path, why = werr, paused = paused, released = released }
+        if asked then msg = msg .. " · asking WHY — the answer lands in that file in a moment" end
+        st.last = { at = t, age = age, keys = #st.order, path = path, why = werr,
+                    paused = paused, released = released, asked = asked }
         st.holdId, st.seen, st.order = nil, {}, {}
         print(msg .. "\n   _G.stormReport() prints the report.")
         alert(msg, 10)
@@ -360,6 +547,24 @@ function M.setup(core)
         end
         L[#L + 1] = string.format("   storms : %d this session · %d watchdog release(s) · %d Caps Lock autorepeat(s)",
                                   st.storms, tonumber(_G.hyperLatchReleases) or 0, tonumber(_G.hyperRepeats) or 0)
+        -- 6.403.0 — asked/landed counted APART: a probe that was asked
+        -- and whose answer never reached the file is not the same fact
+        -- as one that was never asked (6.196.1).
+        L[#L + 1] = string.format("   why    : %d probe(s) asked at a storm · %d answer(s) appended to the file",
+                                  st.probes.asked, st.probes.landed)
+        if st.probes.noTimer > 0 then
+            L[#L + 1] = "   ↳ ⚠️ " .. st.probes.noTimer .. " could not arm the append beat — "
+                .. "the answers are in _G.hyperKeyReport(), not in the file"
+        end
+        if st.probes.failed > 0 then
+            L[#L + 1] = "   ↳ ⚠️ " .. st.probes.failed .. " failed — " .. tostring(st.probeWhy or "?")
+        end
+        if st.probes.dropped > 0 then
+            L[#L + 1] = "   ↳ ⚠️ " .. st.probes.dropped .. " storm(s) got no answer: too many waiting at once"
+        end
+        if #st.probeWaiting > 0 then
+            L[#L + 1] = "   ↳ " .. #st.probeWaiting .. " file(s) waiting for the answers right now"
+        end
         if st.announced then L[#L + 1] = "   boot   : " .. st.announced end
         if st.announceWhy then L[#L + 1] = "   ⚠️ " .. tostring(st.announceWhy) end
         local path = st.newest()

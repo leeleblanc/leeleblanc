@@ -25,6 +25,16 @@ assert(os.execute('mkdir -p "' .. ROOT .. '"'))
 local NOW = 1000
 local ALERTS, PRINTED, SETTINGS, NOTICES = {}, {}, {}, {}
 local NO_SETTINGS, NO_DIR = false, false
+local NO_TIMER, TIMERS = false, {}
+local function fireTimers()
+    local list = TIMERS
+    TIMERS = {}
+    local n = 0
+    for _, t in ipairs(list) do
+        if not t.stopped then n = n + 1; t.fn() end
+    end
+    return n
+end
 local realPrint = print
 print = function(...)
     local p = {}
@@ -33,7 +43,21 @@ print = function(...)
 end
 hs = {
     configdir = ROOT,
-    timer = { secondsSinceEpoch = function() return NOW end },
+    timer = {
+        secondsSinceEpoch = function() return NOW end,
+        -- 6.290.0 — the stub answers what macOS answers, refusals
+        -- included: NO_TIMER makes doAfter raise the way a Mac without
+        -- it does, and a timer that has been stopped never fires again
+        -- (a stub that let a stopped timer fire turns a correct
+        -- implementation red — 6.389.0).
+        doAfter = function(secs, fn)
+            if NO_TIMER then error("no hs.timer.doAfter here") end
+            local t = { secs = secs, fn = fn, stopped = false }
+            t.stop = function(self) (self or t).stopped = true; return self or t end
+            TIMERS[#TIMERS + 1] = t
+            return t
+        end,
+    },
     fs = {
         attributes = function(p)
             if os.execute('test -d "' .. p .. '"') == true then return { mode = "directory" } end
@@ -310,6 +334,226 @@ do
     check("SOURCE: warm() reads pcall's ok and degrades the throw",
           src:find("local ok, err = pcall(st.announce)\n    if not ok then", 1, true) ~= nil)
     _G.hyperStorm = s3
+end
+
+
+-- =====================================================================
+-- 🔬 6.403.0 — A STORM ASKS WHY, AND THE ANSWERS GO IN THE FILE
+-- =====================================================================
+-- LL's 2026-11-04 Console: ⇪ latched TWICE in forty-five seconds and the
+-- second one paused the config. Both files carried COUNTS and no CAUSES,
+-- because 6.303.0's probe — the only thing that reads the remap, the tap
+-- and Secure Input — was wired to wake events alone.
+do
+    out("\n🔬 6.403.0 — a storm asks why\n")
+
+    -- 🔌 THE RENDERER IS LIFTED OUT OF THE SHIPPED SOURCE, never retyped
+    -- (6.273.0). A stub that invented these three sentences would not
+    -- merely miss a drift between core/ and the storm report — it would
+    -- certify it.
+    local function liftProbeAnswers()
+        local src = readAll(HS .. "/core/hyper_key.lua") or ""
+        local body = src:match("(function _G%.hyperProbeAnswers%(P%).-\n   end)\n")
+                  or src:match("(function _G%.hyperProbeAnswers%(P%).-\nend)\n")
+        if not body then return nil, "not found in the source" end
+        local box = {}
+        local env = { tostring = tostring, type = type, _G = box }
+        local chunk = load(body, "probeAnswers", "t", env)
+        if not chunk then return nil, "would not load" end
+        local okc = pcall(chunk)
+        if not okc then return nil, "threw on load" end
+        return box.hyperProbeAnswers
+    end
+    local answers, liftWhy = liftProbeAnswers()
+    check("the three answers are LIFTED out of core/hyper_key.lua's own source",
+          type(answers) == "function", liftWhy)
+    _G.hyperProbeAnswers = answers
+
+    local m = dofile(HS .. "/modules/hyper_storm.lua")
+    m.setup({ configDir = ROOT })
+    local st = _G.hyperStorm
+
+    -- ---- the pure renderer, three freshness states ---------------------
+    local P = { at = 1000, why = "the ⇪ storm guard", remap = true, tap = true,
+                secure = "clear", reads = 3, failed = 0, repaired = 0 }
+    local fresh, kf = st.probeLines(P, 1000)
+    local stale, ks = st.probeLines({ at = 100, why = "systemDidWake", remap = true,
+                                      tap = true, secure = "clear" }, 1000)
+    local never, kn = st.probeLines(nil, 1000)
+    check("three freshness states and three different answers",
+          kf == "fresh" and ks == "stale" and kn == "never",
+          tostring(kf) .. "/" .. tostring(ks) .. "/" .. tostring(kn))
+    -- 🚨 THE FIXTURE THAT BITES: a stale reading renders the SAME three
+    -- answers as a fresh one, so a check on the answers passes with the
+    -- age thrown away. Only the first line can tell them apart.
+    check("a FRESH reading says it was measured at this storm",
+          fresh[1]:find("measured AT this storm", 1, true) ~= nil, fresh[1])
+    check("a STALE reading says so, with its age, and refuses to describe this storm",
+          stale[1]:find("OLD READING", 1, true) ~= nil
+          and stale[1]:find("900 s before this storm", 1, true) ~= nil
+          and stale[1]:find("does NOT describe this storm", 1, true) ~= nil, stale[1])
+    check("never-asked is neither of them and says the file cannot say which",
+          never[1]:find("NOT ASKED", 1, true) ~= nil
+          and never[1]:find("cannot say which", 1, true) ~= nil
+          and #never == 1, never[1])
+    check("a healthy reading renders all three answers",
+          table.concat(fresh, "\n"):find("Caps Lock → F18 still set", 1, true) ~= nil
+          and table.concat(fresh, "\n"):find("the F18 event tap is running", 1, true) ~= nil
+          and table.concat(fresh, "\n"):find("Secure Input clear", 1, true) ~= nil)
+
+    -- 🚨 "COULD NOT BE ASKED" MUST NEVER RENDER AS HEALTH — this is the
+    -- row that reads as reassurance when it is wrong, and it is the one
+    -- LL's own Mac has been answering for two releases.
+    local blind = table.concat(st.probeLines({ at = 1000, why = "x" }, 1000), "\n")
+    check("a probe that could not read any of the three says so on every row, with a ⚠️",
+          blind:find("could not be read", 1, true) ~= nil
+          and blind:find("not known", 1, true) ~= nil
+          and blind:find("Secure Input clear", 1, true) == nil
+          and blind:find("still set", 1, true) == nil, blind)
+
+    -- a core that did not load must cost the SECTION, never the file
+    _G.hyperProbeAnswers = nil
+    local noCore = table.concat(st.probeLines(P, 1000), "\n")
+    check("without core/hyper_key.lua the rows say they could not be rendered, not that all is well",
+          noCore:find("could not be rendered", 1, true) ~= nil
+          and noCore:find("still set", 1, true) == nil, noCore)
+    _G.hyperProbeAnswers = answers
+
+    -- ---- the storm asks, and the order is the rule ---------------------
+    local ORDER = {}
+    _G.hyperForceRelease = function() ORDER[#ORDER + 1] = "release"; return true end
+    _G.hyperWakeProbe = { at = nil, why = "no wake probed yet", reads = 0, failed = 0 }
+    _G.hyperWakeProbeRun = function(why)
+        ORDER[#ORDER + 1] = "probe"
+        _G.hyperWakeProbe = { at = NOW, why = tostring(why), remap = true, tap = true,
+                              secure = "clear", reads = 1, failed = 0, repaired = 0 }
+        return true
+    end
+
+    st.order = { { "a", "one" }, { "b", "two" } }
+    local okF = st.fire(7, NOW)
+    check("the storm fires", okF == true)
+    -- 6.220.0 — the ORDER, not that both happened. A check on presence
+    -- passes with the probe asked BEFORE the release, which is the one
+    -- arrangement where a probe that throws costs him his keyboard.
+    check("the release happens BEFORE the probe is asked",
+          ORDER[1] == "release" and ORDER[2] == "probe", table.concat(ORDER, ","))
+    check("the probe is counted as asked", st.probes.asked == 1 and st.probes.failed == 0)
+    check("the probe was told who asked it",
+          tostring(_G.hyperWakeProbe.why):find("storm guard", 1, true) ~= nil)
+
+    local path1 = st.last.path
+    check("the report is on disk at once, without waiting for the probe", path1 ~= nil)
+    local at_storm = readAll(path1) or ""
+    check("the file written at storm time carries the WHY section, honestly labelled",
+          at_storm:find("why    :", 1, true) ~= nil
+          and at_storm:find("appended at the END of this file", 1, true) ~= nil, at_storm:sub(1, 200))
+    check("…and it does NOT yet claim a measured answer", at_storm:find("── why (measured", 1, true) == nil)
+
+    -- ---- the answers land in the file ----------------------------------
+    check("one file is waiting for the answers", #st.probeWaiting == 1)
+    fireTimers()
+    check("the answer is counted as landed", st.probes.landed == 1, st.probes.landed)
+    local after = readAll(path1) or ""
+    check("the three answers are APPENDED to the storm file",
+          after:find("── why (measured at the storm) ──", 1, true) ~= nil
+          and after:find("Caps Lock → F18 still set", 1, true) ~= nil
+          and after:find("the F18 event tap is running", 1, true) ~= nil, after:sub(-400))
+    check("the append added to the file and took nothing away (6.279.0)",
+          #after > #at_storm and after:sub(1, #at_storm) == at_storm)
+    check("nothing is left waiting", #st.probeWaiting == 0 and st.probeTimer == nil)
+
+    -- ---- 🚨 TWO STORMS 45 s APART — the thing a single slot would drop --
+    -- This is not hypothetical: it is exactly LL's own log.
+    st.probes = { asked = 0, landed = 0, noTimer = 0, dropped = 0, failed = 0 }
+    st.times, st.storms = {}, 0
+    st.order = { { "c", "three" } }
+    st.fire(7, NOW + 100)
+    local pA = st.last.path
+    st.order = { { "d", "four" } }
+    st.fire(14, NOW + 145)
+    local pB = st.last.path
+    check("two storms forty-five seconds apart are two different files", pA ~= pB and pA and pB)
+    check("BOTH files are waiting for the answers — the newer did not take the slot",
+          #st.probeWaiting == 2, #st.probeWaiting)
+    fireTimers()
+    local tA, tB = readAll(pA) or "", readAll(pB) or ""
+    check("the first storm's answers are NOT dropped by the second",
+          tA:find("── why (measured at the storm) ──", 1, true) ~= nil, tA:sub(-200))
+    check("…and the second storm's answers land too",
+          tB:find("── why (measured at the storm) ──", 1, true) ~= nil, tB:sub(-200))
+    check("both are counted", st.probes.landed == 2, st.probes.landed)
+
+    -- ---- the degrades --------------------------------------------------
+    -- a Mac with no doAfter: the release still happens, and the miss is
+    -- COUNTED and SAID rather than leaving the file looking complete
+    NO_TIMER = true
+    st.probes = { asked = 0, landed = 0, noTimer = 0, dropped = 0, failed = 0 }
+    st.times, st.storms = {}, 0
+    ORDER = {}
+    st.order = { { "e", "five" } }
+    st.fire(9, NOW + 400)
+    NO_TIMER = false
+    check("without hs.timer.doAfter the storm still RELEASES the hold",
+          ORDER[1] == "release")
+    check("…the missing beat is counted, not swallowed", st.probes.noTimer == 1, st.probes.noTimer)
+    PRINTED = {}
+    _G.stormReport()
+    local rep = table.concat(PRINTED, "\n")
+    check("…and the report says the answers are not in the file",
+          rep:find("could not arm the append beat", 1, true) ~= nil
+          and rep:find("_G.hyperKeyReport()", 1, true) ~= nil, rep)
+
+    -- an append the disk refuses costs the section, never the report
+    st.probes = { asked = 0, landed = 0, noTimer = 0, dropped = 0, failed = 0 }
+    local okA, whyA = st.appendSection(ROOT .. "/no/such/folder/x.txt", "why", { "a" })
+    check("a refused append answers false and why, and names the path",
+          okA == false and tostring(whyA):find("cannot append", 1, true) ~= nil, whyA)
+    local okN = st.appendSection(nil, "why", { "a" })
+    check("an append with no path is refused rather than throwing", okN == false)
+
+    -- the waiting list is bounded, and the bound is a STATE
+    st.probeWaiting = {}
+    for i = 1, 20 do st.probeWait(ROOT .. "/x" .. i .. ".txt", NOW) end
+    check("the waiting list is bounded at probeWaitMax",
+          #st.probeWaiting == st.probeWaitMax, #st.probeWaiting)
+    check("…and the storms that got no answer are counted, never silently dropped",
+          st.probes.dropped == 20 - st.probeWaitMax, st.probes.dropped)
+    st.probeWaiting, st.probeTimer = {}, nil
+
+    -- the switch is real in both directions
+    st.probes = { asked = 0, landed = 0, noTimer = 0, dropped = 0, failed = 0 }
+    st.probeOn = false
+    st.times, st.storms = {}, 0
+    ORDER = {}
+    st.order = { { "f", "six" } }
+    st.fire(9, NOW + 500)
+    check("probeOn = false asks nothing and still releases",
+          st.probes.asked == 0 and ORDER[1] == "release" and #st.probeWaiting == 0)
+    local offText = readAll(st.last.path) or ""
+    check("…and the file does not promise an answer that is not coming",
+          offText:find("appended at the END", 1, true) == nil, offText:sub(1, 200))
+    st.probeOn = true
+
+    -- ---- the source sentries -------------------------------------------
+    local src = readAll(HS .. "/modules/hyper_storm.lua") or ""
+    check("SOURCE: the timer is HELD in its own named slot — an unreferenced hs.timer never fires (6.196.1)",
+          src:find("ok, st.probeTimer = pcall(hs.timer.doAfter", 1, true) ~= nil)
+    check("SOURCE: pcall's timer is captured in TWO values, never an `and` chain (6.355.0)",
+          src:find("st.probeTimer = pcall(hs.timer.doAfter", 1, true) ~= nil
+          and src:find("hs.timer.doAfter and pcall", 1, true) == nil)
+    check("SOURCE: the append reads io.write's own return (6.325.0)",
+          src:find("local wrote, werr = f:write(text)", 1, true) ~= nil
+          and src:find('if not wrote then return false', 1, true) ~= nil)
+    check("SOURCE: the file is opened for APPEND, never rewritten (6.279.0)",
+          src:find('io.open(path, "a")', 1, true) ~= nil)
+    local core = readAll(HS .. "/core/hyper_key.lua") or ""
+    check("SOURCE: _G.hyperKeyReport() asks the one renderer rather than keeping a second copy (6.231.0)",
+          core:find("local pRemap, pTap, pSecure = _G.hyperProbeAnswers(P)", 1, true) ~= nil
+          and select(2, core:gsub("Caps Lock → F18 still set", "")) == 1,
+          select(2, core:gsub("Caps Lock → F18 still set", "")))
+
+    _G.hyperProbeAnswers, _G.hyperWakeProbeRun, _G.hyperForceRelease = nil, nil, nil
 end
 
 os.execute('rm -rf "' .. ROOT .. '"')
