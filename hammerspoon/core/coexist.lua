@@ -497,8 +497,15 @@ function _G.focusBorrow(who)
             st.dropped = st.dropped + 1
         end
     end
+    -- 🕒 STAMPED AT THE BORROW, not when the app was last in front: an
+    -- app activated an hour ago but borrowed just now is the NEWEST loan,
+    -- and the bound drops the oldest. Taking the app's own timestamp
+    -- would make "oldest loan" mean "least recently used app", which is a
+    -- different question with a different answer.
+    local at
+    pcall(function() at = hs.timer.secondsSinceEpoch() end)
     _G.focusLoans[who] = { app = app, name = name,
-                           at = (seen and seen.at) or os.time() }
+                           at = (type(at) == "number") and at or os.time() }
     return focusNote(true, nil, who, name)
 end
 

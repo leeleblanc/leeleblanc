@@ -91,6 +91,12 @@ end
 -- REFUSING). The watcher is captured so the suite can fire activations.
 local HS_BUNDLE = "org.hammerspoon.Hammerspoon"
 local FRONT, APP_WATCHERS, WATCHER_REFUSES = nil, {}, false
+-- 🕒 A CLOCK THAT CAN MOVE. It was a constant, and the sweep showed
+-- what that cost: every loan carried the same timestamp, so "the
+-- oldest loan" was whichever pairs() reached first and flipping the
+-- comparison picked a different arbitrary one. A fixture where the
+-- right and wrong implementations AGREE proves nothing (6.230.0).
+local CLOCK = 1000.5
 local function mkApp(name, bundle, how)
   local a = { nm = name, bid = bundle or ("com.test." .. name), activated = 0 }
   function a:name() return self.nm end
@@ -139,7 +145,7 @@ hs = {
              doEvery = function(s, fn) return mkTimer(s, fn) end,
              -- a FLOAT, as macOS answers — an INTEGER here is a stub gentler
              -- than the provider, which cost 23 checks in 6.282.0
-             secondsSinceEpoch = function() return 1000.5 end },
+             secondsSinceEpoch = function() return CLOCK end },
   mouse  = { absolutePosition = function() return { x = MOUSE.x, y = MOUSE.y } end },
   canvas = { new = function(r) return mkCanvas(r.x, r.y, r.w, r.h) end },
   alert  = { show = function() end },
@@ -680,9 +686,11 @@ do
   reset()
   _G.focusLoanMax = 3
   for i = 1, 5 do
+    CLOCK = 1000.5 + i          -- each borrow is strictly newer than the last
     fireActivated(mkApp("App" .. i))
     _G.focusBorrow("panel" .. i)
   end
+  CLOCK = 1000.5
   local held = 0
   for _ in pairs(_G.focusLoans) do held = held + 1 end
   check("📏 the loan register is BOUNDED and says how many it dropped — a "
@@ -690,9 +698,13 @@ do
         .. "silently is a panel that cannot give the focus back",
         held <= 3 and _G.focusState.dropped == 2,
         held .. " held · " .. _G.focusState.dropped .. " dropped")
-  check("📏 ...and the NEWEST loan survives the bound, because the newest "
-        .. "is the one a close is about to ask for",
-        _G.focusLoans["panel5"] ~= nil)
+  check("📏 ...and the NEWEST loan survives the bound while the OLDEST is "
+        .. "the one dropped — the newest is the one a close is about to ask "
+        .. "for, and it is the borrow's own clock that orders them",
+        _G.focusLoans["panel5"] ~= nil and _G.focusLoans["panel1"] == nil
+        and _G.focusLoans["panel2"] == nil,
+        tostring(_G.focusLoans["panel5"] ~= nil) .. " / "
+        .. tostring(_G.focusLoans["panel1"] == nil))
   _G.focusLoanMax = 12
 
   -- the report: three states, and it names the watcher
