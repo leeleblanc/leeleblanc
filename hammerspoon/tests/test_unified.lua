@@ -1683,11 +1683,45 @@ do
           and (printed[1] or ""):find("1 ⌘V posted", 1, true) ~= nil,
           printed[1])
 
+    -- 9. 🪜 THE TIMER IS HELD IN ITS OWN NAMED SLOT, and a second pick
+    --    stops the first. The sweep found both halves: an unreferenced
+    --    hs.timer is collected and never fires, so the ASSIGNMENT is the
+    --    mechanism (6.196.1) — and no functional test can see that,
+    --    because the suite's timer table holds every timer whether the
+    --    module does or not (6.290.0). So the slot is asserted against
+    --    the SOURCE, exactly as the Secure Input task slots are, and the
+    --    re-arm is driven for real.
+    local usrc = (function()
+        local f = REAL_OPEN(HS .. "/modules/unified_search.lua", "r")
+        local t = f and f:read("*a") or "" ; if f then f:close() end
+        return t
+    end)()
+    check("🪜 SOURCE: the settle timer is held in its own named slot — an "
+          .. "unreferenced hs.timer is collected and never fires, so the "
+          .. "paste would simply never happen (6.196.1)",
+          usrc:find("uni.pasteTimer = hs.timer.doAfter", 1, true) ~= nil)
+    check("🪜 SOURCE: ...and the slot is cleared inside the callback, so a "
+          .. "spent timer is not mistaken for one still in flight",
+          usrc:find("uni.pasteTimer = nil", 1, true) ~= nil)
+
+    U.show()
+    PB, ALERTS, KEYS = nil, {}, {}
+    U.pastes = { asked = 0, posted = 0, copiedOnly = 0, last = nil }
+    RETURN_ANSWER = true
+    BRIDGE({ body = { a = "pick", id = row.id } })   -- arms one
+    U.show()
+    BRIDGE({ body = { a = "pick", id = row.id } })   -- must stop the first
+    drain()
+    check("🪜 two picks in a row post ONE ⌘V, not two — the second arms "
+          .. "into the same slot and stops what was there",
+          #KEYS == 1 and U.pastes.posted == 1,
+          #KEYS .. " key(s) · " .. U.pastes.posted .. " posted")
+
     _G.focusBorrow, _G.focusReturn, _G.withInjection =
         realBorrow, realReturn, realInject
     U.pastes = { asked = 0, posted = 0, copiedOnly = 0, last = nil }
     local ran = (pass + fail) - before
-    check("📋 the 6.402.0 section ran all of its checks", ran >= 21, ran)
+    check("📋 the 6.402.0 section ran all of its checks", ran >= 24, ran)
 end
 
 out("\n8. 📓 6.383.0 — @logs: every tool that has failed, searchable\n")
