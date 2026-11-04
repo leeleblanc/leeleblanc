@@ -504,6 +504,26 @@ do
           rep:find("could not arm the append beat", 1, true) ~= nil
           and rep:find("_G.hyperKeyReport()", 1, true) ~= nil, rep)
 
+    -- 🚨 AND "ABSENT" IS NOT "REFUSING" (6.265.0). The check above drives
+    -- a doAfter that RAISES, which lands on the second counter; a Mac
+    -- with no doAfter AT ALL takes a different branch with its own, and
+    -- the sweep found that branch driven by nothing. Both, now.
+    st.probes = { asked = 0, landed = 0, noTimer = 0, dropped = 0, failed = 0 }
+    st.times, st.storms = {}, 0
+    ORDER = {}
+    local realDoAfter = hs.timer.doAfter
+    hs.timer.doAfter = nil
+    st.order = { { "g", "seven" } }
+    st.fire(9, NOW + 450)
+    hs.timer.doAfter = realDoAfter
+    check("with NO hs.timer.doAfter at all the storm still RELEASES the hold",
+          ORDER[1] == "release", table.concat(ORDER, ","))
+    check("…and the absent-doAfter branch counts the miss too, not only the refusing one",
+          st.probes.noTimer == 1, st.probes.noTimer)
+    check("…and nothing is left waiting for an answer that can never be appended",
+          st.probeWaiting ~= nil and st.probeTimer == nil)
+    st.probeWaiting = {}
+
     -- an append the disk refuses costs the section, never the report
     st.probes = { asked = 0, landed = 0, noTimer = 0, dropped = 0, failed = 0 }
     local okA, whyA = st.appendSection(ROOT .. "/no/such/folder/x.txt", "why", { "a" })
