@@ -1,5 +1,5 @@
 ========================================================================
-RESOLVED FEATURE REQUESTS — Hammerspoon config 6.402.0
+RESOLVED FEATURE REQUESTS — Hammerspoon config 6.403.0
 Every feature and how to use it. Generated from the modules' own
 cheat sheets (the rows ⇪/ draws), so it is never out of date.
 ⇪ = Caps Lock held (the hyper key). ⇪⇧X = Caps Lock + Shift + X.
@@ -889,6 +889,7 @@ In the Console, _G.<tool>Report() prints any tool's own report.
 
 📜 RELEASE INDEX — newest first, one line per release (the full story of each is in CHANGELOG.md)
 ------------------------------------------------------------------------
+  6.403.0  🔬 A STORM ASKS WHY, AND THE ANSWER GOES IN ITS OWN FILE
   6.402.0  📋 ⏎ ON A CLIPBOARD ROW PASTES IT
   6.401.0  🎯 THE FOCUS IS GIVEN BACK (core/coexist.lua +
   6.400.0  🧵 A BOOT IS FINDABLE IN THE CONSOLE (init.lua §0.0 and

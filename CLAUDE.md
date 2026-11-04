@@ -544,6 +544,53 @@ work Mac.
   see where it landed). Only a @clip row pastes: a path or a shortcut's
   keys typed into his document is not what ⏎ means there.
 
+- 🔬 WHEN A GUARD CATCHES A FAULT, ASK THE QUESTIONS WHOSE ANSWERS DECIDE
+  THE FIX, AT THAT MOMENT (6.403.0, modules/hyper_storm.lua — LL's
+  2026-11-04 Console: ⇪ latched TWICE in forty-five seconds, 05:14:39 held
+  7 s over 7 keys and 05:15:24 held 14.4 s over 6, and the second PAUSED
+  the config). Both releases worked, both files were written, and neither
+  could say WHICH of the three things that latch ⇪ with the key physically
+  up had happened. 6.303.0 built the probe that reads all three — the
+  hidutil remap, the F18 tap, Secure Input — and wired it to WAKE EVENTS
+  ONLY.
+  🔑 `before :` HAD ALWAYS CARRIED COUNTS and a count says how OFTEN,
+  never WHY. Causes sit beside them now. Free on a healthy Mac (it runs
+  only when a storm fires) and the only reading taken while the fault is
+  still on the Mac. The remap REPAIR rides free — a measurably GONE
+  mapping is put back.
+  🔎 AND I NEARLY BUILT THE OPPOSITE, which is the half to carry. The
+  file's `asked :` line read "unified search", so a panel had declared a
+  handover INSIDE the hold; `st.judge` never consults that fact while
+  `_G.hyperEndVerdict` next door already answers it and 6.302.0's wake
+  release already refuses to count itself a latch for that very reason.
+  That reads like 6.305.0 and the fix it suggests is to exonerate such a
+  hold. THE KEY TRAIL'S OWN TIMESTAMPS REFUSE IT: the hold began at
+  05:15:10, its first key is at 05:15:11, and ⇪O — which has opened
+  unified search since 6.190.0 — is the FIFTH of six. The panel opened as
+  a CONSEQUENCE. And in 6.214.0's original storm every letter ran its own
+  shortcut, several of which open panels, so that line would be set in a
+  genuine latch too: exonerating it would have DISARMED THE GUARD FOR THE
+  ONE CASE IT EXISTS FOR (6.337.0, almost paid twice).
+  🔑 GENERAL: when a report records a fact that would exonerate the thing
+  it is reporting, check the ORDER of events before acting on it — a cause
+  and a consequence look identical in a list of counts, and the field that
+  separates them is a clock (6.302.0 · 6.312.0).
+  🚪 RELEASE FIRST, PROBE SECOND, asserted on the ORDER rather than on
+  both happening (6.220.0): a probe that throws must never cost him his
+  keyboard. 🪜 The answers arrive late (the remap is read out of process —
+  6.228.0), so the file is written at once and a HELD timer APPENDS them;
+  an append cannot shrink a file (6.279.0) and io.write's return is READ
+  (6.325.0). 🚨 ONE timer, a LIST of waiting files — his own log is two
+  storms 45 s apart and a single slot would have dropped the first one's
+  answers in silence, so 6.304.0's generation problem is dissolved rather
+  than guarded. Bounded, and the bound is a STATE (6.197.2).
+  🔑 ONE RENDERER, TWO READERS: `_G.hyperProbeAnswers` is published from
+  core/ and `_G.hyperKeyReport()` asks it too (6.231.0), so the two cannot
+  drift about what "could not be asked" means — the row that reads as
+  reassurance when it is wrong, and the row his Mac has answered UNKNOWN
+  on for two releases. THREE freshness states (6.196.1): measured at this
+  storm · an OLD wake reading that says so with its age · never asked.
+
 - 🧵 A MARKER THAT MUST SIT BESIDE AN EVENT YOU DO NOT CONTROL IS WRITTEN
   FROM BOTH SIDES (6.400.0, init.lua §0.0 and §3.12a — LL: "please create
   a divider above this line so I can see where one section ends and this
@@ -6766,6 +6813,19 @@ THE METHOD, when something breaks after a stacked zip:
    ⏎ that copies instead of pasting may be either release. The ⏎ clip
    line in `_G.unifiedSearchReport()` and `_G.focusReport()` separate
    them in one run.
+   · 6.403.0 1c271a0 (the code) · 6ef83de (the sweep's own finding —
+   ABSENT is not REFUSING, 6.265.0 for the sixth time: probeWait turns
+   away a Mac with NO hs.timer.doAfter in one branch and a doAfter that
+   REFUSES in another, each with its own counter, and the degrade check
+   drove only the refusing one because the stub flag makes the function
+   RAISE rather than vanish — so the absent branch counter was reachable
+   by no fixture and deleting it passed 110 checks. 19 mutations, 18
+   killed, the no-op control survived, restore sha256-verified).
+   🔑 IT IS AN INSTRUMENT AND NOT A FIX, which matters for a bisect: if ⇪
+   latches on 6.403.0 that is NOT a regression — the storm file now
+   carries a `── why (measured at the storm) ──` section naming which of
+   the remap, the tap or Secure Input was wrong, and that section is the
+   thing to read before touching anything.
    Keep this list current: one line per release, appended at ceremony
    time.
 4. A BISECT IS AN OPTION, NOT THE FIRST MOVE — it costs him an install
@@ -6843,7 +6903,7 @@ that must be READ before a new cause is named.
 
 | symptom, in his words | where it lives | releases | passes | tag |
 |---|---|---|---|---|
-| "killed my keyboard", every key runs a shortcut, ⇪ latched | core/hyper_key.lua · hyper_storm.lua | 6.162.1 · 6.214.1 · 6.214.2 · 6.302.0 · 6.303.0 · 6.304.0 | 6 | 🔨 crude |
+| "killed my keyboard", every key runs a shortcut, ⇪ latched · two storms in 45 s and the config PAUSED itself | core/hyper_key.lua · hyper_storm.lua | 6.162.1 · 6.214.1 · 6.214.2 · 6.302.0 · 6.303.0 · 6.304.0 · 6.403.0 | 7 (6.403.0 is an instrument, not a fix) | 🔨 crude |
 | "empty zip" / the archive will not open | delivery, not code | 6.263.0 → 6.303.0 | 6 | 🔨 crude |
 | "a drag kills the sheet functionality" · wheel dead over ⇪/ · desktop jump | core/coexist.lua drag engine | 6.138.0 · 6.306.0 | 2 | ask |
 | "hyper+4 no longer works" / "intermittently working" | modules/screenshots.lua | 6.264.0 · 6.265.0 · 6.274.0 · 6.282.0 | 4 | ask |
@@ -7002,6 +7062,7 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
+| 6.403.0 | 🔬 A storm asks WHICH of three things latched ⇪, and appends the answer to its own file | pending |
 | 6.402.0 | 📋 ⏎ on a clipboard row pastes it where you were typing — and the first row was why it looked dead | pending |
 | 6.401.0 | 🎯 The focus comes back when an edit window closes — no trackpad | pending |
 | 6.400.0 | 🧵 A divider in the Console, written from both sides of a boot | pending |
@@ -8678,6 +8739,101 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.403.0 verify with LL — 🔬 A STORM NOW SAYS WHY (KNOWN GROUND)
+  🚨 FIRST, AND BEFORE ANYTHING ELSE: **YOUR CONFIG MAY STILL BE PAUSED.**
+  Your 05:15:24 line ends "2 storms in 10 min: PAUSED, ⇪⇧escape resumes",
+  and nothing after it in your Console says you resumed. If ⇪ shortcuts
+  are doing nothing right now, that is why: press **⇪⇧Esc** (hold Caps
+  Lock and Shift, press the Escape key) and they all come back. A reload
+  clears it too.
+  WHAT HAPPENED, and it is not a false alarm: ⇪ really did latch, twice,
+  forty-five seconds apart. Caps Lock was not under your finger — that
+  Mac logged 88 autorepeats that session and NONE in the last two seconds
+  of either hold — so every key you pressed was running a ⇪ shortcut
+  instead of typing. The guard caught it both times, released it both
+  times, and wrote both files. That is the feature working.
+  WHAT CHANGED: those files said how OFTEN ⇪ had latched and never WHICH
+  of the three things that can latch it had happened. Now a storm asks,
+  at the moment it fires, and the answers go in its own file.
+
+  A. THE HEADLINE — nothing to press, and I hope you never see it.
+  A1. If ⇪ latches again you get the same alert, with one clause added:
+      "· asking WHY — the answer lands in that file in a moment".
+  A2. Console: `_G.stormReport()`. **PASTE THE WHOLE THING.** At the END
+      of the embedded file there is now a new section:
+        ── why (measured at the storm) ──
+        why    : measured AT this storm (the ⇪ storm guard, 05:15:26)
+           remap : Caps Lock → F18 still set
+           tap   : the F18 event tap is running
+           secure: Secure Input clear
+      **Those three lines are the whole release.** Each one that reads
+      ⚠️ names a different cause with a different fix, and one of them is
+      the answer we have been missing since 6.214.0.
+  A3. If `remap` ever reads **⚠️ GONE**, that is the answer AND it has
+      already been put back — you will have seen a Console line saying
+      so. That is the only one of the three with a repair.
+  A4. If `secure` reads **⚠️ Secure Input held by <app>**, that app took
+      your whole keyboard, system-wide, and this config was never the
+      cause. It is the one your diagnostic report has been unable to read
+      for two releases, so it is the row with the least evidence either
+      way.
+  A5. 🎹 AND READ THE `tap` ROW FIRST, which your own boot explains:
+      "⇪ IS RUNNING WITHOUT CARBON on this Mac — the event-tap dispatcher
+      has taken over all 111 ⇪ shortcuts". On a Mac where Carbon carries
+      the keys, a tap switched off costs you some shortcuts. On YOURS the
+      tap carries everything, so a tap that stops is a ⇪ that stops —
+      including the keyUP that ends the hold. That makes `tap : ⚠️ the
+      F18 event tap was NOT running` the most plausible of the three
+      here, and it is a row nothing has ever been able to print at the
+      moment of a storm.
+
+  B. THE HONEST STATE OF THAT THIRD ROW — worth thirty seconds now.
+  B1. Console: `_G.secureInputReport()`.
+      Your ⇪⇧D report says `❔ Secure Input UNKNOWN — ioreg was asked and
+      never answered in 20s`. That is 6.304.0's belt working (it gives up
+      instead of wedging for the session) and the probe STILL not
+      answering on your Mac.
+      **PASTE IT.** If it carries `N × ioreg started and NEVER ANSWERED`,
+      that is a real finding of its own and it is the next release there —
+      a probe that cannot answer is the one row that could be hiding the
+      cause of every latch.
+
+  C. MUST STILL WORK — this touched the guard that saved your keyboard
+     twice, so this half matters more than A.
+  C1. Use ⇪ normally for a day: ⇪T, ⇪D, ⇪N, ⇪3, ⇪X, ⇪4, ⇪space, ⇪V, ⇪/.
+      EXPECT: no change of any kind, and NO storm alerts.
+  C2. Hold ⇪ down for ten seconds without pressing anything, then let go.
+      EXPECT: the ordinary `released by the watchdog — held 8s` line. That
+      warning must keep its teeth.
+  C3. Open the Jug Player (⇪⇧.) — the one-off "musicPlayer took the
+      keyboard" line still appears, and it is still NOT a latch.
+  C4. `_G.hyperKeyReport()` — the probe block is unchanged in shape, and
+      its three rows now come from the same renderer the storm file uses.
+      If those two ever disagree, that is a real finding.
+  C5. `_G.stormReport()` on a Mac that has NOT stormed: it must read
+      `why    : 0 probe(s) asked at a storm · 0 answer(s) appended`. A
+      number there on a quiet day is a finding.
+
+  D. A JUDGEMENT ONLY YOU CAN MAKE.
+  D1. 🚨 **AND THREE OF YOUR SHORTCUTS ARE TAKING A SECOND AND A HALF.**
+      Your key trail: `⇪space app launcher 1571 ms ⚠️ slow`, twice, and
+      `⇪⇧. jug player 1620 ms ⚠️ slow`, twice. That is 1.5 seconds of
+      main-thread time per press — the thing that cost you drag and drop
+      in 6.228.0 — and it is also what makes a run of six shortcuts last
+      the five seconds the storm rule measures. I have NOT fixed it,
+      because "⇪space is slow" names a KEY and not a cause, and the
+      candidates (the 121,453-path search index, the app list, the
+      window) have different fixes. Tell me whether ⇪space FEELS slow
+      when you press it and that is the next release.
+  D2. 🔨 Was the Mac unusable while this was happening, or did it just not
+      do the thing? By your own log every key you pressed ran a shortcut
+      for fourteen seconds and then the config paused itself, which reads
+      to me as unusable — but the tag is yours.
+  D3. 📏 NAMED, NOT FIXED, so it is not a surprise: this release does not
+      stop ⇪ latching. It makes the next one name its own cause. The
+      three candidates have been unmeasurable since 6.214.0 and this is
+      the first build that reads them at the moment it matters.
+
 - 6.402.0 verify with LL — 📋 ⏎ PASTES A CLIPBOARD ROW (KNOWN GROUND)
   WHAT CHANGED: in ⇪V (and ⇪D), pressing Return on a clipboard row now
   PASTES it where you were typing, instead of only copying it.

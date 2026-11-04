@@ -1,4 +1,4 @@
-# TESTING — how to score release 6.402.0
+# TESTING — how to score release 6.403.0
 
 You install ONE archive and it carries several releases. Below are the
 steps for each release this archive is new for, newest first. Run the
@@ -26,6 +26,105 @@ else is a LOSS and I fix it before building further. You are the only
 scorer; I never mark my own.
 
 ---
+
+## 6.403.0
+
+6.403.0 verify with LL — 🔬 A STORM NOW SAYS WHY (KNOWN GROUND)
+🚨 FIRST, AND BEFORE ANYTHING ELSE: **YOUR CONFIG MAY STILL BE PAUSED.**
+Your 05:15:24 line ends "2 storms in 10 min: PAUSED, ⇪⇧escape resumes",
+and nothing after it in your Console says you resumed. If ⇪ shortcuts
+are doing nothing right now, that is why: press **⇪⇧Esc** (hold Caps
+Lock and Shift, press the Escape key) and they all come back. A reload
+clears it too.
+WHAT HAPPENED, and it is not a false alarm: ⇪ really did latch, twice,
+forty-five seconds apart. Caps Lock was not under your finger — that
+Mac logged 88 autorepeats that session and NONE in the last two seconds
+of either hold — so every key you pressed was running a ⇪ shortcut
+instead of typing. The guard caught it both times, released it both
+times, and wrote both files. That is the feature working.
+WHAT CHANGED: those files said how OFTEN ⇪ had latched and never WHICH
+of the three things that can latch it had happened. Now a storm asks,
+at the moment it fires, and the answers go in its own file.
+
+A. THE HEADLINE — nothing to press, and I hope you never see it.
+A1. If ⇪ latches again you get the same alert, with one clause added:
+    "· asking WHY — the answer lands in that file in a moment".
+A2. Console: `_G.stormReport()`. **PASTE THE WHOLE THING.** At the END
+    of the embedded file there is now a new section:
+      ── why (measured at the storm) ──
+      why    : measured AT this storm (the ⇪ storm guard, 05:15:26)
+         remap : Caps Lock → F18 still set
+         tap   : the F18 event tap is running
+         secure: Secure Input clear
+    **Those three lines are the whole release.** Each one that reads
+    ⚠️ names a different cause with a different fix, and one of them is
+    the answer we have been missing since 6.214.0.
+A3. If `remap` ever reads **⚠️ GONE**, that is the answer AND it has
+    already been put back — you will have seen a Console line saying
+    so. That is the only one of the three with a repair.
+A4. If `secure` reads **⚠️ Secure Input held by <app>**, that app took
+    your whole keyboard, system-wide, and this config was never the
+    cause. It is the one your diagnostic report has been unable to read
+    for two releases, so it is the row with the least evidence either
+    way.
+A5. 🎹 AND READ THE `tap` ROW FIRST, which your own boot explains:
+    "⇪ IS RUNNING WITHOUT CARBON on this Mac — the event-tap dispatcher
+    has taken over all 111 ⇪ shortcuts". On a Mac where Carbon carries
+    the keys, a tap switched off costs you some shortcuts. On YOURS the
+    tap carries everything, so a tap that stops is a ⇪ that stops —
+    including the keyUP that ends the hold. That makes `tap : ⚠️ the
+    F18 event tap was NOT running` the most plausible of the three
+    here, and it is a row nothing has ever been able to print at the
+    moment of a storm.
+
+B. THE HONEST STATE OF THAT THIRD ROW — worth thirty seconds now.
+B1. Console: `_G.secureInputReport()`.
+    Your ⇪⇧D report says `❔ Secure Input UNKNOWN — ioreg was asked and
+    never answered in 20s`. That is 6.304.0's belt working (it gives up
+    instead of wedging for the session) and the probe STILL not
+    answering on your Mac.
+    **PASTE IT.** If it carries `N × ioreg started and NEVER ANSWERED`,
+    that is a real finding of its own and it is the next release there —
+    a probe that cannot answer is the one row that could be hiding the
+    cause of every latch.
+
+C. MUST STILL WORK — this touched the guard that saved your keyboard
+   twice, so this half matters more than A.
+C1. Use ⇪ normally for a day: ⇪T, ⇪D, ⇪N, ⇪3, ⇪X, ⇪4, ⇪space, ⇪V, ⇪/.
+    EXPECT: no change of any kind, and NO storm alerts.
+C2. Hold ⇪ down for ten seconds without pressing anything, then let go.
+    EXPECT: the ordinary `released by the watchdog — held 8s` line. That
+    warning must keep its teeth.
+C3. Open the Jug Player (⇪⇧.) — the one-off "musicPlayer took the
+    keyboard" line still appears, and it is still NOT a latch.
+C4. `_G.hyperKeyReport()` — the probe block is unchanged in shape, and
+    its three rows now come from the same renderer the storm file uses.
+    If those two ever disagree, that is a real finding.
+C5. `_G.stormReport()` on a Mac that has NOT stormed: it must read
+    `why    : 0 probe(s) asked at a storm · 0 answer(s) appended`. A
+    number there on a quiet day is a finding.
+
+D. A JUDGEMENT ONLY YOU CAN MAKE.
+D1. 🚨 **AND THREE OF YOUR SHORTCUTS ARE TAKING A SECOND AND A HALF.**
+    Your key trail: `⇪space app launcher 1571 ms ⚠️ slow`, twice, and
+    `⇪⇧. jug player 1620 ms ⚠️ slow`, twice. That is 1.5 seconds of
+    main-thread time per press — the thing that cost you drag and drop
+    in 6.228.0 — and it is also what makes a run of six shortcuts last
+    the five seconds the storm rule measures. I have NOT fixed it,
+    because "⇪space is slow" names a KEY and not a cause, and the
+    candidates (the 121,453-path search index, the app list, the
+    window) have different fixes. Tell me whether ⇪space FEELS slow
+    when you press it and that is the next release.
+D2. 🔨 Was the Mac unusable while this was happening, or did it just not
+    do the thing? By your own log every key you pressed ran a shortcut
+    for fourteen seconds and then the config paused itself, which reads
+    to me as unusable — but the tag is yours.
+D3. 📏 NAMED, NOT FIXED, so it is not a surprise: this release does not
+    stop ⇪ latching. It makes the next one name its own cause. The
+    three candidates have been unmeasurable since 6.214.0 and this is
+    the first build that reads them at the moment it matters.
+
+
 
 ## 6.402.0
 
@@ -222,103 +321,6 @@ D2. Should it carry anything else — the Mac's name, the boot time? It
     has the version and the clock now, which is what I would want for
     pasting, but you are the one pasting it.
 D3. `_G.consoleRules = false` silences both lines for a session.
-
-
-## 6.399.0
-
-6.399.0 verify with LL — 🩺 DID THE WHOLE RELEASE LAND? (KNOWN GROUND)
-WHAT CHANGED: one new command. `_G.installCheck()` compares every file
-this release carries against what is actually on your Mac, and says
-which ones disagree.
-🔎 WHY: your own question, from September — "so I don't have to
-remember". When a release half-installs, the config boots green, the
-version stamp is right, and the feature is simply ABSENT. That is what
-cost you the Jug Player for three days: init.lua was new, the module
-file was old, and nothing anywhere could say so. The archive now
-carries a MANIFEST.txt listing every runtime file with its byte count,
-and this reads it.
-🔕 AND ON A HEALTHY MAC IT SAYS NOTHING, ever. That silence is the
-feature, so step A is "go and look", not "wait for a message".
-
-A. THE HEADLINE — one command, and it should be boring.
-A1. Console: `_G.installCheck()`.
-    EXPECT, on a clean install:
-      🩺 INSTALL CHECK — 6.399.0
-         version : 6.399.0 — the manifest is for this release
-         files   : ✅ all 92 runtime file(s) are here at the size the
-                   release carried
-         strays  : none — core/ and modules/ hold only what shipped
-    **PASTE THAT.** It is the first build on which that question has an
-    answer, and I want to see what your Mac says on a good day.
-A2. Read the `files` line. **A FAIL is a ⚠️ naming files that disagree**
-    — which would mean this install is partial, and the line names
-    which files and both byte counts.
-A3. Read the `version` line. It must name 6.399.0 twice. If it says THE
-    MANIFEST IS FOR <something else>, one half of the install did not
-    land — that is the whole-archive version of the same bug.
-A4. Reload Hammerspoon and watch the Console for a minute.
-    EXPECT: **nothing at all** about the install check. On a matching
-    install it never speaks. If you get a ⚠️ line at boot, paste it:
-    that is the 🔔 door firing and it means something really did not
-    land.
-
-B. THE STATE THAT MATTERS MOST — "I cannot tell" is not "all clear".
-B1. This one you can see on purpose. In Finder, open ~/.hammerspoon
-    (Go ▸ Go to Folder, type `~/.hammerspoon`) and RENAME MANIFEST.txt
-    to MANIFEST.old.
-B2. Console: `_G.installCheck()`.
-    EXPECT: `⏳ NOTHING CAN BE SAID`, and under it that this install
-    predates the check and that this is **NOT** 'all clear'.
-    **A FAIL is a ✅ anywhere in that block.** A check that cannot run
-    must never read like a check that passed — that is the one thing
-    this release had to get right, and it is the state every install
-    you have today is in.
-B3. Rename it back. `_G.installCheck()` is green again.
-
-C. THE ONE A DRAG CAUSES — worth two minutes, because it is one click
-   wide and you would never see it.
-C1. In ~/.hammerspoon/modules, duplicate any file (⌘D in Finder). You
-    get something like `music_player copy.lua`.
-C2. Console: `_G.installCheck()`.
-    EXPECT: a `strays` line naming it, and under it the explanation —
-    the loader reads an explicit list, so a stray is IGNORED and the
-    ORIGINAL stays loaded. That is why dragging a file onto a folder
-    and answering Finder's "Keep Both" looks exactly like a finished
-    install and changes nothing.
-C3. Delete the duplicate. The line goes back to "none".
-
-D. MUST STILL WORK — this release touched the installer and the module
-   loader, so this half matters more than A.
-D1. Boot: All green, **77 modules** (was 76 — this release adds one),
-    and the same ⇪ shortcut count as before. A different shortcut count
-    is a finding: this module binds no key at all.
-D2. A spread of keys across different tools: ⇪T, ⇪D, ⇪N, ⇪3, ⇪X, ⇪4,
-    ⇪space, ⇪V, ⇪/, ⇪⇧[.
-D3. ⇪/ and search `install` — the 🩺 card is there, filed under CONFIG.
-D4. `_G.saved()` — the write ledger still prints. These two sit beside
-    each other on purpose and answer different halves of "is what
-    should be on disk, on disk?".
-
-E. A JUDGEMENT ONLY YOU CAN MAKE.
-E1. **Is the Console the right place?** It is a command you run when
-    something feels absent. The alternative is a line at every boot
-    saying "all 92 files are here", which is what `_G.saved()` does for
-    the stores because you asked for the healthy case in writing — and
-    I did NOT do it here, because a line you read every morning is a
-    line you stop reading. Say if you would rather have it.
-E2. 📏 THE LIMIT, named rather than discovered: this compares SIZES. A
-    file edited to exactly the same length reads as a match. I did not
-    build the hash version: it needs a platform fact I cannot check
-    from here, and it guards a case that has never happened. If it ever
-    does, the manifest gains a column.
-E3. 📏 AND TWO FILES ARE DELIBERATELY NOT IN IT, both printed in the
-    report so they are decisions rather than gaps: CHANGELOG.md, which
-    already has a better instrument (it checks whether THIS version's
-    entry is in it, which is what caught a half-install in 6.311.0),
-    and snippets/bundled.lua, which is generated and which you can
-    legitimately rebuild on your own Mac from packs the archive never
-    saw. Say if you want either in anyway.
-
 
 
 ---

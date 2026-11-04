@@ -99,7 +99,7 @@ said yes and it is not to be re-asked.
 | # | what | state |
 |---|---|---|
 | F1 | `tests/test_lint.lua` — hs-lint has no suite and every rule in it is a bug that cost a release | ☐ |
-| F2 | The 73-second lockup: time every lazy extension load in `M.warm` (his 04:15 boot shows six of them AFTER the summary, and `762 ms — this Mac usually takes 220`) | ☐ |
+| F2 | The 73-second lockup: time every lazy extension load in `M.warm` (his 04:15 boot shows six of them AFTER the summary, and `762 ms — this Mac usually takes 220`) ☐ · **and H3 is the same class with bigger numbers** — ⇪space and ⇪⇧. at ~1.6 s each, main-thread, which also feeds the storm rule's five-second clock. Time them together. |
 | F3 | (see D2 — MANIFEST/installCheck) | — |
 
 ### G — HIS 2026-11-04 REPORT, all ten items
@@ -179,3 +179,125 @@ commit message carries the three decisions that overturn the earlier plan
 Gate: **13,817 checks**, every stage green. init.lua 3,449 lines, 350 of
 room. Ceremony (version stamps, CHANGELOG, GUIDE totals, feature list,
 TESTING.md) is written once for the whole batch at the end.
+
+---
+
+## H — HIS 2026-11-04 CONSOLE (6.399.0 then 6.389.0 then 6.399.0)
+
+He pasted a full Console with a `/compact`. It is not a request; it is
+**evidence**, and four things in it are not in the message that went with
+the 6.402.0 archive.
+
+### H1 ✅ THE INSTALL CHECK ANSWERED — and it is the first measured one
+
+```
+🩺 INSTALL CHECK — 6.399.0
+   version : 6.399.0 — the manifest is for this release
+   files   : ✅ all 92 runtime file(s) are here at the size the release carried
+   strays  : none — core/ and modules/ hold only what shipped
+   last    : 05:00:59 · run 2 time(s) this session
+```
+Green on the first run. NOT SCORED — he pasted output, not a verdict.
+📏 AND THE TWO FAILURES BEFORE IT ARE THE RELEASE WORKING, not a bug: at
+04:52 and earlier he ran `_G.installCheck()` on **6.389.0 and 6.385.0**
+and got `attempt to call a nil value`. An error is the only honest answer
+a build without the module can give (6.261.0's rule).
+
+### H2 🚨 ⇪ LATCHED TWICE IN FORTY-FIVE SECONDS, AND THE CONFIG PAUSED
+
+```
+05:14:39  🌩 ⇪ STORM CAUGHT — Caps Lock was stuck 7 s and 7 different keys ran ⇪ shortcuts
+05:15:24  🌩 ⇪ STORM CAUGHT — Caps Lock was stuck 14 s and 6 different keys ran ⇪ shortcuts
+          — 2 storms in 10 min: PAUSED, ⇪⇧escape resumes
+```
+**His config may still be paused.** Nothing after 05:16:07 says he
+resumed. That is the first sentence of the reply, ahead of everything.
+
+🔎 **IT IS A GENUINE LATCH, BOTH TIMES**, and the arithmetic is his:
+`88 Caps Lock autorepeat(s)` that session proves the key autorepeats on
+that Mac, and the rule requires none within 2 s of the storm — so Caps
+Lock was **not under his finger** at either moment. Every key he pressed
+was running a ⇪ shortcut instead of typing, for 7 s and then 14.4 s. The
+guard caught it, released it and wrote both files. 6.214.1 paying for
+itself, in the field, for the third and fourth time.
+
+🚨 **AND THE NEAR-MISS IS THE THING TO REMEMBER.** The storm file carries
+`asked : unified search` — a panel had declared a handover inside the
+hold — and `st.judge` has four conditions, none of them that fact, while
+`_G.hyperEndVerdict` in the file next door already answers exactly that
+question and 6.302.0's wake release already refuses to count itself a
+latch for that very reason. Every signpost in this repo said *6.305.0: a
+rule written about one caller*, and the fix it suggests is to stop
+calling such a hold a storm.
+**The key trail's own timestamps refuse it.** Storm #2's hold began
+14.4 s before 05:15:24 = 05:15:10; the trail's first key in that window
+is ⇪⇧, at 05:15:11; and ⇪O — which has opened unified search since
+6.190.0 — is the **fifth of the six**. The panel opened as a
+**consequence** of the latch. And in 6.214.0's original storm every
+letter ran its own shortcut, several of which open panels, so that line
+would be set in a genuine latch too. **Exonerating that hold would have
+disarmed the guard for the one case it exists for** — 6.337.0's lesson,
+almost paid a second time.
+🔑 What stopped it was reconstructing the timeline from the artefact
+rather than reasoning from the line that looked like an answer. That is
+now a hard rule (🔬 in CLAUDE.md).
+
+✅ **BUILT AS 6.403.0** — the storm now asks which of the three things
+latched ⇪ and appends the answer to its own file. An instrument, not a
+fix, and labelled as one everywhere.
+
+### H3 📏 THREE SHORTCUTS ARE TAKING A SECOND AND A HALF — named, not fixed
+
+From his own key trail:
+```
+⇪space   app launcher   1571 ms  ⚠️ slow     (twice)
+⇪shift+. jug player     1620 ms  ⚠️ slow     (1669 ms the other time)
+⇪d       unified search  298 ms  ⚠️ slow
+```
+That is 1.5 seconds of **main-thread** time per press — 6.228.0's cost,
+which is what took his drag and drop — and it is also what makes a run of
+six shortcuts last the five seconds the storm rule measures. Six keys at
+1.5 s each is nine seconds of hold with no effort at all.
+🚨 NOT FIXED AND NOT GUESSED: "⇪space is slow" names a KEY, not a cause.
+The candidates are the **121,453-path search index** (`🗂 Search Index:
+rebuilt — 121453 paths` at 04:52:44, moments before), the app list, and
+the window show. Each is a different release. The verify block asks him
+the one question that narrows it: does ⇪space *feel* slow when he presses
+it, or only in the number?
+
+### H4 ❔ SECURE INPUT STILL WILL NOT ANSWER — the one unmeasured candidate
+
+```
+❔ Secure Input   UNKNOWN   ioreg was asked and never answered in 20s
+```
+6.304.0's belt is working (it gives up rather than wedging the feature
+for the session) and the probe is **still not answering on his Mac**.
+That is the one of 6.303.0's three candidates that has never once been
+measured there, it is the one that kills every tap AND every hotkey
+system-wide with no error anywhere, and it is now the likeliest
+explanation for H2. 6.403.0 puts the question where the fault is; if the
+answer keeps coming back unreadable, **the next release is the ioreg
+probe itself**, not another consumer of it.
+
+### H5 ✅ TWO WARNINGS IN IT ARE ALREADY FIXED IN WHAT HE NOW HAS
+
+- `⚠️ OCR tag: clipboard file URL(s) matched no usable image — a
+  file-reference path macOS would not resolve — raw value:
+  "/.file/id=6571367.39717200/"` at 04:55:46 — on **6.389.0**. That is
+  exactly 6.392.0's bug and 6.392.0 is in the archive he has.
+- `⚠️ an alert could not draw` at 23:24:51 — 6.274.0's counted refusal,
+  working as designed.
+- `⚠️ focus: detection budget exhausted` (2026-11-03 16:46, open for an
+  hour): focus_mode's own budget. Not ours to chase without a report.
+
+### H6 📋 AND HIS 6.399.0 BOOT CARRIES A FACT WORTH KEEPING
+
+```
+🎹 ⇪ IS RUNNING WITHOUT CARBON on this Mac — and it works.
+   The event-tap dispatcher has taken over all 111 ⇪ shortcuts.
+```
+On this Mac Carbon does **not** dispatch F18; the tap does everything. So
+the keyUp depends entirely on the tap seeing it — which makes "the F18
+event tap was NOT running" a far more plausible storm cause here than on
+a Mac where Carbon is carrying the keys. 6.403.0's `tap :` row is the one
+that answers it.

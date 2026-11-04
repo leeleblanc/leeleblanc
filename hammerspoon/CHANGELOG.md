@@ -5,6 +5,116 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.403.0 — 🔬 A STORM ASKS WHY, AND THE ANSWER GOES IN ITS OWN FILE
+  (modules/hyper_storm.lua + core/hyper_key.lua)
+
+  LL's 2026-11-04 Console caught ⇪ latching TWICE in forty-five seconds:
+  05:14:39, held 7 s with 7 different shortcuts fired inside it, and
+  05:15:24, held 14.4 s over 6 — and the second one PAUSED the config,
+  which is the guard's own rule (two storms in ten minutes is a Mac that
+  will latch a third time). Both releases worked. Both files were
+  written. And neither could say WHICH of the three things that can
+  latch ⇪ with the key physically up had happened: the hidutil Caps Lock
+  → F18 remap, the F18 event tap, or macOS's Secure Input.
+
+  6.303.0 built the probe that reads all three — and wired it to WAKE
+  EVENTS ONLY. A storm is the other moment those three facts decide
+  something, and it is the moment nobody is there to type a command.
+
+  🔑 THE RULE, and it generalises past this guard: WHEN A GUARD CATCHES
+  A FAULT, ASK THE QUESTIONS WHOSE ANSWERS DECIDE THE FIX, AT THAT
+  MOMENT. The storm file's `before :` line has always carried COUNTS —
+  latch releases, panel handovers, keyUp relays, wake releases, Caps
+  Lock autorepeats, storms this session — and a count says how OFTEN,
+  never WHY. Causes now sit beside them. It costs nothing on a healthy
+  Mac because it runs only when a storm fires, and it is the only
+  reading taken while the fault is still on the Mac.
+  🔁 AND THE REPAIR RIDES FREE: `hyperWakeProbeRun` already puts a
+  measurably GONE remap back, so a storm whose cause is a lost mapping
+  now fixes itself and says so.
+
+  🔎 AND I NEARLY BUILT THE OPPOSITE RELEASE, which is the half worth
+  keeping. The storm file's `asked :` line read "unified search" — a
+  panel had declared a handover INSIDE the hold — and `st.judge` has
+  four conditions, none of them that fact, while `_G.hyperEndVerdict`
+  in the file next door already answers exactly this question and
+  6.302.0's wake release already refuses to count itself as a latch for
+  precisely this reason. That reads like 6.305.0 (a rule written about
+  one caller is not a rule until every caller has been asked), and the
+  fix it suggests is to stop calling such a hold a storm.
+  🚨 THE KEY TRAIL'S OWN TIMESTAMPS REFUSE IT. Storm #2's hold began
+  14.4 s before 05:15:24 — 05:15:10 — and the trail's first key in that
+  window is ⇪⇧, at 05:15:11, with ⇪O (which has opened unified search
+  since 6.190.0) the FIFTH of the six. The panel opened as a
+  CONSEQUENCE of the latch, not before it. And in 6.214.0's original
+  storm every letter ran its own ⇪ shortcut, several of which open
+  panels — so "a panel asked for a release" would be set in a genuine
+  latch too. Exonerating that hold would have DISARMED THE GUARD FOR
+  THE EXACT CASE IT WAS BUILT FOR: 6.337.0's lesson (a rule quoted is
+  not a rule applied), almost paid a second time, and the thing that
+  stopped it was working the timeline out of the artefact rather than
+  reasoning from the line that looked like an answer.
+  🔑 GENERAL: when a report records a fact that would exonerate the
+  thing it is reporting, check the ORDER of events before acting on it —
+  a consequence and a cause look identical in a list of counts.
+
+  🚪 THE RELEASE COMES FIRST AND THE PROBE SECOND, and a check asserts
+  the ORDER rather than that both happened (6.220.0). The release is
+  what lets his next key type; the probe is diagnosis, and a probe that
+  throws must never be able to cost it.
+  🪜 ITS ANSWERS ARRIVE LATE, because reading the remap is an
+  out-of-process task (6.228.0 — a main thread this config is busy on is
+  a mouse this Mac has lost, and this runs while he is typing). So the
+  file is written AT ONCE without them, and a HELD timer in its own
+  named slot (6.196.1) APPENDS the three answers a beat later. An append
+  cannot shrink a file (6.279.0), so a refused append costs that one
+  section and never the report already on disk — and io.write's own
+  return is READ (6.325.0), because it refuses by answering nil and a
+  pcall around it is true either way.
+  🚨 AND A SECOND STORM MUST NOT STOMP THE FIRST ONE'S PENDING APPEND.
+  His own log is two storms forty-five seconds apart, so a single slot
+  would have dropped the first file's answers in silence. ONE timer, a
+  LIST of waiting files, drained together: one probe answer serves every
+  storm still waiting, and each file is rendered against ITS OWN storm
+  time, so 6.304.0's generation problem is dissolved rather than
+  guarded. The list is BOUNDED and the bound is a STATE (6.197.2) — a
+  storm that got no answer is counted, never silently dropped.
+
+  🔑 ONE RENDERER, TWO READERS (6.231.0). `_G.hyperProbeAnswers` is
+  published from core/hyper_key.lua and `_G.hyperKeyReport()` asks it
+  too, so the two cannot drift about what "could not be asked" means —
+  the row that reads as reassurance when it is wrong, and the row LL's
+  own Mac has answered `❔ UNKNOWN — ioreg was asked and never answered
+  in 20s` on for two releases. A core that did not load costs the
+  SECTION and says so, never health.
+  🔎 THREE FRESHNESS STATES AND THEY MUST NOT READ ALIKE (6.196.1):
+  measured AT this storm · an OLD wake reading, with its age, saying it
+  does not describe this storm · never asked. The middle one is the
+  trap — printed without its age it is word-for-word the first, and it
+  is the state every file would have been in while the probe was wired
+  to wakes alone.
+
+  🧪 THE SUITE LIFTS THE RENDERER OUT OF THE SHIPPED SOURCE (6.273.0)
+  rather than retyping it: a stub that invented those three sentences
+  would not merely miss a drift between core/ and the storm report, it
+  would certify it. And the stub gained a REAL `hs.timer.doAfter` — with
+  none at all, every check would have measured the no-timer branch and
+  called it health (6.290.0), and a stopped timer never fires there
+  because a stub that lets one fire turns correct code red (6.389.0).
+  🧪 19 mutations, 18 real ones killed and the no-op control survived,
+  restore sha256-verified in a finally. THE ONE THAT GOT THROUGH THE
+  FIRST PASS IS A MISSING CHECK, not a spare line, and it is 6.265.0 for
+  the sixth time: `probeWait` turns away a Mac with NO hs.timer.doAfter
+  in one branch and a doAfter that REFUSES in another, each with its own
+  counter — and the degrade check drove only the refusing one, because
+  the stub's flag makes the function RAISE rather than vanish. The
+  absent branch's counter was reachable by no fixture, so deleting it
+  passed 110 checks. Driving it asserts all three facts that matter
+  there: the hold is still RELEASED, the miss is COUNTED, and nothing is
+  left waiting for an answer that can never be appended.
+
+  tests/test_hyper_storm 72 → 113 checks.
+
 NEW IN 6.402.0 — 📋 ⏎ ON A CLIPBOARD ROW PASTES IT
   (modules/unified_search.lua). LL, 2026-11-04: "First result from
   history clipboard list is not pasted when selected and it should be."

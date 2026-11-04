@@ -4,8 +4,49 @@
 -- =====================================================================
 -- 11-03-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.402.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.403.0
 -- =====================================================================
+
+-- NEW IN 6.403.0 — 🔬 A STORM ASKS WHY, AND THE ANSWER GOES IN ITS FILE
+--   (modules/hyper_storm.lua + core/hyper_key.lua). LL's 2026-11-04
+--   Console: ⇪ latched TWICE in forty-five seconds — 05:14:39 held 7 s
+--   over 7 keys, 05:15:24 held 14.4 s over 6 — and the second one PAUSED
+--   the config. The guard did its job both times. What neither file
+--   could say is WHICH of the three things that latch ⇪ with the key
+--   physically up had happened: the hidutil Caps Lock → F18 remap, the
+--   F18 event tap, or Secure Input. 6.303.0 built the probe that reads
+--   all three and wired it to WAKE EVENTS ONLY.
+--   🔑 WHEN A GUARD CATCHES A FAULT, ASK THE QUESTIONS WHOSE ANSWERS
+--   DECIDE THE FIX, AT THAT MOMENT. `before :` has always carried
+--   counts — latches, handovers, relays, autorepeats — and a count says
+--   how OFTEN, never WHY. It is free on a healthy Mac because it runs
+--   only when a storm fires, and it is the one reading taken while the
+--   fault is still on the Mac. The remap REPAIR rides free.
+--   🔎 AND I NEARLY BUILT THE OPPOSITE. The file's `asked :` line read
+--   "unified search", so a panel had declared a handover inside the
+--   hold, and st.judge never consults that fact while _G.hyperEndVerdict
+--   next door already answers it — which reads exactly like 6.305.0 and
+--   would have meant exonerating such a hold. The key trail's own
+--   timestamps refuse it: the hold began at 05:15:10, its first key is
+--   at 05:15:11, and ⇪O (which opens unified search since 6.190.0) is
+--   the FIFTH of six. The panel opened as a CONSEQUENCE of the latch.
+--   Exonerating it would have disarmed the guard for the one case it
+--   exists for — 6.337.0, almost paid a second time.
+--   🚪 RELEASE FIRST, PROBE SECOND, asserted on the ORDER rather than on
+--   both having happened (6.220.0): a probe that throws must never cost
+--   him his keyboard. 🪜 Its answers arrive late (the remap is read out
+--   of process — 6.228.0), so the file is written at once without them
+--   and a HELD timer appends them a beat later; an append cannot shrink
+--   a file (6.279.0). 🚨 One timer, a LIST of waiting files, drained
+--   together — his own log is two storms 45 s apart, and a single slot
+--   would have dropped the first one's answers in silence (6.304.0's
+--   generation problem dissolved rather than guarded).
+--   🔑 ONE RENDERER, TWO READERS: _G.hyperProbeAnswers is published from
+--   core/ and _G.hyperKeyReport() asks it too (6.231.0), so the two
+--   cannot drift about what "could not be asked" means — the row that
+--   reads as reassurance when it is wrong. THREE freshness states
+--   (6.196.1): measured at this storm · an OLD wake reading that says so
+--   with its age · never asked. `probeOn = false` is the way back.
 
 -- NEW IN 6.402.0 — 📋 ⏎ ON A CLIPBOARD ROW PASTES IT
 --   (modules/unified_search.lua). LL: "First result from history
@@ -31,29 +72,17 @@
 --   row pastes — a path or a shortcut's keys must not be typed into his
 --   document. `pasteOnPick = false` is the way back.
 
--- NEW IN 6.401.0 — 🎯 THE FOCUS IS GIVEN BACK (core/coexist.lua +
---   modules/ocr_engine.lua). LL, on 6.397.0's edit window: "window does
---   not return cursour/ mouse to the active field it was already in
---   like this text box. I just use my trackpad to get back here. That
---   doesn't right as the cheat sheet doesn't do this." He is right, and
---   he named the comparison that explains it: the cheat sheet never
---   takes focus. A window that must be TYPED INTO has no such option
---   (6.225.0 · 6.251.0 named that price), and neither release built the
---   other half — the focus was borrowed and never returned.
---   🚨 AND THE OBVIOUS BUILD IS WRONG, which only reading the callers
---   showed. "Remember whatever was in front when the panel opened"
---   fails on BOTH real paths: ⇪⇧V, ⇪⇧O and ⇪⇧W open a CHOOSER first, so
---   by the time the window opens the front app is already Hammerspoon.
---   GENERAL: when a panel is reached through another panel of ours, ask
---   what was in front before ANY of ours was. A watcher keeps that
---   answer, and one door serves every caller with no call-site changes.
---   🚨 RETURNED ONLY IF HAMMERSPOON IS STILL FRONTMOST: a close can
---   happen long after the borrow, and activating the remembered app
---   then would YANK his focus out of what he moved to (6.266.0).
---   Counted as MOVED ON, never as a refusal. activate()'s answer is
---   READ (6.325.0). _G.focusReport().
-
 --   ALSO IN THIS ARCHIVE (full entries in CHANGELOG.md):
+--   🎯 6.401.0 the FOCUS IS GIVEN BACK when an edit window closes — LL:
+--   "window does not return cursour/ mouse to the active field it was
+--   already in … I just use my trackpad to get back here." His
+--   comparison is the explanation: ⇪/ never takes focus, so it has
+--   nothing to give back; a window that must be TYPED INTO has no such
+--   option (6.225.0 · 6.251.0 PAID that price and named it, and neither
+--   built the other half). The obvious build fails on his real keys —
+--   ⇪⇧V, ⇪⇧O and ⇪⇧W open a CHOOSER first, so by then the front app is
+--   already Hammerspoon. A watcher keeps the last app that was not us,
+--   and the return happens only if we are STILL frontmost (6.266.0).
 --   🧵 6.400.0 a BOOT IS FINDABLE in the Console — LL: "create a divider
 --   above this line so I can see where one section ends and this
 --   begins." TWO rules: a CLOSING one from hs.shutdownCallback lands
@@ -102,11 +131,11 @@
 --   two-door feature losing ONE door is invisible, which is why it
 --   needed a grep rather than a report.
 
--- (6.400.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.401.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 cut the inline count to
 --  TWO; a gate check proves every entry here is also in CHANGELOG.md.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.402.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.403.0
 -- =====================================================================
 -- The catalogue that used to sit here moved to GUIDE.md ("What each
 -- tool does") in 6.180.0 — 259 lines of prose inside the orchestrator.
@@ -195,7 +224,7 @@ function _G.consoleRuleSay(what)
     return true
 end
 
-_G.configVersion = "6.402.0"
+_G.configVersion = "6.403.0"
 _G.consoleRuleSay("▶ BOOT")
 
 local function safeRequire(mod)
