@@ -6873,6 +6873,16 @@ THE METHOD, when something breaks after a stacked zip:
    ⏎ that copies instead of pasting may be either release. The ⏎ clip
    line in `_G.unifiedSearchReport()` and `_G.focusReport()` separate
    them in one run.
+   · 6.404.0 be196bf (the code and the ceremony) · **204bb19 is the
+   archive, and 204bb19 is the SHA every link to it must carry** — a
+   branch-pinned link dies the moment the next release deletes the file,
+   which is why 6.356.0–6.358.0 never reached his Downloads (6.360.0).
+   🔑 IT IS A NEW MODULE AND BINDS NO KEY, which matters for a bisect: if
+   anything else in this config changes behaviour on 6.404.0, it is not
+   this — the only shared files it touches are the §1.12 loader line and
+   one `uni.sources` row. `settings = { draft_keeper = { enabled =
+   false } }` switches it off entirely, and the switch is real because
+   the watch starts in M.warm (6.228.0).
    · 6.403.0 1c271a0 (the code) · f134521 (the ceremony) · **ff192e1 is
    the archive, and ff192e1 is the SHA every link to it must carry** — a
    branch-pinned link dies the moment the next release deletes the file,
