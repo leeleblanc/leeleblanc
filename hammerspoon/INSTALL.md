@@ -58,7 +58,7 @@ Nothing else is affected.
 │   ├── lag.lua               which tap is eating the keystroke — OFF unless ~/.hammerspoon/LAGPROBE exists
 │   ├── double_tap.lua        ⌘⌘ and ⌥⌥ — one watcher, many gestures
 │   └── notices.lua           the failure ledger — nothing fails silently
-├── modules/              77 files, loaded by the §1.12 loader
+├── modules/              78 files, loaded by the §1.12 loader
 ├── snippets/
 │   └── bundled.lua       1,926 public snippets — ships in the archive
 ├── tools/                hs-doctor.sh · hs-install.sh · run-tests.sh · hs-stall-guard.sh
@@ -235,7 +235,7 @@ Open the Console (menu bar hammer → *Console*). A healthy boot is two
 lines:
 
 ```
-🧭 Lees-MacBook-Air  ·  77 modules  ·  111 ⇪ shortcuts  ·  0.13s
+🧭 Lees-MacBook-Air  ·  78 modules  ·  111 ⇪ shortcuts  ·  0.13s
    All green.  ⇪ is proven on your next Caps Lock press.  ⇪⇧D diagnostic report
 ```
 

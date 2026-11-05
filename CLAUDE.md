@@ -544,6 +544,61 @@ work Mac.
   see where it landed). Only a @clip row pastes: a path or a shortcut's
   keys typed into his document is not what ⏎ means there.
 
+- 🔑 WHEN A FEATURE'S SUBJECT IS THE STATE OF SOMETHING, ASK THE THING —
+  A STREAM OF THE EVENTS THAT BUILT IT IS A DIFFERENT OBJECT (6.404.0,
+  modules/draft_keeper.lua — LL, 2026-09-13, with a drawing: "a
+  translucent floppy-disc beside a text field in Chrome/Safari that has
+  no save, watching the typing", escalated by name twice).
+  🔎 THE OBVIOUS BUILD IS AN EVENTTAP that accumulates keystrokes, the
+  way modules/autocorrect.lua does, and it is wrong for a reason that is
+  not about cost: A KEYSTROKE TAP RECONSTRUCTS, IT DOES NOT READ. It
+  never sees a paste, and after he moves the caret and rewrites a
+  sentence what it holds is a mangled transcript of the typing rather
+  than the paragraph on screen. What he wants back is the FIELD'S VALUE.
+  🔒 AND IT IS THE NARROWER INSTRUMENT, which matters more here than
+  anywhere else in this config: a tap sees every character typed
+  anywhere on the Mac; this reads one element in seven named apps. When
+  two instruments answer one question, prefer the one whose REACH is
+  smaller, not the one that is conventional.
+  📏 THE WATCH LIST IS ASKED BEFORE ANY AX WORK, off the front app's
+  NAME — a string compare — so a Mac in Terminal or Word pays that and
+  nothing else (6.228.0). Every read is TIMED and past `slowMs` it takes
+  the 🔔 door ONCE and BACKS OFF, bounded, rather than going on costing
+  him the thread it is slow on (6.229.0's per-wake-up rule, with the
+  yield printed beside the cost).
+  🔒 IT FAILS CLOSED, and that half earns its keep: a password field is
+  refused BY NAME and so is a field macOS would not DESCRIBE AT ALL —
+  "I cannot tell what this is" and "this is safe to read" are opposite
+  facts (6.196.1) and the second costs him a password in a CSV. Secure
+  Input held stands the whole thing down, READ from capabilities and
+  never re-probed (6.242.0); a sentry keeps ioreg out of the file. 📏 The
+  one case nothing here can see — a password in a PLAIN field, a "show
+  password" toggle — is NAMED, with `_G.draftForget(n)` as the way out.
+  🕰 A DRAFT IS WRITTEN WHEN IT HAS SETTLED (6.387.0's rule about
+  minting a name, applied to a log: ask whether the thing is FINISHED).
+  🚪 AND THE CASE THE FEATURE EXISTS FOR IS THE FLUSH — a sample finding
+  a DIFFERENT field writes whatever was pending at once, because that is
+  the moment a web form loses a draft and a settle timer alone misses it.
+  A refusal flushes too: he tabbed from a body into a password field,
+  and the body is the draft.
+  ✂️ AND THE SHRINK IS AN ECONOMY, NOT AN OVERSIGHT: text shorter than
+  the row already saved is REFUSED, because the longer row still holds
+  every word of it — 6.281.0's "the rename is the memory" one tool
+  along, THE LONGER ROW IS THE MEMORY, so the store this needs is the
+  one it already has. A SAME-LENGTH REWRITE is kept, because a
+  length-only rule calls 500 new characters unchanged; that pair is the
+  only fixture that separates the two (6.230.0).
+  🧵 A ROW IS ONE LINE OR A TAIL READ CANNOT FIND A ROW BOUNDARY:
+  `core.csvQuote` turns a newline into a space, deliberately, so a draft
+  is ENCODED first and decoded on read. The suite LIFTS both CSV helpers
+  out of init.lua rather than retyping them (6.273.0).
+  🚫 AND THE FLOPPY DISC IS NOT BUILT, said rather than discovered: it
+  needs the element's rectangle re-read and redrawn as he types and as
+  the page scrolls, which is per-event main-thread work (6.228.0 ·
+  6.247.0). GENERAL: when the ASK is a visual affordance and the VALUE
+  is the data behind it, ship the data and name the affordance — do not
+  ship a drawing whose cost is the thing the feature exists to avoid.
+
 - 🔬 WHEN A GUARD CATCHES A FAULT, ASK THE QUESTIONS WHOSE ANSWERS DECIDE
   THE FIX, AT THAT MOMENT (6.403.0, modules/hyper_storm.lua — LL's
   2026-11-04 Console: ⇪ latched TWICE in forty-five seconds, 05:14:39 held
@@ -1069,9 +1124,14 @@ work Mac.
   🔎 WHAT THE WHOLE-ARCHIVE SCAN FOUND, so it is not re-run from scratch:
   489 release notes, 84 lines marked never-built / named-not-fixed / not
   scoped, and all but THREE were this project's own discipline working as
-  intended. The three real survivors are system volume + output-device
-  switching + a mute toggle (6.68.0–6.70.0, and per-APP volume is
-  correctly refused — it needs an audio HAL driver), one combined log of
+  intended. The three real survivors were system volume + output-device
+  switching + a mute toggle (6.68.0–6.70.0) — **DROPPED ON HIS WORD,
+  2026-11-04: "I already said drop this. I am not developing this.
+  Please log it correctly." It is struck, and the mistake was mine: he
+  declined it on 2026-10-29 and again on 10-31 and I kept the row alive
+  by reading his decline as being about ⇪Q alone. A DECLINE SPLIT INTO
+  "the part he meant" AND "the part he did not" IS AN INFERENCE WEARING
+  HIS WORDS** — one combined log of
   every URL that passed through a window (6.119.0 · 6.120.0 — the titles
   half exists as ⇪⇧W, the urls half is Chrome's own database and says
   nothing about Safari), and the doubled-word underline (6.221.0, blocked
@@ -6907,6 +6967,7 @@ that must be READ before a new cause is named.
 
 | symptom, in his words | where it lives | releases | passes | tag |
 |---|---|---|---|---|
+| "a translucent floppy-disc beside a text field … watching the typing" · "Escalate draft keeper" | modules/draft_keeper.lua — @draft in ⇪D | 6.404.0 | 1 | a new tool, not a defect — the ask was three years of web forms losing what he typed |
 | "killed my keyboard", every key runs a shortcut, ⇪ latched · two storms in 45 s and the config PAUSED itself | core/hyper_key.lua · hyper_storm.lua | 6.162.1 · 6.214.1 · 6.214.2 · 6.302.0 · 6.303.0 · 6.304.0 · 6.403.0 | 7 (6.403.0 is an instrument, not a fix) | 🔨 crude |
 | "empty zip" / the archive will not open | delivery, not code | 6.263.0 → 6.303.0 | 6 | 🔨 crude |
 | "a drag kills the sheet functionality" · wheel dead over ⇪/ · desktop jump | core/coexist.lua drag engine | 6.138.0 · 6.306.0 | 2 | ask |
@@ -7066,6 +7127,7 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
+| 6.404.0 | 💾 The draft keeper — the text a web form loses, kept while you type and searchable on @draft | pending |
 | 6.403.0 | 🔬 A storm asks WHICH of three things latched ⇪, and appends the answer to its own file | pending |
 | 6.402.0 | 📋 ⏎ on a clipboard row pastes it where you were typing — and the first row was why it looked dead | pending |
 | 6.401.0 | 🎯 The focus comes back when an edit window closes — no trackpad | pending |
@@ -7902,6 +7964,11 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   NEWEST), and it must never reorder under his hand mid-session —
   a list that renumbers between opening it and pressing ⏎ is 6.272.0's
   defect in the one place he is aiming at a row.
+- ✅ 💾 DRAFT KEEPER — **SHIPPED AS 6.404.0**, alone and at once on his
+  2026-11-04 order ("❗❗ Escalate and build ❗❗ … its own release ASAP").
+  Every line of his scope below was built as written; the two decisions
+  that were MINE are named in the release and in WORKLOG J1. The
+  original note is kept because its scope IS the spec:
 - 💾 DRAFT KEEPER — ESCALATED BY NAME (2026-10-10, LL: "Escalate draft
   keeper."). It is the NEXT release after the Mug Player, ahead of the
   tool-health timestamps, the ⌘5 veil, the snippet pair, the Hamsidian
@@ -8743,6 +8810,153 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.404.0 verify with LL — 💾 THE DRAFT KEEPER (NEW GROUND — expect a round)
+  WHAT CHANGED: there is a new tool, and it has no key. While you type
+  into a text box in a BROWSER or in Outlook, this config keeps what the
+  box holds. If the page loses it, it is in ⇪D under **@draft**, and ⏎
+  copies it back to your clipboard.
+  🔑 IT READS THE FIELD, IT DOES NOT WATCH YOUR KEYBOARD, and that is
+  the whole design rather than a detail. The obvious build is a tap on
+  every keystroke; it would never see a PASTE, and after you move the
+  cursor and rewrite a sentence it would hold a transcript of your
+  typing rather than the paragraph on the screen. So it asks the field
+  what is in it — which also means it watches one box in seven named
+  apps instead of every key you press anywhere on the Mac.
+  🪟 AND IT IS NEW GROUND, SAID UP FRONT: nothing in this config has
+  ever read what is inside somebody else's text box. Whether Chrome and
+  Outlook will answer that question on YOUR Mac is a thing only your Mac
+  can say, so step A4 is the most useful line you can send back whether
+  it works or not.
+
+  A. THE HEADLINE — two minutes, and do it in Chrome.
+  A1. Click into a text box you can type a paragraph in — a Gmail or
+      Outlook compose window, an Asana comment, a long web form.
+  A2. Type **at least two or three sentences** — more than sixty
+      characters; a short line is deliberately NOT a draft, or the file
+      would fill with every search box you ever typed in.
+  A3. Now STOP TYPING and wait about fifteen seconds. Then click into a
+      different tab, or just click somewhere else on the page.
+  A4. Console: `_G.draftKeeperReport()`. **PASTE THE WHOLE THING.**
+      EXPECT, and this is the release:
+        kept   : 1 draft(s) this session · 1 row(s) written
+                 ↳ last: 212 character(s) from Google Chrome — the first
+                   draft of this field
+        rows   : 1 kept · newest first, 1 shown · ⇪D @draft searches them
+          1. 2026-11-05 09:14:02 · Google Chrome · 212 chars
+             The paragraph you just typed…
+      **A FAIL is `kept : nothing yet this session`** with a `cost :`
+      line showing reads. If that is what you get, the `refused:` and
+      `skipped:` lines under it name which of five reasons, and that is
+      exactly what I need — go to D1.
+  A5. You should also have seen ONE line in the Console the first time it
+      kept anything: `💾 Draft keeper: kept a 212-character draft from
+      Google Chrome`. It says that ONCE a session, deliberately — an
+      alert every time you write an email is a tool you switch off.
+
+  B. THE DOOR — ⇪D, which is where you will actually use it.
+  B1. Press **⇪D** (hold Caps Lock, press D). Type a single **@**.
+      EXPECT **16 sources** now, and **💾 @draft** among them, described
+      as "the text a web form lost".
+  B2. ⏎ on that row. EXPECT your draft listed, newest first, with the
+      app and the window underneath it.
+  B3. Highlight it and look at the pane on the right. EXPECT the WHOLE
+      draft, not the one-line preview.
+  B4. Press **⏎**. EXPECT "📋 Copied", and ⌘V pastes the whole draft.
+      **It must NOT type anything back into the page** — that is your own
+      scope and it is the one thing here I would want to hear about
+      immediately if it is wrong.
+  B5. Type `@draft` plus a word from your draft. EXPECT it filters.
+
+  C. THE CASE IT EXISTS FOR — the one worth doing on purpose.
+  C1. Type a long paragraph into a web form. Do NOT wait.
+  C2. Within a second or two, navigate the page away — hit Back, close
+      the tab, or follow a link. The sort of thing that loses a draft.
+  C3. ⇪D, `@draft`. EXPECT your paragraph is there.
+      WHY IT WORKS: the next time it looks and finds a DIFFERENT field,
+      it writes whatever it was holding at once. A timer alone would
+      have missed it.
+  C4. 📏 THE LIMIT, named rather than discovered: up to about ten
+      seconds of your NEWEST typing is not on disk at any instant. If
+      Hammerspoon reloads or the Mac crashes inside that window, those
+      last few words are gone. Making that zero means a write per
+      keystroke into OneDrive, which is what took your drag and drop in
+      6.228.0.
+
+  D. 🔒 WHAT IT MUST REFUSE — please do D1 and D2 at least.
+  D1. Click into a PASSWORD field — a login page, 1Password's unlock.
+      Type something. Wait twenty seconds. Click away.
+  D2. `_G.draftKeeperReport()`.
+      EXPECT `refused: 1 password field(s) …`, and **NOTHING from that
+      field anywhere in the rows list**.
+      **A FAIL here is a password in that list.** Stop and tell me at
+      once; `_G.draftForgetAll()` empties the file and
+      `settings = { draft_keeper = { enabled = false } }` stops it.
+  D3. A field macOS will not describe is refused too, counted on its own
+      line. "I cannot tell what this is" must never read as "safe to
+      read", which is why it refuses rather than guessing.
+  D4. Press **⇪⇧Esc** to pause the config, type a paragraph in a browser,
+      then ⇪⇧Esc again. EXPECT: nothing was kept while it was paused.
+  D5. Type a long paragraph in **Word**, or in Terminal, or in
+      Hamsidian. EXPECT: nothing is kept. It watches browsers and
+      Outlook and nothing else, by your own scope.
+
+  E. MUST STILL WORK — this added a watcher that reads the focused
+     element, so this half matters more than A.
+  E1. 🚨 **DOES THE MAC FEEL NORMAL?** Use Chrome and Outlook heavily for
+      an hour. Typing must not feel heavier, the pointer must not
+      stutter, and drag and drop must still work. If ANY of that changes
+      on this build, stop and tell me — that is the one cost I cannot
+      measure from here, and it is the cost that has bitten you before.
+  E2. `_G.draftKeeperReport()` and read the `cost :` line:
+        cost   : 412 sample(s) · 180 reached a read · worst 8 ms · last 3 ms
+               ↳ yield: 60 read(s) for every draft kept
+      **PASTE THAT.** `worst` is the number that matters. If it ever
+      carries `⚠️ N read(s) over the 60 ms budget`, it has BACKED OFF by
+      itself and you will have had one alert naming the app and the
+      milliseconds — paste that too.
+  E3. ⇪D still searches everything: @clip, @ocr, @vault, @shots, @logs.
+      ⏎ on a @clip row still PASTES (6.402.0); ⏎ on every other row
+      still only copies.
+  E4. A spread of ⇪ keys across different tools: ⇪T, ⇪N, ⇪3, ⇪X, ⇪4,
+      ⇪space, ⇪V, ⇪/, ⇪⇧[.
+  E5. Boot: All green, **78 modules** (was 77 — this release adds one),
+      and the same ⇪ shortcut count as before. A different shortcut count
+      is a finding: this module binds no key at all.
+  E6. `_G.installCheck()` — 93 runtime files now, not 92.
+
+  F. THE WAYS OUT, worth knowing before you need them.
+  F1. `_G.draftForget(n)` removes one row — n is the number from the
+      report, 1 being the newest. `_G.draftForgetAll()` empties the file.
+  F2. The file is named in the report. It is in your **Logs folder**, by
+      your own scope, which means it **SYNCS through OneDrive** — right
+      for a draft you want back, and worth knowing, because it holds text
+      you typed into other people's forms. `settings = { draft_keeper =
+      { local_ = true } }` keeps it on this Mac only. Say the word and I
+      will change the default instead of leaving you a line to type.
+  F3. Ninety days, your number. Pruned once a session; nothing else ever
+      removes a row.
+
+  G. ❓ QUESTIONS — ANSWERS WANTED, NOTHING TO RUN.
+  G1. **Sixty characters and ten seconds** are MY numbers, not yours. The
+      6.213.x note asked whether it should keep every draft or only ones
+      over some length after a pause, you escalated the feature without
+      answering, and I will not leave that in a settings line for you to
+      type. If the file fills with things you did not want kept, say so
+      and sixty goes up; if a paragraph you lost was not kept, say so and
+      ten seconds comes down.
+  G2. **Which apps?** Chrome, Chromium, Safari, Edge, Firefox, Brave,
+      Arc, Vivaldi, Opera and Outlook. Name any others — Teams, Slack,
+      Asana's desktop app — and they go in one line.
+  G3. **The floppy disc is NOT built**, and that is the half of your
+      original drawing I did not ship. A disc beside the field has to
+      follow that field as you type and as the page scrolls, which is
+      work on the thread that carries your keyboard — the exact cost that
+      took your drag and drop. If you want it anyway, the next release
+      there is a MEASUREMENT of what drawing it costs, not the disc.
+  G4. 🔨 Nothing was broken and nothing was lost — this is a tool you
+      asked for three times and never had. If it turns out to cost you
+      anything on the Mac (E1), that is a different answer and I want it.
+
 - 6.403.0 verify with LL — 🔬 A STORM NOW SAYS WHY (KNOWN GROUND)
   🚨 FIRST, AND BEFORE ANYTHING ELSE: **YOUR CONFIG MAY STILL BE PAUSED.**
   Your 05:15:24 line ends "2 storms in 10 min: PAUSED, ⇪⇧escape resumes",
@@ -17541,9 +17755,10 @@ LL reopens it.)
   `_G.clipboardReport()` for the chooser pane is 6.224.0 (its `pane :`,
   `home/end :` and `place :` lines are there). Both struck out.
   📜 AND THREE REAL SURVIVORS CAME OUT OF THE 489-RELEASE SCAN, each
-  asked for and never withdrawn: system volume + output/input device
-  switching + a mute toggle (6.68.0–6.70.0; per-APP volume stays
-  correctly refused, it needs an audio HAL driver); ONE combined log of
+  asked for and never withdrawn — **ONE OF THE THREE IS NOW WITHDRAWN:
+  system volume + output/input device switching + a mute toggle
+  (6.68.0–6.70.0) is DROPPED on his word, 2026-11-04. Do not re-list
+  it.** The other two: ONE combined log of
   every URL that passed through a window (6.119.0 · 6.120.0 — titles
   exist as ⇪⇧W, urls are Chrome's own database and say nothing about
   Safari); and the doubled-word underline (6.221.0, blocked on a

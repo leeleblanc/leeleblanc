@@ -1,4 +1,4 @@
-# TESTING — how to score release 6.403.0
+# TESTING — how to score release 6.404.0
 
 You install ONE archive and it carries several releases. Below are the
 steps for each release this archive is new for, newest first. Run the
@@ -26,6 +26,157 @@ else is a LOSS and I fix it before building further. You are the only
 scorer; I never mark my own.
 
 ---
+
+## 6.404.0
+
+6.404.0 verify with LL — 💾 THE DRAFT KEEPER (NEW GROUND — expect a round)
+WHAT CHANGED: there is a new tool, and it has no key. While you type
+into a text box in a BROWSER or in Outlook, this config keeps what the
+box holds. If the page loses it, it is in ⇪D under **@draft**, and ⏎
+copies it back to your clipboard.
+🔑 IT READS THE FIELD, IT DOES NOT WATCH YOUR KEYBOARD, and that is
+the whole design rather than a detail. The obvious build is a tap on
+every keystroke; it would never see a PASTE, and after you move the
+cursor and rewrite a sentence it would hold a transcript of your
+typing rather than the paragraph on the screen. So it asks the field
+what is in it — which also means it watches one box in seven named
+apps instead of every key you press anywhere on the Mac.
+🪟 AND IT IS NEW GROUND, SAID UP FRONT: nothing in this config has
+ever read what is inside somebody else's text box. Whether Chrome and
+Outlook will answer that question on YOUR Mac is a thing only your Mac
+can say, so step A4 is the most useful line you can send back whether
+it works or not.
+
+A. THE HEADLINE — two minutes, and do it in Chrome.
+A1. Click into a text box you can type a paragraph in — a Gmail or
+    Outlook compose window, an Asana comment, a long web form.
+A2. Type **at least two or three sentences** — more than sixty
+    characters; a short line is deliberately NOT a draft, or the file
+    would fill with every search box you ever typed in.
+A3. Now STOP TYPING and wait about fifteen seconds. Then click into a
+    different tab, or just click somewhere else on the page.
+A4. Console: `_G.draftKeeperReport()`. **PASTE THE WHOLE THING.**
+    EXPECT, and this is the release:
+      kept   : 1 draft(s) this session · 1 row(s) written
+               ↳ last: 212 character(s) from Google Chrome — the first
+                 draft of this field
+      rows   : 1 kept · newest first, 1 shown · ⇪D @draft searches them
+        1. 2026-11-05 09:14:02 · Google Chrome · 212 chars
+           The paragraph you just typed…
+    **A FAIL is `kept : nothing yet this session`** with a `cost :`
+    line showing reads. If that is what you get, the `refused:` and
+    `skipped:` lines under it name which of five reasons, and that is
+    exactly what I need — go to D1.
+A5. You should also have seen ONE line in the Console the first time it
+    kept anything: `💾 Draft keeper: kept a 212-character draft from
+    Google Chrome`. It says that ONCE a session, deliberately — an
+    alert every time you write an email is a tool you switch off.
+
+B. THE DOOR — ⇪D, which is where you will actually use it.
+B1. Press **⇪D** (hold Caps Lock, press D). Type a single **@**.
+    EXPECT **16 sources** now, and **💾 @draft** among them, described
+    as "the text a web form lost".
+B2. ⏎ on that row. EXPECT your draft listed, newest first, with the
+    app and the window underneath it.
+B3. Highlight it and look at the pane on the right. EXPECT the WHOLE
+    draft, not the one-line preview.
+B4. Press **⏎**. EXPECT "📋 Copied", and ⌘V pastes the whole draft.
+    **It must NOT type anything back into the page** — that is your own
+    scope and it is the one thing here I would want to hear about
+    immediately if it is wrong.
+B5. Type `@draft` plus a word from your draft. EXPECT it filters.
+
+C. THE CASE IT EXISTS FOR — the one worth doing on purpose.
+C1. Type a long paragraph into a web form. Do NOT wait.
+C2. Within a second or two, navigate the page away — hit Back, close
+    the tab, or follow a link. The sort of thing that loses a draft.
+C3. ⇪D, `@draft`. EXPECT your paragraph is there.
+    WHY IT WORKS: the next time it looks and finds a DIFFERENT field,
+    it writes whatever it was holding at once. A timer alone would
+    have missed it.
+C4. 📏 THE LIMIT, named rather than discovered: up to about ten
+    seconds of your NEWEST typing is not on disk at any instant. If
+    Hammerspoon reloads or the Mac crashes inside that window, those
+    last few words are gone. Making that zero means a write per
+    keystroke into OneDrive, which is what took your drag and drop in
+    6.228.0.
+
+D. 🔒 WHAT IT MUST REFUSE — please do D1 and D2 at least.
+D1. Click into a PASSWORD field — a login page, 1Password's unlock.
+    Type something. Wait twenty seconds. Click away.
+D2. `_G.draftKeeperReport()`.
+    EXPECT `refused: 1 password field(s) …`, and **NOTHING from that
+    field anywhere in the rows list**.
+    **A FAIL here is a password in that list.** Stop and tell me at
+    once; `_G.draftForgetAll()` empties the file and
+    `settings = { draft_keeper = { enabled = false } }` stops it.
+D3. A field macOS will not describe is refused too, counted on its own
+    line. "I cannot tell what this is" must never read as "safe to
+    read", which is why it refuses rather than guessing.
+D4. Press **⇪⇧Esc** to pause the config, type a paragraph in a browser,
+    then ⇪⇧Esc again. EXPECT: nothing was kept while it was paused.
+D5. Type a long paragraph in **Word**, or in Terminal, or in
+    Hamsidian. EXPECT: nothing is kept. It watches browsers and
+    Outlook and nothing else, by your own scope.
+
+E. MUST STILL WORK — this added a watcher that reads the focused
+   element, so this half matters more than A.
+E1. 🚨 **DOES THE MAC FEEL NORMAL?** Use Chrome and Outlook heavily for
+    an hour. Typing must not feel heavier, the pointer must not
+    stutter, and drag and drop must still work. If ANY of that changes
+    on this build, stop and tell me — that is the one cost I cannot
+    measure from here, and it is the cost that has bitten you before.
+E2. `_G.draftKeeperReport()` and read the `cost :` line:
+      cost   : 412 sample(s) · 180 reached a read · worst 8 ms · last 3 ms
+             ↳ yield: 60 read(s) for every draft kept
+    **PASTE THAT.** `worst` is the number that matters. If it ever
+    carries `⚠️ N read(s) over the 60 ms budget`, it has BACKED OFF by
+    itself and you will have had one alert naming the app and the
+    milliseconds — paste that too.
+E3. ⇪D still searches everything: @clip, @ocr, @vault, @shots, @logs.
+    ⏎ on a @clip row still PASTES (6.402.0); ⏎ on every other row
+    still only copies.
+E4. A spread of ⇪ keys across different tools: ⇪T, ⇪N, ⇪3, ⇪X, ⇪4,
+    ⇪space, ⇪V, ⇪/, ⇪⇧[.
+E5. Boot: All green, **78 modules** (was 77 — this release adds one),
+    and the same ⇪ shortcut count as before. A different shortcut count
+    is a finding: this module binds no key at all.
+E6. `_G.installCheck()` — 93 runtime files now, not 92.
+
+F. THE WAYS OUT, worth knowing before you need them.
+F1. `_G.draftForget(n)` removes one row — n is the number from the
+    report, 1 being the newest. `_G.draftForgetAll()` empties the file.
+F2. The file is named in the report. It is in your **Logs folder**, by
+    your own scope, which means it **SYNCS through OneDrive** — right
+    for a draft you want back, and worth knowing, because it holds text
+    you typed into other people's forms. `settings = { draft_keeper =
+    { local_ = true } }` keeps it on this Mac only. Say the word and I
+    will change the default instead of leaving you a line to type.
+F3. Ninety days, your number. Pruned once a session; nothing else ever
+    removes a row.
+
+G. ❓ QUESTIONS — ANSWERS WANTED, NOTHING TO RUN.
+G1. **Sixty characters and ten seconds** are MY numbers, not yours. The
+    6.213.x note asked whether it should keep every draft or only ones
+    over some length after a pause, you escalated the feature without
+    answering, and I will not leave that in a settings line for you to
+    type. If the file fills with things you did not want kept, say so
+    and sixty goes up; if a paragraph you lost was not kept, say so and
+    ten seconds comes down.
+G2. **Which apps?** Chrome, Chromium, Safari, Edge, Firefox, Brave,
+    Arc, Vivaldi, Opera and Outlook. Name any others — Teams, Slack,
+    Asana's desktop app — and they go in one line.
+G3. **The floppy disc is NOT built**, and that is the half of your
+    original drawing I did not ship. A disc beside the field has to
+    follow that field as you type and as the page scrolls, which is
+    work on the thread that carries your keyboard — the exact cost that
+    took your drag and drop. If you want it anyway, the next release
+    there is a MEASUREMENT of what drawing it costs, not the disc.
+G4. 🔨 Nothing was broken and nothing was lost — this is a tool you
+    asked for three times and never had. If it turns out to cost you
+    anything on the Mac (E1), that is a different answer and I want it.
+
+
 
 ## 6.403.0
 
@@ -258,69 +409,6 @@ E1. 📏 NAMED, NOT SWEPT, so it is not a surprise: this release gave the
     and it takes the same door next; one per release, as always.
     Hamsidian is my guess, because you write in it.
 
-
-
-## 6.400.0
-
-6.400.0 verify with LL — 🧵 A DIVIDER IN THE CONSOLE (KNOWN GROUND)
-WHAT CHANGED: there is now a line across the Console at the start and
-the end of every session, so you can see where one boot's output stops
-and the next one begins.
-🔑 WHY THERE ARE TWO. Hammerspoon prints its own first two lines —
-"Lazy extension loading enabled" and "Loading ~/.hammerspoon/init.lua"
-— before any of my code exists, so nothing written during a boot can
-ever get above them. But something written as the PREVIOUS session ends
-can. So you get a closing line when you reload or quit, which lands
-exactly where you asked for it, and an opening line for the boots that
-have no closing line above them (a cold start, a force quit, a crash).
-
-A. THE HEADLINE — ten seconds.
-A1. Reload Hammerspoon (⌘⌃R, or the menu).
-A2. Look at the Console.
-    EXPECT, in this order: a blank line, then
-      ═══════ ⏹ SESSION END · 6.402.0 · 2026-11-04 05:12:33 ══════════
-    then Hammerspoon's own two lines, then a blank line and
-      ═══════ ▶ BOOT · 6.402.0 · 2026-11-04 05:12:35 ════════════════
-    and then the boot you already know.
-    **A FAIL is no line at all.**
-A3. Now do the thing you asked for it for: select from the ⏹ SESSION
-    END line down to the bottom and copy it. That is one whole session,
-    cleanly bounded.
-A4. Reload once more and check you get BOTH lines again, with the right
-    version and the right time.
-
-B. THE CASE WITH ONLY ONE LINE.
-B1. Quit Hammerspoon properly (⌘Q) and start it again.
-    EXPECT: a ⏹ SESSION END line from the old session, then a ▶ BOOT.
-B2. If Hammerspoon is ever force-quit, killed by the stall guard, or
-    crashes, there is no SESSION END — just the ▶ BOOT. That is the
-    point of having both, and it also tells you something: a boot with
-    no SESSION END above it means the last session did not end cleanly.
-
-C. MUST STILL WORK — this touched the file every key passes through,
-   and the shutdown path that gives Caps Lock back.
-C1. 🚨 THE IMPORTANT ONE: reload, then press ⇪ and use a few shortcuts —
-    ⇪T, ⇪D, ⇪N, ⇪X, ⇪4, ⇪space.
-    EXPECT: all normal. The closing line shares the shutdown path with
-    the code that stops Caps Lock sending F18 to nothing after
-    Hammerspoon goes away, so if Caps Lock ever behaves oddly after a
-    quit, that is this release and I want to know immediately.
-C2. Quit Hammerspoon and then type. EXPECT: Caps Lock types capitals
-    again, normally. That is the restore still running.
-    If it does not: `hidutil property --set '{"UserKeyMapping":[]}'` in
-    Terminal fixes it, and tell me.
-C3. The boot line still reads All green, 77 modules, and the same ⇪
-    shortcut count as before.
-C4. ⇪⇧D still prints the diagnostic report; `_G.saved()` still prints.
-
-D. A JUDGEMENT ONLY YOU CAN MAKE.
-D1. Is the line the right WIDTH? It is 72 characters so it does not wrap
-    in a normal Console window. If it wraps on your screen, or if it is
-    too short to stand out, it is a number and not a release.
-D2. Should it carry anything else — the Mac's name, the boot time? It
-    has the version and the clock now, which is what I would want for
-    pasting, but you are the one pasting it.
-D3. `_G.consoleRules = false` silences both lines for a session.
 
 
 ---

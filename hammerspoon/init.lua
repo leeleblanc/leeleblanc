@@ -4,8 +4,81 @@
 -- =====================================================================
 -- 11-03-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.403.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.404.0
 -- =====================================================================
+
+-- NEW IN 6.404.0 — 💾 THE DRAFT KEEPER: THE TEXT A WEB FORM LOSES
+--   (modules/draft_keeper.lua, NEW — @draft in ⇪D, no key of its own).
+--   LL, 2026-09-13, with a drawing: "a translucent floppy-disc beside a
+--   text field in Chrome/Safari that has no save, watching the typing."
+--   Scoped by him 2026-10-09 — browser AND Outlook fields, ⏎ COPIES,
+--   a .csv in the Logs folder, @draft in ⇪D, ninety days — escalated by
+--   name twice, the second time in capitals.
+--   🔑 IT READS THE FIELD, IT DOES NOT WATCH THE KEYBOARD. The obvious
+--   build is an eventtap accumulating keystrokes, and it is wrong for a
+--   reason that is not about cost: A KEYSTROKE TAP RECONSTRUCTS, IT DOES
+--   NOT READ. It never sees a paste, and after he moves the caret and
+--   rewrites a sentence what it holds is a mangled transcript rather
+--   than the paragraph on screen. The thing he wants back is the
+--   FIELD'S VALUE, so the field is what is asked — and that instrument
+--   is the narrower of the two, which matters more here than anywhere
+--   else in this config: a tap sees every character typed anywhere on
+--   the Mac, and this reads one element in seven named apps.
+--   📏 THE WATCH LIST IS ASKED BEFORE ANY AX WORK, off the front app's
+--   NAME — a string compare — so a Mac in Terminal, Finder or Word pays
+--   that and nothing else; only a browser or Outlook reaches the read
+--   at all. Every read is TIMED, and past `slowMs` it takes the 🔔 door
+--   ONCE and BACKS OFF (the interval doubles, bounded) rather than going
+--   on costing him the thread it is slow on — 6.228.0, and 6.229.0's
+--   rule that a per-wake-up cost is counted per wake-up with what it
+--   bought printed beside it.
+--   🔒 IT FAILS CLOSED, and this is the half that earns its keep: a
+--   password field is refused BY NAME, and so is a field macOS would not
+--   DESCRIBE AT ALL — "I cannot tell what this is" and "this is safe to
+--   read" are opposite facts (6.196.1) and the second is the one that
+--   costs him a password in a CSV. Secure Input held stands the whole
+--   thing down, read from core/capabilities.lua and never re-probed
+--   (6.242.0); so does ⇪⇧Esc (6.152.0). The one case nothing here can
+--   see is a password in a PLAIN field — a "show password" toggle — and
+--   it is NAMED rather than discovered, with `_G.draftForget(n)` as the
+--   way out.
+--   🕰 A DRAFT IS WRITTEN WHEN IT HAS SETTLED, not when it could be —
+--   6.387.0's rule, which was about minting a file name and is just as
+--   true of a log: ask whether the thing is FINISHED. 🚪 AND THE CASE
+--   THE FEATURE EXISTS FOR IS THE FLUSH: the next sample finding a
+--   DIFFERENT field writes whatever was pending at once, because that is
+--   the moment a web form loses a draft and a settle timer alone would
+--   miss it. COST, NAMED: up to `settleSecs` of the newest typing is not
+--   on disk at any instant.
+--   ✂️ `dk.keepVerdict` is PURE, and the SHRINK is the interesting half:
+--   text shorter than the row already saved is REFUSED, because that
+--   longer row still holds every word of it — the saved row IS the
+--   memory (6.281.0), so the store this needs is the one it already has.
+--   A SAME-LENGTH REWRITE is kept, because a length-only rule calls 500
+--   new characters unchanged; the fixture that bites is exactly that
+--   pair (6.230.0).
+--   🧵 A ROW IS ONE LINE, OR A TAIL READ CANNOT FIND A ROW BOUNDARY. A
+--   draft has newlines in it and `core.csvQuote` turns every one into a
+--   space, deliberately, so the text is ENCODED first and decoded on
+--   read; `dk.encode`/`dk.decode` are PURE and round-trip, and the suite
+--   lifts BOTH CSV helpers out of this file rather than retyping them
+--   (6.273.0 — a stub that invents a convention certifies the bug).
+--   🕘 Ninety days, his number: append-only (an append cannot shrink a
+--   file — 6.279.0), pruned once per session, temp-then-rename (6.313.0).
+--   🗳 THE DEFAULT IS MINE AND IT IS NOT "EVERYTHING": 60 characters,
+--   settled for 10 seconds — keeping every field would make the file a
+--   log of every search box he has ever typed in, and 6.267.0 forbids
+--   leaving that answer in a settings line for him to type. Both numbers
+--   are in the report. 📏 The file is in the Logs folder by his own
+--   scope, which SYNCS; `local_ = true` keeps it off OneDrive and the
+--   report says which folder it is using.
+--   🚫 THE FLOPPY DISC IS NOT BUILT, said rather than left to be found:
+--   it needs the element's own rectangle re-read and redrawn as he types
+--   and as the page scrolls, which is per-event main-thread work
+--   (6.228.0 · 6.247.0). The report, @draft and ONE Console line the
+--   first time a draft is kept in a session are the surfaces instead.
+--   `_G.draftKeeperReport()` · `settings = { draft_keeper = { enabled =
+--   false } }`.
 
 -- NEW IN 6.403.0 — 🔬 A STORM ASKS WHY, AND THE ANSWER GOES IN ITS FILE
 --   (modules/hyper_storm.lua + core/hyper_key.lua). LL's 2026-11-04
@@ -48,94 +121,11 @@
 --   (6.196.1): measured at this storm · an OLD wake reading that says so
 --   with its age · never asked. `probeOn = false` is the way back.
 
--- NEW IN 6.402.0 — 📋 ⏎ ON A CLIPBOARD ROW PASTES IT
---   (modules/unified_search.lua). LL: "First result from history
---   clipboard list is not pasted when selected and it should be."
---   🔎 AND THE FIRST ROW IS WHY IT READ AS BROKEN RATHER THAN MISSING.
---   ⏎ has always COPIED, and the first row of the clipboard history IS
---   whatever is already on the clipboard — so ⏎ there wrote back what
---   was already there, pasted nothing, and changed nothing observable.
---   Every other row at least leaves ⌘V carrying something different
---   afterwards; row one does not, so the one row he would try first is
---   the one that looks dead. GENERAL: when a tool is reported broken
---   for one particular ITEM, ask what is unique about that item before
---   looking at the mechanism.
---   🚨 A ⌘V IS ONLY POSTED ONCE THE FOCUS IS PROVEN BACK. Posted while
---   the panel still has the keyboard it goes nowhere; posted after he
---   has moved on himself it lands in whatever he moved to. Both are
---   worse than leaving the text on the clipboard, which 6.325.0's door
---   has already done — so a focus that did not come back means COPY
---   ONLY, said out loud with the way to use it, never a blind paste.
---   🪜 A held timer in its own slot between the two (6.196.1): macOS
---   activates an app on its own turn. Through _G.withInjection
---   (6.218.0). Counted as POSTED, never pasted (6.299.0). Only a @clip
---   row pastes — a path or a shortcut's keys must not be typed into his
---   document. `pasteOnPick = false` is the way back.
-
---   ALSO IN THIS ARCHIVE (full entries in CHANGELOG.md):
---   🎯 6.401.0 the FOCUS IS GIVEN BACK when an edit window closes — LL:
---   "window does not return cursour/ mouse to the active field it was
---   already in … I just use my trackpad to get back here." His
---   comparison is the explanation: ⇪/ never takes focus, so it has
---   nothing to give back; a window that must be TYPED INTO has no such
---   option (6.225.0 · 6.251.0 PAID that price and named it, and neither
---   built the other half). The obvious build fails on his real keys —
---   ⇪⇧V, ⇪⇧O and ⇪⇧W open a CHOOSER first, so by then the front app is
---   already Hammerspoon. A watcher keeps the last app that was not us,
---   and the return happens only if we are STILL frontmost (6.266.0).
---   🧵 6.400.0 a BOOT IS FINDABLE in the Console — LL: "create a divider
---   above this line so I can see where one section ends and this
---   begins." TWO rules: a CLOSING one from hs.shutdownCallback lands
---   above the NEXT session's first line, which is where he asked for
---   it, and an OPENING one covers the boots with no closing rule above
---   them. CHAINED, never assigned, so the ⇪ remap restore (6.65.1)
---   cannot be dropped. The leading newline takes core/console.lua's
---   multi-line passthrough.
---   🩺 6.399.0 _G.installCheck() + MANIFEST.txt — every runtime file
---   against the size the release carried, so "did it all land?" is
---   answered by a stat rather than a document.
---   📝 6.398.0 closing a Hamsidian tab leaves its note AND SAYS SO — a
---   correct default that is silent is indistinguishable from a leak.
---   ✏️ 6.397.0 the DOCUMENT EDIT takes the real window — the last picker
---   in the config still on hs.dialog.textPrompt, a one-line NSAlert that
---   opens behind what is in front. The prompt stays as the degrade,
---   asked at PRESS time, and both doors end in applyDocEdit (6.231.0).
---   🗳 6.396.0 HIS WORDS for a risky row: "⚠️ Attention: your data may be
---   in here ⚠️", from ONE table. The verdict KEY stays `careful` — the
---   word he reads and the word the code decides on are different things,
---   and a sentence in twenty comparisons is how a label becomes a bug.
---   🖱 6.395.0 the EDIT WINDOW DRAGS. Every part was built and one line
---   killed it: the first tick asked checkMouseButtons and ended the drag
---   when it did not say yes, but a press the page CONSUMED never updates
---   the button state. coexist carries that sentence verbatim and 6.337.0
---   is the night it cost ⇪4 — A RULE QUOTED IS NOT A RULE APPLIED.
---   🔌 6.394.0 watchFolder = false really STOPS the watcher. It stopped
---   the handler and not the pathwatcher, so macOS woke the main thread
---   for every file event in a OneDrive folder for a switched-off feature
---   (6.228.0 named this module; 6.259.0 is the precedent).
---   ⏱ 6.393.0 a HUNG OCR no longer wedges the naming queue: nameBusy was
---   cleared only in the callback, so one silent `shortcuts` process left
---   every later screenshot piling up until a reload (6.304.0's wedge, in
---   a second module). And t:start()'s FALSE was being thrown away.
---   🆔 6.392.0 a FILE REFERENCE is resolved by a BOOKMARK. realpath hands
---   back the right name in a folder that holds nothing, ending in a real
---   extension — the plausible wrong answer, which sails through every
---   suffix check downstream and cannot be opened (6.237.0, with the file
---   named). The gate joins this reader to music_player's twin.
---   🪟 6.391.0 ONE DOOR for every webview show. A webview refuses in TWO
---   directions and no panel read either — it can THROW and it can RETURN
---   FALSE. My own list of the sites was a SAMPLE: the queue named five,
---   the grep found ELEVEN (6.319.0, broken by the person who wrote it).
---   🪟 6.390.0 the JUG PLAYER's catcher reads its own show — 6.352.0's
---   line, in its twin, named then and left for its own release. A
---   two-door feature losing ONE door is invisible, which is why it
---   needed a grep rather than a report.
-
--- (6.401.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.402.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 cut the inline count to
 --  TWO; a gate check proves every entry here is also in CHANGELOG.md.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.403.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.404.0
 -- =====================================================================
 -- The catalogue that used to sit here moved to GUIDE.md ("What each
 -- tool does") in 6.180.0 — 259 lines of prose inside the orchestrator.
@@ -224,7 +214,7 @@ function _G.consoleRuleSay(what)
     return true
 end
 
-_G.configVersion = "6.403.0"
+_G.configVersion = "6.404.0"
 _G.consoleRuleSay("▶ BOOT")
 
 local function safeRequire(mod)
@@ -2849,6 +2839,12 @@ local BASE = {
     "task_creator",       -- ⌃⌥⌘T create · ⌃⌥⌘A format URL (⇪⇧S given up in 6.161.0)
     -- 6.99.0 (rebuilt 6.100.0 as the combined Quick Append Pad)
     "note_pad",           -- ⇪pad2 one box: * idea + log ! task ? note
+    -- 6.404.0 — the draft keeper. No key: @draft in ⇪D is the door, and a
+    -- tool that lives inside another tool's window does not also get its
+    -- own hyper key (6.182.0). It reads the focused field's own value on a
+    -- held timer while a BROWSER or Outlook is in front, and nothing else;
+    -- the watch starts in M.warm so the switch is real (6.228.0).
+    "draft_keeper",       -- 💾 @draft  the text a web form loses (no key)
                           -- (AFTER quick_append AND capture_pad: it files
                           --  through both of their services)
     -- 6.103.0

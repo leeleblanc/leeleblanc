@@ -5,6 +5,183 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.404.0 — 💾 THE DRAFT KEEPER: THE TEXT A WEB FORM LOSES
+  (modules/draft_keeper.lua, NEW · modules/unified_search.lua)
+
+  LL, 2026-09-13, with a drawing: "a translucent floppy-disc beside a
+  text field in Chrome/Safari that has no save, watching the typing."
+  Scoped by him on 2026-10-09 — browser AND Microsoft Outlook fields,
+  ⏎ on a row COPIES it, stored as a .csv in the Logs folder per Mac,
+  @draft is the ⇪D source, "ONLY 90 DAYS". Escalated by name on
+  2026-10-10 ("Escalate draft keeper.") and again on 2026-11-04 in
+  capitals, with the instruction to ship it alone and at once.
+
+  ---- 🔑 IT READS THE FIELD, IT DOES NOT WATCH THE KEYBOARD ---------
+  The obvious build is an hs.eventtap that accumulates keystrokes, the
+  way modules/autocorrect.lua does, and it is wrong here for a reason
+  that has nothing to do with cost: A KEYSTROKE TAP RECONSTRUCTS, IT
+  DOES NOT READ. It never sees a paste, and after he has moved the
+  caret and rewritten a sentence what it holds is a mangled transcript
+  of the typing rather than the paragraph on screen. The thing he wants
+  back is THE FIELD'S VALUE, so the field is what is asked.
+
+  🔑 GENERAL, and it is the half to carry: when a feature's subject is
+  the STATE of something, ask the thing. A stream of the EVENTS that
+  built that state is a different object that merely usually agrees.
+
+  And it is the NARROWER instrument of the two, which matters more here
+  than anywhere else in this config: a keystroke tap sees every
+  character typed anywhere on the Mac, and this reads one element in
+  seven named apps.
+
+  ---- 📏 THE ORDER THAT MAKES ONE SAMPLE CHEAP --------------------
+  An Accessibility read is MAIN-THREAD work, and a busy main thread is
+  a mouse this Mac has lost (6.228.0). So the watch list is asked
+  FIRST, off `hs.application.frontmostApplication():name()` — a string
+  compare — and a Mac in Terminal, Finder, Word or Xcode pays exactly
+  that and nothing else. Only a watched app reaches the AX read.
+
+  Every read is TIMED. Past `dk.slowMs` (60) it takes the 🔔 door ONCE
+  and BACKS OFF — the interval doubles, bounded at `sampleMaxSecs` —
+  rather than going on costing him the thread it is slow on. 6.229.0's
+  rule: when a cost is paid per wake-up, count the wake-ups and print
+  what they BOUGHT beside what they cost (the report's yield line).
+
+  🚨 `dk.appWatched` MATCHES WHOLE WORDS, never a substring. "Archive
+  Utility" contains "arc" and is not a browser; "Arc" is. That pair is
+  the only fixture that can tell the two implementations apart, because
+  every other input agrees (6.230.0).
+
+  ---- 🔒 WHAT IT REFUSES, AND IT FAILS CLOSED ---------------------
+  · `AXSecureTextField` — a password field. Refused by name, counted.
+  · A role macOS would not answer AT ALL. "I cannot tell what this is"
+    and "this is safe to read" are opposite facts (6.196.1), and the
+    second is the one that costs him a password in a CSV, so an
+    unreadable role refuses. 6.200.0's fail-closed rule in the place
+    where it earns its keep.
+  · Secure Input held by any app — READ from core/capabilities.lua,
+    never re-probed (6.242.0), and a source sentry keeps ioreg out of
+    this file.
+  · `_G.hsPaused` (⇪⇧Esc). Everything that watches anything in this
+    config stands down on it (6.152.0).
+  The two kinds of stand-down are COUNTED APART: "a password field" and
+  "something has locked the whole keyboard" send me to different
+  places, and a number that summed them would answer neither.
+
+  📏 THE COST IT CANNOT SEE, named rather than discovered: a site that
+  puts a password in a PLAIN text field — a "show password" toggle — is
+  a field macOS calls ordinary, and nothing here can know better. That
+  is the one case where a row could hold something he would not want
+  kept, and `_G.draftForget(n)` is the way out.
+
+  ---- 🕰 IT WRITES WHEN THE DRAFT HAS SETTLED --------------------
+  A row per sample would make the file a transcript of his typing. A
+  row per FINISHED thought is what is useful, so a draft is written
+  when it has stopped changing for `settleSecs` — 6.387.0's rule, which
+  was about minting a file name and is just as true of a log: ask
+  whether the thing is FINISHED, not whether you may write yet.
+
+  🚪 AND THE CASE THE WHOLE FEATURE EXISTS FOR IS THE FLUSH. When the
+  next sample finds a DIFFERENT field — he tabbed away, the page
+  navigated, the form went — whatever was pending is written at once.
+  That is the moment a web form loses a draft, and a settle timer alone
+  would miss it. A REFUSAL flushes too: he tabbed from a body he was
+  writing into a password field, and that body is the draft; what is
+  refused is READING the new field.
+
+  📏 COST, NAMED AND REAL: up to `settleSecs` of the newest typing is
+  not on disk at any instant, so a crash or a reload inside that window
+  loses it. Making that zero means a write per keystroke into a cloud
+  folder, which is 6.229.0's bill.
+
+  ---- ✂️ dk.keepVerdict — PURE, AND THE SHRINK IS THE INTERESTING HALF
+  · under `minChars` → no. A search box is not a draft.
+  · the first row for a field → yes.  · unchanged → no.
+  · SHORTER than the row already saved → NO, and this is an economy
+    rather than an oversight: the longer row is already on disk and
+    still holds every word of it, so a shrink needs no row to protect
+    him, and writing on one would fill the file as he edits. 6.281.0's
+    "the rename is the memory" one tool along — THE LONGER ROW IS THE
+    MEMORY, and the store this feature needs is the one it already has.
+  · EDITED rather than merely added to (the saved row is no longer a
+    prefix of it) → yes, whatever the length. A 500-character draft
+    rewritten into a different 500 characters is new writing, and a
+    rule that compared only LENGTHS would call it unchanged. The
+    fixture that bites is exactly that pair (6.230.0).
+  · grew by `minGrowth` → yes.  · otherwise → no, and by how little.
+
+  ---- 🧵 A ROW IS ONE LINE, OR A TAIL READ CANNOT FIND A ROW -------
+  A draft has newlines in it — it is an email — and `core.csvQuote`
+  turns every one of them into a space, deliberately, because every
+  other store in this config holds single-line values. So the text is
+  ENCODED first (`\` → `\\`, newline → `\n`, tab → `\t`) and decoded on
+  read: one row is one line, which is what lets the reader seek to the
+  END of the file and read a bounded tail instead of a file that grows
+  for ninety days. `dk.encode`/`dk.decode` are PURE and round-trip, and
+  an escape nobody wrote is kept literally rather than swallowed.
+
+  🔬 AND THE SUITE LIFTS BOTH CSV HELPERS OUT OF init.lua rather than
+  retyping them. Every row round-trips through `core.csvQuote` and
+  `core.splitCSVLine`, and a stub that invents a calling convention
+  does not merely miss a bug, it CERTIFIES it (6.273.0).
+
+  ---- 🕘 NINETY DAYS, HIS NUMBER ---------------------------------
+  Append-only, because an append cannot shrink a file (6.279.0), and
+  pruned ONCE per session from `M.warm` — temp file then rename
+  (6.313.0), so the store is the old one or the new one and never half,
+  and a refused rewrite leaves the old file untouched and SAYS so.
+  `dk.pruneRows` is PURE with the clock as an argument (6.234.0).
+
+  ---- 🗳 THE DEFAULT I CHOSE, AND WHY IT IS NOT "EVERYTHING" ------
+  The 6.213.x note asked whether it keeps EVERY draft or only ones over
+  some length after some pause, and said the first makes the file a log
+  of every search box he has ever typed in. He escalated the feature
+  without answering, and 6.267.0 forbids leaving the answer in a
+  settings line for him to type: so the default is the SECOND — 60
+  characters, settled for 10 seconds — and both numbers are in the
+  report where he can read them and say they are wrong.
+
+  ---- 📏 WHERE IT IS STORED, AND THE COST OF THAT ----------------
+  The Logs folder, by his own scope, which on a healthy Mac is inside
+  OneDrive — so these rows SYNC. That is right for a draft (a thing you
+  want back on the Mac you lost it on, and on the other one) and it is
+  worth saying out loud, because the file holds text he typed into
+  other people's forms. `local_ = true` puts it under ~/Library/
+  Application Support instead, and the report NAMES which folder is in
+  use rather than leaving him to work it out.
+
+  ---- 🔗 @draft, AND ONE READER ----------------------------------
+  The ⇪D source asks `draft.rows` through the service registry; the
+  report asks the same function. One parser, two readers (6.231.0) — a
+  second copy of that CSV parsing beside the search is the OCR log's
+  defect exactly, two readers over one file that drift until one typo
+  fix strips a column off every row. ⏎ on a @draft row COPIES it, which
+  is what every source but @clip already does (6.402.0) and is his own
+  scope: this config never types a draft back into somebody else's
+  page. 🔎 A file that could not be READ becomes a ROW he can see, never
+  an empty store — "nothing was ever kept" is the reassuring sentence
+  and it would be a lie on exactly the day the disk is full (6.196.1).
+
+  ---- 🚫 WHAT IS NOT BUILT, said rather than left to be found -----
+  THE FLOPPY DISC. His first drawing had a translucent disc beside the
+  field. It needs the element's own rectangle, re-read and redrawn as he
+  types and as the page scrolls — per-event main-thread work, which is
+  6.228.0's bill on the thread that carries his keyboard, and 6.247.0
+  priced a redraw on a path that runs per event. The report, @draft and
+  ONE Console line the first time a draft is kept in a session are the
+  surfaces instead. If he wants the disc it is its own release and it
+  starts with a measurement, not a drawing.
+
+  🧪 172 checks, and the sections with teeth are named in the suite's
+  own header: the whole-word app match, the same-length rewrite, the
+  unreadable role, the newline round trip, the flush on focus moving
+  away, a refused write that must not count as kept, and a report that
+  must never print a row count for a file it could not read.
+
+  📏 No key. @draft in ⇪D is the door, and a tool that lives inside
+  another tool's window does not also get its own hyper key (6.182.0) —
+  which also leaves ⇪⇧] the one genuinely free shifted key.
+
 NEW IN 6.403.0 — 🔬 A STORM ASKS WHY, AND THE ANSWER GOES IN ITS OWN FILE
   (modules/hyper_storm.lua + core/hyper_key.lua)
 

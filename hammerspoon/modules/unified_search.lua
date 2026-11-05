@@ -123,7 +123,7 @@ function M.setup(core)
     uni.maxPer  = { clip = 400, cmd = 400, shots = 30, note = 120,
                     asana = 200, ocr = 200, doc = 200, file = 200, pad = 60,
                     web = 300, scratch = 200, vault = 300, images = 150,
-                    logs = 300 }
+                    logs = 300, draft = 300 }
     -- 6.187.0 — how many @images rows get a real picture. A thumbnail is a
     -- full decode on the main thread, so this is a budget, not a preference.
     uni.thumbMax = 24
@@ -287,6 +287,56 @@ function M.setup(core)
                      text = oneLine(e.cmd):sub(1, uni.preview),
                      sub  = e.when or "shell history", full = e.cmd }
             end
+        end
+    end
+
+    -- PURE: does this row hold more than the preview shows? The pane
+    -- calls itself a preview only when the row says it does (6.204.0).
+    local function dk_more(r)
+        return #tostring(r.text or "") > uni.preview
+    end
+
+    -- 💾 6.404.0 — @draft. LL, escalated by name twice: the text a web
+    -- form loses. The rows come from draft_keeper through ONE reader
+    -- (6.231.0) — a second copy of that CSV parsing here is the OCR
+    -- log's defect exactly, two readers over one file that drift.
+    --
+    -- ⏎ on one of these COPIES it, which is what every source but
+    -- @clip does already (6.402.0) and is his own scope: this config
+    -- never types a draft back into somebody else's page.
+    local function srcDraft(add)
+        if not (_G.service and _G.service.has
+                and _G.service.has("draft.rows")) then return end
+        local rows, err = _G.service.call("draft.rows", { max = uni.maxPer.draft })
+        -- 🔎 THREE STATES, AND THE MIDDLE ONE IS THE POINT (6.196.1). A
+        -- file that could not be READ must not come back as an empty
+        -- store: "no draft was ever kept" is the reassuring sentence and
+        -- it would be a lie on exactly the day the disk is full.
+        if type(rows) ~= "table" then
+            uni.draftWhy = tostring(err or "the draft file could not be read")
+            add{ tag = "draft", icon = "💾", src = "Drafts",
+                 text = "⚠️ the kept drafts could not be read — " .. uni.draftWhy,
+                 sub  = "this is NOT 'nothing was kept'",
+                 full = "The draft keeper's file could not be read, so ⇪D cannot"
+                        .. " say what it has kept. " .. uni.draftWhy
+                        .. "\n\n_G.draftKeeperReport() names the file." }
+            return
+        end
+        uni.draftWhy = nil
+        for i = 1, #rows do
+            local r = rows[i]
+            local where = tostring(r.app or "?")
+            if r.title and r.title ~= "" then
+                where = where .. " — " .. tostring(r.title)
+            end
+            add{ tag = "draft", icon = "💾", src = "Drafts",
+                 text = oneLine(tostring(r.text)):sub(1, uni.preview),
+                 sub  = tostring(r.date) .. " " .. tostring(r.clock)
+                        .. " · " .. where .. " · " .. tostring(r.chars or 0)
+                        .. " chars" .. (r.cut and " (cut)" or ""),
+                 -- the WHOLE draft in the pane, and ⏎ copies the whole of it
+                 full = tostring(r.text),
+                 m    = (dk_more(r) and true or nil) }
         end
     end
 
@@ -900,6 +950,12 @@ function M.setup(core)
           what = "everything you have copied — ⇪V opens the panel here" },
         { tag = "cmd",   icon = "⌨️", label = "Commands",     fn = srcCommands,
           what = "the shell and Console commands ⇪H remembers" },
+        -- 💾 UP NEAR THE CLIPBOARD on purpose: those are the stores you
+        -- reach for when something you wrote has gone, and rows are
+        -- gathered in this order and listed in it.
+        { tag = "draft", icon = "💾", label = "Drafts",       fn = srcDraft,
+          what = "the text a web form lost — kept while you typed in a"
+                 .. " browser or Outlook; ⏎ copies it" },
         { tag = "logs",  icon = "📓", label = "Tool failures", fn = srcLogs,
           what = "every tool that has failed on this Mac — the 4 PM check,"
                  .. " searchable (_G.todayReport() is today alone)" },

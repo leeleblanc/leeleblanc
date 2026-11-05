@@ -1,5 +1,5 @@
 ========================================================================
-RESOLVED FEATURE REQUESTS — Hammerspoon config 6.403.0
+RESOLVED FEATURE REQUESTS — Hammerspoon config 6.404.0
 Every feature and how to use it. Generated from the modules' own
 cheat sheets (the rows ⇪/ draws), so it is never out of date.
 ⇪ = Caps Lock held (the hyper key). ⇪⇧X = Caps Lock + Shift + X.
@@ -162,6 +162,17 @@ In the Console, _G.<tool>Report() prints any tool's own report.
   files     Live in <logs>/notes/ — edit quickAppend.targets to change
   csv       Every append is one notes.csv row — Date · Note Type · Note entry
   safe      Append mode: never truncates, never holds the file open
+
+💾 DRAFT KEEPER (the text a web form loses)   [modules/draft_keeper.lua]
+  @draft    Every draft it kept, newest first — type it in ⇪D
+  ⏎       COPIES the draft. It never types it back into a page
+  watches   Chrome · Safari · Edge · Firefox · Brave · Arc · Outlook
+  keeps     A field's own text, once it has settled — not your keystrokes
+  refuses   A password field · a field macOS will not describe ·
+            anything while Secure Input is held · while ⇪⇧Esc has paused
+  90 days   Pruned once a session; nothing else ever removes a row
+  forget    _G.draftForget(n) removes one · _G.draftForgetAll()
+  report    _G.draftKeeperReport() — what it kept and what it refused
 
 🗒 QUICK APPEND PAD (via ⇪N or ⇪J — one box, four destinations)   [modules/note_pad.lua]
   in ⇪N   The "+ ➕ Append" row in SCRATCH NOTES opens an Append tab — type entries, one per line (⇪2 was this pad's key until 6.182.0; it is the sequential copy now)
@@ -889,6 +900,7 @@ In the Console, _G.<tool>Report() prints any tool's own report.
 
 📜 RELEASE INDEX — newest first, one line per release (the full story of each is in CHANGELOG.md)
 ------------------------------------------------------------------------
+  6.404.0  💾 THE DRAFT KEEPER: THE TEXT A WEB FORM LOSES
   6.403.0  🔬 A STORM ASKS WHY, AND THE ANSWER GOES IN ITS OWN FILE
   6.402.0  📋 ⏎ ON A CLIPBOARD ROW PASTES IT
   6.401.0  🎯 THE FOCUS IS GIVEN BACK (core/coexist.lua +

@@ -70,7 +70,7 @@ said yes and it is not to be re-asked.
 | D6 | Anchors' cold start — ⇪⇧U "create a new note first" | "Yes" | ☐ |
 | D7 | The screenshot editor's sizing, then the crop tool | "Yes build it" | ☐ |
 | D8 | The public sanitised config | "Build it and I'll review" | ☐ |
-| D9 | System volume + output-device switching + a mute toggle | "Ignore hyper+q, not needed" — read as: ⇪Q stays, build the trio | ☐ |
+| ~~D9~~ | ~~System volume + output-device switching + a mute toggle~~ | **DROPPED ON HIS WORD, 2026-11-04: "I already said drop this. I am not developing this."** My row was wrong — see J5 | ✅ struck |
 | D10 | ⌥Tab lists every panel | his answer, 6.374.0 batch | ☐ |
 
 ### E — THE "FIX:" LIST, verbatim
@@ -426,3 +426,154 @@ LL: "Nevermind, I forgot about the @tools. We're good." So `@tool` in ⇪D
 plus ⇪⇧/ is the picker, no key is owed, and the row is struck. 6.317.0's
 shape confirmed for the sixth time — the instrument existed and the DOOR
 was what he could not find.
+
+---
+
+## J — HIS 2026-11-04 ANSWERS AND ORDERS
+
+He read the list and gave orders rather than preferences. Logged here so
+none of it is re-asked, and so the two I got wrong are visible.
+
+### J1 ❗❗ D3 IS THE RELEASE, ALONE, AT ONCE
+
+His words: "❗❗ Escalate and build ❗❗ and give me this in an immediate
+release when it is ready. Do not wait to give me the rest. This is one
+that will be its own release ASAP. Then after that delivery, do not
+wait. Go immediately into the rest below."
+
+**Shipped as 6.404.0**, alone. 172 checks, gate 91 stages / 14,309.
+The design decision that is MINE and is named in the release: it reads
+the FIELD'S VALUE on a timer rather than watching keystrokes, because a
+keystroke tap never sees a paste and holds a transcript rather than the
+paragraph. And it is the narrower instrument — one element in seven
+named apps instead of every key pressed on the Mac.
+
+The second decision that is mine, because he escalated without answering
+the open question: **60 characters, settled 10 seconds**. Keeping every
+field would make the file a log of every search box he has typed in, and
+6.267.0 forbids leaving that answer in a settings line. Both numbers are
+in the report and the verify block asks him to move them.
+
+### J2 D6 AND D7 ESCALATED — AND D6 HAS A NEW BUG ON IT
+
+"D6: Escalate and build. D7: Escalate and build." Both are next, in that
+order, after this delivery.
+
+🚨 AND HE REPORTED A NEW FAULT ON D6's PATH, which changes what D6 is:
+
+> "D6 or Hamsidian caused an overlay to stay on the screen. I had a white
+> box that was Hamsidian. I ⇪⇧U in first, then got Hamsidian. Then was
+> left with that box. I don't know if it's saying 'create a note first'
+> over a full vault. Is this so obvious I'm missing it."
+
+READ, NOT PROVEN, and it is NOT the cold-start message — which is what
+makes his question the right one to ask. Two separate things in one
+sentence:
+1. **A WHITE BOX LEFT ON SCREEN.** ⇪⇧U opens a picker; picking the
+   "📁 Link it into an existing note…" row opens HAMSIDIAN. So a panel
+   was reached THROUGH another panel of ours — which is the exact shape
+   6.401.0's focus door was built around, and the shape 6.266.0's
+   frozen-grid orphan lives in: a window shown on a caller's behalf that
+   the caller has since stopped tracking. A white box means the webview
+   is on screen with NO page drawn in it, which is different from both
+   of those and is its own finding.
+2. **"create a note first" over a full vault** is D6 (6.340.0's shape in
+   ⇪⇧U — the notes index is built when Hamsidian OPENS, so before the
+   first open anchors has no rows to offer). He is NOT sure he saw it.
+
+So D6 grows a second half, and the artefact decides which: the next time
+it happens I need `_G.vaultReport()` and `_G.anchorsReport()` TOGETHER,
+with the box still on screen. Asked in the 6.404.0 message.
+📏 And the answer to "is this so obvious I'm missing it" is NO — a
+webview that is up and blank is not a message he failed to read.
+
+### J3 THE 16 "Fix:" ROWS ARE APPROVED
+
+"16 'Fix:' rows, yes go ahead." E1–E16 are cleared to build, in the
+order they are listed in section E. E16 stays blocked on a per-app
+AXBoundsForRange reading only he can take (6.221.0).
+
+### J4 F1 IS A FAIR COMPLAINT ABOUT MY WORDS
+
+"F1: fix this as I don't understand what you're saying -too cryptic."
+
+He is right and the defect is in the ASKING, not the item — ⌨️'s rule
+(6.377.0): when somebody says they do not understand an instruction, the
+instruction is wrong, never the reader. What F1 said was "`tests/
+test_lint.lua` — hs-lint has no suite and every rule in it is a bug that
+cost a release", which is three pieces of private shorthand in one line.
+
+**F1, in plain words, as it now reads:** before every test run, this
+config checks its own source for about thirty mistakes it has made
+before — things like "this function throws away a value it needs" or
+"this sentry can never fire". Each of those checks exists because that
+exact mistake once broke a release. **Nothing checks that those checks
+still work.** One of them went silently dead for a whole class of file
+and nobody noticed. F1 is a test for the tests: one deliberately broken
+example per rule, so a rule that stops catching anything fails the gate
+instead of going quiet.
+
+### J5 D9 WAS LOGGED WRONG, AND IT IS MINE
+
+"D9: I already said drop this. I am not developing this. Please log it
+correctly."
+
+He is right. He said "Disregard hyper+Q. It's fine." on 2026-10-31, and
+2026-10-29's "Ignore hyper+q, not needed" before that — and I read both
+as being about ⇪Q's microphone mute while keeping the VOLUME trio on the
+list as something he still wanted. That was my inference, not his words,
+and the row has been carrying it since. **Struck in the table above.**
+
+🔑 THE RULE THIS BREAKS, and it is one this file already carries twice:
+6.360.0 says a past "no" narrows the search and never ends it — and the
+mirror of that is the one I got wrong here. **A DECLINE THAT I SPLIT
+INTO "THE PART HE MEANT" AND "THE PART HE DID NOT" IS AN INFERENCE
+WEARING HIS WORDS.** When he declines something, log the decline against
+the thing he named and nothing adjacent to it; if the scope is unclear,
+the question is "did you mean the whole of it?" — asked once — not a
+surviving row he has to decline a third time.
+
+### J6 HIS FOUR ANSWERS
+
+**Q1 — what was he copying when the OCR tag warned?** "No idea. Maybe a
+powerpoint file. Maybe the Hammerspoon files. I'm working on other
+things while you work."
+→ So the artefact-first route is closed on this one and it is NOT
+re-asked. What that answer does rule out is the OneDrive-placeholder
+hypothesis as anything more than a guess: a PowerPoint and a .lua file
+have nothing in common but being FILES. So the fix is the one the
+reading already named — ask the plain-path pasteboard flavour FIRST, and
+make the warning name every flavour it saw, so the NEXT one carries its
+own evidence and needs nothing from his memory.
+
+**Q2 — is `Saved_URLs.txt` yours?** "Yes."
+→ It stays. `_G.stores()` goes on naming it, and the "quietest file"
+line is correct rather than a leftover. Nothing to build; the row is
+struck.
+
+**Q3 — should the storm line put `_G.stormReport()` on the clipboard?**
+"Yes. And Tell me it was. Other reports for other issues should tell me
+that same, copied and 'hey you have a report to give to Claude.' Those
+should be searchable by @reports"
+→ THIS IS BIGGER THAN THE QUESTION I ASKED and is its own release. Three
+parts, and the third is the one that makes it a feature rather than a
+convenience:
+  1. a report that matters is COPIED to the clipboard automatically;
+  2. it SAYS so — "copied · hey you have a report to give to Claude";
+  3. **`@reports` in ⇪D** — every report this config has generated,
+     searchable, so one he did not paste at the time is not lost.
+📏 (3) means reports have to be WRITTEN somewhere, which they are not
+today — they are printed. So this is a store, a source and a door, and
+it goes in the queue right behind D6 and D7 rather than being smuggled
+into the storm line.
+
+**Q4 — Hamsidian for the focus door?** "Wait until this is displayed in
+the Console or I can tell you or you can tell me how."
+→ So my own pick is NOT taken, and the right answer is to make the panel
+NAME ITSELF. 6.401.0's door already knows which panel borrowed the
+keyboard; what it does not do is say so when one gives it back WITHOUT
+returning the focus. One line in `_G.focusReport()` and one Console line
+at the moment it happens turns "which panel?" into something he reads
+rather than remembers. That is the release, and it comes before picking
+a panel — which is the whole point of his answer.
+
