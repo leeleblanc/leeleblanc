@@ -1401,6 +1401,32 @@ do
   local _, why = _G.acDateFix("10-20/26")
   ck("…and a refusal says why", tostring(why):find("separators", 1, true) ~= nil, why)
 
+  -- 🚨 6.412.0 — AND THE COUNTER MUST BE ABLE TO ANSWER. _G.acDateCount
+  -- was DEFINED FORTY-FOUR LINES ABOVE the two locals it reads, so the
+  -- closure captured the GLOBALS of those names — which nothing ever
+  -- assigns — and returned nil, nil on every Mac, for ever. The
+  -- expansion worked; the one line of the report that could say so
+  -- printed "no two-digit date typed this session" over a day of them.
+  -- 6.335.0's defect in a second file.
+  --
+  -- 🔑 THE CHECK THAT BITES DRIVES THE COUNTER FIRST. Asking it cold
+  -- answers 0 whether or not the bug is there, and 0 is a perfectly
+  -- good number — so a cold ask proves nothing (6.230.0).
+  do
+    local n0 = select(1, _G.acDateCount())
+    ck("📅 the date counter answers a NUMBER, not nil — the report's one "
+       .. "line about this rule is read off it",
+       type(n0) == "number", tostring(n0))
+    typeWord("11-27-26 ")
+    local n1, last = _G.acDateCount()
+    ck("📅 …and it really COUNTS an expansion, so the report can say the "
+       .. "rule fired", type(n1) == "number" and type(n0) == "number"
+       and n1 == n0 + 1, tostring(n0) .. " → " .. tostring(n1))
+    ck("📅 …and names the last one, which is what makes it actionable",
+       tostring(last):find("11-27-26 → 11-27-2026", 1, true) ~= nil,
+       tostring(last))
+  end
+
   -- ---- typed, through the real tap --------------------------------------
   ck("📅 typing 10-20-26 then a space expands it",
      typeWord("10-20-26 ") == "10-20-2026 ", tostring(typeWord("10-20-26 ")))
@@ -1501,7 +1527,7 @@ do
   ck("📅 the report counts the dates it expanded",
      rep:find("date", 1, true) ~= nil, rep:match("date[^\n]*"))
 
-  check("§11 ran every one of its checks", mine == 28, mine)
+  check("§11 ran every one of its checks", mine == 31, mine)
 end
 
 out(("\n%d passed, %d failed\n\n"):format(pass, fail))

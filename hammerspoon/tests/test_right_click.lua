@@ -43,6 +43,7 @@ local TIMERS   = {}
 local FRONT    = "Finder"
 local NEWMOUSE_FAILS  = false  -- pretend this hs build has no setFlags
 local RIGHTCLICK_CALLS = 0
+local MOVES    = 0             -- how many times the pointer was moved
 
 local TYPES = { rightMouseDown = 3, rightMouseUp = 4 }
 
@@ -57,8 +58,65 @@ local function makeEvent(t, point, mods)
     return ev
 end
 
+-- 🎯 6.409.0 — THE AX TREE, AND IT ANSWERS THE WAY A MAC DOES.
+-- SELECTION is what the focused element hands back; FRAME is where that
+-- row is. Either can be absent, and a stub where they never are is a
+-- stub that cannot see the branch each absence takes (6.290.0).
+local SELECTION   = nil   -- the frame AXFrame would answer, or nil
+local SEL_ATTR    = "AXSelectedRows"   -- which attribute carries it
+local SEL_VIA     = "AXFrame"          -- AXFrame | AXPosition | none
+local HAS_AX      = true
+local AX_ASKED    = {}
+
+local function axElement(attrs)
+    local e = { timeout = nil }
+    function e:setTimeout(t) self.timeout = t ; return self end
+    function e:attributeValue(a)
+        AX_ASKED[#AX_ASKED + 1] = a
+        return attrs[a]
+    end
+    return e
+end
+
+local function axRow()
+    local f = SELECTION
+    local attrs = {}
+    if SEL_VIA == "AXFrame" then
+        attrs.AXFrame = f
+    elseif SEL_VIA == "AXPosition" then
+        attrs.AXPosition = f and { x = f.x, y = f.y } or nil
+        attrs.AXSize     = f and { w = f.w, h = f.h } or nil
+    end
+    return axElement(attrs)
+end
+
 hs = {
-    mouse = { absolutePosition = function() return { x = MOUSE.x, y = MOUSE.y } end },
+    -- 🖱 A SETTER AS WELL AS A GETTER. hs.mouse.absolutePosition(p) MOVES
+    -- the pointer; a getter-only stub lets every "it went to the
+    -- selection" check pass while nothing moves (6.227.0 · 6.239.0 ·
+    -- 6.247.0 · 6.251.0 — the fifth time that shape has hidden a whole
+    -- feature in this project).
+    mouse = {
+        absolutePosition = function(p)
+            if type(p) == "table" and p.x and p.y then
+                MOUSE = { x = p.x, y = p.y }
+                MOVES = MOVES + 1
+                return nil
+            end
+            return { x = MOUSE.x, y = MOUSE.y }
+        end,
+    },
+    axuielement = {
+        applicationElement = function()
+            if not HAS_AX then error("no AX element") end
+            local attrs = {}
+            attrs.AXFocusedUIElement = axElement({
+                [SEL_ATTR] = SELECTION and { axRow() } or nil,
+                AXSelected = false,
+            })
+            return axElement(attrs)
+        end,
+    },
     accessibilityState = function() return AX end,
     alert = { show = function(m) ALERTS[#ALERTS + 1] = tostring(m) end },
     application = {
@@ -77,7 +135,15 @@ hs = {
     },
     timer = {
         doEvery = function(secs, fn)
-            local t = { secs = secs, fn = fn, stopped = false }
+            local t = { secs = secs, fn = fn, stopped = false, every = true }
+            function t:stop() self.stopped = true end
+            TIMERS[#TIMERS + 1] = t
+            return t
+        end,
+        -- 🪜 6.409.0 — the beat between moving the pointer and clicking.
+        -- Held in its own slot, and the suite fires it by hand.
+        doAfter = function(secs, fn)
+            local t = { secs = secs, fn = fn, stopped = false, every = false }
             function t:stop() self.stopped = true end
             TIMERS[#TIMERS + 1] = t
             return t
@@ -345,16 +411,46 @@ check("with nothing clicked it says 'never', not '0,0'", (function()
 end)())
 
 out("\n=== 7. 🚨 IT MUST NOT GUESS AT OTHER APPS ===\n")
--- The header promises this module asks Accessibility nothing about what
--- is under the pointer — no focused element, no selected file, no window
--- tree. That promise is the reason it works in "anything that has a
--- right-click", and it is one refactor away from being broken quietly.
+-- The header promised this module asks Accessibility nothing at all —
+-- no focused element, no selected file, no window tree. 6.409.0 spent
+-- HALF of that promise on his own ask ("it actuates where the mouse is
+-- but not on the current highlighted file in Finder"), and the sentry
+-- had to move with it.
+--
+-- 🔒 A SENTRY THAT BANS A NAME EXPIRES THE FIRST TIME THE NAME HAS AN
+-- HONEST USE (6.321.0). "No axuielement anywhere" was right while
+-- nothing here could legitimately ask; it is wrong the day one function
+-- must. So it states the RULE instead: every AX question in this file
+-- is asked INSIDE rc.selectionFrame, it asks only about SELECTION and
+-- GEOMETRY, and it still never asks what is under the pointer.
 local src = (function()
     local f = io.open(HS .. "/modules/right_click.lua", "rb")
     local s = f:read("*a") ; f:close() ; return s
 end)()
-check("it never reaches for hs.axuielement",
-      src:find("axuielement", 1, true) == nil)
+local selFn = src:match("function rc%.selectionFrame%(%).-\n    end\n")
+check("(the selection reader is there to measure)", selFn ~= nil)
+check("every axuielement call is inside the selection reader", (function()
+    local total  = select(2, src:gsub("axuielement", ""))
+    local inside = select(2, (selFn or ""):gsub("axuielement", ""))
+    return total > 0 and total == inside
+end)(), select(2, src:gsub("axuielement", "")))
+check("...and it asks only about the SELECTION and where it is", (function()
+    -- the whole vocabulary it is allowed: what is selected, and the
+    -- geometry of the thing selected. AXValue, AXTitle, AXChildren or
+    -- anything that reads CONTENT is the line this must not cross.
+    local allowed = {
+        AXFocusedUIElement = true, AXSelectedRows = true,
+        AXSelectedChildren = true, AXSelected = true,
+        AXFrame = true, AXPosition = true, AXSize = true,
+    }
+    for attr in src:gmatch("\"(AX%w+)\"") do
+        if not allowed[attr] then return false, attr end
+    end
+    return true
+end)())
+check("it never asks what is UNDER the pointer",
+      src:find("elementAtPosition", 1, true) == nil
+      and src:find("systemElementAtPosition", 1, true) == nil)
 check("it never reaches for hs.window",
       src:find("hs%.window") == nil)
 check("the only accessibility call is the permission check",
@@ -369,6 +465,152 @@ check("…and does not make a held key feel broken",
 check("the tick is finer than the timeout", rc.settleTick < rc.settleTimeout)
 
 -- ---- result ------------------------------------------------------------
+
+-- =====================================================================
+out("\n=== 8. 🎯 6.409.0 — IT AIMS AT WHAT IS SELECTED ===\n")
+-- =====================================================================
+-- LL: "Right-click actuates where the mouse is but not on the current
+-- highlighted file in Finder. Please fix this functionality."
+--
+-- 🗿 The header promised the opposite and promised it on purpose. That
+-- was a DECISION and it has expired (6.311.0). What has NOT changed is
+-- the fallback: nothing selected, or the pointer already on it, and the
+-- click goes exactly where the pointer is, as every release before this.
+local function fireTimers()
+    for _ = 1, 3 do
+        for _, t in ipairs(TIMERS) do
+            if not t.stopped and t.fn then local f = t.fn ; t.fn = nil ; f() end
+        end
+    end
+end
+local function press()
+    POSTED, ALERTS, TIMERS = {}, {}, {}
+    MODS = {}
+    rc.click()
+    fireTimers()
+end
+
+do
+    local before = pass + fail
+
+    local box = { x = 400, y = 300, w = 200, h = 20 }
+    check("a point inside the selection is inside it",
+          rc.inside({ x = 500, y = 310 }, box) == true)
+    check("...and the edges count — a row's own border is the row",
+          rc.inside({ x = 400, y = 300 }, box) == true
+          and rc.inside({ x = 600, y = 320 }, box) == true)
+    check("...and a point outside is outside",
+          rc.inside({ x = 399, y = 310 }, box) == false
+          and rc.inside({ x = 500, y = 321 }, box) == false)
+    check("...and nothing is inside nothing",
+          rc.inside(nil, box) == false and rc.inside({ x = 1, y = 1 }, nil) == false)
+
+    local pt, why = rc.aimAt(nil, { x = 10, y = 20 })
+    check("no selection aims at the pointer, and says so",
+          pt.x == 10 and pt.y == 20
+          and why:find("nothing is selected", 1, true) ~= nil)
+    pt, why = rc.aimAt({ x = 0, y = 0, w = 0, h = 0 }, { x = 10, y = 20 })
+    check("...and a zero-sized frame is not a selection either",
+          pt.x == 10 and why:find("nothing is selected", 1, true) ~= nil)
+    pt, why = rc.aimAt(box, { x = 500, y = 310 })
+    check("🖱 the pointer ALREADY on the selection is left exactly where "
+          .. "he put it — moving it would overrule his hand for nothing",
+          pt.x == 500 and pt.y == 310
+          and why:find("already on the selection", 1, true) ~= nil)
+    pt, why = rc.aimAt(box, { x = 10, y = 20 })
+    check("...and otherwise it aims at the middle of the selected row",
+          pt.x == 500 and pt.y == 310 and why == "the selected item")
+
+    -- 🚨 THE FIXTURE THAT BITES is a pointer NOWHERE NEAR the selection:
+    -- with the pointer inside it, a module that ignored the selection
+    -- entirely would post at the same place and pass (6.230.0).
+    SELECTION, SEL_VIA, SEL_ATTR = { x = 400, y = 300, w = 200, h = 20 },
+                                   "AXFrame", "AXSelectedRows"
+    MOUSE, MOVES = { x = 10, y = 20 }, 0
+    rc.onSel, rc.onPointer = 0, 0
+    press()
+    check("🎯 ⇪⇧F CLICKS THE SELECTED ROW, not the far-away pointer",
+          #POSTED == 2 and POSTED[1].point.x == 500 and POSTED[1].point.y == 310,
+          #POSTED .. " posted at " .. tostring(POSTED[1] and POSTED[1].point.x))
+    check("...and the pointer really MOVED there first, because a context "
+          .. "menu opens at the pointer",
+          MOVES == 1 and MOUSE.x == 500 and MOUSE.y == 310,
+          MOVES .. " move(s) → " .. MOUSE.x .. "," .. MOUSE.y)
+    check("...and it is counted as the selection, not as the pointer",
+          rc.onSel == 1 and rc.onPointer == 0,
+          rc.onSel .. "/" .. rc.onPointer)
+    check("...and the report says which of the two it was",
+          _G.rightClickReport():find("1 the selected item", 1, true) ~= nil)
+
+    SEL_ATTR = "AXSelectedChildren"
+    MOUSE, MOVES = { x = 10, y = 20 }, 0
+    press()
+    check("an icon grid answers AXSelectedChildren and works the same — "
+          .. "asking only one of the two is how this works in half the "
+          .. "places he would try it",
+          #POSTED == 2 and POSTED[1].point.x == 500, #POSTED)
+
+    SEL_ATTR, SEL_VIA = "AXSelectedRows", "AXPosition"
+    MOUSE, MOVES = { x = 10, y = 20 }, 0
+    press()
+    check("an app that answers AXPosition + AXSize instead of AXFrame is "
+          .. "still aimed at",
+          #POSTED == 2 and POSTED[1].point.x == 500, #POSTED)
+
+    SEL_VIA = "AXFrame"
+    MOUSE, MOVES = { x = 505, y = 305 }, 0
+    press()
+    check("🖱 with the pointer already on the selection NOTHING MOVES, and "
+          .. "the click goes where he was pointing",
+          MOVES == 0 and #POSTED == 2 and POSTED[1].point.x == 505,
+          MOVES .. " move(s)")
+
+    SELECTION = nil
+    MOUSE, MOVES = { x = 77, y = 88 }, 0
+    rc.onSel, rc.onPointer = 0, 0
+    press()
+    check("🔒 nothing selected → the pointer, untouched, exactly as every "
+          .. "release before this one",
+          MOVES == 0 and #POSTED == 2 and POSTED[1].point.x == 77
+          and rc.onPointer == 1 and rc.onSel == 0,
+          MOVES .. " / " .. tostring(POSTED[1] and POSTED[1].point.x))
+
+    SELECTION = { x = 400, y = 300, w = 200, h = 20 }
+    rc.useSelection = false
+    MOUSE, MOVES = { x = 77, y = 88 }, 0
+    press()
+    check("🔌 the switch is REAL — useSelection = false and a selected row "
+          .. "is not even asked about",
+          MOVES == 0 and POSTED[1].point.x == 77, tostring(POSTED[1].point.x))
+    rc.useSelection = true
+
+    HAS_AX = false
+    MOUSE, MOVES = { x = 77, y = 88 }, 0
+    press()
+    check("🛟 a Mac whose AX tree cannot be reached still CLICKS, at the "
+          .. "pointer — a degraded aim beats a dead key",
+          #POSTED == 2 and POSTED[1].point.x == 77, #POSTED)
+    HAS_AX = true
+
+    local realPos2 = hs.mouse.absolutePosition
+    hs.mouse.absolutePosition = function(p)
+        if p then error("this Mac will not move the pointer") end
+        return { x = MOUSE.x, y = MOUSE.y }
+    end
+    MOUSE = { x = 10, y = 20 }
+    press()
+    hs.mouse.absolutePosition = realPos2
+    check("🛟 a pointer that refuses to move still clicks the selection — "
+          .. "the menu simply opens away from the pointer, and it is said",
+          #POSTED == 2 and POSTED[1].point.x == 500
+          and tostring(rc.lastAim):find("would not move", 1, true) ~= nil,
+          tostring(rc.lastAim))
+
+    SELECTION = nil
+    local ran = (pass + fail) - before
+    check("§8 ran all of its checks (" .. ran .. " of 17)", ran >= 17, ran)
+end
+
 out(string.format("\n%d passed, %d failed\n", pass, fail))
 if fail > 0 then
     out("\nFAILURES:\n")

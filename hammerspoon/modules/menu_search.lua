@@ -71,6 +71,8 @@ local M = {
         title = "🔎 MENU SEARCH (⇪. — the front app's menus, by typing)",
         entries = {
             { "⇪.",     "Every menu item of the front app — type to filter, ⏎ picks it" },
+            { "filters", "Every word must match, in any order, over the item AND" },
+            { "",        "its menu path: “exp pdf” finds File ▸ Export As ▸ PDF…" },
             { "finds",  "The path too: “pdf” matches File ▸ Export As ▸ PDF…" },
             { "shows",  "The keyboard shortcut for each item, where one exists" },
             { "greyed", "Unavailable items still listed, marked, and refuse to run" },
@@ -243,11 +245,61 @@ function M.setup(core)
     -- the rows that have one. onlyShortcuts is that filter, and it is a
     -- PARAMETER rather than a second row builder so the two views cannot
     -- drift into showing different things about the same menu.
-    function ms.choicesFrom(rows, onlyShortcuts)
+    -- 🔎 6.408.0 — AND IT FILTERS FOR ITSELF NOW, because it has to.
+    -- LL: "Menu search is not filtering. Somewhat filters when typing a
+    -- question mark but does nothing after when letters are picked."
+    --
+    -- 🚨 A CHOOSER WITH A queryChangedCallback STOPS FILTERING FOR
+    -- ITSELF. hs.chooser hands the query to the callback INSTEAD of
+    -- running its own match, so the moment 6.196.0 added the "?" prefix
+    -- this list stopped narrowing at all — and the callback returned
+    -- early for every keystroke that was not the first "?", which is
+    -- every keystroke. "Somewhat filters on ?" is that one rebuild;
+    -- "does nothing after" is the early return. The feature has been
+    -- dead since the release that added the question mark.
+    --
+    -- 🔑 THE RULE WAS ALREADY WRITTEN DOWN IN THIS CONFIG, in
+    -- default_apps.lua, in its own comment: "a chooser with a
+    -- queryChangedCallback stops filtering for itself". Twenty pickers
+    -- here set one and nineteen of them rebuild their rows from the
+    -- query on every keystroke. This was the twentieth, and nobody
+    -- swept (6.305.0 — a rule written about one caller is not a rule
+    -- until every caller has been asked). The sweep is in the gate now.
+    --
+    -- 📏 EVERY TERM MUST MATCH, in any order, over the leaf AND the
+    -- menu path AND the shortcut — which is what :searchSubText(true)
+    -- was buying before the callback took the filtering away. So
+    -- "exp pdf" still finds File ▸ Export As ▸ PDF…, and that is the
+    -- whole reason this list is flat.
+    function ms.matches(r, terms)
+        if not terms or #terms == 0 then return true end
+        local hay = table.concat(r.path or {}, " ")
+        if r.shortcut and r.shortcut ~= "" then hay = hay .. " " .. r.shortcut end
+        hay = hay:lower()
+        for _, t in ipairs(terms) do
+            if not hay:find(t, 1, true) then return false end
+        end
+        return true
+    end
+
+    -- PURE: the query as the list sees it. A leading "?" is the
+    -- shortcuts-only view and is NOT part of what is matched, so
+    -- "?win" is "the shortcut rows, narrowed to win".
+    function ms.readQuery(q)
+        local s = tostring(q or "")
+        local only = s:sub(1, 1) == "?"
+        if only then s = s:sub(2) end
+        local terms = {}
+        for w in s:lower():gmatch("%S+") do terms[#terms + 1] = w end
+        return only, terms
+    end
+
+    function ms.choicesFrom(rows, onlyShortcuts, terms)
         local choices = {}
         for i, r in ipairs(rows) do
             if (r.enabled or not ms.hideDisabled)
-               and not (onlyShortcuts and (r.shortcut or "") == "") then
+               and not (onlyShortcuts and (r.shortcut or "") == "")
+               and ms.matches(r, terms) then
                 local leaf = r.path[#r.path]
                 local trail = {}
                 for n = 1, #r.path - 1 do trail[#trail + 1] = r.path[n] end
@@ -329,13 +381,19 @@ function M.setup(core)
         -- its own.
         pcall(function()
             ms.chooser:queryChangedCallback(function(q)
-                local want = (tostring(q or ""):sub(1, 1) == "?")
-                if want == ms.showingShortcuts then return end
-                ms.showingShortcuts = want
-                ms.chooser:choices(ms.choicesFrom(ms.allRows or {}, want))
+                -- per-keystroke: guarded like an eventtap, because an
+                -- error in here repeats on every character typed
+                pcall(function()
+                    local want, terms = ms.readQuery(q)
+                    ms.showingShortcuts = want
+                    ms.lastQuery = q
+                    ms.chooser:choices(
+                        ms.choicesFrom(ms.allRows or {}, want, terms))
+                end)
             end)
         end)
         ms.showingShortcuts = false
+        ms.lastQuery = ""
         ms.chooser:choices(choices)
         ms.chooser:placeholderText(("%s — %d menu items · type to filter, "
                                     .. "or ? for just the shortcuts")

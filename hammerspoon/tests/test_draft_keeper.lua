@@ -105,6 +105,13 @@ local AX = {
     present    = true,
     readMs     = 0,       -- what one read should appear to cost
     roleThrows = false,
+    -- 🪟 6.411.0 — which tree-wake attribute this stub app accepts, if
+    -- any. A stub that accepts anything cannot see a module that asks
+    -- for the wrong thing, and one that accepts nothing cannot see the
+    -- branch that records a refusal (6.290.0).
+    accepts    = "AXManualAccessibility",
+    setThrows  = false,
+    setCalls   = {},
 }
 
 local CLOCK = 1800000000
@@ -113,6 +120,15 @@ local MSCLOCK = 0
 local function mkel(kind)
     local el = {}
     function el:setTimeout(_) end
+    -- 🪟 6.411.0 — a real axuielement answers true/false here, and it can
+    -- raise. Both are modelled, because "the app said no" and "the call
+    -- blew up" are different facts the module counts apart.
+    function el:setAttributeValue(a, v)
+        if kind ~= "app" then return false end
+        AX.setCalls[#AX.setCalls + 1] = a
+        if AX.setThrows then error("macOS refused the attribute") end
+        return a == AX.accepts and v == true
+    end
     function el:attributeValue(a)
         if kind == "app" then
             if a == "AXFocusedUIElement" then
@@ -751,6 +767,206 @@ check("§16 the stripper really stripped something",
       #bare < #src - 2000, #src - #bare)
 check("§16 the pause switch is honoured in the sample",
       src:find("_G.hsPaused", 1, true) ~= nil)
+
+
+-- =====================================================================
+-- §17 🪟 6.411.0 — A CHROMIUM APP DOES NOT PUBLISH ITS PAGE
+-- =====================================================================
+-- LL: "Draft keeper doesn't seem to be working. How do I know?"
+--
+-- 🔎 SIX OF THE SEVEN WATCHED APPS ARE CHROMIUM, and Chromium builds its
+-- accessibility tree only when something asks. Until it is asked,
+-- AXFocusedUIElement answers about the window chrome and the textarea
+-- inside the page is not in the tree at all — so the module read
+-- nothing in exactly the apps it was written for.
+do
+    local before = pass + fail
+
+    -- ---- PURE first, with the setter handed in (6.230.0) ---------------
+    local seen = {}
+    local tried = {}
+    local function setter(ok)
+        return function(a) tried[#tried + 1] = a ; return a == ok end
+    end
+    local kind, how = dk.wakeVerdict("Google Chrome", setter("AXManualAccessibility"),
+                                     dk.treeAttrs, seen)
+    check("§17 an app that accepts the first attribute is recorded as asked",
+          kind == "asked" and how == "AXManualAccessibility", kind .. "/" .. tostring(how))
+    check("§17 ...and it is remembered, so it is asked ONCE per session",
+          select(1, dk.wakeVerdict("Google Chrome", setter("AXManualAccessibility"),
+                                   dk.treeAttrs, seen)) == "already")
+
+    -- 🔑 THE FIXTURE THAT BITES is an app that accepts only the SECOND
+    -- attribute: a module that tries one and stops passes every other
+    -- input here and fails this one (6.230.0).
+    seen, tried = {}, {}
+    kind, how = dk.wakeVerdict("Safari", setter("AXEnhancedUserInterface"),
+                               dk.treeAttrs, seen)
+    check("§17 an app that accepts only the SECOND attribute is still woken",
+          kind == "asked" and how == "AXEnhancedUserInterface",
+          kind .. "/" .. tostring(how))
+    check("§17 ...and the first one really was tried first",
+          tried[1] == "AXManualAccessibility" and #tried == 2,
+          table.concat(tried, ","))
+
+    seen = {}
+    kind, how = dk.wakeVerdict("Outlook", setter("nothing"), dk.treeAttrs, seen)
+    check("§17 an app that accepts NEITHER is recorded as refused, by name",
+          kind == "refused" and type(seen["Outlook"]) == "table"
+          and seen["Outlook"].ok == false)
+    check("§17 ...and the reason names both attributes, so the report can "
+          .. "say it was the APP that said no, not a fault here",
+          tostring(how):find("AXManualAccessibility", 1, true) ~= nil
+          and tostring(how):find("AXEnhancedUserInterface", 1, true) ~= nil)
+
+    seen = {}
+    kind = dk.wakeVerdict("Chrome", function() error("boom") end, dk.treeAttrs, seen)
+    check("§17 a setter that RAISES is a refusal, never a wake",
+          kind == "refused")
+    check("§17 no app name is no app to ask",
+          select(1, dk.wakeVerdict(nil, setter("x"), dk.treeAttrs, {})) == "no-app")
+
+    -- ---- and the real read asks before it reads ------------------------
+    dk.asked = {}
+    AX.setCalls, AX.accepts = {}, "AXManualAccessibility"
+    AX.app, AX.role, AX.value = "Google Chrome", "AXTextArea", "hello"
+    local f = dk.readFocused()
+    check("§17 🪟 THE TREE IS ASKED FOR BEFORE THE FOCUSED ELEMENT IS — "
+          .. "asking after it is asking an app that has not built one yet",
+          AX.setCalls[1] == "AXManualAccessibility", tostring(AX.setCalls[1]))
+    check("§17 ...and the read still works", f.role == "AXTextArea"
+          and f.value == "hello")
+    -- 🧪 6.186.0 — NIL-SAFE ON PURPOSE. A mutation that never asks
+    -- leaves dk.asked empty, and a check that indexes it would KILL the
+    -- run instead of failing, which in a gate that reads the tail looks
+    -- like a pass.
+    local function asked(app)
+        local a = dk.asked[app]
+        return type(a) == "table" and a.ok == true
+    end
+    local function refused(app)
+        local a = dk.asked[app]
+        return type(a) == "table" and a.ok == false
+    end
+    check("§17 ...and the answer rides into the report, per app",
+          asked("Google Chrome"))
+
+    -- 🔒 ONCE PER APP PER SESSION, and never for an app off the list.
+    AX.setCalls = {}
+    dk.readFocused()
+    check("§17 a second read of the same app asks NOTHING again",
+          #AX.setCalls == 0, #AX.setCalls)
+
+    AX.setCalls = {}
+    dk.asked = {}
+    AX.app = "Microsoft Word"
+    dk.readFocused()
+    check("§17 🔒 an UNWATCHED app is never asked for anything at all — the "
+          .. "narrow reach is unchanged",
+          #AX.setCalls == 0 and next(dk.asked) == nil, #AX.setCalls)
+
+    -- a refusal must not cost the read
+    AX.app, AX.accepts, AX.setCalls, dk.asked = "Google Chrome", "nothing", {}, {}
+    f = dk.readFocused()
+    check("§17 🛟 an app that REFUSES the attribute is still read — the "
+          .. "refusal costs one attribute write and is named, never the field",
+          f.role == "AXTextArea" and f.value == "hello"
+          and refused("Google Chrome"))
+
+    AX.setThrows, AX.setCalls, dk.asked = true, {}, {}
+    f = dk.readFocused()
+    AX.setThrows = false
+    check("§17 ...and a setter that raises does not take the read with it",
+          f.role == "AXTextArea")
+
+    -- the switch is real
+    AX.accepts, dk.asked, AX.setCalls = "AXManualAccessibility", {}, {}
+    dk.askTree = false
+    dk.readFocused()
+    dk.askTree = true
+    check("§17 🔌 askTree = false leaves every app exactly as it was before "
+          .. "this release",
+          #AX.setCalls == 0 and next(dk.asked) == nil, #AX.setCalls)
+
+    local ran = (pass + fail) - before
+    check("§17 ran all of its checks (" .. ran .. " of 15)", ran >= 15, ran)
+end
+
+-- =====================================================================
+-- §18 🩺 6.411.0 — "IS IT WORKING RIGHT NOW?"
+-- =====================================================================
+-- The session totals cannot answer that: "0 kept" is true of a quiet
+-- morning and of a feature that can never read anything, and those are
+-- opposite facts (6.196.1).
+do
+    local before = pass + fail
+    local wasEnabled = dk.enabled
+    dk.enabled = true          -- an earlier section switches it off
+    local function block()
+        return table.concat(dk.checkLines(), "\n")
+    end
+
+    dk.asked = {}
+    AX.app, AX.role, AX.value = "Google Chrome", "AXTextArea",
+                                string.rep("x", 200)
+    local b = block()
+    check("§18 it names the app the caret is in", b:find("Google Chrome", 1, true) ~= nil)
+    check("§18 ...and the character count, which IS the answer",
+          b:find("200 character", 1, true) ~= nil, b)
+    check("§18 🔒 AND IT NEVER PRINTS THE TEXT — a diagnostic that puts a "
+          .. "half-written email in the Console is a worse tool than the "
+          .. "one that said nothing",
+          b:find(string.rep("x", 60), 1, true) == nil)
+    check("§18 ...and says it would be kept, so 'is it working' has a yes",
+          b:find("WOULD BE KEPT", 1, true) ~= nil, b)
+
+    AX.value = "short"
+    b = block()
+    check("§18 a box with too little in it says so AND says how much more",
+          b:find("too short to be a draft", 1, true) ~= nil
+          and b:find("more character", 1, true) ~= nil, b)
+
+    AX.app = "Microsoft Word"
+    b = block()
+    check("§18 🔑 AN UNWATCHED APP IS THE COMMONEST REASON IT 'DOES NOT "
+          .. "WORK', so it is the first thing said, with the list",
+          b:find("NOT a watched app", 1, true) ~= nil
+          and b:find("chrome", 1, true) ~= nil, b)
+
+    AX.app, AX.role = "Google Chrome", "AXSecureTextField"
+    b = block()
+    check("§18 a password field is refused, and the refusal reads as the "
+          .. "rule working rather than as a fault",
+          b:find("password field", 1, true) ~= nil
+          and b:find("the rule working", 1, true) ~= nil, b)
+
+    AX.role, AX.value = nil, nil
+    b = block()
+    check("§18 nothing focused says CLICK INTO A BOX FIRST — the one thing "
+          .. "he can do about it",
+          b:find("NOTHING IS FOCUSED", 1, true) ~= nil
+          and b:find("Click INTO", 1, true) ~= nil, b)
+
+    AX.role, AX.value = "AXTextArea", "hello"
+    AX.accepts, dk.asked = "nothing", {}
+    dk.readFocused()
+    b = block()
+    check("§18 🪟 an app that refused its tree SAYS SO here, because that "
+          .. "is the whole reason the field would read empty",
+          b:find("ASKED AND REFUSED", 1, true) ~= nil, b)
+    AX.accepts, dk.asked = "AXManualAccessibility", {}
+
+    check("§18 the report and _G.draftCheck() share ONE renderer, so they "
+          .. "cannot answer differently (6.231.0)", (function()
+        local rep = _G.draftKeeperReport()
+        local one = dk.checkLines()[1]
+        return type(one) == "string" and rep:find(one, 1, true) ~= nil
+    end)())
+
+    dk.enabled = wasEnabled
+    local ran = (pass + fail) - before
+    check("§18 ran all of its checks (" .. ran .. " of 10)", ran >= 10, ran)
+end
 
 -- ---- results -----------------------------------------------------------
 os.time = realOsTime

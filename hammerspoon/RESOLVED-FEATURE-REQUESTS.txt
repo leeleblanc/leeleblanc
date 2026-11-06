@@ -1,5 +1,5 @@
 ========================================================================
-RESOLVED FEATURE REQUESTS — Hammerspoon config 6.407.0
+RESOLVED FEATURE REQUESTS — Hammerspoon config 6.413.0
 Every feature and how to use it. Generated from the modules' own
 cheat sheets (the rows ⇪/ draws), so it is never out of date.
 ⇪ = Caps Lock held (the hyper key). ⇪⇧X = Caps Lock + Shift + X.
@@ -40,7 +40,9 @@ In the Console, _G.<tool>Report() prints any tool's own report.
   ⇪P      Hide frontmost app — press again to bring back
 
 🖱 RIGHT CLICK (⇪⇧F)   [modules/right_click.lua]
-  ⇪⇧F   Right-click wherever the pointer is — any app
+  ⇪⇧F   Right-click the file or row the front app has SELECTED
+  else      Nothing selected, or the pointer is already on it —
+            then it clicks exactly where the pointer is, as before
   waits     For ⇧ to come up first, so you get the normal menu
   says      If it gave up waiting, it tells you — that menu was
             the modified one, not the usual one
@@ -173,6 +175,8 @@ In the Console, _G.<tool>Report() prints any tool's own report.
   90 days   Pruned once a session; nothing else ever removes a row
   forget    _G.draftForget(n) removes one · _G.draftForgetAll()
   report    _G.draftKeeperReport() — what it kept and what it refused
+  is it on? _G.draftCheck() — click into a box and run it: it says what
+            it can see in that field right now, and what would happen
 
 🗒 QUICK APPEND PAD (via ⇪N or ⇪J — one box, four destinations)   [modules/note_pad.lua]
   in ⇪N   The "+ ➕ Append" row in SCRATCH NOTES opens an Append tab — type entries, one per line (⇪2 was this pad's key until 6.182.0; it is the sequential copy now)
@@ -331,6 +335,8 @@ In the Console, _G.<tool>Report() prints any tool's own report.
 
 🔎 MENU SEARCH (⇪. — the front app's menus, by typing)   [modules/menu_search.lua]
   ⇪.      Every menu item of the front app — type to filter, ⏎ picks it
+  filters   Every word must match, in any order, over the item AND
+            its menu path: “exp pdf” finds File ▸ Export As ▸ PDF…
   finds     The path too: “pdf” matches File ▸ Export As ▸ PDF…
   shows     The keyboard shortcut for each item, where one exists
   greyed    Unavailable items still listed, marked, and refuse to run
@@ -649,7 +655,7 @@ In the Console, _G.<tool>Report() prints any tool's own report.
   ↑ ↓   A week at a time
   [ ]       A month at a time (⇧← ⇧→ do the same)
   T / Home  Back to today
-  click     A date COPIES it as 08-07-26 · ‹ › change month · Today
+  click     A date COPIES it as 08-07-2026 · ‹ › change month · Today
   C         Copy the highlighted date without reaching for the mouse
   R         Copy a “Date report:” — every format at once, time included
   clock     The panel shows the time NOW, live to the second
@@ -868,6 +874,16 @@ In the Console, _G.<tool>Report() prints any tool's own report.
   safe      It changes nothing, binds nothing and writes nothing. Every AX read is timed and the walk is bounded three ways
   why       On NEW GROUND the first release is a probe that prints what macOS actually said, never a fix built on a belief
 
+🩺 SELF TEST (_G.selfTest — do the big tools answer?)   [modules/self_test.lua]
+  run it    _G.selfTest() — one row per tool, in the Console
+  at boot   The same block prints once, a few seconds in
+  checks    Screenshots · snippets · autocorrect · draft keeper ·
+            right-click · the ⇪ key itself · Accessibility
+  reads     The live tool, never what the tool says about itself
+  never     Takes a screenshot, types a snippet or writes a file
+  quiet     settings = { self_test = { sayBoot = false } }
+  vs 🩺   install check is the OTHER question — are the FILES here
+
 ⚙️ RUNS ITSELF — nothing to press, listed so you know it is there
 ------------------------------------------------------------------------
   App Watcher            Notices apps starting and quitting, for the trackers
@@ -900,6 +916,12 @@ In the Console, _G.<tool>Report() prints any tool's own report.
 
 📜 RELEASE INDEX — newest first, one line per release (the full story of each is in CHANGELOG.md)
 ------------------------------------------------------------------------
+  6.413.0  🩺 DO THE BIG TOOLS ANSWER? (modules/self_test.lua,
+  6.412.0  📅 THE DATE REPORT STOPS LYING, AND ⇪⇧0 COPIES 2026
+  6.411.0  🪟 A CHROMIUM APP DOES NOT PUBLISH ITS PAGE
+  6.410.0  🪪 THE FIRST PRESS OF A SESSION (modules/music_player.lua)
+  6.409.0  🎯 ⇪⇧F AIMS AT WHAT IS SELECTED (modules/right_click.lua)
+  6.408.0  🔎 MENU SEARCH FILTERS AGAIN (modules/menu_search.lua)
   6.407.0  📐 THE EDITOR'S CEILING, AND WHAT HAPPENS WHEN IT MEETS
   6.406.0  🪟 A WHITE BOX IS A WINDOW WITH NO PAGE IN IT
   6.405.0  🔎 AN INDEX NOBODY HAS READ CANNOT SAY THERE ARE NO

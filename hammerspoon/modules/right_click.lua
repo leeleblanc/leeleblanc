@@ -86,7 +86,9 @@ local M = {
     cheatsheet = {
         title = "🖱 RIGHT CLICK (⇪⇧F)",
         entries = {
-            { "⇪⇧F",  "Right-click wherever the pointer is — any app" },
+            { "⇪⇧F",  "Right-click the file or row the front app has SELECTED" },
+            { "else",  "Nothing selected, or the pointer is already on it —" },
+            { "",      "then it clicks exactly where the pointer is, as before" },
             { "waits", "For ⇧ to come up first, so you get the normal menu" },
             { "says",  "If it gave up waiting, it tells you — that menu was" },
             { "",      "the modified one, not the usual one" },
@@ -115,6 +117,14 @@ function M.setup(core)
     -- because a person who has read the header may not want the alert.
     rc.warnOnBlind   = true
     rc.blindShow     = 4           -- seconds that warning stays up
+    -- 🎯 6.409.0 — aim at what the front app has SELECTED, when it has
+    -- selected something. false is every release before this one: the
+    -- click goes where the pointer is and nothing is asked of the app.
+    rc.useSelection  = true
+    rc.axTimeout     = 0.20        -- seconds any one AX question may take
+    -- macOS moves the pointer on its own turn, so the click waits a beat
+    -- after the move rather than being posted into the old position.
+    rc.moveSettle    = 0.04
     -- ----------------------------------------------------------------------
 
     rc.fires    = 0
@@ -124,6 +134,11 @@ function M.setup(core)
     rc.lastWait = nil       -- how long we waited for the modifiers, in ms
     rc.lastBlind = nil      -- which modifiers were still down, last time
     rc.lastNote = nil       -- why the last one did not fire, if it did not
+    rc.onSel    = 0         -- clicks that went to the selected item
+    rc.onPointer = 0        -- clicks that went where the pointer was
+    rc.lastAim  = nil       -- which of the two, last time, in words
+    rc.selWhy   = nil       -- what the selection read answered, last time
+    rc.moveTimer = nil      -- HELD (6.196.1)
     rc.settleTimer = nil    -- HELD: an unreferenced hs.timer is collected
 
     local function say(m)  if _G.diag then _G.diag.say("rightclick", m)  end end
@@ -176,6 +191,113 @@ function M.setup(core)
         return table.concat(out)
     end
 
+    -- ---- 🎯 6.409.0 — THE THING THAT IS SELECTED ------------------------
+    -- LL: "Right-click actuates where the mouse is but not on the current
+    -- highlighted file in Finder. Please fix this functionality."
+    --
+    -- 🗿 THE HEADER ABOVE SAYS THIS MODULE DOES NOT FIND THE SELECTED
+    -- FILE, and it said so on purpose: every way of asking another app
+    -- what it is showing is a guess about its insides, and this config
+    -- has paid for that kind of guess. That was a DECISION, not a law,
+    -- and it has expired (6.311.0) — he has used the key for a year and
+    -- the thing he reaches for it with is a file he has already clicked.
+    --
+    -- 🔑 NARROW BY SHAPE, NEVER BY A LIST OF APPS (6.374.0). It does not
+    -- ask "is this Finder"; it asks the focused element whether it has
+    -- SELECTED ROWS or SELECTED CHILDREN — the shape a list, an outline
+    -- or an icon grid has and a text field, a canvas and a web page do
+    -- not. So Finder, Mail's message list and a sidebar all work, and
+    -- typing in a text box is untouched, with no list to maintain and
+    -- no app left out because nobody added it.
+    --
+    -- 🖱 AND IF THE POINTER IS ALREADY ON THE SELECTION, NOTHING MOVES.
+    -- He put it there; moving it would be the config overruling his
+    -- hand for no gain, and the menu would open in the same place
+    -- anyway.
+    --
+    -- 📏 COST, NAMED, because it is a real change: with a file selected
+    -- in Finder, ⇪⇧F now right-clicks THAT FILE even when the pointer
+    -- is over empty desktop. The desktop's own menu is a click on the
+    -- desktop first (which deselects), or
+    -- settings = { right_click = { useSelection = false } }.
+    function rc.inside(p, f)
+        if type(p) ~= "table" or type(f) ~= "table" then return false end
+        if not (f.x and f.y and f.w and f.h) then return false end
+        return p.x >= f.x and p.x <= f.x + f.w
+           and p.y >= f.y and p.y <= f.y + f.h
+    end
+
+    -- PURE: the point to click, given the selection's frame and where
+    -- the pointer is. Answers the point AND WHY, so the report can tell
+    -- "it went to the selection" from "it went where you were pointing"
+    -- — which are the two things his sentence is about.
+    function rc.aimAt(frame, pointer)
+        if type(frame) ~= "table" or not (frame.w and frame.h)
+           or frame.w <= 0 or frame.h <= 0 then
+            return pointer, "the pointer — nothing is selected"
+        end
+        if rc.inside(pointer, frame) then
+            return pointer, "the pointer — it is already on the selection"
+        end
+        return { x = frame.x + frame.w / 2, y = frame.y + frame.h / 2 },
+               "the selected item"
+    end
+
+    -- The AX half: bounded, timed, and it answers nil rather than
+    -- guessing. Every question is pcall'd because this is another app's
+    -- tree and a raise here would cost the keypress.
+    function rc.selectionFrame()
+        if not rc.useSelection then return nil, "turned off" end
+        if type(hs.axuielement) ~= "table" then
+            return nil, "hs.axuielement is not available"
+        end
+        local app
+        pcall(function() app = hs.application.frontmostApplication() end)
+        if not app then return nil, "no front application" end
+        local okAx, axApp = pcall(hs.axuielement.applicationElement, app)
+        if not (okAx and axApp) then return nil, "no AX element for that app" end
+        pcall(function() axApp:setTimeout(rc.axTimeout) end)
+        local el
+        pcall(function() el = axApp:attributeValue("AXFocusedUIElement") end)
+        if not el then return nil, "nothing is focused" end
+        pcall(function() el:setTimeout(rc.axTimeout) end)
+
+        -- 🚨 THE FOCUSED ELEMENT MAY BE THE ROW ITSELF (a sidebar item,
+        -- a clicked cell) or the LIST that holds it (Finder's outline,
+        -- an icon grid). Both are ordinary; asking only one of them is
+        -- how this works in half the places he would try it.
+        local pick
+        for _, attr in ipairs({ "AXSelectedRows", "AXSelectedChildren" }) do
+            local v
+            pcall(function() v = el:attributeValue(attr) end)
+            if type(v) == "table" and v[1] then pick = v[1] break end
+        end
+        if not pick then
+            local selected
+            pcall(function() selected = el:attributeValue("AXSelected") end)
+            if selected == true then pick = el end
+        end
+        if not pick then return nil, "nothing in the front app is selected" end
+
+        pcall(function() pick:setTimeout(rc.axTimeout) end)
+        local f
+        pcall(function() f = pick:attributeValue("AXFrame") end)
+        if type(f) == "table" and f.w and f.h then
+            return { x = f.x, y = f.y, w = f.w, h = f.h }, "AXFrame"
+        end
+        -- Not every app answers AXFrame; position and size always
+        -- travel together when it does not.
+        local pos, size
+        pcall(function() pos  = pick:attributeValue("AXPosition") end)
+        pcall(function() size = pick:attributeValue("AXSize") end)
+        if type(pos) == "table" and type(size) == "table"
+           and pos.x and size.w then
+            return { x = pos.x, y = pos.y, w = size.w, h = size.h },
+                   "AXPosition + AXSize"
+        end
+        return nil, "the selection would not say where it is"
+    end
+
     -- ---- the click itself -------------------------------------------------
     -- 🚨 BUILT BY HAND RATHER THAN hs.eventtap.rightClick, for one reason:
     -- setFlags. rightClick() gives no way to say "no modifiers", and this
@@ -221,6 +343,8 @@ function M.setup(core)
             return false
         end
         rc.fires   = rc.fires + 1
+        if rc.lastAim == "the selected item" then rc.onSel = rc.onSel + 1
+        else rc.onPointer = rc.onPointer + 1 end
         rc.lastAt  = { x = point.x, y = point.y }
         rc.lastApp = frontAppName()
         rc.lastWait = waited
@@ -244,6 +368,50 @@ function M.setup(core)
                     :format(blind, blind), rc.blindShow)
             end
         end
+        return true
+    end
+
+    -- 🎯 6.409.0 — ONE DOOR EVERY PRESS GOES THROUGH, whether or not it
+    -- had to wait for the modifiers. Two call sites fired directly
+    -- before this release and a second copy of the aiming would be a
+    -- second thing to keep in step (6.231.0).
+    function rc.aimAndFire(point, waited, stillHeld)
+        local frame, why = rc.selectionFrame()
+        rc.selWhy = why
+        local target, aim = rc.aimAt(frame, point)
+        rc.lastAim = aim
+        if aim ~= "the selected item" then
+            return fire(target, waited, stillHeld)
+        end
+        -- 🪜 MOVE, THEN WAIT A BEAT, THEN CLICK. macOS moves the pointer
+        -- on its own run-loop turn (6.196.1), so a click posted on the
+        -- next line is posted at where the pointer still is — which is
+        -- the bug this is fixing, reintroduced by the fix for it.
+        local moved = false
+        pcall(function()
+            if type(hs.mouse.absolutePosition) == "function" then
+                hs.mouse.absolutePosition(target) ; moved = true
+            elseif type(hs.mouse.setAbsolutePosition) == "function" then
+                hs.mouse.setAbsolutePosition(target) ; moved = true
+            end
+        end)
+        if not moved then
+            -- 🚨 A POINTER THAT WOULD NOT MOVE IS NOT A REASON TO DO
+            -- NOTHING: the click still goes to the selection, and the
+            -- menu simply opens away from the pointer. Said, not hidden.
+            rc.lastAim = "the selected item (the pointer would not move)"
+            return fire(target, waited, stillHeld)
+        end
+        if rc.moveTimer then
+            pcall(function() rc.moveTimer:stop() end) ; rc.moveTimer = nil
+        end
+        local okT = pcall(function()
+            rc.moveTimer = hs.timer.doAfter(rc.moveSettle, function()
+                rc.moveTimer = nil
+                fire(target, waited, stillHeld)
+            end)
+        end)
+        if not (okT and rc.moveTimer) then return fire(target, waited, stillHeld) end
         return true
     end
 
@@ -277,7 +445,7 @@ function M.setup(core)
             rc.settleTimer = nil
         end
 
-        if not rc.modifiersHeld() then return fire(point, 0) end
+        if not rc.modifiersHeld() then return rc.aimAndFire(point, 0) end
 
         local waited = 0
         local okTimer = pcall(function()
@@ -297,14 +465,14 @@ function M.setup(core)
                 -- wait — a trackpad is under your other hand — and a click
                 -- posted at where it WAS is a click on the wrong thing.
                 local now = rc.pointer() or point
-                fire(now, math.floor(waited * 1000 + 0.5), stillHeld)
+                rc.aimAndFire(now, math.floor(waited * 1000 + 0.5), stillHeld)
             end)
         end)
         if not (okTimer and rc.settleTimer) then
             -- No timer means no wait; the click still happens, which is the
             -- half of this that matters.
             warn("could not arm the settle timer — clicking immediately")
-            return fire(point, 0)
+            return rc.aimAndFire(point, 0)
         end
         return true
     end
@@ -315,6 +483,15 @@ function M.setup(core)
         L[#L + 1] = "   accessibility : " .. (axAvailable() and "granted" or "OFF — no click can be posted")
         L[#L + 1] = string.format("   fired         : %d time%s this session",
             rc.fires, rc.fires == 1 and "" or "s")
+        L[#L + 1] = string.format("   aimed at      : %d the selected item  ·  "
+            .. "%d where the pointer was", rc.onSel, rc.onPointer)
+        if not rc.useSelection then
+            L[#L + 1] = "                   selection aiming is OFF — "
+                        .. "right_click = { useSelection = true } turns it on"
+        elseif rc.selWhy and rc.selWhy ~= "AXFrame"
+               and rc.selWhy ~= "AXPosition + AXSize" then
+            L[#L + 1] = "   last selection: " .. tostring(rc.selWhy)
+        end
         L[#L + 1] = string.format("   blind         : %d of those fired with a "
             .. "modifier still down", rc.blind)
         if rc.blind > 0 then

@@ -1656,18 +1656,39 @@ end)())
 -- 08-07-26, every part zero-padded to two digits so pasted dates align.
 CLIPBOARD_TEXT = ""
 local aug7 = at(2026, 8, 7)
-check("the date format is MM-DD-YY", cal.formatDate(aug7) == "08-07-26")
+-- 📅 6.412.0 — THE RULE, NOT THE LITERAL (6.248.0, eighth time). These
+-- four checks asserted "08-07-26" and went red on his own ask for a
+-- four-digit year, with nothing to say about the change they existed to
+-- prove. The RULE is: the copy shape is whatever cal.copyFormat says,
+-- it is zero-padded, and it carries a FOUR-DIGIT year — which is the
+-- half he asked for and the half a literal cannot state.
+check("the copy shape is cal.copyFormat and nothing else",
+      cal.formatDate(aug7) == os.date(cal.copyFormat, aug7))
+check("...and the shipped default carries a four-digit year",
+      cal.formatDate(aug7) == "08-07-2026")
 check("...zero-padded, so a single-digit month still has two digits",
-      cal.formatDate(at(2026, 1, 5)) == "01-05-26")
-check("...and the year rolls to two digits too",
-      cal.formatDate(at(2027, 12, 31)) == "12-31-27")
+      cal.formatDate(at(2026, 1, 5)) == "01-05-2026")
+check("...and the year is written out, never rolled to two digits",
+      cal.formatDate(at(2027, 12, 31)) == "12-31-2027"
+      and not cal.formatDate(at(2027, 12, 31)):match("%-27$"))
+-- 🔑 AND IT MOVES THE CONFIG AND REQUIRES THE DRAWING TO FOLLOW
+-- (6.239.0): a format this Mac has never shipped, so a second literal
+-- typed in beside it could not pass.
+check("...and a different format is obeyed, not ignored", (function()
+    local was = cal.copyFormat
+    cal.copyFormat = "%Y.%m.%d"
+    local got = cal.formatDate(aug7)
+    cal.copyFormat = was
+    return got == "2026.08.07"
+end)())
 
 ALERTS = {}
 local copied = cal.copyDate(aug7)
-check("copyDate returns what it put on the clipboard", copied == "08-07-26")
-check("...and it really reached the clipboard", CLIPBOARD_TEXT == "08-07-26")
+local want   = os.date(cal.copyFormat, aug7)
+check("copyDate returns what it put on the clipboard", copied == want)
+check("...and it really reached the clipboard", CLIPBOARD_TEXT == want)
 check("...and says so, with the weekday as a sanity check",
-      ALERTS[#ALERTS]:find("08-07-26", 1, true) ~= nil
+      ALERTS[#ALERTS]:find(want, 1, true) ~= nil
       and ALERTS[#ALERTS]:find("Fri", 1, true) ~= nil)
 
 -- through the real mouse callback, the way an actual click arrives
@@ -1681,11 +1702,15 @@ check("(the fixture day is on screen and clickable)",
       cal.hitboxes[dayId] ~= nil)
 cal.canvas._mouseCallback(cal.canvas, "mouseDown", dayId)
 check("🖱 clicking a date selects it", ymd(cal.cursor) == "2026-08-20")
-check("...AND copies it in one action", CLIPBOARD_TEXT == "08-20-26")
+check("...AND copies it in one action",
+      CLIPBOARD_TEXT == os.date(cal.copyFormat, at(2026, 8, 20)))
 check("C copies the highlighted date without the mouse", (function()
     CLIPBOARD_TEXT = ""
     for _, b in ipairs(cal.modal.bindings) do
-        if b.key == "c" then b.fn(); return CLIPBOARD_TEXT == "08-20-26" end
+        if b.key == "c" then
+            b.fn()
+            return CLIPBOARD_TEXT == os.date(cal.copyFormat, at(2026, 8, 20))
+        end
     end
 end)())
 check("...and holding C does NOT refill the clipboard 30 times a second",
@@ -1708,7 +1733,7 @@ check("copyOnClick = false makes a click select only", (function()
     return quiet and ymd(cal.cursor) == "2026-08-20"
 end)())
 check("calendar.format is published for other modules",
-      _G.service.call("calendar.format", aug7) == "08-07-26")
+      _G.service.call("calendar.format", aug7) == os.date(cal.copyFormat, aug7))
 
 -- =====================================================================
 -- 🗓 6.349.0 — ⇪⇧0 OPENS ON TODAY
@@ -2054,7 +2079,8 @@ end)(), CLIPBOARD_TEXT:sub(1, 40))
 check("calendar.report is published for other modules", (function()
     CLIPBOARD_TEXT = ""
     local r = _G.service.call("calendar.report", noon7)
-    return type(r) == "string" and r:find("08-07-26", 1, true) ~= nil
+    return type(r) == "string"
+           and r:find(os.date(cal.copyFormat, noon7), 1, true) ~= nil
 end)())
 check("the panel ticks a live clock while open — held, 1s, stopped on hide",
       cal.clock ~= nil)

@@ -487,6 +487,162 @@ work Mac.
   can answer it. A guard that fails on correct code is switched off
   inside a week (6.269.0).
 
+- 🔎 A CHOOSER WITH A queryChangedCallback STOPS FILTERING FOR ITSELF
+  (6.408.0, modules/menu_search.lua — LL: "Menu search is not filtering.
+  Somewhat filters when typing a question mark but does nothing after
+  when letters are picked"). hs.chooser hands the query to the callback
+  INSTEAD of running its own match, so the moment 6.196.0 added the "?"
+  prefix this list stopped narrowing at all — and that callback returned
+  early for every keystroke that was not the first "?", which is every
+  keystroke. HIS TWO CLAUSES ARE THE TWO HALVES OF ONE MECHANISM: the
+  single rebuild, and the early return.
+  🔑 AND THE RULE WAS ALREADY WRITTEN DOWN IN THIS CONFIG, in
+  default_apps.lua, in its own comment, word for word. Twenty pickers
+  here set one of these callbacks and NINETEEN rebuild their rows from
+  the query on every keystroke; this was the twentieth. 6.305.0 again —
+  a rule written about one caller is not a rule until every caller has
+  been asked — and the sweep is MEASURED (one offender of twenty), never
+  asserted.
+  📏 GENERAL, past choosers: when a platform lets you replace a default
+  behaviour by registering a handler, REGISTERING IS THE DESTRUCTIVE
+  ACT. The feature does not break at the line you wrote; it breaks
+  because the thing you replaced stopped happening, which no reading of
+  your own code can see.
+  🔒 EVERY TERM MUST MATCH, over the item AND its path AND its shortcut
+  — which is what `:searchSubText(true)` was buying before the callback
+  took it away. A filter that drops the path makes a flat list pointless.
+
+- 🪟 A CHROMIUM APP DOES NOT PUBLISH ITS PAGE UNTIL IT IS ASKED
+  (6.411.0, modules/draft_keeper.lua — LL, escalating: "Draft keeper
+  doesn't seem to be working. How do I know?"). Chromium builds its
+  accessibility tree only when an assistive client asks for it; until
+  then `AXFocusedUIElement` answers about the window chrome and the
+  textarea inside the page is NOT IN THE TREE AT ALL. Six of the seven
+  watched apps are Chromium, so the one module whose job is reading that
+  textarea read nothing in exactly the apps it was written for, and
+  recorded "nothing is focused" about a field he was typing into.
+  🚨 NEW GROUND, SAID RATHER THAN ASSUMED: whether a given build honours
+  `AXManualAccessibility` or `AXEnhancedUserInterface` is a fact about
+  HIS Mac that no source in this container can read (6.233.0). So it
+  ASKS and RECORDS — per app, per session, which attribute was accepted
+  — and a refusal is named as the APP saying no, which is a different
+  fact from a fault here. PURE given the setter, so the gate drives an
+  app that accepts the first, one that accepts only the second, and one
+  that accepts neither; the middle one is the only fixture that tells a
+  module which tries both from one which tries one (6.230.0).
+  🩺 AND "HOW DO I KNOW?" IS THE BIGGER HALF. The report has counted
+  every refusal since 6.404.0 and describes a SESSION; the question he
+  is asking is about THIS field, right now. A session total cannot
+  answer it — "0 kept" is true of a quiet morning and of a feature that
+  can never read anything (6.196.1). 6.317.0 for the sixth time: the
+  instrument was not the gap, the DOOR was.
+  🔑 GENERAL, and it is the one to carry: WHEN SOMEBODY ASKS "IS IT
+  WORKING?", A TOTAL IS THE WRONG SHAPE OF ANSWER. Build the thing that
+  reads the world at the moment it is called and says what it sees — and
+  for a tool that reads his writing, say the COUNT and never the text.
+
+- 🎯 NARROW BY SHAPE, NEVER BY A LIST OF APPS (6.409.0,
+  modules/right_click.lua — LL: "Right-click actuates where the mouse is
+  but not on the current highlighted file in Finder").
+  🗿 The header promised it would never ask what is selected, on purpose
+  — every such question is a guess about another app's insides. That was
+  a DECISION and it expired (6.311.0): he has used the key for a year
+  and reaches for it with a file he has already clicked.
+  🔑 IT DOES NOT ASK "IS THIS FINDER". It asks the focused element
+  whether it has SELECTED ROWS or SELECTED CHILDREN — the shape a list,
+  an outline or an icon grid has and a text field, a canvas and a web
+  page do not. Finder, a message list and a sidebar all work; typing in
+  a text box is untouched; there is no list to maintain and no app left
+  out because nobody added it. 6.374.0's rule with an AX tree in place
+  of a folder.
+  🖱 AND THE POINTER IS ONLY MOVED WHEN IT IS NOT ALREADY THERE — he put
+  it there — then the click waits a beat, because macOS moves the
+  pointer on its own run-loop turn and a click posted on the next line
+  goes where the pointer still is (6.196.1, the bug reintroduced by its
+  own fix).
+  🔒 AND THE SENTRY THAT BANNED THE NAME HAD TO BECOME A RULE (6.321.0,
+  second time): "no axuielement anywhere in this file" was right while
+  nothing could legitimately ask. The gate states the rule now — every
+  AX question inside one function, the whole vocabulary it may use is
+  selection and geometry, and it still never asks what is UNDER the
+  pointer.
+
+- 📅 A PUBLISHED READER IS DEFINED BELOW EVERYTHING IT READS (6.412.0,
+  modules/autocorrect.lua). `_G.acDateCount` was defined FORTY-FOUR
+  LINES ABOVE the two locals it reads, so the closure captured the
+  GLOBALS of those names — which nothing ever assigns — and answered
+  nil, nil on every Mac, for ever. The tap incremented the real local;
+  the report read the empty global and printed "no two-digit date typed
+  this session" over a day of them.
+  🔑 6.335.0's DEFECT IN A SECOND FILE, and the cheaper half is the one
+  to carry: that release lost a whole page to it and this cost NO
+  FEATURE AT ALL. What it cost is the only line that could say the
+  feature was alive — and AN INSTRUMENT THAT ANSWERS NO ABOUT A HEALTHY
+  MAC IS HOW A WORKING FEATURE GETS REBUILT. He asked for a rule that
+  already shipped, because the only thing that could have told him
+  otherwise said it had never fired.
+  🧪 AND THE CHECK THAT EARNS ITS PLACE DRIVES THE COUNTER FIRST. Asking
+  a counter cold answers 0 whether or not the bug is there, and 0 is a
+  perfectly good number — so a cold ask proves nothing (6.230.0).
+  📅 The calendar half is 6.267.0: `cal.copyFormat` was `%m-%d-%y` since
+  the panel was written, which is the exact string autocorrect spends a
+  release writing out in full as he types — the one tool whose job is
+  handing him a date was handing him what the other exists to correct.
+  Change the default and ship it; and the cheat-sheet example is BUILT
+  from the format now (6.311.0), which is how that card came to
+  advertise 08-07-26 for a year.
+
+- 🩺 TWO INSTRUMENTS, TWO QUESTIONS, AND EACH SAYS WHICH IT IS (6.413.0,
+  modules/self_test.lua — LL: "After Hammerspoon runs the first time,
+  can it do a set of checks for most important functions? Screenshot
+  tool, snippets tool, autocorrect, draft keeper, right-click").
+  🔑 IT IS NOT install_check. 6.399.0 stats every runtime file against
+  MANIFEST.txt — bytes on disk — and every one can be present and
+  correct while the thing he pressed does nothing: a tap macOS switched
+  off, a dictionary that did not load, a folder OneDrive took away.
+  Joining the two makes one report that answers two questions and cannot
+  say which half failed. GENERAL: before folding a new check into an
+  existing report, ask what a reader would conclude from a FAILURE of
+  the combined thing — if the answer is ambiguous, they are two reports.
+  🔎 FOUR STATES (6.196.1), and the fourth is the one that matters here:
+  ❔ THE CHECK ITSELF could not be asked is never a pass. An instrument
+  that can raise is worse than one that lies (6.282.0), and this is the
+  block he will read INSTEAD of testing — so one exploding row must not
+  take it down and must not print as health. ⏳ switched off on purpose
+  is not a fault either, and is counted apart.
+  🚨 EXISTS IS NOT RUNNING. macOS switches an eventtap off across some
+  transitions and tells nobody (6.303.0), so the object being there is
+  the reassuring half and isEnabled() is the half that matters — the
+  fixture that bites is a tap that exists and is off.
+  🔒 AND IT NEVER DOES THE THING. No screenshot is taken, no snippet
+  typed, nothing written: a self-test that ACTS can break the Mac it is
+  reassuring you about. The cost is named — it can say a tap is running
+  and cannot say a snippet lands in Word.
+  📣 IT SPEAKS ON A HEALTHY MAC, breaking 6.269.0 deliberately and on
+  his own words: he asked for checks AFTER THE FIRST RUN, and the value
+  is knowing the tools DID answer on the mornings before the one when
+  they do not.
+
+- 🪪 NAMED-NOT-SWEPT IS A DEBT, AND IT COMES DUE IN HIS CONSOLE
+  (6.410.0, modules/music_player.lua — his 2026-11-06 06:17:19 log: two
+  Jug Player refusals four seconds into a boot, with `hs.mouse` and
+  `hs.notify` loading in the same turn). 6.348.0 diagnosed this exact
+  shape in the Mug Player, built the warm touch and the one-shot retry,
+  and wrote "NAMED, NOT SWEPT: every other webview here has the same
+  bare show". Sixty-two releases later the named one bit.
+  🔑 THE RETRY IS 6.266.0's SHAPE, NOT 6.56.0's: the caller decides, one
+  try, with a TOKEN per show so a beat-later retry cannot put back a
+  card he has since closed or pressed the key again for. hide() moves
+  the token AND stops the timer, because either alone leaves it live.
+  🔎 THREE FACTS, NEVER SUMMED: came up on the retry · refused twice ·
+  could not arm a retry at all (a Mac with no hs.timer, which is neither
+  of the others and is COUNTED rather than skipped — 6.255.0).
+  🧪 AND THE CHECK THAT USED TO SIT THERE ASSERTED THE OLD STATE —
+  `uc == nil` the instant a show was refused, which is correct only
+  while there is nothing to retry WITH (6.248.0, ninth time). It drives
+  the retry to its second refusal now, which also drives the branch that
+  did not exist before (6.273.0).
+
 - 🎯 A PANEL THAT TAKES THE KEYBOARD OWES IT BACK (6.401.0 · 6.402.0,
   core/coexist.lua's focus door — LL, on 6.397.0's edit window: "window
   does not return cursour/ mouse to the active field it was already in
@@ -7065,6 +7221,12 @@ that must be READ before a new cause is named.
 | "I had a white box that was Hamsidian" · "then was left with that box" | modules/vault.lua — a bare pcall around the page write, and a handle published before the show | 6.406.0 | 1 | ask |
 | "No notes to pick yet" over a full vault · "is this so obvious I'm missing it" | modules/anchors.lua · vault.lua's index state | 6.340.0 · 6.405.0 | 2 | ask — 6.340.0 fixed the surface and swept no reader |
 | "the editor window is growing too big" · "not shrink down so much that the tools are not usable" | modules/screenshot_editor.lua · a ceiling that was only a fraction | 6.270.0 · 6.407.0 | 2 | ask |
+| "Menu search is not filtering" · "somewhat filters when typing a question mark but does nothing after" | modules/menu_search.lua · a queryChangedCallback replaces the chooser's own filter | 6.408.0 | 1 | degraded — the panel opened, the list never narrowed |
+| "Right-click actuates where the mouse is but not on the current highlighted file in Finder" | modules/right_click.lua · a decision from its own header, expired | 6.409.0 | 1 | not a defect — a shape nobody had re-asked |
+| "⚠️ Jug Player: macOS would not put the player on screen" four seconds into a boot | modules/music_player.lua · dylib loads in the same turn as the show | 6.348.0 · 6.410.0 | 1 | degraded — the key did nothing and said why |
+| "Draft keeper doesn't seem to be working. How do I know?" | modules/draft_keeper.lua · Chromium publishes no page until asked | 6.404.0 · 6.411.0 | 2 | ask |
+| "11-27-26 should be 11-27-2026 … on hyper+shift+0" · "should do the same expanding to 2026" | modules/mini_calendar.lua · and the date counter that could never answer | 6.371.0 · 6.412.0 | 2 | ask — and half of it already worked |
+| "After Hammerspoon runs the first time, can it do a set of checks for most important functions?" | modules/self_test.lua — never built | 6.413.0 | 1 | a new tool, not a defect |
 | "killed my keyboard", every key runs a shortcut, ⇪ latched · two storms in 45 s and the config PAUSED itself | core/hyper_key.lua · hyper_storm.lua | 6.162.1 · 6.214.1 · 6.214.2 · 6.302.0 · 6.303.0 · 6.304.0 · 6.403.0 | 7 (6.403.0 is an instrument, not a fix) | 🔨 crude |
 | "empty zip" / the archive will not open | delivery, not code | 6.263.0 → 6.303.0 | 6 | 🔨 crude |
 | "a drag kills the sheet functionality" · wheel dead over ⇪/ · desktop jump | core/coexist.lua drag engine | 6.138.0 · 6.306.0 | 2 | ask |
@@ -7224,6 +7386,12 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
+| 6.413.0 | 🩺 _G.selfTest() — do the big tools answer? One row per tool, printed after every boot | pending |
+| 6.412.0 | 📅 ⇪⇧0 copies a four-digit year, and the date report stops saying a working rule never fired | pending |
+| 6.411.0 | 💾 The draft keeper asks Chromium for its page, and _G.draftCheck() answers "is it working" in five seconds | pending |
+| 6.410.0 | 🪪 The first ⇪⇧. of a session — a refused window is tried once more | pending |
+| 6.409.0 | 🎯 ⇪⇧F right-clicks the file Finder has highlighted, not whatever the pointer is over | pending |
+| 6.408.0 | 🔎 Menu search filters as you type — dead since the release that added the "?" view | pending |
 | 6.407.0 | 📐 The screenshot editor's window has a ceiling that means something on a 4K display — and the screen wins when it meets the tool rails | pending |
 | 6.406.0 | 🪟 Hamsidian can no longer open a white box — the page is written before the window is shown | pending |
 | 6.405.0 | 🔎 ⇪⇧U stops saying you have no notes when it simply has not read them yet | pending |
@@ -8910,6 +9078,374 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.413.0 verify with LL — 🩺 DO THE BIG TOOLS ANSWER? (KNOWN GROUND)
+  WHAT CHANGED: a new command, and a block that prints itself a few
+  seconds after every boot. One row per tool — the five you named, plus
+  the three that make all five dead when they are wrong.
+  🔑 WHY IT IS NOT THE INSTALL CHECK, since you now have two: 6.399.0
+  asks whether the FILES are on disk. This asks whether the TOOLS
+  ANSWER — and every file can be present and correct while a tap macOS
+  switched off, a dictionary that did not load, or a folder OneDrive
+  took away makes the thing you pressed do nothing. Two questions; a
+  report that answered both could not say which half failed.
+
+  A. THE HEADLINE — reload, wait about ten seconds, read the Console.
+  A1. EXPECT a block like this, and on a healthy Mac it is BORING:
+        🩺 SELF TEST — do the big tools answer?
+           ✅ Accessibility  granted
+           ✅ Secure Input   clear
+           ✅ ⇪ shortcuts    111 bound, no key claimed twice
+           ✅ Screenshots    ⇪4's folder is there — /Users/…/2026 Screenshots
+           ✅ Snippets       1926 loaded · the tap is running
+           ✅ Autocorrect    the tap is running · _G.autocorrectReport() …
+           ✅ Draft keeper   watching every 5s while one of 10 app(s) …
+           ✅ Right-click    ⇪⇧F is bound · it aims at what the front app …
+           ✅ every tool answered
+      **PASTE THE WHOLE BLOCK.** It is the first build on which that
+      question has an answer, and I want to see what your Mac says on a
+      good day.
+  A2. Console: `_G.selfTest()` — the same block, whenever you want it.
+  A3. Read the ⇪ shortcuts row. EXPECT a real number and "no key claimed
+      twice". **A ⚠️ there is a key two tools are fighting over** and I
+      want it immediately.
+  A4. Read the Snippets row. EXPECT a count in the thousands. If it says
+      NO snippets are loaded, that is a real finding and the row names
+      the command that loads them.
+
+  B. THE FOUR STATES, so a row is readable without me.
+  B1. **✅** it answered and it is healthy.
+  B2. **⚠️** it answered and the answer is a fault — the row says what to
+      do about it. Paste any you get.
+  B3. **⏳** switched off on purpose. NOT a fault, and the summary line
+      says how many.
+  B4. **❔** the CHECK ITSELF could not be asked — the module did not
+      load, or asking it raised. **Never a pass.** This is the block you
+      will read INSTEAD of testing, so "I could not ask" must never
+      print as "it is fine". Paste any ❔ row.
+
+  C. MUST STILL WORK — this added a module, so this half matters more.
+  C1. Boot: All green, **79 modules** (was 78), and the same ⇪ shortcut
+      count as before. A different shortcut count is a finding: this
+      module binds no key at all.
+  C2. `_G.installCheck()` — still answers the OTHER question, and should
+      read 94 runtime files now.
+  C3. A spread of keys: ⇪T, ⇪D, ⇪N, ⇪3, ⇪X, ⇪4, ⇪space, ⇪V, ⇪/.
+  C4. ⇪/ and search `self test` — the 🩺 card is there, under CONFIG.
+
+  D. A JUDGEMENT ONLY YOU CAN MAKE.
+  D1. **Is the block at boot welcome, or noise?** I deliberately broke
+      this project's own rule that a new instrument should be silent
+      when healthy, because you asked for checks AFTER THE FIRST RUN and
+      the value is knowing the tools DID answer on the mornings before
+      the one when they do not. `settings = { self_test = { sayBoot =
+      false } }` makes it quiet and leaves the command. Say the word and
+      I change the default.
+  D2. **Which other tools should be on it?** It checks the five you
+      named plus Accessibility, Secure Input and the ⇪ registry. The
+      obvious candidates I did NOT add: Hamsidian's notes folder, the
+      clipboard poll, the backup, OneDrive. Name any and they are one
+      row each.
+  D3. 📏 NAMED: it never DOES the thing. It does not take a screenshot,
+      type a snippet or write a file — a self-test that acts can break
+      the Mac it is reassuring you about. So it can tell you a tap is
+      running and cannot tell you a snippet lands in Word.
+
+- 6.412.0 verify with LL — 📅 THE DATES (KNOWN GROUND)
+  WHAT CHANGED: ⇪⇧0 copies a four-digit year, and the autocorrect report
+  can finally say whether the expansion fired.
+  🚨 AND THE SECOND HALF OF YOUR ASK ALREADY WORKED — the instrument was
+  lying. 6.371.0 built `11-06-26 ` → `11-06-2026 ` and the line in the
+  report that counts them was written FORTY-FOUR LINES above the two
+  counters it reads, so it answered "no two-digit date typed this
+  session" on every Mac, for ever, whatever happened. The expansion was
+  alive and the only thing that could say so said no.
+
+  A. THE HEADLINE — twenty seconds, and do A1 first.
+  A1. In Chrome or Word, type `11-06-26` and then a **space**.
+      EXPECT: `11-06-2026 `. Then type `11/06/26` and a space.
+      EXPECT: `11/06/2026 `. **A FAIL is it staying as typed** — and if
+      so, go to B1, because the report can now tell us why.
+  A2. Press **⇪⇧0** (hold Caps Lock and Shift, press zero). Click any
+      date.
+      EXPECT: `11-27-2026` on the clipboard — ⌘V it somewhere — and the
+      alert says the same with the weekday beside it.
+      **A FAIL is `11-27-26`**, the shape you reported.
+  A3. Press **C** with a date highlighted instead of clicking.
+      EXPECT: the same four-digit shape.
+  A4. ⇪/ and search `calendar`. EXPECT the click row to read "A date
+      COPIES it as 08-07-2026" — that example is BUILT from the format
+      now, so a card cannot advertise a shape the tool does not produce.
+
+  B. THE INSTRUMENT THAT WAS LYING.
+  B1. Console: `_G.autocorrectReport()` and find the `date :` line.
+      After A1 it should read something like `2 two-digit year(s)
+      written out in full · last: 11-06-26 → 11-06-2026`.
+      **It used to say "no two-digit date typed this session" there on
+      every Mac whatever you had typed.** Paste the line.
+  B2. If it STILL says none after A1 worked, that is a new finding and I
+      want the whole report.
+
+  C. MUST STILL WORK — the date rule rewrites text you typed, so these
+     are the ones that matter.
+  C1. Type `10-20-2026 `. EXPECT: unchanged — the year is already right.
+  C2. Type `1.2.26 ` and `2026 ` and `abc26 `. EXPECT: all unchanged.
+  C3. Type `11-06/26 `. EXPECT: unchanged — mismatched separators are a
+      part number, not a date.
+  C4. `teh ` still becomes `the `; ⇪Z still undoes a correction.
+  C5. In the calendar: ←→ a day, ↑↓ a week, [ ] a month, T back to
+      today, R for the date report, Esc. The panel is unchanged.
+
+  D. A JUDGEMENT ONLY YOU CAN MAKE.
+  D1. You gave two shapes — `11-27-2026` or `11/27/2026`. I shipped
+      dashes, because that is what the panel already used and what your
+      expansion tool produces. Slashes are one line:
+      `settings = { mini_calendar = { copyFormat = "%m/%d/%Y" } }` —
+      say which and I will change the default rather than leave you a
+      line to type.
+  D2. 🔨 Nothing broke and nothing was lost. The calendar handed you a
+      shape you did not want, and the report told us a working rule was
+      dead. My reading is that the second is the real defect here.
+
+- 6.411.0 verify with LL — 💾 THE DRAFT KEEPER, AND HOW YOU KNOW
+  (NEW GROUND — expect a round)
+  WHAT CHANGED: two things, and the second is the one you asked for.
+  🔎 FIRST, WHY IT PROBABLY WAS NOT WORKING, and it is readable rather
+  than guessed: **six of the seven apps it watches are Chromium**, and
+  Chromium does not build its accessibility tree until something asks
+  for it. Until it is asked, macOS answers about the window's chrome and
+  the text box inside the page is not there AT ALL — so the one module
+  whose whole job is reading that box read nothing, in exactly the apps
+  it was built for, and recorded "nothing is focused" about a field you
+  were typing into. It asks now, once per app per session.
+  🚨 NEW GROUND, SAID UP FRONT: whether YOUR build of Chrome honours
+  that request is a fact about your Mac that nothing here can read. So
+  it asks, records the answer, and the report says which attribute each
+  app accepted — or that the app refused, which is the app saying no
+  rather than a fault here.
+
+  A. THE HEADLINE — this is the answer to "How do I know?".
+  A1. Click into a text box in Chrome you can type a paragraph in — a
+      Gmail or Outlook compose window, an Asana comment, a long form.
+      Type two or three sentences (more than sixty characters).
+  A2. **Leave the caret in that box** and run, in the Console:
+      `_G.draftCheck()`
+      EXPECT:
+        💾 DRAFT KEEPER — what it can see RIGHT NOW
+           app    : Google Chrome
+           tree   : asked, and Google Chrome accepted AXManualAccessibility
+           field  : AXTextArea — a AXTextArea
+           holds  : 212 character(s)  (the text itself is never printed)
+           verdict: ✅ THIS WOULD BE KEPT — the first draft of this field
+                    after 10 s of not typing. …
+           cost   : 3 ms to ask
+      **PASTE THAT BLOCK.** Every line answers a different half of your
+      question, and this is the first build on which any of it can be
+      asked about the field you are actually in.
+  A3. **A FAIL is `field : ⚠️ NOTHING IS FOCUSED`** with the caret
+      genuinely in a text box. That is the finding — paste it.
+  A4. **A ⚠️ ASKED AND REFUSED on the `tree` line** is the other
+      possible answer: that app would not build its accessibility tree,
+      so the text inside its pages cannot be read here at all. Paste it;
+      it decides whether this is buildable in that app.
+  A5. 🔒 Note what the block does NOT contain: your words. The character
+      count is the answer — a diagnostic that puts a half-written email
+      in the Console is a worse tool than the one that said nothing.
+
+  B. THEN LET IT ACTUALLY KEEP ONE.
+  B1. With that paragraph typed, STOP TYPING and wait about fifteen
+      seconds, then click into a different tab or field.
+  B2. Console: `_G.draftKeeperReport()`.
+      EXPECT `kept : 1 draft(s) this session · 1 row(s) written` and a
+      `↳ last:` line naming the app and the character count.
+      **PASTE IT.** The new `tree :` line near the top names every app
+      that has been asked and what it answered.
+  B3. Press **⇪D**, type `@draft`, press ⏎. EXPECT your paragraph listed,
+      and ⏎ on the row copies it back.
+
+  C. MUST STILL WORK — this reads what you type into other people's
+     forms, so this half matters more than A.
+  C1. 🚨 **DOES THE MAC FEEL NORMAL?** Use Chrome and Outlook heavily for
+      an hour. Typing must not feel heavier, the pointer must not
+      stutter, drag and drop must still work. Read `_G.draftKeeperReport()`'s
+      `cost :` line — `worst` is the number that matters. If it ever
+      carries a ⚠️ about the budget, it has backed off by itself and you
+      will have had one alert; paste it.
+  C2. 🔒 Click into a **password field** — a login page, 1Password's
+      unlock — type something, wait, click away. Then
+      `_G.draftKeeperReport()`: EXPECT `refused: 1 password field(s)`
+      and **nothing from that field anywhere in the rows list**. A
+      password in that list is a stop-and-tell-me-at-once.
+  C3. Type a long paragraph in **Word**, or Terminal, or Hamsidian.
+      EXPECT nothing kept — the watch list is browsers and Outlook, by
+      your own scope.
+  C4. ⇪⇧Esc to pause, type a paragraph in Chrome, ⇪⇧Esc again. EXPECT
+      nothing was kept while paused.
+  C5. `_G.draftForget(n)` and `_G.draftForgetAll()` still work.
+
+  D. A JUDGEMENT ONLY YOU CAN MAKE.
+  D1. **If A4 says REFUSED**, tell me which app. That is the app
+      declining, and the next step there is a different mechanism rather
+      than a tweak to this one.
+  D2. Sixty characters and ten seconds are still MY numbers (you
+      escalated the feature without answering that question). If the
+      file fills with things you did not want kept, sixty goes up; if a
+      paragraph you lost was not kept, ten seconds comes down.
+  D3. 🔨 While this was not working, was the Mac unusable, or did this
+      one tool just not do its job? My reading is the second — it is a
+      watcher, nothing else noticed — but the tag is yours, and the
+      honest pass count on D3 is now 2.
+
+- 6.410.0 verify with LL — 🪪 THE FIRST ⇪⇧. OF A SESSION (KNOWN GROUND)
+  WHAT CHANGED: when macOS refuses to put the Jug Player on screen, the
+  key tries once more a beat later instead of giving up — and the two
+  library loads that made that beat expensive are paid off the keypress.
+  🔎 THIS IS FROM YOUR OWN CONSOLE, four seconds into the 06:17 boot:
+  `-- Loading extension: mouse` · `⚠️ Jug Player: macOS raised while
+  ordering the window on screen` · `-- Loading extension: notify` ·
+  `⚠️ Jug Player: macOS would not put the player on screen`. The first
+  press of a session was loading two of Hammerspoon's libraries on the
+  main thread and then asking AppKit to order a window on screen in the
+  same turn. **6.348.0 fixed exactly this in the Mug Player and named
+  the Jug Player as not swept.** It is swept now.
+
+  A. THE HEADLINE — and the case that matters is the FIRST press.
+  A1. Reload Hammerspoon (⌘⌃R). Wait ten seconds, pressing nothing.
+  A2. Press **⇪⇧.** — hold Caps Lock and Shift, press the full stop.
+      EXPECT: the player card appears. **A FAIL is nothing happening.**
+  A3. Watch the Console while you do A2. EXPECT NO
+      `-- Loading extension: mouse` or `notify` line at that moment —
+      they should have loaded a few seconds after boot instead.
+  A4. Close and open it several times. EXPECT: every time.
+
+  B. THE RETRY, WHICH YOU MAY NEVER SEE.
+  B1. If a press seems to do nothing and the card appears a moment
+      later, that IS the retry, and it is normal.
+  B2. If you get "macOS would not put the player on screen, **twice**",
+      paste it: two refusals in a row is a real no and something bigger
+      than a busy turn.
+
+  C. PASTE BACK.
+  C1. `_G.musicReport()` — the `opens :` line, and the new `↳ retry :`
+      line under it when anything was refused. Three facts, never summed:
+      came up on the retry · refused twice · could not arm a retry.
+
+  D. MUST STILL WORK.
+  D1. Drop an mp3 on the card — it queues and plays.
+  D2. space, ↑↓, ⏎, ⌘1–9, ← →, ⌫, the ✕ on a history row.
+  D3. Drag the card by its title strip; close and reopen — it is where
+      you left it.
+  D4. ⇪⇧, the Mug Player still opens (different module, same shape).
+
+- 6.409.0 verify with LL — 🎯 ⇪⇧F RIGHT-CLICKS THE SELECTED FILE
+  (KNOWN GROUND)
+  WHAT CHANGED: with a file highlighted in Finder, ⇪⇧F now right-clicks
+  THAT FILE instead of whatever the pointer happens to be over.
+  🗿 AND THE OLD BEHAVIOUR WAS A DECISION, not an oversight — the
+  module's header says in writing that it never asks what is selected,
+  because every such question is a guess about another app's insides.
+  You have used the key for a year and the thing you reach for it with
+  is a file you have already clicked, so that decision has expired.
+
+  A. THE HEADLINE — thirty seconds, in Finder.
+  A1. Click a file in Finder so it is highlighted. Now move the pointer
+      somewhere else entirely — empty desktop, another part of the
+      window — and press **⇪⇧F** (hold Caps Lock and Shift, press F).
+      EXPECT: the pointer JUMPS to the file and its context menu opens
+      on it.
+      **A FAIL is the menu opening where the pointer was** — that is the
+      old behaviour, unchanged.
+  A2. Now put the pointer ON the highlighted file and press ⇪⇧F.
+      EXPECT: the menu opens and **the pointer does not move**. You put
+      it there; moving it would overrule your hand for nothing.
+  A3. Click an empty part of the Finder window so NOTHING is selected,
+      then press ⇪⇧F over something.
+      EXPECT: the menu opens exactly where the pointer is, as every
+      release before this one.
+  A4. Try it in a Mail message list, a sidebar, a Chrome page. EXPECT:
+      a list row is aimed at; a web page is not — a page has no
+      "selected row", so it falls back to the pointer.
+
+  B. THE ONES THAT MATTER MORE THAN A.
+  B1. Click into a **text box** and type a word, then press ⇪⇧F.
+      EXPECT: the menu opens at the POINTER, not somewhere else. A text
+      field has no selected rows, which is exactly why this is narrowed
+      by shape rather than by a list of apps.
+  B2. Hold ⇪⇧ a moment longer than usual before pressing F.
+      EXPECT: the same menu you always get. If you ever see "⇧ was still
+      held — this may be the ⇧ menu", that is the 6.132.0 warning and it
+      is unchanged.
+
+  C. PASTE BACK.
+  C1. `_G.rightClickReport()` — the new `aimed at :` line counts the two
+      apart: "N the selected item · N where the pointer was". After A1
+      and A3 that should be 1 and 1.
+  C2. If a `last selection :` line ever appears with a reason, paste it
+      — that is an app that would not say where its selection is, and
+      the click fell back to the pointer.
+
+  D. A JUDGEMENT ONLY YOU CAN MAKE.
+  D1. 📏 **THE COST, NAMED:** with a file selected in Finder, ⇪⇧F now
+      right-clicks that file even when the pointer is over empty
+      desktop. If you wanted the DESKTOP's menu, click the desktop first
+      (which deselects it). If that trade is wrong,
+      `settings = { right_click = { useSelection = false } }` is every
+      release before this one — say so and I will change the default.
+  D2. Should the pointer go BACK to where it was after the menu closes?
+      I did not do that: the menu opens at the pointer and you need the
+      pointer to pick an item from it. But it is your Mac.
+
+- 6.408.0 verify with LL — 🔎 MENU SEARCH FILTERS (KNOWN GROUND)
+  WHAT CHANGED: typing in ⇪. narrows the list. It has not since the
+  release that added the "?" shortcut view.
+  🔎 YOUR TWO CLAUSES ARE THE TWO HALVES OF ONE MECHANISM, and they are
+  what named it: hs.chooser hands the query to our own code INSTEAD of
+  running its own filter, and our code only ever acted on the first "?"
+  and returned immediately for every other keystroke. "Somewhat filters
+  when typing a question mark" is that one rebuild. "Does nothing after
+  when letters are picked" is the early return.
+
+  A. THE HEADLINE — twenty seconds. Do it in Word or Chrome.
+  A1. Press **⇪.** — hold Caps Lock, press the full stop.
+      EXPECT: a list of that app's menu items.
+  A2. Type a few letters of a menu item you know — `new`, `print`,
+      `paste`.
+      EXPECT: the list NARROWS as you type.
+      **A FAIL is the list staying the same length**, which is what it
+      has been doing.
+  A3. Type something nothing matches — `zzzz`.
+      EXPECT: an empty list, rather than the whole list ignoring you.
+  A4. Delete back to nothing. EXPECT: the whole list returns.
+  A5. Press ⏎ on a row. EXPECT: that menu item runs, as always.
+
+  B. THE TWO WORDS, which is what the flat list is FOR.
+  B1. Type `exp pdf` (two words, a space between).
+      EXPECT: it finds **File ▸ Export As ▸ PDF…** — every word has to
+      match, in any order, over the item AND the menu path it is under.
+      That is the whole reason this list is flat instead of a menu tree.
+  B2. Type `pdf exp` — the same row. Order does not matter.
+
+  C. THE QUESTION MARK, and the keystroke that did nothing.
+  C1. Type a single **?**. EXPECT: only the items that HAVE a keyboard
+      shortcut.
+  C2. Now type a letter after it — `?n`, `?w`.
+      EXPECT: those shortcut rows NARROW.
+      **This is the exact keystroke that did nothing in every release
+      since 6.196.0.**
+  C3. Backspace the letter. EXPECT: the shortcut rows come back.
+  C4. Backspace the `?`. EXPECT: the whole list.
+
+  D. MUST STILL WORK.
+  D1. A greyed-out item is still listed, marked "unavailable right now",
+      and picking it says so rather than pretending.
+  D2. The shortcut for each item still shows in the second line.
+  D3. ⇪⇧. is still the network tools, not this.
+  D4. `_G.menuSearchReport()` still prints.
+
+  E. A JUDGEMENT ONLY YOU CAN MAKE.
+  E1. Every word must match. The alternative is "any word matches",
+      which gives you more rows for a two-word search rather than fewer.
+      Say if you would rather have that.
+
 - 6.407.0 verify with LL — 📐 THE EDITOR'S WINDOW SIZE (KNOWN GROUND)
   WHAT CHANGED: the screenshot editor's window has a ceiling that means
   something on a big display, and when the ceiling and the tool rails

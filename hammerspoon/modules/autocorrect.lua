@@ -679,7 +679,24 @@ function M.setup(core)
         return a .. s1 .. b .. s2 .. "20" .. y, "a two-digit year"
     end
     _G.acDateFix = acDateFix   -- the gate reads it directly
-    _G.acDateCount = function() return acDates, acDateLast end
+    -- 🚨 6.412.0 — _G.acDateCount USED TO BE DEFINED HERE AND COULD NEVER
+    -- ANSWER. `acDates` and `acDateLast` are declared as locals FORTY-FOUR
+    -- LINES BELOW this point, so a closure written here captured the
+    -- GLOBALS of those names — which nothing ever assigns — and returned
+    -- nil, nil on every Mac, for ever. The counter at the tap incremented
+    -- the real local; the report read the empty global and printed "no
+    -- two-digit date typed this session" over a day of them.
+    --
+    -- 🔑 6.335.0's DEFECT, IN A SECOND FILE. That release lost a whole
+    -- Hamsidian page to one local declared below the builder that read
+    -- it; this cost no feature at all — the expansion itself worked —
+    -- and cost the only instrument that could say so, which is worse in
+    -- its own way: it is an instrument that answers NO about a healthy
+    -- Mac. GENERAL: a published reader is defined BELOW everything it
+    -- reads, and the check that earns its place drives the counter and
+    -- then asks the reader, rather than asking it cold (a cold ask
+    -- answers 0 whether or not the bug is there — 6.230.0).
+    -- It is defined beside the counters now; see acDates below.
 
     -- The decision for one completed word: returns the corrected word, or
     -- nil if it's fine as typed. Dictionary first, then the TWo-caps rule.
@@ -734,6 +751,8 @@ function M.setup(core)
     -- A second, tiny buffer that only ever holds digits and two
     -- separators cannot do that.
     local acDate      = ""
+    -- 📅 6.412.0 — DEFINED HERE, where the two locals it reads exist.
+    _G.acDateCount = function() return acDates, acDateLast end
     local acInjecting = false
     -- 6.16.18: held in _G. so Lua's GC can't collect this one-shot timer
     -- before its (short) delay elapses — same real Hammerspoon gotcha

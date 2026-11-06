@@ -285,6 +285,12 @@ function M.setup(core)
         loaded    = false,
         pos       = nil,              -- where he last dragged it, or nil
         posWhy    = "not opened yet",
+        retryShowSecs = 0.12,         -- 6.410.0: the beat before the one retry
+        retryTimer = nil,             -- HELD (6.196.1)
+        showToken = 0,                -- 6.410.0: the live show's generation
+        recovered = 0,                -- shows that came up on the retry
+        lostShows = 0,                -- shows refused twice
+        noBelt    = 0,                -- Macs that would not arm the retry
         catcher   = nil,              -- the canvas that takes the drop
         catcherRefused = 0,           -- how many times macOS would not
         dropWhy   = "not opened yet",
@@ -1917,6 +1923,15 @@ say({a:'ready'});
     end
 
     function mp.hide()
+        -- 🪪 6.410.0 — A RETRY IN FLIGHT IS A WINDOW ABOUT TO BE PUT ON
+        -- SCREEN. Moving the token makes it stand down; stopping the
+        -- timer makes it never run. Both, because either alone leaves a
+        -- card he just closed able to come back (6.266.0).
+        mp.showToken = (tonumber(mp.showToken) or 0) + 1
+        if mp.retryTimer then
+            pcall(function() mp.retryTimer:stop() end)
+            mp.retryTimer = nil
+        end
         mp.stopTick()
         mp.stopCatcher()
         mp.stopFocusChase()
@@ -2056,6 +2071,35 @@ say({a:'ready'});
         -- catches the throw) and the door does exactly that plus the
         -- count — so `_G.webviewShowReport()` can answer for EVERY panel
         -- rather than the ones that happened to be instrumented.
+        -- 🪪 6.410.0 — ONE TOKEN PER SHOW. The retry below fires a beat
+        -- later, by which time he may have pressed the key again or
+        -- closed the card; a retry acting on a decision since reversed
+        -- is 6.266.0's frozen panel exactly.
+        mp.showToken = (tonumber(mp.showToken) or 0) + 1
+        local token  = mp.showToken
+
+        local function landed()
+            mp.webview = view        -- HELD, and only now
+            mp.shows = (mp.shows or 0) + 1
+            pcall(function() view:bringToFront(true) end)
+            -- ⇪ HANDSHAKE (6.165.1): this card takes the keyboard, so the
+            -- hold must be allowed to end while it is up.
+            if _G.hyperExpectRelease then
+                pcall(_G.hyperExpectRelease, 1.5, "musicPlayer")
+            end
+            -- 🚚 The card cannot take a dragged file itself; the catcher
+            -- does. Started AFTER the window exists, because it is placed
+            -- at the window's frame and reports through the window's page.
+            pcall(function() mp.startCatcher(rect) end)
+            -- ⌨️ 6.251.0 — and THEN the keyboard. After show and
+            -- bringToFront, because a window that is not up yet cannot be
+            -- made key.
+            mp.focusCardSoon()
+            mp.startTick()
+            mp.render()
+            say("card opened")
+        end
+
         local shown
         if _G.showWebviewSafely then
             shown = _G.showWebviewSafely(view, mp.brandText(mp.brand))
@@ -2063,35 +2107,64 @@ say({a:'ready'});
             shown = false
             pcall(function() shown = view:show() ~= false end)
         end
-        if not shown then
-            -- 🪟 TORN DOWN, not abandoned (6.265.0/6.266.0): a window
-            -- left behind keeps its page, its bridge and its Esc claim,
-            -- and nothing holds a reference that could close it.
-            pcall(function() view:delete() end)
-            mp.uc, mp.webview = nil, nil
-            mp.showRefused = (mp.showRefused or 0) + 1
-            return degrade("macOS would not put the player on screen — "
-                           .. "press the key again")
+        if shown then landed() ; return true end
+
+        -- 🚨 6.410.0 — macOS REFUSED, AND HIS 2026-11-06 06:17:19 CONSOLE
+        -- IS WHY THIS BRANCH GREW A RETRY:
+        --     -- Loading extension: mouse
+        --     ⚠️ Jug Player: macOS raised while ordering the window …
+        --     -- Loading extension: notify
+        --     ⚠️ Jug Player: macOS would not put the player on screen
+        -- Four lines, FOUR SECONDS INTO A BOOT. The first ⇪⇧. of a
+        -- session pays main-thread dylib loads — hs.mouse, because the
+        -- screen is resolved off the POINTER (6.236.0), and hs.notify
+        -- for the refusal's own notice — and then asks AppKit to order a
+        -- window on screen in the same turn.
+        -- 🔑 THIS IS 6.348.0, IN THE OTHER PLAYER. That release gave the
+        -- Mug Player a warm touch and a one-shot retry for exactly this
+        -- shape and named the Jug Player as not swept. It is swept now.
+        -- The warm touch is a CANDIDATE and is not claimed as the cause
+        -- (6.198.0); the retry is the half that works whatever it is.
+        -- ONE retry — a second refusal is a real no.
+        mp.showRefused = (mp.showRefused or 0) + 1
+        local okT, t = pcall(hs.timer.doAfter, tonumber(mp.retryShowSecs) or 0.12,
+            function()
+                mp.retryTimer = nil
+                if mp.webview or mp.showToken ~= token then
+                    pcall(function() view:delete() end) ; return
+                end
+                local ok2
+                if _G.showWebviewSafely then
+                    ok2 = _G.showWebviewSafely(view,
+                                               mp.brandText(mp.brand) .. " (retry)")
+                else
+                    ok2 = false
+                    pcall(function() ok2 = view:show() ~= false end)
+                end
+                if ok2 then
+                    mp.recovered = (tonumber(mp.recovered) or 0) + 1
+                    landed()
+                    return
+                end
+                pcall(function() view:delete() end)
+                mp.uc = nil
+                mp.lostShows = (tonumber(mp.lostShows) or 0) + 1
+                degrade("macOS would not put the player on screen, twice — "
+                        .. "press the key again")
+            end)
+        if okT and t then
+            mp.retryTimer = t          -- HELD (6.196.1)
+            return true
         end
-        mp.webview = view        -- HELD, and only now
-        mp.shows = (mp.shows or 0) + 1
-        pcall(function() view:bringToFront(true) end)
-        -- ⇪ HANDSHAKE (6.165.1): this card takes the keyboard, so the hold
-        -- must be allowed to end while it is up.
-        if _G.hyperExpectRelease then
-            pcall(_G.hyperExpectRelease, 1.5, "musicPlayer")
-        end
-        -- 🚚 The card cannot take a dragged file itself; the catcher does.
-        -- Started AFTER the window exists, because it is placed at the
-        -- window's frame and reports through the window's page.
-        pcall(function() mp.startCatcher(rect) end)
-        -- ⌨️ 6.251.0 — and THEN the keyboard. After show and bringToFront,
-        -- because a window that is not up yet cannot be made key.
-        mp.focusCardSoon()
-        mp.startTick()
-        mp.render()
-        say("card opened")
-        return true
+        -- 🛟 A Mac that cannot arm a timer gets the old behaviour rather
+        -- than a window nobody will ever retry, and the miss is COUNTED
+        -- rather than silently skipped (6.255.0).
+        mp.noBelt = (tonumber(mp.noBelt) or 0) + 1
+        pcall(function() view:delete() end)
+        mp.uc, mp.webview = nil, nil
+        mp.lostShows = (tonumber(mp.lostShows) or 0) + 1
+        return degrade("macOS would not put the player on screen — "
+                       .. "press the key again")
     end
 
     -- ⏯ 6.289.0 — THE KEYBOARD'S OWN PLAY/PAUSE KEY DRIVES THIS PLAYER.
@@ -2409,8 +2482,21 @@ say({a:'ready'});
         line("   opens    : " .. (mp.shows or 0) .. " this session"
              .. (((mp.showRefused or 0) > 0)
                  and ("  ⚠️ " .. mp.showRefused
-                      .. " REFUSED by macOS — press the key again")
+                      .. " REFUSED by macOS")
                  or ""))
+        -- 🪪 6.410.0 — THREE DIFFERENT FACTS, never summed. "came up on
+        -- the retry" is the release working; "refused twice" is a real
+        -- no; "could not arm a retry" is a Mac with no hs.timer, which
+        -- is neither (6.196.1).
+        if (mp.showRefused or 0) > 0 or (mp.noBelt or 0) > 0 then
+            line("   ↳ retry  : " .. (mp.recovered or 0)
+                 .. " came up on the retry  ·  " .. (mp.lostShows or 0)
+                 .. " refused twice"
+                 .. (((mp.noBelt or 0) > 0)
+                     and ("  ·  ⚠️ " .. mp.noBelt
+                          .. " could not arm a retry — no hs.timer on this Mac")
+                     or ""))
+        end
         -- ⌨️ 6.311.0 — LISTED IS NOT BOUND (6.196.1). The heading prints
         -- the label, which is what mp.keys SAYS; this says how many
         -- doors setup really registered, so a list that was edited or
@@ -2805,6 +2891,17 @@ function M.warm(core)
     -- ⏯ 6.289.0 — the media-key tap starts HERE, never in setup: a
     -- profile's `settings` land after setup returns, so a tap created
     -- there could be switched off and never stopped (6.228.0).
+    -- 🪟 6.410.0 — PAY THE DYLIB LOADS OFF THE KEYPRESS. Hammerspoon
+    -- loads an extension the first time anything touches it, on the main
+    -- thread, and on his Mac that is seconds (6.330.0). The first ⇪⇧. of
+    -- a session touched hs.mouse (the screen is resolved off the pointer)
+    -- and hs.notify (a refusal's own notice) and then asked AppKit to
+    -- order a window on screen in the same turn. Touching them here moves
+    -- that cost off the moment that has to be cheap. A CANDIDATE, not a
+    -- claim (6.198.0) — the retry is what works whatever the cause.
+    for _, ext in ipairs({ "mouse", "notify", "canvas", "webview" }) do
+        pcall(function() local _ = hs[ext] end)
+    end
     local ok, why = mp.startMediaTap()
     if not ok and mp.mediaKeys and why ~= "not wanted" then
         if core and core.degrade then

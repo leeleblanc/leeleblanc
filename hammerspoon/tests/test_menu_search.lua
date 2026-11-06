@@ -95,6 +95,17 @@ hs = {
                               SHOWS = SHOWS + 1 ; return self end
             function c:width(n) self.width_ = n ; return self end
             function c:searchSubText(b) self.searchSub = b ; return self end
+            -- 🚨 6.408.0 — AND THE STUB HAS TO MODEL THE ONE THING THAT
+            -- MATTERS ABOUT IT: hs.chooser hands the query to this
+            -- callback INSTEAD of running its own filter. A stub that
+            -- merely swallows it cannot see a module that then filters
+            -- nothing, which is exactly how ⇪. shipped dead (6.290.0).
+            function c:queryChangedCallback(fn) self.onQuery = fn ; return self end
+            function c:type(q)      -- what typing into it really does
+                self.query_ = q
+                if self.onQuery then self.onQuery(q) end
+                return self
+            end
             CHOOSERS[#CHOOSERS + 1] = c
             return c
         end,
@@ -497,6 +508,100 @@ check("…says whether Accessibility is on",
 check("…counts the scans", rep:find("scans", 1, true) ~= nil)
 check("…and names the last app it read",
       rep:find(APP_NAME, 1, true) ~= nil, rep)
+
+
+-- =====================================================================
+out("\n=== 11. 🔎 6.408.0 — IT FILTERS FOR ITSELF ===\n")
+-- =====================================================================
+-- LL: "Menu search is not filtering. Somewhat filters when typing a
+-- question mark but does nothing after when letters are picked."
+--
+-- 🚨 A CHOOSER WITH A queryChangedCallback STOPS FILTERING FOR ITSELF —
+-- the rule was already written down in default_apps.lua and nobody
+-- swept (6.305.0). From 6.196.0 until now this list narrowed on exactly
+-- one keystroke in a session: the first "?".
+do
+    local before = pass + fail
+
+    -- the PURE half first
+    local only, terms = ms.readQuery("")
+    check("an empty box is the whole list, shortcuts view off",
+          only == false and #terms == 0)
+    only, terms = ms.readQuery("pdf")
+    check("a plain word is one term and no shortcuts view",
+          only == false and #terms == 1 and terms[1] == "pdf")
+    only, terms = ms.readQuery("?")
+    check("a bare ? is the shortcuts view with nothing to match",
+          only == true and #terms == 0)
+    only, terms = ms.readQuery("?win")
+    check("...and “?win” is the shortcuts view NARROWED to win — the "
+          .. "question mark is never part of what is matched",
+          only == true and #terms == 1 and terms[1] == "win")
+    only, terms = ms.readQuery("  EXP   pdf ")
+    check("several words are several terms, lowered and unpadded",
+          only == false and #terms == 2
+          and terms[1] == "exp" and terms[2] == "pdf")
+
+    -- 🔑 THE FIXTURE THAT BITES is a term that is in the PATH and not in
+    -- the leaf. A matcher that looks only at the item's own name passes
+    -- every other input here and fails this one, which is the whole
+    -- reason this list is flat (6.230.0).
+    local rowFile = nil
+    for _, r in ipairs(rows) do
+        if r.path[#r.path] == "New" then rowFile = r end
+    end
+    check("(the fixture row is there)", rowFile ~= nil)
+    check("a term from the MENU PATH matches, not just the item's name",
+          ms.matches(rowFile, { "file" }) == true)
+    check("...and every term must match, in any order",
+          ms.matches(rowFile, { "file", "new" }) == true
+          and ms.matches(rowFile, { "new", "file" }) == true
+          and ms.matches(rowFile, { "file", "zzz" }) == false)
+    check("no terms matches everything — an empty box hides nothing",
+          ms.matches(rowFile, {}) == true and ms.matches(rowFile, nil) == true)
+
+    -- and the whole path, through the real callback
+    local c = CHOOSERS[1]
+    check("(the picker is there, and it took a query callback)",
+          c ~= nil and type(c.onQuery) == "function")
+    local allN = #ms.choicesFrom(rows)
+    c:type("new")
+    check("🔎 TYPING NARROWS THE LIST — the bug he reported is that this "
+          .. "number never moved",
+          #c.choices_ < allN and #c.choices_ > 0,
+          #c.choices_ .. " of " .. allN)
+    check("...and what is left really matches", (function()
+        for _, row in ipairs(c.choices_) do
+            if not row.text:lower():find("new", 1, true) then return false end
+        end
+        return #c.choices_ > 0
+    end)())
+    c:type("newz")
+    check("...and a word nothing matches empties it rather than ignoring you",
+          #c.choices_ == 0, #c.choices_)
+    c:type("")
+    check("...and clearing the box brings the whole list back",
+          #c.choices_ == allN, #c.choices_ .. " of " .. allN)
+
+    -- 🚨 THE TWO VIEWS TOGETHER, which is the state his sentence
+    -- describes: "?" then letters. Before this release the second
+    -- keystroke returned early and nothing happened, for ever.
+    c:type("?")
+    local shortcutsN = #c.choices_
+    check("? alone is the shortcuts view", shortcutsN > 0 and shortcutsN < allN,
+          shortcutsN .. " of " .. allN)
+    c:type("?new")
+    check("🚨 …AND A LETTER AFTER THE ? STILL FILTERS. This is the exact "
+          .. "keystroke that did nothing in every release since 6.196.0",
+          #c.choices_ < shortcutsN, #c.choices_ .. " of " .. shortcutsN)
+    c:type("?")
+    check("...and backspacing the letter brings the shortcut rows back",
+          #c.choices_ == shortcutsN)
+    c:type("")
+
+    local ran = (pass + fail) - before
+    check("§11 ran all of its checks (" .. ran .. " of 16)", ran >= 16, ran)
+end
 
 -- =====================================================================
 out(("\n── test_menu_search: %d passed, %d failed\n"):format(pass, fail))

@@ -1,6 +1,6 @@
 # MANIFEST — what this release carries, one row per runtime file
-# version: 6.407.0
-# 93 file(s), 4841444 bytes
+# version: 6.413.0
+# 94 file(s), 4884365 bytes
 #
 # Read by modules/install_check.lua: _G.installCheck() stats each path
 # below, relative to ~/.hammerspoon, and names every file that disagrees.
@@ -11,7 +11,7 @@
 # ENTRY for this version, which is a better question than its length) ·
 # snippets/bundled.lua (generated, and rebuildable on his own Mac) · the
 # docs, tests/ and the other tools (not loaded or started by the config).
-init.lua	180142
+init.lua	179519
 core/boot_cost.lua	18672
 core/boot_report.lua	9305
 core/capabilities.lua	37112
@@ -34,7 +34,7 @@ modules/app_remove.lua	76721
 modules/app_watcher.lua	28368
 modules/asana_comments.lua	24513
 modules/asana_dashboard.lua	35611
-modules/autocorrect.lua	94596
+modules/autocorrect.lua	95895
 modules/battery_saver.lua	18453
 modules/begone.lua	16025
 modules/bluetooth.lua	19395
@@ -50,7 +50,7 @@ modules/default_apps.lua	22894
 modules/define.lua	35459
 modules/doc_keywords.lua	23648
 modules/doc_memory.lua	27933
-modules/draft_keeper.lua	43743
+modules/draft_keeper.lua	54341
 modules/editor_picker.lua	54557
 modules/file_tracker.lua	70954
 modules/focus_mode.lua	45257
@@ -61,12 +61,12 @@ modules/install_check.lua	24243
 modules/key_caster.lua	39831
 modules/mac_panel.lua	20953
 modules/master_log.lua	21510
-modules/menu_search.lua	24930
+modules/menu_search.lua	27828
 modules/menubar_items.lua	21986
-modules/mini_calendar.lua	43070
+modules/mini_calendar.lua	44207
 modules/mouse_follows.lua	36340
 modules/mouse_grid.lua	127745
-modules/music_player.lua	139822
+modules/music_player.lua	145019
 modules/net_tools.lua	54342
 modules/net_watch.lua	24061
 modules/note_pad.lua	39972
@@ -77,12 +77,13 @@ modules/pomodoro.lua	57299
 modules/power_tools.lua	121135
 modules/quick_append.lua	18589
 modules/recent_docs.lua	61536
-modules/right_click.lua	17095
+modules/right_click.lua	26207
 modules/scratch_pad.lua	169686
 modules/screen_veil.lua	26691
 modules/screenshot_editor.lua	128362
 modules/screenshots.lua	194410
 modules/search_index.lua	16269
+modules/self_test.lua	13303
 modules/settings_panes.lua	57792
 modules/stall_guard.lua	24712
 modules/tab_search.lua	21646

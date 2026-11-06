@@ -163,6 +163,8 @@ local M = {
             { "90 days",     "Pruned once a session; nothing else ever removes a row" },
             { "forget",      "_G.draftForget(n) removes one · _G.draftForgetAll()" },
             { "report",      "_G.draftKeeperReport() — what it kept and what it refused" },
+            { "is it on?",    "_G.draftCheck() — click into a box and run it: it says what" },
+            { "",             "it can see in that field right now, and what would happen" },
         },
     },
 }
@@ -188,6 +190,12 @@ function M.setup(core)
         "chrome", "chromium", "safari", "edge", "firefox", "brave",
         "arc", "vivaldi", "opera", "outlook",
     }
+    -- 🪟 6.411.0 — ask a Chromium app to build its accessibility tree.
+    -- In order; the first one accepted is the one recorded. Setting
+    -- askTree = false leaves every app exactly as it was before this
+    -- release, which is the way back if it ever costs anything.
+    dk.askTree      = true
+    dk.treeAttrs    = { "AXManualAccessibility", "AXEnhancedUserInterface" }
     dk.roles = {              -- the only roles a draft is read from
         AXTextArea  = true,
         AXTextField = true,
@@ -196,6 +204,9 @@ function M.setup(core)
     -- ----------------------------------------------------------------------
 
     -- ---- state ----------------------------------------------------------
+    dk.asked      = {}    -- app name -> { how, at, ok } (6.411.0, per session)
+    dk.woke       = 0     -- apps that accepted one of the attributes
+    dk.wokeRefused = 0    -- apps that accepted neither
     dk.pending    = nil   -- { key, app, title, role, text, changedAt, wrote }
     dk.samples    = 0
     dk.reads      = 0     -- samples that reached the AX read
@@ -244,6 +255,51 @@ function M.setup(core)
             if want[word] then return true, word end
         end
         return false
+    end
+
+
+    -- ---- 🪟 6.411.0 — A CHROMIUM APP DOES NOT PUBLISH ITS PAGE ---------
+    -- LL: "Draft keeper doesn't seem to be working. How do I know?"
+    --
+    -- 🔎 SIX OF THE SEVEN WATCHED APPS ARE CHROMIUM, and Chromium builds
+    -- its accessibility tree ONLY when something asks for it. Until it
+    -- is asked, `AXFocusedUIElement` answers about the window chrome and
+    -- the textarea inside the page is not in the tree at all — so the
+    -- one module whose whole job is reading that textarea read nothing,
+    -- in exactly the apps it was written for, and said "nothing is
+    -- focused" about a field he was typing into.
+    --
+    -- 🚨 NEW GROUND, SAID RATHER THAN ASSUMED. Whether a given build of
+    -- Chrome, Edge, Brave, Arc, Vivaldi or Opera honours either attribute
+    -- is a fact about HIS Mac that this container cannot read in any
+    -- source (6.233.0). So this ASKS and RECORDS: per app, per session,
+    -- which attribute was accepted and whether a field became readable
+    -- afterwards. A refusal costs one attribute write and is named.
+    --
+    -- 🔒 ASKED ONCE PER APP PER SESSION, and only for an app already on
+    -- the watch list — so nothing is asked of Word, Terminal or Finder,
+    -- and the narrow reach 6.404.0 chose is unchanged.
+    -- PURE given the setter: the gate drives an app that accepts the
+    -- first attribute, one that accepts only the second, and one that
+    -- accepts neither (6.230.0 — the fixture where they must differ).
+    function dk.wakeVerdict(appName, setter, attrs, seen)
+        if type(appName) ~= "string" or appName == "" then
+            return "no-app", "no application to ask"
+        end
+        seen = seen or dk.asked
+        local had = seen[appName]
+        if had then return "already", had.how end
+        attrs = attrs or dk.treeAttrs
+        for _, a in ipairs(attrs) do
+            local ok, answered = pcall(setter, a)
+            if ok and answered ~= false then
+                seen[appName] = { how = a, at = os.time(), ok = true }
+                return "asked", a
+            end
+        end
+        seen[appName] = { how = nil, at = os.time(), ok = false }
+        return "refused", "neither " .. table.concat(attrs, " nor ")
+                          .. " was accepted"
     end
 
     -- ---- PURE: may this field be read at all? --------------------------
@@ -545,6 +601,33 @@ function M.setup(core)
             out.why = "no AX element for " .. tostring(out.app) ; return out
         end
         pcall(function() axApp:setTimeout(dk.axTimeout) end)
+        -- 🪟 6.411.0 — BEFORE the focused element is asked for, because a
+        -- Chromium app has no page in its tree until it has been asked.
+        -- Once per app per session; the answer rides into the report.
+        if dk.askTree then
+            local kind, how = dk.wakeVerdict(out.app, function(attr)
+                local ok, answered = pcall(function()
+                    return axApp:setAttributeValue(attr, true)
+                end)
+                return ok and answered
+            end)
+            if kind == "asked" then
+                dk.woke = dk.woke + 1
+                -- 🔕 Console only, and once per app: this happens the
+                -- first time he clicks into a browser every morning, and
+                -- a line on screen for it is one he stops reading
+                -- (6.269.0). The report carries it after that.
+                pcall(function()
+                    if _G.diag and _G.diag.say then
+                        _G.diag.say("draftKeeper",
+                            ("asked %s for its accessibility tree (%s)")
+                            :format(tostring(out.app), tostring(how)))
+                    end
+                end)
+            elseif kind == "refused" then
+                dk.wokeRefused = dk.wokeRefused + 1
+            end
+        end
         local el
         pcall(function() el = axApp:attributeValue("AXFocusedUIElement") end)
         if not el then out.why = "nothing is focused" ; return out end
@@ -789,6 +872,109 @@ function M.setup(core)
     end
 
     -- ---- the report ---------------------------------------------------
+    -- ---- 🩺 6.411.0 — "IS IT WORKING RIGHT NOW?" ----------------------
+    -- LL: "Draft keeper doesn't seem to be working. How do I know?"
+    --
+    -- 🔑 THE INSTRUMENT WAS NOT THE GAP, THE DOOR WAS (6.317.0, sixth
+    -- time). _G.draftKeeperReport() has counted every refusal since
+    -- 6.404.0 — but it describes a SESSION, and the question he is
+    -- actually asking is about THIS field, the one the caret is in,
+    -- right now. A session total cannot answer that: "0 kept" is true
+    -- of a quiet morning and of a feature that can never read anything,
+    -- and those are opposite facts (6.196.1).
+    --
+    -- So this reads the focused field at the moment it is called and
+    -- says, in words, what it found and what would happen to it. Click
+    -- into the box, run it, read one block.
+    --
+    -- 🔒 IT NEVER PRINTS THE TEXT. The character count is the answer;
+    -- the words are his, and a diagnostic that puts a half-written email
+    -- in the Console is a worse tool than the one that said nothing.
+    -- ONE RENDERER, TWO READERS (6.231.0): the report calls it too, so
+    -- the two cannot drift about what a refusal is called.
+    function dk.checkLines()
+        local L = {}
+        local function line(s) L[#L + 1] = s end
+
+        if not dk.enabled then
+            line("switch : OFF — settings = { draft_keeper = { enabled = true } }")
+            return L
+        end
+
+        local f = dk.readFocused()
+        line("app    : " .. tostring(f.app or "could not be read"))
+
+        if f.unwatched then
+            line("        ↳ NOT a watched app, so nothing here is read at all.")
+            line("          Watched: " .. table.concat(dk.apps, " · "))
+            line("          Click into a text box in one of those and run this again.")
+            return L
+        end
+
+        local a = dk.asked[f.app or ""]
+        if a == nil then
+            line("tree   : not asked yet")
+        elseif a.ok then
+            line("tree   : asked, and " .. tostring(f.app) .. " accepted "
+                 .. tostring(a.how))
+        else
+            line("tree   : ⚠️ ASKED AND REFUSED — this app would not build its"
+                 .. " accessibility tree,")
+            line("          so the text inside its pages cannot be read here."
+                 .. " That is the app's")
+            line("          answer, not a fault in this config — paste this block.")
+        end
+
+        if not f.role and not f.value then
+            line("field  : ⚠️ NOTHING IS FOCUSED — macOS named no field.")
+            line("          Click INTO a text box first, then run this again."
+                 .. " If the caret")
+            line("          really is in one, that is the finding: paste this block.")
+            return L
+        end
+
+        local secureHeld = false
+        local si = _G.secureInput
+        if type(si) == "table" and si.on == true then secureHeld = true end
+        local kind, why = dk.fieldVerdict(f.role, secureHeld, _G.hsPaused == true)
+        line("field  : " .. tostring(f.role or "unnamed") .. " — " .. tostring(why))
+        if kind ~= "watch" then
+            line("        ↳ refused, and that is the rule working.")
+            return L
+        end
+
+        local text = type(f.value) == "string" and f.value or ""
+        local n    = dk.len(text)
+        line(("holds  : %d character(s)  (the text itself is never printed)")
+             :format(n))
+
+        local p    = dk.pending
+        local last = (p and p.key == dk.fieldKey(f.app, f.title, f.role))
+                     and p.wrote or nil
+        local keep, kwhy = dk.keepVerdict(text, last, dk.minChars, dk.minGrowth)
+        if keep then
+            line("verdict: ✅ THIS WOULD BE KEPT — " .. tostring(kwhy))
+            line(("         after %d s of not typing. Wait that long, then"):format(dk.settleSecs))
+            line("         run _G.draftKeeperReport() — the kept count goes up.")
+        else
+            line("verdict: nothing to keep — " .. tostring(kwhy))
+            if n < dk.minChars then
+                line(("         type %d more character(s) and run this again.")
+                     :format(dk.minChars - n))
+            end
+        end
+        line("cost   : " .. (dk.lastMs and (dk.lastMs .. " ms to ask") or "not timed yet"))
+        return L
+    end
+
+    function _G.draftCheck()
+        local L = { "💾 DRAFT KEEPER — what it can see RIGHT NOW" }
+        for _, s in ipairs(dk.checkLines()) do L[#L + 1] = "   " .. s end
+        local s = table.concat(L, "\n")
+        print(s)
+        return s
+    end
+
     function _G.draftKeeperReport()
         local L = { "💾 DRAFT KEEPER — the text a web form loses" }
         local function line(s) L[#L + 1] = "   " .. s end
@@ -807,6 +993,28 @@ function M.setup(core)
             end
         end
         line("apps   : " .. table.concat(dk.apps, " · "))
+        -- 🪟 6.411.0 — THREE STATES, and the middle one is the finding.
+        -- "not asked yet" is an ordinary morning; "accepted" is the
+        -- release working; "REFUSED" is that app saying no, which is a
+        -- fact about the app and not a fault here (6.196.1).
+        do
+            local names, refused = {}, {}
+            for app, a in pairs(dk.asked) do
+                if a.ok then names[#names + 1] = app .. " (" .. tostring(a.how) .. ")"
+                else refused[#refused + 1] = app end
+            end
+            table.sort(names) ; table.sort(refused)
+            if #names == 0 and #refused == 0 then
+                line("tree   : no watched app has been in front yet this session")
+            else
+                line("tree   : " .. (#names > 0 and table.concat(names, " · ")
+                                     or "none accepted"))
+                if #refused > 0 then
+                    line("         ↳ ⚠️ REFUSED by " .. table.concat(refused, " · ")
+                         .. " — their pages cannot be read")
+                end
+            end
+        end
         line("rule   : " .. dk.minChars .. "+ characters, unchanged for "
              .. dk.settleSecs .. " s — then a row")
         line("file   : " .. dk.path()
@@ -915,6 +1123,12 @@ function M.setup(core)
                 L[#L + 1] = "       " .. one
             end
             line("forget : _G.draftForget(n) removes one · _G.draftForgetAll() empties it")
+        -- 🩺 THE SAME RENDERER _G.draftCheck() USES (6.231.0) — so the
+        -- report and the check cannot answer differently about the field
+        -- the caret is in.
+        line("now    : what it can see at this moment —")
+        for _, c in ipairs(dk.checkLines()) do L[#L + 1] = "            " .. c end
+        line("        ↳ _G.draftCheck() prints just that block, on its own")
         end
 
         local out = table.concat(L, "\n")
@@ -929,6 +1143,7 @@ function M.setup(core)
     if core.provide then
         core.provide("draft.rows", function(opts) return dk.rows(opts) end)
         core.provide("draft.path", function() return dk.path() end)
+        core.provide("draft.check", function() return dk.checkLines() end)
     end
 
     _G.draftKeeper = dk

@@ -4,78 +4,62 @@
 -- =====================================================================
 -- 11-03-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.407.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.413.0
 -- =====================================================================
 
--- NEW IN 6.407.0 — 📐 THE EDITOR'S CEILING, AND WHAT HAPPENS WHEN IT
---   MEETS THE FLOOR (modules/screenshot_editor.lua). LL: "the editor
---   window is growing too big … 80% of the largest screenshot size …
---   but not shrink down so much that the tools are not usable."
---   📏 THE FLOOR HALF WAS BUILT IN 6.270.0 — railMinH plus the header,
---   so nine stacked tools always fit — and this release SAYS so rather
---   than rebuilding it: claiming to fix what already works is how a
---   release spends itself on nothing (6.317.0).
---   🔑 WHAT WAS MISSING IS A CEILING THAT IS NOT ONLY A FRACTION. 0.85
---   of a screen is sensible on a 1440-point laptop and absurd on his LG
---   at full points, where it is a window over three thousand points
---   wide — and 0.80 of that is still absurd, so moving the fraction
---   alone would have been a cosmetic answer to a real complaint
---   (6.355.0: ask what the bound is a proxy FOR). It is a proxy for "big
---   enough to work in, small enough to see at once", so an ABSOLUTE cap
---   sits beside his 80% and the smaller of the two wins. The shot is
---   SCALED to fit rather than the window being let past the cap, which
---   costs reading distance and no pixels — the canvas has always scaled.
---   🚨 AND THE FLOOR AND THE CEILING CAN CONTRADICT, WHICH NOTHING
---   DECIDED. On a short screen the rails need more height than the whole
---   display has, and `math.max` let the floor win in silence: a window
---   taller than the screen, whose buttons cannot be clicked. THE SCREEN
---   WINS, because the rails already SCROLL (6.270.0) and a window you
---   cannot reach does not. Said in the report, never left as a surprise.
---   🔎 `windowSizeFor` ANSWERS WHICH RULE DECIDED, as a third value
---   (additive — both callers read two, 6.299.0): fitted · capped at N%
---   · capped at the maximum · floored for the rails · clamped to the
---   screen. "Too big" and "too small" are opposite complaints about one
---   function and a size alone cannot say which bound produced it.
+-- NEW IN 6.413.0 — 🩺 DO THE BIG TOOLS ANSWER? (modules/self_test.lua,
+--   _G.selfTest). LL: "After Hammerspoon runs the first time, can it do
+--   a set of checks for most important functions? Screenshot tool,
+--   snippets tool, autocorrect, draft keeper, right-click."
+--   🔑 NOT install_check, WHICH ANSWERS A DIFFERENT QUESTION. 6.399.0
+--   stats every runtime file against MANIFEST.txt — bytes on disk — and
+--   every one of them can be present and correct while the thing he
+--   pressed does nothing: a tap macOS switched off, a dictionary that
+--   did not load, a folder OneDrive took away. Joining the two would
+--   make one report that answers two questions and cannot say which
+--   half failed. Two instruments, two questions, each says which it is.
+--   🔎 FOUR STATES, NOT TWO (6.196.1): ✅ answered and healthy · ⚠️
+--   answered and a fault, with what to do · ⏳ switched off on purpose,
+--   which is NOT a fault · ❔ THE CHECK ITSELF could not be asked, which
+--   is never a pass — an instrument that can raise is worse than one
+--   that lies (6.282.0), and this is the block he will read INSTEAD of
+--   testing. One exploding row cannot take the block down.
+--   🚨 EXISTS IS NOT RUNNING. macOS switches an eventtap off across some
+--   transitions and tells nobody (6.303.0), so the object being there is
+--   the reassuring half and isEnabled() is the half that matters.
+--   📣 IT SPEAKS ON A HEALTHY MAC, breaking 6.269.0 deliberately and on
+--   his own words: he asked for checks AFTER THE FIRST RUN, and the
+--   value is knowing the tools DID answer on the mornings before the one
+--   when they do not. self_test = { sayBoot = false } is quiet.
 
--- NEW IN 6.406.0 — 🪟 A WHITE BOX IS A WINDOW WITH NO PAGE IN IT
---   (modules/vault.lua). LL: "I had a white box that was Hamsidian … I
---   ⇪⇧U in first, then got Hamsidian. Then was left with that box."
---   🔎 READABLE, NOT GUESSED, AND IT IS TWO LINES. `v.render()` was
---   `pcall(function() v.webview:html(v.buildHtml()) end)` — a bare pcall
---   that throws away the one value saying whether the page was WRITTEN.
---   When buildHtml raises, which 6.335.0 proved it can IN THIS VERY FILE
---   from one local declared below the builder that reads it, the pcall
---   swallows it, html() is never called, render() returns looking like a
---   success, and open() SHOWS a webview that has never been given a
---   document. An hs.webview with no document draws blank, with nothing
---   in the Console and no record anywhere. 6.391.0's rule (read the
---   answer) applied to html() rather than show().
---   🔑 THE PAGE IS WRITTEN BEFORE THE WINDOW IS SHOWN, and a window with
---   no document is never shown at all: it is torn DOWN rather than
---   abandoned (6.265.0 · 6.314.0 — an abandoned webview keeps its Esc
---   claim, which is the frozen-overlay shape), the refusal is NAMED, and
---   the one-line prompt carries the note so nothing of his is cut off.
---   🚨 AND 6.326.0 IS PAID HERE AT LAST, which is the half that explains
---   "left with that box": `v.webview = view` sat ABOVE the show, so a
---   refusal left a handle pointing at a window that is not on screen —
---   and v.show()'s own first line is `if v.webview then v.hide() return
---   end`, so the next ⇪3 press hid a window there was nothing to hide.
---   A published handle is a CLAIM and is written after the world agrees.
---   🔎 AND THE OTHER HALF IS MEASURABLE AT LAST: the page has said
---   `ready` since 6.174.0 and nothing recorded it, so "the window is up
---   and its page never ran" — what a white box IS once the document is
---   in place (view:html() returns before WebKit parses, 6.238.0) — was a
---   state no report could describe. A HELD belt names it, and does NOT
---   close it: a slow Mac is a slow Mac and Esc still works (6.198.0).
---   FOUR report states, the CLOSED one deliberate (6.352.0 — he runs the
---   report after shutting the window). One function writes the page, two
---   callers (6.231.0), and a sentry holds it there.
+-- NEW IN 6.412.0 — 📅 THE DATE REPORT STOPS LYING, AND ⇪⇧0 COPIES 2026
+--   (modules/autocorrect.lua + mini_calendar.lua). LL: "11-27-26 should
+--   be 11-27-2026 or 11/27/2026 on hyper+shift+0. And 11/06/26,
+--   11-06-26 should do the same expanding to 2026."
+--   🚨 THE SECOND HALF ALREADY WORKED AND THE INSTRUMENT SAID IT NEVER
+--   HAD. `_G.acDateCount` was defined FORTY-FOUR LINES ABOVE the two
+--   locals it reads, so the closure captured the GLOBALS of those names
+--   — which nothing assigns — and answered nil, nil on every Mac, for
+--   ever. The tap incremented the real local; the report read the empty
+--   global and printed "no two-digit date typed this session" over a day
+--   of them. 6.335.0's defect in a second file, and the cheaper half to
+--   carry: this cost NO feature and cost the only line that could say
+--   the feature was alive, which is its own kind of expensive.
+--   🔑 A PUBLISHED READER IS DEFINED BELOW EVERYTHING IT READS, and the
+--   check that earns its place DRIVES the counter and then asks — a cold
+--   ask answers 0 whether or not the bug is there (6.230.0).
+--   📅 AND THE FIRST HALF IS A DEFAULT CHANGED AND SHIPPED (6.267.0):
+--   cal.copyFormat was %m-%d-%y since the panel was written, which is
+--   the exact string autocorrect has spent a release writing out in full
+--   as he types. One literal, two readers — the cheat-sheet example is
+--   BUILT from the format now, which is how that card came to advertise
+--   08-07-26 for a year (6.311.0).
 
--- (6.405.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.411.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 cut the inline count to
 --  TWO; a gate check proves every entry here is also in CHANGELOG.md.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.407.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.413.0
 -- =====================================================================
 -- The catalogue that used to sit here moved to GUIDE.md ("What each
 -- tool does") in 6.180.0 — 259 lines of prose inside the orchestrator.
@@ -164,7 +148,7 @@ function _G.consoleRuleSay(what)
     return true
 end
 
-_G.configVersion = "6.407.0"
+_G.configVersion = "6.413.0"
 _G.consoleRuleSay("▶ BOOT")
 
 local function safeRequire(mod)
@@ -2813,6 +2797,13 @@ local BASE = {
                           --     both answer "is what should be on disk, on disk?",
                           --     and apart from it because that one is deliberately
                           --     LOUD when healthy and this one must not be)
+    "self_test",          -- 🩺 _G.selfTest() — do the big tools ANSWER?
+                          --    (no key, 6.413.0 — his own list: screenshots,
+                          --     snippets, autocorrect, draft keeper, right-click.
+                          --     Beside install_check and apart from it: that one
+                          --     asks whether the FILES are here, this one asks
+                          --     whether the TOOLS work, and a report that
+                          --     answered both could not say which half failed)
     "right_click",        -- 🖱 ⇪⇧F a real right-click at the pointer
     "mouse_follows",      -- 🖱 ⇪⇧3 the pointer goes where focus goes (opt-in, 6.160.2)
     -- 6.119.0 — THE PUNCTUATION TIER. Every ⇪ letter and every ⇪⇧ letter

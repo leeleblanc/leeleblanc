@@ -3439,12 +3439,84 @@ do
     check("🚨 a window macOS refused to show leaves NO handle behind — the "
           .. "orphan is what ⏯ and Esc would both read as 'the card is up'",
           mp.webview == nil, tostring(mp.webview))
-    check("🔒 …and the page bridge goes with it, rather than being left "
-          .. "holding a window nothing can close",
-          mp.uc == nil, tostring(mp.uc))
     check("🔎 …and it is COUNTED, because a refusal that leaves no number "
           .. "is indistinguishable from a key never pressed (6.196.1)",
           (mp.showRefused or 0) == 1, tostring(mp.showRefused))
+
+    -- 🪪 6.410.0 — AND A RETRY IS ARMED, which is the release. His
+    -- 2026-11-06 06:17:19 Console had two refusals four seconds into a
+    -- boot with hs.mouse and hs.notify loading in the same turn —
+    -- 6.348.0's finding in the OTHER player, which that release named
+    -- as not swept.
+    -- 🚨 THE CHECK BELOW USED TO ASSERT mp.uc == nil THE INSTANT THE
+    -- SHOW WAS REFUSED, and it went red on correct code: the retry
+    -- needs the wired view for one more beat. The RULE it protects is
+    -- that nothing refused is left reachable as "the card is up" — so
+    -- it drives the retry to its SECOND refusal and asserts it there,
+    -- which also drives the branch that did not exist before (6.273.0).
+    local retry
+    for _, t in ipairs(TIMERS) do
+        if not t.stopped and not t.every and t.secs == mp.retryShowSecs then
+            retry = t
+        end
+    end
+    check("🪪 a refusal arms ONE retry rather than giving up on the press",
+          retry ~= nil, tostring(#TIMERS))
+    if retry then
+        _G.SHOW_REFUSES = true
+        retry.fn()
+        _G.SHOW_REFUSES = false
+    end
+    check("🔒 …and when the retry is refused too, the page bridge goes with "
+          .. "the window, rather than being left holding one nothing can close",
+          mp.uc == nil, tostring(mp.uc))
+    check("🔎 …and the two outcomes are counted APART — came up on the retry "
+          .. "vs refused twice (6.196.1)",
+          (mp.recovered or 0) == 0 and (mp.lostShows or 0) == 1,
+          tostring(mp.recovered) .. "/" .. tostring(mp.lostShows))
+
+    -- 🪪 AND A RETRY THAT LANDS IS THE OTHER HALF. Without this the
+    -- recovery branch is driven by nothing and could be deleted whole.
+    mp.hide()
+    mp.showRefused, mp.shows, mp.recovered, mp.lostShows = 0, 0, 0, 0
+    _G.SHOW_REFUSES = true
+    mp.show()
+    _G.SHOW_REFUSES = false
+    local second
+    for _, t in ipairs(TIMERS) do
+        if not t.stopped and not t.every and t.secs == mp.retryShowSecs then
+            second = t
+        end
+    end
+    if second then second.fn() end
+    check("🪟 a window that comes up ON THE RETRY is recorded and counted",
+          mp.webview ~= nil and (mp.recovered or 0) == 1 and (mp.shows or 0) == 1,
+          tostring(mp.recovered) .. "/" .. tostring(mp.shows))
+    check("⏯ …and the gate says the card is open, so ⏯ reaches it",
+          mp.onScreen() == true)
+
+    -- 🚨 AND A RETRY MUST NOT PUT BACK A CARD HE HAS CLOSED (6.266.0):
+    -- the token moves on hide, so a timer that fires afterwards stands
+    -- down instead of ordering an orphan on screen.
+    mp.hide()
+    mp.showRefused, mp.shows, mp.recovered = 0, 0, 0
+    _G.SHOW_REFUSES = true
+    mp.show()
+    _G.SHOW_REFUSES = false
+    local third
+    for _, t in ipairs(TIMERS) do
+        if not t.stopped and not t.every and t.secs == mp.retryShowSecs then
+            third = t
+        end
+    end
+    mp.hide()                     -- he gave up and closed it
+    if third then third.fn() end  -- …and the beat lands afterwards
+    check("🪪 a retry that lands after he closed the card shows NOTHING",
+          mp.webview == nil and (mp.recovered or 0) == 0,
+          tostring(mp.webview) .. "/" .. tostring(mp.recovered))
+
+    mp.hide()
+    mp.showRefused, mp.shows, mp.recovered, mp.lostShows = 0, 0, 0, 0
     check("⏯ …so the media-key gate correctly says the card is CLOSED and "
           .. "macOS keeps the key",
           mp.onScreen() == false
@@ -3463,7 +3535,7 @@ do
     mp.hide()
 
     local ran = (pass + fail) - before
-    check("§6.326.0 ran all of its checks (" .. ran .. " of 7)", ran >= 7, ran)
+    check("§6.326.0 ran all of its checks (" .. ran .. " of 12)", ran >= 12, ran)
 end
 
 if fail > 0 then

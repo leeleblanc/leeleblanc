@@ -26,6 +26,14 @@
 -- you were reading. Keys arrive through an hs.hotkey.modal instead,
 -- which is armed only while the panel is up.
 
+-- 📅 6.412.0 — ONE LITERAL, TWO READERS (6.311.0). The cheat-sheet row
+-- below promises a shape and `cal.copyFormat` decides it, so the example
+-- is BUILT from the same string rather than typed beside it — which is
+-- how the card came to advertise 08-07-26 for a year.
+local COPY_FORMAT = "%m-%d-%Y"
+local COPY_EXAMPLE = os.date(COPY_FORMAT, os.time({ year = 2026, month = 8,
+                                                    day = 7, hour = 12 }))
+
 local M = {
     name  = "Mini Calendar",
     order = 13.2,
@@ -39,7 +47,8 @@ local M = {
             { "↑ ↓",   "A week at a time" },
             { "[ ]",   "A month at a time (⇧← ⇧→ do the same)" },
             { "T / Home", "Back to today" },
-            { "click",  "A date COPIES it as 08-07-26 · ‹ › change month · Today" },
+            { "click",  "A date COPIES it as " .. COPY_EXAMPLE
+                        .. " · ‹ › change month · Today" },
             { "C",      "Copy the highlighted date without reaching for the mouse" },
             { "R",      "Copy a “Date report:” — every format at once, time included" },
             { "clock",  "The panel shows the time NOW, live to the second" },
@@ -102,10 +111,18 @@ function M.setup(core)
     cal.menuFormat  = "%a %-d"  -- "Thu 6" — %-d is handled below for portability
     cal.anchor      = "topRight"-- "topRight" (under the clock) or "center"
     cal.margin      = 12        -- gap from the screen edge when anchored
-    -- Clicking a date copies it in this format. %m-%d-%y is 08-07-26 —
+    -- Clicking a date copies it in this format. %m-%d-%Y is 08-07-2026 —
     -- all three parts zero-padded and two digits, so pasted dates line up.
     -- %Y for a four-digit year, %d-%m-%y for day-first, etc.
-    cal.copyFormat  = "%m-%d-%y"
+    -- 📅 6.412.0 — A FOUR-DIGIT YEAR, on his word: "11-27-26 should be
+    -- 11-27-2026 or 11/27/2026 on hyper+shift+0". It was %m-%d-%y since
+    -- this panel was written, which is the shape autocorrect has spent a
+    -- release WRITING OUT IN FULL as he types (6.371.0) — so the one
+    -- tool in this config whose job is handing him a date was handing
+    -- him the exact string the other one exists to correct. Change the
+    -- default and ship it (6.267.0); "%m/%d/%Y" is the other reading of
+    -- his sentence and is one settings line.
+    cal.copyFormat  = COPY_FORMAT
     cal.copyOnClick = true      -- false = clicking only selects, never copies
     -- 🕐 6.147.0 — the clock and the report, both LL's ask, verbatim:
     -- "give all as a 'Date report:'" and "a time display: 2:00:00 PM so
@@ -114,7 +131,8 @@ function M.setup(core)
     -- EVERY format below, the week/day line, and the time now.
     cal.timeFormat    = "%I:%M:%S %p"   -- 02:00:00 PM; the zero is shaved
     cal.reportFormats = {
-        "%m-%d-%y",          -- 09-01-26 · the click-to-copy shape
+        "%m-%d-%Y",          -- 09-01-2026 · the click-to-copy shape
+        "%m/%d/%Y",          -- 09/01/2026 · slashes, four-digit year
         "%Y-%m-%d",          -- 2026-09-01 · ISO, sorts everywhere
         "%m/%d/%Y",          -- 09/01/2026
         "%B %d, %Y",         -- September 01, 2026
@@ -570,7 +588,7 @@ function M.setup(core)
     -- The whole point is pasting it somewhere immediately, so the format is
     -- one setting (cal.copyFormat) rather than something spread through the
     -- drawing code. os.date's %m/%d/%y are all zero-padded and 2-digit,
-    -- which is what makes "08-07-26" line up in a column.
+    -- which is what makes "08-07-2026" line up in a column.
     function cal.formatDate(t)
         return os.date(cal.copyFormat, t or cal.cursor)
     end
@@ -585,7 +603,7 @@ function M.setup(core)
             print("🗓 Mini calendar: hs.pasteboard.setContents failed for " .. text)
             return nil
         end
-        -- Named day as well as the digits: the point of copying 08-07-26 is
+        -- Named day as well as the digits: the point of copying 08-07-2026 is
         -- usually that you are about to commit to it, and "Fri" is the part
         -- worth double-checking before you paste.
         hs.alert.show("🗓 " .. text .. "   (" .. os.date("%a", t) .. ")  copied", 1.6)

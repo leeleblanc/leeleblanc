@@ -5,6 +5,273 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.413.0 — 🩺 DO THE BIG TOOLS ANSWER? (modules/self_test.lua,
+  _G.selfTest)
+
+  LL: "After Hammerspoon runs the first time, can it do a set of checks
+  for most important functions? Screenshot tool, snippets tool,
+  autocorrect, draft keeper, right-click."
+
+  🔑 IT IS NOT install_check, AND THE DIFFERENCE IS THE DESIGN. 6.399.0
+  already answers "did the whole release land?" — one stat per runtime
+  file against MANIFEST.txt. That is a question about BYTES ON DISK, and
+  every file can be present and correct while the thing he pressed does
+  nothing: a tap macOS switched off, a dictionary that did not load, a
+  folder OneDrive took away. Joining the two would make one report that
+  answers two questions and cannot say which half failed. Two
+  instruments, two questions, and each one says which it is.
+
+  🔎 EVERY ROW IS READ, NEVER RETYPED. A check that asserts what a tool
+  SAYS about itself can never notice those words going false (6.276.0),
+  so every row asks the live thing: the tap object, the loaded table,
+  the key registry, one stat. The one thing it must never do is DO the
+  thing — no screenshot is taken, no snippet is typed, nothing is
+  written. A self-test that acts can break the Mac it is reassuring you
+  about.
+
+  🔎 FOUR STATES, NOT TWO (6.196.1):
+       ✅  it answered, and the answer is healthy
+       ⚠️  it answered, and the answer is a fault — with what to do
+       ⏳  not yet, or switched off on purpose, which is NOT a fault
+       ❔  the CHECK ITSELF failed — it raised, or the thing it asks for
+           is not there at all. Never a pass: "I could not ask" and "it
+           is fine" are opposite facts, and this is the module where
+           printing the reassuring one would be worst, because the block
+           is what he will read INSTEAD of testing. One exploding row
+           cannot take the block down (6.282.0).
+
+  🚨 EXISTS IS NOT RUNNING, and that is the row with teeth. macOS
+  switches an eventtap off across some transitions and tells nobody
+  (6.303.0), so the object being there is the reassuring half and
+  isEnabled() is the half that matters. The fixture that bites is a tap
+  that exists and is off; a check that asked only whether the object is
+  there passes every other input (6.230.0).
+
+  📣 IT SPEAKS ON A HEALTHY MAC, DELIBERATELY. 6.269.0's rule is that a
+  new instrument should be silent when nothing is wrong, and this one
+  breaks it on his own words — he asked for checks AFTER THE FIRST RUN,
+  and the value of the block is knowing the tools DID answer on the
+  three hundred mornings before the one when they do not.
+  `settings = { self_test = { sayBoot = false } }` makes it quiet and
+  leaves `_G.selfTest()`.
+
+
+NEW IN 6.412.0 — 📅 THE DATE REPORT STOPS LYING, AND ⇪⇧0 COPIES 2026
+  (modules/autocorrect.lua + modules/mini_calendar.lua)
+
+  LL: "11-27-26 should be 11-27-2026 or 11/27/2026 on hyper+shift+0. And
+  11/06/26, 11-06-26 should do the same expanding to 2026 using my
+  expansion tool."
+
+  🚨 THE SECOND HALF ALREADY WORKED AND THE INSTRUMENT SAID IT NEVER
+  HAD. 6.371.0 built the expansion and `_G.acDateCount` was defined
+  FORTY-FOUR LINES ABOVE the two locals it reads — so the closure
+  captured the GLOBALS of those names, which nothing ever assigns, and
+  answered nil, nil on every Mac, for ever. The tap incremented the real
+  local; the report read the empty global and printed "no two-digit date
+  typed this session" over a day of them.
+
+  🔑 6.335.0's DEFECT IN A SECOND FILE, and the cheaper half is the one
+  to carry. That release lost a whole Hamsidian page to one local
+  declared below the builder that read it. This cost NO feature at all —
+  the expansion worked throughout — and cost the only line that could
+  say so, which is its own kind of expensive: an instrument that answers
+  NO about a healthy Mac is how a working feature gets rebuilt. GENERAL:
+  a published reader is defined BELOW everything it reads, and the check
+  that earns its place DRIVES the counter and then asks it — a cold ask
+  answers 0 whether or not the bug is there (6.230.0).
+
+  📅 AND THE FIRST HALF IS A DEFAULT CHANGED AND SHIPPED (6.267.0).
+  `cal.copyFormat` has been `%m-%d-%y` since the panel was written, so
+  the one tool in this config whose job is handing him a date was
+  handing him the exact string the other one exists to correct. It is
+  `%m-%d-%Y` now, and `"%m/%d/%Y"` — the other reading of his sentence —
+  is one settings line.
+
+  🔑 ONE LITERAL, TWO READERS (6.311.0). The cheat-sheet row promised
+  "A date COPIES it as 08-07-26" and was typed beside the format rather
+  than built from it, which is how that card came to advertise a shape
+  for a year. The example is `os.date(COPY_FORMAT, …)` now.
+
+
+NEW IN 6.411.0 — 🪟 A CHROMIUM APP DOES NOT PUBLISH ITS PAGE
+  (modules/draft_keeper.lua, _G.draftCheck)
+
+  LL, escalating: "Draft keeper doesn't seem to be working. How do I
+  know?"
+
+  🔎 SIX OF THE SEVEN WATCHED APPS ARE CHROMIUM, and Chromium builds its
+  accessibility tree ONLY when something asks for it. Until it is asked,
+  `AXFocusedUIElement` answers about the window chrome and the textarea
+  inside the page is not in the tree at all — so the one module whose
+  whole job is reading that textarea read nothing, in exactly the apps
+  it was written for, and recorded "nothing is focused" about a field he
+  was typing into.
+
+  🚨 NEW GROUND, SAID RATHER THAN ASSUMED. Whether a given build of
+  Chrome, Edge, Brave, Arc, Vivaldi or Opera honours `AXManualAccessibility`
+  or `AXEnhancedUserInterface` is a fact about HIS Mac that no source in
+  this container can read (6.233.0). So it ASKS and RECORDS: per app,
+  per session, which attribute was accepted. A refusal costs one
+  attribute write and is named as the APP saying no, which is a
+  different fact from a fault here.
+
+  🔒 ASKED ONCE PER APP PER SESSION, and only for an app already on the
+  watch list — so nothing is asked of Word, Terminal or Finder and the
+  narrow reach 6.404.0 chose is unchanged. PURE given the setter, so the
+  gate drives an app that accepts the first attribute, one that accepts
+  only the second, and one that accepts neither; the fixture that bites
+  is the middle one, because a module that tries one and stops passes
+  every other input (6.230.0).
+
+  🩺 AND "HOW DO I KNOW?" IS THE OTHER HALF, AND THE BIGGER ONE.
+  `_G.draftKeeperReport()` has counted every refusal since 6.404.0 — and
+  it describes a SESSION, while the question he is actually asking is
+  about THIS field, the one the caret is in, right now. A session total
+  cannot answer that: "0 kept" is true of a quiet morning and of a
+  feature that can never read anything, and those are opposite facts
+  (6.196.1). 6.317.0's rule for the sixth time — the instrument was not
+  the gap, the door was.
+
+  `_G.draftCheck()` reads the focused field at the moment it is called
+  and says, in words, what it found and what would happen to it: the
+  app, whether it is watched, whether its tree was asked for and what it
+  answered, the role, the character count, and the verdict with its
+  reason. 🔒 IT NEVER PRINTS THE TEXT — the count is the answer, the
+  words are his, and a diagnostic that puts a half-written email in the
+  Console is a worse tool than the one that said nothing. ONE RENDERER,
+  TWO READERS (6.231.0): the report calls it too.
+
+  🧪 AND THE SUITE CAUGHT A NIL CALL BEFORE HIS MAC DID: the first
+  version logged through a `say` helper that does not exist in that
+  file, which would have raised inside `readFocused` the first time a
+  watched app was woken — the one path this release exists to add.
+
+
+NEW IN 6.410.0 — 🪪 THE FIRST PRESS OF A SESSION (modules/music_player.lua)
+
+  His 2026-11-06 Console, four seconds into a boot:
+
+      06:17:19  -- Loading extension: mouse
+      06:17:19  ⚠️ Jug Player: macOS raised while ordering the window on
+                   screen — usually another app's popup was mid-transition
+      06:17:19  -- Loading extension: notify
+      06:17:19  ⚠️ Jug Player: macOS would not put the player on screen
+
+  🔑 THIS IS 6.348.0, IN THE OTHER PLAYER. That release gave the Mug
+  Player a warm touch and a one-shot retry for exactly this shape, and
+  named the Jug Player as NOT SWEPT. It is swept now.
+
+  Hammerspoon loads an extension the first time anything touches it, on
+  the main thread, and on his Mac that is seconds (6.330.0 has two of
+  them twenty-six seconds apart). The first ⇪⇧. of a session pays
+  `hs.mouse` — the screen is resolved off the POINTER since 6.236.0 —
+  and `hs.notify` for the refusal's own notice, and then asks AppKit to
+  order a window on screen in the same turn. `M.warm` touches them now.
+  That is a CANDIDATE and is NOT claimed as the cause (6.198.0); the
+  retry is the half that works whatever it is.
+
+  🪪 ONE TOKEN PER SHOW, and `hide()` moves it AND stops the timer. A
+  retry acting a beat later on a card he has since closed, or pressed
+  the key again for, is 6.266.0's frozen panel exactly: a retry that
+  acts on a decision since reversed, holding the only reference to the
+  thing it acts on.
+
+  🔎 THREE DIFFERENT FACTS, NEVER SUMMED (6.196.1): came up on the retry
+  · refused twice · could not arm a retry at all. The last is a Mac with
+  no hs.timer and is neither of the others; it gets the old behaviour
+  and is COUNTED rather than silently skipped (6.255.0).
+
+  🧪 AND THE CHECK THAT USED TO SIT THERE ASSERTED THE OLD STATE —
+  `mp.uc == nil` the instant a show was refused, which is 6.248.0 for
+  the ninth time. The rule it protects is that nothing refused is left
+  reachable as "the card is up", so it drives the retry to its SECOND
+  refusal and asserts it there, which also drives the branch that did
+  not exist before (6.273.0).
+
+
+NEW IN 6.409.0 — 🎯 ⇪⇧F AIMS AT WHAT IS SELECTED (modules/right_click.lua)
+
+  LL: "Right-click actuates where the mouse is but not on the current
+  highlighted file in Finder. Please fix this functionality."
+
+  🗿 THE HEADER PROMISED THE OPPOSITE, AND PROMISED IT ON PURPOSE: "It
+  does not move the pointer, find the selected file, or ask
+  Accessibility what is under the cursor. Every one of those is a guess
+  about another application's insides, and this config has paid for that
+  kind of guess before." That was a DECISION, not a law, and it has
+  expired (6.311.0) — he has used the key for a year and the thing he
+  reaches for it with is a file he has already clicked.
+
+  🔑 NARROW BY SHAPE, NEVER BY A LIST OF APPS (6.374.0). It does not ask
+  "is this Finder"; it asks the focused element whether it has SELECTED
+  ROWS or SELECTED CHILDREN — the shape a list, an outline or an icon
+  grid has and a text field, a canvas and a web page do not. So Finder,
+  a message list and a sidebar all work, typing in a text box is
+  untouched, and there is no list to maintain and no app left out
+  because nobody added it.
+
+  🚨 THE FOCUSED ELEMENT MAY BE THE ROW ITSELF or the LIST that holds
+  it. Both are ordinary, and asking only one of them is how this would
+  work in half the places he would try it.
+
+  🖱 IF THE POINTER IS ALREADY ON THE SELECTION, NOTHING MOVES. He put
+  it there; moving it would be the config overruling his hand for no
+  gain, and the menu opens in the same place anyway. Otherwise the
+  pointer MOVES to the row's centre and the click waits a beat, because
+  macOS moves the pointer on its own run-loop turn (6.196.1) and a click
+  posted on the next line is posted where the pointer still is — the bug
+  being fixed, reintroduced by the fix for it.
+
+  🛟 AND NO FAILURE COSTS THE CLICK. No AX tree, a selection that will
+  not say where it is, a pointer that refuses to move: each falls back
+  to what every release before this one did, and the report counts "the
+  selected item" apart from "where the pointer was".
+
+  🔒 A SENTRY THAT BANS A NAME EXPIRES THE FIRST TIME THE NAME HAS AN
+  HONEST USE (6.321.0). "No axuielement anywhere in this file" was right
+  while nothing here could legitimately ask; the gate states the RULE
+  now — every AX question is inside `rc.selectionFrame`, the whole
+  vocabulary it may use is selection and geometry, and it still never
+  asks what is UNDER the pointer.
+
+  📏 COST, NAMED: with a file selected in Finder, ⇪⇧F right-clicks THAT
+  FILE even when the pointer is over empty desktop. The desktop's own
+  menu is a click on the desktop first (which deselects), or
+  `settings = { right_click = { useSelection = false } }`.
+
+
+NEW IN 6.408.0 — 🔎 MENU SEARCH FILTERS AGAIN (modules/menu_search.lua)
+
+  LL: "Menu search is not filtering. Somewhat filters when typing a
+  question mark but does nothing after when letters are picked."
+
+  🚨 A CHOOSER WITH A queryChangedCallback STOPS FILTERING FOR ITSELF.
+  hs.chooser hands the query to the callback INSTEAD of running its own
+  match — so the moment 6.196.0 added the "?" prefix, this list stopped
+  narrowing at all. And that callback returned early for every keystroke
+  that was not the first "?", which is every keystroke. His two clauses
+  are the two halves of one mechanism: "somewhat filters on ?" is that
+  single rebuild, and "does nothing after" is the early return. ⇪. has
+  been unfilterable since the release that added the question mark.
+
+  🔑 THE RULE WAS ALREADY WRITTEN DOWN IN THIS CONFIG, in
+  default_apps.lua, in its own comment: "a chooser with a
+  queryChangedCallback stops filtering for itself (file_tracker's
+  pattern)." Twenty pickers here set one of these callbacks and
+  NINETEEN rebuild their rows from the query on every keystroke. This
+  was the twentieth, and nobody swept — 6.305.0, a rule written about
+  one caller is not a rule until every caller has been asked. The sweep
+  is measured and in the gate now rather than asserted.
+
+  📏 EVERY TERM MUST MATCH, in any order, over the item AND its menu
+  path AND its shortcut — which is what `:searchSubText(true)` was
+  buying before the callback took the filtering away. So "exp pdf" still
+  finds File ▸ Export As ▸ PDF…, which is the whole reason this list is
+  flat. A leading "?" is the shortcuts-only view and is NOT part of what
+  is matched, so "?win" is "the shortcut rows, narrowed to win".
+
+
 NEW IN 6.407.0 — 📐 THE EDITOR'S CEILING, AND WHAT HAPPENS WHEN IT MEETS
   THE FLOOR (modules/screenshot_editor.lua)
 

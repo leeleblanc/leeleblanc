@@ -629,3 +629,69 @@ and the rails SCROLL, which 6.270.0 already built — a window taller
 than the display is buttons he cannot click.
 📏 STILL OWED: **the crop tool.** New drawing, a new saved rectangle,
 and its own release.
+
+---
+
+## K. HIS 2026-11-06 REPORT — "PLEASE DO A SOLID PASS OF DEBUGGING"
+
+Six items, one escalation, three screenshots and a Console. Everything
+in it is now built; what each turned out to be is below, because three
+of the six were not what the sentence said.
+
+| # | His words | What it was | Shipped |
+|---|---|---|---|
+| 0 | ESCALATE: "Draft keeper doesn't seem to be working. How do I know?" | Chromium does not publish its page until asked — six of seven watched apps are Chromium | ✅ **6.411.0** + `_G.draftCheck()` |
+| 1 | "Right-click actuates where the mouse is but not on the current highlighted file" | A decision in the module's own header, expired | ✅ **6.409.0** |
+| 2 | "Menu search is not filtering … somewhat filters when typing a question mark" | A queryChangedCallback replaces the chooser's own filter; dead since 6.196.0 | ✅ **6.408.0** |
+| 3 | "Can it do a set of checks for most important functions?" | Never built | ✅ **6.413.0** `_G.selfTest()` |
+| 4 | "11-27-26 should be 11-27-2026 on hyper+shift+0" | A default — and the expansion half already worked while its counter lied | ✅ **6.412.0** |
+| — | His Console: two Jug Player refusals at 06:17:19 | 6.348.0's finding in the other player, named-not-swept | ✅ **6.410.0** |
+
+### K1. 🩺 THE ESCALATION, AND WHY IT COULD NEVER HAVE WORKED
+`AXFocusedUIElement` on a Chromium app answers about the window chrome
+until something asks the app to build its accessibility tree. The watch
+list is Chrome, Chromium, Safari, Edge, Firefox, Brave, Arc, Vivaldi,
+Opera and Outlook — **six of those are Chromium**, so the module read
+nothing in exactly the apps it was written for and recorded "nothing is
+focused" about a field he was typing into.
+🚨 NEW GROUND: whether his build honours `AXManualAccessibility` or
+`AXEnhancedUserInterface` is a fact about HIS Mac (6.233.0), so it asks,
+records which was accepted, and names a refusal as the APP saying no.
+🩺 AND "HOW DO I KNOW?" IS THE BIGGER HALF — 6.317.0 for the sixth
+time. The report describes a SESSION and he is asking about THIS field;
+"0 kept" is true of a quiet morning and of a feature that can never read
+anything. `_G.draftCheck()` reads the focused field at the moment it is
+called. It never prints the text.
+
+### K2. 🔎 THE ONE THAT WAS WRITTEN DOWN AND NEVER SWEPT
+`default_apps.lua` carries the rule in its own comment — "a chooser with
+a queryChangedCallback stops filtering for itself". **Twenty pickers set
+one and nineteen rebuild their rows from the query.** menu_search was
+the twentieth. 6.305.0 again, and the sweep is measured rather than
+asserted.
+
+### K3. 🗿 AND ONE OF THEM WAS A DECISION, NOT A BUG
+right_click.lua's header says in writing that it never asks what is
+selected. That is a year old and he has been pressing the key at files
+he had already clicked. Narrowed by SHAPE (does the focused element have
+selected rows?) rather than by a list of apps, so Finder, a message list
+and a sidebar all work and a text field is untouched.
+
+### K4. 📅 AND ONE WAS ALREADY TRUE, WITH A LIAR IN FRONT OF IT
+6.371.0 expands `11-06-26 ` → `11-06-2026 `. `_G.acDateCount` was
+defined forty-four lines above the locals it reads, so the report said
+"no two-digit date typed this session" on every Mac, for ever. The
+feature was alive; the only line that could say so said no. The
+calendar half is a default changed and shipped (6.267.0).
+
+### K5. ❓ WHAT IT ASKS HIM
+1. Is the self-test block at boot welcome, or noise? (`sayBoot`)
+2. Dashes or slashes for the calendar's copy? He gave both.
+3. If `_G.draftCheck()` says an app REFUSED its tree — which app?
+4. Does ⇪⇧F aiming at the selection ever get in his way? (`useSelection`)
+
+### K6. 📏 STILL OWED, UNCHANGED BY THIS BATCH
+D7's second half (the crop tool) · the @reports release (his Q3) · the
+focus-door naming (his Q4) · E1–E16 · F1 (`tests/test_lint.lua`) · D1
+⌘Space · D4 the Mug Player's size · D5 ⇪7's detail · D8 the public
+config · D10 ⌥Tab lists every panel.
