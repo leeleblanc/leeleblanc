@@ -7202,6 +7202,18 @@ THE METHOD, when something breaks after a stacked zip:
    carries a `── why (measured at the storm) ──` section naming which of
    the remap, the tap or Secure Input was wrong, and that section is the
    thing to read before touching anything.
+   · 6.414.0 **624115e is the code and the archive, and 624115e is the
+   SHA every link to it must carry** — a branch-pinned link dies the
+   moment the next release deletes the file, which is why 6.356.0–6.358.0
+   never reached his Downloads (6.360.0). 28 of 28 mutations bit and the
+   no-op control survived, restore SHA-verified; the one survivor of the
+   first sweep was ⏎'s extra guard, which was DELETED rather than given a
+   check, because the text-box branch above it already claims the only
+   case that matters (6.199.0, ninth time).
+   🔑 IT IS ONE MODULE AND ONE KEY, which matters for a bisect: if
+   anything else in this config changes behaviour on 6.414.0, it is not
+   this. The only shared file it touches is the JS test harness's canvas
+   stub, whose row stride now follows cv.width as a real canvas's does.
    Keep this list current: one line per release, appended at ceremony
    time.
 4. A BISECT IS AN OPTION, NOT THE FIRST MOVE — it costs him an install
