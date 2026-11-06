@@ -61,6 +61,7 @@ local M = {
             { "⌘V ⌘A", "6.213.0: paste the clipboard's IMAGE onto the shot · Add capture — drag an area of the screen and it lands on the shot (move the editor first if it is in the way)" },
             { "⌘D",    "6.342.0: Delayed AREA capture (macOS's ⇧⌘5 order) — this window gets out of the way, you DRAG the area you want, then five seconds to arrange the screen, then that rectangle lands on the shot" },
             { "⌘F",    "6.256.0: Full screen — the whole screen, right now, with this window out of the picture" },
+            { "K",     "6.414.0: CROP — drag a rectangle and everything outside it dims, so you can see what would GO before anything happens; ⏎ crops to it, ⌫ removes the rectangle, ⌘Z puts the shot back. One rectangle at a time; a new drag replaces it, and the marks inside move with the crop" },
             { "⌘O",    "6.258.0: Load a PRIOR shot — the canvas grows so you can see both, and what you have already drawn does not move" },
             { "text",  "click, type, ⏎ — white text, white outline box · click an EXISTING box (Text tool) to edit its words, or ⏎ on a selected one" },
             { "move",  "drag text/arrows around · arrow ENDS stretch + rotate · a selected text box has a corner dot — drag it to make the text bigger or smaller (⌘Z undoes it)" },
@@ -100,7 +101,7 @@ function M.setup(core)
     ed.railW      = 136    -- each rail, points. Both rails are the same
                            -- width: a canvas centred between two unequal
                            -- rails is off-centre in the window.
-    ed.railMinH   = 344    -- what the TALLER rail (nine tools) needs to
+    ed.railMinH   = 382    -- what the TALLER rail (TEN tools, 6.414.0) needs
                            -- show every button without scrolling. The
                            -- window floor is this plus the header, which
                            -- is the vertical half of his "big enough".
@@ -179,6 +180,15 @@ function M.setup(core)
     ed.growGap    = 12          -- pixels of surround between the two shots
     ed.growFill   = "#202127"   -- what the new room is painted with
     ed.growRows   = 40          -- prior shots offered in the picker
+
+    -- ✂️ 6.414.0 — CROP. D7's second half, and the only tool here that
+    -- takes pixels AWAY. Drag a rectangle with it and everything outside
+    -- is dimmed so what would GO is visible before anything happens; ⏎
+    -- commits. ONE rectangle at a time on purpose: two crops is a rule
+    -- he would have to remember, and the second one's meaning (of the
+    -- first result, or of the original?) has no obvious answer.
+    ed.cropMin    = 32          -- the floor on each side, image pixels
+    ed.cropDim    = 0.72        -- how dark the part that would go is drawn
     ed.kept = nil    -- { path, img, notes } — never written to disk, never
                      -- survives a reload; this is a safety net, not a store
     -- ----------------------------------------------------------------------
@@ -214,6 +224,11 @@ function M.setup(core)
     ed.canvasW, ed.canvasH, ed.pageSized = nil, nil, false
     ed.grows = { asked = 0, landed = 0, failed = 0 }
     ed.lastGrowWhy, ed.lastGrow = nil, nil
+    -- ✂️ 6.414.0 — counted APART from the grows: a crop refused for being
+    -- too small and a crop that covers the whole shot are different facts
+    -- and send a reader to different places (6.196.1).
+    ed.crops = { asked = 0, landed = 0, refused = 0 }
+    ed.lastCropWhy, ed.lastCrop = nil, nil
 
     -- ---- files -----------------------------------------------------------
     function ed.editedPathFor(path, ext)
@@ -352,6 +367,7 @@ function M.setup(core)
     <button id="tool-count" class="tool" onclick="setTool('count')" title="C">① Counter</button>
     <button id="tool-spot" class="tool" onclick="setTool('spot')" title="S">🔦 Spotlight</button>
     <button id="tool-mag" class="tool" onclick="setTool('mag')" title="M">🔍 Magnifier</button>
+    <button id="tool-crop" class="tool" onclick="setTool('crop')" title="K — drag a rectangle, then ⏎">✂︎ Crop</button>
   </nav>
   <div id="stage">
     <div id="wrap">
@@ -370,6 +386,7 @@ function M.setup(core)
     <button id="btn-full" onclick="say({a:'full'})" title="⌘F">🖥 Full screen</button>
     <button id="btn-load" onclick="say({a:'loadshot'})" title="⌘O">🖼 Load shot</button>
     <div class="lbl">Edit</div>
+    <button id="btn-crop" onclick="cropAsk()" title="⏎ — after dragging a rectangle with ✂︎ Crop (K)">✂︎ Crop to it</button>
     <button onclick="undoLast()" title="⌘Z">↩︎ Undo</button>
   </nav>
 </div>
@@ -386,6 +403,7 @@ function M.setup(core)
   var JPEGQ = ]] .. tostring(ed.jpegQuality) .. [[;
   var MAGZOOM = ]] .. tostring(tonumber(ed.magZoom) or 2) .. [[;
   var VEIL = ]] .. tostring(tonumber(ed.veilAlpha) or 0.55) .. [[;
+  var CROPDIM = ]] .. tostring(tonumber(ed.cropDim) or 0.72) .. [[;
   var DELAYSECS = ]] .. tostring(delaySecs) .. [[;
 
   function say(m){ window.webkit.messageHandlers.shotEditor.postMessage(m || {}); }
@@ -507,7 +525,7 @@ function M.setup(core)
 
   function setTool(t){
     tool = t;
-    var names = ['blur', 'text', 'arrow', 'line', 'oval', 'hl', 'count', 'spot', 'mag'], i, b;
+    var names = ['blur', 'text', 'arrow', 'line', 'oval', 'hl', 'count', 'spot', 'mag', 'crop'], i, b;
     for (i = 0; i < names.length; i++){
       b = document.getElementById('tool-' + names[i]);
       if (b) b.className = 'tool' + (names[i] === t ? ' on' : '');
@@ -538,6 +556,15 @@ function M.setup(core)
       if (ov){ ov.width = u.w; ov.height = u.h; }
       ctx.putImageData(u.data, 0, 0);
       sayCanvas();
+    }
+    // ✂️ 6.414.0 — the whole old canvas AND the shift, because a crop
+    // destroys the pixels outside it and moved every mark inside it
+    else if (u.op === 'crop'){
+      cv.width = u.w; cv.height = u.h;
+      if (ov){ ov.width = u.w; ov.height = u.h; }
+      ctx.putImageData(u.data, 0, 0);
+      shiftNotes(u.dx, u.dy);
+      sayCanvas(true);
     }
     else if (u.op === 'add'){
       var i = notes.indexOf(u.note);
@@ -641,7 +668,8 @@ function M.setup(core)
       return { x: Math.min(n.x1, n.x2), y: Math.min(n.y1, n.y2),
                w: Math.abs(n.x2 - n.x1), h: Math.abs(n.y2 - n.y1) };
     }
-    if (n.kind === 'oval' || n.kind === 'hl' || n.kind === 'spot' || n.kind === 'img')
+    if (n.kind === 'oval' || n.kind === 'hl' || n.kind === 'spot' || n.kind === 'img'
+        || n.kind === 'crop')
       return { x: n.x, y: n.y, w: n.w, h: n.h };
     if (n.kind === 'mag') return { x: n.x - n.r, y: n.y - n.r, w: n.r * 2, h: n.r * 2 };
     if (n.kind === 'count'){
@@ -693,7 +721,14 @@ function M.setup(core)
   // and nothing else, so there is one copy of the rule, in Lua, where the
   // gate can drive it. The old pixels go back at 0,0 — never centred —
   // because every note is in canvas coordinates and would otherwise move.
-  function sayCanvas(){ if (cv) say({ a: 'size', w: cv.width, h: cv.height }); }
+  // `fit` is additive (6.299.0): the old callers pass nothing and Lua
+  // only records, as it always has. A CROP — and the undo of one —
+  // changes the shape of the picture, and a canvas scaled to fit an
+  // unchanged window is drawn bigger and blurrier than it was, so those
+  // two ask for the window as well.
+  function sayCanvas(fit){
+    if (cv) say({ a: 'size', w: cv.width, h: cv.height, fit: !!fit });
+  }
   function growTo(src, nw, nh, ax, ay, fill){
     if (!cv || !ctx || !src) return false;
     nw = Math.round(Number(nw) || 0); nh = Math.round(Number(nh) || 0);
@@ -714,6 +749,100 @@ function M.setup(core)
       sayCanvas();
     };
     im.src = src;
+    return true;
+  }
+
+  // ✂️ 6.414.0 — CROP. The rectangle is an ordinary box note, so the hit
+  // test, the move, the size handle, ⌘Z and the stash-across-a-close all
+  // serve it with no new code — what is new is how it is DRAWN and what
+  // committing it does.
+  // 🔒 AND IT IS DRAWN FOR THE SCREEN AND NEVER FOR THE FILE. saveIt bakes
+  // the marks in with `drawAll(ctx, false)`, so every call here is behind
+  // `withSel`: a pending crop can never burn a dim overlay into a saved
+  // shot, and drawNote draws nothing at all for the kind.
+  function cropNote(){
+    for (var i = notes.length - 1; i >= 0; i--)
+      if (notes[i].kind === 'crop') return notes[i];
+    return null;
+  }
+  function drawCropMask(g){
+    var n = cropNote();
+    if (!n || !(n.w > 0) || !(n.h > 0)) return;
+    g.save();
+    g.shadowBlur = 0;
+    // the spotlight's veil INVERTED: there the box is the hole, here the
+    // box is the only thing that stays. What would GO is what is dim, so
+    // the question "what am I about to lose" is answered before ⏎.
+    g.fillStyle = 'rgba(0,0,0,' + CROPDIM + ')';
+    g.beginPath();
+    g.rect(0, 0, cv.width, cv.height);
+    g.rect(n.x, n.y, n.w, n.h);
+    g.fill('evenodd');
+    g.strokeStyle = '#ffffff';
+    g.lineWidth = Math.max(1, Math.round(lwidth() * 0.6));
+    if (g.setLineDash) g.setLineDash([Math.max(4, lwidth() * 2), Math.max(3, lwidth() * 1.5)]);
+    g.strokeRect(n.x, n.y, n.w, n.h);
+    if (g.setLineDash) g.setLineDash([]);
+    // 6.203.0 — the size and the two keys are said WHERE HE IS LOOKING,
+    // not in an alert under the window. Above the rectangle, or below it
+    // when there is no room above, and never off the side of the shot.
+    var fs = Math.max(13, Math.round(tsize() * 0.6));
+    g.font = fs + 'px -apple-system, BlinkMacSystemFont, sans-serif';
+    g.textBaseline = 'alphabetic';
+    g.textAlign = 'left';
+    var lbl = Math.round(n.w) + ' \u00d7 ' + Math.round(n.h) + '   \u23ce crops \u00b7 \u232b removes';
+    var tw = (g.measureText ? g.measureText(lbl).width : lbl.length * fs * 0.55) + fs;
+    var ty = (n.y > fs * 2.4) ? (n.y - fs * 0.7) : (n.y + n.h + fs * 1.5);
+    var tx = Math.min(Math.max(0, n.x), Math.max(0, cv.width - tw));
+    g.fillStyle = 'rgba(0,0,0,0.78)';
+    g.fillRect(tx, ty - fs, tw, fs * 1.45);
+    g.fillStyle = '#ffffff';
+    g.fillText(lbl, tx + fs * 0.5, ty + fs * 0.2);
+    g.restore();
+  }
+  // every mark is in canvas coordinates, so a crop moves all of them
+  function shiftNotes(dx, dy){
+    for (var i = 0; i < notes.length; i++){
+      var n = notes[i];
+      if (typeof n.x1 === 'number'){
+        n.x1 += dx; n.x2 += dx; n.y1 += dy; n.y2 += dy;
+      } else if (typeof n.x === 'number'){
+        n.x += dx; n.y += dy;
+      }
+    }
+  }
+  // The page ASKS and Lua decides — one copy of the rule, in the place the
+  // gate can drive it (6.258.0's shape). With no rectangle it still asks,
+  // so the refusal is Lua's one sentence rather than a silent button.
+  function cropAsk(){
+    commitText();
+    var n = cropNote();
+    if (!n){ say({ a: 'crop' }); return false; }
+    say({ a: 'crop', x: n.x, y: n.y, w: n.w, h: n.h });
+    return true;
+  }
+  function cropTo(x, y, w, h){
+    if (!cv || !ctx) return false;
+    x = Math.round(Number(x) || 0); y = Math.round(Number(y) || 0);
+    w = Math.round(Number(w) || 0); h = Math.round(Number(h) || 0);
+    if (w < 1 || h < 1 || x < 0 || y < 0
+        || x + w > cv.width || y + h > cv.height) return false;
+    commitText();
+    var keep = ctx.getImageData(x, y, w, h);
+    // 📏 THE UNDO CARRIES THE WHOLE OLD CANVAS AND THE SHIFT: shrinking a
+    // canvas destroys its pixels, and every mark moved with it.
+    pushUndo({ op: 'crop', w: cv.width, h: cv.height, dx: x, dy: y,
+               data: ctx.getImageData(0, 0, cv.width, cv.height) });
+    cv.width = w; cv.height = h;
+    if (ov){ ov.width = w; ov.height = h; }
+    ctx.putImageData(keep, 0, 0);
+    // the rectangle goes WITH the crop: it describes a shot that no longer
+    // exists, and a crop of a crop is a rule nobody asked for
+    var cn = cropNote(), ci = cn ? notes.indexOf(cn) : -1;
+    if (ci >= 0){ if (sel === cn) sel = null; notes.splice(ci, 1); }
+    shiftNotes(-x, -y);
+    redraw();
+    sayCanvas(true);
     return true;
   }
 
@@ -745,14 +874,18 @@ function M.setup(core)
     drawVeil(g);
     for (i = 0; i < notes.length; i++)
       if (notes[i].kind !== 'mag') drawNote(g, notes[i], withSel && notes[i] === sel);
+    // ✂️ last, over the marks, and ONLY for the screen — see drawCropMask
+    if (withSel) drawCropMask(g);
   }
   function drawNote(g, n, isSel){
     g.save();
     g.shadowColor = 'rgba(0,0,0,0.55)';
     g.shadowBlur = Math.max(3, lwidth());
     g.strokeStyle = '#ffffff'; g.fillStyle = '#ffffff';
-    if (n.kind === 'spot'){
-      // the veil (drawVeil) is the spotlight; here only its selection
+    if (n.kind === 'spot' || n.kind === 'crop'){
+      // the veil (drawVeil) is the spotlight and drawCropMask is the crop;
+      // here only their selection ring — and for the crop that matters
+      // twice over, because drawNote is what saveIt BAKES (6.414.0)
     } else if (n.kind === 'mag'){
       // 6.213.0 — the pixels under the circle, MAGZOOM× bigger, clipped
       // to the circle, with a white ring. Source is the base canvas, so
@@ -1065,7 +1198,20 @@ function M.setup(core)
         redraw();
         return;
       }
-      if (tool === 'oval' || tool === 'hl' || tool === 'spot'){
+      // ✂️ 6.414.0 — ONE crop rectangle: a new drag REPLACES the old one,
+      // and the replacement is undoable like any other delete. Two of
+      // them would need a rule about which ⏎ meant, and there is no
+      // obvious answer to "a crop of the first crop, or of the shot?".
+      if (tool === 'crop'){
+        var oldCrop = cropNote();
+        if (oldCrop){
+          var oi = notes.indexOf(oldCrop);
+          if (oi >= 0){ pushUndo({ op: 'del', note: oldCrop, index: oi });
+                        notes.splice(oi, 1); }
+          if (sel === oldCrop) sel = null;
+        }
+      }
+      if (tool === 'oval' || tool === 'hl' || tool === 'spot' || tool === 'crop'){
         var nb = { kind: tool, x: p.x, y: p.y, w: 0, h: 0 };
         notes.push(nb); sel = nb;
         drag = { mode: 'corner', note: nb, fresh: true, ox: p.x, oy: p.y };
@@ -1129,7 +1275,8 @@ function M.setup(core)
           var sc = Math.max(0.05, (drag.before.w + (p.x - drag.sx)) / Math.max(1, drag.before.w));
           n.w = Math.max(8, Math.round(drag.before.w * sc));
           n.h = Math.max(8, Math.round(drag.before.h * sc));
-        } else if (n.kind === 'oval' || n.kind === 'hl' || n.kind === 'spot'){
+        } else if (n.kind === 'oval' || n.kind === 'hl' || n.kind === 'spot'
+                   || n.kind === 'crop'){
           // 6.212.0 — the bottom-right corner follows the pointer; the
           // top-left stays put
           n.w = Math.max(4, Math.round(drag.before.w + (p.x - drag.sx)));
@@ -1183,7 +1330,8 @@ function M.setup(core)
       }
       var n = d.note;
       if (d.fresh){
-        var tiny = (n.kind === 'oval' || n.kind === 'hl' || n.kind === 'spot') ? (n.w < 4 || n.h < 4)
+        var tiny = (n.kind === 'oval' || n.kind === 'hl' || n.kind === 'spot'
+                    || n.kind === 'crop') ? (n.w < 4 || n.h < 4)
                  : (n.kind === 'mag') ? (n.r < 8)
                  : distPt(n.x1, n.y1, n.x2, n.y2) < 6;
         if (tiny){
@@ -1239,6 +1387,15 @@ function M.setup(core)
       else if (e.key === 'Enter' && !e.metaKey && sel && sel.kind === 'text') {
         e.preventDefault(); startText(sel);
       }
+      // ✂️ 6.414.0 — ⏎ commits the crop. IT SITS AFTER THE TEXT BRANCH
+      // ABOVE, and that ORDER is the whole rule: a selected text box
+      // keeps the key it has had since 6.207.0, and everything else with
+      // a rectangle drawn crops — because the hint on the rectangle says
+      // ⏎ crops, and a key that silently does nothing when some other
+      // mark is selected would be one more invisible condition (6.341.0).
+      else if (e.key === 'Enter' && !e.metaKey && cropNote()) {
+        e.preventDefault(); cropAsk();
+      }
       else if ((e.key === 'Backspace' || e.key === 'Delete') && sel) {
         e.preventDefault();
         var i = notes.indexOf(sel);
@@ -1255,6 +1412,7 @@ function M.setup(core)
         else if (e.key === 'c' || e.key === 'C') setTool('count');
         else if (e.key === 's' || e.key === 'S') setTool('spot');
         else if (e.key === 'm' || e.key === 'M') setTool('mag');
+        else if (e.key === 'k' || e.key === 'K') setTool('crop');
       }
     });
   }
@@ -1376,11 +1534,23 @@ function M.setup(core)
                 ed.lastGrowWhy = tostring(why)
                 pcall(function() hs.alert.show("🖌 " .. tostring(why), 3) end)
             end
+        elseif body.a == "crop" then
+            -- ✂️ 6.414.0 — a refusal is SEEN, at the moment it happens
+            -- (6.214.0), and it names the size rather than saying "no"
+            local ok, why = ed.cropWith(body.x, body.y, body.w, body.h)
+            if not ok then
+                pcall(function() hs.alert.show("✂️ " .. tostring(why), 3) end)
+            end
         elseif body.a == "size" then
             -- 6.258.0 — the page is the authority on its own canvas
             local w, h = tonumber(body.w), tonumber(body.h)
             if w and h and w > 0 and h > 0 then
                 ed.canvasW, ed.canvasH, ed.pageSized = w, h, true
+                -- ✂️ 6.414.0 — only a message that ASKS for it moves the
+                -- window (additive, 6.299.0): the undo of a crop is the
+                -- caller this exists for, and every older sender passes
+                -- nothing and is unaffected.
+                if body.fit then ed.resizeToCanvas(w, h) end
             end
         end
     end
@@ -1445,6 +1615,57 @@ function M.setup(core)
                  h = curH + gap + addH,
                  x = 0, y = curH + gap },
                ("%dx%d under %dx%d"):format(addW, addH, curW, curH)
+    end
+
+    -- ✂️ 6.414.0 — CROP, and the plan is Lua's for the same reason the
+    -- grow's is: ONE copy of the rule, in the place the gate can drive
+    -- it (6.258.0). The page hands over the rectangle it drew and does
+    -- the pixels afterwards; it never decides what is legal.
+    --
+    -- PURE. Answers the rectangle to keep, and why — nil and a reason
+    -- when there is nothing honest to do.
+    -- 🚨 IT DOES NOT TRUST THE PAGE'S NORMALISATION. The corner drag
+    -- already answers a positive w/h, and a service caller, a restored
+    -- session or a later edit need not — so a negative side is turned
+    -- round HERE, where the gate can prove it, rather than being assumed
+    -- upstream (6.273.0: the weaker guard is the one nobody can see).
+    -- 🔒 AND A RECTANGLE THAT COVERS THE WHOLE CANVAS IS REFUSED, which
+    -- is the fixture a naive implementation agrees with on every other
+    -- input (6.230.0): cropping to everything destroys the undo row's
+    -- worth of pixels, resizes nothing, and reads as a key that did not
+    -- work. The floor is the other refusal, and it NAMES THE SIZE,
+    -- because "6 × 4" is the whole diagnosis of a mis-drag (6.336.0).
+    function ed.cropPlan(cw, ch, x, y, w, h)
+        cw, ch = math.floor(tonumber(cw) or 0), math.floor(tonumber(ch) or 0)
+        if cw <= 0 or ch <= 0 then return nil, "the canvas has no size" end
+        x, y = tonumber(x), tonumber(y)
+        w, h = tonumber(w), tonumber(h)
+        if not (x and y and w and h) then
+            return nil, "drag a rectangle with the Crop tool (K) first"
+        end
+        -- a side dragged the other way is the same rectangle
+        if w < 0 then x, w = x + w, -w end
+        if h < 0 then y, h = y + h, -h end
+        x, y = math.floor(x + 0.5), math.floor(y + 0.5)
+        w, h = math.floor(w + 0.5), math.floor(h + 0.5)
+        -- clamped INTO the canvas: a rectangle dragged off the edge is
+        -- what the eye meant, and asking for pixels that are not there
+        -- is a blank strip down one side
+        if x < 0 then w, x = w + x, 0 end
+        if y < 0 then h, y = h + y, 0 end
+        if x > cw or y > ch then return nil, "that rectangle is off the shot" end
+        w = math.min(w, cw - x)
+        h = math.min(h, ch - y)
+        local floorPx = math.max(1, math.floor(tonumber(ed.cropMin) or 32))
+        if w < floorPx or h < floorPx then
+            return nil, ("that rectangle is %d × %d — a crop is at least %d × %d")
+                        :format(math.max(0, w), math.max(0, h), floorPx, floorPx)
+        end
+        if w >= cw and h >= ch then
+            return nil, "that is the whole shot — there is nothing to crop away"
+        end
+        return { x = x, y = y, w = w, h = h },
+               ("%d × %d kept out of %d × %d"):format(w, h, cw, ch)
     end
 
     -- PURE. The window a canvas of this size wants, clamped to a screen.
@@ -1602,6 +1823,45 @@ function M.setup(core)
                       .. plan.w .. "x" .. plan.h .. " (" .. who .. ")"
         -- The page will say its new size back; this is the belt, so a
         -- second ⌘O still has a number to work from if it does not.
+        ed.canvasW, ed.canvasH = plan.w, plan.h
+        ed.resizeToCanvas(plan.w, plan.h)
+        return true
+    end
+
+    -- ✂️ The crop itself. The page asks, Lua decides, the page does the
+    -- pixels — and only Lua can resize the WINDOW, which a crop needs:
+    -- the canvas is scaled to fit, so a cropped shot left in the old
+    -- window is drawn BIGGER and blurrier than it was.
+    function ed.cropWith(x, y, w, h)
+        if not ed.webview then return false, "the editor is not open" end
+        local curW, curH, who = ed.canvasSize()
+        if not curW then
+            return false, "the page has not said how big the canvas is"
+        end
+        ed.crops.asked = ed.crops.asked + 1
+        local plan, why = ed.cropPlan(curW, curH, x, y, w, h)
+        if not plan then
+            ed.crops.refused = ed.crops.refused + 1
+            ed.lastCropWhy = why
+            return false, why
+        end
+        local okEval, err = pcall(function()
+            if type(ed.webview.evaluateJavaScript) ~= "function" then
+                error("no evaluateJavaScript", 0)
+            end
+            ed.webview:evaluateJavaScript(("cropTo(%d, %d, %d, %d)")
+                :format(plan.x, plan.y, plan.w, plan.h))
+        end)
+        if not okEval then
+            ed.crops.refused = ed.crops.refused + 1
+            ed.lastCropWhy = "could not ask the page to crop (" .. tostring(err) .. ")"
+            return false, ed.lastCropWhy
+        end
+        ed.crops.landed = ed.crops.landed + 1
+        ed.lastCrop = why .. " (" .. who .. ")"
+        ed.lastCropWhy = nil
+        -- the belt, as the grow has: the page says its new size back, and
+        -- this means a second crop still has a number if it does not
         ed.canvasW, ed.canvasH = plan.w, plan.h
         ed.resizeToCanvas(plan.w, plan.h)
         return true
@@ -2206,6 +2466,23 @@ function M.setup(core)
         if ed.lastGrowWhy then
             L[#L + 1] = "   ↳ last refusal: " .. tostring(ed.lastGrowWhy)
         end
+        -- ✂️ 6.414.0 — counted apart from the grows, and a refusal names
+        -- the SIZE it was given (6.336.0): "6 × 4" is the whole diagnosis
+        -- of a mis-drag, where "refused" sends a reader nowhere.
+        local c = type(ed.crops) == "table" and ed.crops or {}
+        if num(c.asked, 0) == 0 then
+            L[#L + 1] = "   crop    : never asked this session (K, drag, then ⏎)"
+        else
+            L[#L + 1] = ("   crop    : %d asked · %d cropped · %d refused"):format(
+                            num(c.asked, 0), num(c.landed, 0), num(c.refused, 0))
+            if ed.lastCrop then L[#L + 1] = "   ↳ last: " .. tostring(ed.lastCrop) end
+            if ed.lastCropWhy then
+                L[#L + 1] = "   ↳ last refusal: " .. tostring(ed.lastCropWhy)
+            end
+        end
+        L[#L + 1] = ("   ↳ a crop is at least %d × %d, and never the whole shot")
+                        :format(math.floor(num(ed.cropMin, 32)),
+                                math.floor(num(ed.cropMin, 32)))
         L[#L + 1] = ("   settings: { screenshot_editor = { delaySecs = %d, hideForDelay = %s, "
                      .. "hideSettleSecs = %s } }")
                         :format(math.floor(num(ed.delaySecs, 5)),

@@ -68,7 +68,7 @@ said yes and it is not to be re-asked.
 | D4 | Size the Mug Player to the film | "Already said yes" | ☐ |
 | D5 | ⇪7's macOS detail | "yes" | ☐ |
 | D6 | Anchors' cold start, and the white box | "Escalate and build" | ✅ **6.405.0** (the surface + the service) and **6.406.0** (the blank window) |
-| D7 | The screenshot editor's sizing, then the crop tool | "Escalate and build" | ◨ **6.407.0** is the SIZING; the crop tool is its own release and is still owed |
+| D7 | The screenshot editor's sizing, then the crop tool | "Escalate and build" | ✅ **6.407.0** the SIZING · **6.414.0** the CROP TOOL |
 | D8 | The public sanitised config | "Build it and I'll review" | ☐ |
 | ~~D9~~ | ~~System volume + output-device switching + a mute toggle~~ | **DROPPED ON HIS WORD, 2026-11-04: "I already said drop this. I am not developing this."** My row was wrong — see J5 | ✅ struck |
 | D10 | ⌥Tab lists every panel | his answer, 6.374.0 batch | ☐ |
@@ -695,3 +695,36 @@ D7's second half (the crop tool) · the @reports release (his Q3) · the
 focus-door naming (his Q4) · E1–E16 · F1 (`tests/test_lint.lua`) · D1
 ⌘Space · D4 the Mug Player's size · D5 ⇪7's detail · D8 the public
 config · D10 ⌥Tab lists every panel.
+
+### K7 D7 IS CLOSED — THE CROP TOOL SHIPPED AS 6.414.0
+
+**6.414.0.** The half that was owed since 6.407.0, and it is a SMALL
+release for a reason worth writing down: the rectangle is an ordinary box
+note, so the corner drag, the hit test, the move, the size handle, ⌘Z and
+6.189.0's keep-across-a-close all served it with no new code. What a crop
+actually cost is the three things no existing mark needed — **how it is
+drawn before it acts** (the spotlight's veil inverted, so what would GO
+is what is dim), **what committing it does to everything else** (every
+mark shifts, arrow ends included, and the undo row carries the whole old
+canvas AND the shift), and **what it refuses**.
+🚨 THE REFUSAL THAT EARNED ITS CHECK is the whole-shot rectangle — the
+one input a naive implementation agrees with everywhere else (6.230.0):
+obeying it spends an undo row, resizes nothing and reads as a key that
+did not work. The floor names the SIZE (6.336.0).
+🔒 AND THE DIM IS DRAWN FOR THE SCREEN AND NEVER FOR THE FILE, with two
+belts, because a dark border baked into a saved screenshot cannot be
+recovered from the file.
+🗑 One guard was written and taken out again (6.199.0, ninth time): ⏎'s
+`(!sel || sel.kind === 'crop')` was unkillable because the text-box
+branch above already claims the only case that matters — the ORDER is
+the rule — and it was an invisible predicate besides.
+🔬 AND THE JS HARNESS FROZE THE PIXEL BUFFER'S ROW STRIDE at birth.
+Nothing noticed, because every resize in the suite until now was a GROW,
+which changes the HEIGHT; a crop changes the WIDTH. 6.290.0 in a new
+costume, and the general half is that a stub's DERIVED geometry is part
+of its fidelity.
+📏 WHAT IS STILL OPEN after this: the @reports release (his Q3), the
+focus-door naming (his Q4, which he may have deferred), E1–E16, F1
+(tests/test_lint.lua), and the standing D queue — D1 the ⌘Space
+launcher, D4 size the Mug Player to the film, D5 ⇪7's macOS detail, D8
+the public sanitised config, D10 ⌥Tab lists every panel.

@@ -2,10 +2,45 @@
 -- * Working VERSION *
 -- =====================================================================
 -- =====================================================================
--- 11-03-26 using Claude          ← EDITED date. Bumped with every release.
+-- 11-06-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.413.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.414.0
 -- =====================================================================
+
+-- NEW IN 6.414.0 — ✂️ THE CROP TOOL (modules/screenshot_editor.lua, K).
+--   LL, 2026-10-12: "I needed a tool that allows me to crop it." D7's
+--   second half; 6.407.0 was the sizing.
+--   🔑 THE RECTANGLE IS AN ORDINARY BOX NOTE, which is why this is a
+--   small release rather than a large one: the hit test, the move, the
+--   size handle, ⌘Z and the stash-across-a-close all serve it with no
+--   new code. What is new is how it is DRAWN, what committing it does,
+--   and the refusals.
+--   🔎 EVERYTHING OUTSIDE IT IS DIMMED — the spotlight's veil inverted,
+--   so what would GO is what is dim and "what am I about to lose" is
+--   answered BEFORE ⏎ rather than by an undo afterwards.
+--   🔒 AND IT IS DRAWN FOR THE SCREEN AND NEVER FOR THE FILE. saveIt
+--   bakes the marks in with drawAll(ctx, false), so every call is behind
+--   that flag and drawNote draws nothing at all for the kind — two
+--   belts, because a dim overlay burned into a saved shot is not
+--   recoverable from the file.
+--   📏 THE PLAN IS LUA'S (6.258.0's shape): the page asks, ed.cropPlan
+--   decides, the page does the pixels. ONE copy of the rule, in the
+--   place the gate can drive it — and only Lua can resize the WINDOW,
+--   which a crop needs, because the canvas is scaled to fit and a
+--   cropped shot left in the old window is drawn bigger and blurrier.
+--   🚨 TWO REFUSALS, EACH NAMED: under cropMin (32) on a side, with the
+--   SIZE in the sentence, because "6 × 4" is the whole diagnosis of a
+--   mis-drag (6.336.0); and a rectangle that IS the whole shot, which is
+--   the fixture a naive implementation agrees with on every other input
+--   (6.230.0) — obeying it spends an undo row, resizes nothing and reads
+--   as a key that did not work.
+--   ✂️ ONE RECTANGLE AT A TIME, and a new drag replaces it undoably: two
+--   would need a rule about which ⏎ meant, and "a crop of the first
+--   crop, or of the shot?" has no obvious answer.
+--   📐 EVERY MARK MOVES WITH THE PIXELS, and the undo row carries the
+--   whole old canvas AND the shift — shrinking a canvas destroys its
+--   pixels, and a crop that moved one and not the other puts each mark
+--   off the thing it points at.
 
 -- NEW IN 6.413.0 — 🩺 DO THE BIG TOOLS ANSWER? (modules/self_test.lua,
 --   _G.selfTest). LL: "After Hammerspoon runs the first time, can it do
@@ -32,34 +67,11 @@
 --   value is knowing the tools DID answer on the mornings before the one
 --   when they do not. self_test = { sayBoot = false } is quiet.
 
--- NEW IN 6.412.0 — 📅 THE DATE REPORT STOPS LYING, AND ⇪⇧0 COPIES 2026
---   (modules/autocorrect.lua + mini_calendar.lua). LL: "11-27-26 should
---   be 11-27-2026 or 11/27/2026 on hyper+shift+0. And 11/06/26,
---   11-06-26 should do the same expanding to 2026."
---   🚨 THE SECOND HALF ALREADY WORKED AND THE INSTRUMENT SAID IT NEVER
---   HAD. `_G.acDateCount` was defined FORTY-FOUR LINES ABOVE the two
---   locals it reads, so the closure captured the GLOBALS of those names
---   — which nothing assigns — and answered nil, nil on every Mac, for
---   ever. The tap incremented the real local; the report read the empty
---   global and printed "no two-digit date typed this session" over a day
---   of them. 6.335.0's defect in a second file, and the cheaper half to
---   carry: this cost NO feature and cost the only line that could say
---   the feature was alive, which is its own kind of expensive.
---   🔑 A PUBLISHED READER IS DEFINED BELOW EVERYTHING IT READS, and the
---   check that earns its place DRIVES the counter and then asks — a cold
---   ask answers 0 whether or not the bug is there (6.230.0).
---   📅 AND THE FIRST HALF IS A DEFAULT CHANGED AND SHIPPED (6.267.0):
---   cal.copyFormat was %m-%d-%y since the panel was written, which is
---   the exact string autocorrect has spent a release writing out in full
---   as he types. One literal, two readers — the cheat-sheet example is
---   BUILT from the format now, which is how that card came to advertise
---   08-07-26 for a year (6.311.0).
-
--- (6.411.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.412.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 cut the inline count to
 --  TWO; a gate check proves every entry here is also in CHANGELOG.md.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.413.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.414.0
 -- =====================================================================
 -- The catalogue that used to sit here moved to GUIDE.md ("What each
 -- tool does") in 6.180.0 — 259 lines of prose inside the orchestrator.
@@ -148,7 +160,7 @@ function _G.consoleRuleSay(what)
     return true
 end
 
-_G.configVersion = "6.413.0"
+_G.configVersion = "6.414.0"
 _G.consoleRuleSay("▶ BOOT")
 
 local function safeRequire(mod)

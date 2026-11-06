@@ -592,6 +592,51 @@ work Mac.
   from the format now (6.311.0), which is how that card came to
   advertise 08-07-26 for a year.
 
+- ✂️ A NEW MARK THAT TAKES PIXELS AWAY IS AN OLD MARK PLUS THREE
+  DECISIONS (6.414.0, modules/screenshot_editor.lua — LL, 2026-10-12:
+  "I needed a tool that allows me to crop it"). The rectangle is an
+  ordinary box note, so the corner drag, the hit test, the move, the
+  size handle, ⌘Z and the keep-across-a-close all serve it with NO new
+  code. What a crop actually costs is the three things no existing mark
+  needed: how it is DRAWN before it acts, what committing it does to
+  everything else, and what it refuses.
+  🔎 WHAT WOULD GO IS WHAT IS DIM — the spotlight's veil inverted, so
+  "what am I about to lose?" is answered BEFORE ⏎ rather than by an undo
+  afterwards. GENERAL: a destructive tool owes a preview in the same
+  surface it will destroy, not a confirmation dialog beside it.
+  🔒 AND IT IS DRAWN FOR THE SCREEN AND NEVER FOR THE FILE, with two
+  belts: saveIt bakes with `drawAll(ctx, false)`, so the mask sits
+  behind that flag, AND drawNote draws nothing at all for the kind. A
+  dim overlay burned into a saved screenshot cannot be recovered from
+  the file, which is the test of whether one belt is enough.
+  📏 THE PLAN IS LUA'S (6.258.0): the page asks, `ed.cropPlan` decides,
+  the page does the pixels — one copy of the rule where the gate can
+  drive it, and only Lua can resize the WINDOW, which a crop needs
+  because a cropped shot left in the old window is drawn bigger and
+  blurrier than it was.
+  🚨 AND THE REFUSAL THAT EARNS ITS PLACE IS THE WHOLE-SHOT RECTANGLE,
+  because it is the one input a naive implementation agrees with
+  everywhere else (6.230.0): obeying it spends an undo row, resizes
+  nothing and reads as a key that did not work. The floor NAMES THE SIZE
+  (6.336.0) — "6 × 4" is the diagnosis of a mis-drag; "refused" is not.
+  📐 EVERY MARK MOVES WITH THE PIXELS, arrow ends included, and the undo
+  row carries the whole old canvas AND the shift: shrinking a canvas
+  destroys its pixels, and moving one without the other puts each mark
+  off the thing it points at.
+  🗑 AND ⏎'s EXTRA GUARD WAS WRITTEN AND TAKEN OUT AGAIN (6.199.0,
+  NINTH time): `(!sel || sel.kind === 'crop')` was unkillable, because
+  the text-box branch above already claims the only case that matters —
+  THE ORDER IS THE RULE, and a check asserts it. It was also an
+  invisible predicate, and a ⏎ that quietly does nothing because an
+  arrow is selected is 6.341.0 in miniature.
+  🔬 THE JS HARNESS FROZE THE PIXEL BUFFER'S ROW STRIDE at the size the
+  stub was made with. No release noticed, because every resize in the
+  suite until now was a GROW, which changes the HEIGHT; a crop changes
+  the WIDTH. GENERAL, and it is 6.290.0 in a new costume: a stub's
+  DERIVED geometry is part of its fidelity — when a new release moves a
+  dimension no earlier one moved, check the harness still computes from
+  it rather than from a copy taken at birth.
+
 - 🩺 TWO INSTRUMENTS, TWO QUESTIONS, AND EACH SAYS WHICH IT IS (6.413.0,
   modules/self_test.lua — LL: "After Hammerspoon runs the first time,
   can it do a set of checks for most important functions? Screenshot
@@ -7238,6 +7283,7 @@ that must be READ before a new cause is named.
 | "I had a white box that was Hamsidian" · "then was left with that box" | modules/vault.lua — a bare pcall around the page write, and a handle published before the show | 6.406.0 | 1 | ask |
 | "No notes to pick yet" over a full vault · "is this so obvious I'm missing it" | modules/anchors.lua · vault.lua's index state | 6.340.0 · 6.405.0 | 2 | ask — 6.340.0 fixed the surface and swept no reader |
 | "the editor window is growing too big" · "not shrink down so much that the tools are not usable" | modules/screenshot_editor.lua · a ceiling that was only a fraction | 6.270.0 · 6.407.0 | 2 | ask |
+| "I needed a tool that allows me to crop it" | modules/screenshot_editor.lua · never built in any release | 6.414.0 | 1 | a new tool, not a defect |
 | "Menu search is not filtering" · "somewhat filters when typing a question mark but does nothing after" | modules/menu_search.lua · a queryChangedCallback replaces the chooser's own filter | 6.408.0 | 1 | degraded — the panel opened, the list never narrowed |
 | "Right-click actuates where the mouse is but not on the current highlighted file in Finder" | modules/right_click.lua · a decision from its own header, expired | 6.409.0 | 1 | not a defect — a shape nobody had re-asked |
 | "⚠️ Jug Player: macOS would not put the player on screen" four seconds into a boot | modules/music_player.lua · dylib loads in the same turn as the show | 6.348.0 · 6.410.0 | 1 | degraded — the key did nothing and said why |
@@ -7403,6 +7449,7 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
+| 6.414.0 | ✂️ The crop tool — drag a rectangle, see what would go, ⏎ crops to it | pending |
 | 6.413.0 | 🩺 _G.selfTest() — do the big tools answer? One row per tool, printed after every boot | pending |
 | 6.412.0 | 📅 ⇪⇧0 copies a four-digit year, and the date report stops saying a working rule never fired | pending |
 | 6.411.0 | 💾 The draft keeper asks Chromium for its page, and _G.draftCheck() answers "is it working" in five seconds | pending |
@@ -9095,6 +9142,128 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.414.0 verify with LL — ✂️ THE CROP TOOL (KNOWN GROUND)
+  WHAT CHANGED: the screenshot editor can crop. Drag a rectangle,
+  everything outside it goes dim so you can SEE what would be thrown
+  away, and ⏎ crops to it.
+  🔑 WHY IT IS SMALL: the rectangle is an ordinary mark, like an oval or
+  a highlight — so dragging it, moving it, resizing it by its corner and
+  ⌘Z all worked the day it was written. What this release had to build is
+  the dimming, what committing does to everything else on the shot, and
+  what it refuses.
+
+  A. THE HEADLINE — about a minute.
+  A1. Take a screenshot (⇪4 will do), then **⇪⇧1** to open the editor on
+      it.
+  A2. In the left-hand column of tools, at the bottom, there is a new
+      **✂︎ Crop**. Click it, or press the **K** key.
+      EXPECT: the button lights up like any other tool.
+  A3. Drag a rectangle over the part you want to KEEP.
+      EXPECT: everything OUTSIDE your rectangle goes dark, the rectangle
+      has a white dashed border, and a small black label on it reads the
+      size and "⏎ crops · ⌫ removes".
+      **A FAIL is nothing being dimmed** — then I have the drawing wrong
+      and I want to know.
+  A4. Press **⏎** (Return).
+      EXPECT: the shot is now just your rectangle, and the WINDOW shrinks
+      to fit it rather than stretching the smaller picture to fill the
+      old window.
+  A5. Press **⌘Z**.
+      EXPECT: the whole shot comes back, at its old size, with the
+      rectangle back on it. Nothing was lost.
+  A6. Press ⏎ again, then **⌘⏎** to save.
+      EXPECT: a "… (edited).png" beside the original holding the CROPPED
+      picture, and it is on your clipboard — ⌘V somewhere to check.
+
+  B. THE ONE THAT MATTERS MOST — your marks must move with the picture.
+  B1. Open the editor on a fresh shot. Draw an **arrow** pointing at
+      something, and add a **text box** beside it.
+  B2. Now press K and drag a rectangle that INCLUDES both of them but
+      cuts a good margin off the top and the left.
+  B3. Press ⏎.
+      EXPECT: the arrow is still pointing at exactly the same thing, and
+      the text box is still beside it.
+      **A FAIL is a mark that has slid** — if the arrow now points at
+      empty space, stop and tell me, because that is the one failure in
+      this release that quietly ruins a shot.
+  B4. ⌘Z. EXPECT: everything back where it was.
+
+  C. THE REFUSALS — each says what is wrong, in words.
+  C1. Press K and drag a TINY rectangle (a few pixels), then ⏎.
+      EXPECT: nothing is cropped and an alert reads "✂️ that rectangle is
+      6 × 4 — a crop is at least 32 × 32", with your actual numbers in
+      it. The size being in the sentence is deliberate: it is the whole
+      diagnosis of a mis-drag.
+  C2. Press K and drag a rectangle over the WHOLE shot, corner to corner,
+      then ⏎.
+      EXPECT: "✂️ that is the whole shot — there is nothing to crop
+      away". It refuses rather than pretending to work.
+  C3. Press the **✂︎ Crop to it** button in the RIGHT-hand column without
+      drawing a rectangle at all.
+      EXPECT: "✂️ drag a rectangle with the Crop tool (K) first" — a
+      sentence, not a button that does nothing.
+
+  D. THE EDGES WORTH ONE MINUTE EACH.
+  D1. Draw a rectangle, then draw a SECOND one somewhere else.
+      EXPECT: only ONE rectangle, the new one. There is deliberately
+      never more than one — two would need a rule about which ⏎ meant.
+  D2. Press ⌘Z twice after D1. EXPECT: the first ⌘Z takes the new
+      rectangle off and the second brings the old one back.
+  D3. Draw a rectangle and press **⌫** instead of ⏎.
+      EXPECT: the rectangle goes and nothing is cropped.
+  D4. Draw a rectangle and press **Esc** to close the editor. Reopen the
+      SAME shot with ⇪⇧1.
+      EXPECT: your rectangle is still there, like any other mark (6.189.0
+      keeps the work across a close).
+  D5. 🔒 Draw a rectangle and press **⌘⏎** to save WITHOUT cropping.
+      EXPECT: the saved file is the UNCROPPED shot with NO dim overlay
+      and NO label burned into it. If a saved file ever has the dark
+      border in it, tell me at once — that one cannot be undone from the
+      file.
+  D6. Drag the rectangle by its middle, and drag its bottom-right dot to
+      resize it, before pressing ⏎. Both should work like any other mark.
+
+  E. MUST STILL WORK — this touched the window that draws every mark, so
+     this half matters more than A.
+  E1. The nine other tools, one at a time: B blur · T text · A arrow ·
+      L line · O oval · H highlight · C counter · S spotlight ·
+      M magnifier.
+  E2. ⌘Z after each. ⌘-click a mark to select it. ⌫ to delete one.
+  E3. ⌘A add capture · ⌘D delayed · ⌘F full screen · ⌘O load a shot ·
+      ⌘V paste an image.
+  E4. ⌘-drag the title strip to move the window.
+  E5. 🚨 **⌘O specifically**, because it is the other thing that resizes
+      the canvas: load a prior shot, check the canvas GROWS and your
+      existing marks have not moved, then ⌘Z.
+
+  F. PASTE BACK, PASS OR FAIL.
+  F1. `_G.screenshotEditorReport()` — there is a new `crop    :` line:
+        crop    : 3 asked · 1 cropped · 2 refused
+        ↳ last: 1280 × 720 kept out of 2560 × 1440 (the page said so)
+        ↳ last refusal: that rectangle is 6 × 4 — a crop is at least 32 × 32
+        ↳ a crop is at least 32 × 32, and never the whole shot
+      Paste the whole block. "never asked this session" is the healthy
+      reading before you have used it, and it is deliberately different
+      wording from "0 cropped".
+
+  G. A JUDGEMENT ONLY YOU CAN MAKE.
+  G1. **32 pixels on a side is MY floor.** It is there so a stray click
+      cannot crop a 4K screenshot down to nothing — but if you ever want
+      a genuinely tiny crop it is in the way. One number:
+      `settings = { screenshot_editor = { cropMin = 8 } }`. Say what you
+      want and I will change the default rather than leave you a line to
+      type.
+  G2. **Is the dim the right darkness?** It is 72% black. Too dark to see
+      what you are cutting off, or not dark enough to tell the two apart?
+      `cropDim`, and the same offer applies.
+  G3. **Should ⏎ ask first?** It does not — it crops, and ⌘Z puts it
+      back. I chose that because every other mark in this editor acts
+      immediately and the dim already shows you the outcome. Say if you
+      would rather it confirmed.
+  G4. 🔨 Nothing was broken and nothing was lost — this is a tool you
+      asked for and did not have. If it ever loses a mark (step B) that
+      is a different matter and I want it named.
+
 - 6.413.0 verify with LL — 🩺 DO THE BIG TOOLS ANSWER? (KNOWN GROUND)
   WHAT CHANGED: a new command, and a block that prints itself a few
   seconds after every boot. One row per tool — the five you named, plus

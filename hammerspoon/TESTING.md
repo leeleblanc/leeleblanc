@@ -1,4 +1,4 @@
-# TESTING — how to score release 6.413.0
+# TESTING — how to score release 6.414.0
 
 You install ONE archive and it carries several releases. Below are the
 steps for each release this archive is new for, newest first. Run the
@@ -26,6 +26,132 @@ else is a LOSS and I fix it before building further. You are the only
 scorer; I never mark my own.
 
 ---
+
+## 6.414.0
+
+6.414.0 verify with LL — ✂️ THE CROP TOOL (KNOWN GROUND)
+WHAT CHANGED: the screenshot editor can crop. Drag a rectangle,
+everything outside it goes dim so you can SEE what would be thrown
+away, and ⏎ crops to it.
+🔑 WHY IT IS SMALL: the rectangle is an ordinary mark, like an oval or
+a highlight — so dragging it, moving it, resizing it by its corner and
+⌘Z all worked the day it was written. What this release had to build is
+the dimming, what committing does to everything else on the shot, and
+what it refuses.
+
+A. THE HEADLINE — about a minute.
+A1. Take a screenshot (⇪4 will do), then **⇪⇧1** to open the editor on
+    it.
+A2. In the left-hand column of tools, at the bottom, there is a new
+    **✂︎ Crop**. Click it, or press the **K** key.
+    EXPECT: the button lights up like any other tool.
+A3. Drag a rectangle over the part you want to KEEP.
+    EXPECT: everything OUTSIDE your rectangle goes dark, the rectangle
+    has a white dashed border, and a small black label on it reads the
+    size and "⏎ crops · ⌫ removes".
+    **A FAIL is nothing being dimmed** — then I have the drawing wrong
+    and I want to know.
+A4. Press **⏎** (Return).
+    EXPECT: the shot is now just your rectangle, and the WINDOW shrinks
+    to fit it rather than stretching the smaller picture to fill the
+    old window.
+A5. Press **⌘Z**.
+    EXPECT: the whole shot comes back, at its old size, with the
+    rectangle back on it. Nothing was lost.
+A6. Press ⏎ again, then **⌘⏎** to save.
+    EXPECT: a "… (edited).png" beside the original holding the CROPPED
+    picture, and it is on your clipboard — ⌘V somewhere to check.
+
+B. THE ONE THAT MATTERS MOST — your marks must move with the picture.
+B1. Open the editor on a fresh shot. Draw an **arrow** pointing at
+    something, and add a **text box** beside it.
+B2. Now press K and drag a rectangle that INCLUDES both of them but
+    cuts a good margin off the top and the left.
+B3. Press ⏎.
+    EXPECT: the arrow is still pointing at exactly the same thing, and
+    the text box is still beside it.
+    **A FAIL is a mark that has slid** — if the arrow now points at
+    empty space, stop and tell me, because that is the one failure in
+    this release that quietly ruins a shot.
+B4. ⌘Z. EXPECT: everything back where it was.
+
+C. THE REFUSALS — each says what is wrong, in words.
+C1. Press K and drag a TINY rectangle (a few pixels), then ⏎.
+    EXPECT: nothing is cropped and an alert reads "✂️ that rectangle is
+    6 × 4 — a crop is at least 32 × 32", with your actual numbers in
+    it. The size being in the sentence is deliberate: it is the whole
+    diagnosis of a mis-drag.
+C2. Press K and drag a rectangle over the WHOLE shot, corner to corner,
+    then ⏎.
+    EXPECT: "✂️ that is the whole shot — there is nothing to crop
+    away". It refuses rather than pretending to work.
+C3. Press the **✂︎ Crop to it** button in the RIGHT-hand column without
+    drawing a rectangle at all.
+    EXPECT: "✂️ drag a rectangle with the Crop tool (K) first" — a
+    sentence, not a button that does nothing.
+
+D. THE EDGES WORTH ONE MINUTE EACH.
+D1. Draw a rectangle, then draw a SECOND one somewhere else.
+    EXPECT: only ONE rectangle, the new one. There is deliberately
+    never more than one — two would need a rule about which ⏎ meant.
+D2. Press ⌘Z twice after D1. EXPECT: the first ⌘Z takes the new
+    rectangle off and the second brings the old one back.
+D3. Draw a rectangle and press **⌫** instead of ⏎.
+    EXPECT: the rectangle goes and nothing is cropped.
+D4. Draw a rectangle and press **Esc** to close the editor. Reopen the
+    SAME shot with ⇪⇧1.
+    EXPECT: your rectangle is still there, like any other mark (6.189.0
+    keeps the work across a close).
+D5. 🔒 Draw a rectangle and press **⌘⏎** to save WITHOUT cropping.
+    EXPECT: the saved file is the UNCROPPED shot with NO dim overlay
+    and NO label burned into it. If a saved file ever has the dark
+    border in it, tell me at once — that one cannot be undone from the
+    file.
+D6. Drag the rectangle by its middle, and drag its bottom-right dot to
+    resize it, before pressing ⏎. Both should work like any other mark.
+
+E. MUST STILL WORK — this touched the window that draws every mark, so
+   this half matters more than A.
+E1. The nine other tools, one at a time: B blur · T text · A arrow ·
+    L line · O oval · H highlight · C counter · S spotlight ·
+    M magnifier.
+E2. ⌘Z after each. ⌘-click a mark to select it. ⌫ to delete one.
+E3. ⌘A add capture · ⌘D delayed · ⌘F full screen · ⌘O load a shot ·
+    ⌘V paste an image.
+E4. ⌘-drag the title strip to move the window.
+E5. 🚨 **⌘O specifically**, because it is the other thing that resizes
+    the canvas: load a prior shot, check the canvas GROWS and your
+    existing marks have not moved, then ⌘Z.
+
+F. PASTE BACK, PASS OR FAIL.
+F1. `_G.screenshotEditorReport()` — there is a new `crop    :` line:
+      crop    : 3 asked · 1 cropped · 2 refused
+      ↳ last: 1280 × 720 kept out of 2560 × 1440 (the page said so)
+      ↳ last refusal: that rectangle is 6 × 4 — a crop is at least 32 × 32
+      ↳ a crop is at least 32 × 32, and never the whole shot
+    Paste the whole block. "never asked this session" is the healthy
+    reading before you have used it, and it is deliberately different
+    wording from "0 cropped".
+
+G. A JUDGEMENT ONLY YOU CAN MAKE.
+G1. **32 pixels on a side is MY floor.** It is there so a stray click
+    cannot crop a 4K screenshot down to nothing — but if you ever want
+    a genuinely tiny crop it is in the way. One number:
+    `settings = { screenshot_editor = { cropMin = 8 } }`. Say what you
+    want and I will change the default rather than leave you a line to
+    type.
+G2. **Is the dim the right darkness?** It is 72% black. Too dark to see
+    what you are cutting off, or not dark enough to tell the two apart?
+    `cropDim`, and the same offer applies.
+G3. **Should ⏎ ask first?** It does not — it crops, and ⌘Z puts it
+    back. I chose that because every other mark in this editor acts
+    immediately and the dim already shows you the outcome. Say if you
+    would rather it confirmed.
+G4. 🔨 Nothing was broken and nothing was lost — this is a tool you
+    asked for and did not have. If it ever loses a mark (step B) that
+    is a different matter and I want it named.
+
+
 
 ## 6.413.0
 
@@ -253,51 +379,6 @@ D3. 🔨 While this was not working, was the Mac unusable, or did this
     one tool just not do its job? My reading is the second — it is a
     watcher, nothing else noticed — but the tag is yours, and the
     honest pass count on D3 is now 2.
-
-
-
-## 6.410.0
-
-6.410.0 verify with LL — 🪪 THE FIRST ⇪⇧. OF A SESSION (KNOWN GROUND)
-WHAT CHANGED: when macOS refuses to put the Jug Player on screen, the
-key tries once more a beat later instead of giving up — and the two
-library loads that made that beat expensive are paid off the keypress.
-🔎 THIS IS FROM YOUR OWN CONSOLE, four seconds into the 06:17 boot:
-`-- Loading extension: mouse` · `⚠️ Jug Player: macOS raised while
-ordering the window on screen` · `-- Loading extension: notify` ·
-`⚠️ Jug Player: macOS would not put the player on screen`. The first
-press of a session was loading two of Hammerspoon's libraries on the
-main thread and then asking AppKit to order a window on screen in the
-same turn. **6.348.0 fixed exactly this in the Mug Player and named
-the Jug Player as not swept.** It is swept now.
-
-A. THE HEADLINE — and the case that matters is the FIRST press.
-A1. Reload Hammerspoon (⌘⌃R). Wait ten seconds, pressing nothing.
-A2. Press **⇪⇧.** — hold Caps Lock and Shift, press the full stop.
-    EXPECT: the player card appears. **A FAIL is nothing happening.**
-A3. Watch the Console while you do A2. EXPECT NO
-    `-- Loading extension: mouse` or `notify` line at that moment —
-    they should have loaded a few seconds after boot instead.
-A4. Close and open it several times. EXPECT: every time.
-
-B. THE RETRY, WHICH YOU MAY NEVER SEE.
-B1. If a press seems to do nothing and the card appears a moment
-    later, that IS the retry, and it is normal.
-B2. If you get "macOS would not put the player on screen, **twice**",
-    paste it: two refusals in a row is a real no and something bigger
-    than a busy turn.
-
-C. PASTE BACK.
-C1. `_G.musicReport()` — the `opens :` line, and the new `↳ retry :`
-    line under it when anything was refused. Three facts, never summed:
-    came up on the retry · refused twice · could not arm a retry.
-
-D. MUST STILL WORK.
-D1. Drop an mp3 on the card — it queues and plays.
-D2. space, ↑↓, ⏎, ⌘1–9, ← →, ⌫, the ✕ on a history row.
-D3. Drag the card by its title strip; close and reopen — it is where
-    you left it.
-D4. ⇪⇧, the Mug Player still opens (different module, same shape).
 
 
 

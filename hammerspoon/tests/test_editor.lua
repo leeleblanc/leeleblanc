@@ -1336,10 +1336,14 @@ do
     E.open(SRC)
     printed = {}
     local rep2 = _G.screenshotEditorReport()
+    local function line(rep, head)
+        return rep:match("\n%s*" .. head .. "%s*:[^\n]*") or ""
+    end
     c13("🔎 the counts are per SESSION, not per window — closing and "
         .. "reopening the editor does not forget what this session did",
-        rep2:find("grow    :", 1, true) ~= nil
-        and rep2:find("never asked", 1, true) == nil)
+        line(rep2, "grow") ~= ""
+        and line(rep2, "grow"):find("never asked", 1, true) == nil,
+        line(rep2, "grow"))
     E.grows.asked, E.grows.landed, E.grows.failed = 0, 0, 0
     printed = {}
     local rep3 = _G.screenshotEditorReport()
@@ -1636,6 +1640,212 @@ do
 
     c15("§15 ran every one of its checks", (pass + fail) - n15 == 16,
         (pass + fail) - n15)
+end
+
+
+-- =======================================================================
+-- 16. ✂️ 6.414.0 — THE CROP TOOL (D7's second half)
+-- =======================================================================
+-- "I needed a tool that allows me to crop it." The rectangle is an
+-- ordinary box note, so the hit test, the move, the size handle and ⌘Z
+-- serve it with no new code — what is new is the PLAN (Lua's, so the gate
+-- can drive it), the refusals, and the window following the new shape.
+do
+    local n16 = pass + fail
+    local function c16(what, ok, got) check(what, ok, got) end
+    local E = _G.screenshotEditor
+
+    -- ---- the PURE plan ------------------------------------------------
+    local r, why = E.cropPlan(800, 600, 100, 50, 400, 300)
+    c16("✂️ an ordinary rectangle is kept as drawn",
+        r and r.x == 100 and r.y == 50 and r.w == 400 and r.h == 300, why)
+    c16("…and the reason names what is kept out of what",
+        tostring(why):find("400 × 300 kept out of 800 × 600", 1, true) ~= nil, why)
+
+    -- 🚨 THE PAGE'S NORMALISATION IS NOT TRUSTED. The corner drag answers
+    -- a positive w/h today; a service caller, a restored session or a
+    -- later edit need not, and the weaker guard is the one nobody can see
+    -- (6.273.0).
+    local rNeg = E.cropPlan(800, 600, 500, 350, -400, -300)
+    c16("✂️ a side dragged the other way is the SAME rectangle",
+        rNeg and rNeg.x == 100 and rNeg.y == 50 and rNeg.w == 400 and rNeg.h == 300,
+        rNeg and (rNeg.x .. "," .. rNeg.y .. " " .. rNeg.w .. "x" .. rNeg.h))
+
+    local rOff = E.cropPlan(800, 600, -50, -50, 400, 300)
+    c16("✂️ a rectangle dragged off the top-left is clamped INTO the shot,"
+        .. " because asking for pixels that are not there is a blank strip",
+        rOff and rOff.x == 0 and rOff.y == 0 and rOff.w == 350 and rOff.h == 250,
+        rOff and (rOff.x .. "," .. rOff.y .. " " .. rOff.w .. "x" .. rOff.h))
+    local rOff2 = E.cropPlan(800, 600, 600, 400, 400, 400)
+    c16("…and off the bottom-right the same way",
+        rOff2 and rOff2.w == 200 and rOff2.h == 200,
+        rOff2 and (rOff2.w .. "x" .. rOff2.h))
+
+    -- 🔒 THE FIXTURE A NAIVE IMPLEMENTATION AGREES WITH EVERYWHERE ELSE
+    -- (6.230.0): cropping to the WHOLE shot spends an undo row, resizes
+    -- nothing, and reads as a key that did not work.
+    local rAll, whyAll = E.cropPlan(800, 600, 0, 0, 800, 600)
+    c16("✂️ a rectangle that IS the whole shot is refused, not obeyed",
+        rAll == nil and tostring(whyAll):find("nothing to crop away", 1, true) ~= nil,
+        tostring(whyAll))
+    local rBig = E.cropPlan(800, 600, 0, 0, 9000, 9000)
+    c16("…and so is one bigger than the shot, which clamps to the whole of it",
+        rBig == nil, rBig and "a plan")
+
+    -- the floor, and it NAMES THE SIZE: "6 × 4" is the whole diagnosis of
+    -- a mis-drag, where "refused" sends a reader nowhere (6.336.0)
+    local rTiny, whyTiny = E.cropPlan(800, 600, 10, 10, 6, 4)
+    c16("✂️ a mis-drag is refused AND the size is in the sentence",
+        rTiny == nil and tostring(whyTiny):find("6 × 4", 1, true) ~= nil,
+        tostring(whyTiny))
+
+    local rNil, whyNil = E.cropPlan(800, 600)
+    c16("✂️ no rectangle at all says what to do, and names the key",
+        rNil == nil and tostring(whyNil):find("Crop tool (K)", 1, true) ~= nil,
+        tostring(whyNil))
+    c16("✂️ a canvas with no size is refused before anything else",
+        E.cropPlan(0, 0, 1, 1, 100, 100) == nil)
+    local _, whyGone = E.cropPlan(800, 600, 2000, 2000, 100, 100)
+    c16("✂️ a rectangle entirely off the shot says so rather than clamping"
+        .. " to a strip",
+        tostring(whyGone):find("off the shot", 1, true) ~= nil, tostring(whyGone))
+
+    -- 6.239.0 — MOVE the config and require the rule to follow, rather
+    -- than asserting the shipped 32 (which passes when it is typed twice)
+    local savedMin = E.cropMin
+    E.cropMin = 200
+    local rMid, whyMid = E.cropPlan(800, 600, 0, 0, 100, 100)
+    c16("✂️ the floor is read off ed.cropMin, not typed into the rule",
+        rMid == nil and tostring(whyMid):find("200 × 200", 1, true) ~= nil,
+        tostring(whyMid))
+    E.cropMin = 1
+    c16("…and a floor of 1 lets a tiny rectangle through, so the refusal"
+        .. " really is the config and not a second constant",
+        E.cropPlan(800, 600, 0, 0, 2, 2) ~= nil)
+    E.cropMin = savedMin
+
+    -- ---- the DOOR: the page asks, Lua decides, the page is given the
+    --      numbers, and the WINDOW follows the new shape ---------------
+    E.open(SRC)
+    BRIDGE({ body = { a = "size", w = 800, h = 600 } })
+    local wideRect = VIEW:frame()
+    JS = {}; ALERTS = {}
+    E.crops = { asked = 0, landed = 0, refused = 0 }
+    BRIDGE({ body = { a = "crop", x = 100, y = 50, w = 400, h = 300 } })
+    local pushed = table.concat(JS, "\n")
+    c16("✂️ the page's ask reaches cropTo with the PLANNED numbers",
+        pushed:find("cropTo(100, 50, 400, 300)", 1, true) ~= nil, pushed)
+    c16("…and it is counted as cropped, not as refused",
+        E.crops.asked == 1 and E.crops.landed == 1 and E.crops.refused == 0,
+        E.crops.asked .. "/" .. E.crops.landed .. "/" .. E.crops.refused)
+    c16("…nothing was alerted, because nothing was refused",
+        #ALERTS == 0, table.concat(ALERTS, " | "))
+    -- 🔑 ONLY LUA CAN RESIZE THE WINDOW, and a crop needs it: the canvas
+    -- is scaled to fit, so a cropped shot in the old window is drawn
+    -- BIGGER and blurrier than it was.
+    local narrow = VIEW:frame()
+    c16("✂️ the WINDOW follows the crop — a smaller shot gets a smaller"
+        .. " window, or the canvas is scaled up and goes blurry",
+        narrow.w < wideRect.w, wideRect.w .. " → " .. narrow.w)
+
+    -- a refusal: nothing pushed, counted apart, and SEEN (6.214.0)
+    JS = {}; ALERTS = {}
+    BRIDGE({ body = { a = "crop", x = 0, y = 0, w = 4, h = 4 } })
+    c16("✂️ a refused crop pushes NOTHING into the page",
+        table.concat(JS, "\n"):find("cropTo", 1, true) == nil,
+        table.concat(JS, "\n"))
+    c16("…is counted as refused rather than cropped",
+        E.crops.refused == 1 and E.crops.landed == 1,
+        E.crops.landed .. "/" .. E.crops.refused)
+    c16("…and is SEEN on screen at the moment it happens, with the size"
+        .. " in it (6.214.0 — a break is seen, never only logged)",
+        #ALERTS == 1 and ALERTS[1]:find("4 × 4", 1, true) ~= nil,
+        table.concat(ALERTS, " | "))
+
+    -- the button with no rectangle at all
+    JS = {}; ALERTS = {}
+    BRIDGE({ body = { a = "crop" } })
+    c16("✂️ ✂︎ Crop to it with no rectangle drawn answers in one sentence"
+        .. " rather than doing nothing",
+        #ALERTS == 1 and ALERTS[1]:find("Crop tool (K)", 1, true) ~= nil,
+        table.concat(ALERTS, " | "))
+
+    -- ---- `fit` is ADDITIVE: the fixture where right and wrong differ --
+    -- Every sender before 6.414.0 passes nothing and must be unaffected;
+    -- the undo of a crop passes fit and must move the window.
+    BRIDGE({ body = { a = "size", w = 800, h = 600, fit = true } })
+    local back = VIEW:frame()
+    c16("✂️ the undo of a crop asks for the window too, and gets it",
+        back.w > narrow.w, narrow.w .. " → " .. back.w)
+    local before = VIEW:frame()
+    BRIDGE({ body = { a = "size", w = 200, h = 150 } })
+    c16("…while a plain size message only RECORDS, as it has since"
+        .. " 6.258.0 — the one input where additive and intrusive differ",
+        VIEW:frame().w == before.w and E.canvasW == 200,
+        VIEW:frame().w .. " (canvas " .. tostring(E.canvasW) .. ")")
+
+    -- ---- the report ---------------------------------------------------
+    local function line(rep, head)
+        return rep:match("\n%s*" .. head .. "%s*:[^\n]*") or ""
+    end
+    local rep = tostring(_G.screenshotEditorReport() or "")
+    c16("✂️ the report counts the crops APART from the grows",
+        line(rep, "crop"):find("asked", 1, true) ~= nil
+        and line(rep, "crop"):find("refused", 1, true) ~= nil, line(rep, "crop"))
+    c16("…and names the floor, so 'it refused' is a number he can argue with",
+        rep:find("a crop is at least " .. math.floor(E.cropMin), 1, true) ~= nil, rep)
+    E.crops = { asked = 0, landed = 0, refused = 0 }
+    E.lastCrop, E.lastCropWhy = nil, nil
+    local rep2 = tostring(_G.screenshotEditorReport() or "")
+    c16("✂️ a session with no crop in it reads DIFFERENTLY from one with"
+        .. " a crop that failed (6.196.1)",
+        line(rep2, "crop"):find("never asked", 1, true) ~= nil, line(rep2, "crop"))
+    E.close()
+
+    -- ---- the page ------------------------------------------------------
+    E.open(SRC)
+    local l = LAST_HTML:match('<nav id="railL".-</nav>') or ""
+    c16("✂️ ✂︎ Crop is a TOOL, in the left rail with the other nine",
+        l:find('id="tool-crop"', 1, true) ~= nil)
+    local rr = LAST_HTML:match('<nav id="railR".-</nav>') or ""
+    c16("…and the commit has a clickable door too, not only a key"
+        .. " (6.317.0 — the instrument was not the gap, the door was)",
+        rr:find("cropAsk()", 1, true) ~= nil)
+    local hdr = LAST_HTML:match("<header>.-</header>") or ""
+    c16("…and NOTHING of it was left behind in the top strip",
+        hdr:find("setTool(", 1, true) == nil
+        and hdr:find("cropAsk", 1, true) == nil)
+    c16("✂️ K arms it from the keyboard", LAST_HTML:find("setTool('crop')", 1, true) ~= nil
+        and LAST_HTML:find("e.key === 'k'", 1, true) ~= nil)
+    c16("✂️ ⏎ commits it, and AFTER the text branch so a selected text box"
+        .. " keeps the key it has had since 6.207.0",
+        (function()
+            local iText = LAST_HTML:find("startText(sel)", 1, true)
+            local iCrop = LAST_HTML:find("cropAsk();", 1, true)
+            return iText and iCrop and iCrop > iText
+        end)())
+    -- 🔒 THE RULE THAT STOPS A DIM OVERLAY BEING BURNED INTO A SAVED SHOT
+    c16("✂️ the dim is drawn only for the SCREEN — saveIt bakes with"
+        .. " withSel false, so the mask is behind that flag",
+        LAST_HTML:find("if (withSel) drawCropMask(g);", 1, true) ~= nil
+        and LAST_HTML:find("drawAll(ctx, false)", 1, true) ~= nil)
+    c16("✂️ …and drawNote draws nothing at all for the kind, which is the"
+        .. " belt on the same promise",
+        LAST_HTML:find("n.kind === 'spot' || n.kind === 'crop'", 1, true) ~= nil)
+    c16("✂️ the dim is written from ed.cropDim, not typed into the page",
+        LAST_HTML:find("var CROPDIM = " .. tostring(E.cropDim), 1, true) ~= nil,
+        tostring(E.cropDim))
+    E.close()
+    local savedDim = E.cropDim
+    E.cropDim = 0.41
+    E.open(SRC)
+    c16("…and MOVING it moves the drawing (6.239.0)",
+        LAST_HTML:find("var CROPDIM = 0.41", 1, true) ~= nil)
+    E.close()
+    E.cropDim = savedDim
+
+    c16("§16 ran every one of its checks", (pass + fail) - n16 == 35,
+        (pass + fail) - n16)
 end
 
 out(("\n%d passed, %d failed\n"):format(pass, fail))

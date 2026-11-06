@@ -5,6 +5,107 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.414.0 — ✂️ THE CROP TOOL (modules/screenshot_editor.lua, K)
+
+  LL, 2026-10-12, in a list of screenshot-editor asks: "I needed a tool
+  that allows me to crop it." D7's second half — 6.407.0 was the sizing,
+  and the crop was named there as owed and its own release.
+
+  🔑 THE RECTANGLE IS AN ORDINARY BOX NOTE, and that is why this is a
+  small release rather than a large one. Arm it with K (or the ✂︎ Crop
+  button in the left rail), drag, and what you get is a `crop` note with
+  x/y/w/h — so the corner-drag normalisation, the hit test, the move, the
+  bottom-right size handle, ⌘Z and 6.189.0's keep-across-a-close all
+  serve it with no new code at all. What this release actually builds is
+  three things: how it is DRAWN, what committing it does, and the
+  refusals.
+
+  🔎 EVERYTHING OUTSIDE IT IS DIMMED — the spotlight's veil INVERTED.
+  There the box is the hole punched in a dark canvas; here the box is the
+  only thing that stays clear. So the question a crop really asks —
+  "what am I about to lose?" — is answered BEFORE ⏎ rather than by an
+  undo afterwards, and the size and the two keys are written on the
+  rectangle itself (6.203.0: say it where he is looking, not in an alert
+  under the window).
+
+  🔒 AND IT IS DRAWN FOR THE SCREEN AND NEVER FOR THE FILE, with two
+  belts rather than one, because a dim overlay baked into a saved
+  screenshot cannot be recovered from the file. saveIt bakes the marks in
+  with `drawAll(ctx, false)`, so the mask is behind that flag — and
+  drawNote draws nothing at all for the kind, which is the same promise
+  from the other side. Both have their own check and both mutations bite.
+
+  📏 THE PLAN IS LUA'S, which is 6.258.0's shape exactly: the page posts
+  the rectangle it drew, `ed.cropPlan` decides what is legal, and the
+  page does the pixels. ONE copy of the rule, in the place the gate can
+  drive it with no Mac — and only Lua can resize the WINDOW, which a
+  crop needs: the canvas is scaled to fit, so a cropped shot left in the
+  old window is drawn BIGGER and blurrier than it was.
+
+  🚨 IT DOES NOT TRUST THE PAGE'S NORMALISATION. The corner drag answers
+  a positive w/h today; a service caller, a restored session or a later
+  edit need not, and the weaker guard is the one nobody can see
+  (6.273.0). A side dragged the other way is turned round in the plan,
+  where a check can prove it, and a rectangle dragged off the edge is
+  clamped INTO the shot rather than asking for pixels that are not there
+  (which is a blank strip down one side).
+
+  🚨 TWO REFUSALS, AND EACH NAMES ITSELF. Under `cropMin` (32) on a
+  side, with the SIZE in the sentence, because "that rectangle is 6 × 4"
+  is the whole diagnosis of a mis-drag where "refused" sends a reader
+  nowhere (6.336.0). And a rectangle that IS the whole shot — which is
+  the fixture a naive implementation agrees with on every other input
+  (6.230.0): obeying it spends an undo row's worth of pixels, resizes
+  nothing, and reads as a key that did not work. Both are SEEN on screen
+  at the moment they happen (6.214.0) and counted apart from each other
+  and from the grows, because a mis-drag and a whole-shot rectangle send
+  a reader to different places (6.196.1).
+
+  ✂️ ONE RECTANGLE AT A TIME, and a new drag replaces it UNDOABLY. Two
+  would need a rule about which ⏎ meant, and "a crop of the first crop,
+  or of the original shot?" has no obvious answer — so there is no rule
+  to remember, and ⌘Z unwinds the replacement in its two halves (the new
+  one's add, then the old one's delete) like any other edit.
+
+  📐 EVERY MARK MOVES WITH THE PIXELS, including the two ends of an arrow
+  or a line, which carry no x at all. The undo row carries the whole old
+  canvas AND the shift: shrinking a canvas destroys its pixels, and a
+  crop that moved one and not the other puts every mark off the thing it
+  was pointing at.
+
+  🗑 AND A GUARD WAS WRITTEN AND TAKEN OUT AGAIN (6.199.0). ⏎'s branch
+  first read `cropNote() && (!sel || sel.kind === 'crop')`, and no
+  mutation could kill the second half: the text-box branch ABOVE it
+  already claims the only case that matters, so the ORDER is the whole
+  rule and a check asserts it. Worse than redundant, it was an invisible
+  predicate — the hint drawn on the rectangle says ⏎ crops, and a ⏎ that
+  quietly does nothing because an arrow happens to be selected is
+  6.341.0's complaint in miniature.
+
+  🪟 `fit` IS ADDITIVE (6.299.0): the page's size message gained one
+  field, the crop and its undo pass it, and every sender since 6.258.0
+  passes nothing and is unaffected. The fixture that separates additive
+  from intrusive is a plain size message, which must still only RECORD.
+
+  🔬 AND THE JS HARNESS HAD TO BECOME FAITHFUL FIRST (6.290.0). Its
+  canvas stub froze the pixel buffer's ROW STRIDE at the size the stub
+  was made with. Nothing noticed, because the only resize in the suite
+  until now was a GROW, which changes the height; a crop changes the
+  WIDTH, so every pixel would have landed in the wrong row and the check
+  would have measured the harness rather than the code. The stride
+  follows cv.width now, as a real canvas's does.
+
+  📏 THE RAIL FLOOR MOVED WITH THE TENTH TOOL: `railMinH` 344 → 382, so
+  6.270.0's "every button visible without scrolling" still holds, and
+  6.407.0's short-screen rule is untouched (the screen still wins and
+  the rails still scroll).
+
+  Gate: 28 of 28 mutations bit and the no-op control survived, restore
+  SHA-verified. 292 Lua checks in test_editor.lua (§16 is 35 of them)
+  and 224 in test_editor_js.js.
+```
+
+```text
 NEW IN 6.413.0 — 🩺 DO THE BIG TOOLS ANSWER? (modules/self_test.lua,
   _G.selfTest)
 

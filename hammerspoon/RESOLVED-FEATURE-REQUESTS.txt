@@ -1,5 +1,5 @@
 ========================================================================
-RESOLVED FEATURE REQUESTS — Hammerspoon config 6.413.0
+RESOLVED FEATURE REQUESTS — Hammerspoon config 6.414.0
 Every feature and how to use it. Generated from the modules' own
 cheat sheets (the rows ⇪/ draws), so it is never out of date.
 ⇪ = Caps Lock held (the hyper key). ⇪⇧X = Caps Lock + Shift + X.
@@ -618,6 +618,7 @@ In the Console, _G.<tool>Report() prints any tool's own report.
   ⌘V ⌘A 6.213.0: paste the clipboard's IMAGE onto the shot · Add capture — drag an area of the screen and it lands on the shot (move the editor first if it is in the way)
   ⌘D      6.342.0: Delayed AREA capture (macOS's ⇧⌘5 order) — this window gets out of the way, you DRAG the area you want, then five seconds to arrange the screen, then that rectangle lands on the shot
   ⌘F      6.256.0: Full screen — the whole screen, right now, with this window out of the picture
+  K         6.414.0: CROP — drag a rectangle and everything outside it dims, so you can see what would GO before anything happens; ⏎ crops to it, ⌫ removes the rectangle, ⌘Z puts the shot back. One rectangle at a time; a new drag replaces it, and the marks inside move with the crop
   ⌘O      6.258.0: Load a PRIOR shot — the canvas grows so you can see both, and what you have already drawn does not move
   text      click, type, ⏎ — white text, white outline box · click an EXISTING box (Text tool) to edit its words, or ⏎ on a selected one
   move      drag text/arrows around · arrow ENDS stretch + rotate · a selected text box has a corner dot — drag it to make the text bigger or smaller (⌘Z undoes it)
@@ -916,6 +917,7 @@ In the Console, _G.<tool>Report() prints any tool's own report.
 
 📜 RELEASE INDEX — newest first, one line per release (the full story of each is in CHANGELOG.md)
 ------------------------------------------------------------------------
+  6.414.0  ✂️ THE CROP TOOL (modules/screenshot_editor.lua, K)
   6.413.0  🩺 DO THE BIG TOOLS ANSWER? (modules/self_test.lua,
   6.412.0  📅 THE DATE REPORT STOPS LYING, AND ⇪⇧0 COPIES 2026
   6.411.0  🪟 A CHROMIUM APP DOES NOT PUBLISH ITS PAGE

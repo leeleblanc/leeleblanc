@@ -24,7 +24,14 @@ const check = (label, cond, extra) => {
 // ---- a canvas whose pixels are REAL ----------------------------------
 const W = 40, H = 30;
 function makeCtx(store, w) {
-  w = w || W;   // 6.212.0 — a section may ask for a bigger canvas
+  // 6.212.0 — a section may ask for a bigger canvas.
+  // 🔬 6.414.0 — and `w` may be a FUNCTION, because a real canvas's row
+  // stride follows its width: a crop narrows it, and a stride frozen at
+  // the size the stub was made with puts every pixel in the wrong row.
+  const stride = () => {
+    const v = typeof w === "function" ? w() : w;
+    return v || W;
+  };
   return {
     drawImage() {},
     getImageData(x, y, rw, rh) {
@@ -32,14 +39,14 @@ function makeCtx(store, w) {
       for (let j = 0; j < rh; j++)
         for (let i = 0; i < rw; i++)
           for (let k = 0; k < 4; k++)
-            data[(j * rw + i) * 4 + k] = store[((y + j) * w + (x + i)) * 4 + k];
+            data[(j * rw + i) * 4 + k] = store[((y + j) * stride() + (x + i)) * 4 + k];
       return { data, width: rw, height: rh };
     },
     putImageData(im, x, y) {
       for (let j = 0; j < im.height; j++)
         for (let i = 0; i < im.width; i++)
           for (let k = 0; k < 4; k++)
-            store[((y + j) * w + (x + i)) * 4 + k] = im.data[(j * im.width + i) * 4 + k];
+            store[((y + j) * stride() + (x + i)) * 4 + k] = im.data[(j * im.width + i) * 4 + k];
     },
   };
 }
@@ -84,9 +91,9 @@ function makeEnv(shownW, size) {
   const store = new Uint8ClampedArray(CW * CH * 4);
   const cvCalls = [], ovCalls = [];
   const listeners = { window: {}, ov: {}, tin: {} };
-  const cvCtx = drawStubs(makeCtx(store, CW), cvCalls);
-  const ovCtx = drawStubs({ getImageData() {}, putImageData() {} }, ovCalls);
   let cvW = CW, cvH = CH;
+  const cvCtx = drawStubs(makeCtx(store, () => cvW), cvCalls);
+  const ovCtx = drawStubs({ getImageData() {}, putImageData() {} }, ovCalls);
   const cv = {
     get width(){ return cvW; },
     set width(v){ cvW = v; store.fill(0); },
@@ -120,6 +127,7 @@ function makeEnv(shownW, size) {
     "tool-count": { className: "tool" },
     "tool-spot": { className: "tool" },
     "tool-mag": { className: "tool" },
+    "tool-crop": { className: "tool" },
   };
   const byId = { cv, ov, band, tin };
   const sandbox = {
@@ -1303,6 +1311,194 @@ check("✏️ the placeholder teaches both keys, because a key that used to "
       (html.match(/placeholder="[^"]*"/) || [])[0]);
 check("✏️ …and the box he types in is a TEXTAREA, or ⏎ could never make a "
       + "line at all", /<textarea id="tin"/.test(html));
+
+
+// =====================================================================
+// ✂️ 6.414.0 — THE CROP TOOL
+// =====================================================================
+// "I needed a tool that allows me to crop it." The rectangle is an
+// ordinary box note, so the Lua suite can prove the PLAN and this one
+// proves the only things it cannot: that the pixels really move, that
+// every mark moves with them, that ⌘Z brings both back, and that the
+// dim overlay can never be baked into a saved file.
+{
+  const env = load(null, { w: 40, h: 30 });
+  env.call("setTool('crop')");
+  check("✂️ K's button lights up and the others go out",
+        env.buttons["tool-crop"].className === "tool on"
+        && env.buttons["tool-blur"].className === "tool",
+        env.buttons["tool-crop"].className);
+  env.listeners.window.keydown(key({ key: "b" }));
+  env.listeners.window.keydown(key({ key: "k" }));
+  check("…and the k KEY arms it, not only the button",
+        env.call("tool") === "crop", env.call("tool"));
+
+  // drag a rectangle: an ordinary box drag, normalised as it goes
+  env.listeners.ov.mousedown(mouse(30, 20));
+  env.listeners.window.mousemove(mouse(18, 8));
+  env.listeners.window.mouseup(mouse(18, 8));
+  check("✂️ dragging makes ONE crop note, normalised whichever way the"
+        + " hand went",
+        env.call("notes.length") === 1 && env.call("notes[0].kind") === "crop"
+        && env.call("notes[0].x") === 18 && env.call("notes[0].y") === 8
+        && env.call("notes[0].w") === 12 && env.call("notes[0].h") === 12,
+        env.call("JSON.stringify(notes[0])"));
+
+  // 🚨 ONE RECTANGLE AT A TIME: a second drag REPLACES the first, and the
+  // replacement is undoable like any other delete.
+  env.listeners.ov.mousedown(mouse(2, 2));
+  env.listeners.window.mousemove(mouse(20, 18));
+  env.listeners.window.mouseup(mouse(20, 18));
+  check("✂️ a second drag REPLACES the first — one rectangle, because two"
+        + " would need a rule about which ⏎ meant",
+        env.call("notes.filter(function(n){return n.kind === 'crop';}).length") === 1,
+        env.call("notes.length"));
+  env.listeners.window.keydown(key({ metaKey: true, key: "z" }));
+  check("…and ⌘Z takes the NEW rectangle off first, as it would any add",
+        env.call("notes.filter(function(n){return n.kind === 'crop';}).length") === 0,
+        env.call("notes.length"));
+  env.listeners.window.keydown(key({ metaKey: true, key: "z" }));
+  check("…and a second ⌘Z brings the REPLACED one back, so a drag that"
+        + " threw a rectangle away is undoable like any other delete",
+        env.call("notes.filter(function(n){return n.kind === 'crop';}).length") === 1
+        && env.call("notes[0].x") === 18,
+        env.call("JSON.stringify(notes.map(function(n){return n.x;}))"));
+
+  // the mask: the dim is the spotlight's veil INVERTED
+  env.ovCalls.length = 0;
+  env.call("redraw()");
+  const rects = env.ovCalls.filter((c) => c[0] === "rect");
+  const evenodd = env.ovCalls.filter((c) => c[0] === "fill" && c[2] === "evenodd");
+  check("✂️ the whole canvas and the rectangle are both in one path, filled"
+        + " even-odd, so what would GO is what is dim",
+        rects.some((c) => c[1] === 0 && c[2] === 0 && c[3] === 40 && c[4] === 30)
+        && rects.some((c) => c[1] === 18 && c[2] === 8)
+        && evenodd.length >= 1,
+        JSON.stringify(rects.map((c) => c.slice(1, 5))));
+  const labels = env.ovCalls.filter((c) => c[0] === "fillText");
+  check("✂️ the size and the two keys are said WHERE HE IS LOOKING (6.203.0)",
+        labels.some((c) => /12 × 12/.test(String(c[1])) && /crops/.test(String(c[1]))),
+        JSON.stringify(labels.map((c) => c[1])));
+
+  // 🔒 AND NEVER IN THE FILE. saveIt bakes with drawAll(ctx, false).
+  env.cvCalls.length = 0;
+  env.call("saveIt('png')");
+  const bakedFill = env.cvCalls.filter((c) => c[0] === "fill" && c[2] === "evenodd");
+  const bakedText = env.cvCalls.filter(
+    (c) => c[0] === "fillText" && /crops/.test(String(c[1])));
+  check("🔒 a pending crop is NOT baked into a saved shot — no dim, no"
+        + " label, because drawAll's withSel is false when it bakes",
+        bakedFill.length === 0 && bakedText.length === 0,
+        bakedFill.length + "/" + bakedText.length);
+}
+
+{
+  // ---- the commit: pixels, marks, the window, and ⌘Z ----------------
+  const env = load(null, { w: 40, h: 30 });
+  // a marker inside what will be kept, and one outside it
+  const inside = (10 * 40 + 20) * 4;      // 20,10 → 2,2 after the crop
+  const outside = (2 * 40 + 2) * 4;
+  env.store[inside] = 200; env.store[inside + 3] = 255;
+  env.store[outside] = 90; env.store[outside + 3] = 255;
+  // a text note at the same place as the marker, and one outside
+  env.call("notes.push({ kind: 'text', x: 20, y: 10, size: 12, text: 'in' })");
+  env.call("notes.push({ kind: 'arrow', x1: 20, y1: 10, x2: 24, y2: 14 })");
+  env.call("notes.push({ kind: 'crop', x: 18, y: 8, w: 12, h: 10 })");
+  env.sent.length = 0;
+
+  const did = env.call("cropTo(18, 8, 12, 10)");
+  check("✂️ cropTo takes the plan Lua handed it", did === true);
+  check("…the canvas IS the rectangle now",
+        env.call("cv.width") === 12 && env.call("cv.height") === 10,
+        env.call("cv.width") + "x" + env.call("cv.height"));
+  check("…and the OVERLAY follows, or every later mark is drawn on a"
+        + " surface a different size from the picture",
+        env.call("ov.width") === 12 && env.call("ov.height") === 10);
+  check("🖼 THE PIXELS MOVED: what was at 20,10 is at 2,2",
+        env.store[(2 * 12 + 2) * 4] === 200,
+        env.store[(2 * 12 + 2) * 4]);
+  check("📏 EVERY MARK MOVED WITH THEM — a crop that shifted the picture"
+        + " and not the marks puts each one off the thing it points at",
+        env.call("notes[0].x") === 2 && env.call("notes[0].y") === 2,
+        env.call("notes[0].x") + "," + env.call("notes[0].y"));
+  check("…including the two ends of an arrow, which has no x at all",
+        env.call("notes[1].x1") === 2 && env.call("notes[1].y2") === 6,
+        env.call("notes[1].x1") + "," + env.call("notes[1].y2"));
+  check("✂️ the rectangle goes WITH the crop — it describes a shot that no"
+        + " longer exists",
+        env.call("notes.filter(function(n){return n.kind === 'crop';}).length") === 0,
+        env.call("notes.length"));
+  const sizes = env.sent.filter((m) => m.a === "size");
+  check("🪟 the page tells Lua the new size AND asks for the window, which"
+        + " only Lua can move (fit, additive — 6.299.0)",
+        sizes.length === 1 && sizes[0].w === 12 && sizes[0].h === 10
+        && sizes[0].fit === true,
+        JSON.stringify(sizes[0]));
+
+  // ↩︎ the undo carries the whole old canvas AND the shift
+  env.call("undoLast()");
+  check("↩︎ ⌘Z puts the canvas back to the shape it was",
+        env.call("cv.width") === 40 && env.call("cv.height") === 30,
+        env.call("cv.width") + "x" + env.call("cv.height"));
+  check("…and the pixels with it, INCLUDING the ones the crop threw away —"
+        + " shrinking a canvas destroys them, so the undo row carries the"
+        + " whole old picture",
+        env.store[inside] === 200 && env.store[outside] === 90,
+        env.store[inside] + "/" + env.store[outside]);
+  check("…and every mark goes back where it was",
+        env.call("notes[0].x") === 20 && env.call("notes[1].x1") === 20,
+        env.call("notes[0].x") + "," + env.call("notes[1].x1"));
+  check("…and Lua is asked for the old window too, or an undone crop"
+        + " leaves the picture scaled up in a window the wrong shape",
+        env.sent.filter((m) => m.a === "size" && m.fit === true).length === 2,
+        JSON.stringify(env.sent.filter((m) => m.a === "size")));
+}
+
+{
+  // ---- cropTo refuses what Lua would never send, and changes nothing --
+  const env = load(null, { w: 40, h: 30 });
+  env.store[0] = 77; env.store[3] = 255;
+  check("🚨 a rectangle reaching past the canvas is refused outright",
+        env.call("cropTo(30, 20, 20, 20)") === false);
+  check("…one with a negative origin too",
+        env.call("cropTo(-1, 0, 10, 10)") === false);
+  check("…and an empty one",
+        env.call("cropTo(5, 5, 0, 10)") === false);
+  check("…with nothing resized and nothing lost",
+        env.call("cv.width") === 40 && env.store[0] === 77,
+        env.call("cv.width") + "/" + env.store[0]);
+}
+
+{
+  // ---- cropAsk: the page asks, it never decides -----------------------
+  const env = load(null, { w: 40, h: 30 });
+  env.sent.length = 0;
+  check("✂️ ✂︎ Crop to it with no rectangle still ASKS, so the refusal is"
+        + " Lua's one sentence rather than a silent button (6.317.0)",
+        env.call("cropAsk()") === false
+        && env.sent.filter((m) => m.a === "crop").length === 1
+        && env.sent[env.sent.length - 1].w === undefined,
+        JSON.stringify(env.sent));
+  env.call("notes.push({ kind: 'crop', x: 4, y: 6, w: 20, h: 14 })");
+  env.sent.length = 0;
+  env.listeners.window.keydown(key({ key: "Enter" }));
+  const asks = env.sent.filter((m) => m.a === "crop");
+  check("✂️ ⏎ commits it, and the rectangle it sends is the one drawn",
+        asks.length === 1 && asks[0].x === 4 && asks[0].y === 6
+        && asks[0].w === 20 && asks[0].h === 14,
+        JSON.stringify(asks[0]));
+  // 🔒 and ⏎ on a selected TEXT box still opens its words (6.207.0)
+  env.call("notes.push({ kind: 'text', x: 2, y: 2, size: 12, text: 'hi' });"
+           + " sel = notes[notes.length - 1];");
+  env.sent.length = 0;
+  env.listeners.window.keydown(key({ key: "Enter" }));
+  check("🔒 …while ⏎ on a selected text box still opens ITS words, which is"
+        + " the key it has had since 6.207.0 — the one input where a crop"
+        + " that grabbed ⏎ outright and this one differ",
+        env.tin.style.display === "block"
+        && env.sent.filter((m) => m.a === "crop").length === 0,
+        env.tin.style.display + "/" + JSON.stringify(env.sent));
+}
 
 console.log(`\n${pass} passed, ${fail} failed`);
 for (const f of failures) console.log("    ❌ " + f);
