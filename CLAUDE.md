@@ -7123,6 +7123,23 @@ THE METHOD, when something breaks after a stacked zip:
    `v.render`/`v.renderInto`, `v.open`'s ORDER and the ready belt.
    `_G.vaultReport()`'s `index :` line separates the first from
    `_G.anchorsReport()`'s, and its `page :` line is the second.
+   · 6.408.0–6.413.0 0d4e38f (the code and the ceremony) ·
+   **65cbf31 is the archive, and 65cbf31 is the SHA every link to it must
+   carry** — a branch-pinned link dies the moment the next release
+   deletes the file, which is why 6.356.0–6.358.0 never reached his
+   Downloads (6.360.0).
+   🔑 SIX RELEASES IN SIX DIFFERENT FILES on purpose, so a break still
+   names its version by which tool fails: ⇪. not narrowing is 6.408.0 ·
+   ⇪⇧F going to the pointer instead of the selected file is 6.409.0 · a
+   first ⇪⇧. of a session doing nothing is 6.410.0 · the draft keeper
+   reading no field in Chrome is 6.411.0 · a two-digit year from ⇪⇧0 or
+   a date report saying "none" is 6.412.0 · no 🩺 block at boot is
+   6.413.0.
+   📏 AND 6.412.0 IS THE ONLY ONE THAT TOUCHES TWO MODULES, which is
+   worth knowing before bisecting: the calendar half is `cal.copyFormat`
+   in mini_calendar.lua and the counter half is `_G.acDateCount` in
+   autocorrect.lua. `_G.autocorrectReport()`'s `date :` line separates
+   them from ⇪⇧0's own clipboard in one run.
    · 6.403.0 1c271a0 (the code) · f134521 (the ceremony) · **ff192e1 is
    the archive, and ff192e1 is the SHA every link to it must carry** — a
    branch-pinned link dies the moment the next release deletes the file,
