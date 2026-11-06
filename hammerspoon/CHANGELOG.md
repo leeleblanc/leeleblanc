@@ -5,6 +5,193 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.407.0 — 📐 THE EDITOR'S CEILING, AND WHAT HAPPENS WHEN IT MEETS
+  THE FLOOR (modules/screenshot_editor.lua)
+
+  LL, with the sizing spelled out: "the editor window is growing too big
+  … 80% of the largest screenshot size … but not shrink down so much
+  that the tools are not usable."
+
+  📏 THE FLOOR HALF WAS BUILT IN 6.270.0 — `railMinH` plus the header,
+  so nine stacked tools always fit — and this release SAYS so rather
+  than rebuilding it. Claiming to fix what already works is how a
+  release spends itself on nothing (6.317.0, for the sixth time).
+
+  🔑 WHAT WAS MISSING IS A CEILING THAT IS NOT ONLY A FRACTION. The
+  window was capped at 0.85 of the screen, which is a sensible number on
+  a 1440-point laptop and an absurd one on his LG at full points, where
+  it is a window over three thousand points wide. Moving the fraction to
+  his 0.80 alone would have changed 3264 to 3072 and answered nothing —
+  6.355.0's rule, which is to ask what the bound is a proxy FOR. It is a
+  proxy for "big enough to work in, small enough to see at once", so
+  there is an ABSOLUTE cap beside the fraction and the smaller of the
+  two wins: `maxFrac = 0.80` (his number) with `maxW = 1600` and
+  `maxH = 1100`. On the Air the fraction binds; on the LG the cap does.
+  📏 AND THE SHOT IS SCALED TO FIT rather than the window being let past
+  the cap, which costs nothing: the canvas has always scaled to fit its
+  window, so capping the window costs reading distance and no pixels.
+
+  🚨 AND THE FLOOR AND THE CEILING CAN CONTRADICT EACH OTHER, WHICH
+  NOTHING DECIDED. On a short screen the tool rails need more height
+  than the whole display has, and `math.max` let the floor win in
+  silence — a window taller than the screen, whose buttons cannot be
+  clicked. THE SCREEN WINS, because the rails already SCROLL (6.270.0
+  built that: "a button you cannot reach is the complaint being fixed")
+  and a window you cannot reach does not. Named in the report rather
+  than left as a surprise, and the sweep drives every shot against
+  every screen to prove a window is never bigger than its display.
+
+  🔎 `ed.windowSizeFor` ANSWERS WHICH RULE DECIDED, as a third value
+  (additive — both existing callers read two and are unchanged, 6.299.0):
+  fitted to the picture · capped at N% of the screen · capped at the
+  maximum window size · floored so the tool rails fit · clamped to the
+  screen. "It is growing too big" and "it shrank until the tools were
+  unusable" are opposite complaints about ONE function, and a size on
+  its own cannot say which bound produced it. The report prints it.
+
+  🚨 A SETTINGS TYPO MUST NOT PRODUCE A WINDOW OF NOTHING: a fraction of
+  0 or above 1 falls back to the default rather than being taken at its
+  word, and every cap floors at something usable. `minW` and `minH` are
+  named now rather than literals inside the arithmetic (6.248.0).
+
+  🧪 AND ONE EXISTING CHECK HAD TO MOVE OFF AN 800x600 SHOT. 6.270.0's
+  rule — the rails are RESERVED, so a wider rail makes a wider window by
+  exactly twice the difference — only holds BELOW the ceiling, and at the
+  new 80% that fixture is at the ceiling, so asserting the sum there was
+  asserting the old 85% in disguise. 6.248.0 for the eighth time: the
+  shot is 600x400 now and the DIFFERENCE is what is asserted.
+```
+
+```text
+NEW IN 6.406.0 — 🪟 A WHITE BOX IS A WINDOW WITH NO PAGE IN IT
+  (modules/vault.lua)
+
+  LL, 2026-11-04: "D6 or Hamsidian caused an overlay to stay on the
+  screen. I had a white box that was Hamsidian. I ⇪⇧U in first, then got
+  Hamsidian. Then was left with that box."
+
+  🔎 READABLE, NOT GUESSED, AND IT IS TWO LINES. `v.render()` was
+  `pcall(function() v.webview:html(v.buildHtml()) end)` — a bare pcall
+  that throws away the one value saying whether the page was WRITTEN.
+  When `buildHtml` raises — which 6.335.0 proved it can, IN THIS VERY
+  FILE, from one local declared three thousand lines below the builder
+  that reads it — the pcall swallows the throw, `html()` is never
+  called, `render()` returns looking like a success, and `v.open()`
+  carries straight on and SHOWS a webview that has never been given a
+  document. An hs.webview with no document draws a blank white window,
+  with nothing in the Console, no alert and no record anywhere.
+  6.391.0's rule (a webview refuses in two directions and a pcall sees
+  one) applied to `html()` rather than `show()`; 6.325.0's applied to a
+  page.
+
+  🔑 THE PAGE IS WRITTEN BEFORE THE WINDOW IS SHOWN, and a window with
+  no document is never shown at all. It is torn DOWN rather than
+  abandoned (6.265.0 · 6.314.0 — an abandoned webview keeps its Esc
+  claim and its key handler, which is the frozen-overlay shape exactly),
+  the refusal is NAMED on screen with the reason, and the one-line
+  prompt carries the note instead so nothing of his is unreachable.
+
+  🚨 AND 6.326.0 IS PAID HERE AT LAST, which is the half that explains
+  "then was left with that box". `v.webview = view` sat ABOVE the show,
+  so a refusal left a handle pointing at a window that is not on screen
+  — and `v.show()`'s own first line is `if v.webview then v.hide()
+  return end`, so the NEXT ⇪3 press hid a window there was nothing to
+  hide, and the Esc claimant claimed Esc for it. That release wrote the
+  rule for the Jug Player ("a published handle is a CLAIM about the
+  world, so it is written after the world agrees") and nothing swept the
+  module that holds his writing. The handle is written last now, and a
+  refused show tears the view down and takes the 🔔 door.
+
+  🔎 AND THE OTHER HALF OF A BLANK WINDOW IS MEASURABLE AT LAST. The
+  page has said `say({a:'ready'})` at the end of its load since 6.174.0
+  and NOTHING RECORDED IT — so "the window is up and its page never
+  ran", which is what a white box IS once the document is in place
+  (`view:html()` returns before WebKit has parsed it, 6.238.0), was a
+  state no report could describe. A HELD belt in its own slot
+  (`pageReadySecs`, 2.5 s) names it through the door, with the way out
+  in the same breath.
+  🚨 IT NAMES IT AND DOES NOT CLOSE IT. A slow Mac is a slow Mac, and
+  closing a window he can still Esc out of would be acting on a
+  plausible mechanism rather than a measured one (6.198.0).
+
+  🔎 FOUR STATES IN THE REPORT, and the CLOSED one is deliberate
+  (6.352.0's rule, which cost a release when a report was taken after
+  the window had been shut): closed, with what the page DID while it was
+  open · up with NO DOCUMENT · up and the page has not spoken · up and
+  running. Plus counts for pages that could not be written, blank
+  windows caught before they were shown, and shows macOS refused.
+
+  🔑 ONE FUNCTION WRITES THE PAGE (`v.renderInto`), TWO CALLERS
+  (6.231.0) — `v.open()` has to write it before the handle is published
+  and every later redraw goes through `v.render()` — and a sentry holds
+  it there, because two copies of "build it and read the answer" is how
+  one of them comes to swallow a throw again.
+```
+
+```text
+NEW IN 6.405.0 — 🔎 AN INDEX NOBODY HAS READ CANNOT SAY THERE ARE NO
+  NOTES (modules/anchors.lua · modules/vault.lua)
+
+  LL's own report: ⇪⇧U's "📁 Link it into an existing note…" row
+  answered "🔗 No notes to pick yet — make one with the first row" over
+  a vault holding twenty.
+
+  🔎 THE MECHANISM. The vault's notes index is built when Hamsidian
+  OPENS — 6.267.0 moved that disk work off the boot path deliberately,
+  because a OneDrive CSV parsed at setup is a tax every key pays — so
+  before his first ⇪3 of a session `vault.names` answers an EMPTY LIST.
+  And an empty list cannot say which empty it is. 6.340.0 fixed exactly
+  this on the SURFACE (the left column reads "reading your notes…"
+  rather than "no notes yet") and did not sweep the modules that ASK;
+  6.312.0's rule, one module along, in the one place where the wrong
+  answer reads as his writing being gone.
+
+  🔑 AND THE FIELD THAT SEPARATES THEM WAS ALREADY BEING RECORDED:
+  `v.lastScan` is nil until a scan COMPLETES. `v.indexState` is PURE,
+  takes it as an argument, and answers FOUR states with a reason.
+  🚨 FOUR, NOT THREE: a scan that FAILED and never completed is not a
+  scan that has not happened. "reading your notes…" for ever is the
+  reassuring answer and the wrong one (6.196.1), so a failure says so
+  and a caller can stop waiting on it.
+  🔑 ONE RENDERER, TWO READERS (6.231.0): the `vault.names` service
+  answers with it and so does `_G.vaultReport()`, so the two cannot come
+  to disagree about what an unread index is called. The state rides back
+  as a SECOND value, which is additive (6.299.0's shape) — a caller
+  reading one value is unchanged.
+
+  🕰 WHAT ⇪⇧U DOES WITH IT. Read and holding nothing is the one case the
+  old sentence was ever right about, and it says so. An UNREAD index is
+  asked to read itself, said out loud ("🔗 Reading your notes…"), and
+  WAITED for — on a held timer in its own slot (6.196.1), bounded by
+  `pickTries` × `pickWaitSecs`, about three seconds, because the names
+  arrive on the FIRST of the vault's four greps and not at the end of
+  the chain. 📏 THE BOUND IS A SENTENCE, not silence (6.197.2): a wait
+  that ends quietly is indistinguishable from the bug being fixed, and
+  an index that never arrives is a fault rather than a cold start.
+  🚨 A SCAN ALREADY RUNNING IS WAITED FOR, NEVER RESTARTED UNDER ITSELF
+  (6.304.0, with a four-task chain behind it), the read is asked for
+  ONCE rather than once per turn, and a second press while a wait is in
+  flight is the SAME press (6.246.0) — two timers in one slot drops the
+  first.
+
+  📏 THE OTHER LEGS WERE NEVER AFFECTED, and that is worth knowing
+  before bisecting: "which notes already mention this?" is a
+  /usr/bin/grep over the folder, with no index in it at all, so it has
+  always worked cold. The picker itself was LIFTED out rather than
+  copied, because it is now reached from two places (6.231.0).
+
+  🔬 AND THE GATE RATCHETS ON THE NEW CONTRACT (6.290.0, fifteenth
+  time): test_stub_fidelity §6d fails any `vault.names` stub answering
+  the names alone. The suite's stub answered one value, so the branch
+  that tells an unread index from an empty one was unreachable from the
+  gate and the shipped sentence was CERTIFIED for eighty-nine releases.
+  🚨 Its first version did not bite its own fixture — it asked whether
+  the `return` held a comma, and `return { "Alpha", "Beta" }` holds one,
+  inside a TABLE. A sentry is not a check until a mutation has failed
+  it, so the groups and the strings come out before anything is counted.
+```
+
+```text
 NEW IN 6.404.0 — 💾 THE DRAFT KEEPER: THE TEXT A WEB FORM LOSES
   (modules/draft_keeper.lua, NEW · modules/unified_search.lua)
 

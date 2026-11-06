@@ -64,11 +64,11 @@ said yes and it is not to be re-asked.
 |---|---|---|---|
 | D1 | ⌘Space launcher | "I already said yes" | ☐ |
 | D2 | MANIFEST.txt + `_G.installCheck()` | ran it four times, got nil | ✅ **6.399.0** — and it came back green on his Mac |
-| D3 | The draft keeper | "Already said yes" | ☐ |
+| D3 | The draft keeper | ❗❗ "Escalate and build" | ✅ **6.404.0** — shipped alone, at once, as he ordered |
 | D4 | Size the Mug Player to the film | "Already said yes" | ☐ |
 | D5 | ⇪7's macOS detail | "yes" | ☐ |
-| D6 | Anchors' cold start — ⇪⇧U "create a new note first" | "Yes" | ☐ |
-| D7 | The screenshot editor's sizing, then the crop tool | "Yes build it" | ☐ |
+| D6 | Anchors' cold start, and the white box | "Escalate and build" | ✅ **6.405.0** (the surface + the service) and **6.406.0** (the blank window) |
+| D7 | The screenshot editor's sizing, then the crop tool | "Escalate and build" | ◨ **6.407.0** is the SIZING; the crop tool is its own release and is still owed |
 | D8 | The public sanitised config | "Build it and I'll review" | ☐ |
 | ~~D9~~ | ~~System volume + output-device switching + a mute toggle~~ | **DROPPED ON HIS WORD, 2026-11-04: "I already said drop this. I am not developing this."** My row was wrong — see J5 | ✅ struck |
 | D10 | ⌥Tab lists every panel | his answer, 6.374.0 batch | ☐ |
@@ -487,6 +487,40 @@ with the box still on screen. Asked in the 6.404.0 message.
 📏 And the answer to "is this so obvious I'm missing it" is NO — a
 webview that is up and blank is not a message he failed to read.
 
+✅ **BOTH HALVES SHIPPED, AND THE ARTEFACT WAS NOT NEEDED — BOTH WERE
+READABLE.** The second half took ten minutes of reading rather than a
+round trip, which is the half worth writing down:
+  · **6.405.0, the cold start.** `pickNote` asked `vault.names`, got an
+    empty table, and said "No notes to pick yet". The index is built
+    when Hamsidian OPENS (6.267.0, on purpose), so before the first ⇪3
+    of a session it is empty — and 6.340.0 had already taught the PAGE
+    to tell "not yet" from "nothing" and swept no other reader. The fix
+    is in the SERVICE: `v.indexState` is PURE, four answers (scanning ·
+    unread · read · failed), and `vault.names` returns it as an
+    additive second and third value (6.299.0), so no caller can read an
+    empty answer as an answer. `pickNote` waits through ONE held slot,
+    bounded, with the bound as a sentence (6.197.2), asking for the read
+    once rather than once per turn (6.304.0).
+  · **6.406.0, the white box.** `v.render()` was
+    `pcall(function() v.webview:html(v.buildHtml()) end)` — so when
+    buildHtml RAISES, which 6.335.0 proved it can in that very file, the
+    pcall swallowed it, `html()` was never called, render() returned
+    looking like a success, and open() SHOWED a webview that had never
+    been given a document. An hs.webview with no document draws BLANK,
+    with nothing in the Console. 6.391.0's rule about a webview refusing
+    in two directions, applied to `html()` rather than `show()` — and
+    the costlier of the two: a refused show draws nothing, a refused
+    DRAW draws a window.
+    🚨 And 6.326.0 was unpaid here, which explains "left with that
+    box": the handle was assigned ABOVE the show, and this module's own
+    toggle reads `if v.webview then v.hide() return end` — so a refusal
+    left the next ⇪3 hiding a window there was nothing to hide. The
+    order is the fix: write the page, THEN show the window, and tear
+    down anything that refuses.
+  🔎 And the page's own handshake had never been recorded. A HELD belt
+    names "the window is up and its page never ran" and does NOT close
+    it — a slow Mac is a slow Mac (6.198.0).
+
 ### J3 THE 16 "Fix:" ROWS ARE APPROVED
 
 "16 'Fix:' rows, yes go ahead." E1–E16 are cleared to build, in the
@@ -577,3 +611,21 @@ at the moment it happens turns "which panel?" into something he reads
 rather than remembers. That is the release, and it comes before picking
 a panel — which is the whole point of his answer.
 
+### J7 D7's FIRST HALF SHIPPED; THE CROP TOOL IS STILL OWED
+
+**6.407.0** is the sizing. His two sentences were one function and one of
+them was ALREADY BUILT, which is said rather than rebuilt (6.317.0):
+"not shrink down so much that the tools are not usable" is 6.270.0's
+floor, untouched. What was missing is the other end — the window was
+capped at 85% of the screen, and 80% of his LG at full points is a
+window over three thousand points wide, so his own number alone was not
+an answer. TWO ceilings now and the smaller wins: `maxFrac` (0.80, his
+number) and an absolute `maxW × maxH` (1600 × 1100, MINE and named as
+mine in the verify block, because there is no measurement for "big
+enough to work in, small enough to see at once").
+🚨 AND THE FLOOR-VERSUS-CEILING CASE HAD NEVER BEEN DECIDED: on a short
+screen the rails need more height than the display has. The SCREEN wins
+and the rails SCROLL, which 6.270.0 already built — a window taller
+than the display is buttons he cannot click.
+📏 STILL OWED: **the crop tool.** New drawing, a new saved rectangle,
+and its own release.

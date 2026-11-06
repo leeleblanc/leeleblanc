@@ -4,128 +4,78 @@
 -- =====================================================================
 -- 11-03-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.404.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.407.0
 -- =====================================================================
 
--- NEW IN 6.404.0 — 💾 THE DRAFT KEEPER: THE TEXT A WEB FORM LOSES
---   (modules/draft_keeper.lua, NEW — @draft in ⇪D, no key of its own).
---   LL, 2026-09-13, with a drawing: "a translucent floppy-disc beside a
---   text field in Chrome/Safari that has no save, watching the typing."
---   Scoped by him 2026-10-09 — browser AND Outlook fields, ⏎ COPIES,
---   a .csv in the Logs folder, @draft in ⇪D, ninety days — escalated by
---   name twice, the second time in capitals.
---   🔑 IT READS THE FIELD, IT DOES NOT WATCH THE KEYBOARD. The obvious
---   build is an eventtap accumulating keystrokes, and it is wrong for a
---   reason that is not about cost: A KEYSTROKE TAP RECONSTRUCTS, IT DOES
---   NOT READ. It never sees a paste, and after he moves the caret and
---   rewrites a sentence what it holds is a mangled transcript rather
---   than the paragraph on screen. The thing he wants back is the
---   FIELD'S VALUE, so the field is what is asked — and that instrument
---   is the narrower of the two, which matters more here than anywhere
---   else in this config: a tap sees every character typed anywhere on
---   the Mac, and this reads one element in seven named apps.
---   📏 THE WATCH LIST IS ASKED BEFORE ANY AX WORK, off the front app's
---   NAME — a string compare — so a Mac in Terminal, Finder or Word pays
---   that and nothing else; only a browser or Outlook reaches the read
---   at all. Every read is TIMED, and past `slowMs` it takes the 🔔 door
---   ONCE and BACKS OFF (the interval doubles, bounded) rather than going
---   on costing him the thread it is slow on — 6.228.0, and 6.229.0's
---   rule that a per-wake-up cost is counted per wake-up with what it
---   bought printed beside it.
---   🔒 IT FAILS CLOSED, and this is the half that earns its keep: a
---   password field is refused BY NAME, and so is a field macOS would not
---   DESCRIBE AT ALL — "I cannot tell what this is" and "this is safe to
---   read" are opposite facts (6.196.1) and the second is the one that
---   costs him a password in a CSV. Secure Input held stands the whole
---   thing down, read from core/capabilities.lua and never re-probed
---   (6.242.0); so does ⇪⇧Esc (6.152.0). The one case nothing here can
---   see is a password in a PLAIN field — a "show password" toggle — and
---   it is NAMED rather than discovered, with `_G.draftForget(n)` as the
---   way out.
---   🕰 A DRAFT IS WRITTEN WHEN IT HAS SETTLED, not when it could be —
---   6.387.0's rule, which was about minting a file name and is just as
---   true of a log: ask whether the thing is FINISHED. 🚪 AND THE CASE
---   THE FEATURE EXISTS FOR IS THE FLUSH: the next sample finding a
---   DIFFERENT field writes whatever was pending at once, because that is
---   the moment a web form loses a draft and a settle timer alone would
---   miss it. COST, NAMED: up to `settleSecs` of the newest typing is not
---   on disk at any instant.
---   ✂️ `dk.keepVerdict` is PURE, and the SHRINK is the interesting half:
---   text shorter than the row already saved is REFUSED, because that
---   longer row still holds every word of it — the saved row IS the
---   memory (6.281.0), so the store this needs is the one it already has.
---   A SAME-LENGTH REWRITE is kept, because a length-only rule calls 500
---   new characters unchanged; the fixture that bites is exactly that
---   pair (6.230.0).
---   🧵 A ROW IS ONE LINE, OR A TAIL READ CANNOT FIND A ROW BOUNDARY. A
---   draft has newlines in it and `core.csvQuote` turns every one into a
---   space, deliberately, so the text is ENCODED first and decoded on
---   read; `dk.encode`/`dk.decode` are PURE and round-trip, and the suite
---   lifts BOTH CSV helpers out of this file rather than retyping them
---   (6.273.0 — a stub that invents a convention certifies the bug).
---   🕘 Ninety days, his number: append-only (an append cannot shrink a
---   file — 6.279.0), pruned once per session, temp-then-rename (6.313.0).
---   🗳 THE DEFAULT IS MINE AND IT IS NOT "EVERYTHING": 60 characters,
---   settled for 10 seconds — keeping every field would make the file a
---   log of every search box he has ever typed in, and 6.267.0 forbids
---   leaving that answer in a settings line for him to type. Both numbers
---   are in the report. 📏 The file is in the Logs folder by his own
---   scope, which SYNCS; `local_ = true` keeps it off OneDrive and the
---   report says which folder it is using.
---   🚫 THE FLOPPY DISC IS NOT BUILT, said rather than left to be found:
---   it needs the element's own rectangle re-read and redrawn as he types
---   and as the page scrolls, which is per-event main-thread work
---   (6.228.0 · 6.247.0). The report, @draft and ONE Console line the
---   first time a draft is kept in a session are the surfaces instead.
---   `_G.draftKeeperReport()` · `settings = { draft_keeper = { enabled =
---   false } }`.
+-- NEW IN 6.407.0 — 📐 THE EDITOR'S CEILING, AND WHAT HAPPENS WHEN IT
+--   MEETS THE FLOOR (modules/screenshot_editor.lua). LL: "the editor
+--   window is growing too big … 80% of the largest screenshot size …
+--   but not shrink down so much that the tools are not usable."
+--   📏 THE FLOOR HALF WAS BUILT IN 6.270.0 — railMinH plus the header,
+--   so nine stacked tools always fit — and this release SAYS so rather
+--   than rebuilding it: claiming to fix what already works is how a
+--   release spends itself on nothing (6.317.0).
+--   🔑 WHAT WAS MISSING IS A CEILING THAT IS NOT ONLY A FRACTION. 0.85
+--   of a screen is sensible on a 1440-point laptop and absurd on his LG
+--   at full points, where it is a window over three thousand points
+--   wide — and 0.80 of that is still absurd, so moving the fraction
+--   alone would have been a cosmetic answer to a real complaint
+--   (6.355.0: ask what the bound is a proxy FOR). It is a proxy for "big
+--   enough to work in, small enough to see at once", so an ABSOLUTE cap
+--   sits beside his 80% and the smaller of the two wins. The shot is
+--   SCALED to fit rather than the window being let past the cap, which
+--   costs reading distance and no pixels — the canvas has always scaled.
+--   🚨 AND THE FLOOR AND THE CEILING CAN CONTRADICT, WHICH NOTHING
+--   DECIDED. On a short screen the rails need more height than the whole
+--   display has, and `math.max` let the floor win in silence: a window
+--   taller than the screen, whose buttons cannot be clicked. THE SCREEN
+--   WINS, because the rails already SCROLL (6.270.0) and a window you
+--   cannot reach does not. Said in the report, never left as a surprise.
+--   🔎 `windowSizeFor` ANSWERS WHICH RULE DECIDED, as a third value
+--   (additive — both callers read two, 6.299.0): fitted · capped at N%
+--   · capped at the maximum · floored for the rails · clamped to the
+--   screen. "Too big" and "too small" are opposite complaints about one
+--   function and a size alone cannot say which bound produced it.
 
--- NEW IN 6.403.0 — 🔬 A STORM ASKS WHY, AND THE ANSWER GOES IN ITS FILE
---   (modules/hyper_storm.lua + core/hyper_key.lua). LL's 2026-11-04
---   Console: ⇪ latched TWICE in forty-five seconds — 05:14:39 held 7 s
---   over 7 keys, 05:15:24 held 14.4 s over 6 — and the second one PAUSED
---   the config. The guard did its job both times. What neither file
---   could say is WHICH of the three things that latch ⇪ with the key
---   physically up had happened: the hidutil Caps Lock → F18 remap, the
---   F18 event tap, or Secure Input. 6.303.0 built the probe that reads
---   all three and wired it to WAKE EVENTS ONLY.
---   🔑 WHEN A GUARD CATCHES A FAULT, ASK THE QUESTIONS WHOSE ANSWERS
---   DECIDE THE FIX, AT THAT MOMENT. `before :` has always carried
---   counts — latches, handovers, relays, autorepeats — and a count says
---   how OFTEN, never WHY. It is free on a healthy Mac because it runs
---   only when a storm fires, and it is the one reading taken while the
---   fault is still on the Mac. The remap REPAIR rides free.
---   🔎 AND I NEARLY BUILT THE OPPOSITE. The file's `asked :` line read
---   "unified search", so a panel had declared a handover inside the
---   hold, and st.judge never consults that fact while _G.hyperEndVerdict
---   next door already answers it — which reads exactly like 6.305.0 and
---   would have meant exonerating such a hold. The key trail's own
---   timestamps refuse it: the hold began at 05:15:10, its first key is
---   at 05:15:11, and ⇪O (which opens unified search since 6.190.0) is
---   the FIFTH of six. The panel opened as a CONSEQUENCE of the latch.
---   Exonerating it would have disarmed the guard for the one case it
---   exists for — 6.337.0, almost paid a second time.
---   🚪 RELEASE FIRST, PROBE SECOND, asserted on the ORDER rather than on
---   both having happened (6.220.0): a probe that throws must never cost
---   him his keyboard. 🪜 Its answers arrive late (the remap is read out
---   of process — 6.228.0), so the file is written at once without them
---   and a HELD timer appends them a beat later; an append cannot shrink
---   a file (6.279.0). 🚨 One timer, a LIST of waiting files, drained
---   together — his own log is two storms 45 s apart, and a single slot
---   would have dropped the first one's answers in silence (6.304.0's
---   generation problem dissolved rather than guarded).
---   🔑 ONE RENDERER, TWO READERS: _G.hyperProbeAnswers is published from
---   core/ and _G.hyperKeyReport() asks it too (6.231.0), so the two
---   cannot drift about what "could not be asked" means — the row that
---   reads as reassurance when it is wrong. THREE freshness states
---   (6.196.1): measured at this storm · an OLD wake reading that says so
---   with its age · never asked. `probeOn = false` is the way back.
+-- NEW IN 6.406.0 — 🪟 A WHITE BOX IS A WINDOW WITH NO PAGE IN IT
+--   (modules/vault.lua). LL: "I had a white box that was Hamsidian … I
+--   ⇪⇧U in first, then got Hamsidian. Then was left with that box."
+--   🔎 READABLE, NOT GUESSED, AND IT IS TWO LINES. `v.render()` was
+--   `pcall(function() v.webview:html(v.buildHtml()) end)` — a bare pcall
+--   that throws away the one value saying whether the page was WRITTEN.
+--   When buildHtml raises, which 6.335.0 proved it can IN THIS VERY FILE
+--   from one local declared below the builder that reads it, the pcall
+--   swallows it, html() is never called, render() returns looking like a
+--   success, and open() SHOWS a webview that has never been given a
+--   document. An hs.webview with no document draws blank, with nothing
+--   in the Console and no record anywhere. 6.391.0's rule (read the
+--   answer) applied to html() rather than show().
+--   🔑 THE PAGE IS WRITTEN BEFORE THE WINDOW IS SHOWN, and a window with
+--   no document is never shown at all: it is torn DOWN rather than
+--   abandoned (6.265.0 · 6.314.0 — an abandoned webview keeps its Esc
+--   claim, which is the frozen-overlay shape), the refusal is NAMED, and
+--   the one-line prompt carries the note so nothing of his is cut off.
+--   🚨 AND 6.326.0 IS PAID HERE AT LAST, which is the half that explains
+--   "left with that box": `v.webview = view` sat ABOVE the show, so a
+--   refusal left a handle pointing at a window that is not on screen —
+--   and v.show()'s own first line is `if v.webview then v.hide() return
+--   end`, so the next ⇪3 press hid a window there was nothing to hide.
+--   A published handle is a CLAIM and is written after the world agrees.
+--   🔎 AND THE OTHER HALF IS MEASURABLE AT LAST: the page has said
+--   `ready` since 6.174.0 and nothing recorded it, so "the window is up
+--   and its page never ran" — what a white box IS once the document is
+--   in place (view:html() returns before WebKit parses, 6.238.0) — was a
+--   state no report could describe. A HELD belt names it, and does NOT
+--   close it: a slow Mac is a slow Mac and Esc still works (6.198.0).
+--   FOUR report states, the CLOSED one deliberate (6.352.0 — he runs the
+--   report after shutting the window). One function writes the page, two
+--   callers (6.231.0), and a sentry holds it there.
 
--- (6.402.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.405.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 cut the inline count to
 --  TWO; a gate check proves every entry here is also in CHANGELOG.md.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.404.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.407.0
 -- =====================================================================
 -- The catalogue that used to sit here moved to GUIDE.md ("What each
 -- tool does") in 6.180.0 — 259 lines of prose inside the orchestrator.
@@ -214,7 +164,7 @@ function _G.consoleRuleSay(what)
     return true
 end
 
-_G.configVersion = "6.404.0"
+_G.configVersion = "6.407.0"
 _G.consoleRuleSay("▶ BOOT")
 
 local function safeRequire(mod)

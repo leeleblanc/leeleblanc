@@ -1,4 +1,4 @@
-# TESTING — how to score release 6.404.0
+# TESTING — how to score release 6.407.0
 
 You install ONE archive and it carries several releases. Below are the
 steps for each release this archive is new for, newest first. Run the
@@ -26,6 +26,251 @@ else is a LOSS and I fix it before building further. You are the only
 scorer; I never mark my own.
 
 ---
+
+## 6.407.0
+
+6.407.0 verify with LL — 📐 THE EDITOR'S WINDOW SIZE (KNOWN GROUND)
+WHAT CHANGED: the screenshot editor's window has a ceiling that means
+something on a big display, and when the ceiling and the tool rails
+disagree the SCREEN wins.
+📏 AND HALF OF WHAT YOU ASKED FOR WAS ALREADY THERE, said first. "Not
+shrink down so much that the tools are not usable" was built in
+6.270.0: the window's floor is the taller rail's height plus the
+header, so nine stacked tools always fit. Nothing about that changed.
+🔑 WHAT WAS MISSING is the other end. The window was capped at 85% of
+the screen — fine on the Air, and on your LG at full points that is a
+window over three thousand points wide. Moving 85 to your 80 alone
+would have taken it from 3264 to 3072, which is not an answer. So
+there are TWO ceilings now and the smaller wins: 80% of the screen
+(your number), and never more than 1600 × 1100 points however big the
+display is.
+
+A. THE HEADLINE — a minute, and do it on BOTH screens if you can.
+A1. Take a screenshot of something big — a whole window, or the whole
+    screen (⇪⇧2 or ⇪⇧3). Then ⇪⇧1 to open the editor on it.
+    EXPECT: a window you can see all of at once, comfortably inside
+    the screen, with the picture scaled to fit it.
+    **A FAIL is a window that runs off the screen, or one you have to
+    move your head to read.**
+A2. Do the same on the OTHER display. EXPECT: on the Air the window is
+    about 80% of the screen; on the LG it is noticeably SMALLER than
+    80% of that screen, because the absolute cap binds there. That
+    difference is the release.
+A3. Open the editor on a SMALL screenshot — a button, a dialog.
+    EXPECT: the window does NOT shrink to the picture. All nine tools
+    down the left rail are visible without scrolling, and the six on
+    the right are too. That is 6.270.0's floor, unchanged.
+A4. Console: `_G.screenshotEditorReport()`. **PASTE THE WHOLE THING.**
+    Two lines are new:
+      ceiling : 80% of the screen (1152 × 720 here), and never more
+                than 1600 × 1100 points
+      sized   : 1100 × 682 pt for a 800 × 600 shot — fitted to the
+                picture × fitted to the picture
+    That `sized` line names WHICH RULE decided, and it is the whole
+    point: "it is growing too big" and "it shrank until the tools were
+    unusable" are opposite complaints about one function, and a size
+    on its own cannot say which bound produced it.
+
+B. THE RULE THAT HAD NEVER BEEN DECIDED.
+B1. If you ever work on a SHORT screen — a projector, a small external,
+    a display mirrored down — the tool rails need more height than the
+    whole screen has. EXPECT: the window fits the SCREEN and the rails
+    SCROLL, rather than a window taller than the display whose buttons
+    you cannot click.
+B2. The report says so when it happens: the `sized` line reads
+    "clamped to the screen — the rails will scroll". Paste it if you
+    see it; it means that screen cannot hold the full toolbar and you
+    scroll the rail instead.
+
+C. MUST STILL WORK — this touched the function that opens the window.
+C1. The nine drawing tools (B T A L O H C S M), ⌘Z, ⌘⏎ Save & copy,
+    Esc. All unchanged.
+C2. ⌘O load a shot — the canvas GROWS and the window follows. EXPECT:
+    it still grows, and it still stops at the ceiling rather than
+    walking off the screen.
+C3. ⌘A add capture, ⌘D delayed, ⌘F full screen, ⌘V paste image.
+C4. ⌘-drag the title strip to move the window; it still moves.
+C5. Open the editor on a 4K screenshot. EXPECT: a window you can see
+    all of, with the shot scaled down inside it — and every mark you
+    draw still lands exactly where you put it.
+
+D. A JUDGEMENT ONLY YOU CAN MAKE — and this is the real question.
+D1. **1600 × 1100 is MY number and it is the one I most want you to
+    overrule.** It is a guess at "big enough to work in, small enough
+    to see at once", and there is no measurement for that — it is your
+    eyes on your displays. If the editor now feels cramped on the LG,
+    say a bigger number; if it is still too big, say a smaller one. It
+    is `settings = { screenshot_editor = { maxW = 1900, maxH = 1200 } }`,
+    and say the word and I will change the DEFAULT rather than leave
+    you a line to type.
+D2. And 80% — is that right, or did you mean 80% of the SHOT rather
+    than of the screen? I read it as the screen, because "the window is
+    growing too big" can only be measured against the display. If you
+    meant the shot, that is a different one-line change.
+D3. 🔨 Nothing was broken and nothing was lost — the window was the
+    wrong size. My reading is that this is a shape ask rather than a
+    defect, except for the floor-versus-ceiling case in B1, which
+    could have put a window off your screen. Your tag.
+
+
+
+## 6.406.0
+
+6.406.0 verify with LL — 🪟 THE WHITE BOX (KNOWN GROUND)
+WHAT CHANGED: Hamsidian can no longer open a window with nothing in it.
+🔎 AND IT IS YOUR OWN REPORT, FOUND BY READING: "I had a white box that
+was Hamsidian … then was left with that box." A white window is a
+window with no PAGE in it, and there were two lines that could cause
+one. The first: the code that writes the page threw away the one value
+that says whether the page was written — so if building it failed, the
+failure was swallowed, the window was shown anyway, and an empty
+webview draws blank. Nothing in the Console, no alert, no record.
+🚨 AND THE SECOND LINE EXPLAINS "LEFT WITH THAT BOX": the window handle
+was recorded BEFORE the window was really on screen. ⇪3's first line is
+"if the window is open, close it" — so the next press closed a window
+there was nothing to close, and the box stayed.
+
+A. THE HEADLINE — and on a healthy Mac this release is INVISIBLE,
+   which is the point. So this is "go and look", not "wait for it".
+A1. Press ⇪3. EXPECT: Hamsidian opens with your notes, exactly as
+    always. Press ⇪3 again: it closes.
+A2. Do that five or six times in a row, briskly.
+    EXPECT: it opens every time and closes every time. **A FAIL is a
+    press that does nothing** — and if you get one, that is the thing
+    this release is about and I want step D1 immediately.
+A3. Press ⇪N, then ⇪3, then ⇪N again. EXPECT: the same window, the
+    tabs and the notes sides, as before.
+A4. The route you reported: press **⇪⇧U**, pick a note row with ⏎.
+    EXPECT: Hamsidian comes up ON that note, with its text in it.
+    NOT a blank white window.
+
+B. THE INSTRUMENT — this is what I need from you.
+B1. With Hamsidian OPEN, Console: `_G.vaultReport()`.
+    EXPECT a new line:
+      page   : up · the page is running · 3 draw(s)
+    **PASTE IT.** Three other things that line can say, and each is a
+    different fact:
+    · `⚠️ THE WINDOW IS UP WITH NO DOCUMENT IN IT — that is a blank
+      white box` — the window has nothing in it. This should now be
+      impossible, because such a window is never shown.
+    · `⚠️ the window is up and its page has NOT said it is ready` —
+      the document is there and the page did not run. That is the
+      other half of a white box, and it is the one I most want to see
+      if it happens.
+    · `closed · the page drew N time(s) while it was open` — you ran
+      the report after closing the window. That is NOT a fault, and
+      the line says so rather than reading like a page that never ran.
+B2. Close Hamsidian and run it again. EXPECT the `closed ·` wording.
+    That distinction exists because you will run this report after
+    shutting the window, which is exactly how the last round cost us a
+    release on the Mug Player.
+
+C. MUST STILL WORK — this touched the one function that draws every
+   screen in the tool that holds your writing. This half matters more
+   than A.
+C1. Type in a note, wait a second, close Hamsidian, reopen it.
+    EXPECT: your words are there.
+C2. 🚨 **⌘Z IN A NOTE** — open a note, delete a paragraph, wait ten
+    seconds for a background scan to land, then ⌘Z. EXPECT: your text
+    comes back. That is 6.323.0 and if undo is gone, tell me at once.
+C3. ⌘N a new note · ⌘F the filter · ↑↓ and ⏎ · the ✕ delete · 🗑 the
+    bin · ⌘⇧K tasks · ⌘⇧F search · ⌘G the graph · ⌘⇧B the board.
+    Every one of those redraws the page, so every one of them is a
+    path through the line that changed.
+C4. ⌘⇧S export · 📌 pin · Esc.
+C5. Drag the window somewhere, close it, reopen: it is where you left
+    it.
+
+D. IF IT EVER HAPPENS AGAIN.
+D1. If you get a white box, or a ⇪3 press that does nothing, run
+    `_G.vaultReport()` **with the box still on screen** and paste the
+    whole thing. The `page` line now names which of the four states
+    you are in, and the lines under it count pages that could not be
+    written, blank windows caught before they were shown, and shows
+    macOS refused. Before this release none of that existed.
+D2. If a page ever fails to build you will now SEE it: an alert
+    reading "🕸 Hamsidian could not draw its page — …", naming the
+    reason, and you get the old one-line dialog instead so you can
+    still reach the note. Paste that alert if you ever see it — it is
+    the exact failure that was silent.
+D3. 🔨 CRUDE OR ELEGANT: you were left with a window only a reload
+    could clear, in the tool that holds your writing. My reading is
+    that the Mac stayed usable and this one tool did not — but the tag
+    is yours, and the honest pass count is 1.
+
+
+
+## 6.405.0
+
+6.405.0 verify with LL — 🔎 ⇪⇧U'S "PICK A NOTE" ROW (KNOWN GROUND)
+WHAT CHANGED: ⇪⇧U's "📁 Link it into an existing note…" row no longer
+tells you that you have no notes when you have twenty.
+🔎 YOU WERE RIGHT, AND THE ANSWER TO "is this so obvious I'm missing
+it" IS NO. Hamsidian builds its list of notes when you OPEN it — on
+purpose, because reading that folder at boot is a tax every key pays.
+So before your first ⇪3 of a session the list is EMPTY, and ⇪⇧U read
+an empty list as "you have no notes" and said so. An empty list cannot
+say which empty it is, and nothing anywhere could tell you.
+
+A. THE HEADLINE — and it has to be done on a FRESH Hammerspoon, which
+   is the whole case that failed.
+A1. Reload Hammerspoon (⌘⌃R). Do NOT press ⇪3 — that is the step that
+    used to hide the bug.
+A2. Click into a Word document or a Chrome tab. Press **⇪⇧U**.
+A3. Press ⌘2, or pick the row reading "📁 Link it into an existing
+    note…".
+    EXPECT: a short "🔗 Reading your notes…", and then a picker
+    listing your notes.
+    **A FAIL is "🔗 No notes to pick yet — make one with the first
+    row"** — that is the bug, unchanged, and I want to know.
+A4. Pick one. EXPECT: "🔗 Linked into <note>", Hamsidian opens on it,
+    and the note has the link under `## Linked`.
+A5. Now press ⇪⇧U and ⌘2 again. EXPECT: the picker, instantly — the
+    list has been read by now and there is nothing to wait for.
+
+B. THE ONE CASE THE OLD MESSAGE WAS RIGHT ABOUT.
+B1. If Hamsidian genuinely has no notes, that row now says
+    "🔗 Hamsidian has no notes yet — the first row makes one". Which
+    is the same fact in better words, and it is the only state that
+    sentence was ever true of.
+
+C. PASTE BACK, PASS OR FAIL.
+C1. Console: `_G.anchorsReport()`. Two new lines:
+      index  : 412 note(s) the index knows · read — read
+      pick   : 2 asked · 2 opened the picker · 1 waited for the index ·
+               0 found Hamsidian genuinely empty
+    **PASTE BOTH.** The `index` line is the artefact: run it right
+    after a reload and it should read `0 note(s) … unread — no scan
+    has completed yet`, and after a ⇪3 it should read a real count and
+    `read`. Those two readings, a minute apart, are the whole release.
+C2. If `pick` ever shows a ⚠️ line about giving up waiting, paste it —
+    an index that never arrives is a fault rather than a cold start,
+    and that line is the difference.
+C3. `_G.vaultReport()` has a matching line:
+      index  : 412 note(s) · read — read
+    The two read the same renderer, so if they ever DISAGREE that is a
+    real finding.
+
+D. MUST STILL WORK.
+D1. ⇪⇧U still names what is in front: a Word document by its file
+    name, a Chrome tab by its page title, anything else by its app.
+D2. The rows at the TOP are still the notes that already mention it,
+    and ⏎ on one still opens that note. **That leg never used the
+    index** — it is a grep over the folder — so it has always worked
+    cold, and it must still.
+D3. The first row still makes a note named after the thing and links
+    it.
+D4. ⇪3 and ⇪N open Hamsidian as before.
+
+E. A JUDGEMENT ONLY YOU CAN MAKE.
+E1. The wait is about three seconds before it gives up and asks you to
+    press the key again. Too short on a vault in OneDrive? Too long to
+    sit there? It is a number, not a release.
+E2. 🔨 Nothing was broken and nothing was lost — the tool told you
+    something false about your own notes, on the one press where it
+    mattered. The Mac was fine. Your tag.
+
+
 
 ## 6.404.0
 
@@ -175,239 +420,6 @@ G3. **The floppy disc is NOT built**, and that is the half of your
 G4. 🔨 Nothing was broken and nothing was lost — this is a tool you
     asked for three times and never had. If it turns out to cost you
     anything on the Mac (E1), that is a different answer and I want it.
-
-
-
-## 6.403.0
-
-6.403.0 verify with LL — 🔬 A STORM NOW SAYS WHY (KNOWN GROUND)
-🚨 FIRST, AND BEFORE ANYTHING ELSE: **YOUR CONFIG MAY STILL BE PAUSED.**
-Your 05:15:24 line ends "2 storms in 10 min: PAUSED, ⇪⇧escape resumes",
-and nothing after it in your Console says you resumed. If ⇪ shortcuts
-are doing nothing right now, that is why: press **⇪⇧Esc** (hold Caps
-Lock and Shift, press the Escape key) and they all come back. A reload
-clears it too.
-WHAT HAPPENED, and it is not a false alarm: ⇪ really did latch, twice,
-forty-five seconds apart. Caps Lock was not under your finger — that
-Mac logged 88 autorepeats that session and NONE in the last two seconds
-of either hold — so every key you pressed was running a ⇪ shortcut
-instead of typing. The guard caught it both times, released it both
-times, and wrote both files. That is the feature working.
-WHAT CHANGED: those files said how OFTEN ⇪ had latched and never WHICH
-of the three things that can latch it had happened. Now a storm asks,
-at the moment it fires, and the answers go in its own file.
-
-A. THE HEADLINE — nothing to press, and I hope you never see it.
-A1. If ⇪ latches again you get the same alert, with one clause added:
-    "· asking WHY — the answer lands in that file in a moment".
-A2. Console: `_G.stormReport()`. **PASTE THE WHOLE THING.** At the END
-    of the embedded file there is now a new section:
-      ── why (measured at the storm) ──
-      why    : measured AT this storm (the ⇪ storm guard, 05:15:26)
-         remap : Caps Lock → F18 still set
-         tap   : the F18 event tap is running
-         secure: Secure Input clear
-    **Those three lines are the whole release.** Each one that reads
-    ⚠️ names a different cause with a different fix, and one of them is
-    the answer we have been missing since 6.214.0.
-A3. If `remap` ever reads **⚠️ GONE**, that is the answer AND it has
-    already been put back — you will have seen a Console line saying
-    so. That is the only one of the three with a repair.
-A4. If `secure` reads **⚠️ Secure Input held by <app>**, that app took
-    your whole keyboard, system-wide, and this config was never the
-    cause. It is the one your diagnostic report has been unable to read
-    for two releases, so it is the row with the least evidence either
-    way.
-A5. 🎹 AND READ THE `tap` ROW FIRST, which your own boot explains:
-    "⇪ IS RUNNING WITHOUT CARBON on this Mac — the event-tap dispatcher
-    has taken over all 111 ⇪ shortcuts". On a Mac where Carbon carries
-    the keys, a tap switched off costs you some shortcuts. On YOURS the
-    tap carries everything, so a tap that stops is a ⇪ that stops —
-    including the keyUP that ends the hold. That makes `tap : ⚠️ the
-    F18 event tap was NOT running` the most plausible of the three
-    here, and it is a row nothing has ever been able to print at the
-    moment of a storm.
-
-B. THE HONEST STATE OF THAT THIRD ROW — worth thirty seconds now.
-B1. Console: `_G.secureInputReport()`.
-    Your ⇪⇧D report says `❔ Secure Input UNKNOWN — ioreg was asked and
-    never answered in 20s`. That is 6.304.0's belt working (it gives up
-    instead of wedging for the session) and the probe STILL not
-    answering on your Mac.
-    **PASTE IT.** If it carries `N × ioreg started and NEVER ANSWERED`,
-    that is a real finding of its own and it is the next release there —
-    a probe that cannot answer is the one row that could be hiding the
-    cause of every latch.
-
-C. MUST STILL WORK — this touched the guard that saved your keyboard
-   twice, so this half matters more than A.
-C1. Use ⇪ normally for a day: ⇪T, ⇪D, ⇪N, ⇪3, ⇪X, ⇪4, ⇪space, ⇪V, ⇪/.
-    EXPECT: no change of any kind, and NO storm alerts.
-C2. Hold ⇪ down for ten seconds without pressing anything, then let go.
-    EXPECT: the ordinary `released by the watchdog — held 8s` line. That
-    warning must keep its teeth.
-C3. Open the Jug Player (⇪⇧.) — the one-off "musicPlayer took the
-    keyboard" line still appears, and it is still NOT a latch.
-C4. `_G.hyperKeyReport()` — the probe block is unchanged in shape, and
-    its three rows now come from the same renderer the storm file uses.
-    If those two ever disagree, that is a real finding.
-C5. `_G.stormReport()` on a Mac that has NOT stormed: it must read
-    `why    : 0 probe(s) asked at a storm · 0 answer(s) appended`. A
-    number there on a quiet day is a finding.
-
-D. A JUDGEMENT ONLY YOU CAN MAKE.
-D1. 🚨 **AND THREE OF YOUR SHORTCUTS ARE TAKING A SECOND AND A HALF.**
-    Your key trail: `⇪space app launcher 1571 ms ⚠️ slow`, twice, and
-    `⇪⇧. jug player 1620 ms ⚠️ slow`, twice. That is 1.5 seconds of
-    main-thread time per press — the thing that cost you drag and drop
-    in 6.228.0 — and it is also what makes a run of six shortcuts last
-    the five seconds the storm rule measures. I have NOT fixed it,
-    because "⇪space is slow" names a KEY and not a cause, and the
-    candidates (the 121,453-path search index, the app list, the
-    window) have different fixes. Tell me whether ⇪space FEELS slow
-    when you press it and that is the next release.
-D2. 🔨 Was the Mac unusable while this was happening, or did it just not
-    do the thing? By your own log every key you pressed ran a shortcut
-    for fourteen seconds and then the config paused itself, which reads
-    to me as unusable — but the tag is yours.
-D3. 📏 NAMED, NOT FIXED, so it is not a surprise: this release does not
-    stop ⇪ latching. It makes the next one name its own cause. The
-    three candidates have been unmeasurable since 6.214.0 and this is
-    the first build that reads them at the moment it matters.
-
-
-
-## 6.402.0
-
-6.402.0 verify with LL — 📋 ⏎ PASTES A CLIPBOARD ROW (KNOWN GROUND)
-WHAT CHANGED: in ⇪V (and ⇪D), pressing Return on a clipboard row now
-PASTES it where you were typing, instead of only copying it.
-🔎 AND YOUR FIRST-ROW REPORT WAS THE WHOLE DIAGNOSIS. ⏎ has always
-copied — and the FIRST row of the clipboard history is whatever is
-already on your clipboard. So ⏎ there wrote back what was already
-there, pasted nothing, and changed nothing you could see. Every other
-row at least leaves ⌘V carrying something different afterwards; row one
-does not. The one row you would try first is the only one that looks
-completely dead.
-
-A. THE HEADLINE — thirty seconds, and it is your own test.
-A1. Click into a text box you can type in — this one, a Chrome field,
-    a Word document. Leave the caret there.
-A2. Press ⇪V. Press **Return on the FIRST row**, without moving.
-    EXPECT: the panel closes, you are back in your text box, and the
-    text appears at the caret.
-    **A FAIL is nothing happening** — that is the old behaviour exactly.
-A3. Do it again on the third or fourth row. Same thing.
-A4. ⇪V, arrow down a few rows, Return. Same.
-
-B. THE ONES THAT PROTECT YOU — these matter more than A.
-B1. Press ⇪V and then press **Escape**.
-    EXPECT: nothing is pasted anywhere, AND you are back in your text
-    box (that part is new too — see 6.401.0's block).
-B2. Open ⇪V from the Hammerspoon **Console** (click the Console first),
-    then Return on a row.
-    EXPECT: it does NOT paste. You get "📋 It is on your clipboard —
-    ⌘V pastes it" and a reason. That is deliberate: there was no app to
-    go back to, and a ⌘V with nowhere to land is a keystroke that goes
-    into whatever happens to be in front.
-B3. If you ever get that message when you DID come from a real app,
-    paste `_G.unifiedSearchReport()` — the ⏎ clip line names which of
-    four reasons it was.
-
-C. MUST STILL WORK — this touched the panel every ⇪D search opens.
-C1. ⇪D and search for something. ↑↓ walk, the preview pane follows.
-C2. ⏎ on a **non-clipboard** row — an @ocr reading, an @shots path, a
-    @vault note. EXPECT: it still only COPIES and says "📋 Copied".
-    It must NOT type a file path into your document; that is the check
-    that keeps this change narrow.
-C3. ⌘⏎ on a row still copies its path; ⌥⏎ still opens it.
-C4. ⇪O and ⇪⇧space still open the panel pinned to their own source.
-C5. ⌘⌘ still opens the clipboard history.
-C6. ⇪⇧V (the editing picker) is untouched — it still edits and deletes.
-
-D. PASTE BACK, PASS OR FAIL.
-D1. `_G.unifiedSearchReport()` — the new ⏎ clip line:
-      ⏎ clip : 4 picked · 4 ⌘V posted · 0 left on the clipboard only
-    "left on the clipboard only" is NOT a failure — the text is on your
-    clipboard either way — but if that number is climbing I want to
-    know, because it means the focus is not coming back.
-
-E. A JUDGEMENT ONLY YOU CAN MAKE.
-E1. Should ⏎ paste for OTHER sources too? I deliberately limited it to
-    the clipboard, because typing a file path or a shortcut's keys into
-    whatever you were writing in is not what Return means there. If you
-    want @ocr readings pasted as well, say so — that is a one-line
-    change and it is your call.
-E2. `settings = { unified_search = { pasteOnPick = false } }` puts the
-    old copy-only behaviour back. Say the word and I change the default
-    instead of leaving you a line to type.
-
-
-
-## 6.401.0
-
-6.401.0 verify with LL — 🎯 THE FOCUS COMES BACK (KNOWN GROUND)
-WHAT CHANGED: when an edit window closes, you are put back in the app —
-and the field — you were in. No trackpad.
-🔑 AND YOU NAMED THE COMPARISON THAT EXPLAINS IT: "the cheat sheet
-doesn't do this." It does not, because ⇪/ never takes the keyboard. A
-window you TYPE INTO has no such option — macOS hands the keyboard only
-to an active window, and making one of ours active activates
-Hammerspoon. Two earlier releases paid that price and wrote it down;
-neither gave the focus back afterwards.
-
-A. THE HEADLINE — a minute, and do it from a real text box.
-A1. Click into a text box and type a word, leaving the caret there.
-A2. Press **⇪⇧W** to open the documents list. Pick a row and edit it.
-    Change something and save (⌘⏎), or press Escape.
-A3. EXPECT: you are back in your text box, with the caret in it. Type
-    immediately — you should not have to click or touch the trackpad.
-    **A FAIL is the caret not being there** — that is the bug.
-A4. Do the same from ⇪⇧V (Return on a row opens the editor) and from
-    ⇪⇧O. All three go through the same window, so all three should
-    behave the same.
-
-B. THE ONE THAT PROTECTS YOU — worth the thirty seconds.
-B1. Open an edit window (⇪⇧V, Return on a row). Now, **before closing
-    it**, click into a different app yourself — Chrome, Finder,
-    anything.
-B2. Go back and close the edit window (Escape).
-    EXPECT: you stay where YOU put yourself. It must NOT drag you back
-    to the app you originally came from.
-    That is deliberate: by then you have moved on, and the focus is not
-    ours to move. If it yanks you somewhere, tell me at once — that is
-    worse than the bug this fixes.
-
-C. MUST STILL WORK.
-C1. The edit window still comes to the front with the caret already in
-    it, as it has since 6.397.0 — the new half is only what happens
-    when it CLOSES.
-C2. It still drags by its ⠿ grip (6.395.0).
-C3. Save, delete and cancel all still do what they did.
-C4. ⇪/ the cheat sheet still opens without taking the keyboard at all —
-    nothing about it changed, and it is the comparison you used.
-
-D. PASTE BACK, PASS OR FAIL.
-D1. Console: `_G.focusReport()` — NEW. On a healthy Mac:
-      asked   : 3 borrow(s) · returned 3 · nothing to give back 0 · already held 0
-      watching: yes · last app seen: Google Chrome
-      refused : none — every app asked for came back
-      holding : nothing — no panel owes the focus back
-    **PASTE THAT.** Three lines are worth reading:
-    · `watching:` — if it ever says ⚠️ NO, this Mac would not give us an
-      application watcher and a window reached through a picker cannot
-      give the focus back at all. That is a real finding.
-    · `refused :` — an app that quit while you were editing.
-    · `moved on:` — step B. NOT a fault, and the report says so.
-
-E. A JUDGEMENT ONLY YOU CAN MAKE.
-E1. 📏 NAMED, NOT SWEPT, so it is not a surprise: this release gave the
-    focus back from the EDIT WINDOW (and 6.402.0 adds ⇪D). Every other
-    panel that takes the keyboard — Hamsidian, the task form, the
-    screenshot editor, the Mug and Jug Players — still leaves it with
-    Hammerspoon when it closes. Tell me which of those annoys you most
-    and it takes the same door next; one per release, as always.
-    Hamsidian is my guess, because you write in it.
 
 
 

@@ -544,6 +544,71 @@ work Mac.
   see where it landed). Only a @clip row pastes: a path or a shortcut's
   keys typed into his document is not what ⏎ means there.
 
+- 🔎 A FIX ON THE SURFACE IS NOT A FIX FOR THE READERS (6.405.0,
+  modules/anchors.lua + vault.lua — LL, on ⇪⇧U's "pick a note" row:
+  "I don't know if it's saying 'create a note first' over a full vault.
+  Is this so obvious I'm missing it." It is not, and it was.)
+  🔑 6.340.0 FIXED THIS EXACT COLLISION AND FIXED IT IN ONE PLACE. The
+  vault's notes index is built when Hamsidian OPENS (6.267.0, on
+  purpose), so before the first ⇪3 of a session it is empty — and that
+  release taught the PAGE to say "reading your notes…" instead of "no
+  notes yet". Every OTHER reader of the same index went on guessing.
+  ⇪⇧U asked `vault.names`, got `{}`, and said he had no notes.
+  🔑 GENERAL, and it is 6.305.0's sentence about a lazily-built STORE:
+  when a release teaches one surface to tell "not yet" from "nothing",
+  grep every consumer of that store in the same commit. The fix belongs
+  in the SERVICE, not in the surface — a second value beside the data
+  (additive, 6.299.0) so no caller can read an empty answer as an
+  answer. One renderer, two readers (6.231.0), or the module and its
+  report come to disagree about what "unread" is called.
+  🚨 AND THE STATE NEEDS A FOURTH ANSWER NOBODY ASKS FOR: a scan that
+  FAILED and never completed is not a scan that has not happened.
+  "Reading your notes…" for ever is the reassuring branch and the wrong
+  one (6.196.1), and a caller waiting on it waits for ever.
+  🕰 A CALLER THAT WAITS DOES IT THROUGH ONE HELD SLOT, bounded, with
+  the bound as a SENTENCE (6.197.2) — a wait that ends in silence is
+  indistinguishable from the bug — asking for the read ONCE rather than
+  once per turn, never restarting a scan under itself (6.304.0), and
+  treating a second press while a wait is in flight as the same press
+  (6.246.0).
+  📏 AND NAME THE LEGS THAT WERE NEVER AFFECTED. ⇪⇧U's "which notes
+  mention this?" is a grep over the folder with no index in it, so it
+  has always worked cold. Saying which half was fine is what makes the
+  next bisect cheap.
+
+- 🪟 A BARE pcall AROUND A DRAW IS A BLANK WINDOW WAITING TO HAPPEN
+  (6.406.0, modules/vault.lua — LL: "I had a white box that was
+  Hamsidian … then was left with that box").
+  🔎 `v.render()` was `pcall(function() v.webview:html(v.buildHtml()) end)`.
+  When buildHtml RAISES — which 6.335.0 proved it can, in that very
+  file, from one local declared below the builder that reads it — the
+  pcall swallows it, `html()` is never called, render() returns looking
+  like a success, and open() SHOWS a webview that has never been given a
+  document. An hs.webview with no document draws BLANK, with nothing in
+  the Console and no record anywhere. 6.391.0's rule — a webview refuses
+  in two directions and a pcall sees one — applied to `html()` rather
+  than `show()`, and the costlier of the two: a refused show draws
+  nothing, and a refused DRAW draws a window.
+  🔑 THE ORDER IS THE FIX: write the page, THEN show the window, and
+  never show one with no document in it. A window that cannot be drawn
+  is torn DOWN (6.265.0 · 6.314.0), named, and the degraded path carries
+  the work instead.
+  🚨 AND 6.326.0 WAS UNPAID HERE, which is the half that explains "left
+  with that box": the handle was assigned ABOVE the show, and this
+  module's own toggle reads `if v.webview then v.hide() return end` — so
+  a refusal left the next keypress hiding a window there was nothing to
+  hide. GENERAL, and it is why that rule has to be swept rather than
+  quoted: a published handle is a CLAIM about the world, and every
+  toggle in this config is a reader of it.
+  🔎 AND THE OTHER HALF OF A BLANK WINDOW IS THE PAGE'S OWN HANDSHAKE.
+  `say({a:'ready'})` has closed that page's load since 6.174.0 and
+  nothing recorded it, so "the window is up and its page never ran" —
+  which is what a white box IS once the document is in place, because
+  `view:html()` returns before WebKit parses it (6.238.0) — was a state
+  no report could describe. A HELD belt names it and does NOT close it:
+  a slow Mac is a slow Mac (6.198.0). GENERAL: any page in this config
+  that says when it exists owes a REPORT LINE for having not said it.
+
 - 🔑 WHEN A FEATURE'S SUBJECT IS THE STATE OF SOMETHING, ASK THE THING —
   A STREAM OF THE EVENTS THAT BUILT IT IS A DIFFERENT OBJECT (6.404.0,
   modules/draft_keeper.lua — LL, 2026-09-13, with a drawing: "a
@@ -6978,6 +7043,9 @@ that must be READ before a new cause is named.
 | symptom, in his words | where it lives | releases | passes | tag |
 |---|---|---|---|---|
 | "a translucent floppy-disc beside a text field … watching the typing" · "Escalate draft keeper" | modules/draft_keeper.lua — @draft in ⇪D | 6.404.0 | 1 | a new tool, not a defect — the ask was three years of web forms losing what he typed |
+| "I had a white box that was Hamsidian" · "then was left with that box" | modules/vault.lua — a bare pcall around the page write, and a handle published before the show | 6.406.0 | 1 | ask |
+| "No notes to pick yet" over a full vault · "is this so obvious I'm missing it" | modules/anchors.lua · vault.lua's index state | 6.340.0 · 6.405.0 | 2 | ask — 6.340.0 fixed the surface and swept no reader |
+| "the editor window is growing too big" · "not shrink down so much that the tools are not usable" | modules/screenshot_editor.lua · a ceiling that was only a fraction | 6.270.0 · 6.407.0 | 2 | ask |
 | "killed my keyboard", every key runs a shortcut, ⇪ latched · two storms in 45 s and the config PAUSED itself | core/hyper_key.lua · hyper_storm.lua | 6.162.1 · 6.214.1 · 6.214.2 · 6.302.0 · 6.303.0 · 6.304.0 · 6.403.0 | 7 (6.403.0 is an instrument, not a fix) | 🔨 crude |
 | "empty zip" / the archive will not open | delivery, not code | 6.263.0 → 6.303.0 | 6 | 🔨 crude |
 | "a drag kills the sheet functionality" · wheel dead over ⇪/ · desktop jump | core/coexist.lua drag engine | 6.138.0 · 6.306.0 | 2 | ask |
@@ -7137,6 +7205,9 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
+| 6.407.0 | 📐 The screenshot editor's window has a ceiling that means something on a 4K display — and the screen wins when it meets the tool rails | pending |
+| 6.406.0 | 🪟 Hamsidian can no longer open a white box — the page is written before the window is shown | pending |
+| 6.405.0 | 🔎 ⇪⇧U stops saying you have no notes when it simply has not read them yet | pending |
 | 6.404.0 | 💾 The draft keeper — the text a web form loses, kept while you type and searchable on @draft | pending |
 | 6.403.0 | 🔬 A storm asks WHICH of three things latched ⇪, and appends the answer to its own file | pending |
 | 6.402.0 | 📋 ⏎ on a clipboard row pastes it where you were typing — and the first row was why it looked dead | pending |
@@ -8820,6 +8891,239 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.407.0 verify with LL — 📐 THE EDITOR'S WINDOW SIZE (KNOWN GROUND)
+  WHAT CHANGED: the screenshot editor's window has a ceiling that means
+  something on a big display, and when the ceiling and the tool rails
+  disagree the SCREEN wins.
+  📏 AND HALF OF WHAT YOU ASKED FOR WAS ALREADY THERE, said first. "Not
+  shrink down so much that the tools are not usable" was built in
+  6.270.0: the window's floor is the taller rail's height plus the
+  header, so nine stacked tools always fit. Nothing about that changed.
+  🔑 WHAT WAS MISSING is the other end. The window was capped at 85% of
+  the screen — fine on the Air, and on your LG at full points that is a
+  window over three thousand points wide. Moving 85 to your 80 alone
+  would have taken it from 3264 to 3072, which is not an answer. So
+  there are TWO ceilings now and the smaller wins: 80% of the screen
+  (your number), and never more than 1600 × 1100 points however big the
+  display is.
+
+  A. THE HEADLINE — a minute, and do it on BOTH screens if you can.
+  A1. Take a screenshot of something big — a whole window, or the whole
+      screen (⇪⇧2 or ⇪⇧3). Then ⇪⇧1 to open the editor on it.
+      EXPECT: a window you can see all of at once, comfortably inside
+      the screen, with the picture scaled to fit it.
+      **A FAIL is a window that runs off the screen, or one you have to
+      move your head to read.**
+  A2. Do the same on the OTHER display. EXPECT: on the Air the window is
+      about 80% of the screen; on the LG it is noticeably SMALLER than
+      80% of that screen, because the absolute cap binds there. That
+      difference is the release.
+  A3. Open the editor on a SMALL screenshot — a button, a dialog.
+      EXPECT: the window does NOT shrink to the picture. All nine tools
+      down the left rail are visible without scrolling, and the six on
+      the right are too. That is 6.270.0's floor, unchanged.
+  A4. Console: `_G.screenshotEditorReport()`. **PASTE THE WHOLE THING.**
+      Two lines are new:
+        ceiling : 80% of the screen (1152 × 720 here), and never more
+                  than 1600 × 1100 points
+        sized   : 1100 × 682 pt for a 800 × 600 shot — fitted to the
+                  picture × fitted to the picture
+      That `sized` line names WHICH RULE decided, and it is the whole
+      point: "it is growing too big" and "it shrank until the tools were
+      unusable" are opposite complaints about one function, and a size
+      on its own cannot say which bound produced it.
+
+  B. THE RULE THAT HAD NEVER BEEN DECIDED.
+  B1. If you ever work on a SHORT screen — a projector, a small external,
+      a display mirrored down — the tool rails need more height than the
+      whole screen has. EXPECT: the window fits the SCREEN and the rails
+      SCROLL, rather than a window taller than the display whose buttons
+      you cannot click.
+  B2. The report says so when it happens: the `sized` line reads
+      "clamped to the screen — the rails will scroll". Paste it if you
+      see it; it means that screen cannot hold the full toolbar and you
+      scroll the rail instead.
+
+  C. MUST STILL WORK — this touched the function that opens the window.
+  C1. The nine drawing tools (B T A L O H C S M), ⌘Z, ⌘⏎ Save & copy,
+      Esc. All unchanged.
+  C2. ⌘O load a shot — the canvas GROWS and the window follows. EXPECT:
+      it still grows, and it still stops at the ceiling rather than
+      walking off the screen.
+  C3. ⌘A add capture, ⌘D delayed, ⌘F full screen, ⌘V paste image.
+  C4. ⌘-drag the title strip to move the window; it still moves.
+  C5. Open the editor on a 4K screenshot. EXPECT: a window you can see
+      all of, with the shot scaled down inside it — and every mark you
+      draw still lands exactly where you put it.
+
+  D. A JUDGEMENT ONLY YOU CAN MAKE — and this is the real question.
+  D1. **1600 × 1100 is MY number and it is the one I most want you to
+      overrule.** It is a guess at "big enough to work in, small enough
+      to see at once", and there is no measurement for that — it is your
+      eyes on your displays. If the editor now feels cramped on the LG,
+      say a bigger number; if it is still too big, say a smaller one. It
+      is `settings = { screenshot_editor = { maxW = 1900, maxH = 1200 } }`,
+      and say the word and I will change the DEFAULT rather than leave
+      you a line to type.
+  D2. And 80% — is that right, or did you mean 80% of the SHOT rather
+      than of the screen? I read it as the screen, because "the window is
+      growing too big" can only be measured against the display. If you
+      meant the shot, that is a different one-line change.
+  D3. 🔨 Nothing was broken and nothing was lost — the window was the
+      wrong size. My reading is that this is a shape ask rather than a
+      defect, except for the floor-versus-ceiling case in B1, which
+      could have put a window off your screen. Your tag.
+
+- 6.406.0 verify with LL — 🪟 THE WHITE BOX (KNOWN GROUND)
+  WHAT CHANGED: Hamsidian can no longer open a window with nothing in it.
+  🔎 AND IT IS YOUR OWN REPORT, FOUND BY READING: "I had a white box that
+  was Hamsidian … then was left with that box." A white window is a
+  window with no PAGE in it, and there were two lines that could cause
+  one. The first: the code that writes the page threw away the one value
+  that says whether the page was written — so if building it failed, the
+  failure was swallowed, the window was shown anyway, and an empty
+  webview draws blank. Nothing in the Console, no alert, no record.
+  🚨 AND THE SECOND LINE EXPLAINS "LEFT WITH THAT BOX": the window handle
+  was recorded BEFORE the window was really on screen. ⇪3's first line is
+  "if the window is open, close it" — so the next press closed a window
+  there was nothing to close, and the box stayed.
+
+  A. THE HEADLINE — and on a healthy Mac this release is INVISIBLE,
+     which is the point. So this is "go and look", not "wait for it".
+  A1. Press ⇪3. EXPECT: Hamsidian opens with your notes, exactly as
+      always. Press ⇪3 again: it closes.
+  A2. Do that five or six times in a row, briskly.
+      EXPECT: it opens every time and closes every time. **A FAIL is a
+      press that does nothing** — and if you get one, that is the thing
+      this release is about and I want step D1 immediately.
+  A3. Press ⇪N, then ⇪3, then ⇪N again. EXPECT: the same window, the
+      tabs and the notes sides, as before.
+  A4. The route you reported: press **⇪⇧U**, pick a note row with ⏎.
+      EXPECT: Hamsidian comes up ON that note, with its text in it.
+      NOT a blank white window.
+
+  B. THE INSTRUMENT — this is what I need from you.
+  B1. With Hamsidian OPEN, Console: `_G.vaultReport()`.
+      EXPECT a new line:
+        page   : up · the page is running · 3 draw(s)
+      **PASTE IT.** Three other things that line can say, and each is a
+      different fact:
+      · `⚠️ THE WINDOW IS UP WITH NO DOCUMENT IN IT — that is a blank
+        white box` — the window has nothing in it. This should now be
+        impossible, because such a window is never shown.
+      · `⚠️ the window is up and its page has NOT said it is ready` —
+        the document is there and the page did not run. That is the
+        other half of a white box, and it is the one I most want to see
+        if it happens.
+      · `closed · the page drew N time(s) while it was open` — you ran
+        the report after closing the window. That is NOT a fault, and
+        the line says so rather than reading like a page that never ran.
+  B2. Close Hamsidian and run it again. EXPECT the `closed ·` wording.
+      That distinction exists because you will run this report after
+      shutting the window, which is exactly how the last round cost us a
+      release on the Mug Player.
+
+  C. MUST STILL WORK — this touched the one function that draws every
+     screen in the tool that holds your writing. This half matters more
+     than A.
+  C1. Type in a note, wait a second, close Hamsidian, reopen it.
+      EXPECT: your words are there.
+  C2. 🚨 **⌘Z IN A NOTE** — open a note, delete a paragraph, wait ten
+      seconds for a background scan to land, then ⌘Z. EXPECT: your text
+      comes back. That is 6.323.0 and if undo is gone, tell me at once.
+  C3. ⌘N a new note · ⌘F the filter · ↑↓ and ⏎ · the ✕ delete · 🗑 the
+      bin · ⌘⇧K tasks · ⌘⇧F search · ⌘G the graph · ⌘⇧B the board.
+      Every one of those redraws the page, so every one of them is a
+      path through the line that changed.
+  C4. ⌘⇧S export · 📌 pin · Esc.
+  C5. Drag the window somewhere, close it, reopen: it is where you left
+      it.
+
+  D. IF IT EVER HAPPENS AGAIN.
+  D1. If you get a white box, or a ⇪3 press that does nothing, run
+      `_G.vaultReport()` **with the box still on screen** and paste the
+      whole thing. The `page` line now names which of the four states
+      you are in, and the lines under it count pages that could not be
+      written, blank windows caught before they were shown, and shows
+      macOS refused. Before this release none of that existed.
+  D2. If a page ever fails to build you will now SEE it: an alert
+      reading "🕸 Hamsidian could not draw its page — …", naming the
+      reason, and you get the old one-line dialog instead so you can
+      still reach the note. Paste that alert if you ever see it — it is
+      the exact failure that was silent.
+  D3. 🔨 CRUDE OR ELEGANT: you were left with a window only a reload
+      could clear, in the tool that holds your writing. My reading is
+      that the Mac stayed usable and this one tool did not — but the tag
+      is yours, and the honest pass count is 1.
+
+- 6.405.0 verify with LL — 🔎 ⇪⇧U'S "PICK A NOTE" ROW (KNOWN GROUND)
+  WHAT CHANGED: ⇪⇧U's "📁 Link it into an existing note…" row no longer
+  tells you that you have no notes when you have twenty.
+  🔎 YOU WERE RIGHT, AND THE ANSWER TO "is this so obvious I'm missing
+  it" IS NO. Hamsidian builds its list of notes when you OPEN it — on
+  purpose, because reading that folder at boot is a tax every key pays.
+  So before your first ⇪3 of a session the list is EMPTY, and ⇪⇧U read
+  an empty list as "you have no notes" and said so. An empty list cannot
+  say which empty it is, and nothing anywhere could tell you.
+
+  A. THE HEADLINE — and it has to be done on a FRESH Hammerspoon, which
+     is the whole case that failed.
+  A1. Reload Hammerspoon (⌘⌃R). Do NOT press ⇪3 — that is the step that
+      used to hide the bug.
+  A2. Click into a Word document or a Chrome tab. Press **⇪⇧U**.
+  A3. Press ⌘2, or pick the row reading "📁 Link it into an existing
+      note…".
+      EXPECT: a short "🔗 Reading your notes…", and then a picker
+      listing your notes.
+      **A FAIL is "🔗 No notes to pick yet — make one with the first
+      row"** — that is the bug, unchanged, and I want to know.
+  A4. Pick one. EXPECT: "🔗 Linked into <note>", Hamsidian opens on it,
+      and the note has the link under `## Linked`.
+  A5. Now press ⇪⇧U and ⌘2 again. EXPECT: the picker, instantly — the
+      list has been read by now and there is nothing to wait for.
+
+  B. THE ONE CASE THE OLD MESSAGE WAS RIGHT ABOUT.
+  B1. If Hamsidian genuinely has no notes, that row now says
+      "🔗 Hamsidian has no notes yet — the first row makes one". Which
+      is the same fact in better words, and it is the only state that
+      sentence was ever true of.
+
+  C. PASTE BACK, PASS OR FAIL.
+  C1. Console: `_G.anchorsReport()`. Two new lines:
+        index  : 412 note(s) the index knows · read — read
+        pick   : 2 asked · 2 opened the picker · 1 waited for the index ·
+                 0 found Hamsidian genuinely empty
+      **PASTE BOTH.** The `index` line is the artefact: run it right
+      after a reload and it should read `0 note(s) … unread — no scan
+      has completed yet`, and after a ⇪3 it should read a real count and
+      `read`. Those two readings, a minute apart, are the whole release.
+  C2. If `pick` ever shows a ⚠️ line about giving up waiting, paste it —
+      an index that never arrives is a fault rather than a cold start,
+      and that line is the difference.
+  C3. `_G.vaultReport()` has a matching line:
+        index  : 412 note(s) · read — read
+      The two read the same renderer, so if they ever DISAGREE that is a
+      real finding.
+
+  D. MUST STILL WORK.
+  D1. ⇪⇧U still names what is in front: a Word document by its file
+      name, a Chrome tab by its page title, anything else by its app.
+  D2. The rows at the TOP are still the notes that already mention it,
+      and ⏎ on one still opens that note. **That leg never used the
+      index** — it is a grep over the folder — so it has always worked
+      cold, and it must still.
+  D3. The first row still makes a note named after the thing and links
+      it.
+  D4. ⇪3 and ⇪N open Hamsidian as before.
+
+  E. A JUDGEMENT ONLY YOU CAN MAKE.
+  E1. The wait is about three seconds before it gives up and asks you to
+      press the key again. Too short on a vault in OneDrive? Too long to
+      sit there? It is a number, not a release.
+  E2. 🔨 Nothing was broken and nothing was lost — the tool told you
+      something false about your own notes, on the one press where it
+      mattered. The Mac was fine. Your tag.
+
 - 6.404.0 verify with LL — 💾 THE DRAFT KEEPER (NEW GROUND — expect a round)
   WHAT CHANGED: there is a new tool, and it has no key. While you type
   into a text box in a BROWSER or in Outlook, this config keeps what the

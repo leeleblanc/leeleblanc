@@ -9,10 +9,10 @@ structure, not for the shortcuts (⇪/ is the shortcut list).
 
 ```
 ~/.hammerspoon/
-├── init.lua          the orchestrator (3749 lines)
+├── init.lua          the orchestrator (3483 lines)
 ├── secret.lua        Asana token. NEVER backed up, never in the cloud
 ├── core/             dofile'd at a fixed point, NOT loader-managed (13 files)
-├── modules/          one file per feature (73 files, ~65,900 lines)
+├── modules/          one file per feature (78 files, ~83,200 lines)
 ├── tests/            run on any machine with lua5.4; no Mac required
 ├── packs/            the four PUBLIC snippet packs as .json (1,926), in
 │                     git since 6.162.0 — the builder folds them into
@@ -973,10 +973,10 @@ CREATED AUTOMATICALLY (never make these yourself):
 
 ## 6. Tests
 
-Eighty-two Lua suites, 13,452 checks, plus seven more that run the
+Eighty-two Lua suites, 13,541 checks, plus seven more that run the
 Capture Pad's, the screenshot editor's, unified search's, the vault's,
 the music player's, the Mug Player's and Hamsidian's own page JavaScript
-under `node` for a further 857 — **14,309 checks over ninety-one
+under `node` for a further 857 — **14,398 checks over ninety-one
 stages** in
 all. Every Lua stage runs with `lua5.4` on any machine — no Mac required,
 they stub the `hs` API:

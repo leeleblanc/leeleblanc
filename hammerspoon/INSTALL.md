@@ -214,7 +214,7 @@ ls ~/.hammerspoon/modules | wc -l
 ls ~/.hammerspoon/snippets/bundled.lua
 ```
 
-✅ **Success:** a path · the version line · `13` · `75` · a path.
+✅ **Success:** a path · the version line · `13` · `78` · a path.
 ❌ **Failure — any "No such file or directory":** the install did not
 happen. Re-run 3c and read its output rather than re-running blindly.
 
