@@ -6948,6 +6948,25 @@ THE METHOD, when something breaks after a stacked zip:
    one `uni.sources` row. `settings = { draft_keeper = { enabled =
    false } }` switches it off entirely, and the switch is real because
    the watch starts in M.warm (6.228.0).
+   · 6.405.0–6.407.0 63449db (the code) · 4bd22f7 (the ceremony) ·
+   **2fa45aa is the archive, and 2fa45aa is the SHA every link to it must
+   carry** — a branch-pinned link dies the moment the next release
+   deletes the file, which is why 6.356.0–6.358.0 never reached his
+   Downloads (6.360.0).
+   🔑 THREE RELEASES IN THREE DIFFERENT PLACES on purpose —
+   modules/anchors.lua plus vault.lua's SERVICE (6.405.0),
+   modules/vault.lua's own draw and show (6.406.0) and
+   modules/screenshot_editor.lua (6.407.0) — so a break still names its
+   version by which thing fails: ⇪⇧U saying he has no notes is
+   6.405.0, a blank Hamsidian window is 6.406.0, an editor window the
+   wrong size is 6.407.0.
+   📏 AND 6.405.0 AND 6.406.0 SHARE A FILE, which is worth knowing
+   before bisecting: both touch vault.lua, and 6.405.0's half is the
+   `vault.names` service alone (`v.indexState`, plus two values added to
+   that provider — 6.299.0's additive shape), while 6.406.0 is
+   `v.render`/`v.renderInto`, `v.open`'s ORDER and the ready belt.
+   `_G.vaultReport()`'s `index :` line separates the first from
+   `_G.anchorsReport()`'s, and its `page :` line is the second.
    · 6.403.0 1c271a0 (the code) · f134521 (the ceremony) · **ff192e1 is
    the archive, and ff192e1 is the SHA every link to it must carry** — a
    branch-pinned link dies the moment the next release deletes the file,
