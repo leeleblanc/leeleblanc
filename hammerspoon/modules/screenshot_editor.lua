@@ -104,6 +104,33 @@ function M.setup(core)
                            -- show every button without scrolling. The
                            -- window floor is this plus the header, which
                            -- is the vertical half of his "big enough".
+    -- 📐 6.407.0 — THE CEILING, AND WHAT HAPPENS WHEN IT MEETS THE FLOOR.
+    -- LL: "the editor window is growing too big … 80% of the largest
+    -- screenshot size … but not shrink down so much that the tools are
+    -- not usable." The FLOOR half was built in 6.270.0 and is the line
+    -- above — said rather than rebuilt, because claiming to fix what
+    -- already works is how a release spends itself (6.317.0).
+    -- 🔑 WHAT WAS MISSING IS A CEILING THAT IS NOT ONLY A FRACTION. 0.85
+    -- of a screen is a sensible number on a 1440-point laptop and an
+    -- absurd one on his LG at full points, where it is a window over
+    -- three thousand points wide — and 0.80 of that is still absurd, so
+    -- moving the fraction alone would have been a cosmetic answer to a
+    -- real complaint (6.355.0: a bound you typed is a bound that will be
+    -- wrong, and the question is what the bound is a proxy FOR). It is a
+    -- proxy for "big enough to work in, small enough to see at once", so
+    -- there is an absolute cap beside the fraction and the SMALLER wins.
+    -- 🚨 AND THE FLOOR AND THE CEILING CAN CONTRADICT EACH OTHER, which
+    -- nothing decided before: on a small screen the tool rails need more
+    -- height than 80% of the display has, and `math.max` let the floor
+    -- win silently — a window taller than the screen, which cannot be
+    -- reached. THE SCREEN WINS, because the rails SCROLL (6.270.0 built
+    -- that) and a window you cannot reach does not. Said out loud in the
+    -- report rather than left as a surprise.
+    ed.maxFrac    = 0.80   -- his number: never more of the screen than this
+    ed.maxW       = 1600   -- …and never wider than this, however big the display
+    ed.maxH       = 1100   -- …nor taller
+    ed.minW       = 720    -- the floor, named rather than a literal (6.248.0)
+    ed.minH       = 320
     ed.blurRadius = 12     -- box-blur radius in image pixels (Retina = 2x)
     ed.blurPasses = 3      -- 3 box passes ≈ gaussian
     ed.maxUndo    = 20
@@ -1447,18 +1474,55 @@ function M.setup(core)
         local headerH = math.max(0, tonumber(opts.headerH)  or tonumber(ed.dragStripH) or 0)
         local railMin = math.max(0, tonumber(opts.railMinH) or tonumber(ed.railMinH)   or 0)
         local rails   = railW * 2
-        local maxW, maxH = sf.w * 0.85, sf.h * 0.85
-        -- The room left for the PICTURE is the screen budget less the
-        -- rails; a screen narrower than its own rails would give a
-        -- negative scale, so the picture floors at nothing rather than
-        -- inverting.
-        local roomW = math.max(1, maxW - rails)
-        local roomH = math.max(1, maxH - headerH - 28)
+        -- 📐 6.407.0 — TWO CEILINGS, AND THE SMALLER WINS. A fraction
+        -- alone is wrong on a very large display and an absolute alone is
+        -- wrong on a small one, so both are asked and neither is trusted
+        -- by itself. A frac of 0 or a cap of 0 from a settings typo must
+        -- not produce a window of nothing, so each floors at something
+        -- usable rather than being taken at its word.
+        local frac = tonumber(opts.maxFrac) or tonumber(ed.maxFrac) or 0.80
+        if frac <= 0 or frac > 1 then frac = 0.80 end
+        local absW = math.max(1, tonumber(opts.maxW) or tonumber(ed.maxW) or 1600)
+        local absH = math.max(1, tonumber(opts.maxH) or tonumber(ed.maxH) or 1100)
+        local fracW, fracH = sf.w * frac, sf.h * frac
+        local capW, capH   = math.min(fracW, absW), math.min(fracH, absH)
+        local capWwhy = (absW < fracW) and "the maximum window width" or (tostring(math.floor(frac * 100)) .. "% of the screen")
+        local capHwhy = (absH < fracH) and "the maximum window height" or (tostring(math.floor(frac * 100)) .. "% of the screen")
+        -- The room left for the PICTURE is the window budget less the
+        -- rails and the header; a budget narrower than its own rails
+        -- would give a negative scale, so the picture floors at nothing
+        -- rather than inverting.
+        local roomW = math.max(1, capW - rails - 28)
+        local roomH = math.max(1, capH - headerH - 28)
         local scale = math.max(0, math.min(1, roomW / imgW, roomH / imgH))
-        local w = math.max(720, math.floor(imgW * scale) + 28 + rails)
-        local h = math.max(320, railMin + headerH,
-                           math.floor(imgH * scale) + headerH + 28)
-        return w, h
+        local wantW = math.floor(imgW * scale) + 28 + rails
+        local wantH = math.floor(imgH * scale) + headerH + 28
+        -- 🖼 THE FLOOR IS THE TOOLS (6.270.0): nine stacked buttons plus
+        -- the header, and enough width that the picture is not a sliver
+        -- between two rails.
+        local floorW = math.max(tonumber(ed.minW) or 720, rails + 180)
+        local floorH = math.max(tonumber(ed.minH) or 320, railMin + headerH)
+        local w, h = math.max(wantW, floorW), math.max(wantH, floorH)
+        local whyW = (w > wantW) and "floored so the tool rails fit"
+                     or ((scale < 1) and ("capped at " .. capWwhy) or "fitted to the picture")
+        local whyH = (h > wantH) and "floored so the tool rails fit"
+                     or ((scale < 1) and ("capped at " .. capHwhy) or "fitted to the picture")
+        -- 🚨 AND THE SCREEN WINS. The floor above can push past the
+        -- ceiling on a small display, and a window taller than the screen
+        -- is a window whose buttons cannot be clicked — strictly worse
+        -- than rails that scroll, which is what they already do.
+        local roomOnScreen = 20
+        if w > sf.w - roomOnScreen then
+            w = math.max(1, math.floor(sf.w - roomOnScreen))
+            whyW = "clamped to the screen — the left rail will scroll"
+        end
+        if h > sf.h - roomOnScreen then
+            h = math.max(1, math.floor(sf.h - roomOnScreen))
+            whyH = "clamped to the screen — the rails will scroll"
+        end
+        -- the third value is additive (6.299.0): both existing callers
+        -- read two and are unchanged
+        return w, h, whyW .. " × " .. whyH
     end
 
     -- 🔒 ONE DOOR, ONE SHAPE (6.213.0). Both ⌘V/⌘A's addImage and this
@@ -2068,6 +2132,35 @@ function M.setup(core)
          .. "(floor %d pt tall, to fit the taller rail)",
             math.floor(num(ed.railW, 136)), math.floor(num(ed.railW, 136)) * 2,
             math.floor(num(ed.railMinH, 344)) + math.floor(num(ed.dragStripH, 54)))
+        -- 📐 6.407.0 — THE CEILING, AND WHICH RULE DECIDED THIS WINDOW.
+        -- "it is growing too big" and "it shrank until the tools were
+        -- unusable" are opposite complaints about one function, and a
+        -- size on its own cannot say which bound produced it.
+        do
+            local scr = core.resolveBaseScreen and core.resolveBaseScreen()
+                        or (hs.screen and hs.screen.mainScreen and hs.screen.mainScreen())
+            local okF, sf = pcall(function() return scr and scr:frame() end)
+            sf = (okF and type(sf) == "table" and sf.w) and sf or { x = 0, y = 0, w = 1440, h = 900 }
+            local frac = num(ed.maxFrac, 0.80)
+            L[#L + 1] = ("   ceiling : %d%% of the screen (%d × %d here), and never more"
+                      .. " than %d × %d points"):format(
+                            math.floor(frac * 100), math.floor(sf.w * frac),
+                            math.floor(sf.h * frac), math.floor(num(ed.maxW, 1600)),
+                            math.floor(num(ed.maxH, 1100)))
+            local cw, ch, cwhy = ed.canvasSize()
+            if (tonumber(cw) or 0) > 0 then
+                local ww, wh, why = ed.windowSizeFor(cw, ch, sf)
+                L[#L + 1] = ("   sized   : %d × %d pt for a %d × %d shot — %s"):format(
+                                ww, wh, math.floor(cw), math.floor(ch), tostring(why))
+                if tostring(why):find("clamped to the screen", 1, true) then
+                    L[#L + 1] = "   ↳ this screen cannot hold the tool rails at full height,"
+                                .. " so the window is the screen's and the rails scroll"
+                end
+                L[#L + 1] = "   ↳ canvas : " .. tostring(cwhy)
+            else
+                L[#L + 1] = "   sized   : no shot has been opened this session"
+            end
+        end
         local asked = num(d.asked, 0)
         if asked == 0 then
             L[#L + 1] = "   capture : never asked this session (⌘D or ⌘F in the editor)"

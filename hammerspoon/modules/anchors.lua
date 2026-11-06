@@ -43,6 +43,19 @@
 -- or refused → the timer kills it and the app name carries the anchor.
 -- Every step is pcall'd; nothing here can cost you a keystroke.
 --
+-- 🔎 AND THE "PICK A NOTE" ROW ASKS AN INDEX THAT MAY NOT HAVE BEEN READ
+-- (6.405.0). The vault builds its notes index when Hamsidian OPENS —
+-- 6.267.0 moved that disk work off the boot path deliberately — so before
+-- the first ⇪3 of a session `vault.names` answers an empty list, and this
+-- module read that as "you have no notes" and said so, over a vault
+-- holding twenty. An empty list cannot say WHICH empty it is, so the
+-- state rides back beside it now and the three cases are three sentences:
+-- read-and-holding-nothing · never read (asked for, and waited for,
+-- bounded) · a scan already running (waited for, never restarted).
+-- 📏 The OTHER legs are unaffected and that is worth knowing before
+-- bisecting: "which notes already mention this?" is a grep over the
+-- folder, so it has always worked cold.
+--
 -- 🔒 WHAT IT NEVER DOES: read your text. It reads a window's title, a
 -- document's PATH and a browser's URL — never the contents of either, and
 -- never the clipboard.
@@ -90,6 +103,12 @@ function M.setup(core)
         oscriptTimeout = 4,       -- seconds before a silent browser is given up on
         grepTimeout    = 8,
         titleChars     = 60,
+        -- 6.405.0 — how long "pick a note" may wait for the notes index
+        -- on a cold start. The names arrive on the FIRST of the vault's
+        -- four greps (a /usr/bin/find), so this is a short wait and not
+        -- a whole scan; 12 × 0.25 s is about three seconds.
+        pickTries      = 12,
+        pickWaitSecs   = 0.25,
         -- the browsers whose front tab can be asked for, by app name
         browsers = {
             ["Safari"] = "Safari", ["Google Chrome"] = "chromium",
@@ -111,6 +130,12 @@ function M.setup(core)
         -- leg is the one line that tells a working Mac from a broken one:
         -- documents at 0 after a day in Word is the fault, in a number.
         legs = { tab = 0, file = 0, app = 0 }, lastLeg = nil,
+        -- 🔎 6.405.0 — THE "PICK A NOTE" ROW, counted by what it found.
+        -- `empty` is the only case the old sentence was ever right about,
+        -- and `gaveUp` is the one worth reading: it means the index never
+        -- arrived, which is a fault rather than a cold start.
+        pick = { asked = 0, opened = 0, waited = 0, empty = 0, gaveUp = 0, noTimer = 0 },
+        pickWait = nil, pickWhy = nil,
     }
     M.config = anc
     _G.anchors = anc
@@ -406,12 +431,11 @@ function M.setup(core)
         return rows
     end
 
-    local function pickNote(t)
-        local names = call("vault.names")                    -- 6.273.0: raw
-        if type(names) ~= "table" or #names == 0 then
-            alert("🔗 No notes to pick yet — make one with the first row", 3)
-            return
-        end
+    -- the picker itself, once there is something to pick from. Lifted out
+    -- of pickNote rather than copied, because pickNote now reaches it from
+    -- two places — straight away, and a beat later once the index lands —
+    -- and two copies of a picker is how they come to disagree (6.231.0).
+    local function showPicker(t, names)
         local choices = {}
         for _, n in ipairs(names) do
             choices[#choices + 1] = { text = n, subText = "link it into this note", name = n }
@@ -427,6 +451,73 @@ function M.setup(core)
         ch:choices(choices)
         ch:placeholderText(#choices .. " notes — type to filter")
         if core.showPopup then core.showPopup(ch) else ch:show() end
+        anc.pick.opened = anc.pick.opened + 1
+    end
+
+    -- 🔎 6.405.0 — AN INDEX NOBODY HAS READ CANNOT SAY THERE ARE NO NOTES.
+    -- This asked `vault.names`, got an empty list on a cold start, and
+    -- said "No notes to pick yet — make one with the first row" over a
+    -- full vault — which is LL's own report. The vault's notes index is
+    -- built when Hamsidian OPENS (6.267.0 moved disk work off the boot
+    -- path, deliberately), so before his first ⇪3 of a session there was
+    -- nothing in it and nothing anywhere could say so.
+    -- 🔑 THE STATE DECIDES, NOT THE COUNT. `vault.names` answers the state
+    -- as a second value now, so: read-and-holding-nothing is the sentence
+    -- the old code was right about, and an UNREAD index is asked to read
+    -- itself and waited for.
+    local function pickTry(t, tries)
+        local names, state, swhy = call("vault.names")
+        if type(names) ~= "table" then names = {} end
+        if #names > 0 then
+            if tries < anc.pickTries then anc.pick.waited = anc.pick.waited + 1 end
+            showPicker(t, names)
+            return
+        end
+        -- READ and genuinely empty: the only case the old message fitted
+        if state == "read" then
+            anc.pick.empty = anc.pick.empty + 1
+            anc.pickWhy = "the index is read and Hamsidian holds no notes"
+            alert("🔗 Hamsidian has no notes yet — the first row makes one", 3)
+            return
+        end
+        -- 📏 BOUNDED, AND THE BOUND IS A SENTENCE (6.197.2): an index that
+        -- never arrives is a fault, and a wait that ends in silence is
+        -- indistinguishable from the bug this release fixes.
+        if tries <= 0 then
+            anc.pick.gaveUp = anc.pick.gaveUp + 1
+            anc.pickWhy = tostring(swhy or state or "unknown")
+            alert("🔗 Hamsidian is still reading your notes — press ⇪⇧U again"
+                  .. " in a moment", 4)
+            return
+        end
+        -- Ask for the read ONCE, on the first turn, and only when a scan
+        -- is not already running: restarting one under itself is 6.304.0's
+        -- generation problem with a four-task chain behind it.
+        if tries == anc.pickTries then
+            alert("🔗 Reading your notes…", 1.5)
+            if state ~= "scanning" then pcall(call, "vault.rescan") end
+        end
+        local okT, timer = pcall(hs.timer.doAfter, anc.pickWaitSecs, function()
+            anc.pickWait = nil
+            pickTry(t, tries - 1)
+        end)
+        if okT and timer then
+            anc.pickWait = timer    -- HELD, in its own slot (6.196.1)
+        else
+            -- No timer on this Mac. Say so rather than spinning inline —
+            -- the scan has been asked for and the next press will find it.
+            anc.pick.noTimer = anc.pick.noTimer + 1
+            anc.pickWhy = "this Mac would not arm a wait for the index"
+            alert("🔗 Hamsidian is reading your notes — press ⇪⇧U again in a moment", 4)
+        end
+    end
+
+    local function pickNote(t)
+        anc.pick.asked = anc.pick.asked + 1
+        -- A wait already in flight is the SAME press (6.246.0): a second
+        -- one would put two timers on one slot and drop the first.
+        if anc.pickWait then return end
+        pickTry(t, anc.pickTries)
     end
 
     function anc.present(t, notes, why)
@@ -528,6 +619,26 @@ function M.setup(core)
             L[#L + 1] = "   ↳ every press so far has fallen back to the app name."
                         .. " In a browser or a Word document that is the shape of a fault"
         end
+        -- 🔎 6.405.0 — THE INDEX, READ RIGHT NOW. This is the artefact: an
+        -- empty list with "unread" beside it is a cold start and not an
+        -- empty vault, and before this release no number on his Mac could
+        -- tell the two apart.
+        local inames, istate, iwhy = call("vault.names")
+        L[#L + 1] = "   index  : " .. (type(inames) == "table"
+                    and (#inames .. " note(s) the index knows") or "no answer from Hamsidian")
+                    .. " · " .. tostring(istate or "?") .. " — " .. tostring(iwhy or "")
+        L[#L + 1] = "   pick   : " .. anc.pick.asked .. " asked · " .. anc.pick.opened
+                    .. " opened the picker · " .. anc.pick.waited .. " waited for the index · "
+                    .. anc.pick.empty .. " found Hamsidian genuinely empty"
+        if anc.pick.gaveUp > 0 then
+            L[#L + 1] = "   ↳ ⚠️ " .. anc.pick.gaveUp .. " gave up waiting for the notes index"
+                        .. " — an index that never arrives is a fault, not a cold start"
+        end
+        if anc.pick.noTimer > 0 then
+            L[#L + 1] = "   ↳ ⚠️ " .. anc.pick.noTimer .. " wait(s) could not be armed —"
+                        .. " this Mac would not give hs.timer a slot"
+        end
+        if anc.pickWhy then L[#L + 1] = "   ↳ last : " .. tostring(anc.pickWhy) end
         local l = anc.last
         L[#L + 1] = "   last   : " .. (l and (l.name .. " — " .. tostring(l.title) .. " ("
                     .. os.date("%b %d %H:%M", l.at) .. ")") or "nothing yet")

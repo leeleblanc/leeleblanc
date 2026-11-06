@@ -277,6 +277,11 @@ function M.setup(core)
         nameMaxBytes  = 248,
         saveDelay     = 0.3,
         rescanEvery   = 300,          -- seconds between background rescans while open
+        -- 6.406.0 — how long the window may be up without its page
+        -- having run before that is NAMED as a blank white box. The
+        -- page's script reaches its end the moment WebKit parses the
+        -- document, so this is generous rather than tight.
+        pageReadySecs = 2.5,
         maxNotes      = 5000,         -- rows embedded in the page
         maxLinkLines  = 40000,        -- grep lines parsed (past this the graph is partial and says so)
         focusOnOpen   = true,
@@ -328,6 +333,17 @@ function M.setup(core)
         dragTimer = nil, dragOffset = nil, opens = 0,
         nonActivatingApplied = false, nonActivatingWhy = "not requested",
         caret = 0, filter = "", view = "edit", pos = nil, pinned = false,
+        -- 🪟 6.406.0 — WAS THE PAGE EVER WRITTEN, AND DID IT EVER SPEAK?
+        -- LL: "I had a white box that was Hamsidian … then was left with
+        -- that box." A white window is a window with no DOCUMENT in it,
+        -- and nothing here recorded either half. `pageWritten` is set
+        -- when view:html() takes the string; `pageReady` is set when the
+        -- page's own script says so (6.174.0's handshake, recorded by
+        -- nobody until now). Both are cleared on hide, so a CLOSED window
+        -- reads as closed rather than as a page that never ran (6.352.0).
+        renders = 0, renderFails = 0, lastRenderErr = nil,
+        pageWritten = false, pageReady = false, whiteBoxes = 0,
+        showRefused = 0, lastShowErr = nil, readyBelt = nil,
         -- 6.174.0
         tags = {}, tagsOf = {}, tagList = {}, tagLines = 0, tagsPartial = false, tagTask = nil, fmTask = nil,
         -- 6.185.0 — front-matter FIELDS: rel → { key = value }, from the
@@ -1197,6 +1213,39 @@ function M.setup(core)
         v.hopsMissed = v.hopsMissed + 1
         pcall(fn)
         return false
+    end
+
+    -- 🔎 6.405.0 — "NOT READ YET" AND "YOU HAVE NONE" ARE OPPOSITE FACTS,
+    -- AND EVERY READER OF THIS INDEX HAD TO GUESS. 6.340.0 fixed it on the
+    -- SURFACE — the left column says "reading your notes…" instead of "no
+    -- notes yet" — and did not sweep the modules that ASK. ⇪⇧U's "pick a
+    -- note" row asks `vault.names`, gets {} on a cold start (this index is
+    -- built when Hamsidian OPENS and nothing builds it at boot), and said
+    -- "No notes to pick yet — make one with the first row" over a vault
+    -- holding every note he has. 6.312.0's rule one module along, and the
+    -- field that separates the two was already being recorded: v.lastScan
+    -- is nil until a scan COMPLETES.
+    -- 🔑 ONE RENDERER, TWO READERS (6.231.0): the service answers with this
+    -- and so does the report, so they cannot come to disagree about what
+    -- "could not be read" means. PURE, so the gate proves all four states
+    -- with no Mac, and it formats no clock — a report that RAISES is worse
+    -- than one that lies (6.282.0), and os.date refuses a float.
+    -- 🚨 FOUR, NOT THREE: a scan that FAILED and never completed is not a
+    -- scan that has not happened. "reading your notes…" for ever is the
+    -- reassuring answer and the wrong one, so a failure says so and a
+    -- caller can stop waiting.
+    function v.indexState(lastScan, scanning, scanErr)
+        if scanning then return "scanning", "a scan is running right now" end
+        if not lastScan then
+            if scanErr and scanErr ~= "" then
+                return "failed", "the last scan failed and none has completed — " .. tostring(scanErr)
+            end
+            return "unread", "no scan has completed yet — the index is built when Hamsidian opens (⇪3)"
+        end
+        if scanErr and scanErr ~= "" then
+            return "read", "read, and the last scan reported: " .. tostring(scanErr)
+        end
+        return "read", "read"
     end
 
     function v.scan(reason)
@@ -4337,9 +4386,49 @@ else {
         return "rows", "the rows go in by eval — the text box, its caret and its ⌘Z stay"
     end
 
+    -- 🪟 6.406.0 — A BARE pcall THREW AWAY THE ONE VALUE THAT SAYS
+    -- WHETHER THE PAGE WAS WRITTEN, and that is LL's white box. This was
+    -- `pcall(function() v.webview:html(v.buildHtml()) end)`: when
+    -- buildHtml RAISES — which 6.335.0 proved it can, in this very file,
+    -- from one local declared below the builder that reads it — the pcall
+    -- swallows it, html() is never called, render() returns looking like
+    -- a success, and v.open() carries on and SHOWS a webview that has
+    -- never been given a document. An hs.webview with no document draws
+    -- a blank white window, with nothing in the Console and nothing in
+    -- any report. 6.391.0's rule (read the answer) applied to html()
+    -- rather than show(), and 6.325.0's applied to a page.
+    -- 🔔 A failed render takes the door: a Hamsidian window that cannot
+    -- draw is the one failure in this tool he cannot diagnose from the
+    -- outside, because it looks like a window that is simply empty.
+    -- 🔑 ONE FUNCTION, TWO CALLERS (6.231.0): v.open() has to write the
+    -- page BEFORE the handle is published, and every later redraw writes
+    -- it through v.render(). Two copies of "build it and read the answer"
+    -- is how one of them comes to swallow a throw again.
+    function v.renderInto(view)
+        if not view then return false, "there is no window" end
+        local okH, html = pcall(v.buildHtml)
+        if not (okH and type(html) == "string" and #html > 0) then
+            v.renderFails = v.renderFails + 1
+            v.lastRenderErr = okH and "the page built to nothing" or tostring(html)
+            return false, v.lastRenderErr
+        end
+        local okW, werr = pcall(function() view:html(html) end)
+        if not okW then
+            v.renderFails = v.renderFails + 1
+            v.lastRenderErr = tostring(werr)
+            return false, "macOS refused the page — " .. tostring(werr)
+        end
+        v.renders, v.pageWritten = v.renders + 1, true
+        return true
+    end
+
     function v.render()
-        if not v.webview then return end
-        pcall(function() v.webview:html(v.buildHtml()) end)
+        if not v.webview then return false, "there is no window" end
+        local okR, whyR = v.renderInto(v.webview)
+        if okR then return true end
+        core.degrade("Hamsidian", "the page could not be redrawn — " .. tostring(whyR)
+                     .. " (what is on screen is the LAST page that drew; Esc closes it)")
+        return false, whyR
     end
 
     -- ---- messages from the page ----------------------------------------------
@@ -4436,6 +4525,12 @@ else {
         -- 6.174.0 — the page finished loading: hand it anything that
         -- arrived while it was still being built.
         elseif a == "ready" then
+            -- 🪟 6.406.0 — AND IT IS WRITTEN DOWN. The page has said this
+            -- since 6.174.0 and nothing recorded it, so "the window is up
+            -- and its page never ran" — a white box — was a state no
+            -- report could describe.
+            v.pageReady = true
+            if v.readyBelt then pcall(function() v.readyBelt:stop() end); v.readyBelt = nil end
             -- 🪟 6.340.0 — AND THE INDEX, for the same reason the mentions
             -- are here: view:html() returns BEFORE WebKit has parsed the
             -- document (6.238.0), so a find that answered in that window
@@ -4682,7 +4777,10 @@ else {
         if sp and type(sp.onHostClose) == "function" then pcall(sp.onHostClose) end
         if v.doc and v.doc.scratch and sp and not sp.findTab(v.doc.scratch) then v.doc = nil end
         if v.rescanTimer then pcall(function() v.rescanTimer:stop() end); v.rescanTimer = nil end
+        if v.readyBelt then pcall(function() v.readyBelt:stop() end); v.readyBelt = nil end
         if v.webview then pcall(function() v.webview:delete() end); v.webview = nil end
+        -- 6.406.0 — a CLOSED window is closed, not a page that never ran
+        v.pageWritten, v.pageReady = false, false
         v.uc = nil
         if v.dirty then v.saveNow() end
         say("closed")
@@ -5442,7 +5540,6 @@ else {
         end)
         local okV, view = pcall(hs.webview.new, rect, {}, uc)
         if not (okV and view) then v.uc = nil; promptFallback() return end
-        v.webview = view
         pcall(function() view:windowTitle("Hamsidian") end)
         pcall(function() view:allowTextEntry(true) end)
         pcall(function() view:closeOnEscape(false) end)
@@ -5456,20 +5553,77 @@ else {
                 print("🕸 Hamsidian: non-activating panel unavailable — " .. tostring(v.nonActivatingWhy))
             end
         end
-        v.render()
+        -- 🪟 6.406.0 — THE PAGE IS WRITTEN BEFORE THE WINDOW IS SHOWN, AND
+        -- A WINDOW WITH NO DOCUMENT IS NEVER SHOWN AT ALL. That ordering
+        -- is the fix for LL's white box: a webview that has never been
+        -- given a document draws blank, so showing one is putting a lie
+        -- on his screen — and because the handle was recorded first, the
+        -- next ⇪3 press read it as "already open" and HID nothing.
+        local okR, whyR = v.renderInto(view)
+        if not okR then
+            -- 🗑 TORN DOWN, not abandoned (6.265.0 · 6.314.0): a webview
+            -- left behind keeps its Esc claim and its key handler, and a
+            -- panel nothing owns is the frozen-overlay shape exactly.
+            pcall(function() view:delete() end)
+            v.uc = nil
+            v.whiteBoxes = v.whiteBoxes + 1
+            alert("🕸 Hamsidian could not draw its page — " .. tostring(whyR)
+                  .. ". Nothing was opened; your notes are untouched.", 6)
+            promptFallback()
+            return
+        end
         -- 🪟 6.391.0 — the shared door reads BOTH refusals (a throw and
         -- a false return). Guarded, so a build without it still opens.
+        local shown = true
         if _G.showWebviewSafely then
-            _G.showWebviewSafely(view, "Hamsidian")
+            shown = _G.showWebviewSafely(view, "Hamsidian") ~= false
         else
-            pcall(function() view:show() end)
+            shown = pcall(function() view:show() end)
         end
+        -- 🪟 6.326.0 — A PUBLISHED HANDLE IS A CLAIM ABOUT THE WORLD, AND
+        -- IT IS WRITTEN AFTER THE WORLD AGREES. That release paid this in
+        -- the Jug Player and it was never swept here: `v.webview = view`
+        -- sat ABOVE the show, so a refusal left a handle pointing at a
+        -- window that is not on screen — and v.show()'s own first line is
+        -- `if v.webview then v.hide() return end`, so the next press hid
+        -- a window there was nothing to hide.
+        if not shown then
+            v.showRefused = v.showRefused + 1
+            v.lastShowErr = "macOS would not put the window on screen"
+            pcall(function() view:delete() end)
+            v.uc = nil
+            core.degrade("Hamsidian", v.lastShowErr .. " — press ⇪3 again")
+            return
+        end
+        v.webview = view
         if v.focusOnOpen then pcall(function() view:bringToFront(true) end) end
         if _G.hyperExpectRelease then pcall(_G.hyperExpectRelease, 1.5, "the vault") end
         v.opens = v.opens + 1
         v.scan("open")
         local okT, rt = pcall(hs.timer.doEvery, v.rescanEvery, function() if v.webview then v.scan("timer") end end)
         v.rescanTimer = okT and rt or nil     -- HELD
+        -- 🪟 6.406.0 — THE BELT FOR THE OTHER HALF OF A WHITE BOX. The
+        -- page is written by now, so the window has a document — but
+        -- view:html() returns BEFORE WebKit has parsed it (6.238.0), and
+        -- a document WebKit never runs is a blank window too. The page
+        -- says `ready` when its script reaches the end (6.174.0); a
+        -- window that is up and has NOT said it is the measurable shape
+        -- of what LL saw, and nothing could say so before this release.
+        -- 🚨 IT NAMES IT AND DOES NOT CLOSE IT. A slow Mac is a slow Mac,
+        -- and closing a window he can still Esc out of would be acting on
+        -- a plausible mechanism rather than a measured one (6.198.0).
+        v.pageReady = false
+        if v.readyBelt then pcall(function() v.readyBelt:stop() end) end
+        local okB, bt = pcall(hs.timer.doAfter, v.pageReadySecs, function()
+            v.readyBelt = nil
+            if v.webview and not v.pageReady then
+                v.whiteBoxes = v.whiteBoxes + 1
+                core.degrade("Hamsidian", "the window is up and its page has not run after "
+                             .. tostring(v.pageReadySecs) .. "s — it will look like a blank"
+                             .. " white box. Esc closes it, then ⇪3 opens it again")
+            end
+        end)
+        v.readyBelt = okB and bt or nil      -- HELD (6.196.1)
         -- 🔎 6.340.0 — "opened — 0 notes" on every first open, because the
         -- scan above has only just started. Same two states, one line.
         say("opened — " .. (v.lastScan and (#v.notes .. " notes")
@@ -5524,7 +5678,13 @@ else {
         local names = {}
         for _, n in ipairs(v.notes or {}) do names[#names + 1] = n.name end
         table.sort(names)
-        return names
+        -- 🔎 6.405.0 — THE STATE RIDES BACK AS A SECOND VALUE, which is
+        -- additive (6.299.0's shape): a caller reading one value is
+        -- unchanged, and a caller that cares can tell an index holding
+        -- nothing from an index nobody has read. The empty list on its
+        -- own cannot say which, and ⇪⇧U was reading it as the first.
+        local state, why = v.indexState(v.lastScan, v.scanning, v.scanErr)
+        return names, state, why
     end)
     core.provide("vault.link", function(name, line, sub)
         name, line = tostring(name or ""), tostring(line or "")
@@ -5624,8 +5784,45 @@ else {
         elseif v.doc and u.why then m = "not searched for " .. v.doc.rel .. " (" .. u.why .. ")"
         elseif v.doc then m = (#u.rels == 0 and "none" or tostring(#u.rels) .. " unlinked") .. " for " .. v.doc.rel end
         L[#L + 1] = "   mentions: " .. m .. " · extracts: " .. v.extracts .. " · random: " .. v.randoms
+        -- 🔑 6.405.0 — the same renderer the `vault.names` service answers
+        -- with (6.231.0), so the report and every module that asks cannot
+        -- drift about what an unread index is called.
+        local istate, iwhy = v.indexState(v.lastScan, v.scanning, v.scanErr)
         L[#L + 1] = "   scan   : " .. (v.scanning and "running" or (v.lastScan and os.date("%b %d %H:%M", v.lastScan) or "never"))
                     .. " · " .. v.scans .. " so far" .. (v.scanErr and ("  ⚠️ " .. v.scanErr) or "")
+        L[#L + 1] = "   index  : " .. #v.notes .. " note(s) · " .. istate .. " — " .. iwhy
+        -- 🪟 6.406.0 — WAS THERE ANYTHING IN THE WINDOW? LL's white box, in
+        -- a line. FOUR states, and the closed one is deliberate (6.352.0):
+        -- he will run this report AFTER closing the window, so "closed,
+        -- and its page HAD run" must not read like "its page never ran".
+        local pg
+        if not v.webview then
+            pg = v.renders > 0
+                 and ("closed · the page drew " .. v.renders .. " time(s) while it was open")
+                 or "closed · no page has been drawn this session"
+        elseif not v.pageWritten then
+            pg = "⚠️ THE WINDOW IS UP WITH NO DOCUMENT IN IT — that is a blank"
+                 .. " white box. Esc closes it"
+        elseif not v.pageReady then
+            pg = "⚠️ the window is up and its page has NOT said it is ready —"
+                 .. " it will look blank. Esc closes it, then ⇪3 again"
+        else
+            pg = "up · the page is running · " .. v.renders .. " draw(s)"
+        end
+        L[#L + 1] = "   page   : " .. pg
+        if v.renderFails > 0 then
+            L[#L + 1] = "   ↳ ⚠️ " .. v.renderFails .. " page(s) could NOT be written"
+                        .. (v.lastRenderErr and (" — last: " .. tostring(v.lastRenderErr)) or "")
+        end
+        if v.whiteBoxes > 0 then
+            L[#L + 1] = "   ↳ ⚠️ " .. v.whiteBoxes .. " blank window(s) caught — a page that"
+                        .. " would not build is refused BEFORE the window is shown"
+        end
+        if v.showRefused > 0 then
+            L[#L + 1] = "   ↳ ⚠️ " .. v.showRefused .. " show(s) refused by macOS"
+                        .. (v.lastShowErr and (" — " .. tostring(v.lastShowErr)) or "")
+                        .. " · the window was torn down, so ⇪3 opens cleanly"
+        end
         L[#L + 1] = "   open   : " .. (v.doc and (v.doc.rel .. " · " .. #(v.doc.text or "") .. " chars") or "no note")
                     .. (v.mode ~= "notes" and (" · mode: " .. v.mode) or "")
                     .. (v.dirty and " · unsaved keystrokes pending" or "") .. " · saves: " .. v.saves

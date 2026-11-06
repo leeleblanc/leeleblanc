@@ -507,6 +507,78 @@ do
 end
 
 -- =====================================================================
+out("\n=== 6d. 🔎 AN INDEX ANSWERS ITS OWN STATE (6.405.0) ===\n")
+-- =====================================================================
+-- `vault.names` answers THREE values: the names, whether the index has
+-- ever been READ, and why. The state is not a convenience — an empty
+-- list cannot say whether the vault holds nothing or whether nobody has
+-- looked, and ⇪⇧U read it as the first for its whole life, telling LL
+-- "No notes to pick yet" over a vault holding twenty. A stub that
+-- answers the names alone makes the branch that tells the two apart
+-- unreachable from the gate, which is 6.290.0 exactly: a stub gentler
+-- than the provider does not miss the bug, it CERTIFIES it.
+local function countValues(ret)
+    ret = tostring(ret or ""):gsub("%s*end%s*$", "")
+    ret = ret:gsub('"[^"]*"', "S"):gsub("'[^']*'", "S")
+    local prev
+    repeat
+        prev = ret
+        ret = ret:gsub("%b{}", "T"):gsub("%b()", "P")
+    until ret == prev
+    if ret:gsub("%s", "") == "" then return 0 end
+    local n = 1
+    for _ in ret:gmatch(",") do n = n + 1 end
+    return n
+end
+
+-- 🚨 AND THE FIRST VERSION OF THIS SENTRY DID NOT BITE ITS OWN FIXTURE,
+-- which is why a sentry is not a check until a mutation has failed it
+-- (6.282.0). It asked whether the `return` held a comma — and
+-- `return { "Alpha", "Beta" }` holds two, inside a TABLE. A table's own
+-- commas are not the function's values, so the groups and the strings
+-- come out before anything is counted.
+local function returnsFewerThan(body, want)
+    local best = 0
+    for ret in body:gmatch("return%s+(.-)\n") do best = math.max(best, countValues(ret)) end
+    -- a one-line stub has no newline after its return
+    for ret in body:gmatch("return%s+(.*)$") do best = math.max(best, countValues(ret)) end
+    return best < want
+end
+
+local function nameStubsMissingState(list)
+    local out = {}
+    for _, f in ipairs(list) do
+        local init = 1
+        while true do
+            local s2, e2 = f.code:find('vault%.names"?%]?%s*=%s*function%s*%b()', init)
+            if not s2 then break end
+            local body = bodyAfter(f.code, e2 + 1)
+            -- a `return <one thing>` with no comma after it answers one
+            -- value; the real provider answers three
+            if body and not throws(body) and returnsFewerThan(body, 2) then
+                out[#out + 1] = f.name
+            end
+            init = e2 + 1
+        end
+    end
+    return out
+end
+local muteIdx = nameStubsMissingState(files)
+check("every vault.names stub answers the state as well as the names",
+      #muteIdx == 0, table.concat(muteIdx, " · "))
+
+do
+    local sick = { { name = "sick.lua", code = stripComments(
+        'SERVICES["vault.names"] = function() return { "Alpha", "Beta" } end') } }
+    check("§6d BITES: a names stub that answers the list alone is found",
+          #nameStubsMissingState(sick) == 1, #nameStubsMissingState(sick))
+    local fine = { { name = "ok.lua", code = stripComments(
+        'SERVICES["vault.names"] = function() return NAMES, STATE, WHY end') } }
+    check("§6d IS SILENT on a stub that answers all three",
+          #nameStubsMissingState(fine) == 0)
+end
+
+-- =====================================================================
 -- =====================================================================
 out("\n=== 7. 📏 NAMED, NOT AUTOMATED — the gap, written down ===\n")
 -- =====================================================================

@@ -1131,11 +1131,21 @@ do
 
     -- 6.239.0 — move the config and the arithmetic must follow. Asserting
     -- the shipped 136 passes on a build where the number is typed twice.
-    local wWide = E.windowSizeFor(800, 600, SCR, { railW = 200, headerH = 54,
+    -- 📐 6.407.0 — AND THIS CHECK HAD TO MOVE OFF AN 800x600 SHOT. The
+    -- ceiling is 80% of the screen now, and 800 + 28 + two 200-pt rails is
+    -- 1228 against a 1152-pt budget on this fixture — so the rule it is
+    -- proving (the rails are RESERVED, so the window grows by twice the
+    -- rail) only holds below the ceiling, and asserting it at the ceiling
+    -- was asserting the old 85% in disguise (6.248.0, eighth time). The
+    -- shot is 600x400 and the DIFFERENCE is asserted rather than the sum.
+    local wNarrow = E.windowSizeFor(600, 400, SCR, { railW = 136, headerH = 54,
+                                                     railMinH = 344 })
+    local wWide = E.windowSizeFor(600, 400, SCR, { railW = 200, headerH = 54,
                                                    railMinH = 344 })
     c13("🪟 a WIDER rail makes a wider window, by exactly twice the "
         .. "difference — the reservation is real arithmetic, not a constant",
-        wWide == 800 + 28 + 400, wWide)
+        wWide == 600 + 28 + 400 and (wWide - wNarrow) == 2 * (200 - 136),
+        wNarrow .. " → " .. wWide)
     local wNone = E.windowSizeFor(800, 600, SCR, { railW = 0, headerH = 54,
                                                    railMinH = 0 })
     c13("🪟 …and with no rails at all it is the old window exactly, which "
@@ -1515,6 +1525,117 @@ do
 
     c14("§14 ran every one of its checks", (pass + fail) - n14 == 31,
         (pass + fail) - n14)
+end
+
+-- =======================================================================
+-- 15. 📐 6.407.0 — THE CEILING, AND WHAT HAPPENS WHEN IT MEETS THE FLOOR
+-- =======================================================================
+-- LL: "the editor window is growing too big … 80% of the largest
+-- screenshot size … but not shrink down so much that the tools are not
+-- usable." The FLOOR half is 6.270.0's and is checked above. What was
+-- missing is a ceiling that is not only a fraction — 0.85 of a screen is
+-- sensible on a laptop and absurd on his LG at full points — and a rule
+-- for the case where the two contradict each other.
+do
+    local n15 = pass + fail
+    local function c15(what, ok, got) check(what, ok, got) end
+    local E = _G.screenshotEditor
+    local AIR = { x = 0, y = 0, w = 1440, h = 900 }
+    local LG  = { x = 0, y = 0, w = 3840, h = 2160 }
+
+    -- ---- his number, and it binds on a laptop ------------------------
+    local w, h, why = E.windowSizeFor(3840, 2160, AIR)
+    c15("📐 a 4K shot on the laptop is capped at 80% of the screen — HIS"
+        .. " number, not the 85% it shipped with",
+        w <= math.floor(AIR.w * 0.80) and h <= math.floor(AIR.h * 0.80),
+        w .. "x" .. h .. " of " .. math.floor(AIR.w * 0.80) .. "x" .. math.floor(AIR.h * 0.80))
+    c15("...and it SAYS which bound decided, because 'too big' and 'too"
+        .. " small' are opposite complaints about one function",
+        tostring(why):find("80%% of the screen") ~= nil, why)
+
+    -- ---- 🔑 AND A FRACTION ALONE IS WRONG ON A BIG DISPLAY -----------
+    -- This is the half that answers him: on his LG at full points, 80% is
+    -- 3072 × 1728, which is not a window anybody wants. The absolute cap
+    -- is what makes the ceiling mean something there.
+    local wl, hl, whyl = E.windowSizeFor(3840, 2160, LG)
+    c15("📐 the same 4K shot on a 4K display is capped ABSOLUTELY, not at"
+        .. " 80% of an enormous screen — 0.80 × 3840 is 3072 points, and a"
+        .. " window that wide is the complaint, not the fix",
+        wl <= E.maxW and hl <= E.maxH, wl .. "x" .. hl
+        .. " (caps " .. E.maxW .. "x" .. E.maxH .. ")")
+    c15("...and the smaller of the two ceilings wins, so the fraction is"
+        .. " what binds on the laptop and the cap is what binds on the LG",
+        w < wl and tostring(whyl):find("maximum window", 1, true) ~= nil,
+        tostring(whyl))
+    c15("...and the shot is SCALED to fit rather than the window being"
+        .. " allowed past it — the canvas has always scaled, so capping"
+        .. " the window costs nothing but reading distance",
+        wl < 3840)
+
+    -- ---- the config moves and the arithmetic follows (6.239.0) --------
+    local wNar = E.windowSizeFor(3840, 2160, LG, { maxW = 900, maxH = 700 })
+    c15("📐 moving the cap moves the window, so the number is read and not"
+        .. " typed in twice", wNar <= 900, wNar)
+    local wFrac = E.windowSizeFor(3840, 2160, AIR, { maxFrac = 0.5 })
+    c15("...and so does the fraction", wFrac <= math.floor(AIR.w * 0.5), wFrac)
+
+    -- 🚨 a settings typo must not produce a window of nothing
+    local wBad = E.windowSizeFor(800, 600, AIR, { maxFrac = 0 })
+    c15("📐 a fraction of 0 from a settings typo falls back to the default"
+        .. " rather than opening a window with no room in it",
+        wBad >= E.minW, wBad)
+    local wBad2 = E.windowSizeFor(800, 600, AIR, { maxFrac = 9 })
+    c15("...and a fraction over 1 does too", wBad2 <= AIR.w, wBad2)
+
+    -- ---- 🚨 THE FLOOR AND THE CEILING CAN CONTRADICT, AND NOTHING -----
+    -- DECIDED WHICH WON. On a short screen the tool rails need more height
+    -- than the whole display has, and `math.max` let the floor win in
+    -- silence: a window taller than the screen, whose buttons cannot be
+    -- clicked. The rails SCROLL (6.270.0 built that); a window you cannot
+    -- reach does not.
+    local TINY = { x = 0, y = 0, w = 500, h = 360 }
+    local wt, ht, whyt = E.windowSizeFor(1200, 900, TINY)
+    c15("📐 a screen too short for the tool rails gets a window that FITS"
+        .. " THE SCREEN — the rails scroll, and a window off the screen"
+        .. " does not", ht <= TINY.h and wt <= TINY.w, wt .. "x" .. ht
+        .. " on " .. TINY.w .. "x" .. TINY.h)
+    c15("...and it says so, so a scrolling rail is a decision he was told"
+        .. " about rather than a surprise",
+        tostring(whyt):find("clamped to the screen", 1, true) ~= nil, whyt)
+    c15("...and the floor still wins wherever the screen can hold it",
+        select(2, E.windowSizeFor(10, 10, AIR)) == E.railMinH + E.dragStripH,
+        select(2, E.windowSizeFor(10, 10, AIR)))
+    c15("...which is the one input where the two rules must differ — on a"
+        .. " roomy screen they agree and the clamp proves nothing (6.230.0)",
+        tostring(select(3, E.windowSizeFor(10, 10, AIR))):find("floored", 1, true) ~= nil,
+        select(3, E.windowSizeFor(10, 10, AIR)))
+
+    -- ---- the window never exceeds the screen, whatever it is asked ----
+    for _, scr in ipairs({ AIR, LG, TINY, { x = 0, y = 0, w = 200, h = 150 } }) do
+        for _, shot in ipairs({ { 1, 1 }, { 10, 10 }, { 800, 600 }, { 3840, 2160 },
+                                { 8000, 100 }, { 100, 8000 } }) do
+            local ww, hh = E.windowSizeFor(shot[1], shot[2], scr)
+            if ww > scr.w or hh > scr.h or ww < 1 or hh < 1 then
+                c15("📐 a window is never bigger than its screen nor smaller"
+                    .. " than nothing — " .. shot[1] .. "x" .. shot[2]
+                    .. " on " .. scr.w .. "x" .. scr.h, false, ww .. "x" .. hh)
+                goto done
+            end
+        end
+    end
+    c15("📐 a window is never bigger than its screen nor smaller than"
+        .. " nothing, over every shot and screen in the sweep", true)
+    ::done::
+
+    -- ---- the report says which rule produced this window --------------
+    local r = tostring(_G.screenshotEditorReport() or "")
+    c15("the report names the ceiling in both forms, so 'too big' is a"
+        .. " number he can argue with", r:find("ceiling :") ~= nil, r)
+    c15("...and names which rule sized the window that is open",
+        r:find("sized   :") ~= nil, r)
+
+    c15("§15 ran every one of its checks", (pass + fail) - n15 == 16,
+        (pass + fail) - n15)
 end
 
 out(("\n%d passed, %d failed\n"):format(pass, fail))

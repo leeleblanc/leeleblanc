@@ -118,7 +118,17 @@ SERVICES["vault.link"] = function(name, line)
     VAULT.linked[#VAULT.linked + 1] = { name = name, line = line }
     return true, "linked"
 end
-SERVICES["vault.names"] = function() return { "Alpha", "Beta" } end
+-- 🔬 6.405.0 — THE STUB ANSWERS THE PROVIDER'S ARITY (6.290.0, fifteenth
+-- time). The real `vault.names` answers THREE values — the names, the
+-- index's state, and why — and this answered one, so the branch that
+-- tells an unread index from an empty one was unreachable from the gate
+-- and the shipped sentence ("No notes to pick yet") was certified.
+VAULT.names, VAULT.state, VAULT.stateWhy = { "Alpha", "Beta" }, "read", "read"
+VAULT.rescans = 0
+SERVICES["vault.names"] = function()
+    return VAULT.names, VAULT.state, VAULT.stateWhy
+end
+SERVICES["vault.rescan"] = function() VAULT.rescans = VAULT.rescans + 1; return true end
 SERVICES["vault.open"]  = function(n) VAULT.opened = n; return true end
 SERVICES["vault.show"]  = function() VAULT.shown = VAULT.shown + 1; return true end
 SERVICES["docs.front"]  = function()
@@ -611,6 +621,159 @@ do
     _G.anchorsReport()
     check("...and a Mac that has never pressed it is not accused of anything",
           table.concat(PRINTED, "\n"):find("shape of a fault") == nil)
+end
+
+-- =======================================================================
+out("12) 🔎 6.405.0 — an index nobody has read cannot say there are no notes\n")
+-- =======================================================================
+-- LL: ⇪⇧U's "pick a note" row answered "No notes to pick yet — make one
+-- with the first row" over a vault holding twenty. The index is built
+-- when Hamsidian OPENS, so before his first ⇪3 of a session there was
+-- nothing in it — and an empty list cannot say WHICH empty it is.
+do
+    local tgt = { kind = "file", url = "file:///Users/lee/Contract.docx",
+                  path = "/Users/lee/Contract.docx", title = "Contract.docx",
+                  app = "Microsoft Word" }
+    -- anc.present REUSES its chooser (it is created once and re-filled),
+    -- so the picker to read is the one showPicker makes — filed under
+    -- _G.choosers.anchorsPick — and not whatever was made last.
+    local function pickRow()
+        anc.present(tgt, {})
+        local c = anc.chooser
+        for _, r in ipairs(c.rows) do if r.act == "pick" then c.cb(r) return end end
+        error("no pick row", 0)
+    end
+    local function picker() return _G.choosers and _G.choosers.anchorsPick end
+    local function reset()
+        ALERTS, TIMERS = {}, {}
+        _G.choosers.anchorsPick = nil
+        anc.pick = { asked = 0, opened = 0, waited = 0, empty = 0, gaveUp = 0, noTimer = 0 }
+        anc.pickWait, anc.pickWhy, VAULT.rescans = nil, nil, 0
+    end
+    local function lastAlert() return tostring(ALERTS[#ALERTS] or "") end
+
+    -- the ordinary case, unchanged
+    reset()
+    VAULT.names, VAULT.state = { "Alpha", "Beta" }, "read"
+    pickRow()
+    local pc = picker()
+    check("a read index with notes in it opens the picker, as it always did",
+          pc and #pc.rows == 2 and pc.rows[1].name == "Alpha", pc and #pc.rows)
+    check("...and it is counted as opened", anc.pick.opened == 1 and anc.pick.asked == 1)
+    check("...and nothing was asked to re-scan", VAULT.rescans == 0)
+
+    -- 🔑 THE ONE CASE THE OLD SENTENCE WAS RIGHT ABOUT
+    reset()
+    VAULT.names, VAULT.state, VAULT.stateWhy = {}, "read", "read"
+    pickRow()
+    check("a READ index holding nothing says Hamsidian has no notes yet",
+          lastAlert():find("has no notes yet", 1, true) ~= nil, lastAlert())
+    check("...and it does NOT open an empty picker", anc.pick.opened == 0)
+    check("...and it is counted as genuinely empty, not as a wait",
+          anc.pick.empty == 1 and anc.pick.waited == 0)
+
+    -- 🔎 THE BUG: an UNREAD index must not be reported as an empty vault.
+    -- This is the fixture that bites — every other input agrees with the
+    -- old code, and only an unread index tells the two apart (6.230.0).
+    reset()
+    VAULT.names, VAULT.state, VAULT.stateWhy = {}, "unread", "no scan has completed yet"
+    pickRow()
+    check("an UNREAD index does NOT claim Hamsidian has no notes",
+          lastAlert():find("has no notes yet", 1, true) == nil, lastAlert())
+    check("...it says it is reading them", lastAlert():find("Reading your notes", 1, true) ~= nil,
+          lastAlert())
+    check("...and it ASKS the vault to read them", VAULT.rescans == 1, VAULT.rescans)
+    check("...and the wait is HELD in its own slot, or an unreferenced timer is collected"
+          .. " and the press answers nothing (6.196.1)", anc.pickWait ~= nil)
+    check("...and nothing is counted as empty", anc.pick.empty == 0)
+
+    -- the names arrive, and the SAME press opens the picker
+    VAULT.names, VAULT.state = { "Alpha", "Beta", "Gamma" }, "read"
+    local waited = TIMERS[#TIMERS]
+    waited.fn()
+    local pc2 = picker()
+    check("when the index lands the picker opens on the same press",
+          pc2 and #pc2.rows == 3, pc2 and #pc2.rows)
+    check("...counted as a wait rather than a straight open",
+          anc.pick.waited == 1 and anc.pick.opened == 1)
+    check("...and the slot is let go", anc.pickWait == nil)
+
+    -- 📏 THE BOUND IS A SENTENCE, not silence (6.197.2)
+    reset()
+    VAULT.names, VAULT.state, VAULT.stateWhy = {}, "unread", "no scan has completed yet"
+    pickRow()
+    local guard = 0
+    while anc.pickWait and guard < 40 do
+        guard = guard + 1
+        local t = TIMERS[#TIMERS]
+        anc.pickWait = nil
+        t.fn()
+    end
+    check("a wait that never answers ENDS, bounded", anc.pickWait == nil and guard < 40, guard)
+    check("...and says so rather than going quiet",
+          lastAlert():find("still reading your notes", 1, true) ~= nil, lastAlert())
+    check("...and it is counted as giving up, which is a fault and not a cold start",
+          anc.pick.gaveUp == 1)
+    check("...and it NEVER says the vault is empty on the way out",
+          anc.pick.empty == 0)
+    check("...and it asked for exactly ONE read, not one per turn (6.304.0)",
+          VAULT.rescans == 1, VAULT.rescans)
+
+    -- a scan ALREADY running is not restarted under itself
+    reset()
+    VAULT.names, VAULT.state, VAULT.stateWhy = {}, "scanning", "a scan is running right now"
+    pickRow()
+    check("a scan already running is waited for, never restarted under itself",
+          VAULT.rescans == 0 and anc.pickWait ~= nil, VAULT.rescans)
+
+    -- a second press while a wait is in flight is the SAME press (6.246.0)
+    local firstTimer = #TIMERS
+    pickRow()
+    check("a second press while a wait is in flight arms no second timer",
+          #TIMERS == firstTimer, #TIMERS - firstTimer)
+    check("...and it is still counted as a press", anc.pick.asked == 2, anc.pick.asked)
+
+    -- a FAILED scan is not an unread one: it must not be waited on for ever
+    reset()
+    VAULT.names, VAULT.state, VAULT.stateWhy = {}, "failed", "the last scan failed — grep exited 2"
+    pickRow()
+    check("a scan that FAILED is still waited for, and the reason rides into the report",
+          anc.pickWait ~= nil)
+    PRINTED = {}
+    _G.anchorsReport()
+    check("...and the report names the state rather than a bare count",
+          table.concat(PRINTED, "\n"):find("failed", 1, true) ~= nil)
+
+    -- 🔌 no timer on this Mac: say so, never spin
+    reset()
+    VAULT.names, VAULT.state = {}, "unread"
+    local keepDA = hs.timer.doAfter
+    hs.timer.doAfter = function() error("no timers on this Mac", 0) end
+    pickRow()
+    hs.timer.doAfter = keepDA
+    check("a Mac with no hs.timer.doAfter says the index is being read, and does not spin",
+          anc.pick.noTimer == 1 and lastAlert():find("reading your notes", 1, true) ~= nil,
+          lastAlert())
+    check("...and it still does not claim the vault is empty", anc.pick.empty == 0)
+
+    -- the report's own line is the artefact
+    reset()
+    VAULT.names, VAULT.state, VAULT.stateWhy = {}, "unread", "no scan has completed yet"
+    PRINTED = {}
+    _G.anchorsReport()
+    local pr = table.concat(PRINTED, "\n")
+    check("the report reads the index NOW and names what it found",
+          pr:find("index  :") ~= nil and pr:find("0 note%(s%) the index knows") ~= nil
+          and pr:find("unread", 1, true) ~= nil, pr:match("index  :[^\n]*"))
+    check("...and counts what the pick row has found", pr:find("pick   :") ~= nil)
+
+    -- 🔒 and the picker is still ONE function (6.231.0)
+    local src = io.open(HS .. "/modules/anchors.lua"):read("a")
+    local bare = src:gsub("%-%-[^\n]*", "")
+    local n = 0
+    for _ in bare:gmatch("placeholderText%(#choices") do n = n + 1 end
+    check("§12 the picker is built in exactly ONE place — two copies is how"
+          .. " they come to disagree", n == 1, n)
 end
 
 print = realPrint

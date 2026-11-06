@@ -3457,5 +3457,218 @@ do
     check("§6.387.0 ran all of its checks (" .. ran .. " of 11)", ran >= 11, ran)
 end
 
+-- =======================================================================
+out("\n6.405.0 — 🔎 THE STATE OF THE INDEX, FOR EVERY MODULE THAT ASKS\n")
+-- =======================================================================
+-- 6.340.0 fixed this on the SURFACE and did not sweep the readers. ⇪⇧U's
+-- "pick a note" row asks `vault.names`, gets {} on a cold start, and said
+-- "No notes to pick yet" over a full vault. The field that separates "not
+-- read yet" from "you have none" was already being recorded: v.lastScan
+-- is nil until a scan COMPLETES. PURE, so all four states are provable.
+do
+    local before = pass + fail
+
+    local st, why = v.indexState(nil, false, nil)
+    check("🔎 no scan has completed → UNREAD, never 'empty'", st == "unread", st)
+    check("...and it says where the index comes from, so the reason is actionable",
+          why:find("Hamsidian opens", 1, true) ~= nil, why)
+
+    st = v.indexState(os.time(), false, nil)
+    check("a completed scan → READ, which is the only state that may say"
+          .. " the vault holds nothing", st == "read", st)
+
+    st = v.indexState(nil, true, nil)
+    check("a scan running RIGHT NOW is its own state — a caller must not"
+          .. " restart one under itself (6.304.0)", st == "scanning", st)
+
+    -- 🚨 FOUR, NOT THREE. A scan that FAILED and never completed is not a
+    -- scan that has not happened: "reading your notes…" for ever is the
+    -- reassuring answer and the wrong one (6.196.1).
+    st, why = v.indexState(nil, false, "grep exited 2")
+    check("a scan that FAILED and never completed is NOT read as 'not yet'",
+          st == "failed", st)
+    check("...and the failure's own words ride into the reason",
+          why:find("grep exited 2", 1, true) ~= nil, why)
+
+    -- and a scan that completed AND reported something is still READ: the
+    -- names are in, which is what the callers are asking about
+    st, why = v.indexState(os.time(), false, "tags: grep exited 2")
+    check("a completed scan that reported a problem is still READ — the"
+          .. " names are in, which is the question being asked", st == "read", st)
+    check("...and it says what was reported rather than hiding it",
+          why:find("grep exited 2", 1, true) ~= nil, why)
+
+    -- 🔑 ONE RENDERER, TWO READERS (6.231.0): the service and the report
+    v.scanning, v.scanErr, v.lastScan = false, nil, nil
+    v.setNotes({})
+    local names, sstate, swhy = PROVIDED["vault.names"]()
+    check("the service answers the names AND the state, which is additive"
+          .. " (6.299.0) — a caller reading one value is unchanged",
+          type(names) == "table" and #names == 0 and sstate == "unread"
+          and type(swhy) == "string", sstate)
+
+    PRINTED = {}
+    _G.vaultReport()
+    local r = table.concat(PRINTED, "\n")
+    check("the report names the index state from the SAME renderer, so the"
+          .. " two cannot drift about what an unread index is called",
+          r:find("index  :") ~= nil and r:find("unread", 1, true) ~= nil,
+          r:match("index  :[^\n]*"))
+
+    v.setNotes({ "Alpha.md", "Beta.md" })
+    v.lastScan = os.time()
+    local n2, s2 = PROVIDED["vault.names"]()
+    check("...and once a scan has landed the same service answers READ with"
+          .. " the names in it", #n2 == 2 and s2 == "read", s2)
+
+    local ran = (pass + fail) - before
+    check("§6.405.0 ran all of its checks (" .. ran .. " of 11)", ran >= 11, ran)
+end
+
+-- =======================================================================
+out("\n6.406.0 — 🪟 A WHITE BOX IS A WINDOW WITH NO PAGE IN IT\n")
+-- =======================================================================
+-- LL: "I had a white box that was Hamsidian … then was left with that
+-- box." A bare `pcall(function() v.webview:html(v.buildHtml()) end)`
+-- threw away the one value that says whether the page was written — so
+-- a buildHtml that RAISES (6.335.0 proved it can, in this very file)
+-- was swallowed, render() returned looking like a success, and open()
+-- went on to SHOW a webview that had never been given a document. An
+-- hs.webview with no document draws blank.
+do
+    local before = pass + fail
+    v.hide()
+
+    -- ---- the headline: a page that cannot be built is never shown ------
+    local keepBuild = v.buildHtml
+    local shownBefore = #WEBVIEWS
+    v.buildHtml = function() error("a local declared below the builder", 0) end
+    v.renderFails, v.whiteBoxes = 0, 0
+    v.open()
+    local made = WEBVIEWS[#WEBVIEWS]
+    check("🪟 a page that will not build is caught BEFORE the window is shown",
+          made and made.shown == 0, made and made.shown)
+    check("...and the webview is torn DOWN, not abandoned — an abandoned one"
+          .. " keeps its Esc claim (6.265.0)", made and made.deleted == true,
+          made and made.deleted)
+    check("...and the handle is NOT published, so the next ⇪3 press opens"
+          .. " rather than hiding a window that is not there (6.326.0)",
+          v.webview == nil)
+    check("...and it is counted as a blank window caught", v.whiteBoxes == 1, v.whiteBoxes)
+    check("...and the failure's own words are kept for the report",
+          tostring(v.lastRenderErr):find("below the builder", 1, true) ~= nil, v.lastRenderErr)
+    check("...and it SAYS so on screen rather than leaving him a blank box",
+          tostring(ALERTS[#ALERTS] or ""):find("could not draw its page", 1, true) ~= nil,
+          ALERTS[#ALERTS])
+
+    PRINTED = {}
+    _G.vaultReport()
+    check("...and the report does not describe that as a window that is up",
+          table.concat(PRINTED, "\n"):find("blank window%(s%) caught") ~= nil)
+
+    -- a page that builds to NOTHING is the same fault wearing a success
+    v.buildHtml = function() return "" end
+    v.whiteBoxes = 0
+    v.open()
+    check("a page that builds to an EMPTY string is refused too — an empty"
+          .. " document draws exactly as blank as no document",
+          v.webview == nil and v.whiteBoxes == 1, v.whiteBoxes)
+    v.buildHtml = keepBuild
+
+    -- ---- and the ordinary path is untouched ---------------------------
+    v.renderFails, v.whiteBoxes = 0, 0
+    v.open()
+    local good = WEBVIEWS[#WEBVIEWS]
+    check("a page that builds is written AND shown, in that order",
+          good and good.shown == 1 and type(good.htmlSet) == "string"
+          and #good.htmlSet > 0, good and good.shown)
+    check("...and the handle is published once the window is really up",
+          v.webview == good)
+    check("...and nothing was counted as a failure", v.renderFails == 0 and v.whiteBoxes == 0)
+
+    -- ---- the page's own handshake is RECORDED -------------------------
+    check("🔎 the window is up and its page has NOT spoken yet — which is"
+          .. " the measurable shape of what he saw", v.pageReady == false)
+    PRINTED = {}
+    _G.vaultReport()
+    check("...and the report NAMES it rather than calling the window healthy",
+          table.concat(PRINTED, "\n"):find("has NOT said it is ready", 1, true) ~= nil,
+          table.concat(PRINTED, "\n"):match("page   :[^\n]*"))
+
+    msg({ a = "ready" })
+    check("the page says ready and it is written down (6.174.0's handshake,"
+          .. " recorded by nobody until now)", v.pageReady == true)
+    PRINTED = {}
+    _G.vaultReport()
+    check("...and the report reads as a window that is running",
+          table.concat(PRINTED, "\n"):find("the page is running", 1, true) ~= nil,
+          table.concat(PRINTED, "\n"):match("page   :[^\n]*"))
+
+    -- ---- the belt: a page that never runs is NAMED, not closed --------
+    v.hide()
+    v.whiteBoxes = 0
+    v.open()
+    local belt
+    for i = #TIMERS, 1, -1 do
+        if TIMERS[i].kind == "after" and TIMERS[i].delay == v.pageReadySecs then belt = TIMERS[i] break end
+    end
+    check("a belt is armed for the window whose page may never run",
+          belt ~= nil and v.readyBelt ~= nil)
+    DEGRADES = {}
+    belt.fn()
+    check("🔔 a window that is up with a page that never ran takes the door",
+          v.whiteBoxes == 1, v.whiteBoxes)
+    local dw = tostring(DEGRADES[#DEGRADES] and DEGRADES[#DEGRADES].why or "")
+    check("...and the message names what he is looking at and the way out",
+          dw:find("blank", 1, true) ~= nil and dw:find("Esc", 1, true) ~= nil, dw)
+    check("...and it does NOT close the window — a slow Mac is a slow Mac,"
+          .. " and he can still Esc out of it (6.198.0)", v.webview ~= nil)
+
+    -- and it stands down when the page DID speak
+    v.hide()
+    v.whiteBoxes = 0
+    v.open()
+    msg({ a = "ready" })
+    check("a page that spoke stops the belt rather than leaving it to fire",
+          v.readyBelt == nil)
+
+    -- ---- a CLOSED window reads as closed (6.352.0) --------------------
+    v.hide()
+    check("hide clears both halves, so a closed window is not a page that"
+          .. " never ran", v.pageWritten == false and v.pageReady == false)
+    PRINTED = {}
+    _G.vaultReport()
+    local pr = table.concat(PRINTED, "\n")
+    check("...and the report says closed, with what the page DID while it"
+          .. " was open — he runs this after closing the window",
+          pr:find("closed · the page drew", 1, true) ~= nil, pr:match("page   :[^\n]*"))
+    check("...and it carries no ⚠️ about a window that is not there",
+          (pr:match("page   :[^\n]*") or "(no page line)"):find("⚠️") == nil,
+          pr:match("page   :[^\n]*"))
+
+    -- ---- 🔒 ONE place builds and writes the page (6.231.0) ------------
+    -- 🔌 6.273.0 — REAL_OPEN, not io.open: this suite replaces io.open with
+    -- a virtual disk, so a sentry reading the module through the stub reads
+    -- NOTHING and is green over an empty haystack (6.313.0).
+    local sf = REAL_OPEN(HS .. "/modules/vault.lua")
+    check("§6.406.0 the sentry really read the module", sf ~= nil)
+    local src = sf and sf:read("a") or ""
+    if sf then sf:close() end
+    check("...and it is not measuring an empty haystack (6.313.0)", #src > 100000, #src)
+    local bare = src:gsub("%-%-[^\n]*", "")
+    local n = 0
+    for _ in bare:gmatch("view:html%(html%)") do n = n + 1 end
+    for _ in bare:gmatch("webview:html%(") do n = n + 1 end
+    check("§6.406.0 the page is written in exactly ONE place, so one copy"
+          .. " cannot go back to swallowing a throw", n == 1, n)
+    check("...and the bare shape that caused this is gone from the file",
+          bare:find("html(v.buildHtml())", 1, true) == nil)
+
+    v.open()
+    msg({ a = "ready" })
+    local ran = (pass + fail) - before
+    check("§6.406.0 ran all of its checks (" .. ran .. " of 25)", ran >= 25, ran)
+end
+
 out(string.format("\n%d passed, %d failed\n", pass, fail))
 os.exit(fail == 0 and 0 or 1)
