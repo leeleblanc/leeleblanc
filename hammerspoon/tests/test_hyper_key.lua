@@ -865,7 +865,7 @@ do
   -- a source match that survives the code being switched off is not a
   -- test. So the real file is executed, twice, and the line it prints is
   -- read.
-  local function bootLines(pending)
+  local function bootLines(pending, profileName, profileTable)
     local lines = {}
     local SB = {
       hs = { timer = { secondsSinceEpoch = function() return 1000.4231 end },
@@ -882,7 +882,9 @@ do
     SB._G = SB
     SB.hotkeyBoundCount, SB.hotkeyConflictCount = 5, 0
     SB.moduleLoaded, SB.moduleFailed = 32, 0
-    SB.moduleProfileName, SB.moduleDir = "BASE", "modules"
+    SB.moduleProfileName, SB.moduleDir = profileName or "BASE", "modules"
+    SB.moduleProfiles = profileTable
+    SB.pairs = pairs
     SB.hyperShortcutCount, SB.hyperForwardCount, SB.hyperConflictCount = 80, 40, 0
     SB.autocorrectStatus = "on"
     SB.textExpander = { status = "2006 snippets" }
@@ -893,6 +895,41 @@ do
               backupDir = "/bk", asanaEnabled = true, secretsStatus = "loaded",
               axOK = true })
     return table.concat(lines, "\n")
+  end
+
+  -- ℹ️ 6.418.0 — A MAC WITH NO PROFILE OF ITS OWN SAYS SO, ON THE LINE HE
+  -- READS. LL, 2026-11-07: "Are you also ensuring our Hammerspoon tools
+  -- work on our work MacBook?" init.lua picks with
+  -- `profiles[hostTag] and hostTag or "default"`, and the work-Mac key is
+  -- a PLACEHOLDER nobody has replaced with the real ComputerName — so that
+  -- Mac silently takes the default and gets none of its tuning. 6.317.0:
+  -- a fallback nobody is told about is indistinguishable from the thing it
+  -- replaced. Driven against the REAL file, because a grep for the message
+  -- survives the code being switched off (the note at the top of this very
+  -- block, paid again).
+  do
+    local KNOWN = { ["Lees-MacBook-Air"] = {}, ["Lees-Work-MacBook"] = {},
+                    default = {} }
+    local fell = bootLines(false, "default", KNOWN)
+    check("ℹ️ a Mac that matched NO profile says so, and NAMES itself",
+          fell:find("No profile for", 1, true) ~= nil
+          and fell:find("TestMac", 1, true) ~= nil, fell)
+    check("…and it is ℹ️, never ⚠️ — an untuned Mac is not a broken one "
+          .. "(6.269.0: a warning over a healthy state is one he scrolls past)",
+          fell:find("ℹ️ No profile", 1, true) ~= nil
+          and fell:match("⚠️[^\n]*No profile") == nil)
+    check("…and it lists the profiles this build DOES know, so a key that "
+          .. "matches no Mac on earth is visible (6.276.0)",
+          fell:find("this build knows", 1, true) ~= nil
+          and fell:find("Lees-MacBook-Air", 1, true) ~= nil
+          and fell:find("Lees-Work-MacBook", 1, true) ~= nil, fell)
+
+    -- 🚨 THE FIXTURE THAT BITES IS THE MATCHED MAC (6.230.0): with the
+    -- announcement printed unconditionally both readings agree and the
+    -- release does nothing. A Mac that HAS a profile must stay silent.
+    local matched = bootLines(false, "Lees-MacBook-Air", KNOWN)
+    check("🚨 …and a Mac that DID match its profile says nothing at all",
+          matched:find("No profile", 1, true) == nil, matched)
   end
 
   local waiting = bootLines(true)

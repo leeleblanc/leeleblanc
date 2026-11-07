@@ -151,6 +151,39 @@ return function(core)
             end
             print("   _G.bootReport() prints everything, including what is fine.")
         end
+
+        -- ℹ️ 6.418.0 — A MAC WITH NO PROFILE OF ITS OWN SAYS SO. LL,
+        -- 2026-11-07: "Are you also ensuring our Hammerspoon tools work on
+        -- our work MacBook?" Structurally yes — every path degrades and the
+        -- gate drives the degraded paths with `hs` stubbed, which is a Mac
+        -- with nothing. But init.lua picks a profile with
+        -- `profiles[hostTag] and hostTag or "default"`, and the work-Mac key
+        -- in that table is a PLACEHOLDER nobody has replaced with the real
+        -- ComputerName. So a work Mac named anything else takes the default
+        -- and gets none of its tuning, silently — the only trace a row
+        -- inside _G.bootReport(), which you have to go looking for.
+        -- 6.317.0: when a resolution step falls back to a DEFAULT, the
+        -- default must announce itself; a fallback nobody is told about is
+        -- indistinguishable from the thing it replaced.
+        -- 🔕 ℹ️ AND NOT ⚠️, deliberately: a Mac with no profile is not
+        -- broken, it is untuned, and a warning over a healthy state is one
+        -- he learns to scroll past (6.269.0). It NAMES the machine and the
+        -- profiles that do exist, because a hand-kept register is only safe
+        -- when forgetting is loud (6.276.0) — a key in that table matching
+        -- no Mac on earth is exactly what went unnoticed here.
+        if _G.moduleProfileName == "default" then
+            local known = {}
+            for name in pairs(_G.moduleProfiles or {}) do
+                if name ~= "default" then known[#known + 1] = name end
+            end
+            table.sort(known)
+            print(string.format(
+                "   ℹ️ No profile for \"%s\" — running the DEFAULT. Nothing is"
+                .. " broken; this Mac has no tuning of its own.", tostring(hostTag)))
+            print("      this build knows: "
+                  .. (#known > 0 and table.concat(known, " · ")
+                                 or "(no named profile at all)"))
+        end
     end
 
 
