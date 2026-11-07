@@ -3314,6 +3314,275 @@ end
 check("🔒 _G.expander is still NOT published — the service is the surface",
       _G.expander == nil, tostring(_G.expander))
 
+-- =====================================================================
+-- 📋 6.419.0 — `_G.snippetsList()` ANSWERS BEFORE IT DUMPS. LL, having
+-- been pointed at _G.snippetsReport() the release before: "way too much
+-- in the console. Give me a good report." 6.418.0 printed nineteen
+-- hundred rows one per line, so the count on the first line — the thing
+-- he asked for — had scrolled off before the dump ended.
+-- 🚨 THESE CHECKS COUNT PRINTED ROWS, so they need a library whose size
+-- they know. The sections above have been adding and removing triggers
+-- for three thousand lines, so this one builds its own and puts the real
+-- one back afterwards — a suite that leaves a stub library behind would
+-- quietly change every check that follows it.
+out("\n=== 21. 6.419.0 — _G.snippetsList() answers before it dumps ===\n")
+
+local SAVED = { snippets = exp.snippets, show = exp.listShow,
+                problems = exp.problems, chooserOnly = exp.chooserOnly }
+do
+  local fresh = {}
+  for i = 1, 30 do
+    fresh[("aa%02d"):format(i)] =
+      { text = "x", name = "Alpha " .. i, source = "PackA" }
+  end
+  for i = 1, 12 do
+    fresh[("bb%02d"):format(i)] =
+      { text = "y", name = "Beta " .. i, source = "PackB" }
+  end
+  for i = 1, 8 do
+    fresh[("cc%02d"):format(i)] =
+      { text = "z", name = "Gamma " .. i, source = "Zed_Pack" }
+  end
+  exp.snippets, exp.problems, exp.chooserOnly = fresh, {}, {}
+  exp.listShow = exp.listShowDefault
+end
+
+local function listText(...)
+  local said = {}
+  local realPrint = print
+  print = function(s) said[#said + 1] = tostring(s) end
+  local ok, err = pcall(exp.list, ...)
+  print = realPrint
+  if not ok then return "THREW: " .. tostring(err), {}, nil end
+  return table.concat(said, "\n"), said, err
+end
+-- A ROW is a trigger line — exp.list indents those two spaces and every
+-- summary line three or five, so the shapes cannot be confused.
+local function rowsIn(said)
+  local n = 0
+  for _, l in ipairs(said) do if l:match("^  %S") then n = n + 1 end end
+  return n
+end
+local function firstRowAt(said)
+  for i, l in ipairs(said) do if l:match("^  %S") then return i end end
+  return nil
+end
+local function lineWith(said, needle)
+  for i, l in ipairs(said) do
+    if l:find(needle, 1, true) then return i end
+  end
+  return nil
+end
+
+check("the bound reader exists — one reader, because the limit arrives "
+   .. "from the settings line, a call and the word \"all\"",
+  type(exp.listBound) == "function")
+
+check("🔑 THREE STATES, NOT TWO: a count is that many · 0 is none · "
+   .. "true is every row · and nil means \"nothing said here\"",
+  exp.listBound(25) == 25 and exp.listBound(0) == 0
+  and exp.listBound(true) == math.huge and exp.listBound("all") == math.huge
+  and exp.listBound(false) == 0 and exp.listBound(nil) == nil,
+  table.concat({ tostring(exp.listBound(25)), tostring(exp.listBound(0)),
+                 tostring(exp.listBound(true)), tostring(exp.listBound(nil)) }, "/"))
+
+check("a bound that is not one answers nil rather than inventing a "
+   .. "default — a reader with its own default cannot be fallen through",
+  exp.listBound("banana") == nil and exp.listBound({}) == nil)
+
+check("a negative or fractional bound is floored into a real row budget",
+  exp.listBound(-5) == 0 and exp.listBound(7.9) == 7)
+
+-- ---- IT ANSWERS FIRST ------------------------------------------------
+do
+  local t, said = listText()
+  check("🚨 THE HEADLINE IS THE FIRST LINE PRINTED — the count he asked "
+     .. "for can no longer scroll off the top",
+    said[1] ~= nil and said[1]:find("SNIPPETS", 1, true) ~= nil
+    and said[1]:find("50 trigger(s)", 1, true) ~= nil, said[1])
+
+  check("...and the whole summary is above the first row: the collections, "
+     .. "and THE CONTROLS",
+    (function()
+      local row = firstRowAt(said)
+      local cols = lineWith(said, "collections")
+      local more = lineWith(said, "_G.snippetsList(true) every row")
+      if not row or not cols or not more then
+        return false, ("row=%s cols=%s more=%s"):format(tostring(row),
+                        tostring(cols), tostring(more))
+      end
+      return cols < row and more < row,
+             ("cols=%d more=%d row=%d"):format(cols, more, row)
+    end)())
+
+  check("🔑 THE WAY OUT IS NOT BEHIND THE FLOOD. The controls print above "
+     .. "the rows, not under them — a way out you reach by scrolling "
+     .. "past the dump is not a way out",
+    (function()
+      local more = lineWith(said, "this summary alone")
+      local row  = firstRowAt(said)
+      return more and row and more < row, ("more=%s row=%s")
+             :format(tostring(more), tostring(row))
+    end)())
+
+  check("the default is BOUNDED — twenty rows over a library of fifty",
+    rowsIn(said) == 20, rowsIn(said))
+
+  check("...and it says WHICH twenty, and that there are more",
+    t:find("showing 20 of 50", 1, true) ~= nil
+    and t:find("30 more row(s) not shown", 1, true) ~= nil, t)
+
+  check("the breakdown counts every collection, and they sum to the library",
+    (function()
+      local sum = 0
+      for n in t:gmatch("\n%s+(%d+)%s+%a") do sum = sum + tonumber(n) end
+      return sum == 50, sum
+    end)())
+
+  check("🏷 the example collection is READ OFF THE LIBRARY, never typed — "
+     .. "the biggest one, so a renamed pack cannot make the help a lie",
+    t:find('_G.snippetsList("PackA")', 1, true) ~= nil, t)
+
+  local _, _, answered = listText(0)
+  check("it still answers the library's size, as it always did — the "
+     .. "number is the function's value, not just its first line",
+    answered == 50, tostring(answered))
+end
+
+-- ---- THE BOUND IS A STATE --------------------------------------------
+do
+  exp.listShow = 5
+  local _, said = listText()
+  check("📏 THE BOUND IS A STATE: the settings line drives the default",
+    rowsIn(said) == 5, rowsIn(said))
+
+  local _, over = listText(9)
+  check("...a call overrides it for ONE answer", rowsIn(over) == 9, rowsIn(over))
+  check("...and does NOT change the state", exp.listShow == 5, exp.listShow)
+
+  exp.listShow = 0
+  local t0, none = listText()
+  check("0 shows NO rows and leaves the summary standing — the whole "
+     .. "report, none of the dump",
+    rowsIn(none) == 0 and t0:find("50 trigger(s)", 1, true) ~= nil
+    and t0:find("showing 0 of 50", 1, true) ~= nil, t0)
+  check("...and it does not then nag about rows it was told not to print",
+    t0:find("more row(s) not shown", 1, true) == nil, t0)
+
+  exp.listShow = true
+  local _, all = listText()
+  check("true is 6.418.0's FIREHOSE, kept reachable and deliberate rather "
+     .. "than deleted — every row, when he asks for it",
+    rowsIn(all) == 50, rowsIn(all))
+
+  exp.listShow = exp.listShowDefault
+  local _, word = listText("all")
+  check("...and the WORD \"all\" is the same bound, so it reads as English "
+     .. "in a Console",
+    rowsIn(word) == 50, rowsIn(word))
+end
+
+-- ---- A NARROWER QUESTION GETS A NARROW ANSWER ------------------------
+do
+  local t, said = listText("PackB")
+  check("✂️ a collection's NAME filters the rows instead of dumping all of "
+     .. "them — Emoji_Pack alone is nine hundred",
+    rowsIn(said) == 12 and t:find("showing 12 of 12 in PackB", 1, true) ~= nil,
+    t)
+
+  local t2, frag = listText("zed")
+  check("...matched case-blind and by fragment, because he types into a "
+     .. "Console and not a form",
+    rowsIn(frag) == 8 and t2:find("in Zed_Pack", 1, true) ~= nil, t2)
+
+  local t3, miss = listText("banana")
+  check("🔎 a filter that matches NOTHING SAYS SO — a silent empty list "
+     .. "reads as \"you have none\", the one answer that is certainly wrong",
+    t3:find("no collection matches", 1, true) ~= nil
+    and rowsIn(miss) == 0, t3)
+  check("...and it still printed the breakdown above it, so the names it "
+     .. "COULD have matched are on screen",
+    t3:find("collections", 1, true) ~= nil
+    and t3:find("PackA", 1, true) ~= nil, t3)
+
+  local _, bounded = listText("PackA", 4)
+  check("the bound still applies inside one collection",
+    rowsIn(bounded) == 4, rowsIn(bounded))
+
+  -- 🚨 THIS CHECK IS THIS RELEASE'S OWN MUTATION SWEEP FINDING. Thirteen
+  -- of fourteen mutations bit; the survivor was `return #lines` in place
+  -- of `return #recs`, and it survived because every check on the return
+  -- value was made on an UNFILTERED call, where the two are the same
+  -- number. A filter is a VIEW of the library, not a smaller library, so
+  -- the function's answer must not shrink with it.
+  local _, _, filtered = listText("PackB")
+  check("...and the FILTERED call still answers the whole library's size — "
+     .. "a view is not a smaller library",
+    filtered == 50, tostring(filtered))
+end
+
+-- ---- AN UNREADABLE STATE IS NAMED, NEVER ECHOED ----------------------
+do
+  exp.listShow = "banana"
+  local t, said = listText()
+  check("🚨 a settings-line TYPO does not read as a working setting. The "
+     .. "first cut echoed `listShow = banana` straight back while the "
+     .. "resolver had quietly fallen through — \"cannot be read\" must "
+     .. "never render as \"in force\"",
+    t:find("not a count, 0 or true", 1, true) ~= nil
+    and t:find("listShow = banana", 1, true) == nil, t)
+  check("...and the default is genuinely in force, so a typo cannot flood "
+     .. "the Console either",
+    rowsIn(said) == 20, rowsIn(said))
+  exp.listShow = exp.listShowDefault
+end
+
+-- ---- THE PROBLEMS ARE THE ANSWER, NOT THE DUMP -----------------------
+do
+  local many = {}
+  for i = 1, 25 do many[i] = "pack " .. i .. " did not load" end
+  exp.problems = many
+  local t, said = listText()
+  check("⚠️ what did NOT load is part of the summary — this door has "
+     .. "always promised \"every one that did not load, with the reason\"",
+    t:find("25 problem(s)", 1, true) ~= nil
+    and t:find("pack 1 did not load", 1, true) ~= nil, t:sub(1, 120))
+  check("...bounded like the rows, because one broken pack can make "
+     .. "hundreds, and the headline carries the whole number either way",
+    (function()
+      local n = 0
+      for _ in t:gmatch("pack %d+ did not load") do n = n + 1 end
+      return n == exp.listProblems and t:find("15 more problem", 1, true) ~= nil,
+             n
+    end)())
+  local tAll = listText(true)
+  check("...and the firehose prints every one of them too",
+    (function()
+      local n = 0
+      for _ in tAll:gmatch("pack %d+ did not load") do n = n + 1 end
+      return n == 25, n
+    end)())
+  exp.problems = {}
+end
+
+-- ---- AN EMPTY LIBRARY STILL SAYS WHICH EMPTY -------------------------
+do
+  exp.snippets = {}
+  local t = listText()
+  check("an EMPTY library keeps the line that says what to do about it, "
+     .. "rather than printing a bare zero",
+    t:find("0 trigger(s)", 1, true) ~= nil
+    and t:find("_G.snippetsImport()", 1, true) ~= nil, t)
+end
+
+-- 🚨 THE REAL LIBRARY GOES BACK. Every check after this section reads
+-- exp.snippets, and a suite that leaves its own stub behind is a suite
+-- that changed the subject.
+exp.snippets, exp.listShow = SAVED.snippets, SAVED.show
+exp.problems, exp.chooserOnly = SAVED.problems, SAVED.chooserOnly
+check("the suite put the real library back", exp.snippets == SAVED.snippets
+      and next(exp.snippets) ~= nil)
+
 out(("\n%d passed, %d failed\n\n"):format(pass, fail))
 os.execute("rm -rf '" .. TMP .. "'")
 os.exit(fail == 0 and 0 or 1)

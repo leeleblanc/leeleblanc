@@ -5,6 +5,89 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.419.0 — 📋 `_G.snippetsList()` ANSWERS BEFORE IT DUMPS
+               (modules/text_expander.lua)
+
+  LL, 2026-11-07, having been pointed at _G.snippetsReport() the release
+  before: "_G.snippetsList() → way too much in the console. Give me a
+  good report."
+
+  🚨 IT PRINTED 1,937 LINES. One per trigger, over a library of 1,926,
+  and the count he was actually asking for was on the FIRST of them — so
+  by the time the dump finished, the answer had scrolled off the top of
+  the Console. 6.418.0's own TESTING.md calls this "still the firehose,
+  deliberately", and that was the wrong call for the door he reaches for
+  BY NAME. An instrument that holds the answer and then buries it under
+  its own evidence has not answered; it has changed the subject.
+
+  🔑 SO THE SUMMARY IS PRINTED FIRST AND IN FULL, and the rows are a
+  BOUNDED TAIL beneath it. The default report is 32 lines: the count,
+  the chooser-only and problem totals, where the packs came through, a
+  per-collection breakdown with a count each, the controls, and twenty
+  rows A–Z. Asked for the summary alone it is 11. The firehose is still
+  there and still prints all 1,937 — it is now something he ASKS for
+  rather than something he gets.
+
+  📏 THE BOUND IS A STATE, NOT A NUMBER IN THE CODE — 6.196.1's rule
+  applied to an instrument's own volume. THREE states, not two: a COUNT
+  shows that many rows · 0 shows none and leaves the summary standing ·
+  true (or the word "all") shows every row. It is one settings line,
+      settings = { expander = { listShow = 40 } }
+  and the same three go to the CALL for one answer without changing the
+  state: _G.snippetsList(50), _G.snippetsList(0), _G.snippetsList(true).
+  There is ONE reader for all of it (exp.listBound), because a limit
+  arriving from three places and parsed at two sites is 6.231.0's two
+  renderers in miniature. It answers nil for "nothing was said here" so
+  the caller can fall THROUGH it to the state — a reader that invented a
+  default of its own could not be fallen through.
+
+  ✂️ AND A NARROWER QUESTION GETS A NARROW ANSWER: a string that is not
+  "all" names one collection — _G.snippetsList("Emoji_Pack") — matched
+  exactly, then case-blind, then as a fragment, because he types into a
+  Console and not a form. The bound still applies inside it; Emoji_Pack
+  alone is 1,349 rows. A filter matching NOTHING says so and leaves the
+  breakdown above it on screen as the list of what it could have
+  matched — a silent empty list reads as "you have none", which is the
+  one answer that is certainly wrong.
+
+  🏷 THE CONTROLS ARE ABOVE THE ROWS, not under them. A way out you can
+  only reach by scrolling past the flood is not a way out. The example
+  collection in them is READ OFF THE LIBRARY — the biggest one — rather
+  than typed: a sample name in a help line is 6.361.0's label-typed-
+  rather-than-built, correct the day it is written and a lie the day he
+  renames a pack.
+
+  🚨 AN UNREADABLE STATE IS NAMED, NEVER ECHOED. The first cut printed
+  `listShow = banana` straight back while the resolver had quietly
+  fallen through to the default — a setting that cannot be read must
+  never render as a setting that is working (6.362.0's one-character
+  sheet; "cannot be checked" must never read as "all clear"). It now
+  says which value is not a bound and which default is in force. The
+  last resort in that chain is 0 rather than a row count, so the one
+  thing that cannot happen by accident is the flood this release exists
+  to stop.
+
+  ⚠️ WHAT DID NOT LOAD STAYS PART OF THE ANSWER, not part of the dump —
+  "every one that did NOT load, with the reason" is what this door has
+  always promised. Those lines are bounded too (one broken pack can make
+  hundreds) and the headline carries the whole number either way.
+
+  🧮 AND NOTHING HAS TO BE PADDED: the breakdown leads with the count.
+  A name-then-count column has to pad the NAME, and no pad aligns these
+  — %-22s pads bytes ("⚡ actions" is nine characters in twelve), a
+  character count pads code points, and ⚡ still draws two columns wide
+  in a monospace Console. Leading the number puts the one variable-width
+  string last, where its width cannot push anything out of true.
+
+  🧪 32 checks, and the sweep found the one that was missing. 14
+  mutations, 13 bit on the first pass; the survivor was `return #lines`
+  in place of `return #recs`, which lived because every check on the
+  return value was made on an UNFILTERED call, where the two are the
+  same number. A filter is a VIEW of the library, not a smaller library.
+  14 of 14 bit after. The suite builds its own library of a known size
+  and puts the real one back, by check — a suite that leaves a stub
+  behind has changed every check that follows it.
+
 NEW IN 6.418.0 — ℹ️ A MAC WITH NO PROFILE OF ITS OWN SAYS SO
                (core/boot_report.lua)
 

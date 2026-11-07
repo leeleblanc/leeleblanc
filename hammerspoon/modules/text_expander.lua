@@ -41,8 +41,12 @@
 --                            in ~/Downloads, ~/Desktop or ~
 --     _G.snippetsImport(p)   import one by path
 --     _G.snippetAdd(t, txt)  write one by hand
---     _G.snippetsList()      print every trigger loaded, and every one
---                            that did NOT load, with the reason
+--     _G.snippetsList()      the SUMMARY first — the count, the
+--                            collections, what did NOT load and why —
+--                            then a bounded tail of rows (6.419.0)
+--     _G.snippetsList(40)    forty rows · (0) the summary alone ·
+--                            (true) every row, the old firehose
+--     _G.snippetsList("emoji")  one collection, named or part-named
 --
 -- ---- 🚨 THIS MODULE WATCHES EVERY KEYSTROKE YOU TYPE -----------------
 -- There is no other way to build an expander, and it is the reason for
@@ -86,7 +90,7 @@ local M = {
             { "type",  "A trigger expands as you type it — ;bd or gg1, both work" },
             { "add",   "_G.snippetAdd(\"gg1\", \"text\") in the Console" },
             { "import", "_G.snippetsImport() — finds .alfredsnippets in ~/Downloads" },
-            { "list",  "_G.snippetsList() — every trigger, in the Console" },
+            { "list",  "_G.snippetsList() — the summary, then 20 rows; (true) every one, (\"emoji\") one collection" },
             { "recent", "The last nine you PICKED sit at the top of ⇪⇧S — a trigger you type is not counted" },
             { "report", "_G.snippetsReport() — the library, the recent queue and its store" },
             { "{cursor}", "In a snippet: where the caret lands afterwards" },
@@ -169,8 +173,9 @@ function M.setup(core)
     -- second line, so a match still says where it came from.
     exp.sections      = true      -- false = one flat A–Z list, as before
     -- ✏️ SECTIONS PINNED ABOVE THE REST, in the order listed here. Names
-    -- are the collection's folder name, matched exactly — the same string
-    -- _G.snippetsList() prints in brackets.
+    -- are the collection's folder name, matched exactly — the same names
+    -- _G.snippetsList() now lists under `collections`, with a count each
+    -- (6.419.0; it used to mean the source in parentheses on every row).
     -- 🚨 THIS IS NOT THE SAME IDEA AS "MINE", which is why it is a list
     -- and not a flag. Anything in exp.dir is yours BY CONSTRUCTION — you
     -- imported or wrote it, and it already wins a collision — so it needs
@@ -212,6 +217,28 @@ function M.setup(core)
     -- a snippet he reaches for every quarter is the one he will never
     -- remember the trigger for. Age is the wrong axis for this list.
     exp.recentMax   = 200
+    -- 📋 6.419.0 — HOW MANY ROWS `_G.snippetsList()` PRINTS, and it is a
+    -- STATE rather than a number in the code (LL: "way too much in the
+    -- console. Give me a good report."). Nineteen hundred rows one per
+    -- line buried the count he was asking for, so the summary prints
+    -- first and the rows are a bounded tail under it.
+    --     settings = { expander = { listShow = 40 } }
+    -- 🔑 THREE STATES, not two: a COUNT shows that many · 0 shows none
+    -- and leaves the summary standing · true shows EVERY row, which is
+    -- the 6.418.0 firehose kept reachable rather than deleted. The same
+    -- three go to the call for one answer: _G.snippetsList(50),
+    -- _G.snippetsList(0), _G.snippetsList(true).
+    -- 📏 TWENTY, because the summary above it is about a dozen lines and
+    -- the pair has to fit a Console pane WITHOUT the headline scrolling
+    -- off the top — which is the entire failure this release fixes. The
+    -- number lives here once and the resolver falls back to it, so the
+    -- default cannot drift away from what the report advertises.
+    exp.listShowDefault = 20
+    exp.listShow        = exp.listShowDefault
+    -- How many of the "did not load, and why" lines print before they are
+    -- counted instead. Normally zero of them exist; one broken pack can
+    -- make hundreds, and the headline carries the whole number either way.
+    exp.listProblems    = 10
     exp.bufferMax     = 64        -- characters of typing kept in memory
     exp.maxChars      = 2000      -- a snippet longer than this is REFUSED
     exp.wordStartOnly = true      -- see the 🧨 note in the header
@@ -1553,33 +1580,222 @@ function M.setup(core)
         return true
     end
 
-    function exp.list()
-        local rows = {}
+    -- 📏 6.419.0 — ONE READER FOR THE BOUND. It arrives from three places
+    -- (the settings line, a call's argument, and the word "all"), and a
+    -- limit parsed differently at two sites is 6.231.0's two renderers in
+    -- miniature. Returns a row budget, or nil for "that was not a bound".
+    -- 🔑 THREE STATES, NOT TWO (6.196.1): a COUNT shows that many rows ·
+    -- 0 (or false) shows NONE and leaves the summary standing · true (or
+    -- "all") shows EVERY row, which is 6.418.0's firehose kept reachable
+    -- and deliberate instead of deleted. nil is the fourth answer and it
+    -- means "nothing was said here" — the caller falls through to the
+    -- state — which is why this returns nil rather than a default of its
+    -- own. A reader that invented one could not be fallen through.
+    function exp.listBound(v)
+        if v == nil   then return nil end
+        if v == true  then return math.huge end
+        if v == false then return 0 end
+        if v == "all" then return math.huge end
+        local n = tonumber(v)
+        if n then return math.max(0, math.floor(n)) end
+        return nil
+    end
+
+    -- 📋 6.419.0 — IT ANSWERS BEFORE IT DUMPS. LL, having been pointed at
+    -- _G.snippetsReport() the release before: "_G.snippetsList() → way
+    -- too much in the console. Give me a good report." 6.418.0's own
+    -- TESTING.md calls this the firehose DELIBERATELY, and that was the
+    -- wrong call for the door he reaches for BY NAME: nineteen hundred
+    -- rows went out one per line, so the count on the first line — the
+    -- thing he had asked for — scrolled off the top before the dump
+    -- finished. An instrument that holds the answer and then buries it
+    -- under its own evidence has not answered.
+    -- 🔑 SO THE SUMMARY IS PRINTED FIRST AND IN FULL — the count, where
+    -- the packs came through, the per-collection breakdown, the problems
+    -- and THE CONTROLS — and the rows are a BOUNDED TAIL beneath it. The
+    -- controls sit in the summary rather than under the rows on purpose:
+    -- a way out you can only reach by scrolling past the flood is not a
+    -- way out. That is 6.196.1 applied to an instrument's own volume.
+    -- ✂️ A STRING THAT IS NOT "all" NAMES ONE COLLECTION, which is how a
+    -- narrower question gets a narrow answer instead of a dump; the bound
+    -- still applies to it, because Emoji_Pack alone is nine hundred rows.
+    -- A filter matching NOTHING says so and names what it could have
+    -- matched — a silent empty list reads as "you have none", which is
+    -- the one answer that is certainly wrong.
+    function exp.list(which, bound)
+        -- 🔑 THE FIRST ARGUMENT IS EITHER A BOUND OR A COLLECTION'S NAME,
+        -- and "all" is a bound, so the bound reader gets first refusal.
+        local want    = exp.listBound(which)
+        local section = (want == nil and type(which) == "string"
+                         and which ~= "") and which or nil
+        -- The state is the default; a call overrides it for one answer
+        -- without changing it. The last resort is 0 rather than a number
+        -- of rows: if every source of a bound is unreadable the summary
+        -- still prints, and the one thing that cannot happen by accident
+        -- is the flood this release exists to stop.
+        want = exp.listBound(bound) or want
+               or exp.listBound(exp.listShow)
+               or exp.listBound(exp.listShowDefault) or 0
+
+        -- ONE PASS over the library: every row, and the counts the summary
+        -- is made of. Two passes would be two chances for the headline and
+        -- the rows beneath it to disagree (6.231.0).
+        local recs, seen, sects = {}, {}, {}
         for trigger, s in pairs(exp.snippets) do
-            rows[#rows + 1] = string.format("  %-12s  %s  (%s)", trigger,
-                                            (s.name or ""):sub(1, 40), s.source)
+            local sname, rank = exp.sectionOf(s)
+            local b = seen[sname]
+            if not b then
+                b = { name = sname, n = 0, rank = rank or 0 }
+                seen[sname] = b
+                sects[#sects + 1] = b
+            end
+            b.n = b.n + 1
+            recs[#recs + 1] = {
+                sect = sname,
+                line = string.format("  %-12s  %s  (%s)", trigger,
+                                     (s.name or ""):sub(1, 40), s.source),
+            }
         end
-        table.sort(rows)
-        print("✂️ " .. #rows .. " snippet triggers in " .. exp.dir .. ":")
+        -- Picker order, so the breakdown reads in the order ⇪⇧S draws it
+        -- and his pinned collection is where he expects it.
+        table.sort(sects, function(a, b)
+            if a.rank ~= b.rank then return a.rank < b.rank end
+            return a.name < b.name
+        end)
+
+        -- A named collection is matched exactly, then case-blind, then as
+        -- a fragment — typing "emoji" in a Console must find Emoji_Pack.
+        local pick = nil
+        if section then
+            local low = section:lower()
+            for _, b in ipairs(sects) do
+                if b.name == section then pick = b.name ; break end
+            end
+            if not pick then
+                for _, b in ipairs(sects) do
+                    if b.name:lower() == low then pick = b.name ; break end
+                end
+            end
+            if not pick then
+                for _, b in ipairs(sects) do
+                    if b.name:lower():find(low, 1, true) then
+                        pick = b.name ; break
+                    end
+                end
+            end
+        end
+
+        local lines = {}
+        for _, r in ipairs(recs) do
+            if not pick or r.sect == pick then lines[#lines + 1] = r.line end
+        end
+        table.sort(lines)
+
+        -- ---- THE SUMMARY, AND ALL OF IT BEFORE ANY ROW ------------------
+        local problems = exp.problems or {}
+        -- 🏷 THE EXAMPLE IS READ OFF THE LIBRARY, never typed. A sample
+        -- collection name in a help line is 6.361.0's label-typed-rather-
+        -- than-built: correct the day it is written and a lie the day he
+        -- renames a pack. The biggest one is the most useful to offer.
+        local example = nil
+        for _, b in ipairs(sects) do
+            if not example or b.n > example.n then example = b end
+        end
+        local vsn = tostring(_G.configVersion or "")
+        print(string.format("✂️ SNIPPETS%s — %d trigger(s) · %d chooser-only"
+                            .. " · %d problem(s)",
+                            (vsn ~= "" and (" " .. vsn) or ""), #recs,
+                            #(exp.chooserOnly or {}), #problems))
+        print("   yours : " .. tostring(exp.dir))
         -- Which door the shipped packs came through. Worth one line: it is
         -- the difference between "the table loaded" and "the table did not
         -- and you are reading two thousand files every reload".
         if exp.bundledFrom == "table" then
-            print(string.format("  📦 %d of them from %s (the packs on disk, "
+            print(string.format("   📦 %d of them from %s (the packs on disk, "
                                 .. "if any, are ignored)",
                                 exp.bundledCount or 0,
                                 exp.bundledPath or exp.bundledName))
         elseif exp.bundledFrom == "packs" then
-            print(string.format("  📂 %d of them scanned file-by-file from %s",
+            print(string.format("   📂 %d of them scanned file-by-file from %s",
                                 exp.bundledCount or 0, exp.bundledDir))
         end
-        if #rows == 0 then
-            print("  (none — run _G.snippetsImport() to find your "
-                  .. ".alfredsnippets files, or _G.snippetAdd(\"gg1\", \"text\"))")
+        if #sects > 0 then
+            print("   collections (the order ⇪⇧S draws them):")
+            for _, b in ipairs(sects) do
+                -- 🚨 THE COUNT GOES FIRST SO NOTHING HAS TO BE PADDED.
+                -- A name-then-count column has to pad the NAME, and no
+                -- pad can align these: %-22s pads bytes ("⚡ actions" is
+                -- nine characters in twelve), clen pads characters, and
+                -- ⚡ still draws two columns wide in a monospace Console.
+                -- Leading the number sidesteps the whole class — the one
+                -- variable-width string on the line is last, where its
+                -- width cannot push anything out of true.
+                print(string.format("     %5d  %s", b.n, b.name))
+            end
         end
-        for _, r in ipairs(rows) do print(r) end
-        for _, p in ipairs(exp.problems or {}) do print("  ⚠️ " .. p) end
-        return #rows
+        -- 🚨 THE PROBLEMS ARE PART OF THE ANSWER, NOT PART OF THE DUMP —
+        -- "every one that did NOT load, with the reason" is what this
+        -- door has always promised. They are normally none; a broken pack
+        -- can make hundreds, so they are bounded too, and the count on
+        -- the headline is the whole number either way.
+        local pshow = math.min(#problems, (want == math.huge) and #problems
+                                          or exp.listProblems)
+        for i = 1, pshow do print("   ⚠️ " .. tostring(problems[i])) end
+        if #problems > pshow then
+            print(string.format("   ⚠️ … %d more problem(s) — "
+                                .. "_G.snippetsList(true) prints them all",
+                                #problems - pshow))
+        end
+
+        if #recs == 0 then
+            print("   (none — run _G.snippetsImport() to find your "
+                  .. ".alfredsnippets files, or _G.snippetAdd(\"gg1\", \"text\"))")
+            return 0
+        end
+        if section and not pick then
+            -- The breakdown above IS the list of what it could have
+            -- matched, so this says which question failed and stops.
+            print("   🔎 no collection matches \"" .. tostring(section)
+                  .. "\" — the ones you have are listed just above")
+            return #recs
+        end
+
+        -- ---- THE BOUNDED TAIL -------------------------------------------
+        local show = math.min(#lines, want)
+        print(string.format("   rows  : showing %d of %d%s, A–Z", show, #lines,
+                            pick and (" in " .. pick) or ""))
+        print("   more  : _G.snippetsList(true) every row · "
+              .. (example and ("_G.snippetsList(\"" .. example.name
+                               .. "\") that collection · ") or "")
+              .. "_G.snippetsList(0) this summary alone")
+        -- The state AS IT STANDS, not the shipped default: a report that
+        -- prints the default over a changed setting describes a config he
+        -- is not running (6.181.0's stale row, in a help line).
+        -- 🚨 AND AN UNREADABLE STATE IS NAMED RATHER THAN ECHOED. The
+        -- first cut printed `listShow = banana` straight back, which
+        -- reads as "banana is in force" while the resolver had quietly
+        -- fallen through to the default — a setting that cannot be read
+        -- must never render as a setting that is working (6.362.0's
+        -- one-character sheet, and "cannot be checked" never reading as
+        -- "all clear").
+        local stateBound = exp.listBound(exp.listShow)
+        local says = (stateBound == nil) and tostring(exp.listShowDefault)
+                     or ((exp.listShow == true) and "true"
+                         or tostring(exp.listShow))
+        print("   set   : settings = { expander = { listShow = " .. says
+              .. " } } — a count, 0, or true")
+        if stateBound == nil then
+            print("   ⚠️ listShow is set to " .. tostring(exp.listShow)
+                  .. ", which is not a count, 0 or true — the default of "
+                  .. tostring(exp.listShowDefault) .. " is in force")
+        end
+        for i = 1, show do print(lines[i]) end
+        if #lines > show and show > 0 then
+            print(string.format("   … %d more row(s) not shown — "
+                                .. "_G.snippetsList(true) prints every one",
+                                #lines - show))
+        end
+        return #recs
     end
 
     -- ---- 🖼 the icons (6.161.0) ------------------------------------------
@@ -2325,7 +2541,7 @@ function M.setup(core)
         return exp.import(p)
     end
     _G.snippetAdd     = function(t, x, n) return exp.add(t, x, n) end
-    _G.snippetsList   = function() return exp.list() end
+    _G.snippetsList   = function(a, b) return exp.list(a, b) end
 
     -- 📋 6.359.0 — THE REPORT THIS MODULE NEVER HAD. His Console, asked
     -- for it the day the recency was scoped: `_G.snippetsReport()` →

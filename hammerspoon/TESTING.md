@@ -1,4 +1,4 @@
-# TESTING — how to score release 6.418.0
+# TESTING — how to score release 6.419.0
 
 You install ONE archive and it carries several releases. Below are the
 steps for each release this archive is new for, newest first. Run the
@@ -26,6 +26,70 @@ else is a LOSS and I fix it before building further. You are the only
 scorer; I never mark my own.
 
 ---
+
+## 6.419.0
+
+6.419.0 verify with LL — 📋 A GOOD REPORT FROM `_G.snippetsList()` (YOUR ASK)
+WHAT CHANGED: you said it was way too much in the Console and asked for
+a good report. It printed **1,937 lines** over your 1,926 snippets, and
+the count you wanted was on the FIRST of them — so it had scrolled off
+the top before the dump finished. It now prints the SUMMARY first and
+in full, then at most twenty rows. **32 lines by default instead of
+1,937.**
+🚨 AND I AM CORRECTING MYSELF: 6.415.0's test plan told you this door
+was "still the firehose, deliberately". That was my call and it was the
+wrong one for the command you reach for by name. The firehose still
+exists — you just have to ask for it now.
+
+A. THE HEADLINE — Console, ten seconds.
+A1. `_G.snippetsList()`
+    EXPECT: about thirty lines, not two thousand. In order: a ✂️ line
+    with the trigger count, where your own snippets live, 📦 the file
+    the packs came from, a `collections` block with a count per pack
+    (ComposeKey, Emoji_Pack, Ghostty_or_Terminal, Mac_symbols and
+    whatever else you have), then `rows / more / set`, then twenty
+    rows, then "… N more row(s) not shown".
+    **A FAIL is any version of this that floods the pane.**
+A2. Read the `more :` line. It names a collection of YOUR library — the
+    biggest one — not an example I typed in.
+
+B. THE THREE STATES — this is the part I want your opinion on.
+B1. `_G.snippetsList(0)`  → the summary ALONE, no rows at all (11 lines).
+B2. `_G.snippetsList(60)` → sixty rows under the same summary.
+B3. `_G.snippetsList(true)` → every row, all 1,937 lines. The old
+    behaviour, still there, now something you ask for.
+B4. `_G.snippetsList("emoji")` → only Emoji_Pack's rows, still capped at
+    twenty. Part of a name is enough and case does not matter.
+B5. `_G.snippetsList("banana")` → it says no collection matches, and the
+    `collections` block above it is the list of what it could have
+    matched. **A FAIL is a silent empty list**, which would read as
+    "you have no snippets".
+
+C. THE DEFAULT IS YOURS TO SET. Twenty is my guess at "a screenful
+   without the headline scrolling away". One line in your profile:
+       settings = { expander = { listShow = 40 } }
+   0 means "always just the summary"; true means "always everything".
+C1. Set it to something, reload, and run `_G.snippetsList()` — the
+    `set :` line should read back the value you chose.
+
+D. MUST STILL WORK — this is the module that watches every keystroke.
+D1. ⇪⇧S still opens the picker, and your recent picks are still at the
+    top.
+D2. A trigger you TYPE still expands — `;bd`, `gg1`, whatever you use.
+D3. `_G.snippetsReport()` is unchanged: the library, the recent queue
+    and its store.
+D4. `_G.snippetsImport()` and `_G.snippetAdd("gg1", "text")` still work.
+
+E. A JUDGEMENT ONLY YOU CAN MAKE.
+E1. The twenty rows are the alphabetical FIRST twenty, so on your Mac
+    they will all be `!!`-prefixed Mac_symbols. That is honest (the line
+    says "A–Z") but it is not a representative sample. If you would
+    rather the tail showed a few from EACH collection, say so and it
+    becomes that.
+E2. Is the `collections` breakdown the answer you wanted, or were you
+    after something else entirely when you said "a good report"?
+
+
 
 ## 6.418.0
 
@@ -148,9 +212,12 @@ B1. Console: `_G.snippetsReport()`.
     EXPECT: a short block — how many triggers, how long they took to
     load, where the packs came from, any problems, and your recent
     picks. NOT two thousand lines.
-B2. `_G.snippetsList()` is still the firehose, deliberately: one line
-    per trigger. That is what flooded your Console, and it was my
-    message that sent you there.
+B2. `_G.snippetsList()` WAS the firehose, deliberately: one line per
+    trigger. That is what flooded your Console, and it was my message
+    that sent you there. ⚠️ SUPERSEDED BY 6.419.0 — it answers with a
+    summary and twenty rows now, and the firehose is
+    `_G.snippetsList(true)`. Score this step from 6.419.0's plan, not
+    this one.
 
 C. MUST STILL WORK.
 C1. ⇪⇧S opens the picker; a trigger you type still expands.
@@ -164,54 +231,6 @@ D1. Now that the block is not lying, is it WELCOME at every boot, or
     makes it quiet and leaves the command.
 D2. Which other tools belong on it? Candidates not added: Hamsidian's
     notes folder, the clipboard poll, the backup, OneDrive.
-
-
-
-## 6.415.0
-
-6.415.0 verify with LL — 🖼 THE LOADED SHOT MOVES (KNOWN GROUND)
-WHAT CHANGED: ⌘O's loaded screenshot is a MARK now — drag it anywhere,
-including on top of the first.
-🔎 YOUR TWO SENTENCES WERE ONE MECHANISM. "First screenshot is above the
-second" is the growth working as designed (a wide shot grows DOWN). "I
-should be able to position the second screenshot on top of the second
-or where I want" is the ask — and it could not be done, because ⌘O
-baked the shot into the canvas, so where it landed was permanent.
-
-A. THE HEADLINE — a minute.
-A1. ⇪⇧1 on a screenshot. Press ⌘O and pick another shot.
-    EXPECT: the canvas grows and the loaded shot appears in the new
-    space — and it is SELECTED, with handles.
-A2. Drag it. EXPECT: it moves, anywhere you like, INCLUDING over the
-    first shot. **A FAIL is it not moving** — that is the old
-    behaviour.
-A3. Drag its corner. EXPECT: it scales, keeping its shape.
-A4. Press ⌫. EXPECT: it comes off. ⌘Z brings it back.
-A5. You should see ONE alert the first time per session: "🖼 Drag it
-    where you want — it is a mark now. ⌘Z undoes the whole thing."
-
-B. THE ONE THAT MATTERS MOST — ⌘Z is still ONE press.
-B1. Press ⌘O, then immediately ⌘Z.
-    EXPECT: the canvas goes back to its old size AND the loaded shot is
-    gone, in one press. **A FAIL is needing two presses**, or the
-    canvas shrinking while the shot stays.
-B2. Draw an arrow on the first shot BEFORE pressing ⌘O. After the grow,
-    the arrow must still point at exactly the same thing.
-
-C. THE PARTNER TOOL.
-C1. Load a shot, drag it to overlap the first, then press K and crop to
-    what you want. That is the pair 6.414.0 and this release make.
-
-D. MUST STILL WORK.
-D1. ⌘V paste image, ⌘A add capture, ⌘D delayed, ⌘F full screen.
-D2. The nine drawing tools, ⌘⏎ save, Esc, and Esc-then-reopen keeping
-    your marks.
-
-E. A JUDGEMENT ONLY YOU CAN MAKE.
-E1. The loaded shot arrives at its own size in new space below (or
-    beside) the first. Would you rather it arrived ON the first shot
-    straight away, for you to position? That is a different default and
-    it is yours to pick.
 
 
 

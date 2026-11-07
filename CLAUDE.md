@@ -9171,6 +9171,66 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.419.0 verify with LL — 📋 A GOOD REPORT FROM `_G.snippetsList()` (YOUR ASK)
+  WHAT CHANGED: you said it was way too much in the Console and asked for
+  a good report. It printed **1,937 lines** over your 1,926 snippets, and
+  the count you wanted was on the FIRST of them — so it had scrolled off
+  the top before the dump finished. It now prints the SUMMARY first and
+  in full, then at most twenty rows. **32 lines by default instead of
+  1,937.**
+  🚨 AND I AM CORRECTING MYSELF: 6.415.0's test plan told you this door
+  was "still the firehose, deliberately". That was my call and it was the
+  wrong one for the command you reach for by name. The firehose still
+  exists — you just have to ask for it now.
+
+  A. THE HEADLINE — Console, ten seconds.
+  A1. `_G.snippetsList()`
+      EXPECT: about thirty lines, not two thousand. In order: a ✂️ line
+      with the trigger count, where your own snippets live, 📦 the file
+      the packs came from, a `collections` block with a count per pack
+      (ComposeKey, Emoji_Pack, Ghostty_or_Terminal, Mac_symbols and
+      whatever else you have), then `rows / more / set`, then twenty
+      rows, then "… N more row(s) not shown".
+      **A FAIL is any version of this that floods the pane.**
+  A2. Read the `more :` line. It names a collection of YOUR library — the
+      biggest one — not an example I typed in.
+
+  B. THE THREE STATES — this is the part I want your opinion on.
+  B1. `_G.snippetsList(0)`  → the summary ALONE, no rows at all (11 lines).
+  B2. `_G.snippetsList(60)` → sixty rows under the same summary.
+  B3. `_G.snippetsList(true)` → every row, all 1,937 lines. The old
+      behaviour, still there, now something you ask for.
+  B4. `_G.snippetsList("emoji")` → only Emoji_Pack's rows, still capped at
+      twenty. Part of a name is enough and case does not matter.
+  B5. `_G.snippetsList("banana")` → it says no collection matches, and the
+      `collections` block above it is the list of what it could have
+      matched. **A FAIL is a silent empty list**, which would read as
+      "you have no snippets".
+
+  C. THE DEFAULT IS YOURS TO SET. Twenty is my guess at "a screenful
+     without the headline scrolling away". One line in your profile:
+         settings = { expander = { listShow = 40 } }
+     0 means "always just the summary"; true means "always everything".
+  C1. Set it to something, reload, and run `_G.snippetsList()` — the
+      `set :` line should read back the value you chose.
+
+  D. MUST STILL WORK — this is the module that watches every keystroke.
+  D1. ⇪⇧S still opens the picker, and your recent picks are still at the
+      top.
+  D2. A trigger you TYPE still expands — `;bd`, `gg1`, whatever you use.
+  D3. `_G.snippetsReport()` is unchanged: the library, the recent queue
+      and its store.
+  D4. `_G.snippetsImport()` and `_G.snippetAdd("gg1", "text")` still work.
+
+  E. A JUDGEMENT ONLY YOU CAN MAKE.
+  E1. The twenty rows are the alphabetical FIRST twenty, so on your Mac
+      they will all be `!!`-prefixed Mac_symbols. That is honest (the line
+      says "A–Z") but it is not a representative sample. If you would
+      rather the tail showed a few from EACH collection, say so and it
+      becomes that.
+  E2. Is the `collections` breakdown the answer you wanted, or were you
+      after something else entirely when you said "a good report"?
+
 - 6.418.0 verify with LL — ℹ️ WHICH MAC IS THIS? (KNOWN GROUND)
   WHAT CHANGED: if a Mac has no profile of its own, the boot line now
   SAYS so and names the machine. On the Air you should see nothing new.
@@ -9282,9 +9342,12 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
       EXPECT: a short block — how many triggers, how long they took to
       load, where the packs came from, any problems, and your recent
       picks. NOT two thousand lines.
-  B2. `_G.snippetsList()` is still the firehose, deliberately: one line
-      per trigger. That is what flooded your Console, and it was my
-      message that sent you there.
+  B2. `_G.snippetsList()` WAS the firehose, deliberately: one line per
+      trigger. That is what flooded your Console, and it was my message
+      that sent you there. ⚠️ SUPERSEDED BY 6.419.0 — it answers with a
+      summary and twenty rows now, and the firehose is
+      `_G.snippetsList(true)`. Score this step from 6.419.0's plan, not
+      this one.
 
   C. MUST STILL WORK.
   C1. ⇪⇧S opens the picker; a trigger you type still expands.

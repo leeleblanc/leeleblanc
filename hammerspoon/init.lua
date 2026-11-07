@@ -2,10 +2,30 @@
 -- * Working VERSION *
 -- =====================================================================
 -- =====================================================================
--- 11-06-26 using Claude          ← EDITED date. Bumped with every release.
+-- 11-07-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.418.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.419.0
 -- =====================================================================
+
+-- NEW IN 6.419.0 — 📋 _G.snippetsList() ANSWERS BEFORE IT DUMPS
+--   (modules/text_expander.lua). LL: "way too much in the console. Give
+--   me a good report." It printed 1,937 lines over a library of 1,926,
+--   and the count he asked for was the FIRST of them — so the answer
+--   scrolled off the top before the dump ended. The summary prints first
+--   and in full now (count, provenance, a per-collection breakdown, what
+--   did NOT load, and THE CONTROLS) with the rows a BOUNDED TAIL under
+--   it: 32 lines by default, 11 for the summary alone.
+--   📏 THE BOUND IS A STATE (6.196.1), three of them: a count shows that
+--   many · 0 none · true every row, the old firehose kept reachable and
+--   asked for. One settings line, or the same three to the call for one
+--   answer. ONE reader (exp.listBound), answering nil for "nothing said
+--   here" so the state can be fallen through to (6.231.0).
+--   ✂️ A string that is not "all" names ONE collection, matched exactly,
+--   then case-blind, then by fragment; the bound still applies inside it.
+--   A filter matching nothing SAYS SO (6.196.1). The controls sit ABOVE
+--   the rows — a way out behind the flood is not one — and their example
+--   pack is read off the library, never typed (6.361.0). An unreadable
+--   listShow is NAMED, never echoed as though it worked (6.362.0).
 
 -- NEW IN 6.418.0 — ℹ️ A MAC WITH NO PROFILE OF ITS OWN SAYS SO
 --   (core/boot_report.lua). LL: "Are you also ensuring our Hammerspoon
@@ -22,24 +42,11 @@
 --   not a broken one, and a warning over a healthy state is one he
 --   scrolls past (6.269.0).
 
--- NEW IN 6.417.0 — 📠 A REPORT PRINTS ONCE (35 reports, modules/+core/).
---   LL's _G.draftCheck() paste: the whole block, then the whole block
---   again. The Console ECHOES a returned value, and every report ended
---   `print(s) return s`. The return is NOT spare — 26 services hand that
---   text on and 3 hotkeys copy it — so the shape is additive (6.299.0):
---   unasked it prints, report(true) returns in silence. Asking a service
---   no longer sprays the Console. 6.179.1's rule is unchanged and now has
---   two halves. A sentry closes the class, comments stripped (6.262.0),
---   asserting it READ the tree first (6.313.0).
---   🚨 And the same lines claimed "printed and copied" over a clipboard
---   write nobody read — setContents refuses by RETURNING FALSE and never
---   throws (6.198.0 · 6.319.0). They take core.copyText now.
-
--- (6.416.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.417.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 cut the inline count to
 --  TWO; a gate check proves every entry here is also in CHANGELOG.md.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.418.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.419.0
 -- =====================================================================
 -- The catalogue that used to sit here moved to GUIDE.md ("What each
 -- tool does") in 6.180.0 — 259 lines of prose inside the orchestrator.
@@ -128,7 +135,7 @@ function _G.consoleRuleSay(what)
     return true
 end
 
-_G.configVersion = "6.418.0"
+_G.configVersion = "6.419.0"
 _G.consoleRuleSay("▶ BOOT")
 
 local function safeRequire(mod)

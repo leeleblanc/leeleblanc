@@ -1,5 +1,5 @@
 ========================================================================
-RESOLVED FEATURE REQUESTS — Hammerspoon config 6.418.0
+RESOLVED FEATURE REQUESTS — Hammerspoon config 6.419.0
 Every feature and how to use it. Generated from the modules' own
 cheat sheets (the rows ⇪/ draws), so it is never out of date.
 ⇪ = Caps Lock held (the hyper key). ⇪⇧X = Caps Lock + Shift + X.
@@ -499,7 +499,7 @@ In the Console, _G.<tool>Report() prints any tool's own report.
   type      A trigger expands as you type it — ;bd or gg1, both work
   add       _G.snippetAdd("gg1", "text") in the Console
   import    _G.snippetsImport() — finds .alfredsnippets in ~/Downloads
-  list      _G.snippetsList() — every trigger, in the Console
+  list      _G.snippetsList() — the summary, then 20 rows; (true) every one, ("emoji") one collection
   recent    The last nine you PICKED sit at the top of ⇪⇧S — a trigger you type is not counted
   report    _G.snippetsReport() — the library, the recent queue and its store
   {cursor}  In a snippet: where the caret lands afterwards
@@ -917,6 +917,7 @@ In the Console, _G.<tool>Report() prints any tool's own report.
 
 📜 RELEASE INDEX — newest first, one line per release (the full story of each is in CHANGELOG.md)
 ------------------------------------------------------------------------
+  6.419.0  📋 `_G.snippetsList()` ANSWERS BEFORE IT DUMPS
   6.418.0  ℹ️ A MAC WITH NO PROFILE OF ITS OWN SAYS SO
   6.417.0  📠 A REPORT PRINTS ONCE (35 reports across modules/
   6.416.0  🩺 THE SELF TEST TELLS THE TRUTH
