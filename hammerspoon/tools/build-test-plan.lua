@@ -44,14 +44,42 @@
 --   lua5.4 tools/build-test-plan.lua <hs> [--check] [keep]
 -- =====================================================================
 local HS    = arg and arg[1] or "."
-local CHECK = arg and arg[2] == "--check"
 local OUT   = HS .. "/TESTING.md"
--- the depth may arrive in either position, so --check and a count can be
--- given in any order and neither is read as the other
-local KEEP  = 4
-for i = 2, 4 do
-    local n = tonumber(arg and arg[i])
-    if n and n >= 1 then KEEP = math.floor(n) ; break end
+-- 🚨 6.420.0 — BOTH OPTIONS ARE READ FROM EVERY POSITION, and until this
+-- release only the DEPTH was. `CHECK` looked at arg[2] alone, so
+--     build-test-plan.lua <hs> 4 --check
+-- set the depth, left CHECK false, and WROTE the file — a verification
+-- that cannot fail, because it overwrites the thing it was asked to
+-- verify. The comment that stood here claimed the two could "be given
+-- in any order and neither is read as the other", which was true of the
+-- depth and false of the check: 6.349.0's shape, a comment promising
+-- what the line beside it does not do, in the one command the ceremony
+-- trusts to tell it the plan is current.
+-- 🔑 AND AN ARGUMENT IT DOES NOT UNDERSTAND IS REFUSED rather than
+-- ignored. A typo'd flag that silently means "write" is the same defect
+-- wearing a different hat.
+local CHECK, KEEP = false, 4
+do
+    local bad = nil
+    for i = 2, (arg and #arg or 0) do
+        local a = tostring(arg[i])
+        if a == "--check" then
+            CHECK = true
+        else
+            local n = tonumber(a)
+            if n and n >= 1 and n == math.floor(n) then
+                KEEP = math.floor(n)
+            else
+                bad = bad or a
+            end
+        end
+    end
+    if bad then
+        io.stderr:write("build-test-plan: unknown argument \"" .. bad
+                        .. "\" — expected [--check] and/or a whole number"
+                        .. " of releases to keep\n")
+        os.exit(2)
+    end
 end
 
 local function readAll(p)

@@ -10,6 +10,8 @@
 -- ("❗❗ Escalate and build ❗❗ … its own release ASAP").
 --
 --        (nothing to press)   it watches while you type in a browser
+--        ⇪⇧]                  IS IT WORKING? — asks the field the caret
+--                             is in, which the Console cannot (6.421.0)
 --        ⇪D  @draft           every draft it kept, newest first
 --        ⏎                    COPIES the draft. It never types it back.
 --        _G.draftKeeperReport()
@@ -163,8 +165,10 @@ local M = {
             { "90 days",     "Pruned once a session; nothing else ever removes a row" },
             { "forget",      "_G.draftForget(n) removes one · _G.draftForgetAll()" },
             { "report",      "_G.draftKeeperReport() — what it kept and what it refused" },
-            { "is it on?",    "_G.draftCheck() — click into a box and run it: it says what" },
-            { "",             "it can see in that field right now, and what would happen" },
+            { "⇪⇧]",         "IS IT WORKING? Press it WITH THE CARET IN YOUR TEXT BOX —" },
+            { "",             "it names the app, the field, and whether this would be kept" },
+            { "is it on?",    "_G.draftCheck() in the Console can only ever see the Console," },
+            { "",             "because typing it moves the focus — which is why ⇪⇧] exists" },
         },
     },
 }
@@ -196,6 +200,18 @@ function M.setup(core)
     -- release, which is the way back if it ever costs anything.
     dk.askTree      = true
     dk.treeAttrs    = { "AXManualAccessibility", "AXEnhancedUserInterface" }
+    -- 🔎 6.421.0 — ⇪⇧] ASKS THE FIELD HE IS ACTUALLY IN. The Console
+    -- command cannot: typing it focuses the Console, so the front app
+    -- becomes Hammerspoon and the only field it can see is the one he
+    -- just typed into to ask the question. A hyper key moves no focus.
+    dk.checkMods    = { "shift" }
+    dk.checkKey     = "]"
+    -- 📏 How many DIFFERENT unwatched app names are remembered, and how
+    -- many the report draws. Bounded, and the bound is a STATE (6.197.2)
+    -- — a name refused for want of room is COUNTED, so the list reads as
+    -- a floor rather than as the whole truth.
+    dk.unwatchedMax  = 40
+    dk.unwatchedShow = 6
     dk.roles = {              -- the only roles a draft is read from
         AXTextArea  = true,
         AXTextField = true,
@@ -224,6 +240,15 @@ function M.setup(core)
     dk.timer      = nil   -- HELD (6.196.1)
     dk.refused    = { secure = 0, role = 0, secureInput = 0, paused = 0 }
     dk.skipped    = { app = 0, nothing = 0, notText = 0 }
+    -- 🔎 6.421.0 — WHICH app, not merely that it was one. The sampler has
+    -- read the front app's name every few seconds since 6.404.0 and
+    -- thrown it away whenever it was unwatched, so the one fact that
+    -- answers "where is he actually typing" was discarded on every tick.
+    dk.unwatched     = {}   -- app name -> samples seen in front
+    dk.unwatchedOver = 0    -- names refused because the table is full
+    -- 🕘 And the last WATCHED field, so a Console run still answers
+    -- something instead of reporting on the Console's own box.
+    dk.lastField     = nil  -- { app, role, chars, at } — never the text
     dk.lastRefusal = nil
     dk.pruned     = nil   -- nil: not pruned yet this session
     dk.pruneWhy   = nil
@@ -257,6 +282,46 @@ function M.setup(core)
         return false
     end
 
+
+    -- ---- 6.421.0: PURE — remember WHICH app was in front --------------
+    -- 🔑 The NAME is the answer to "why is nothing being kept?", and it
+    -- costs nothing: the sampler has already read it to decide it was
+    -- not watched. Four answers, because "the table is full" and "it
+    -- was counted" are different facts and only one of them is fine.
+    function dk.noteUnwatched(seen, name, max)
+        if type(seen) ~= "table" then return "no-table" end
+        if type(name) ~= "string" or name == "" then return "unnamed" end
+        if seen[name] then
+            seen[name] = seen[name] + 1
+            return "counted"
+        end
+        max = tonumber(max) or dk.unwatchedMax
+        local n = 0
+        for _ in pairs(seen) do n = n + 1 end
+        if n >= max then return "full" end
+        seen[name] = 1
+        return "added"
+    end
+
+    -- PURE: the unwatched apps as rows, busiest first. A tie breaks on
+    -- the NAME so two apps with equal counts cannot swap places between
+    -- two runs of the same report (6.186.0's renumbering, in a list).
+    function dk.unwatchedRows(seen, show)
+        local rows = {}
+        for name, n in pairs(seen or {}) do
+            rows[#rows + 1] = { name = name, n = n }
+        end
+        table.sort(rows, function(a, b)
+            if a.n ~= b.n then return a.n > b.n end
+            return a.name < b.name
+        end)
+        show = tonumber(show) or dk.unwatchedShow
+        local out, more = {}, 0
+        for i, r in ipairs(rows) do
+            if i <= show then out[#out + 1] = r else more = more + 1 end
+        end
+        return out, more, #rows
+    end
 
     -- ---- 🪟 6.411.0 — A CHROMIUM APP DOES NOT PUBLISH ITS PAGE ---------
     -- LL: "Draft keeper doesn't seem to be working. How do I know?"
@@ -700,6 +765,10 @@ function M.setup(core)
 
         if f.unwatched then
             dk.skipped.app = dk.skipped.app + 1
+            -- 6.421.0: the name, not just the tally.
+            if dk.noteUnwatched(dk.unwatched, f.app, dk.unwatchedMax) == "full" then
+                dk.unwatchedOver = dk.unwatchedOver + 1
+            end
             dk.flush("the front app is not watched")
             return
         end
@@ -756,6 +825,12 @@ function M.setup(core)
         end
 
         local text = type(f.value) == "string" and f.value or ""
+        -- 🕘 6.421.0 — THE LAST WATCHED FIELD, so the Console can be told
+        -- what was there a moment ago. The COUNT, never the text: a
+        -- diagnostic that keeps a copy of his writing is a second store
+        -- nobody asked for.
+        dk.lastField = { app = f.app, role = f.role,
+                         chars = dk.len(text), at = os.time() }
         local key  = dk.fieldKey(f.app, f.title, f.role)
         local p    = dk.pending
 
@@ -892,7 +967,29 @@ function M.setup(core)
     -- in the Console is a worse tool than the one that said nothing.
     -- ONE RENDERER, TWO READERS (6.231.0): the report calls it too, so
     -- the two cannot drift about what a refusal is called.
-    function dk.checkLines()
+    -- 🏷 6.421.0 — THE KEY IS BUILT, NEVER TYPED (6.361.0): one literal,
+    -- every surface, so the card, the alert and the block cannot come to
+    -- advertise a key the binding no longer has.
+    function dk.keyLabel()
+        local mods = ""
+        for _, m in ipairs(dk.checkMods or {}) do
+            if tostring(m):lower() == "shift" then mods = mods .. "⇧" end
+        end
+        return "⇪" .. mods .. tostring(dk.checkKey or "?")
+    end
+
+    -- 🕘 6.421.0 — what was in the last WATCHED field, in one sentence.
+    function dk.lastFieldLine()
+        local lf = dk.lastField
+        if type(lf) ~= "table" then
+            return "no watched field has been read yet this session"
+        end
+        return ("%s — %s holding %d character(s), at %s")
+               :format(tostring(lf.app), tostring(lf.role), tonumber(lf.chars) or 0,
+                       os.date("%H:%M:%S", lf.at or os.time()))
+    end
+
+    function dk.checkLines(pre)
         local L = {}
         local function line(s) L[#L + 1] = s end
 
@@ -901,13 +998,36 @@ function M.setup(core)
             return L
         end
 
-        local f = dk.readFocused()
+        -- 🔑 THE READ IS HANDED IN when a key asked for it, so the alert
+        -- and this block describe the SAME instant (6.231.0). A bare
+        -- call still reads for itself, which is what the Console does.
+        local f = pre or dk.readFocused()
         line("app    : " .. tostring(f.app or "could not be read"))
 
         if f.unwatched then
+            -- 🚨 THE CONSOLE CANNOT ANSWER THIS QUESTION, and until
+            -- 6.421.0 it did not say so. Typing _G.draftCheck() focuses
+            -- the Console, so the front app IS Hammerspoon and the only
+            -- field this can see is the one he typed the command into.
+            -- 6.411.0's own verify block asked him to "leave the caret
+            -- in that box and run, in the Console", which cannot be
+            -- done. The key below is the whole of this release.
+            if tostring(f.app) == "Hammerspoon" then
+                line("        ↳ 🚨 THIS IS THE CONSOLE. Asking from here can only ever")
+                line("          see the Console's own box — typing the command moved")
+                line("          the focus off the field you are asking about.")
+                line("          PRESS " .. dk.keyLabel()
+                     .. " WITH THE CARET IN YOUR TEXT BOX instead.")
+                line("        ↳ last watched field: " .. dk.lastFieldLine())
+                return L
+            end
             line("        ↳ NOT a watched app, so nothing here is read at all.")
             line("          Watched: " .. table.concat(dk.apps, " · "))
-            line("          Click into a text box in one of those and run this again.")
+            line("        ↳ to watch it, add its name:")
+            line("          settings = { draft_keeper = { apps = { \""
+                 .. tostring(f.app or "that app"):lower()
+                 .. "\", \"chrome\", \"safari\", \"outlook\" } } }")
+            line("        ↳ last watched field: " .. dk.lastFieldLine())
             return L
         end
 
@@ -967,10 +1087,47 @@ function M.setup(core)
         return L
     end
 
-    function _G.draftCheck(asText)
+    -- 🔔 6.421.0 — THE SAME READ, IN ONE LINE, for the alert the key
+    -- shows. It takes the SAME `f` the block does, so the thing on
+    -- screen and the thing in the Console cannot disagree (6.231.0).
+    function dk.checkShort(f)
+        if not dk.enabled then return "💾 Draft keeper is OFF" end
+        f = f or dk.readFocused()
+        if f.unwatched then
+            if tostring(f.app) == "Hammerspoon" then
+                return "💾 That is the Console — press " .. dk.keyLabel()
+                       .. " with the caret in your text box"
+            end
+            return "💾 " .. tostring(f.app) .. " is NOT watched — nothing here is kept"
+        end
+        if not f.role and not f.value then
+            return "💾 " .. tostring(f.app) .. " — nothing is focused"
+        end
+        local secureHeld = false
+        local si = _G.secureInput
+        if type(si) == "table" and si.on == true then secureHeld = true end
+        local kind, why = dk.fieldVerdict(f.role, secureHeld, _G.hsPaused == true)
+        if kind ~= "watch" then
+            return "💾 refused — " .. tostring(why)
+        end
+        local n = dk.len(type(f.value) == "string" and f.value or "")
+        if n < dk.minChars then
+            return ("💾 %s · %s · %d character(s) — under the %d it needs")
+                   :format(tostring(f.app), tostring(f.role), n, dk.minChars)
+        end
+        return ("💾 %s · %s · %d character(s) — THIS WOULD BE KEPT")
+               :format(tostring(f.app), tostring(f.role), n)
+    end
+
+    -- ONE renderer, two callers: the Console command and the key.
+    function dk.checkBlock(f)
         local L = { "💾 DRAFT KEEPER — what it can see RIGHT NOW" }
-        for _, s in ipairs(dk.checkLines()) do L[#L + 1] = "   " .. s end
-        local s = table.concat(L, "\n")
+        for _, s in ipairs(dk.checkLines(f)) do L[#L + 1] = "   " .. s end
+        return table.concat(L, "\n")
+    end
+
+    function _G.draftCheck(asText)
+        local s = dk.checkBlock()
         if asText then return s end
         print(s)
     end
@@ -1015,6 +1172,41 @@ function M.setup(core)
                 end
             end
         end
+        -- 🔎 6.421.0 — WHERE HE ACTUALLY IS. The sampler reads the front
+        -- app's name every few seconds and, until this release, threw it
+        -- away whenever it was unwatched — so "nothing is being kept"
+        -- and "you spend your day in an app this never watches" read
+        -- exactly the same. They are opposite facts and only one of them
+        -- is a fault here.
+        do
+            local rows, more, total = dk.unwatchedRows(dk.unwatched, dk.unwatchedShow)
+            if total == 0 then
+                line("where  : no UNWATCHED app has been in front yet this session")
+            else
+                line(("where  : %d app(s) you have been in that are NOT watched —")
+                     :format(total))
+                for _, r in ipairs(rows) do
+                    -- The count leads so nothing has to be padded (6.419.0).
+                    line(("           %5d sample(s)  %s"):format(r.n, r.name))
+                end
+                if more > 0 then
+                    line(("           … and %d more"):format(more))
+                end
+                if dk.unwatchedOver > 0 then
+                    line(("         ⚠️ %d name(s) went unrecorded — the list is full at"
+                          .. " %d, so the rows above are a FLOOR")
+                         :format(dk.unwatchedOver, dk.unwatchedMax))
+                end
+                line("         ↳ a draft is only ever kept in a WATCHED app. To add one:")
+                line("           settings = { draft_keeper = { apps = { \"chrome\","
+                     .. " \"safari\", \"outlook\", \"<a name above>\" } } }")
+            end
+        end
+        line("check  : " .. dk.keyLabel() .. " asks the field the caret is in — "
+             .. dk.checks .. " press(es) this session")
+        line("         ↳ the Console cannot: typing _G.draftCheck() focuses the"
+             .. " Console, so it would read the Console's own box")
+        line("last   : " .. dk.lastFieldLine())
         line("rule   : " .. dk.minChars .. "+ characters, unchanged for "
              .. dk.settleSecs .. " s — then a row")
         line("file   : " .. dk.path()
@@ -1134,6 +1326,24 @@ function M.setup(core)
         local out = table.concat(L, "\n")
         print(out)
         return out
+    end
+
+    -- ---- ⌨️ 6.421.0 — THE CHECK, WHERE THE CARET ALREADY IS -----------
+    -- 🔑 A hyper key moves NO focus: the front app stays the browser and
+    -- the focused element stays his text box, so this is the only way
+    -- the check can ever see the field it was built to measure. It is
+    -- bound in setup() and not warm(), because hyperAddShortcut appends
+    -- to a list that is drained ONCE after the module loader — a bind
+    -- made in warm is never registered at all (6.386.0).
+    dk.checks = 0
+    if core.hyperAddShortcut then
+        core.hyperAddShortcut(dk.checkMods, dk.checkKey, function()
+            dk.checks = dk.checks + 1
+            local f = dk.readFocused()
+            print(dk.checkBlock(f))
+            -- The alert is the answer; the Console block is the detail.
+            pcall(function() hs.alert.show(dk.checkShort(f), 5) end)
+        end, "draft keeper — what can it see here")
     end
 
     -- ---- services, for ⇪D --------------------------------------------
