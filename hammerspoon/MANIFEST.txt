@@ -1,6 +1,6 @@
 # MANIFEST — what this release carries, one row per runtime file
-# version: 6.414.0
-# 94 file(s), 4899546 bytes
+# version: 6.418.0
+# 94 file(s), 4908879 bytes
 #
 # Read by modules/install_check.lua: _G.installCheck() stats each path
 # below, relative to ~/.hammerspoon, and names every file that disagrees.
@@ -11,9 +11,9 @@
 # ENTRY for this version, which is a better question than its length) ·
 # snippets/bundled.lua (generated, and rebuildable on his own Mac) · the
 # docs, tests/ and the other tools (not loaded or started by the config).
-init.lua	180219
+init.lua	178106
 core/boot_cost.lua	18672
-core/boot_report.lua	9305
+core/boot_report.lua	11351
 core/capabilities.lua	37112
 core/changelog_csv.lua	2651
 core/cheatsheet.lua	109926
@@ -23,22 +23,22 @@ core/diagnostics.lua	20763
 core/double_tap.lua	20818
 core/hyper_key.lua	54262
 core/key_trail.lua	7913
-core/lag.lua	67254
-core/notices.lua	44688
+core/lag.lua	67304
+core/notices.lua	44763
 modules/activity_tracker.lua	90299
 modules/anchors.lua	33883
-modules/app_kill.lua	24311
-modules/app_launcher.lua	19768
+modules/app_kill.lua	24340
+modules/app_launcher.lua	19797
 modules/app_peek.lua	2310
 modules/app_remove.lua	76721
 modules/app_watcher.lua	28368
 modules/asana_comments.lua	24513
 modules/asana_dashboard.lua	35611
-modules/autocorrect.lua	95895
+modules/autocorrect.lua	95920
 modules/battery_saver.lua	18453
 modules/begone.lua	16025
-modules/bluetooth.lua	19395
-modules/bulk_rename.lua	34056
+modules/bluetooth.lua	19424
+modules/bulk_rename.lua	34085
 modules/capture_pad.lua	77421
 modules/chrome_history.lua	63124
 modules/clipboard_history.lua	73839
@@ -46,51 +46,51 @@ modules/command_history.lua	10712
 modules/copy_on_select.lua	9198
 modules/daily_backup.lua	79565
 modules/daily_rollup.lua	16548
-modules/default_apps.lua	22894
-modules/define.lua	35459
-modules/doc_keywords.lua	23648
-modules/doc_memory.lua	27933
-modules/draft_keeper.lua	54341
-modules/editor_picker.lua	54557
+modules/default_apps.lua	22923
+modules/define.lua	35488
+modules/doc_keywords.lua	23677
+modules/doc_memory.lua	27962
+modules/draft_keeper.lua	54366
+modules/editor_picker.lua	54586
 modules/file_tracker.lua	70954
-modules/focus_mode.lua	45257
-modules/ground_probe.lua	25535
-modules/health_monitor.lua	18352
+modules/focus_mode.lua	45918
+modules/ground_probe.lua	25564
+modules/health_monitor.lua	18645
 modules/hyper_storm.lua	32414
 modules/install_check.lua	24243
 modules/key_caster.lua	39831
 modules/mac_panel.lua	20953
-modules/master_log.lua	21510
-modules/menu_search.lua	27828
-modules/menubar_items.lua	21986
+modules/master_log.lua	21539
+modules/menu_search.lua	27857
+modules/menubar_items.lua	22297
 modules/mini_calendar.lua	44207
-modules/mouse_follows.lua	36340
+modules/mouse_follows.lua	36369
 modules/mouse_grid.lua	127745
 modules/music_player.lua	145019
-modules/net_tools.lua	54342
-modules/net_watch.lua	24061
+modules/net_tools.lua	54371
+modules/net_watch.lua	24090
 modules/note_pad.lua	39972
 modules/numpad_layer.lua	44786
 modules/ocr_engine.lua	88787
 modules/onedrive_check.lua	79898
-modules/pomodoro.lua	57299
-modules/power_tools.lua	121135
+modules/pomodoro.lua	57328
+modules/power_tools.lua	121164
 modules/quick_append.lua	18589
 modules/recent_docs.lua	61536
-modules/right_click.lua	26207
+modules/right_click.lua	26236
 modules/scratch_pad.lua	169686
 modules/screen_veil.lua	26691
-modules/screenshot_editor.lua	142843
-modules/screenshots.lua	194410
-modules/search_index.lua	16269
-modules/self_test.lua	13303
-modules/settings_panes.lua	57792
+modules/screenshot_editor.lua	146171
+modules/screenshots.lua	194435
+modules/search_index.lua	16298
+modules/self_test.lua	15905
+modules/settings_panes.lua	57821
 modules/stall_guard.lua	24712
-modules/tab_search.lua	21646
+modules/tab_search.lua	21675
 modules/task_creator.lua	58999
 modules/task_form.lua	36182
-modules/text_case.lua	17160
-modules/text_expander.lua	131955
+modules/text_case.lua	17189
+modules/text_expander.lua	133293
 modules/timer.lua	51105
 modules/ui_style.lua	13120
 modules/unified_search.lua	104299
@@ -100,7 +100,7 @@ modules/url_cleaner.lua	21584
 modules/vault.lua	329610
 modules/video_player.lua	164734
 modules/window_arranger.lua	18495
-modules/window_move.lua	40299
+modules/window_move.lua	40328
 modules/window_return.lua	21896
 modules/window_switcher.lua	74820
 modules/write_ledger.lua	38144

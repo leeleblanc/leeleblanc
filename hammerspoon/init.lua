@@ -4,74 +4,42 @@
 -- =====================================================================
 -- 11-06-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.414.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.418.0
 -- =====================================================================
 
--- NEW IN 6.414.0 — ✂️ THE CROP TOOL (modules/screenshot_editor.lua, K).
---   LL, 2026-10-12: "I needed a tool that allows me to crop it." D7's
---   second half; 6.407.0 was the sizing.
---   🔑 THE RECTANGLE IS AN ORDINARY BOX NOTE, which is why this is a
---   small release rather than a large one: the hit test, the move, the
---   size handle, ⌘Z and the stash-across-a-close all serve it with no
---   new code. What is new is how it is DRAWN, what committing it does,
---   and the refusals.
---   🔎 EVERYTHING OUTSIDE IT IS DIMMED — the spotlight's veil inverted,
---   so what would GO is what is dim and "what am I about to lose" is
---   answered BEFORE ⏎ rather than by an undo afterwards.
---   🔒 AND IT IS DRAWN FOR THE SCREEN AND NEVER FOR THE FILE. saveIt
---   bakes the marks in with drawAll(ctx, false), so every call is behind
---   that flag and drawNote draws nothing at all for the kind — two
---   belts, because a dim overlay burned into a saved shot is not
---   recoverable from the file.
---   📏 THE PLAN IS LUA'S (6.258.0's shape): the page asks, ed.cropPlan
---   decides, the page does the pixels. ONE copy of the rule, in the
---   place the gate can drive it — and only Lua can resize the WINDOW,
---   which a crop needs, because the canvas is scaled to fit and a
---   cropped shot left in the old window is drawn bigger and blurrier.
---   🚨 TWO REFUSALS, EACH NAMED: under cropMin (32) on a side, with the
---   SIZE in the sentence, because "6 × 4" is the whole diagnosis of a
---   mis-drag (6.336.0); and a rectangle that IS the whole shot, which is
---   the fixture a naive implementation agrees with on every other input
---   (6.230.0) — obeying it spends an undo row, resizes nothing and reads
---   as a key that did not work.
---   ✂️ ONE RECTANGLE AT A TIME, and a new drag replaces it undoably: two
---   would need a rule about which ⏎ meant, and "a crop of the first
---   crop, or of the shot?" has no obvious answer.
---   📐 EVERY MARK MOVES WITH THE PIXELS, and the undo row carries the
---   whole old canvas AND the shift — shrinking a canvas destroys its
---   pixels, and a crop that moved one and not the other puts each mark
---   off the thing it points at.
+-- NEW IN 6.418.0 — ℹ️ A MAC WITH NO PROFILE OF ITS OWN SAYS SO
+--   (core/boot_report.lua). LL: "Are you also ensuring our Hammerspoon
+--   tools work on our work MacBook?" Every path degrades and the gate
+--   drives the degraded paths with hs stubbed — a Mac with nothing. But
+--   §profiles picks with `profiles[hostTag] and hostTag or "default"`,
+--   and the work-Mac key is a PLACEHOLDER nobody has replaced with the
+--   real ComputerName, so that Mac takes the default and gets none of
+--   its tuning — silently, the only trace a row inside _G.bootReport().
+--   6.317.0: a fallback nobody is told about is indistinguishable from
+--   the thing it replaced. The boot line names the machine and lists the
+--   profiles this build knows (6.276.0 — a hand-kept register is safe
+--   only when forgetting is loud). ℹ️ and never ⚠️: an untuned Mac is
+--   not a broken one, and a warning over a healthy state is one he
+--   scrolls past (6.269.0).
 
--- NEW IN 6.413.0 — 🩺 DO THE BIG TOOLS ANSWER? (modules/self_test.lua,
---   _G.selfTest). LL: "After Hammerspoon runs the first time, can it do
---   a set of checks for most important functions? Screenshot tool,
---   snippets tool, autocorrect, draft keeper, right-click."
---   🔑 NOT install_check, WHICH ANSWERS A DIFFERENT QUESTION. 6.399.0
---   stats every runtime file against MANIFEST.txt — bytes on disk — and
---   every one of them can be present and correct while the thing he
---   pressed does nothing: a tap macOS switched off, a dictionary that
---   did not load, a folder OneDrive took away. Joining the two would
---   make one report that answers two questions and cannot say which
---   half failed. Two instruments, two questions, each says which it is.
---   🔎 FOUR STATES, NOT TWO (6.196.1): ✅ answered and healthy · ⚠️
---   answered and a fault, with what to do · ⏳ switched off on purpose,
---   which is NOT a fault · ❔ THE CHECK ITSELF could not be asked, which
---   is never a pass — an instrument that can raise is worse than one
---   that lies (6.282.0), and this is the block he will read INSTEAD of
---   testing. One exploding row cannot take the block down.
---   🚨 EXISTS IS NOT RUNNING. macOS switches an eventtap off across some
---   transitions and tells nobody (6.303.0), so the object being there is
---   the reassuring half and isEnabled() is the half that matters.
---   📣 IT SPEAKS ON A HEALTHY MAC, breaking 6.269.0 deliberately and on
---   his own words: he asked for checks AFTER THE FIRST RUN, and the
---   value is knowing the tools DID answer on the mornings before the one
---   when they do not. self_test = { sayBoot = false } is quiet.
+-- NEW IN 6.417.0 — 📠 A REPORT PRINTS ONCE (35 reports, modules/+core/).
+--   LL's _G.draftCheck() paste: the whole block, then the whole block
+--   again. The Console ECHOES a returned value, and every report ended
+--   `print(s) return s`. The return is NOT spare — 26 services hand that
+--   text on and 3 hotkeys copy it — so the shape is additive (6.299.0):
+--   unasked it prints, report(true) returns in silence. Asking a service
+--   no longer sprays the Console. 6.179.1's rule is unchanged and now has
+--   two halves. A sentry closes the class, comments stripped (6.262.0),
+--   asserting it READ the tree first (6.313.0).
+--   🚨 And the same lines claimed "printed and copied" over a clipboard
+--   write nobody read — setContents refuses by RETURNING FALSE and never
+--   throws (6.198.0 · 6.319.0). They take core.copyText now.
 
--- (6.412.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.416.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 cut the inline count to
 --  TWO; a gate check proves every entry here is also in CHANGELOG.md.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.414.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.418.0
 -- =====================================================================
 -- The catalogue that used to sit here moved to GUIDE.md ("What each
 -- tool does") in 6.180.0 — 259 lines of prose inside the orchestrator.
@@ -160,7 +128,7 @@ function _G.consoleRuleSay(what)
     return true
 end
 
-_G.configVersion = "6.414.0"
+_G.configVersion = "6.418.0"
 _G.consoleRuleSay("▶ BOOT")
 
 local function safeRequire(mod)

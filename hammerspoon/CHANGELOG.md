@@ -5,6 +5,194 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.418.0 — ℹ️ A MAC WITH NO PROFILE OF ITS OWN SAYS SO
+               (core/boot_report.lua)
+
+  LL, 2026-11-07: "Are you also ensuring our Hammerspoon tools work on
+  our work MacBook?" The honest answer is structurally yes and
+  empirically no, and looking for the evidence found a SILENT hole.
+
+  🚨 THE WORK-MAC PROFILE KEY IS A PLACEHOLDER. init.lua picks a profile
+  with `_G.moduleProfiles[hostTag] and hostTag or "default"`, and the
+  work entry is ["Lees-Work-MacBook"] — a name invented here, over a
+  comment reading "✏️ PUT YOUR WORK MACHINE'S NAME HERE". The real
+  ComputerName was asked for in 6.275.0's verify block and never came.
+  A managed Mac is rarely named what you would guess, so that Mac almost
+  certainly takes the DEFAULT and gets none of its tuning — the pomodoro
+  alpha, the window_switcher cap — with the only trace a row inside
+  _G.bootReport() that you have to go looking for.
+
+  🔑 6.317.0: WHEN A RESOLUTION STEP FALLS BACK TO A DEFAULT, THE DEFAULT
+  MUST ANNOUNCE ITSELF. A fallback nobody is told about is
+  indistinguishable from the thing it replaced. The boot line says it,
+  NAMES the machine, and lists the profiles this build knows — because a
+  hand-kept register is only safe when forgetting is LOUD (6.276.0), and
+  a key matching no Mac on earth is exactly what went unnoticed here.
+
+  🔕 ℹ️ AND NEVER ⚠️, deliberately: a Mac with no profile is not broken,
+  it is untuned, and most Macs legitimately have none. A warning over a
+  healthy state is one he scrolls past (6.269.0).
+
+  📏 WHAT IT DOES NOT CLAIM, said rather than implied: nothing here
+  proves the config RUNS on that Mac. What is real is that every path
+  degrades and the gate drives the degraded paths with `hs` stubbed —
+  which IS a Mac with nothing — so no-OneDrive, no-brew, no-permission
+  and no-binary are exercised on every release. What is not real is a
+  single scored install there; the work Mac's storm report has been owed
+  since 6.214.2.
+
+  🧪 Driven against the REAL file, never grepped: the suite executes
+  core/boot_report.lua and reads what it prints, because a source match
+  survives the code being switched off. Deleting the announcement fails
+  three checks; printing it UNCONDITIONALLY fails one — that is the
+  fixture that bites (6.230.0), since with it always printed the matched
+  and unmatched Macs agree and the release does nothing.
+
+NEW IN 6.417.0 — 📠 A REPORT PRINTS ONCE (35 reports across modules/
+               and core/)
+
+  LL's 2026-11-06 Console, running _G.draftCheck(): the whole block,
+  then the whole block again. The Hammerspoon Console ECHOES the value
+  an expression returns, and thirty-five reports ended `print(s) return
+  s` — so every report in this config has shown twice, every time he
+  typed one, since each was written.
+
+  🔑 THE RETURN IS NOT SPARE, which is why "stop returning" was the wrong
+  fix and the grep is the release. TWENTY-SIX services wrap a report
+  (`core.provide("x.report", function() return _G.xReport() end)`) and
+  three hotkeys copy the text to the clipboard. Dropping the return
+  would have broken all twenty-nine, silently — 6.391.0's lesson, that a
+  first list of sites is a SAMPLE until somebody greps.
+
+  📏 SO THE SHAPE IS ADDITIVE (6.299.0): unasked it prints, report(true)
+  hands the text back in silence. Every caller that passed nothing still
+  prints; the twenty-nine that want text now ask. 🔕 And asking a service
+  no longer sprays the Console — a module that wants the text has not
+  asked for it to be printed, which was a latent second bug in all 26.
+
+  📋 6.179.1'S RULE IS UNCHANGED AND NOW HAS TWO HALVES: a report still
+  reaches the Console as ONE string, never row by row (the console gate
+  eats a report printed line by line). What moved is who asks. Eight
+  suites asserted the old contract in words; each states the rule in
+  both halves now (6.248.0 — assert the rule, not yesterday's
+  implementation).
+
+  🚨 AND THE SAME LINES CARRIED AN OLDER DEFECT, fixed while they were
+  open: focus_mode, menubar_items and health_monitor each did
+  `pcall(function() hs.pasteboard.setContents(r) end)` and then said
+  "printed and copied". setContents REFUSES BY RETURNING FALSE and never
+  throws, so that pcall is true either way — named in this project since
+  6.198.0 and still live in three places. They take core.copyText
+  (6.325.0) now and say so when macOS says no.
+
+  🔬 AND THREE CORE STUBS WERE GENTLER THAN THE REAL TABLE (6.290.0,
+  fifteenth time): test_health, test_focus and test_menubar had no
+  `copyText`, so the module RAISED the moment it took the published
+  door. The stubs model the refusal too — a door that only ever succeeds
+  proves nothing about the branch it exists for.
+
+  🔒 THE CLASS IS CLOSED BY A SENTRY, not by thirty-five remembered
+  edits: test_integration walks modules/ and core/ with comments
+  stripped (6.262.0 — the note above it quotes the shape it forbids) and
+  fails on any `print(s) return s`. It asserts it READ the tree first,
+  because a sentry over an empty haystack is green and measures nothing
+  (6.313.0). Mutation-proven by name.
+
+  🧪 AND THE SWEEP CORRUPTED ONE STRING LITERAL, caught by the gate: a
+  test asserted the report's own advice text, and the rewrite turned
+  "_G.degradeReport()" — a command for HIM to type — into
+  "_G.degradeReport(true)". GENERAL: a mechanical rewrite over source
+  touches STRINGS as well as calls; grep the literals afterwards.
+
+NEW IN 6.416.0 — 🩺 THE SELF TEST TELLS THE TRUTH
+               (modules/self_test.lua + modules/text_expander.lua)
+
+  LL, 2026-11-06, on the block 6.413.0 added: "6.413.0: do better". His
+  boot carried three faults and all three were ours, in the one block he
+  reads every morning.
+
+  🚨 THE SNIPPETS ROW READ A GLOBAL NOTHING PUBLISHES. It asked
+  `_G.expander.snippets`; text_expander.lua has NEVER set `_G.expander`
+  — it publishes expanderTap, expanderTimers, expanderResetBuffer and
+  expanderWatchdog and nothing else. So it counted 0 and reported "NO
+  snippets are loaded" on every Mac, for ever, over a library of
+  nineteen hundred. 6.339.0 exactly: nil, nil-guarded, so the refusal is
+  correct-looking code giving a correct-sounding reason.
+
+  🔬 AND THE GATE CERTIFIED IT (6.273.0, the costliest shape this
+  project keeps meeting): tests/test_self_test.lua ASSIGNED
+  `_G.expander` itself, so the suite was green about a row that could
+  not be green on a Mac. A stub that invents a convention does not miss
+  the bug, it certifies it.
+
+  🔑 THE FIX IS A DOOR THAT EXISTS, not a published module table. The
+  expander provides `expander.state` (count · enabled · source ·
+  problems · loadSecs) through the registry every other module reaches
+  through — one renderer, two readers (6.231.0) — and a sentry keeps
+  `_G.expander` UNPUBLISHED, because the cheap fix was to set that
+  global and it would have made the module's whole insides a supported
+  surface for one count.
+
+  📏 AND IT PRINTED 119 BESIDE THE BOOT LINE'S 111. The row read
+  `_G.hyperBoundCount` (every combo claimed) while the boot line prints
+  `_G.hyperShortcutCount` — the same total less the forwarded chords,
+  because init.lua says IN CAPITALS that forwarded keys are not
+  shortcuts. Two numbers for one fact, eight lines apart. The fallback
+  to the raw count stays for an older build and SAYS which it used.
+
+  📏 AND IT NAMED THE WRONG DOOR: _G.snippetsImport() finds
+  .alfredsnippets files, and there is nothing to import when the library
+  is loaded. _G.snippetsReport() is what answers "what is in there?" —
+  which is also the answer to his "give me good report": it already
+  existed (6.359.0) and he had never been pointed at it. 6.317.0 for the
+  sixth time — the instrument was not the gap, the DOOR was.
+
+  🔎 FOUR STATES, and the new one is the point: a module that did not
+  load reads ❔ COULD NOT ASK, never "NO snippets are loaded" — a claim
+  about his library made by something that never read it (6.196.1). An
+  expander switched OFF is ⏳, not a fault.
+
+  🧪 Mutations: the old global read, the raw bind count and the importer
+  wording each fail by name; deleting the provide line fails SIX checks
+  on the publisher side (6.388.0 — a cross-file join needs a check at
+  both ends, or half of it is a contract nobody holds).
+
+NEW IN 6.415.0 — 🖼 THE LOADED SHOT IS A MARK YOU CAN MOVE
+               (modules/screenshot_editor.lua, ⌘O)
+
+  LL, 2026-11-06, with a screenshot of two stacked shots: "1. First
+  screenshot is above the second screenshot I add. 2. I should be able
+  to position the second screenshot on top of the second or where I
+  want." The first sentence is the grow direction working as designed —
+  a wide shot grows DOWN, so the first is above — and the second is the
+  ask.
+
+  🔑 ⌘O BAKED THE LOADED SHOT INTO THE CANVAS with ctx.drawImage, so
+  where it landed was permanent. It lands as an ordinary `img` note now,
+  which means the drag, the aspect-keeping corner scale, selection, ⌫,
+  ⌘Z and the save-time bake all serve it with NO new code — 6.212.0's
+  rule that a new mark is a note kind. It arrives SELECTED so it can be
+  dragged at once, and 6.414.0's crop is the natural partner for
+  trimming the leftover room once the two overlap.
+
+  ↩️ ⌘Z IS STILL ONE PRESS. The note hangs on the grow's existing undo
+  row rather than taking one of its own, so undoing a ⌘O still puts back
+  the canvas size, the pixels AND removes the shot — 6.258.0's promise
+  kept. undoLast's grow branch removes the note first and clears the
+  selection.
+
+  📏 LUA OWNS THE MEASUREMENT (6.258.0): growWith passes the shot's real
+  size into the page, so the note is drawn at the size the PLAN was made
+  from rather than at whatever naturalWidth reports. The fixture that
+  bites is a 158×65 shot under an 800×600 canvas — the push must carry
+  both numbers and must not read `, 800, 677)` (6.230.0: pick the input
+  where right and wrong must differ).
+
+  📣 SAID ONCE PER SESSION, at the moment it happens (6.285.0 · 6.398.0):
+  a correct default that is silent is indistinguishable from a tool that
+  will not let you move the thing. A REFUSED grow does not spend the
+  alert, or the first working load would be the silent one.
+
 NEW IN 6.414.0 — ✂️ THE CROP TOOL (modules/screenshot_editor.lua, K)
 
   LL, 2026-10-12, in a list of screenshot-editor asks: "I needed a tool
