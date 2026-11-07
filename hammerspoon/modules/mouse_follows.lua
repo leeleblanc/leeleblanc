@@ -618,7 +618,7 @@ function M.setup(core)
     end
 
     -- ---- 🩺 report --------------------------------------------------------
-    function _G.mouseFollowsReport()
+    function _G.mouseFollowsReport(asText)
         local L = { "🖱 MOUSE FOLLOWS FOCUS (⇪1)" }
         L[#L + 1] = "   accessibility : " .. (axOK() and "granted"
                                               or "OFF — no window frame can be read")
@@ -674,8 +674,8 @@ function M.setup(core)
             L[#L + 1] = "   refused       : " .. table.concat(names, ", ")
         end
         local s = table.concat(L, "\n")
+        if asText then return s end
         print(s)
-        return s
     end
 
     -- ---- the watcher ------------------------------------------------------
@@ -707,7 +707,7 @@ function M.setup(core)
 
     core.provide("mouseFollows.toggle", function() return mf.toggle() end)
     core.provide("mouseFollows.warp",   function(why) return mf.warp(why or "focus") end)
-    core.provide("mouseFollows.report", function() return _G.mouseFollowsReport() end)
+    core.provide("mouseFollows.report", function() return _G.mouseFollowsReport(true) end)
     _G.mouseFollows = mf
     M.mf     = mf
     M.config = mf

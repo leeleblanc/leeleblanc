@@ -360,7 +360,7 @@ check("…and says which permission and where to find it",
       #ALERTS == 1 and ALERTS[1]:find("Accessibility", 1, true)
       and ALERTS[1]:find("System Settings", 1, true), ALERTS[1])
 check("…and the report says so too",
-      _G.rightClickReport():find("OFF", 1, true) ~= nil)
+      _G.rightClickReport(true):find("OFF", 1, true) ~= nil)
 AX = true
 
 reset()
@@ -383,7 +383,7 @@ out("\n=== 6. the report answers 'is it working?' ===\n")
 reset()
 MODS = {}
 rc.click()
-local rep = _G.rightClickReport()
+local rep = _G.rightClickReport(true)
 check("it counts what fired", rep:find("fired", 1, true) ~= nil)
 check("it says where the last one landed", rep:find("100,200", 1, true) ~= nil, rep)
 check("…and in which app", rep:find("Finder", 1, true) ~= nil)
@@ -399,7 +399,7 @@ do
     MODS = { shift = true }
     rc.click()
     runTimers(100)
-    local r2 = _G.rightClickReport()
+    local r2 = _G.rightClickReport(true)
     check("after a blind fire the report explains that menu",
           r2:find("modified one") ~= nil, r2)
     check("…and names the modifier in it", r2:find("⇧") ~= nil, r2)
@@ -407,7 +407,7 @@ do
 end
 check("with nothing clicked it says 'never', not '0,0'", (function()
     rc.fires, rc.lastAt = 0, nil
-    return _G.rightClickReport():find("never", 1, true) ~= nil
+    return _G.rightClickReport(true):find("never", 1, true) ~= nil
 end)())
 
 out("\n=== 7. 🚨 IT MUST NOT GUESS AT OTHER APPS ===\n")
@@ -540,7 +540,7 @@ do
           rc.onSel == 1 and rc.onPointer == 0,
           rc.onSel .. "/" .. rc.onPointer)
     check("...and the report says which of the two it was",
-          _G.rightClickReport():find("1 the selected item", 1, true) ~= nil)
+          _G.rightClickReport(true):find("1 the selected item", 1, true) ~= nil)
 
     SEL_ATTR = "AXSelectedChildren"
     MOUSE, MOVES = { x = 10, y = 20 }, 0

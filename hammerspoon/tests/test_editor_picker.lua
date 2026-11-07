@@ -470,7 +470,7 @@ reset()
 tapWith(L_ALT); tapWith(R_ALT)
 check("left-then-right is not a pair either", ep.fires == 0, ep.fires)
 
--- Counters. These are what _G.editorPickerReport() prints, and the only
+-- Counters. These are what _G.editorPickerReport(true) prints, and the only
 -- way to tell "you have not pressed it yet" from "this keyboard has none".
 ep.sidesSeen = { left = 0, right = 0 }
 reset()
@@ -895,7 +895,7 @@ out("\n=== 6. the report ===\n")
 _G.editors = {
     { name = "One", key = "⇪1", size = function() return 5 end },
 }
-local rep = _G.editorPickerReport()
+local rep = _G.editorPickerReport(true)
 check("it names the tap's state", rep:find("watcher    : running", 1, true) ~= nil,
       rep)
 check("it names the gesture and both settings it is made of",
@@ -927,7 +927,7 @@ check("it does not warn about missing event types",
 -- an Apple keyboard that has no right ⌃, so it is still tested.
 ep.tapSide = "right"
 ep.sidesSeen, ep.sideUnknown = { left = 3, right = 0 }, 0
-rep = _G.editorPickerReport()
+rep = _G.editorPickerReport(true)
 check("it prints how many times each key has been pressed",
       rep:find("left 3 · right 0", 1, true) ~= nil, rep)
 check("…and warns when the chosen side has never been seen",
@@ -937,12 +937,12 @@ check("…and warns when the chosen side has never been seen",
 -- either key has no "chosen side" to be missing, and a report that nagged
 -- about one anyway would be the confident wrong answer again.
 ep.tapSide = "either"
-rep = _G.editorPickerReport()
+rep = _G.editorPickerReport(true)
 check("…and never warns about a side when none was chosen",
       rep:find("has not been pressed once", 1, true) == nil, rep)
 ep.tapSide = "right"
 ep.sidesSeen, ep.sideUnknown = { left = 3, right = 9 }, 4
-rep = _G.editorPickerReport()
+rep = _G.editorPickerReport(true)
 check("no such warning once the chosen side has been used",
       rep:find("has not been pressed once", 1, true) == nil, rep)
 check("…but refused presses are still reported",
@@ -950,7 +950,7 @@ check("…but refused presses are still reported",
 ep.sidesSeen, ep.sideUnknown = { left = 0, right = 1 }, 0
 ep.tapSide = "either"          -- back to what ships
 _G.editors = {}
-rep = _G.editorPickerReport()
+rep = _G.editorPickerReport(true)
 check("an empty roster is explained, not just zero",
       rep:find("Nothing registered", 1, true) ~= nil)
 
@@ -1335,7 +1335,7 @@ _G.editors = {
     { name = "Gives Not" },
 }
 do
-    local r = _G.editorPickerReport()
+    local r = _G.editorPickerReport(true)
     check("🩺 the report prints where the CSV goes",
           r:find(CSVPATH, 1, true) ~= nil)
     -- 🚨 A store supplying neither csv nor text is simply ABSENT from the

@@ -996,10 +996,10 @@ return function(core)
         return "⏱ Lag probe: counters zeroed at " .. os.date("%H:%M:%S")
     end
 
-    function _G.lagReset()
+    function _G.lagReset(asText)
         local s = lag.reset()
+        if asText then return s end
         print(s)
-        return s
     end
 
     -- The console is the only interface these have, so each one prints
@@ -1013,7 +1013,7 @@ return function(core)
     function _G.lagUnmute(n)        return announce(lag.mute(n, false)) end
     function _G.lagQuiet(on)        return announce(lag.quiet(on)) end
 
-    function _G.lagReport()
+    function _G.lagReport(asText)
         local L = { "", "⏱ LAG PROBE" }
         local function line(s) L[#L + 1] = s end
 
@@ -1045,8 +1045,8 @@ return function(core)
             line("      _G.lagOff() then reload — to stop paying for it.")
             line("")
             local s = table.concat(L, "\n")
+            if asText then return s end
             print(s)
-            return s
         end
 
         line("   installed  : " .. (lag.installedAt

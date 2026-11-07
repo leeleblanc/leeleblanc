@@ -711,7 +711,7 @@ do
   reset()
   fireActivated(chrome)
   _G.focusBorrow("Edit window")
-  local rep = _G.focusReport()
+  local rep = _G.focusReport(true)
   check("🔎 the report names what is still holding the focus",
         rep:find("Edit window", 1, true) ~= nil
         and rep:find("holding", 1, true) ~= nil, rep)
@@ -722,7 +722,7 @@ do
         and rep:find("Google Chrome", 1, true) ~= nil, rep)
   FRONT = me
   _G.focusReturn("Edit window")
-  local rep2 = _G.focusReport()
+  local rep2 = _G.focusReport(true)
   check("🔎 ...and reads as healthy when nothing owes the focus back",
         rep2:find("nothing — no panel owes", 1, true) ~= nil
         and rep2:find("refused : none", 1, true) ~= nil, rep2)

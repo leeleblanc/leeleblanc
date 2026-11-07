@@ -404,7 +404,7 @@ function M.setup(core)
         else mb.chooser:show() end
     end
 
-    function _G.menuBarReport()
+    function _G.menuBarReport(asText)
         if not axOK() then
             print("📊 Menu Bar Items: Accessibility is not granted, so nothing "
                   .. "up there is readable.")
@@ -424,24 +424,28 @@ function M.setup(core)
         L[#L + 1] = "      no API for it. For real hiding use Ice (free):"
         L[#L + 1] = "      https://github.com/jordanbaird/Ice"
         local s = table.concat(L, "\n")
+        if asText then return s end
         print(s)
-        return s
     end
 
     if mb.enabled then
         core.hyperAddShortcut({}, mb.key, mb.show, "menu bar items")
         core.hyperAddShortcut({ "shift" }, mb.key, function()
-            local r = _G.menuBarReport()
+            -- 📠 6.417.0 — see modules/focus_mode.lua: ask for the text, print
+            -- it here, and READ what macOS said about the copy.
+            local r = _G.menuBarReport(true)
             if r then
-                pcall(function() hs.pasteboard.setContents(r) end)
-                hs.alert.show("📊 Menu bar inventory printed and copied", 2)
+                print(r)
+                local ok = core.copyText(r, "menu bar inventory")
+                hs.alert.show(ok and "📊 Menu bar inventory printed and copied"
+                                 or  "📊 Menu bar inventory printed — macOS refused the copy", 2)
             end
         end, "menu bar inventory")
     end
 
     core.provide("menuBar.show",   function() return mb.show()      end)
     core.provide("menuBar.list",   function() return mb.scan(false) end)
-    core.provide("menuBar.report", function() return _G.menuBarReport() end)
+    core.provide("menuBar.report", function() return _G.menuBarReport(true) end)
 
     if not axOK() then
         print("📊 Menu Bar Items: Accessibility is OFF — ⇪M will explain "

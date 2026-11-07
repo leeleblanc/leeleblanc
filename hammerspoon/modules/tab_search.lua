@@ -424,7 +424,7 @@ end run]]
     end
 
     -- ---- the report ------------------------------------------------------
-    function _G.tabReport()
+    function _G.tabReport(asText)
         local L = { "🗂 TAB SEARCH" }
         L[#L + 1] = "   scans   : " .. ts.scans .. " (last took " .. ts.lastMs .. "ms)"
         L[#L + 1] = "   jumps   : " .. ts.jumps
@@ -440,8 +440,8 @@ end run]]
         L[#L + 1] = "   asked   : " .. table.concat(ts.browsers(), ", ")
         if ts.lastNote then L[#L + 1] = "   last problem: " .. ts.lastNote end
         local s = table.concat(L, "\n")
+        if asText then return s end
         print(s)
-        return s
     end
 
     if ts.enabled then
@@ -449,7 +449,7 @@ end run]]
                               "tab search")
     end
     core.provide("tabs.show",   function() return ts.show() end)
-    core.provide("tabs.report", function() return _G.tabReport() end)
+    core.provide("tabs.report", function() return _G.tabReport(true) end)
 
     _G.tabSearch = ts
     M.ts     = ts

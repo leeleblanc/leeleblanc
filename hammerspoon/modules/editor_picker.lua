@@ -971,7 +971,7 @@ function M.setup(core)
     -- =================================================================
     -- 🩺 REPORT
     -- =================================================================
-    function _G.editorPickerReport()
+    function _G.editorPickerReport(asText)
         local L = { "🗂 EDITOR PICKER" }
         L[#L + 1] = string.format("   gesture    : %s  (tapMod = %s, tapSide = %s)",
             ep.gesture(), tostring(ep.tapMod), tostring(ep.tapSide))
@@ -1053,8 +1053,8 @@ function M.setup(core)
                         .. "last row writes it"
         end
         local s = table.concat(L, "\n")
+        if asText then return s end
         print(s)
-        return s
     end
 
     -- =================================================================
@@ -1112,7 +1112,7 @@ function M.setup(core)
     core.provide("editors.show",   function() return ep.show()   end)
     core.provide("editors.list",   function() return ep.states() end)
     core.provide("editors.csv",    function() return ep.exportCSV() end)
-    core.provide("editors.report", function() return _G.editorPickerReport() end)
+    core.provide("editors.report", function() return _G.editorPickerReport(true) end)
 
     _G.editorPicker = ep
     M.picker = ep

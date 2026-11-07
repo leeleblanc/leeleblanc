@@ -899,7 +899,7 @@ function M.setup(core)
         step()
     end
 
-    function _G.settingsReport()
+    function _G.settingsReport(asText)
         local rows = sp.build()
         local L = { "⚙️ SETTINGS SEARCH" }
         L[#L + 1] = "   listed      : " .. #rows .. " rows"
@@ -929,8 +929,8 @@ function M.setup(core)
         L[#L + 1] = "   ⚠️ an identifier Apple retired opens Settings at the"
         L[#L + 1] = "      wrong page and still exits 0 — run _G.settingsProbe()"
         local s = table.concat(L, "\n")
+        if asText then return s end
         print(s)
-        return s
     end
 
     if sp.enabled then
@@ -944,7 +944,7 @@ function M.setup(core)
         end
         return false
     end)
-    core.provide("settings.report", function() return _G.settingsReport() end)
+    core.provide("settings.report", function() return _G.settingsReport(true) end)
     core.provide("settings.ask",    function(q) return sp.askApple(q) end)
 
     _G.settingsPanes = sp

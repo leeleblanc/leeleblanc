@@ -939,7 +939,7 @@ check("the tally announces the day's completed count", (function()
            and ALERTS[1] and ALERTS[1]:find("pomodoro", 1, true) ~= nil, msg
 end)())
 check("_G.pomodoroReport names the file and today's tally", (function()
-    local r = _G.pomodoroReport()
+    local r = _G.pomodoroReport(true)
     return r:find(pom.logFile, 1, true) ~= nil
            and r:find("today:", 1, true) ~= nil
 end)())
@@ -1006,7 +1006,7 @@ do
     check("...and the file agrees (3 completed today)", pom.dayCounts(today).completed == 3)
     check("_G.pomodoroReport's card line names the count, the day and when the log was read",
           (function()
-              local r = _G.pomodoroReport()
+              local r = _G.pomodoroReport(true)
               return r:find("card : shows 3 for " .. today, 1, true) ~= nil
                  and r:find("read from the log at", 1, true) ~= nil
           end)())
@@ -1066,8 +1066,8 @@ do
         for _, p in ipairs(SOUNDS) do if p.name ~= "Submarine" then return false end end
         return true
     end)())
-    check("_G.pomodoroReport's tone line counts them", _G.pomodoroReport():find("tone : Submarine every 3 s", 1, true) ~= nil
-          and _G.pomodoroReport():find("10 played this phase", 1, true) ~= nil)
+    check("_G.pomodoroReport's tone line counts them", _G.pomodoroReport(true):find("tone : Submarine every 3 s", 1, true) ~= nil
+          and _G.pomodoroReport(true):find("10 played this phase", 1, true) ~= nil)
     tickTo(1)                                            -- the phase ends → flash
     local atEnd = #SOUNDS
     for _, t in ipairs(TIMERS) do
@@ -1089,7 +1089,7 @@ do
     pom.start()
     tickTo(pom.workMins * 60 - 1)
     check("toneOn = false: silence to the end, and the report says how to turn it on",
-          #SOUNDS == 0 and _G.pomodoroReport():find("tone : off", 1, true) ~= nil, #SOUNDS)
+          #SOUNDS == 0 and _G.pomodoroReport(true):find("tone : off", 1, true) ~= nil, #SOUNDS)
     pom.stop("test")
     pom.toneOn = true
 
@@ -1104,8 +1104,8 @@ do
     SOUND_MISSING = false
     check("no Submarine on this Mac: no throw, no play, and the report SAYS it is silent",
           okStart and okTick and okEnd and #SOUNDS == 0 and pom.toneSound == false
-          and _G.pomodoroReport():find("tone : ⚠️ SILENT — no sound named Submarine", 1, true) ~= nil,
-          _G.pomodoroReport())
+          and _G.pomodoroReport(true):find("tone : ⚠️ SILENT — no sound named Submarine", 1, true) ~= nil,
+          _G.pomodoroReport(true))
     check("...and the card still reached its flash", pom.state and pom.state.flasher ~= nil)
     pom.stop("test")
     pom.toneSound = nil
@@ -1134,7 +1134,7 @@ do
           pom.state.docked == true and pom.state.undockPos.x == home.x and pom.state.undockPos.y == home.y)
     _G.service.call("pomodoro.dock", CAL)
     check("...docking twice does not forget the original spot", pom.state.undockPos.x == home.x)
-    check("...the report says so", _G.pomodoroReport():find("dock : beside the mini calendar now", 1, true) ~= nil)
+    check("...the report says so", _G.pomodoroReport(true):find("dock : beside the mini calendar now", 1, true) ~= nil)
     local ok2 = _G.service.call("pomodoro.undock")
     tl = c:topLeft()
     check("🚨 the calendar closing puts it BACK exactly where it was",

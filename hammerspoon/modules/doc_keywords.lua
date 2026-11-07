@@ -461,7 +461,7 @@ function M.setup(core)
         return started
     end
 
-    function _G.docKeywordsReport()
+    function _G.docKeywordsReport(asText)
         local L = { "🏷 DOC KEYWORDS this session — newest last (last "
                     .. dk.logMax .. " kept)" }
         for _, e in ipairs(dk.log) do
@@ -481,12 +481,12 @@ function M.setup(core)
                 dk.batch.total or 0, dk.inFlight, #dk.queue)
         end
         local s = table.concat(L, "\n")
+        if asText then return s end
         print(s)
-        return s
     end
 
     core.provide("docKeywords.tag",    function(p) return _G.tagDoc(p) end)
-    core.provide("docKeywords.report", function() return _G.docKeywordsReport() end)
+    core.provide("docKeywords.report", function() return _G.docKeywordsReport(true) end)
 
     -- Watchers start in warm(), off the boot path; a root that does not
     -- exist contributes nothing (the work Mac may have no personal

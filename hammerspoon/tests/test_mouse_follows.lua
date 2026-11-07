@@ -365,7 +365,7 @@ do
     check("a reload with ON remembered starts ON — no ⇪1 needed",
           mf2.active == true and mf2.remembered == true)
     check("…and still moves nothing at boot", #SETS == setsBefore)
-    check("the report says so", _G.mouseFollowsReport():find("ON at boot", 1, true) ~= nil)
+    check("the report says so", _G.mouseFollowsReport(true):find("ON at boot", 1, true) ~= nil)
     SETTINGS[mf2.SETTINGS_KEY] = false
     local _, mf3 = boot()
     check("a reload with off remembered starts off", mf3.active == false and mf3.remembered == false)
@@ -430,7 +430,7 @@ check("the strikes are spent — the next rest needs two fresh ones", mf.slowHit
 MAIL._frame = { x = 30, y = 30, w = 100, h = 100 }
 fire("AXFocusedWindowChanged")
 check("…and nothing is even scheduled while it rests", #TIMERS == 1 and mf.pending == nil)
-check("the report names the rest", _G.mouseFollowsReport():find("resting until", 1, true) ~= nil)
+check("the report names the rest", _G.mouseFollowsReport(true):find("resting until", 1, true) ~= nil)
 ASTEP = 1000000
 do
     local rest = table.remove(TIMERS, 1)
@@ -440,8 +440,8 @@ do
           and ALERTS[#ALERTS]:find("back ON", 1, true) ~= nil)
     check("…and the report files the rest as history, not as the state",
           mf.stoodDown == nil and mf.lastRest ~= nil
-          and _G.mouseFollowsReport():find("last rest", 1, true) ~= nil
-          and _G.mouseFollowsReport():find("stood down", 1, true) == nil)
+          and _G.mouseFollowsReport(true):find("last rest", 1, true) ~= nil
+          and _G.mouseFollowsReport(true):find("stood down", 1, true) == nil)
 end
 out("\n=== 9c. A rest cut short by ⇪1, and strikes that expire ===\n")
 SETTINGS[mf.SETTINGS_KEY] = true       -- what a real ⇪1 ON left behind
@@ -475,13 +475,27 @@ mf.strikes, mf.slowHits = {}, 0
 mf.active = true
 
 out("\n=== 10. The report ===\n")
-local r = _G.mouseFollowsReport()
+local r = _G.mouseFollowsReport(true)
 check("names the state, the last jump and who refused",
       r:find("ON", 1, true) and r:find("last", 1, true) and r:find("Teams", 1, true)
       and r:find("jumped", 1, true) ~= nil)
 check("…and the watchdog's verdict (now history) and the timeout", r:find("last rest", 1, true)
       and r:find("AX timeout", 1, true) ~= nil)
+-- 📠 6.417.0 — THE RULE IS UNCHANGED AND NOW HAS TWO HALVES. 6.179.1
+-- still stands: a report reaches the Console as ONE string, never row
+-- by row, because the console gate eats a report printed line by line.
+-- What moved is WHO asks for it: unasked it prints, asked it hands the
+-- text back in silence — because the Console echoes a return and every
+-- report was showing twice. (6.248.0 — assert the rule, not yesterday's
+-- implementation.)
 check("the service returns the same text", PROVIDED["mouseFollows.report"]() == r)
+check("🚨 …and asking the SERVICE does not spray the Console — a module that "
+      .. "wants the text has not asked for it to be printed",
+      (function()
+         local before = #PRINTED
+         PROVIDED["mouseFollows.report"]()
+         return #PRINTED == before
+       end)())
 
 out("\n=== 11. Accessibility off stands down, and says so ===\n")
 AX = false
@@ -502,13 +516,13 @@ check("a notice records why", (function()
     local n = NOTICES[#NOTICES]
     return n and n[1] == "mouseFollows" and n[2] == "Accessibility off"
 end)())
-check("the report says OFF", _G.mouseFollowsReport():find("OFF", 1, true) ~= nil)
+check("the report says OFF", _G.mouseFollowsReport(true):find("OFF", 1, true) ~= nil)
 check("…and the table is still published for a profile", _G.mouseFollows == off)
 check("…and the memory was still read, so the report knows it",
       (function()
           SETTINGS["mouseFollows.active"] = true
           local _, off2 = boot()
-          local r = _G.mouseFollowsReport()
+          local r = _G.mouseFollowsReport(true)
           SETTINGS = {}
           return off2.remembered == true and r:find("ON at boot", 1, true) ~= nil
       end)())
@@ -613,7 +627,7 @@ do
         local ok = pcall(function() m.schedule("focus"); drain() end)
         return ok and TIMERS[#TIMERS] == nil or ok
     end)())
-    local rep = _G.mouseFollowsReport()
+    local rep = _G.mouseFollowsReport(true)
     check("report: the hand line with the defaults restored for bad values",
           rep:find("your hand     : click grace 500ms · settles 120ms · hand 3px · a centre stays yours 2.0s · ", 1, true) ~= nil, rep)
     check("report counts the clicks it saw", rep:find("1 click seen", 1, true) ~= nil, rep)
@@ -632,7 +646,7 @@ do
     AX = true; SETTINGS = {}; TAP = nil
     local _, m3 = boot()
     check("no eventtap.new: boot survives, clickTap nil, report says so",
-          m3.clickTap == nil and _G.mouseFollowsReport():find("click tap NOT running", 1, true) ~= nil)
+          m3.clickTap == nil and _G.mouseFollowsReport(true):find("click tap NOT running", 1, true) ~= nil)
     hs.eventtap.new = savedNew
     AX = true; SETTINGS = {}
     M, mf = boot()

@@ -798,7 +798,7 @@ function M.setup(core)
         return out
     end
 
-    function _G.focusReport()
+    function _G.focusReport(asText)
         local L = { string.format("🎯 FOCUS MODE on %s — %s",
                     tostring(core.hostTag), fm.engaged and "ENGAGED" or "idle") }
         L[#L + 1] = "   auto detection : " .. (fm.auto and "on" or "OFF")
@@ -824,18 +824,27 @@ function M.setup(core)
         L[#L + 1] = "   recent:"
         for _, l in ipairs(fm.log) do L[#L + 1] = "     " .. l end
         local s = table.concat(L, "\n")
+        if asText then return s end
         print(s)
-        return s
     end
 
     -- ---- wiring -----------------------------------------------------------
     if fm.enabled then
         core.hyperAddShortcut({}, fm.key, fm.toggle, "focus mode")
         core.hyperAddShortcut({ "shift" }, fm.key, function()
-            local r = _G.focusReport()
+            -- 📠 6.417.0 — ASK FOR THE TEXT, and print it ourselves. The
+            -- report returns nothing now unless asked, because the Console
+            -- echoes a return and every report was doubling. And while this
+            -- line was open: `pcall(setContents)` is TRUE whether or not
+            -- macOS took the write (6.198.0 · 6.319.0), so "printed and
+            -- copied" was said over a write that may never have happened.
+            -- core.copyText reads the answer (6.325.0).
+            local r = _G.focusReport(true)
             if r then
-                pcall(function() hs.pasteboard.setContents(r) end)
-                hs.alert.show("🎯 Focus report printed and copied", 2)
+                print(r)
+                local ok = core.copyText(r, "focus report")
+                hs.alert.show(ok and "🎯 Focus report printed and copied"
+                                 or  "🎯 Focus report printed — macOS refused the copy", 2)
             end
         end, "focus mode report")
     end
@@ -847,7 +856,7 @@ function M.setup(core)
     core.provide("focus.engage",    function(r) return fm.engage(r or "service") end)
     core.provide("focus.disengage", function()  return fm.disengage("service")   end)
     core.provide("focus.engaged",   function()  return fm.engaged                end)
-    core.provide("focus.report",    function()  return _G.focusReport()          end)
+    core.provide("focus.report",    function()  return _G.focusReport(true)          end)
 
     -- Detection starts in warm(), not setup(): a running-app sweep on the
     -- boot path is exactly the kind of expensive work the two-phase loader

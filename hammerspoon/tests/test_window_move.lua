@@ -207,7 +207,7 @@ check("the mouse-UP event ends it: timer stopped, tap stopped and released, "
       and wm.lastDrag.ended == "mouse up" and wm.lastDrag.moves == 1,
       wm.lastDrag.ended)
 check("the report carries the drag record", (function()
-    local r = _G.windowMoveReport()
+    local r = _G.windowMoveReport(true)
     return r:find("last drag", 1, true) ~= nil and r:find("engine tap", 1, true) ~= nil
        and r:find("ended: mouse up", 1, true) ~= nil
 end)())
@@ -221,7 +221,7 @@ check("a drag that ended before it moved anything SAYS SO in the Console",
           end
           return false
       end)(), printed[1])
-check("...and the report flags it", _G.windowMoveReport():find("moved NOTHING", 1, true) ~= nil)
+check("...and the report flags it", _G.windowMoveReport(true):find("moved NOTHING", 1, true) ~= nil)
 NO_DRAG_TAPS = true
 tapsBefore = #DRAGTAPS
 check("no tap to be had (no Accessibility): the drag still starts on the timer",
@@ -550,7 +550,7 @@ _G.lastPopupPlacement = {
 -- sections 5 and 6 down with it and hide whatever they had to say.
 local rep = ""
 if type(_G.windowMoveReport) == "function" then
-    local okR, r = pcall(_G.windowMoveReport)
+    local okR, r = pcall(_G.windowMoveReport, true)
     rep = (okR and type(r) == "string") and r or ""
 end
 check("the report is text and names the module", type(rep) == "string"
@@ -585,7 +585,7 @@ check("🚨 a box computed with nothing open is labelled as such", (function()
         point  = { x = 300, y = 200 },
         screen = { frame = function() return { x = 0, y = 0, w = 1000, h = 800 } end },
     }
-    local ok, r = pcall(_G.windowMoveReport)
+    local ok, r = pcall(_G.windowMoveReport, true)
     wm.openChooser = savedOpen
     if not (ok and type(r) == "string") then return false, "no report" end
     return r:find("computed NOW, with nothing open", 1, true) ~= nil
@@ -597,7 +597,7 @@ check("the report survives an empty world", (function()
     local savedPanels, savedPlace = _G.movablePanels, _G.lastPopupPlacement
     _G.movablePanels, _G.lastPopupPlacement = {}, nil
     hs.chooser.globalCallback(CH, "didClose")
-    local ok, r = pcall(_G.windowMoveReport)
+    local ok, r = pcall(_G.windowMoveReport, true)
     _G.movablePanels, _G.lastPopupPlacement = savedPanels, savedPlace
     return ok and type(r) == "string" and r:find("none on record", 1, true) ~= nil,
            ok and r or r
@@ -685,8 +685,8 @@ check("\240\159\154\168 the cheatsheet WARNS that a picker's ROWS are not a grab
 -- the cheat sheet has already been tried. Crucially it must say the
 -- keyboard path is INDEPENDENT: a reader looking at a broken tap should
 -- never conclude the nudge is broken as well.
-local rpt = _G.windowMoveReport()
-check("_G.windowMoveReport() prints the nudge keys",
+local rpt = _G.windowMoveReport(true)
+check("_G.windowMoveReport(true) prints the nudge keys",
       rpt:find("\226\135\170\226\135\167", 1, true) ~= nil)
 check("...and says the keyboard path does NOT go through the mouse tap, "
       .. "so a broken tap cannot be read as a broken nudge",

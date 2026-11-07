@@ -1051,7 +1051,7 @@ exit 0
     end
 
     -- ---- the report ------------------------------------------------------
-    function _G.netReport()
+    function _G.netReport(asText)
         local L = { "🌐 NETWORK TOOLS" }
         L[#L + 1] = "   runs    : " .. nt.runs
                     .. (nt.running and ("  (RUNNING NOW: " .. nt.running .. ")") or "")
@@ -1079,8 +1079,8 @@ exit 0
                     .. nt.speedInstall .. ")"))
         if nt.lastNote then L[#L + 1] = "   last problem: " .. nt.lastNote end
         local s = table.concat(L, "\n")
+        if asText then return s end
         print(s)
-        return s
     end
 
     if nt.enabled then
@@ -1089,7 +1089,7 @@ exit 0
     end
     core.provide("net.show",   function() return nt.show() end)
     core.provide("net.flush",  function() return nt.flush() end)
-    core.provide("net.report", function() return _G.netReport() end)
+    core.provide("net.report", function() return _G.netReport(true) end)
     core.provide("net.health", function(mode) return nt.report(mode) end)   -- 6.154.0
 
     _G.netTools = nt

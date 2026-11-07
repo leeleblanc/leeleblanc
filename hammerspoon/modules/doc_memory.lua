@@ -489,7 +489,7 @@ function M.setup(core)
     end
 
     -- ---- report -----------------------------------------------------------
-    function _G.docMemoryReport()
+    function _G.docMemoryReport(asText)
         local L = { "📄 OPEN DOCUMENTS" }
         L[#L + 1] = "   accessibility : " .. (axOK() and "granted" or "OFF — no window can be read")
         L[#L + 1] = "   state         : " .. (not dm.enabled and "off (dm.enabled = false)"
@@ -537,8 +537,8 @@ function M.setup(core)
                  .. " offer to reopen, never anything on disk."))
         L[#L + 1] = "   files         : " .. dm.jsonFile .. " · " .. dm.csvFile
         local s = table.concat(L, "\n")
+        if asText then return s end
         print(s)
-        return s
     end
 
     function _G.docMemorySample() return dm.sample("_G.docMemorySample()") end
@@ -548,7 +548,7 @@ function M.setup(core)
     core.provide("docs.reopen",  function(name, paths) return dm.reopen(name, paths) end)
     core.provide("docs.quit",    function(name) return dm.onQuit(name) end)
     core.provide("docs.sample",  function(why) return dm.sample(why or "service") end)
-    core.provide("docs.report",  function() return _G.docMemoryReport() end)
+    core.provide("docs.report",  function() return _G.docMemoryReport(true) end)
     -- 6.180.0 — one window, on demand, for the ⇪⇧U anchors
     core.provide("docs.front",   function() return dm.front() end)
     -- 6.257.0 — "is this app worth asking about?", so the activity tracker

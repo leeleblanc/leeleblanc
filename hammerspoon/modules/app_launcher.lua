@@ -374,7 +374,7 @@ function M.setup(core)
         else launcher.chooser:show() end
     end
 
-    function _G.appLauncherReport()
+    function _G.appLauncherReport(asText)
         local apps = launcher.scan(true) or {}
         local byLabel, labels = {}, {}
         for _, e in ipairs(apps) do
@@ -392,8 +392,8 @@ function M.setup(core)
             L[#L + 1] = string.format("   %-32s %s", e.name, e.label)
         end
         local s = table.concat(L, "\n")
+        if asText then return s end
         print(s)
-        return s
     end
 
     if launcher.enabled then
@@ -402,7 +402,7 @@ function M.setup(core)
 
     core.provide("appLauncher.show",   function() return launcher.show()      end)
     core.provide("appLauncher.list",   function() return launcher.scan(false) end)
-    core.provide("appLauncher.report", function() return _G.appLauncherReport() end)
+    core.provide("appLauncher.report", function() return _G.appLauncherReport(true) end)
 
     -- Off the boot path on purpose: the first scan and the pathwatchers
     -- both belong to the warm phase, so ⇪D's first press is instant and a

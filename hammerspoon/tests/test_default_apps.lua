@@ -388,14 +388,14 @@ check("a type nothing claims says so instead of an empty picker",
 
 out("\n=== 14. The report ===\n")
 da, M = boot()
-local r = _G.defaultAppsReport()
+local r = _G.defaultAppsReport(true)
 check("an empty session says so", r:find("nothing changed", 1, true) ~= nil)
 check("...and always teaches the per-file override trap",
       r:find("Get Info", 1, true) ~= nil)
 da.pending = { ext = "pdf", uti = "com.adobe.pdf", current = "com.apple.preview" }
 da.set(da.pending, { bundle = "com.adobe.Acrobat", name = "Adobe Acrobat" })
 lastTask().cb(0, SET_OK, "")
-r = _G.defaultAppsReport()
+r = _G.defaultAppsReport(true)
 check("a verified change prints ✅ with the read-back",
       r:find("✅ verified", 1, true) ~= nil
       and r:find("com.adobe.acrobat", 1, true) ~= nil, r)

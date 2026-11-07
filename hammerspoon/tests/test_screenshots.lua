@@ -34,7 +34,7 @@ local pass, fail, failures = 0, 0, {}
 -- that as "0 failed" (6.186.0, eighth time). RPT() turns a raise into a
 -- string no assertion can match, so the failure is reported as one.
 local function RPT()
-    local ok, out = pcall(_G.screenshotsReport)
+    local ok, out = pcall(_G.screenshotsReport, true)
     if ok and type(out) == "string" then return out end
     return "REPORT THREW: " .. tostring(out)
 end
@@ -2050,9 +2050,9 @@ check("triedVerdict is PURE and answers WHY, in three branches",
 
 out("   -- 🔎 the report can SEE a runaway now --\n")
 S.ocrStarted, S.namedOnArrival = 9, 1
-printed = {}
-RPT()
-local rep281 = table.concat(printed, "\n")
+-- 📠 6.417.0 — RPT() ASKS for the text (and so prints nothing now), so
+-- read what it hands back rather than scraping the print capture.
+local rep281 = RPT()
 check("🔎 the report names the OCRs themselves — through a runaway the old "
       .. "line read 'named on arrival 0 · left for ⌘9 0' and nothing more",
       rep281:find("OCR     :", 1, true) ~= nil
@@ -2062,15 +2062,13 @@ check("🔎 the report names the OCRs themselves — through a runaway the old "
 check("…the yield line never divides by a run that did not happen (6.230.0)",
       (function()
           local sv = S.ocrStarted ; S.ocrStarted = 0
-          printed = {} ; RPT()
-          local r = table.concat(printed, "\n") ; S.ocrStarted = sv
+          local r = RPT() ; S.ocrStarted = sv
           return r:find("no OCR has run this session", 1, true) ~= nil
       end)())
 check("…and 'nothing has OCR'd to nothing yet' is a THIRD state, not a zero",
       (function()
           local sv = S.tried ; S.tried = {}
-          printed = {} ; RPT()
-          local r = table.concat(printed, "\n") ; S.tried = sv
+          local r = RPT() ; S.tried = sv
           return r:find("nothing has OCR'd to nothing yet", 1, true) ~= nil
       end)())
 check("the 6.281.0 block ran every one of its checks",
@@ -2457,7 +2455,7 @@ end
 -- =====================================================================
 -- 16. 🕒 6.282.0 — THE REPORT DIED ON A FLOAT
 -- =====================================================================
--- LL ran `_G.screenshotsReport()` and got a traceback instead of a
+-- LL ran `_G.screenshotsReport(true)` and got a traceback instead of a
 -- report: "bad argument #2 to 'date' (number has no integer
 -- representation)". `shots.areaLast.at` is written from
 -- hs.timer.secondsSinceEpoch(), which is a FLOAT, and os.date refuses
@@ -3225,7 +3223,7 @@ do
        tostring(S.selEnds.mouseUp) .. "/" .. tostring(S.selEnds.tiny))
 
     -- ---- 🔎 the report --------------------------------------------------
-    local rep = _G.screenshotsReport()
+    local rep = _G.screenshotsReport(true)
     ck("the report counts the two endings apart in words",
        rep:find("swallowed the release", 1, true) ~= nil
        and rep:find("ended on the release", 1, true) ~= nil, "drag line")
@@ -3251,7 +3249,7 @@ do
        .. "reading as health (6.196.1)",
        S.selEnds.noBelt == 1 and #DEGRADES > savedDeg, S.selEnds.noBelt)
     ck("…and the report carries a ⚠️ naming what that Mac loses",
-       _G.screenshotsReport():find("NO drag%-end watch") ~= nil)
+       _G.screenshotsReport(true):find("NO drag%-end watch") ~= nil)
 
     -- ---- 🔒 one finish, two callers ------------------------------------
     local fh = io.open(HS .. "/modules/screenshots.lua")
@@ -3350,8 +3348,8 @@ do
 
     -- ---- 🔎 and the report says it stood down --------------------------
     ck("the report names the stand-down rather than leaving it silent",
-       _G.screenshotsReport():find("no held%-button signal") ~= nil,
-       _G.screenshotsReport():match("↳ %d+ drag%(s%) ran[^\n]*"))
+       _G.screenshotsReport(true):find("no held%-button signal") ~= nil,
+       _G.screenshotsReport(true):match("↳ %d+ drag%(s%) ran[^\n]*"))
 
     -- ---- 🚪 ⇪4 IS macOS's CROSSHAIR AGAIN, BY DEFAULT ------------------
     local fh = io.open(HS .. "/modules/screenshots.lua")

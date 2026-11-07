@@ -349,7 +349,7 @@ realPrint("-- 9. 6.179.1 — a REPORT YOU ASKED FOR survives this gate -----")
 -- gate — not against a print stub that cannot suppress anything. A report
 -- printed row by row would lose its repeated rows (con.repeatLimit) and
 -- have ⛔ / ⚠️ banners spliced through the middle of it; one string with
--- newlines in it passes untouched. _G.noticesReport() has always been
+-- newlines in it passes untouched. _G.noticesReport(true) has always been
 -- built that way; 6.179.0 shipped two that were not, and this is the
 -- check that would have caught them.
 do

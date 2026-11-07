@@ -360,8 +360,16 @@ TAP_NEW_OK = true
 AXAPP = el("AXApplication", {}, { focused = okField, window = flat(6, "AXButton") })
 _G.secureInput = { on = false, why = "clear" }
 PRINTED = {}
-local rep = _G.groundReport()
-check("📋 the report prints as ONE string (6.179.1 — the console gate eats "
+local rep = _G.groundReport(true)
+-- 📠 6.417.0 — THE RULE IS UNCHANGED AND NOW HAS TWO HALVES. 6.179.1
+-- still stands: a report reaches the Console as ONE string, never row
+-- by row. What moved is WHO asks — unasked it prints, asked it hands
+-- the text back in silence, because the Console echoes a return and
+-- every report was showing twice (6.248.0).
+check("📋 asked, it returns the text and prints NOTHING", #PRINTED == 0, #PRINTED)
+PRINTED = {}
+_G.groundReport()
+check("📋 unasked, it prints as ONE string (6.179.1 — the console gate eats "
       .. "a report printed row by row)", #PRINTED == 1, #PRINTED)
 for _, want in ipairs({ "access", "secure", "front", "caret", "bounds",
                         "clicks", "⌘space", "⌘⌘ / ⌥⌥", "clock" }) do
@@ -381,23 +389,23 @@ check("...and it says out loud that it changed nothing",
 -- "free".
 gp.spotlight = { state = "not asked yet", enabled = nil, asks = 0, answers = 0 }
 PRINTED = {}
-local rep2 = _G.groundReport()
+local rep2 = _G.groundReport(true)
 check("🔎 'not asked yet' does not read as an answer",
       rep2:find("⌘space   : not asked yet", 1, true) ~= nil,
       rep2:match("⌘space[^\n]*"))
 gp.spotlight = { state = "answered", enabled = false, asks = 1, answers = 1 }
 PRINTED = {}
 check("...and FREE says free, in the one word he is looking for",
-      _G.groundReport():find("⌘space   : FREE", 1, true) ~= nil)
+      _G.groundReport(true):find("⌘space   : FREE", 1, true) ~= nil)
 gp.spotlight = { state = "answered", enabled = true, asks = 1, answers = 1 }
 PRINTED = {}
 check("...and still-held says so rather than staying quiet",
-      _G.groundReport():find("Spotlight STILL HAS IT", 1, true) ~= nil)
+      _G.groundReport(true):find("Spotlight STILL HAS IT", 1, true) ~= nil)
 
 -- Accessibility off is not a footnote (6.196.0's rule, in a new report).
 ACCESS = false
 PRINTED = {}
-local rep3 = _G.groundReport()
+local rep3 = _G.groundReport(true)
 check("🎹 no Accessibility says QUIT AND RELAUNCH, not 'reload'",
       rep3:find("NOT GRANTED", 1, true) ~= nil
       and rep3:find("QUIT AND RELAUNCH", 1, true) ~= nil, rep3)

@@ -378,7 +378,7 @@ function M.setup(core)
     end
 
     -- ---- report ---------------------------------------------------------
-    function _G.masterLogReport()
+    function _G.masterLogReport(asText)
         local L = { "🗂 MASTER LOG" }
         L[#L + 1] = "   file          : " .. ml.file
         L[#L + 1] = string.format("   rebuilds      : every %ds (first %ds after boot) · %d day window · %d rows max · %s",
@@ -397,8 +397,8 @@ function M.setup(core)
         if ml.lastErr then L[#L + 1] = "   ⚠️ last error : " .. ml.lastErr end
         L[#L + 1] = "   index         : " .. ml.indexState
         local s = table.concat(L, "\n")
+        if asText then return s end
         print(s)
-        return s
     end
 
     function _G.masterLogBuild() return ml.build("_G.masterLogBuild()") end
@@ -418,7 +418,7 @@ function M.setup(core)
     core.provide("masterLog.build",  function(why) return ml.build(why or "service") end)
     core.provide("masterLog.search", function(text, limit, fn) return ml.search(text, limit, fn) end)
     core.provide("masterLog.rows",   function() return ml.rows or {} end)
-    core.provide("masterLog.report", function() return _G.masterLogReport() end)
+    core.provide("masterLog.report", function() return _G.masterLogReport(true) end)
     _G.masterLog = ml
     M.ml = ml
     M.config = ml

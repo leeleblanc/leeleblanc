@@ -454,7 +454,7 @@ check("…and scheduled the next rather than firing them all at once",
 TIMERS[#TIMERS].fn()
 check("…the next one follows on the timer", #OPENED_URLS == 2, #OPENED_URLS)
 
-local rep = _G.settingsReport()
+local rep = _G.settingsReport(true)
 check("the report names the module", rep:find("SETTINGS SEARCH", 1, true) ~= nil)
 check("…counts the curated table", rep:find("curated", 1, true) ~= nil)
 check("…counts what was found on disk", rep:find(".prefPane", 1, true) ~= nil)
@@ -653,7 +653,7 @@ check("🚨 …inside the injection guard, so this config's typing is not yours"
       INJECTED == 1, INJECTED)
 check("an AX timeout was set before anything was asked", #TIMEOUTS >= 1, #TIMEOUTS)
 check("the poll stopped once it succeeded", poll.stopped == true)
-check("the report counts the hand-off", _G.settingsReport():find("handed off", 1, true) ~= nil)
+check("the report counts the hand-off", _G.settingsReport(true):find("handed off", 1, true) ~= nil)
 
 -- 🚨 THE FAILURE THAT MATTERS: no field, no blind typing. Keystrokes into
 -- whatever happens to have focus is how a search query lands in a

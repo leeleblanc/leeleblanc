@@ -956,7 +956,7 @@ do
           b:find("ASKED AND REFUSED", 1, true) ~= nil, b)
     AX.accepts, dk.asked = "AXManualAccessibility", {}
 
-    check("§18 the report and _G.draftCheck() share ONE renderer, so they "
+    check("§18 the report and _G.draftCheck(true) share ONE renderer, so they "
           .. "cannot answer differently (6.231.0)", (function()
         local rep = _G.draftKeeperReport()
         local one = dk.checkLines()[1]

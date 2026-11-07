@@ -3120,7 +3120,7 @@ end
 -- =====================================================================
 -- LL, with a photograph of the screenshot editor: "Add capture needs the
 -- screenshots module, which is not loaded" — over a Console in which
--- _G.screenshotsReport() had just printed the whole SCREENSHOTS block
+-- _G.screenshotsReport(true) had just printed the whole SCREENSHOTS block
 -- and ⇪4 had logged a press four minutes earlier. The module was loaded.
 --
 -- 🔎 THE GUARD ASKED A QUESTION NOTHING COULD ANSWER YES:
@@ -3903,5 +3903,44 @@ if fail > 0 then
     out("FAILURES:\n")
     for _, f in ipairs(failures) do out("   ❌ " .. f .. "\n") end
 end
+-- =====================================================================
+-- 📠 6.417.0 — A REPORT PRINTS ONCE
+-- =====================================================================
+-- The Hammerspoon Console ECHOES the value an expression returns, so a
+-- report ending `print(s) return s` shows its whole block TWICE every
+-- time he types it (LL's 2026-11-06 _G.draftCheck() paste). Thirty-five
+-- reports across modules/ and core/ had exactly that shape, which is why
+-- this is a sentry and not thirty-five edits left to remember: the class
+-- closes here, and a new report written next year cannot reopen it.
+-- 📏 The return itself is NOT spare — twenty-six services and three
+-- hotkeys hand that text on — so the rule is the additive one (6.299.0):
+-- unasked it prints, asked (`report(true)`) it returns in silence.
+out("\n=== 📠 6.417.0 — no report both prints AND returns the same string ===\n")
+do
+    local offenders, scanned = {}, 0
+    for _, dir in ipairs({ "modules", "core" }) do
+        local pipe = io.popen("ls " .. HS .. "/" .. dir .. "/*.lua 2>/dev/null")
+        for path in (pipe and pipe:lines() or function() end) do
+            local fh = io.open(path, "r")
+            if fh then
+                local src = fh:read("a") ; fh:close()
+                scanned = scanned + 1
+                -- comments stripped (6.262.0): the note above quotes the
+                -- very shape it forbids, and a sentry must not match prose.
+                src = src:gsub("\n%s*%-%-[^\n]*", "\n")
+                if src:find("print%(s%)%s*\n%s*return s%s*\n") then
+                    offenders[#offenders + 1] = path:match("[^/]+$")
+                end
+            end
+        end
+        if pipe then pipe:close() end
+    end
+    -- 🚨 A SENTRY OVER AN EMPTY HAYSTACK IS GREEN AND MEASURES NOTHING
+    -- (6.313.0): assert it actually read the tree before trusting its no.
+    check("the sentry read the whole tree", scanned > 60, scanned)
+    check("📠 no module or core file ends a report `print(s) return s`",
+          #offenders == 0, table.concat(offenders, " "))
+end
+
 out(("\n%d passed, %d failed\n\n"):format(pass, fail))
 os.exit(fail == 0 and 0 or 1)

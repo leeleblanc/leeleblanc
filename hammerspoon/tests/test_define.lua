@@ -662,7 +662,7 @@ section("9. the report, and the thread it must never block")
 -- =====================================================================
 reset()
 do
-    local r = _G.defineReport()
+    local r = _G.defineReport(true)
     check("the report lists every source", r:find("WordNet") and
           r:find("dictionaryapi") and r:find("Dictionary.app") ~= nil)
     check("…marks which are ready on THIS Mac", r:find("✅") ~= nil)
@@ -672,7 +672,7 @@ do
           r:find("nothing is sent anywhere") ~= nil, r)
     d.allowNetwork = true
     check("…and says the other thing when they do",
-          _G.defineReport():find("leave this Mac") ~= nil)
+          _G.defineReport(true):find("leave this Mac") ~= nil)
     d.allowNetwork = false
     check("…names the wn binary it found", r:find("/opt/homebrew/bin/wn") ~= nil)
     check("…and counts what happened", r:find("looked up") and

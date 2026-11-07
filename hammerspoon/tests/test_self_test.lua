@@ -288,7 +288,7 @@ do
           .. "where it is silently doing nothing",
           stateOf("Draft keeper") == "⚠️", stateOf("Draft keeper"))
     _G.draftKeeper.timer = {}
-    check("...and a healthy one names _G.draftCheck(), which is what he "
+    check("...and a healthy one names _G.draftCheck(true), which is what he "
           .. "asked for by name",
           detailOf("Draft keeper"):find("draftCheck", 1, true) ~= nil,
           detailOf("Draft keeper"))
@@ -334,10 +334,18 @@ end
 out("\n=== 6. the door, and warm ===\n")
 -- =====================================================================
 do
+    -- 📠 6.417.0 — unasked it PRINTS, asked it hands the text back in
+    -- silence. The Console echoes a return, so a report that did both
+    -- showed twice every time he typed it (6.248.0 — the rule here is
+    -- "one string, whole", and that is what both halves assert).
     PRINTED = {}
-    local s = _G.selfTest()
-    check("_G.selfTest() prints the block and hands it back",
-          type(s) == "string" and #PRINTED == 1 and PRINTED[1] == s)
+    local s = _G.selfTest(true)
+    check("_G.selfTest(true) hands the block back and prints NOTHING",
+          type(s) == "string" and #PRINTED == 0, #PRINTED)
+    PRINTED = {}
+    _G.selfTest()
+    check("_G.selfTest() prints it as ONE string — the same block",
+          #PRINTED == 1 and PRINTED[1] == s)
     check("...and it is counted, so 'has it ever run' has an answer",
           st.runs >= 1 and st.lastAt ~= nil)
     check("the rows are published as a service for anything else that asks",

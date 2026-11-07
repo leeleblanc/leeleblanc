@@ -486,7 +486,7 @@ function M.setup(core)
     end
 
     -- ---- the report ------------------------------------------------------
-    function _G.menuSearchReport()
+    function _G.menuSearchReport(asText)
         local L = { "🔎 MENU SEARCH" }
         L[#L + 1] = "   accessibility : " ..
             (axOK() and "granted" or "OFF — nothing can be read")
@@ -517,8 +517,8 @@ function M.setup(core)
                         .. " open(s) this session  ·  _G.doubleTapReport()"
         end
         local s = table.concat(L, "\n")
+        if asText then return s end
         print(s)
-        return s
     end
 
     if ms.enabled then
@@ -526,7 +526,7 @@ function M.setup(core)
                               "menu search")
     end
     core.provide("menuSearch.show",   function() return ms.show() end)
-    core.provide("menuSearch.report", function() return _G.menuSearchReport() end)
+    core.provide("menuSearch.report", function() return _G.menuSearchReport(true) end)
 
     -- ⌨️ 6.293.0 — the ⌥⌥ gesture. LL: "doesn't option+option move me to
     -- the application bar? I made this request several releases back."

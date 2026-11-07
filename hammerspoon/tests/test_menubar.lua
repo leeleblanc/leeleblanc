@@ -132,7 +132,18 @@ local function warned(n)
     end
 end
 
+local COPIED, COPY_REFUSES = {}, false
 local CORE = {
+    -- 🔬 6.417.0 — core.copyText IS a published member (init.lua §core) and
+    -- this stub did not have it, so the module raised the moment it took
+    -- the proper clipboard door. 6.290.0: a stub models the PROVIDER, and
+    -- it models the REFUSAL too — setContents answers false rather than
+    -- throwing (6.198.0), which is the whole reason that door exists.
+    copyText = function(t, who)
+        COPIED[#COPIED + 1] = { text = t, who = who }
+        if COPY_REFUSES then return false, "macOS refused the write" end
+        return true
+    end,
     hostTag = "Test-Mac",
     resolveBaseScreen = function() return nil end,
     hyperAddShortcut = function(mods, key, fn)
@@ -495,8 +506,8 @@ end)())
 
 APPS = { mkApp("Dropbox", { { desc = "Syncing" } }), mkApp("Zoom", { { desc = "Mute" } }) }
 boot()
-local r = _G.menuBarReport()
-check("_G.menuBarReport() returns its text", type(r) == "string")
+local r = _G.menuBarReport(true)
+check("_G.menuBarReport(true) returns its text", type(r) == "string")
 check("it lists each item and its owner", r:find("Dropbox", 1, true) ~= nil
       and r:find("Zoom", 1, true) ~= nil)
 check("it reports how long the scan took — the number that tells you an "
@@ -506,7 +517,7 @@ check("🚨 the report itself repeats that it cannot hide icons, so the "
       r:find("CANNOT hide", 1, true) ~= nil)
 check("...and points at Ice", r:find("Ice", 1, true) ~= nil)
 AX_OK = false
-r = _G.menuBarReport()
+r = _G.menuBarReport(true)
 check("the report without Accessibility says so", (function()
     for _, l in ipairs(printed) do
         if l:find("not granted", 1, true) then return true end

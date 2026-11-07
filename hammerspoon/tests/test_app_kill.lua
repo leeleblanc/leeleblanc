@@ -448,12 +448,12 @@ out("\n=== 8. the report tells the truth ===\n")
 reset()
 local rows4 = ak.scan(true)
 ak.endIt(rowNamed(rows4, "Google Chrome"), true)
-local rep = _G.killReport()
+local rep = _G.killReport(true)
 check("the report names the module", rep:find("APP KILL", 1, true) ~= nil)
 check("…and what it ended", rep:find("Google Chrome", 1, true) ~= nil, rep)
 check("…and how", rep:find("forced", 1, true) ~= nil, rep)
 reset()
-rep = _G.killReport()
+rep = _G.killReport(true)
 check("…and says plainly when nothing was ended",
       rep:find("nothing this session", 1, true) ~= nil, rep)
 
@@ -569,7 +569,7 @@ check("the placeholder counts each tier", cc.placeholder:find("6 you can end", 1
       and cc.placeholder:find("9 locked", 1, true) ~= nil, cc.placeholder)
 check("…and the report says the same, and who you are",
       (function()
-          local rep2 = _G.killReport()
+          local rep2 = _G.killReport(true)
           return rep2:find("6 yours · 2 relaunch · 9 locked", 1, true) ~= nil
              and rep2:find("uid 501", 1, true) ~= nil, rep2
       end)())

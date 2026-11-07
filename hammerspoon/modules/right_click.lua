@@ -478,7 +478,7 @@ function M.setup(core)
     end
 
     -- ---- 🩺 report --------------------------------------------------------
-    function _G.rightClickReport()
+    function _G.rightClickReport(asText)
         local L = { "🖱 RIGHT CLICK (⇪⇧F)" }
         L[#L + 1] = "   accessibility : " .. (axAvailable() and "granted" or "OFF — no click can be posted")
         L[#L + 1] = string.format("   fired         : %d time%s this session",
@@ -521,8 +521,8 @@ function M.setup(core)
                                         math.floor(p.x), math.floor(p.y))
                       or  "   pointer now   : unreadable"
         local s = table.concat(L, "\n")
+        if asText then return s end
         print(s)
-        return s
     end
 
     if rc.enabled then
@@ -530,7 +530,7 @@ function M.setup(core)
                               "right click")
     end
     core.provide("rightClick.click",  function() return rc.click() end)
-    core.provide("rightClick.report", function() return _G.rightClickReport() end)
+    core.provide("rightClick.report", function() return _G.rightClickReport(true) end)
 
     _G.rightClick = rc
     M.rc     = rc

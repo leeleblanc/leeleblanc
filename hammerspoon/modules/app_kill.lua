@@ -470,7 +470,7 @@ function M.setup(core)
     end
 
     -- ---- the report ------------------------------------------------------
-    function _G.killReport()
+    function _G.killReport(asText)
         local L = { "💀 APP KILL" }
         L[#L + 1] = "   scans   : " .. ak.scans .. " (last took " .. ak.scanMs .. "ms)"
         L[#L + 1] = "   listed  : " .. (ak.cache and #ak.cache or 0) .. " processes"
@@ -491,8 +491,8 @@ function M.setup(core)
         end
         if ak.lastNote then L[#L + 1] = "   last problem: " .. ak.lastNote end
         local s = table.concat(L, "\n")
+        if asText then return s end
         print(s)
-        return s
     end
 
     if ak.enabled then
@@ -500,7 +500,7 @@ function M.setup(core)
                               "app kill")
     end
     core.provide("kill.show",   function() return ak.show() end)
-    core.provide("kill.report", function() return _G.killReport() end)
+    core.provide("kill.report", function() return _G.killReport(true) end)
 
     _G.appKill = ak
     M.ak     = ak

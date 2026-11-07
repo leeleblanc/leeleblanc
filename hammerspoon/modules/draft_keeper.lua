@@ -967,12 +967,12 @@ function M.setup(core)
         return L
     end
 
-    function _G.draftCheck()
+    function _G.draftCheck(asText)
         local L = { "💾 DRAFT KEEPER — what it can see RIGHT NOW" }
         for _, s in ipairs(dk.checkLines()) do L[#L + 1] = "   " .. s end
         local s = table.concat(L, "\n")
+        if asText then return s end
         print(s)
-        return s
     end
 
     function _G.draftKeeperReport()

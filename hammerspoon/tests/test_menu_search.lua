@@ -501,7 +501,7 @@ check("…and neither is the same app once the cache has expired",
 -- =====================================================================
 out("\n=== 10. the report tells the truth ===\n")
 -- =====================================================================
-local rep = _G.menuSearchReport()
+local rep = _G.menuSearchReport(true)
 check("the report names the module", rep:find("MENU SEARCH", 1, true) ~= nil)
 check("…says whether Accessibility is on",
       rep:find("accessibility", 1, true) ~= nil)

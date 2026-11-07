@@ -297,7 +297,7 @@ function M.setup(core)
     end
 
     -- ---- the report ------------------------------------------------------
-    function _G.healthReport()
+    function _G.healthReport(asText)
         local L = { "🩺 TOOL HEALTH on " .. tostring(host),
                     "   last checked " .. tostring(health.lastRun or "not yet")
                     .. "  ·  " .. string.format("%.1f", health.tick * health.intervalMins / 60)
@@ -327,8 +327,8 @@ function M.setup(core)
                  .. "means nothing):"
         L[#L + 1] = "        " .. table.concat(health.onDemand, " · ")
         local s = table.concat(L, "\n")
+        if asText then return s end
         print(s)
-        return s
     end
 
     function _G.healthCheckNow()
@@ -341,9 +341,13 @@ function M.setup(core)
     if health.enabled then
         core.hyperAddShortcut({ "shift" }, health.key, function()
             health.check(false)
-            local r = _G.healthReport()
-            pcall(function() hs.pasteboard.setContents(r) end)
-            hs.alert.show("🩺 Health report printed and copied", 2)
+            -- 📠 6.417.0 — see modules/focus_mode.lua: ask for the text, print
+            -- it here, and READ what macOS said about the copy.
+            local r = _G.healthReport(true)
+            print(r)
+            local ok = core.copyText(r, "health report")
+            hs.alert.show(ok and "🩺 Health report printed and copied"
+                             or  "🩺 Health report printed — macOS refused the copy", 2)
         end, "health report")
     end
 
@@ -359,7 +363,7 @@ function M.setup(core)
     end
 
     core.provide("health.check",  function() return health.check(true) end)
-    core.provide("health.report", function() return _G.healthReport() end)
+    core.provide("health.report", function() return _G.healthReport(true) end)
 
     _G.health = health
     M.health  = health

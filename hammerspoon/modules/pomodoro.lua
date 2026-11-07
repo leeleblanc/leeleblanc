@@ -639,7 +639,7 @@ function M.setup(core)
         return msg
     end
 
-    function _G.pomodoroReport()
+    function _G.pomodoroReport(asText)
         local now = math.floor(hs.timer.secondsSinceEpoch())
         local c = pom.dayCounts(os.date("%Y-%m-%d", now))
         local L = { "🍅 POMODORO" }
@@ -679,8 +679,8 @@ function M.setup(core)
         L[#L + 1] = "   daily tally fires at " .. tostring(pom.workdayEnd)
                     .. (pom.weekendsOff and " (weekdays)" or "")
         local s = table.concat(L, "\n")
+        if asText then return s end
         print(s)
-        return s
     end
 
     -- ---- the keyboard, held for as short a time as possible --------------
@@ -1082,7 +1082,7 @@ function M.setup(core)
     core.provide("pomodoro.toggle", function() return pom.toggle() end)
     core.provide("pomodoro.start",  function() return pom.start()  end)
     core.provide("pomodoro.stop",   function() return pom.stop("service") end)
-    core.provide("pomodoro.report", function() return _G.pomodoroReport() end)
+    core.provide("pomodoro.report", function() return _G.pomodoroReport(true) end)
     -- 🗓 6.211.0 — the mini calendar calls these as it opens and closes
     core.provide("pomodoro.dock",   function(rect) return pom.dock(rect) end)
     core.provide("pomodoro.undock", function() return pom.undock() end)

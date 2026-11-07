@@ -414,7 +414,7 @@ check("📓 ...but the ⚠️ Console line is still printed, which is the whole 
       .. "of what he asked for — 'those items only need to post messages "
       .. "in the console'", printedHas("⚠️ Jug Player: this Mac has no hs.sound")
       and #printed > 0, tostring(#printed))
-check("📓 ...and the LEDGER still has it — ⇪⇧D and _G.noticesReport() are "
+check("📓 ...and the LEDGER still has it — ⇪⇧D and _G.noticesReport(true) are "
       .. "not allowed a hole named 'music'",
       #N.ledger == 1 and N.ledger[1].kind == "degrade")
 check("📓 ...and it is still COUNTED, so the report can say how often",
@@ -426,13 +426,13 @@ check("🔔 ...while a tool NOT on the list alerts on screen in the same run",
       #ALERTS == 1 and ALERTS[1]:find("Hamsidian", 1, true) ~= nil, ALERTS[1])
 
 -- 🚨 6.269.0 — THE NEW RULE MUST NOT BREAK THE INSTRUMENT WATCHING IT.
--- _G.degradeReport() has printed "never alerted — hs.alert refused"
+-- _G.degradeReport(true) has printed "never alerted — hs.alert refused"
 -- whenever alerts was 0, which is now TRUE of every quiet tool: the
 -- report would cry wolf on a healthy Mac on its first run.
 boot()
 N.degrade("Jug Player", "this Mac has no hs.sound")
 printed = {}
-local rq = _G.degradeReport()
+local rq = _G.degradeReport(true)
 check("🚨 A QUIET TOOL IS NOT A REFUSED ALERT — the report says Console "
       .. "only, never 'hs.alert refused' (6.269.0: a new rule must not "
       .. "break the instrument built to watch it)",
@@ -450,14 +450,14 @@ check("🔎 ...and says the LOG still gets them, where he goes at 4 PM",
 -- "quiet and nothing has used it" must not read as "quiet and busy".
 boot()
 printed = {}
-local rq0 = _G.degradeReport()
+local rq0 = _G.degradeReport(true)
 check("🔎 three states: quiet but unused says so, rather than reading as "
       .. "used", rq0:find("none has degraded this session", 1, true) ~= nil, rq0)
 boot()
 local savedQuiet = N.quietTools
 N.quietTools = {}
 printed = {}
-local rqn = _G.degradeReport()
+local rqn = _G.degradeReport(true)
 check("🔎 ...and with nothing quiet it says every tool alerts",
       rqn:find("every tool alerts on screen", 1, true) ~= nil, rqn)
 N.quietTools = savedQuiet
@@ -493,9 +493,19 @@ check("…and the causes remembered per tool are bounded too (a cause carrying a
 
 -- the report: three states, ONE string (6.179.1's rule).
 boot()
+-- 📠 6.417.0 — 6.179.1's rule, in two halves. A report still reaches the
+-- Console as ONE string (printed row by row, the console gate eats it) —
+-- but it prints only when UNASKED. Asked, it hands the text back in
+-- silence, because the Console echoes a return and every report in this
+-- config was showing twice (LL's 2026-11-06 _G.draftCheck() paste).
 printed = {}
-local r0 = _G.degradeReport()
-check("the report prints as ONE string and returns it", #printed == 1 and printed[1] == r0)
+local r0 = _G.degradeReport(true)
+check("asked, the report hands the text back and prints NOTHING",
+      type(r0) == "string" and #printed == 0, #printed)
+printed = {}
+_G.degradeReport()
+check("unasked, it prints as ONE string — the same text",
+      #printed == 1 and printed[1] == r0)
 check("with nothing degraded it says so in words", r0:find("0 time(s) across 0 tool(s)", 1, true) ~= nil
       and r0:find("nothing has degraded this session", 1, true) ~= nil)
 check("…and names the door for the next module to take", r0:find("core.degrade(tool, why)", 1, true) ~= nil)
@@ -503,9 +513,9 @@ N.degrade("Bluetooth", "blueutil is not installed")
 N.degrade("Bluetooth", "blueutil is not installed")
 N.degrade("Vault", "cannot write")
 printed = {}
-local r1 = _G.degradeReport()
+local r1 = _G.degradeReport(true)
 check("with degrades it lists each tool once with its count and LAST cause",
-      #printed == 1 and r1:find("3 time(s) across 2 tool(s)", 1, true) ~= nil
+      #printed == 0 and r1:find("3 time(s) across 2 tool(s)", 1, true) ~= nil
       and r1:find("Bluetooth", 1, true) ~= nil and r1:find("×2", 1, true) ~= nil
       and r1:find("Vault", 1, true) ~= nil and r1:find("cannot write", 1, true) ~= nil, r1)
 check("a tool whose alert was never shown is flagged (the third state: counted, never seen)",
@@ -514,10 +524,10 @@ check("a tool whose alert was never shown is flagged (the third state: counted, 
           hs.alert.show = function() error("no") end
           N.degrade("Pomodoro", "no sound")
           hs.alert.show = realShow
-          return _G.degradeReport():find("never alerted", 1, true) ~= nil
+          return _G.degradeReport(true):find("never alerted", 1, true) ~= nil
       end)())
 check("the ledger's own report lists the degrade rows too (one ledger, every surface)",
-      (function() boot(); N.degrade("Vault", "cannot write"); return _G.noticesReport():find("degrade", 1, true) ~= nil end)())
+      (function() boot(); N.degrade("Vault", "cannot write"); return _G.noticesReport(true):find("degrade", 1, true) ~= nil end)())
 
 -- the core table: published on the real core, and init.lua carries a fallback.
 boot()
@@ -537,12 +547,12 @@ out("\n=== 12. 6.316.0 — 🚨 A SAVE THAT FAILED IS NOT A LINE IN A REPORT ===
 -- SAVE." Both halves of Hamsidian alerted through the ONE channel
 -- 6.274.0 measured macOS refusing, behind a per-SESSION boolean, and
 -- neither took the 🔔 door — so the failure that costs him his writing
--- never reached _G.degradeReport(), the on-disk ledger, or the 4 PM
+-- never reached _G.degradeReport(true), the on-disk ledger, or the 4 PM
 -- _G.todayReport(). Four channels now, and the sticky one is the point.
 boot()
 check("a healthy session has nothing unsaved and says nothing about it",
       next(N.unsaved) == nil and #N.unsavedLines() == 0
-      and _G.degradeReport():find("NOT SAVED", 1, true) == nil)
+      and _G.degradeReport(true):find("NOT SAVED", 1, true) == nil)
 
 boot()
 local okNS, whyNS = N.notSaved("Hamsidian", "the note Alpha",
@@ -569,13 +579,13 @@ check("the report block names the tool, what, why, when and the path",
 check("…and it is told what to DO, not only that something broke",
       table.concat(lines, " "):find("still in the window", 1, true) ~= nil
       and table.concat(lines, " "):find("OneDrive", 1, true) ~= nil)
-check("🚨 _G.degradeReport() puts it FIRST, above the history — it is the one line still true",
+check("🚨 _G.degradeReport(true) puts it FIRST, above the history — it is the one line still true",
       (function()
-          local r = _G.degradeReport()
+          local r = _G.degradeReport(true)
           local at = r:find("NOT SAVED", 1, true)
           local hist = r:find("🔔 DEGRADED", 1, true)
           return at ~= nil and hist ~= nil and at < hist
-      end)(), _G.degradeReport():sub(1, 90))
+      end)(), _G.degradeReport(true):sub(1, 90))
 
 -- 🔕 BOUNDED. The vault retries every keystroke, so an ungated
 -- notification is a storm — and a storm is how a warning stops being
@@ -617,7 +627,7 @@ check("…and saveOK on a tool that was never in trouble says nothing at all",
       (function() local before = #ALERTS; local r = N.saveOK("Pomodoro")
        return r == false and #ALERTS == before end)())
 check("…so the report is clean again",
-      _G.degradeReport():find("NOT SAVED", 1, true) == nil)
+      _G.degradeReport(true):find("NOT SAVED", 1, true) == nil)
 
 -- two tools can be in trouble at once — one window, two stores
 boot()
@@ -692,7 +702,7 @@ check("alertWords: ...and the budget is five CHARACTERS, not five bytes",
 -- 🔎 THREE STATES, NEVER TWO (6.196.1). "you saw it late" and "you never
 -- saw it" are different facts, and a healthy Mac must read as healthy.
 _G.alertLate = { asked = 12, refused = 0, recovered = 0, lost = 0 }
-local healthy = _G.alertReport()
+local healthy = _G.alertReport(true)
 check("alertReport: a Mac that refused nothing says so plainly",
       healthy:find("refused   : none", 1, true) ~= nil
       and healthy:find("⚠️", 1, true) == nil, healthy)
@@ -701,7 +711,7 @@ check("alertReport: ...and it is NOT silent about how many it drew",
 
 _G.alertLate = { asked = 9, refused = 3, recovered = 3, lost = 0,
                  last = "Screenshot area selector — could not start", lastAt = "20:38:45" }
-local late = _G.alertReport()
+local late = _G.alertReport(true)
 check("alertReport: alerts that drew on the RETRY are not counted as lost",
       late:find("recovered : 3", 1, true) ~= nil
       and late:find("🚨", 1, true) == nil, late)
@@ -711,7 +721,7 @@ check("alertReport: ...and the last refusal's own words ride into it",
 
 _G.alertLate = { asked = 9, refused = 3, recovered = 1, lost = 2,
                  last = "File tracker — a CSV write took 400 ms", lastAt = "04:16:51" }
-local lost = _G.alertReport()
+local lost = _G.alertReport(true)
 check("alertReport: a LOST alert is a fault he never saw, and it says so",
       lost:find("lost      : 2", 1, true) ~= nil
       and lost:find("A TOOL THAT REPORTED A FAULT YOU NEVER SAW", 1, true) ~= nil, lost)

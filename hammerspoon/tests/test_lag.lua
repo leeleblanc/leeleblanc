@@ -453,7 +453,7 @@ local mouseOnly = hs.eventtap.new({ TYPES.leftMouseDown }, function()
 end)
 
 -- Nothing has run yet: the verdict must not pretend to know anything.
-local early = _G.lagReport()
+local early = _G.lagReport(true)
 check("with no keystrokes seen, the verdict says so",
       early:find("no keyboard tap has run yet") ~= nil)
 
@@ -461,7 +461,7 @@ for _ = 1, 10 do quick.fn("k") end
 for _ = 1, 10 do heavy.fn("k") end
 mouseOnly.fn("m")
 
-local rep = _G.lagReport()
+local rep = _G.lagReport(true)
 check("the report prints", #printed > 0)
 check("it names the install time", rep:find("installed") ~= nil)
 check("it names how many taps it saw", rep:find("taps seen  : 3") ~= nil)
@@ -526,7 +526,7 @@ local fastTap = hs.eventtap.new({ TYPES.keyDown }, function()
     advance(0.5) ; return false
 end)
 for _ = 1, 5 do fastTap.fn("k") end
-local clean = _G.lagReport()
+local clean = _G.lagReport(true)
 check("a clean run says every tap is fast",
       clean:find("every keyboard tap is fast") ~= nil,
       clean:match("VERDICT[^\n]*"))
@@ -542,7 +542,7 @@ check("🚨 the report says a stall is not automatically a bug",
       clean:find("not proof of a bug") ~= nil)
 
 -- Reset.
-local msg = _G.lagReset()
+local msg = _G.lagReset(true)
 check("reset says when", tostring(msg):find("zeroed") ~= nil, msg)
 check("counters are zero", lag.taps[1].calls == 0 and lag.taps[1].total == 0)
 check("stalls are cleared", #lag.stalls == 0 and lag.stallCount == 0)
@@ -554,7 +554,7 @@ do
     local savedTap = hs.eventtap
     hs.eventtap = {}
     local none = chunk()({})
-    local s = _G.lagReport()
+    local s = _G.lagReport(true)
     check("an uninstalled probe reports that fact loudly",
           s:find("NOT INSTALLED") ~= nil)
     local _ = none
@@ -671,7 +671,7 @@ do
     local m = hs.eventtap.new({ TYPES.leftMouseDown }, function() advance(90) return false end)
     for _ = 1, 10 do q.fn("k") end
     m.fn("m")
-    local rp = _G.lagReport()
+    local rp = _G.lagReport(true)
     local firstRow = rp:match("max ms%s+slow\n(.-)\n") or ""
     check("🔨 BREAK B caught: the once-run mouse tap climbs to the top",
           firstRow:find("mouse only") ~= nil, firstRow)
@@ -760,7 +760,7 @@ do
     local m = hs.eventtap.new({ TYPES.leftMouseDown }, function() advance(90) return false end)
     for _ = 1, 10 do q.fn("k") end
     m.fn("m")
-    local rp = _G.lagReport()
+    local rp = _G.lagReport(true)
     local v = rp:match("VERDICT[^\n]*") or ""
     check("🔨 BREAK F caught: the mouse tap is blamed for slow typing",
           v:find("90%.0ms") ~= nil, v)
@@ -859,9 +859,9 @@ do
     check("…for the documented default of 90 seconds",
           AFTERS[1].secs == 90, AFTERS[1] and AFTERS[1].secs)
     check("…and the report says when it comes back",
-          _G.lagReport():find("Back on at %d%d:%d%d:%d%d") ~= nil)
+          _G.lagReport(true):find("Back on at %d%d:%d%d:%d%d") ~= nil)
 
-    local rep2 = _G.lagReport()
+    local rep2 = _G.lagReport(true)
     check("🚨 the report SHOUTS that the taps are inert, at the top",
           rep2:find("EVERY TAP IS INERT RIGHT NOW") ~= nil)
     check("…and tells you the numbers stopped moving",
@@ -925,7 +925,7 @@ do
     -- b would print as #1 and typing _G.lagMute(1) would mute a. Naming
     -- the wrong tap is the one bug this whole numbering exists to avoid.
     for _ = 1, 5 do b.fn("k") end
-    local rep = _G.lagReport()
+    local rep = _G.lagReport(true)
     local firstRow = rep:match("max ms%s+slow\n(.-)\n") or ""
     check("the slowest tap sorts to the top", firstRow:find(lag.taps[2].site, 1, true) ~= nil,
           firstRow)
@@ -1042,7 +1042,7 @@ do
     _G.lagQuiet(false)
     check("…and it starts again", lag.beat.stopped == false)
 
-    local rep = _G.lagReport()
+    local rep = _G.lagReport(true)
     check("the report has a TIMERS section", rep:find("TIMERS —") ~= nil)
     check("…naming the interval", rep:find("0%.50s") ~= nil)
     check("…and totalling the cost as a share of the one thread",
@@ -1271,7 +1271,7 @@ do
     local bl = chunk()({})
     hs.eventtap.new({ TYPES.keyDown }, function() return false end)
     bl.tapsGone(30)
-    local rp = _G.lagReport()
+    local rp = _G.lagReport(true)
     check("the report announces the STOPPED state, not the inert one",
           rp:find("STOPPED RIGHT NOW") ~= nil)
     check("and it names the stronger state ahead of the weaker one",
@@ -1287,20 +1287,20 @@ do
     local bl = chunk()({})
     SECURE = true
     check("lag.secureInput reports it on", bl.secureInput() == true)
-    local rp = _G.lagReport()
+    local rp = _G.lagReport(true)
     check("and the report warns loudly", rp:find("SECURE INPUT IS ON") ~= nil)
     check("and says this config did not cause it",
           rp:find("Nothing in this config turns it on") ~= nil)
     SECURE = false
     check("lag.secureInput reports it off", bl.secureInput() == false)
-    rp = _G.lagReport()
+    rp = _G.lagReport(true)
     check("and the all-clear is quiet, not a warning",
           rp:find("SECURE INPUT IS ON") == nil
           and rp:find("secure inp : off") ~= nil)
     SECURE = nil
     check("an hs that cannot answer gets nil, not a guess",
           bl.secureInput() == nil)
-    rp = _G.lagReport()
+    rp = _G.lagReport(true)
     check("and then the report says nothing either way, rather than "
           .. "printing an all-clear it cannot support",
           rp:find("secure inp") == nil and rp:find("SECURE INPUT") == nil)
@@ -1316,13 +1316,13 @@ do
     local bl = chunk()({})
     hs.eventtap.new({ TYPES.keyDown }, function() return false end)
     bl.tapsOff(30)
-    local rp = _G.lagReport()
+    local rp = _G.lagReport(true)
     check("the inert report no longer claims a null result clears the taps",
           rp:find("Still slow%? It is not a tap") == nil)
     check("it points at the stronger dose instead",
           rp:find("_G%.lagTapsGone") ~= nil)
     bl.tapsOn(true)
-    rp = _G.lagReport()
+    rp = _G.lagReport(true)
     check("and the idle report offers the ladder in order",
           rp:find("_G%.lagTapsOff") ~= nil and rp:find("_G%.lagTapsGone") ~= nil)
 end
@@ -1401,7 +1401,7 @@ do
     local bl = bchunk()({})
     hs.eventtap.new({ TYPES.keyDown }, function() return false end)
     bl.tapsGone(30)
-    local rp = _G.lagReport()
+    local rp = _G.lagReport(true)
     check("🔨 BREAK Q caught: a stopped config is described as merely inert",
           rp:find("STOPPED RIGHT NOW") == nil
           and rp:find("EVERY TAP IS INERT RIGHT NOW") ~= nil)
@@ -1448,7 +1448,7 @@ do
 
     -- 🚨 THE REPORT MUST NOT LOOK INNOCENT. An empty tap table reads like
     -- "measured everything, found nothing" unless it says otherwise.
-    local rp = _G.lagReport()
+    local rp = _G.lagReport(true)
     check("the report leads with DISARMED", rp:find("THE PROBE IS DISARMED") ~= nil)
     check("and says the empty tables mean NO DATA, not a clean bill",
           rp:find("NO DATA") ~= nil)
@@ -1496,7 +1496,7 @@ do
           hs.eventtap.new == realNewBefore)
     check("nothing wrapped in SAFE mode", s.wrapped == 0)
 
-    local rp = _G.lagReport()
+    local rp = _G.lagReport(true)
     check("the report says SAFE MODE WINS", rp:find("SAFE MODE IS ON") ~= nil)
     check("and names the way out of SAFE mode",
           rp:find("rm ~/%.hammerspoon/SAFE") ~= nil)
@@ -1580,7 +1580,7 @@ do
     freshEventtap() ; freshTimers()
     hs.eventtap.__lagOriginalNew = nil
     bchunk()({})
-    local rp = _G.lagReport()
+    local rp = _G.lagReport(true)
     check("🔨 BREAK T caught: an empty report with no disarmed warning",
           rp:find("THE PROBE IS DISARMED") == nil)
     ARMED = true

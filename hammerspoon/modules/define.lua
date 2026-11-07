@@ -721,7 +721,7 @@ function M.setup(core)
     -- =====================================================================
     -- 🩺 THE REPORT
     -- =====================================================================
-    function _G.defineReport()
+    function _G.defineReport(asText)
         local L = { "📖 DEFINE (⇪8)" }
         L[#L + 1] = "   sources, in the order they are asked:"
         for _, p in ipairs(d.providers) do
@@ -754,8 +754,8 @@ function M.setup(core)
         end
         if d.lastNote then L[#L + 1] = "   last problem : " .. d.lastNote end
         local s = table.concat(L, "\n")
+        if asText then return s end
         print(s)
-        return s
     end
 
     if d.enabled then
@@ -765,7 +765,7 @@ function M.setup(core)
     core.provide("define.show",      function(w) return d.show(w) end)
     core.provide("define.selection", function() return d.fromSelection() end)
     core.provide("define.lookup",    function(w, cb) return d.lookup(w, cb) end)
-    core.provide("define.report",    function() return _G.defineReport() end)
+    core.provide("define.report",    function() return _G.defineReport(true) end)
 
     _G.define = d
     M.d      = d

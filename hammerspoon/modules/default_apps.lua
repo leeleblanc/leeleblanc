@@ -460,7 +460,7 @@ function run(argv) {
     end
 
     -- ---- the report ------------------------------------------------------
-    function _G.defaultAppsReport()
+    function _G.defaultAppsReport(asText)
         local L = { "📎 DEFAULT APPS" }
         if #da.history == 0 then
             L[#L + 1] = "   nothing changed this session"
@@ -480,12 +480,12 @@ function run(argv) {
         L[#L + 1] = "   override: Finder → Get Info on it → Open with"
         if da.lastNote then L[#L + 1] = "   last problem: " .. da.lastNote end
         local s = table.concat(L, "\n")
+        if asText then return s end
         print(s)
-        return s
     end
 
     core.provide("defaultApps.show",   function() return da.show() end)
-    core.provide("defaultApps.report", function() return _G.defaultAppsReport() end)
+    core.provide("defaultApps.report", function() return _G.defaultAppsReport(true) end)
 
     _G.defaultApps = da
     M.da     = da

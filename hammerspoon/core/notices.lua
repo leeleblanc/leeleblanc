@@ -735,7 +735,7 @@ return function(core)
         return L
     end
 
-    function _G.degradeReport()
+    function _G.degradeReport(asText)
         local tools = #notices.degradeOrder
         local L = {}
         -- 🚨 6.316.0 — WHAT IS NOT SAVED RIGHT NOW GOES FIRST, above the
@@ -786,12 +786,12 @@ return function(core)
             L[#L + 1] = "   ↳ _G.degradeLoud(\"Jug Player\") puts one back on screen"
         end
         local s = table.concat(L, "\n")
+        if asText then return s end
         print(s)
-        return s
     end
 
     -- ---- the report --------------------------------------------------------
-    function _G.noticesReport()
+    function _G.noticesReport(asText)
         local L = { string.format("🔔 NOTICES — %d recorded", #notices.ledger) }
         local focusOn, why = notices.focusIsOn()
         L[#L + 1] = "   Focus right now : " .. (focusOn and ("ON (" .. tostring(why) .. ")")
@@ -806,8 +806,8 @@ return function(core)
             end
         end
         local s = table.concat(L, "\n")
+        if asText then return s end
         print(s)
-        return s
     end
 
     -- ---- 🔔 the channel every other tool reports through (6.274.0) ---------
@@ -855,7 +855,7 @@ return function(core)
     -- and "one never reached the screen" are opposite facts, and a
     -- RECOVERED alert (drawn a moment later by the retry) is a third —
     -- he saw it, just late, which is not a lost message.
-    function _G.alertReport()
+    function _G.alertReport(asText)
         local a = _G.alertLate or {}
         local L = { "🔔 ALERTS — the channel every other tool reports through" }
         L[#L + 1] = "   asked     : " .. tostring(a.asked or 0) .. " this session"
@@ -877,8 +877,8 @@ return function(core)
             end
         end
         local s = table.concat(L, "\n")
+        if asText then return s end
         print(s)
-        return s
     end
 
     _G.notices = notices

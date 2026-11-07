@@ -513,10 +513,10 @@ function M.setup(core)
     end
 
     -- ---- console twin ----------------------------------------------------
-    function _G.netWatchReport()
+    function _G.netWatchReport(asText)
         local s = nw.fullReport()
+        if asText then return s end
         print(s)
-        return s
     end
 
     if nw.enabled then
@@ -524,7 +524,7 @@ function M.setup(core)
                               "net watch")
     end
     core.provide("netwatch.show",   function() return nw.show() end)
-    core.provide("netwatch.report", function() return _G.netWatchReport() end)
+    core.provide("netwatch.report", function() return _G.netWatchReport(true) end)
 
     _G.netWatch = nw
     M.nw     = nw

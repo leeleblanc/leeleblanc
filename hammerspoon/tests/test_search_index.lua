@@ -270,7 +270,7 @@ check("…and _G.indexNow explains instead of throwing",
 hs.task = savedTask
 boot()
 writeIndex()
-local rep = _G.fileIndexReport()
+local rep = _G.fileIndexReport(true)
 check("the report names the file, the age and every root",
       type(rep) == "string" and rep:find(IX.file, 1, true) ~= nil
       and rep:find(CLOUD, 1, true) ~= nil

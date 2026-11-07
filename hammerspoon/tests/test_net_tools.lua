@@ -424,7 +424,7 @@ out("\n=== 8. the report tells the truth ===\n")
 reset()
 nt.ping("example.com")
 TASKS[1].cb(0, "ok\n", "")
-local rep = _G.netReport()
+local rep = _G.netReport(true)
 check("the report names the module", rep:find("NETWORK TOOLS", 1, true) ~= nil)
 check("…lists what ran, against what", rep:find("example.com", 1, true) ~= nil, rep)
 -- 🚨 The caveat is in the REPORT as well as in the alert, because the
@@ -622,8 +622,8 @@ check("…saying in so many words that nothing else was touched",
 check("…and the verdict still follows", CLIP:find("VERDICT", 1, true) ~= nil)
 check("history records it as a refresh", nt.history[#nt.history].tool == "refresh")
 os.remove(nt.reportFile)
-local rep9 = _G.netReport()
-check("_G.netReport() now carries the last verdict and where the file went",
+local rep9 = _G.netReport(true)
+check("_G.netReport(true) now carries the last verdict and where the file went",
       rep9:find("last report", 1, true) ~= nil and rep9:find("All good", 1, true) ~= nil
       and rep9:find("saved:", 1, true) ~= nil, rep9)
 

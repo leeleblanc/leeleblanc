@@ -386,7 +386,7 @@ do
   ck("🚨 one `allow,HOw,` row is the whole bug — HOw is left alone now",
      typeWord("HOw ") == nil, tostring(typeWord("HOw ")))
 
-  local rep = _G.autocorrectReport()
+  local rep = _G.autocorrectReport(true)
   ck("🚨 the report NAMES it as something ⇪Z learned — this module had no"
      .. " report at all, which is why grep was the only way to find it",
      rep:find("HOw", 1, true) ~= nil and rep:find("⇪Z learned", 1, true) ~= nil,
@@ -431,7 +431,7 @@ do
   end)())
   _G.autocorrectForget("How")     -- the case-sensitivity fixture, cleared
   ck("a Mac that has learned nothing says exactly that, and differently",
-     _G.autocorrectReport():find("nothing on this Mac", 1, true) ~= nil)
+     _G.autocorrectReport(true):find("nothing on this Mac", 1, true) ~= nil)
 
   -- ---- ⇪Z itself: no duplicate row, and it names the way back --------
   local zKey = BOUND["ctrl+alt+cmd+Z"]
@@ -439,7 +439,7 @@ do
   typeWord("GHq ")                      -- a rule fix, so acLast.wasRule
   ALERTS = {}
   zKey()
-  ck("⇪Z learns the word", _G.autocorrectReport():find("GHq", 1, true) ~= nil)
+  ck("⇪Z learns the word", _G.autocorrectReport(true):find("GHq", 1, true) ~= nil)
   ck("🚨 …and the alert names the way back, so it is never only in a CSV",
      (ALERTS[#ALERTS] or ""):find('_G.autocorrectForget("GHq")', 1, true) ~= nil,
      ALERTS[#ALERTS])
@@ -456,7 +456,7 @@ do
   append("allow,ZZq,") ; append("allow,ZZq,")
   local dupBefore = lineCount(readCsv())
   ck("a word learned twice on two Macs is still ONE exception",
-     (_G.autocorrectReport():gsub("[^\n]*ZZq[^\n]*", "x", 1)
+     (_G.autocorrectReport(true):gsub("[^\n]*ZZq[^\n]*", "x", 1)
       :find("ZZq", 1, true)) == nil)
   local okD = _G.autocorrectForget("ZZq")
   ck("…and forgetting it removes BOTH rows, not one of them",
@@ -476,7 +476,7 @@ do
   append("fix,TVs,tvs")
   ck("🚨 …and a row whose sides differ only in CASE is dead too",
      typeWord("TVs ") == nil, tostring(typeWord("TVs ")))
-  local rep2 = _G.autocorrectReport()
+  local rep2 = _G.autocorrectReport(true)
   ck("…and the report names it WITH ITS LINE NUMBER, so it can be found"
      .. " in an 11,000-line file", (function()
         local n = select(2, readCsv():gsub("[^\r\n]+", ""))
@@ -585,7 +585,7 @@ do
   ck("🚨 a word ⇪Z was told to leave alone is not spell-corrected either",
      typeWord("somethingg ") == nil, tostring(typeWord("somethingg ")))
   ck("…and it shows up in the SAME learned list, with the same way back",
-     _G.autocorrectReport():find('_G.autocorrectForget("somethingg")', 1, true) ~= nil)
+     _G.autocorrectReport(true):find('_G.autocorrectForget("somethingg")', 1, true) ~= nil)
   _G.autocorrectForget("somethingg")
   ck("…and forgetting it brings the correction straight back",
      typeWord("somethingg ") == "something ", tostring(typeWord("somethingg ")))
@@ -624,8 +624,8 @@ do
   seedWords({ "aaa", "bbb", "ccc", "ddd", "eee", "something" })
   ck("🚨 a list bigger than one slice does not finish inline — it hands"
      .. " the thread back and comes round again",
-     #TIMERS > 0 and _G.autocorrectReport():find("reading the word list", 1, true) ~= nil,
-     #TIMERS .. " timers · " .. tostring(_G.autocorrectReport():match("word list[^\n]*")))
+     #TIMERS > 0 and _G.autocorrectReport(true):find("reading the word list", 1, true) ~= nil,
+     #TIMERS .. " timers · " .. tostring(_G.autocorrectReport(true):match("word list[^\n]*")))
   -- typeWord() empties TIMERS (it watches for the inject timer), so the
   -- half-built list's next slice is put back by hand here. On a real Mac
   -- the timer holds its own reference in _G.acSpellTimer.
@@ -642,9 +642,9 @@ do
     for _, t in ipairs(pending) do if t.running then t.fn() end end
   end
   ck("…and when the last slice lands it is ready and answers",
-     _G.autocorrectReport():find("ready", 1, true) ~= nil
+     _G.autocorrectReport(true):find("ready", 1, true) ~= nil
      and typeWord("somethingg ") == "something ",
-     tostring(_G.autocorrectReport():match("word list[^\n]*")))
+     tostring(_G.autocorrectReport(true):match("word list[^\n]*")))
   mod.config.slice = 20000
 
   -- ---- and when there is no word list at all -------------------------
@@ -654,7 +654,7 @@ do
      typeWord("somethingg ") == nil, tostring(typeWord("somethingg ")))
   ck("…and the CSV dictionary still works, untouched by any of it",
      typeWord("teh ") == "the ", tostring(typeWord("teh ")))
-  local repOff = _G.autocorrectReport()
+  local repOff = _G.autocorrectReport(true)
   ck("…and the report NAMES the missing file rather than going quiet",
      repOff:find("no word list at", 1, true) ~= nil,
      repOff:match("word list[^\n]*"))
@@ -662,7 +662,7 @@ do
   -- ---- the report ----------------------------------------------------
   seedWords({ "something", "porter", "house" })
   typeWord("somethingg ")
-  local rep = _G.autocorrectReport()
+  local rep = _G.autocorrectReport(true)
   ck("the report says the list is ready, and how many words",
      rep:find("ready", 1, true) and rep:match("word list[^\n]*3 words") ~= nil,
      rep:match("word list[^\n]*"))
@@ -789,7 +789,7 @@ do
   ck("…with the capitalisation rules of any other row (Intsead → Instead)",
      typeWord("Intsead ") == "Instead ", tostring(typeWord("Intsead ")))
   ck("the report counts it as a dictionary row",
-     tonumber(_G.autocorrectReport():match("dictionary%s*:%s*(%d+)")) >= 11)
+     tonumber(_G.autocorrectReport(true):match("dictionary%s*:%s*(%d+)")) >= 11)
   local n0 = select(2, readCsv():gsub("\n", ""))
   local okD, whyD = _G.autocorrectAdd("IDs", "ids")
   ck("🚨 a dead row is REFUSED, not written — obeyed it would turn IDs into Ids",
@@ -1039,7 +1039,7 @@ do
     mod.warm(core)
   end
   ck("fixture: the word list holds doesnt and wouldnt, as Webster's"
-     .. " Second does", _G.autocorrectReport() ~= nil)
+     .. " Second does", _G.autocorrectReport(true) ~= nil)
 
   -- ---- LL's complaint, gone --------------------------------------------
   ck("🚨 Doesn't typed BY HAND is left alone (it became Doesnt't)",
@@ -1191,9 +1191,13 @@ local ok243, err243 = pcall(function()
         typeWord("makee ") == "make ", typeWord("makee "))
 
   -- ---- one edit apart, and not one edit apart -------------------------
+  -- 📠 6.417.0 — read the RETURN, not the print capture. Asked, the report
+  -- hands the text back in silence (the Console echoes a return, so a
+  -- report that printed as well showed twice); this helper wanted the text
+  -- all along and was going the long way round to get it.
   local function armed()
-    log = {} ; _G.autocorrectReport()
-    return (table.concat(log, "\n")):match("↳ NOW: ⇪Z writes ([^\n]*)")
+    local s = _G.autocorrectReport(true) or ""
+    return s:match("↳ NOW: ⇪Z writes ([^\n]*)")
   end
   selfCorrect("teh", 3, "the")
   check("🔤 a transposition arms — teh → the is THE typo and is three letters",
@@ -1222,9 +1226,10 @@ local ok243, err243 = pcall(function()
   -- refused" passed with this branch deleted. The branch earns its place by
   -- saying the TRUE thing — that row would be dead (6.199.0) — instead of
   -- "more than one edit apart", which would be a lie about zero.
+  -- 📠 6.417.0 — read the RETURN, as `armed()` above now does.
   local function lastWhy()
-    log = {} ; _G.autocorrectReport()
-    return (table.concat(log, "\n")):match("Last retype: ([^\n]*)")
+    local s = _G.autocorrectReport(true) or ""
+    return s:match("Last retype: ([^\n]*)")
   end
   selfCorrect("The", 3, "the")
   check("🚨 a capitalisation-only pair is refused, and the reason given is"
@@ -1333,7 +1338,7 @@ local ok243, err243 = pcall(function()
   check("🔎 a row with no fourth column still corrects, and is NOT listed as"
         .. " something a keypress taught", typeWord("plainrow ") == "plainfix ",
         typeWord("plainrow "))
-  log = {} ; _G.autocorrectReport()
+  log = {} ; _G.autocorrectReport(true)
   check("...and the taught list only ever holds the tagged ones",
         (table.concat(log, "\n")):find("plainrow", 1, true) == nil)
 end)

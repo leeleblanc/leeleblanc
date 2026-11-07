@@ -311,7 +311,7 @@ function M.setup(core)
         end
     end
 
-    function _G.fileIndexReport()
+    function _G.fileIndexReport(asText)
         local age = idx.ageSecs()
         if not idx.entries then pcall(idx.load) end
         local L = { "🗂 SEARCH INDEX on " .. tostring(core.hostTag) }
@@ -330,13 +330,13 @@ function M.setup(core)
                         .. (r.depth and (" (depth " .. r.depth .. ")") or " (full)")
         end
         local s = table.concat(L, "\n")
+        if asText then return s end
         print(s)
-        return s
     end
 
     core.provide("index.search",  function(q, n) return idx.search(q, n) end)
     core.provide("index.rebuild", function() return idx.rebuild() end)
-    core.provide("index.report",  function() return _G.fileIndexReport() end)
+    core.provide("index.report",  function() return _G.fileIndexReport(true) end)
 
     -- Off the boot path on purpose: the staleness check reads one mtime,
     -- the build itself is a child process, and the timer keeps it fresh

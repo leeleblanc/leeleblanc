@@ -2048,7 +2048,7 @@ end tell]]
     end
 
     -- ---- the report ------------------------------------------------------
-    function _G.powerReport()
+    function _G.powerReport(asText)
         local L = { "🧰 POWER TOOLS" }
         local okSec, secure = pcall(hs.eventtap.isSecureInputEnabled)
         L[#L + 1] = "   secure input : " ..
@@ -2099,8 +2099,8 @@ end tell]]
         end
         if pt.lastNote then L[#L + 1] = "   last problem : " .. pt.lastNote end
         local s = table.concat(L, "\n")
+        if asText then return s end
         print(s)
-        return s
     end
 
     -- =====================================================================
@@ -2366,7 +2366,7 @@ end tell]]
     core.provide("power.ghostty",  function() return pt.run("ghere") end)
     core.provide("power.reveal",   function() return pt.run("greveal") end)
     core.provide("power.qr",       function() return pt.run("qr") end)
-    core.provide("power.report",   function() return _G.powerReport() end)
+    core.provide("power.report",   function() return _G.powerReport(true) end)
     core.provide("power.freeKeys", function() return pt.run("freekeys") end)
 
     _G.powerTools = pt

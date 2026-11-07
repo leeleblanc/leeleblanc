@@ -327,7 +327,7 @@ check("the periodic timer samples only while a watched app is in front", (functi
 end)())
 
 out("=== 5. Report and no Accessibility at boot ===\n")
-local rep = _G.docMemoryReport()
+local rep = _G.docMemoryReport(true)
 check("report names the state, the apps, the last sample and the files",
       rep:find("state         : watching", 1, true) and rep:find("Microsoft Excel", 1, true)
       and rep:find("last sample   : ", 1, true) and rep:find(dm.csvFile, 1, true), rep)
@@ -429,7 +429,7 @@ do
     ck("…and the quit memory with a junk entry is safe to ask for too",
        okQuit == true)
 
-    local okRep, rep = pcall(_G.docMemoryReport)
+    local okRep, rep = pcall(_G.docMemoryReport, true)
     ck("🚨 the REPORT survives it too — it walks the same structure, so a"
        .. " bad store used to take out the tool that would name it",
        okRep == true, tostring(rep))
@@ -447,10 +447,10 @@ do
     dm.open, dm.lastOpen, dm.loadDropped = {}, {}, nil
     dm.load()
     ck("a store with nothing wrong says so, and differently",
-       _G.docMemoryReport():find("every row the shape it should be", 1, true) ~= nil)
+       _G.docMemoryReport(true):find("every row the shape it should be", 1, true) ~= nil)
     dm.loadDropped = nil
     ck("…and a store never read says THAT, differently again",
-       _G.docMemoryReport():find("not read yet", 1, true) ~= nil)
+       _G.docMemoryReport(true):find("not read yet", 1, true) ~= nil)
 
     check("§8 ran every one of its checks", mine == 20, mine)
 end

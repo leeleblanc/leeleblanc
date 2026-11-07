@@ -679,7 +679,7 @@ end timeout]]
         else ch:show() end
     end
 
-    function _G.renameReport()
+    function _G.renameReport(asText)
         local paths = br.selection()
         local groups = br.group(paths)
         local L = { string.format("✏️ BULK RENAME — %d selected, %d group(s)",
@@ -694,8 +694,8 @@ end timeout]]
                                       table.concat(exts, " "))
         end
         local s = table.concat(L, "\n")
+        if asText then return s end
         print(s)
-        return s
     end
 
     if br.enabled then
@@ -714,7 +714,7 @@ end timeout]]
     core.provide("rename.undo",   function()        return br.undo()         end)
     core.provide("rename.plan",   function(p, r, c) return br.plan(p, r, c) end)
     core.provide("rename.groups", function(p)      return br.group(p)       end)
-    core.provide("rename.report", function()       return _G.renameReport() end)
+    core.provide("rename.report", function()       return _G.renameReport(true) end)
 
     _G.bulkRename = br
     M.br     = br

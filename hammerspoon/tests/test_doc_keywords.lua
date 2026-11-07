@@ -201,7 +201,7 @@ TASKS[2].cb(0, "written\n", "")
 check("written: one 🏷 console line with the words",
       saidLine("🏷 Doc Keywords → Q3 Report.docx") and saidLine("budget"))
 check("…and the session log remembers it", (function()
-    local rep = _G.docKeywordsReport()
+    local rep = _G.docKeywordsReport(true)
     return rep:find("Q3 Report.docx", 1, true) ~= nil
 end)())
 

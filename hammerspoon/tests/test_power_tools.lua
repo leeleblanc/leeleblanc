@@ -347,7 +347,7 @@ check("…and each has a stable id", (function()
     -- added defaultapp — LL called the keyless 📎 tool "buried", and
     -- ⇪; is where the act-now tools live; 6.152.0 added hspause (the
     -- ⇪⇧1 pause-Hammerspoon switch). ids are what
-    -- _G.powerReport() counts by and what ⇪space's run map points
+    -- _G.powerReport(true) counts by and what ⇪space's run map points
     -- at, so they are checked by name rather than by number alone.
     local want = { plain = true, type = true, count = true, meta = true,
                    pause = true, hspause = true,
@@ -459,7 +459,7 @@ BOUND[TYPEKEY].fn()
 check("pressing it starts the typing path — nothing typed on the press, "
       .. "one timer armed, the same as the row",
       #TYPED == 0 and #TIMERS == 1, #TYPED .. " typed, " .. #TIMERS .. " timers")
-check("...and it counts as a run of the row, so _G.powerReport() sees it",
+check("...and it counts as a run of the row, so _G.powerReport(true) sees it",
       (pt.ran.type or 0) >= 1, pt.ran.type)
 drain()
 check("...and what it types is the clipboard, exactly once",
@@ -883,19 +883,19 @@ do
     -- ---- the report -----------------------------------------------------
     reset()
     ck("a Mac that has not borrowed the clipboard says exactly that",
-       _G.powerReport():find("has not been borrowed yet", 1, true) ~= nil)
+       _G.powerReport(true):find("has not been borrowed yet", 1, true) ~= nil)
     AX, AXSEL = true, nil
     CLIP = "MY IMPORTANT CLIPBOARD"
     pt.withSelection("📎", function() hs.pasteboard.setContents("BLOCK") end)
     CLIP = "the selected words here"
     runAfters(1) ; runAfters(1)
-    local rep = _G.powerReport()
+    local rep = _G.powerReport(true)
     ck("…and after one, the report counts it and names what it did",
        rep:find("⌘C borrow", 1, true) ~= nil
        and rep:find("left alone", 1, true) ~= nil, rep:match("⌘C borrow[^\n]*"))
     pt.restoreGuard = false
     ck("…and a guard switched OFF is said out loud, not left to be guessed",
-       _G.powerReport():find("restoreGuard is OFF", 1, true) ~= nil)
+       _G.powerReport(true):find("restoreGuard is OFF", 1, true) ~= nil)
     pt.restoreGuard = true
 
     -- 🚨 ASSERTED AGAINST THE SOURCE, deliberately — 6.196.1's rule.
@@ -1453,7 +1453,7 @@ check("…and says on screen that it copied",
 check("…and the numbers are still shown too",
       (ALERTS[1] or ""):find("5 words") ~= nil, ALERTS[1])
 check("the report shows what was copied last",
-      _G.powerReport():find("5 words · 23 characters", 1, true) ~= nil)
+      _G.powerReport(true):find("5 words · 23 characters", 1, true) ~= nil)
 
 -- 🚨 A CLIPBOARD THAT REFUSES MUST NOT BE REPORTED AS A SUCCESS. The
 -- whole value of this row is that you can paste the numbers afterwards.
@@ -1619,23 +1619,23 @@ do
     check("…and names the module", (ALERTS[#ALERTS] or ""):find("Text Case") ~= nil,
           ALERTS[#ALERTS])
     check("…and the report says the engine is missing",
-          _G.powerReport():find("MISSING") ~= nil)
+          _G.powerReport(true):find("MISSING") ~= nil)
     CASE_OFF = false
     check("…and the report finds it again once it is back",
-          _G.powerReport():find("6 cases") ~= nil)
+          _G.powerReport(true):find("6 cases") ~= nil)
 end
 
 -- =====================================================================
 out("\n=== 10. the report tells the truth ===\n")
 -- =====================================================================
 SECURE = true
-local rep = _G.powerReport()
+local rep = _G.powerReport(true)
 check("the report names the module", rep:find("POWER TOOLS", 1, true) ~= nil)
 check("…and warns when secure input would block typing",
       rep:find("blocked", 1, true) ~= nil, rep)
 SECURE = false
 AX = false
-rep = _G.powerReport()
+rep = _G.powerReport(true)
 check("…and says when counting has to fall back to ⌘C",
       rep:find("⌘C", 1, true) ~= nil, rep)
 AX = true

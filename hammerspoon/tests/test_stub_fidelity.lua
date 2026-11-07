@@ -167,7 +167,7 @@ out("\n=== 1. 🕒 THE CLOCK IS A FLOAT (6.282.0) ===\n")
 -- the right value in the wrong REPRESENTATION, and every check that
 -- formats a stored clock is green against it.
 --
--- That is exactly what happened: `_G.screenshotsReport()` THREW on LL's
+-- That is exactly what happened: `_G.screenshotsReport(true)` THREW on LL's
 -- Mac in every session where ⇪4 had been pressed, for eighteen releases,
 -- while the check rendering that very line passed. A fresh boot took the
 -- `or` branch and printed happily, so the only Mac that could see it was

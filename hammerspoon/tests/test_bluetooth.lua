@@ -312,24 +312,36 @@ check("on = false: an alert, no task, false + why", okOff == false and whyOff ==
 -- =====================================================================
 out("8) the report is ONE string with three engine states\n")
 reset(); FILES[BLUEUTIL] = true
-local r = _G.bluetoothReport()
-check("printed once, returned", #PRINTED == 1 and PRINTED[1] == r)
+-- 📠 6.417.0 — THE RULE IS UNCHANGED AND NOW HAS TWO HALVES. 6.179.1
+-- still stands: a report reaches the Console as ONE string, never row
+-- by row, because the console gate eats a report printed line by line.
+-- What moved is WHO asks for it: unasked it prints, asked it hands the
+-- text back in silence — because the Console echoes a return and every
+-- report was showing twice. (6.248.0 — assert the rule, not yesterday's
+-- implementation.)
+local r = _G.bluetoothReport(true)
+check("asked, it returns the text and prints NOTHING",
+      type(r) == "string" and #PRINTED == 0, #PRINTED)
+PRINTED = {}
+_G.bluetoothReport()
+check("unasked, it prints as ONE string — the same text",
+      #PRINTED == 1 and PRINTED[1] == r)
 check("engine: installed path", r:find("engine  : " .. BLUEUTIL, 1, true) ~= nil)
 check("devices: not listed yet", r:find("not listed yet", 1, true) ~= nil)
 check("last: none", r:find("no connect or disconnect", 1, true) ~= nil)
 press(); lastTask().cb(0, BLUEUTIL_OUT, ""); CHOOSERS[1].cb(CHOOSERS[1].choices_[2]); lastTask().cb(0, "", "")
-r = _G.bluetoothReport()
+r = _G.bluetoothReport(true)
 check("devices: listed, via, with each row", r:find("devices : 3 via blueutil", 1, true) ~= nil and r:find("🟢 AirPods Pro", 1, true) ~= nil)
 check("last: the action and ok", r:find("last    : connect Magic Keyboard, Lee", 1, true) ~= nil and r:find("— ok", 1, true) ~= nil)
 reset(); FILES[BLUEUTIL] = nil
-r = _G.bluetoothReport()
+r = _G.bluetoothReport(true)
 check("engine: not installed reads differently and names the install", r:find("blueutil not installed — listing via system_profiler", 1, true) ~= nil)
 reset(); bt.blueutil = "/nowhere/blueutil"
-r = _G.bluetoothReport()
+r = _G.bluetoothReport(true)
 check("engine: a bad pin is a ⚠️ state of its own", r:find("engine  : ⚠️ settings pin /nowhere/blueutil is not a file", 1, true) ~= nil)
 reset(); FILES[BLUEUTIL] = true
 press(); lastTask().cb(1, "", "off\n")
-r = _G.bluetoothReport()
+r = _G.bluetoothReport(true)
 check("devices: a failed list is a ⚠️ line, not 'not listed yet'", r:find("devices : ⚠️ list failed", 1, true) ~= nil)
 
 -- =====================================================================

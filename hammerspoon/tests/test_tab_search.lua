@@ -388,13 +388,13 @@ out("\n=== 8. the report tells the truth ===\n")
 reset()
 ts.show()
 if TASKS[1] then TASKS[1].cb(0, FIXTURE, "") end
-local rep = _G.tabReport()
+local rep = _G.tabReport(true)
 check("the report names the module", rep:find("TAB SEARCH", 1, true) ~= nil)
 check("…counts tabs per browser", rep:find("Google Chrome", 1, true) ~= nil, rep)
 check("…and lists every browser it asked", rep:find("Microsoft Edge", 1, true) ~= nil)
 
 ts.lastCounts = {}
-rep = _G.tabReport()
+rep = _G.tabReport(true)
 check("with nothing answering it says what to check",
       rep:find("Automation", 1, true) ~= nil, rep)
 

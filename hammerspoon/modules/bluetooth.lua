@@ -345,7 +345,7 @@ function M.setup(core)
     end
 
     -- ---- the report, ONE string -------------------------------------------
-    function _G.bluetoothReport()
+    function _G.bluetoothReport(asText)
         local L = {}
         L[#L + 1] = "📶 BLUETOOTH — ⇪⇧7 · " .. (bt.on == false and "OFF (settings)" or "on")
         bt.resolve()
@@ -378,8 +378,8 @@ function M.setup(core)
             bt.running and (" · running: " .. bt.running) or "")
         if bt.lastNote then L[#L + 1] = "   note    : " .. bt.lastNote end
         local s = table.concat(L, "\n")
+        if asText then return s end
         print(s)
-        return s
     end
 
     if core.hyperAddShortcut then
@@ -387,7 +387,7 @@ function M.setup(core)
     end
     if core.provide then
         core.provide("bluetooth.show",   function() return bt.show() end)
-        core.provide("bluetooth.report", function() return _G.bluetoothReport() end)
+        core.provide("bluetooth.report", function() return _G.bluetoothReport(true) end)
     end
 end
 

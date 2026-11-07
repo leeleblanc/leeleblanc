@@ -320,7 +320,7 @@ function M.setup(core)
     end
 
     -- ---- the report ------------------------------------------------------
-    function _G.caseReport()
+    function _G.caseReport(asText)
         local L = { "🔠 TEXT CASE — the six, run against \"" .. tc.sample .. "\"" }
         for _, c in ipairs(tc.list()) do
             L[#L + 1] = ("   %-12s %-22s %s")
@@ -341,8 +341,8 @@ function M.setup(core)
             L[#L + 1] = "      out       : " .. short(tc.lastOut)
         end
         local s = table.concat(L, "\n")
+        if asText then return s end
         print(s)
-        return s
     end
 
     if tc.enabled then
@@ -351,7 +351,7 @@ function M.setup(core)
     core.provide("case.apply",  function(id, s) return tc.apply(id, s) end)
     core.provide("case.list",   function() return tc.list() end)
     core.provide("case.tokens", function(s) return tc.tokens(s) end)
-    core.provide("case.report", function() return _G.caseReport() end)
+    core.provide("case.report", function() return _G.caseReport(true) end)
 
     _G.textCase = tc
     M.tc     = tc

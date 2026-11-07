@@ -67,7 +67,18 @@ _G.diag = { said = {},
     err = function() end, mark = function() end }
 _G.moduleStatus = {}
 
+local COPIED, COPY_REFUSES = {}, false
 local CORE = {
+    -- 🔬 6.417.0 — core.copyText IS a published member (init.lua §core) and
+    -- this stub did not have it, so the module raised the moment it took
+    -- the proper clipboard door. 6.290.0: a stub models the PROVIDER, and
+    -- it models the REFUSAL too — setContents answers false rather than
+    -- throwing (6.198.0), which is the whole reason that door exists.
+    copyText = function(t, who)
+        COPIED[#COPIED + 1] = { text = t, who = who }
+        if COPY_REFUSES then return false, "macOS refused the write" end
+        return true
+    end,
     logsDir = "/L", backupDir = "/B", cloudDir = "/C", hostTag = "Test-Mac",
     hyperAddShortcut = function(mods, key, fn)
         local ms = {} ; for _, x in ipairs(mods or {}) do ms[#ms + 1] = x end
@@ -275,8 +286,8 @@ end
 out("\n=== 5. The report ===\n")
 -- =====================================================================
 boot() ; allFresh() ; H.check(false)
-local r = _G.healthReport()
-check("_G.healthReport() returns its text", type(r) == "string")
+local r = _G.healthReport(true)
+check("_G.healthReport(true) returns its text", type(r) == "string")
 check("it names every watched tool", (function()
     for _, c in ipairs(H.checks) do
         if not r:find(c.label, 1, true) then return false, c.label end
@@ -289,7 +300,7 @@ check("it says how much WAKING time it has actually observed — otherwise "
 check("it lists what is deliberately NOT watched, so those read as "
       .. "considered rather than forgotten", r:find("only write when you act", 1, true) ~= nil)
 boot() ; quietHours(1) ; quietHours(6)
-r = _G.healthReport()
+r = _G.healthReport(true)
 check("a broken tool's report includes the REASONING for its threshold",
       r:find("waking hours with none", 1, true) ~= nil)
 check("...and the exact path to look at", r:find("/L/activity_history", 1, true) ~= nil)

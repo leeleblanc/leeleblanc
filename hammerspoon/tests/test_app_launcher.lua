@@ -391,13 +391,21 @@ check("…and the placeholder promises apps only",
 -- ---- 9. the report --------------------------------------------------
 out("   9. the report: counts per folder, every app listed\n")
 boot(personalMac)
-local r = _G.appLauncherReport()
+local r = _G.appLauncherReport(true)
 check("report returns text", type(r) == "string")
 check("headline: host and count", r:find("Test%-Mac") and r:find("8 apps"))
 check("per-folder counts", r:find("/Applications%s+4") and r:find("~/Applications%s+2")
       and r:find("/System/Applications%s+2"))
 check("apps listed with their folder", r:find("Gmail%s+~/Applications"))
-check("…and printed, not just returned", #printed > 0)
+-- 📠 6.417.0 — THE RULE IS UNCHANGED AND NOW HAS TWO HALVES. 6.179.1
+-- still stands: a report reaches the Console as ONE string, never row
+-- by row. What moved is WHO asks — unasked it prints, asked it hands
+-- the text back in silence, because the Console echoes a return and
+-- every report was showing twice (6.248.0).
+check("…asked, it returns the text and prints NOTHING", #printed == 0, #printed)
+printed = {}
+_G.appLauncherReport()
+check("…unasked, it prints — and the same text", #printed > 0)
 
 -- =====================================================================
 out(string.format("\n── test_app_launcher: %d passed, %d failed\n", pass, fail))

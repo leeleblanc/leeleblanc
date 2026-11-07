@@ -1542,7 +1542,7 @@ function M.setup(core)
         return true, msg
     end
 
-    function _G.autocorrectReport()
+    function _G.autocorrectReport(asText)
         local L = { "✏️ AUTOCORRECT" }
         L[#L + 1] = "   state        : " .. tostring(_G.autocorrectStatus)
                     .. (_G.autocorrectEnabled and "" or "  · PAUSED (⌃⌥⌘S)")
@@ -1687,8 +1687,8 @@ function M.setup(core)
         L[#L + 1] = "   not asked in : " .. table.concat(acSpell.offIn or {}, ", ")
         L[#L + 1] = "                  (and any password field)"
         local s = table.concat(L, "\n")
+        if asText then return s end
         print(s)
-        return s
     end
 
     -- Boot: needs Accessibility; degrade politely without it

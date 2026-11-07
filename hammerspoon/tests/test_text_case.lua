@@ -263,7 +263,7 @@ check("case.list through the service has six rows",
       #PROVIDED["case.list"]() == 6)
 
 do
-    local r = _G.caseReport()
+    local r = _G.caseReport(true)
     check("the report names every case", r:find("upper") and r:find("lower")
           and r:find("title") and r:find("camel") and r:find("kebab")
           and r:find("snake") ~= nil)
@@ -276,7 +276,7 @@ do
     check("…and which rebuild", r:find("rebuilds from words") ~= nil)
     check("…and how many have run", r:find("applied") ~= nil)
     tc.apply("kebab", "Some Long Thing")
-    local r2 = _G.caseReport()
+    local r2 = _G.caseReport(true)
     check("the last transform is shown, in and out",
           r2:find("some%-long%-thing") ~= nil, r2)
 end

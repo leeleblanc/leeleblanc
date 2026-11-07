@@ -172,7 +172,18 @@ hs = {
 _G.diag = { say = function() end, warn = function() end,
             err = function() end, mark = function() end }
 
+local COPIED, COPY_REFUSES = {}, false
 local CORE = {
+    -- 🔬 6.417.0 — core.copyText IS a published member (init.lua §core) and
+    -- this stub did not have it, so the module raised the moment it took
+    -- the proper clipboard door. 6.290.0: a stub models the PROVIDER, and
+    -- it models the REFUSAL too — setContents answers false rather than
+    -- throwing (6.198.0), which is the whole reason that door exists.
+    copyText = function(t, who)
+        COPIED[#COPIED + 1] = { text = t, who = who }
+        if COPY_REFUSES then return false, "macOS refused the write" end
+        return true
+    end,
     hostTag = "Test-Mac",
     hyperAddShortcut = function(mods, key, fn)
         local ms = {} ; for _, x in ipairs(mods or {}) do ms[#ms + 1] = x end

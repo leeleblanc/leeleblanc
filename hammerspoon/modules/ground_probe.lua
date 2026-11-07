@@ -359,7 +359,7 @@ function M.setup(core)
     -- =====================================================================
     -- THE REPORT
     -- =====================================================================
-    function _G.groundReport()
+    function _G.groundReport(asText)
         local L = { "🧭 GROUND PROBE — what THIS Mac answers, and what each"
                     .. " answer decides" }
         local function line(t) L[#L + 1] = t end
@@ -479,12 +479,12 @@ function M.setup(core)
         line("   ↳ this report changes NOTHING. It binds no key, writes no")
         line("     file and leaves no tap running.")
         local s = table.concat(L, "\n")
+        if asText then return s end
         print(s)
-        return s
     end
 
     if core.provide then
-        core.provide("ground.report", function() return _G.groundReport() end)
+        core.provide("ground.report", function() return _G.groundReport(true) end)
     end
 
     -- One `defaults read` in a task, on a held timer AFTER warm, so his

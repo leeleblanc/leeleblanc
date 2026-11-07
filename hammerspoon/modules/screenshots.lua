@@ -2105,7 +2105,7 @@ function M.setup(core)
     -- watcher, the last capture's exit, and the last scrolling run with
     -- every slice's receipt — "no slices decoded" is a question this
     -- answers now instead of a sentence in an alert.
-    function _G.screenshotsReport()
+    function _G.screenshotsReport(asText)
         local L = { "📸 SCREENSHOTS" }
         L[#L + 1] = "   folder  : " .. tostring(shots.dir)
         L[#L + 1] = "   watcher : " .. (shots.watcher and "watching for arrivals"
@@ -2370,8 +2370,8 @@ function M.setup(core)
             end
         end
         local s = table.concat(L, "\n")
+        if asText then return s end
         print(s)
-        return s
     end
 
     -- ---- recognize text / QR ---------------------------------------------

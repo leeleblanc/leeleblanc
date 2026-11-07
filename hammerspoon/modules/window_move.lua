@@ -669,7 +669,7 @@ function M.setup(core)
     -- a noise, because the click belongs to whatever app is underneath. So
     -- "I can't move this one" had no answer anywhere — not in the Console,
     -- not on screen. Everything the decision is made from is printed here.
-    function _G.windowMoveReport()
+    function _G.windowMoveReport(asText)
         local L = {}
         local function line(s) L[#L + 1] = s end
         line("")
@@ -771,11 +771,11 @@ function M.setup(core)
         line("   ⌘-drag anywhere on a panel or picker · a picker's SEARCH BAND")
         line("   drags with a bare click-hold · never drag a picker by its ROWS")
         local s = table.concat(L, "\n")
+        if asText then return s end
         print(s)
-        return s
     end
 
-    core.provide("windowMove.report", function() return _G.windowMoveReport() end)
+    core.provide("windowMove.report", function() return _G.windowMoveReport(true) end)
     core.provide("windowMove.drag", function(name) return _G.beginPanelDrag(name) end)
 
     _G.windowMove = wm

@@ -277,14 +277,14 @@ function M.setup(core)
         return table.concat(L, "\n"), bad, unknown
     end
 
-    function _G.selfTest()
+    function _G.selfTest(asText)
         local rows = st.rows()
         st.runs   = st.runs + 1
         st.lastAt = os.time()
         st.lastRows = rows
         local s = st.render(rows)
+        if asText then return s end
         print(s)
-        return s
     end
 
     if core.provide then
