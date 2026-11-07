@@ -7227,6 +7227,24 @@ THE METHOD, when something breaks after a stacked zip:
    knowing before bisecting: 6.416.0 changed WHAT two rows say, 6.417.0
    changed WHEN every report prints. `_G.selfTest()` separates the first
    from the second in one run.
+   · 6.419.0 c421a0d (the code, the suites and the ceremony;
+   **725fcb9 is the archive, and 725fcb9 is the SHA every link to it must
+   carry** — a branch-pinned link dies the moment the next release
+   deletes the file, which is why 6.356.0-6.358.0 never reached his
+   Downloads (6.360.0); 14 mutations, 13 bit on the first pass and 14 of
+   14 after, tree restored SHA-verified. The survivor was `return #lines`
+   in place of `return #recs` — a MISSING CHECK, not a spare line,
+   because every check on the return value was made on an UNFILTERED
+   call, where the two are the same number).
+   🔑 IT IS ONE FUNCTION IN ONE MODULE, which matters for a bisect: if
+   anything other than `_G.snippetsList()` changes behaviour on 6.419.0,
+   it is not this. ⇪⇧S, the recent queue, typed expansion and
+   `_G.snippetsReport()` are all untouched — only the Console listing
+   changed, and the old output is still there as `_G.snippetsList(true)`.
+   📏 AND IT OVERTURNS A DELIBERATE DECISION rather than fixing a bug:
+   6.415.0's plan called this door "still the firehose, deliberately".
+   That step is marked SUPERSEDED in its own verify block rather than
+   quietly rewritten, so the record shows the call was made and changed.
    Keep this list current: one line per release, appended at ceremony
    time.
 4. A BISECT IS AN OPTION, NOT THE FIRST MOVE — it costs him an install
