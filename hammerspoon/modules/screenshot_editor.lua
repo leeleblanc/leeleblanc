@@ -62,7 +62,7 @@ local M = {
             { "⌘D",    "6.342.0: Delayed AREA capture (macOS's ⇧⌘5 order) — this window gets out of the way, you DRAG the area you want, then five seconds to arrange the screen, then that rectangle lands on the shot" },
             { "⌘F",    "6.256.0: Full screen — the whole screen, right now, with this window out of the picture" },
             { "K",     "6.414.0: CROP — drag a rectangle and everything outside it dims, so you can see what would GO before anything happens; ⏎ crops to it, ⌫ removes the rectangle, ⌘Z puts the shot back. One rectangle at a time; a new drag replaces it, and the marks inside move with the crop" },
-            { "⌘O",    "6.258.0: Load a PRIOR shot — the canvas grows so you can see both, and what you have already drawn does not move" },
+            { "⌘O",    "6.415.0: Load a PRIOR shot — the canvas grows so you can see both, and the shot lands as a MARK you can drag anywhere (even over the first). ⌘Z undoes the whole thing" },
             { "text",  "click, type, ⏎ — white text, white outline box · click an EXISTING box (Text tool) to edit its words, or ⏎ on a selected one" },
             { "move",  "drag text/arrows around · arrow ENDS stretch + rotate · a selected text box has a corner dot — drag it to make the text bigger or smaller (⌘Z undoes it)" },
             { "⌘-click", "6.221.0: hold ⌘ and click ANY mark to select it — a text box opens its words at once, whatever tool is armed; a ⌘-click that misses creates nothing" },
@@ -224,6 +224,10 @@ function M.setup(core)
     ed.canvasW, ed.canvasH, ed.pageSized = nil, nil, false
     ed.grows = { asked = 0, landed = 0, failed = 0 }
     ed.lastGrowWhy, ed.lastGrow = nil, nil
+    -- 🖼 6.415.0 — the "it is a mark, drag it" line is said ONCE a
+    -- session: it answers a question he only has on his first load, and
+    -- a message he reads every time is one he stops reading (6.269.0).
+    ed.growSaid = false
     -- ✂️ 6.414.0 — counted APART from the grows: a crop refused for being
     -- too small and a crop that covers the whole shot are different facts
     -- and send a reader to different places (6.196.1).
@@ -384,7 +388,7 @@ function M.setup(core)
     <button onclick="say({a:'capture'})" title="⌘A">📸 Add capture</button>
     <button id="btn-delay" onclick="say({a:'delay'})" title="⌘D — drag an area, then ]] .. tostring(delaySecs) .. [[ seconds to set it up">⏲ Area +]] .. tostring(delaySecs) .. [[s</button>
     <button id="btn-full" onclick="say({a:'full'})" title="⌘F">🖥 Full screen</button>
-    <button id="btn-load" onclick="say({a:'loadshot'})" title="⌘O">🖼 Load shot</button>
+    <button id="btn-load" onclick="say({a:'loadshot'})" title="⌘O — the canvas grows and the shot lands as a mark you can drag anywhere">🖼 Load shot</button>
     <div class="lbl">Edit</div>
     <button id="btn-crop" onclick="cropAsk()" title="⏎ — after dragging a rectangle with ✂︎ Crop (K)">✂︎ Crop to it</button>
     <button onclick="undoLast()" title="⌘Z">↩︎ Undo</button>
@@ -552,6 +556,13 @@ function M.setup(core)
     if (!u) return;
     if (u.op === 'blur') ctx.putImageData(u.data, u.x, u.y);
     else if (u.op === 'grow'){
+      // 6.415.0 — the loaded shot rides on this row, so one ⌘Z takes the
+      // room AND the picture; a row from before it carries no note.
+      if (u.note){
+        var gi = notes.indexOf(u.note);
+        if (gi >= 0) notes.splice(gi, 1);
+        if (sel === u.note) sel = null;
+      }
       cv.width = u.w; cv.height = u.h;
       if (ov){ ov.width = u.w; ov.height = u.h; }
       ctx.putImageData(u.data, 0, 0);
@@ -729,7 +740,18 @@ function M.setup(core)
   function sayCanvas(fit){
     if (cv) say({ a: 'size', w: cv.width, h: cv.height, fit: !!fit });
   }
-  function growTo(src, nw, nh, ax, ay, fill){
+  // 🖼 6.415.0 — AND THE LOADED SHOT IS A MARK, NOT PIXELS. It used to be
+  // drawn straight into the canvas, so where it landed was where it
+  // stayed for ever. It is an ordinary `img` note now, at its OWN size
+  // (40% is ⌘V's rule, and the size is the difference between the two
+  // doors) at the offset Lua planned — so the drag, the corner scale,
+  // ⌫, the selection ring and the stash across a close all serve it
+  // with no new code, and it can be put on top of the first shot.
+  // 🔁 ONE ⌘Z TAKES BOTH BACK. The note rides on the grow's own undo row
+  // rather than pushing a second one: 6.258.0 promised that ⌘Z undoes a
+  // whole grow, and one action owing two presses is the kind of thing
+  // nobody remembers at the moment they need it.
+  function growTo(src, nw, nh, ax, ay, fill, aw, ah){
     if (!cv || !ctx || !src) return false;
     nw = Math.round(Number(nw) || 0); nh = Math.round(Number(nh) || 0);
     if (nw < cv.width || nh < cv.height) return false;   // a grow never shrinks
@@ -738,13 +760,22 @@ function M.setup(core)
       var old = ctx.getImageData(0, 0, cv.width, cv.height);
       // 📏 THE UNDO CARRIES THE OLD PIXELS, because shrinking a canvas
       // destroys them — the same shape as a blur's patch, one size up.
-      pushUndo({ op: 'grow', w: cv.width, h: cv.height, data: old });
+      // Lua measured the file and planned the room from those numbers, so
+      // they are what the mark is drawn at; naturalWidth is the belt for
+      // a Mac that could not measure it (additive — 6.299.0).
+      var iw = Math.round(Number(aw) || im.naturalWidth || 0);
+      var ih = Math.round(Number(ah) || im.naturalHeight || 0);
+      if (iw <= 0 || ih <= 0) return;
+      var n = { kind: 'img', src: src, w: iw, h: ih,
+                x: Math.round(Number(ax) || 0), y: Math.round(Number(ay) || 0) };
+      pushUndo({ op: 'grow', w: cv.width, h: cv.height, data: old, note: n });
       cv.width = nw; cv.height = nh;
       if (ov){ ov.width = nw; ov.height = nh; }
       ctx.fillStyle = fill || '#202127';
       ctx.fillRect(0, 0, nw, nh);
       ctx.putImageData(old, 0, 0);
-      ctx.drawImage(im, Math.round(Number(ax) || 0), Math.round(Number(ay) || 0));
+      imgCache[src] = { im: im, ok: true };   // already loaded; never fetch it twice
+      notes.push(n); sel = n;                 // selected, so it can be dragged at once
       redraw();
       sayCanvas();
     };
@@ -1804,9 +1835,14 @@ function M.setup(core)
         if not plan then return false, why end
 
         ed.grows.asked = ed.grows.asked + 1
-        local js = ("growTo('%s', %d, %d, %d, %d, '%s')")
+        -- 6.415.0 — the shot's OWN measured size rides along, so the mark
+        -- is drawn at the size the room was planned for (additive, so a
+        -- page that ignores the two extra arguments is unchanged).
+        local js = ("growTo('%s', %d, %d, %d, %d, '%s', %d, %d)")
                    :format(tostring(url), plan.w, plan.h, plan.x, plan.y,
-                           tostring(ed.growFill):gsub("'", ""))
+                           tostring(ed.growFill):gsub("'", ""),
+                           math.floor(tonumber(addW) or 0),
+                           math.floor(tonumber(addH) or 0))
         local okEval, err = pcall(function()
             if type(ed.webview.evaluateJavaScript) ~= "function" then
                 error("no evaluateJavaScript", 0)
@@ -1819,6 +1855,17 @@ function M.setup(core)
             return false, ed.lastGrowWhy
         end
         ed.grows.landed = ed.grows.landed + 1
+        -- 🖼 SAID AT THE MOMENT IT HAPPENS, and once (6.398.0 · 6.285.0).
+        -- The shot lands as a mark he can DRAG now, which is the whole
+        -- release and is invisible until he tries one — and a line he
+        -- reads on every load is a line he stops reading.
+        if not ed.growSaid then
+            ed.growSaid = true
+            pcall(function()
+                hs.alert.show("🖼 Drag it where you want — it is a mark now."
+                              .. "  ⌘Z undoes the whole thing.", 4)
+            end)
+        end
         ed.lastGrow = why .. " · " .. plan.axis .. " · canvas now "
                       .. plan.w .. "x" .. plan.h .. " (" .. who .. ")"
         -- The page will say its new size back; this is the belt, so a
@@ -2463,6 +2510,11 @@ function M.setup(core)
                             num(g.asked, 0), num(g.landed, 0), num(g.failed, 0))
             if ed.lastGrow then L[#L + 1] = "   ↳ last: " .. tostring(ed.lastGrow) end
         end
+        -- 🖼 6.415.0 — WHAT A LOADED SHOT IS, said outright, for the
+        -- same reason 6.342.0 names ⌘D's shape: a build that still bakes
+        -- the pixels in looks identical in every count above.
+        L[#L + 1] = "   ↳ ⌘O    : the loaded shot is a MARK — drag it anywhere, "
+                    .. "even over the first; ⌫ removes it"
         if ed.lastGrowWhy then
             L[#L + 1] = "   ↳ last refusal: " .. tostring(ed.lastGrowWhy)
         end

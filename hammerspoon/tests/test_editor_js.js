@@ -1117,7 +1117,7 @@ const free = (x, y) => Object.assign(mouse(x, y), { buttons: 0 });
   env.store[lastRow] = 150; env.store[lastRow + 3] = 255;
 
   env.cvCalls.length = 0;
-  const grew = env.call("growTo('GROWN-SHOT', 40, 60, 0, 42, '#202127')");
+  const grew = env.call("growTo('GROWN-SHOT', 40, 60, 0, 42, '#202127', 40, 18)");
   check("growTo accepts a plan that makes the canvas bigger", grew === true);
   check("…the canvas is the size Lua asked for",
         env.call("cv.width") === 40 && env.call("cv.height") === 60,
@@ -1138,11 +1138,24 @@ const free = (x, y) => Object.assign(mouse(x, y), { buttons: 0 });
         + "old pixels would move every note off the thing it points at",
         env.store[lastRow] === 150);
 
-  const drawn = env.cvCalls.filter((c) => c[0] === "drawImage");
-  check("🖼 the loaded shot is drawn at the offset Lua computed, at its "
+  // 🖼 6.415.0 — the rule is unchanged (at the offset Lua computed, at its
+  // OWN size, never a 40% paste) and the MECHANISM is new: a mark, not a
+  // bake, so he can drag it afterwards. The old check asserted the bake
+  // and would have passed a page whose shot could never be moved
+  // (6.248.0 — assert the rule, not yesterday's implementation).
+  check("🖼 the loaded shot lands at the offset Lua computed, at its "
         + "OWN size — this is a grow, not a 40% paste",
-        drawn.length === 1 && drawn[0][2] === 0 && drawn[0][3] === 42,
-        JSON.stringify(drawn[0] && drawn[0].slice(1)));
+        env.call("notes.length") === 1
+        && env.call("notes[0].kind") === "img"
+        && env.call("notes[0].x") === 0 && env.call("notes[0].y") === 42
+        && env.call("notes[0].w") === 40 && env.call("notes[0].h") === 18,
+        env.call("JSON.stringify(notes[0] && [notes[0].kind, notes[0].x, notes[0].y, notes[0].w, notes[0].h])"));
+  check("…and it is a MARK rather than pixels, so nothing of it was baked "
+        + "into the canvas — that is exactly what makes it movable",
+        env.cvCalls.filter((c) => c[0] === "drawImage").length === 0,
+        JSON.stringify(env.cvCalls.filter((c) => c[0] === "drawImage")));
+  check("…and it is SELECTED, so the very next drag moves it",
+        env.call("sel === notes[0]") === true);
 
   const sizes = env.sent.filter((m) => m.a === "size");
   check("🪟 the page tells Lua its new size afterwards (6.238.0 — a page "
@@ -1161,6 +1174,12 @@ const free = (x, y) => Object.assign(mouse(x, y), { buttons: 0 });
         env.store[0] === 200 && env.store[lastRow] === 150);
   check("…and Lua is told the size went back too",
         env.sent.filter((m) => m.a === "size").length === sizes.length + 1);
+  // 🔁 6.415.0 — ONE ⌘Z, not two. The mark rides on the grow's own undo
+  // row, because 6.258.0 promised ⌘Z undoes a whole grow and one action
+  // owing two presses is the thing nobody remembers when they need it.
+  check("🔁 …and the SAME ⌘Z took the loaded shot off with the room",
+        env.call("notes.length") === 0 && env.call("sel") === null,
+        env.call("notes.length"));
 }
 
 {

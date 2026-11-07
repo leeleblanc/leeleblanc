@@ -1848,6 +1848,101 @@ do
         (pass + fail) - n16)
 end
 
+-- =====================================================================
+-- 🖼 §17 — 6.415.0: THE LOADED SHOT IS A MARK, NOT PIXELS
+-- =====================================================================
+-- ⌘O used to draw the prior shot straight into the canvas, so where it
+-- landed was where it stayed for ever — LL: "I should be able to position
+-- the second screenshot on top of the second or where I want." It is an
+-- ordinary `img` note now, at its OWN measured size, at the offset the
+-- grow planned. This section proves the three things Lua owns: the size
+-- really is handed over, it is the SHOT's and not the canvas's, and the
+-- one-line explanation is said once rather than on every load.
+do
+    local n17 = pass + fail
+    local function c17(name, ok, got) check("§17 " .. name, ok, got) end
+
+    E.open(SRC)
+    BRIDGE({ body = { a = "size", w = 800, h = 600 } })
+    JS = {}; ALERTS = {}
+    E.growSaid = false
+    E.grows = { asked = 0, landed = 0, failed = 0 }
+
+    local okG = E.growWith("data:image/png;base64,SECOND", 158, 65)
+    local pushed = JS[#JS] or ""
+    c17("🖼 the shot's own size reaches the page", okG == true
+        and pushed:find(", 158, 65)", 1, true) ~= nil, pushed)
+    -- 🔑 THE FIXTURE WHERE RIGHT AND WRONG MUST DIFFER (6.230.0): a page
+    -- that drew the mark at the CANVAS size would look right on a shot
+    -- the same size as the room. 158x65 under 800x600 can only come from
+    -- the measured file.
+    c17("…and it is the SHOT's size, never the new canvas's",
+        pushed:find(", 800, 677, 0, 612, ", 1, true) ~= nil
+        and pushed:find(", 800, 677)", 1, true) == nil, pushed)
+    c17("…at the offset the grow planned, so it lands in the new room",
+        pushed:find(", 0, 612, ", 1, true) ~= nil, pushed)
+
+    -- 6.239.0 — move the input and require the push to follow, rather
+    -- than asserting a number that passes when it is typed twice
+    JS = {}
+    E.growWith("data:image/png;base64,THIRD", 90, 40)
+    c17("…and MOVING the measured size moves what is pushed",
+        (JS[#JS] or ""):find(", 90, 40)", 1, true) ~= nil, JS[#JS])
+
+    -- 🖼 SAID ONCE. The line answers a question he has on his first
+    -- load; one on every load is one he stops reading (6.269.0).
+    c17("🖼 the first load SAYS it is a mark he can drag (6.203.0)",
+        #ALERTS == 1 and ALERTS[1]:find("mark now", 1, true) ~= nil,
+        table.concat(ALERTS, " | "))
+    c17("…and names the way back in the same breath",
+        #ALERTS == 1 and ALERTS[1]:find("⌘Z", 1, true) ~= nil,
+        table.concat(ALERTS, " | "))
+    c17("…and the SECOND load is silent, while still landing",
+        E.grows.landed == 2 and #ALERTS == 1,
+        E.grows.landed .. " landed, " .. #ALERTS .. " alert(s)")
+
+    -- 🚨 A REFUSAL MUST NOT SPEND THE ONE LINE. If it did, the first
+    -- load that really worked would be the silent one — which is the
+    -- whole release going unexplained on exactly the Mac that needed it.
+    E.growSaid = false
+    ALERTS = {}; JS = {}
+    local okBad = E.growWith("/not/a/uri.png", 100, 100)
+    c17("🔒 a refused grow neither pushes nor speaks",
+        okBad == false and #JS == 0 and #ALERTS == 0,
+        #JS .. " pushed, " .. #ALERTS .. " alert(s)")
+    ALERTS = {}
+    E.growWith("data:image/png;base64,FOURTH", 50, 50)
+    c17("…so the next real load is the one that explains itself",
+        #ALERTS == 1, table.concat(ALERTS, " | "))
+
+    -- the report NAMES THE SHAPE, as 6.342.0's ⌘D line does: a build that
+    -- still bakes the pixels in looks identical in every count above
+    local rep = _G.screenshotEditorReport()
+    c17("🖼 the report says what a loaded shot IS",
+        rep:find("the loaded shot is a MARK", 1, true) ~= nil, "no ⌘O line")
+    c17("…and that it may go over the first, which is what he asked for",
+        rep:find("even over the first", 1, true) ~= nil)
+    E.close()
+    local repShut = _G.screenshotEditorReport()
+    c17("…and the line is there before a single ⌘O, because it describes"
+        .. " the tool rather than a count",
+        repShut:find("the loaded shot is a MARK", 1, true) ~= nil)
+
+    -- the cheat sheet is part of the surface (6.181.0: a sheet that
+    -- promises the old behaviour IS a broken feature)
+    local sheetSaysMark = false
+    for _, row in ipairs(M.cheatsheet.entries or {}) do
+        if row[1] == "⌘O" and tostring(row[2]):find("MARK", 1, true) then
+            sheetSaysMark = true
+        end
+    end
+    c17("📋 ⌘O's card row says the shot is a mark you can drag",
+        sheetSaysMark)
+
+    c17("§17 ran every one of its checks", (pass + fail) - n17 == 13,
+        (pass + fail) - n17)
+end
+
 out(("\n%d passed, %d failed\n"):format(pass, fail))
 for _, f in ipairs(failures) do out("    ❌ " .. f .. "\n") end
 out("\n")
