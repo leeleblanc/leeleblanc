@@ -2296,6 +2296,30 @@ function M.setup(core)
         return exp.enabled
     end)
 
+    -- 🩺 6.416.0 — THE STATE, THROUGH A DOOR THAT EXISTS. modules/
+    -- self_test.lua asked `_G.expander.snippets` and this module has NEVER
+    -- published `_G.expander` — only expanderTap, expanderTimers,
+    -- expanderResetBuffer and expanderWatchdog. So its Snippets row read a
+    -- nil global, counted 0 and reported "NO snippets are loaded" on every
+    -- Mac, for ever, over a library of nineteen hundred. 6.339.0 exactly
+    -- (an incomplete table whose absence is nil-guarded is a four-release
+    -- bug, because the degrade branch is correct-looking code giving a
+    -- correct-sounding reason), and the gate certified it because
+    -- tests/test_self_test.lua INVENTED the global it was asking for
+    -- (6.273.0). The answer is not to publish the module table — it is to
+    -- answer the question through the registry every other module uses,
+    -- so there is one renderer and two readers (6.231.0) and a check can
+    -- drive the real surface.
+    core.provide("expander.state", function()
+        return {
+            count    = tonumber(exp.count) or 0,
+            enabled  = exp.enabled and true or false,
+            source   = exp.bundledFrom,      -- "table" | "packs" | nil
+            problems = #(exp.problems or {}),
+            loadSecs = tonumber(exp.loadSecs) or 0,
+        }
+    end)
+
     _G.snippetsImport = function(p)
         if p == nil or p == "" then return exp.importFound() end
         return exp.import(p)

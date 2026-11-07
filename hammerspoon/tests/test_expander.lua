@@ -3275,6 +3275,45 @@ do
   check("§6.382.0 ran all of its checks (" .. ran .. " of 19)", ran >= 19, ran)
 end
 
+-- =====================================================================
+-- 20. 🩺 6.416.0 — THE STATE IS PUBLISHED, AND THE SELF TEST ASKS FOR IT
+-- =====================================================================
+-- 🚨 THE OTHER HALF OF A CROSS-FILE JOIN (6.388.0). modules/self_test.lua
+-- reported "NO snippets are loaded" on every Mac for ever because it read
+-- `_G.expander`, a global this module has never published — and its own
+-- suite invented that global, so the ASKING side was green about a
+-- contract the ANSWERING side did not hold. A check that only proves the
+-- asker asks is half a join; this is the half that proves the publisher
+-- publishes, and without it deleting the provide line passes the gate.
+out("\n=== 20. 6.416.0 — expander.state is published for the self test ===\n")
+
+check("publishes expander.state",
+      type(PROVIDED["expander.state"]) == "function")
+
+do
+  local st = PROVIDED["expander.state"] and PROVIDED["expander.state"]()
+  check("it answers a TABLE, not a count — the self test reads four fields",
+        type(st) == "table", type(st))
+  check("count is a number and matches the library the module loaded",
+        type(st) == "table" and st.count == exp.count,
+        type(st) == "table" and tostring(st.count) .. " vs " .. tostring(exp.count))
+  check("...and that count is the real one, not zero over a loaded library",
+        type(st) == "table" and st.count > 0, type(st) == "table" and st.count)
+  check("enabled is a BOOLEAN, so an OFF expander cannot read as a fault",
+        type(st) == "table" and type(st.enabled) == "boolean")
+  check("source names which door the packs came through",
+        type(st) == "table"
+        and (st.source == nil or type(st.source) == "string"))
+end
+
+-- 🔒 AND `_G.expander` STAYS UNPUBLISHED, deliberately and by check. The
+-- cheap fix for 6.416.0 was to set that global so the old row started
+-- working; it would have published this module's entire insides as a
+-- supported surface, for one count. A sentry is what stops the next
+-- release reaching for it again.
+check("🔒 _G.expander is still NOT published — the service is the surface",
+      _G.expander == nil, tostring(_G.expander))
+
 out(("\n%d passed, %d failed\n\n"):format(pass, fail))
 os.execute("rm -rf '" .. TMP .. "'")
 os.exit(fail == 0 and 0 or 1)

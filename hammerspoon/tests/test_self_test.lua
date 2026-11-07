@@ -66,10 +66,34 @@ hs = {
 }
 
 -- the live things the module reads, in a healthy shape
-_G.hyperBoundCount, _G.hyperConflictCount = 111, 0
+_G.hyperBoundCount, _G.hyperConflictCount = 119, 0
+_G.hyperShortcutCount = 111   -- 119 less the 8 forwarded chords
 _G.screenshots   = { dir = "/Users/x/OneDrive/2026 Screenshots" }
 _G.expanderTap   = mkTap(true)
-_G.expander      = { snippets = { [";bd"] = 1, ["gg1"] = 2 } }
+
+-- 🔬 6.416.0 — THE SUITE USED TO INVENT `_G.expander` HERE, and that one
+-- line is why the Snippets row could be green in the gate and ⚠️ on every
+-- Mac: text_expander.lua has never published that global. 6.273.0 — a stub
+-- that invents a calling convention does not merely MISS the bug, it
+-- CERTIFIES it. The module asks `_G.service` now, so the suite stands up
+-- the registry the way init.lua publishes it, and SNIPSTATE is what the
+-- real provider would return.
+local SNIPSTATE = { count = 2, enabled = true, source = "table",
+                    problems = 0, loadSecs = 0.4 }
+local SNIPTHROWS = false
+_G.service = {
+    registry = {},
+    has  = function(n) return _G.service.registry[n] ~= nil end,
+    call = function(n, ...)
+        local f = _G.service.registry[n]
+        if not f then return nil end
+        return f(...)
+    end,
+}
+_G.service.registry["expander.state"] = function()
+    if SNIPTHROWS then error("the expander would not say", 0) end
+    return SNIPSTATE
+end
 _G.autocorrectTap = mkTap(true)
 _G.draftKeeper   = { enabled = true, timer = {}, everySecs = 5,
                      sampleSecs = 5, apps = { "chrome", "safari" } }
@@ -194,9 +218,25 @@ do
     check("a key claimed twice is a fault, not a count",
           stateOf("⇪ shortcuts") == "⚠️", stateOf("⇪ shortcuts"))
     _G.hyperConflictCount = 0
-    _G.hyperBoundCount = 0
+
+    -- 📏 THE FIXTURE THAT BITES IS THE PAIR DISAGREEING (6.230.0). With one
+    -- number published both readings agree and the bug is invisible; 119
+    -- bound against 111 shortcuts is the shape of LL's own boot, and only
+    -- the shipped figure matches the line printed above it.
+    check("🚨 the count is the one the BOOT LINE prints, not every bind",
+          detailOf("⇪ shortcuts"):find("111 bound", 1, true) ~= nil
+          and detailOf("⇪ shortcuts"):find("119", 1, true) == nil,
+          detailOf("⇪ shortcuts"))
+    _G.hyperShortcutCount = nil
+    check("...and an older build with no published figure falls back and SAYS so",
+          detailOf("⇪ shortcuts"):find("119 bound", 1, true) ~= nil
+          and detailOf("⇪ shortcuts"):find("forwarded", 1, true) ~= nil,
+          detailOf("⇪ shortcuts"))
+    _G.hyperShortcutCount = 111
+
+    _G.hyperShortcutCount, _G.hyperBoundCount = 0, 0
     check("nothing bound at all is a fault", stateOf("⇪ shortcuts") == "⚠️")
-    _G.hyperBoundCount = 111
+    _G.hyperShortcutCount, _G.hyperBoundCount = 111, 119
 
     DIRMODE = nil
     check("🚨 a screenshots folder that is NOT THERE is ⚠️ — ⇪4 has nowhere "
@@ -204,14 +244,39 @@ do
           stateOf("Screenshots") == "⚠️", stateOf("Screenshots"))
     DIRMODE = "directory"
 
-    _G.expander = { snippets = {} }
-    check("no snippets loaded is ⚠️ and names the way to load them",
+    SNIPSTATE = { count = 0, enabled = true }
+    check("no snippets loaded is ⚠️ and names the report, not the IMPORTER",
           stateOf("Snippets") == "⚠️"
-          and detailOf("Snippets"):find("snippetsImport", 1, true) ~= nil)
-    _G.expander = { snippets = { a = 1, b = 2 } }
-    check("...and a healthy one names HOW MANY, read off the table",
-          detailOf("Snippets"):find("2 loaded", 1, true) ~= nil,
+          and detailOf("Snippets"):find("snippetsReport", 1, true) ~= nil
+          and detailOf("Snippets"):find("snippetsImport", 1, true) == nil,
           detailOf("Snippets"))
+    SNIPSTATE = { count = 1926, enabled = true }
+    check("...and a healthy one names HOW MANY, read through the service",
+          stateOf("Snippets") == "✅"
+          and detailOf("Snippets"):find("1926 loaded", 1, true) ~= nil,
+          detailOf("Snippets"))
+
+    -- 🚨 THE REGRESSION THAT COST THE RELEASE: with no provider at all the
+    -- row must say it could not ASK — never "NO snippets are loaded", which
+    -- is a claim about his library made by something that never read it
+    -- (6.196.1, in the row he reads every morning).
+    local keep = _G.service.registry["expander.state"]
+    _G.service.registry["expander.state"] = nil
+    check("🚨 a module that did not load reads ❔ COULD NOT ASK, never 'none loaded'",
+          stateOf("Snippets") == "❔"
+          and detailOf("Snippets"):find("NO snippets", 1, true) == nil,
+          stateOf("Snippets") .. " " .. detailOf("Snippets"))
+    _G.service.registry["expander.state"] = keep
+
+    SNIPTHROWS = true
+    check("...and a provider that RAISES is ❔ too, never a count",
+          stateOf("Snippets") == "❔", stateOf("Snippets"))
+    SNIPTHROWS = false
+
+    SNIPSTATE = { count = 1926, enabled = false }
+    check("expansion switched OFF is ⏳ on purpose, not a fault",
+          stateOf("Snippets") == "⏳", stateOf("Snippets"))
+    SNIPSTATE = { count = 2, enabled = true, source = "table" }
 
     -- ⏳ IS NOT ⚠️: switched off on purpose is not a fault (6.196.1)
     _G.draftKeeper.enabled = false

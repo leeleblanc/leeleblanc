@@ -133,15 +133,28 @@ function M.setup(core)
                          .. "this Mac is dead while it is. _G.secureInputReport()"
         end)
 
+        -- 📏 6.416.0 — THE SAME NUMBER THE BOOT LINE PRINTS. This row read
+        -- `_G.hyperBoundCount`, which counts EVERY combo claimed, while the
+        -- boot line prints `_G.hyperShortcutCount` — the same total less the
+        -- forwarded chords, because init.lua says in capitals that FORWARDED
+        -- KEYS ARE NOT SHORTCUTS. So the block read "119 bound" eight lines
+        -- under "111 ⇪ shortcuts", about one fact, every morning (LL's
+        -- 2026-11-06 boot). 6.231.0: one renderer, two readers — a second
+        -- number for an idea already rendered is a number that contradicts
+        -- it. The fallback is the raw count, for a build that predates the
+        -- published figure, and it SAYS which it used.
         add("⇪ shortcuts", function()
-            local n = tonumber(_G.hyperBoundCount)
+            local n    = tonumber(_G.hyperShortcutCount)
+            local raw  = tonumber(_G.hyperBoundCount)
+            local note = ""
+            if not n then n, note = raw, " (every bind, forwarded keys included)" end
             if not n then return "❔", "the key registry has not been published" end
             if n <= 0 then return "⚠️", "NOTHING is bound to ⇪" end
             local c = tonumber(_G.hyperConflictCount) or 0
             if c > 0 then
                 return "⚠️", n .. " bound, but " .. c .. " key(s) are claimed twice"
             end
-            return "✅", n .. " bound, no key claimed twice"
+            return "✅", n .. " bound, no key claimed twice" .. note
         end)
 
         add("Screenshots", function()
@@ -159,19 +172,44 @@ function M.setup(core)
             return "✅", "⇪4's folder is there — " .. dir
         end)
 
+        -- 🚨 6.416.0 — THIS ROW ASKED A GLOBAL NOTHING PUBLISHES, AND SAID
+        -- "NO snippets are loaded" ON EVERY MAC, FOR EVER (LL's 2026-11-06
+        -- boot, over a library of nineteen hundred). It read `_G.expander`,
+        -- which text_expander.lua has never set — it publishes expanderTap,
+        -- expanderTimers, expanderResetBuffer and expanderWatchdog and
+        -- nothing else. 6.339.0's shape: nil, nil-guarded, so the refusal
+        -- was correct-looking code giving a correct-sounding reason.
+        -- 🔬 AND THE GATE CERTIFIED IT: tests/test_self_test.lua assigned
+        -- `_G.expander` itself, so the suite was green about a row that
+        -- could not be green on a Mac (6.273.0). It asks the SERVICE now,
+        -- which is the surface every other module reaches through and the
+        -- one a check can drive honestly.
+        -- 📏 AND IT NAMES THE RIGHT DOOR. The old row sent him to
+        -- _G.snippetsImport(), which finds .alfredsnippets files — there is
+        -- nothing to import when the library is already loaded. The command
+        -- that answers "what is in there?" is _G.snippetsReport().
         add("Snippets", function()
-            local tap = _G.expanderTap
-            local s, d = st.tapState(tap)
-            local n = 0
-            local exp = _G.expander
-            if type(exp) == "table" and type(exp.snippets) == "table" then
-                for _ in pairs(exp.snippets) do n = n + 1 end
+            local s, d  = st.tapState(_G.expanderTap)
+            local asked = _G.service and _G.service.has
+                          and _G.service.has("expander.state")
+            if not asked then
+                return "❔", "the snippets module did not load — nothing to ask"
             end
+            local ok, got = pcall(function()
+                return _G.service.call("expander.state")
+            end)
+            if not ok or type(got) ~= "table" then
+                return "❔", "the snippets module would not say — _G.snippetsReport()"
+            end
+            local n = tonumber(got.count) or 0
             if n == 0 then
-                return "⚠️", "NO snippets are loaded — _G.snippetsImport() finds them"
+                return "⚠️", "NO snippets are loaded — _G.snippetsReport() says why"
+            end
+            if not got.enabled then
+                return "⏳", n .. " loaded · expansion is switched OFF"
             end
             if s ~= "✅" then return s, n .. " loaded, but the tap is " .. d end
-            return "✅", n .. " loaded · the tap is running"
+            return "✅", n .. " loaded · the tap is running · _G.snippetsReport()"
         end)
 
         add("Autocorrect", function()
