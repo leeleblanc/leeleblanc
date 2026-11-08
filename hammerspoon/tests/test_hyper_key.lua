@@ -1279,7 +1279,13 @@ do
   check("...expectation cleared", w.SB.hyperReleaseExpected == nil)
   check("with ⇪ up the call is a no-op (false)", w.SB.hyperExpectRelease(1.5) == false)
 
-  -- a key under the shortened hold still pushes the deadline out
+  -- 🚨 6.420.0 — AND THIS CHECK ASSERTED THE BUG UNTIL TODAY. Its own
+  -- comment read "a key under the shortened hold still pushes the
+  -- deadline out", which is 6.248.0's shape: a check pinned to the
+  -- BEHAVIOUR rather than to the rule. The behaviour it pinned is LL's
+  -- 18.4-second hold — he typed into the panel and every letter bought
+  -- the hold eight more seconds. A DECLARED panel's deadline is
+  -- absolute now, so the same fixture must RELEASE.
   w.now = 3010
   w.mkEvent({}, "f18", true, false, false).post()
   w.SB.hyperExpectRelease(1.5, "a pad")
@@ -1289,8 +1295,26 @@ do
   t = w.SB.hyperLatchTimer; w.SB.hyperLatchTimer = nil
   w.now = 3011.6
   t.fn()
-  check("🔒 a key under the shortened hold keeps it (re-armed, not released)",
-        w.SB.hyperActive == true and w.SB.hyperLatchTimer ~= nil)
+  check("🚨 a key under a PANEL's hold no longer buys it eight more seconds "
+     .. "— the deadline is absolute (his 18.4 s hold)",
+        w.SB.hyperActive == false, tostring(w.SB.hyperActive))
+  w.mkEvent({}, "f18", false, false, false).post()
+
+  -- 🔒 THE HALF THAT MUST NOT MOVE, and it is the whole safety of this
+  -- release: with NO panel declared, a key still proves the hold is
+  -- real and still pushes the watchdog out (6.162.1). A fix that
+  -- bounded every hold would take ⇪ away under his own finger.
+  w.now = 3015
+  w.mkEvent({}, "f18", true, false, false).post()
+  w.now = 3016
+  w.mkEvent({}, "d", true, false, false).post()
+  w.mkEvent({}, "d", false, false, false).post()
+  t = w.SB.hyperLatchTimer; w.SB.hyperLatchTimer = nil
+  w.now = 3016.6
+  if t then t.fn() end
+  check("🔒 …while an ORDINARY hold still KEEPS ⇪ when a key arrives",
+        w.SB.hyperActive == true and w.SB.hyperLatchTimer ~= nil,
+        tostring(w.SB.hyperActive))
   w.mkEvent({}, "f18", false, false, false).post()
 
   -- the page saw the F18 keyUp itself
@@ -1347,6 +1371,98 @@ do
       local ok, kk, ww = pcall(V, nil)
       return ok and kk == "latch" and type(ww) == "string"
   end)())
+
+  -- ---- ⏱ 6.420.0 — A PANEL'S DEADLINE IS ABSOLUTE --------------------
+  -- LL, 2026-11-07: "I can't use Hammerspoon right now." His own storm
+  -- report: an 18.4-SECOND ⇪ hold, Chrome in front, a Unified Search
+  -- handoff pending, while he typed into that panel. Every keystroke
+  -- called hyperTouch, which stamped hyperHeldAt and wiped the backdate
+  -- 6.165.1 used to shorten the hold — and the watchdog's re-arm then
+  -- asked for the FULL eight seconds again.
+  local P = w.SB.hyperLatchPlan
+  check("⏱ the latch planner is PURE and reachable", type(P) == "function")
+
+  check("with NO panel, an ordinary hold is unchanged — typing waits",
+    (function()
+      local act, wait = P({ now = 10, heldAt = 9.6, latchSecs = 8 })
+      return act == "wait" and wait > 7 and wait < 8.01, tostring(act) .. "/" .. tostring(wait)
+    end)())
+  check("…and silence still releases it at the eight-second mark",
+    (function()
+      local act = P({ now = 10, heldAt = 2, latchSecs = 8 })
+      return act == "release", tostring(act)
+    end)())
+
+  -- 🚨 THE FIXTURE THAT BITES, and it is his incident in four numbers:
+  -- the panel's deadline has passed, and he is STILL TYPING (heldAt is
+  -- a moment ago, so `quiet` is tiny). Every release before this one
+  -- re-armed for eight seconds here, for ever, which is why the hold
+  -- ran 18.4 s. Nothing but the clock may decide it now.
+  check("🚨 TYPING CANNOT PUSH A PANEL'S DEADLINE OUT — the 18.4 s hold",
+    (function()
+      local act, _, why = P({ now = 1.6, heldAt = 1.55,
+                              handoffUntil = 1.5, latchSecs = 8 })
+      return act == "release" and tostring(why):find("deadline", 1, true) ~= nil,
+             tostring(act) .. " — " .. tostring(why)
+    end)())
+
+  check("…and before the deadline it still waits, so a panel gets its beat",
+    (function()
+      local act, wait = P({ now = 1.0, heldAt = 0.95,
+                            handoffUntil = 1.5, latchSecs = 8 })
+      return act == "wait" and wait > 0.49 and wait < 0.51,
+             tostring(act) .. "/" .. tostring(wait)
+    end)())
+  -- 🚨 AND THE RE-ARM MAY NOT REACH PAST THE DEADLINE, or the eight
+  -- seconds come back through the window the first test just closed.
+  check("🚨 the re-arm is clamped to the deadline, never the eight seconds",
+    (function()
+      local _, wait = P({ now = 1.0, heldAt = 1.0,
+                          handoffUntil = 1.5, latchSecs = 8 })
+      return wait and wait <= 0.5 + 1e-9, tostring(wait)
+    end)())
+  check("…and it never asks for a zero or negative wait (no busy loop)",
+    (function()
+      local _, wait = P({ now = 1.4999, heldAt = 1.4999,
+                          handoffUntil = 1.5, latchSecs = 8 })
+      return wait and wait >= 0.05 - 1e-9, tostring(wait)
+    end)())
+  -- 🧪 THE SWEEP'S OWN FINDING: swapping the two tests survived, because
+  -- both answer "release". The order is therefore about the REASON, and
+  -- a report that calls a panel's deadline "silence" sends the next
+  -- diagnosis to the wrong place — so the reason is what is asserted.
+  check("🧪 when BOTH are true the panel's deadline is the reason given, "
+     .. "never 'silence' — the report must name the right fact",
+    (function()
+      local act, _, why = P({ now = 20, heldAt = 1,
+                              handoffUntil = 1.5, latchSecs = 8 })
+      return act == "release" and tostring(why):find("deadline", 1, true) ~= nil,
+             tostring(act) .. " — " .. tostring(why)
+    end)())
+  check("a deadline exactly reached is reached, not missed by a hair",
+    P({ now = 1.5, heldAt = 1.5, handoffUntil = 1.5, latchSecs = 8 }) == "release")
+  check("nil arguments answer something and never throw", (function()
+      local ok, act = pcall(P, nil)
+      return ok and type(act) == "string", tostring(act)
+  end)())
+
+  -- ---- the init.lua side, asserted against the SOURCE ---------------
+  -- A stub clock cannot see a deadline that is never cleared, and a
+  -- hold that inherits the last one's deadline is the opposite bug.
+  check("⏱ init.lua sets the panel deadline, and the EARLIEST one wins",
+    INIT_SRC:find("_G.hyperHandoffUntil = want", 1, true) ~= nil
+    and INIT_SRC:find("want < _G.hyperHandoffUntil", 1, true) ~= nil)
+  check("🚨 …and hyperExit CLEARS it, so the next hold is independent",
+    (function()
+      local body = INIT_SRC:match("hyperExit = function%(%)(.-)\nend")
+      return body and body:find("_G.hyperHandoffUntil = nil", 1, true) ~= nil,
+             tostring(body and body:sub(1, 120))
+    end)())
+  check("…and the watchdog asks the planner rather than its own arithmetic",
+    INIT_SRC:find("_G.hyperLatchPlan({", 1, true) ~= nil)
+  check("…with a fallback, so a Mac without core/hyper_key.lua still has "
+     .. "a watchdog rather than none",
+    INIT_SRC:find("elseif quiet < _G.hyperLatchSecs - 0.05 then", 1, true) ~= nil)
 
   -- the report
   w.SB.hyperRelayReleases, w.SB.hyperPanelHandovers, w.SB.hyperLatchReleases = 2, 5, 0

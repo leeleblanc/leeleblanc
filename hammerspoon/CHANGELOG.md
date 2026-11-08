@@ -5,6 +5,84 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.420.0 — ⏱ A PANEL'S ⇪ DEADLINE IS ABSOLUTE
+               (init.lua §3.12 + core/hyper_key.lua)
+
+  LL, 2026-11-07: "I can't use Hammerspoon right now." His own storm
+  report, from the day before, is the whole diagnosis: an 18.4-SECOND
+  ⇪ hold with Google Chrome in front, a missing F18 key-up and a
+  Unified Search handoff pending — while he typed into that panel.
+
+  🔎 THE MECHANISM, AND IT IS TWO LINES DEEP. 6.165.1 shortens the hold
+  for a panel that says it took the keyboard, and it does it by
+  BACKDATING `_G.hyperHeldAt` so the ordinary eight-second watchdog
+  comes due in 1.5. But every key under ⇪ calls `_G.hyperTouch()`:
+
+      _G.hyperTouch = function()
+          if _G.hyperActive then _G.hyperHeldAt = <now> end
+      end
+
+  — so the first keystroke wipes the backdate. And the watchdog's
+  re-arm then asks for `hyperLatchSecs - quiet`, which is the FULL
+  EIGHT SECONDS again. One letter typed into the panel destroyed the
+  1.5-second deadline for the rest of that hold, and he types into the
+  panel, so it was destroyed every time. MEASURED against the shipped
+  rule: typing every 0.4 s, ⇪ NEVER let go — the hold only ended when
+  he stopped touching the keyboard for eight full seconds.
+
+  🚨 AND THE CONFIG SAID SO IN ITS OWN COMMENT: "the deadline drops to
+  `secs` of silence; a real key under ⇪ (hyperTouch) still pushes it
+  out." So it was a DECISION, not an oversight — and 6.311.0's rule is
+  that a decision's premise can expire. "A key proves the hold is real"
+  is true of an ordinary hold and FALSE once a panel has declared it
+  took the keyboard, because then the keys are going to the panel and
+  prove nothing whatever about Caps Lock.
+
+  🔑 SO THE DEADLINE BECOMES A WALL-CLOCK INSTANT. `_G.hyperHandoffUntil`
+  is set once, by the panel, and nothing moves it: not a keystroke, not
+  an autorepeat, not a second panel asking for longer — the EARLIEST
+  wins, or the later panel buys the first one more time. Every way out
+  passes through `hyperExit`, so there is ONE place that clears it and
+  none of the five exits can forget.
+
+  🔒 AN ORDINARY HOLD IS UNTOUCHED, and that is the safety of the
+  release rather than a footnote: with no panel declared, a key still
+  stamps `hyperHeldAt` and still pushes the watchdog out, exactly as
+  6.162.1 wrote it. A fix that bounded EVERY hold would take ⇪ away
+  under his own finger, which is worse than the bug. The sweep drives
+  that mutation and it fails by name.
+
+  📏 THE COST, NAMED: with a panel open, ⇪ lets go `secs` after the
+  panel said so even if Caps Lock is still physically down. That is
+  6.165.1's own premise — "a shortcut that opens a text field is one
+  nobody holds ⇪ through" — made true rather than hoped for, and a real
+  finger re-enters the hold on the next F18 autorepeat as it always did.
+
+  🧪 ONE PURE PLANNER DECIDES. `_G.hyperLatchPlan` is handed the time
+  rather than reading one, so the gate drives every branch with no Mac
+  and no clock; `hyperWatchLatch` asks it, and a Hammerspoon where
+  core/hyper_key.lua did not load falls back to the pre-6.420.0 rule
+  EXACTLY rather than to no watchdog at all (IT DEGRADES, IT NEVER
+  BREAKS).
+
+  🧪 AND AN EXISTING CHECK ASSERTED THE BUG. "🔒 a key under the
+  shortened hold keeps it (re-armed, not released)" — with its own
+  comment reading "a key under the shortened hold still pushes the
+  deadline out" — pinned the behaviour rather than the rule (6.248.0,
+  eighth time), and the behaviour it pinned is the 18.4-second hold.
+  The same fixture now requires a RELEASE, and a second check beside it
+  requires an ordinary hold to be KEPT.
+
+  🧪 10 mutations, 9 bit on the first pass and 10 of 10 after; the no-op
+  control survived and the tree was restored SHA-verified. The survivor
+  is the finding worth keeping: SWAPPING THE TWO TESTS IN THE PLANNER
+  CHANGED NOTHING, because both answer "release" — so the comment
+  claiming "that ordering is the whole release" OVERCLAIMED, and is
+  corrected. What the order really decides is the REASON, and a report
+  that blames "silence" for a panel's own deadline sends the next
+  diagnosis somewhere else; the check added asserts the reason rather
+  than the order.
+
 NEW IN 6.419.0 — 📋 `_G.snippetsList()` ANSWERS BEFORE IT DUMPS
                (modules/text_expander.lua)
 

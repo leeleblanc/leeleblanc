@@ -1,4 +1,4 @@
-# TESTING — how to score release 6.419.0
+# TESTING — how to score release 6.420.0
 
 You install ONE archive and it carries several releases. Below are the
 steps for each release this archive is new for, newest first. Run the
@@ -26,6 +26,88 @@ else is a LOSS and I fix it before building further. You are the only
 scorer; I never mark my own.
 
 ---
+
+## 6.420.0
+
+6.420.0 verify with LL — ⏱ ⇪ LETS GO WHEN A PANEL SAYS SO (KNOWN GROUND)
+WHAT CHANGED: when a panel tells this config it has taken the keyboard,
+⇪ now lets go at the deadline that panel asked for — and typing into
+the panel can no longer push that deadline out.
+🔎 YOUR OWN STORM REPORT IS THE DIAGNOSIS, and you did nothing wrong:
+an 18.4-SECOND ⇪ hold, Chrome in front, a Unified Search handoff
+pending, while you typed into that panel. Every letter you typed
+called the "this hold is real" stamp, which wiped the 1.5-second
+deadline and bought the hold EIGHT MORE SECONDS. So it only ended when
+you stopped touching the keyboard for a full eight seconds. Measured
+against the build you are on: typing every 0.4 s, it NEVER let go.
+
+A. FIRST — GET BACK TO WORK. Do this before any test.
+A1. Install and reload. If ⇪ is latched at that moment, press
+    **⇪⇧Esc** (Caps Lock + Shift + the Escape key) — it pauses this
+    config and your keyboard is yours. ⇪⇧Esc again resumes.
+A2. If the keyboard is so far gone that a shortcut cannot be pressed:
+    quit Hammerspoon from the menu bar, then in Terminal
+        hidutil property --set '{"UserKeyMapping":[]}'
+    which gives Caps Lock back to macOS. Relaunching Hammerspoon
+    re-applies it.
+A3. Use the Mac normally for a while before doing B. If ⇪ feels
+    ordinary — shortcuts fire, typing types — that is the headline.
+
+B. THE HEADLINE — the case that was costing you 18 seconds.
+B1. Press **⇪D** (unified search) or **⇪N**, and TYPE INTO IT for
+    several seconds, as you would normally.
+B2. Let go of Caps Lock whenever you like and carry on typing.
+    EXPECT: your letters go into the panel as text, throughout.
+    **A FAIL is letters running shortcuts instead of typing**, which
+    is the bug — and if it happens, note roughly how long for.
+B3. Console: `_G.hyperKeyReport()`.
+    EXPECT the `latch :` line to read **0** — ⇪ has not stuck. A
+    number there is the fault and I want the whole block.
+    EXPECT `handover :` to have climbed, which is the normal ending.
+
+C. THE HALF THAT MUST NOT HAVE MOVED — please do this one.
+C1. Hold Caps Lock DOWN, with no panel open, and keep pressing letter
+    keys for ten or fifteen seconds (they will run shortcuts — do it
+    somewhere harmless, like the Desktop).
+    EXPECT: ⇪ stays held for as long as your finger is down. It must
+    NOT let go under you.
+    **A FAIL here is ⇪ releasing while you are still holding it** —
+    that would be worse than the bug and I want to know at once.
+C2. Let go. The next ⇪ press works as ever.
+
+D. MUST STILL WORK — this is the key every shortcut goes through, so
+   this half matters more than B.
+D1. A spread of keys across different tools: ⇪T, ⇪D, ⇪N, ⇪3, ⇪X, ⇪4,
+    ⇪space, ⇪V, ⇪/, ⇪⇧S.
+D2. ⇪⇧. the Jug Player, ⇪⇧, the Mug Player — both take the keyboard,
+    so both exercise the new deadline.
+D3. ⇪⇧Esc pauses and resumes.
+D4. ⌃⌥⌘⇧Esc, the panic chord, still releases everything.
+D5. Boot: All green, 79 modules, the usual ⇪ shortcut count.
+
+E. PASTE BACK, PASS OR FAIL.
+E1. `_G.hyperKeyReport()` after a day — `latch`, `handover` and
+    `relay` are three different endings and only `latch` is a fault.
+E2. If another storm ever happens, `_G.stormReport()` and the file it
+    names. The `asked :` line will show the panel handoff and, now,
+    the deadline it was given.
+
+F. A JUDGEMENT ONLY YOU CAN MAKE.
+F1. 1.5 seconds is the panel's own number and I have not changed it.
+    If ⇪ now lets go while you are still mid-chord in a panel, say so
+    and it goes up; if 18 seconds became 2 and that still feels long,
+    it goes down. It is a number, not a release.
+F2. 📏 NAMED, NOT FIXED, so it is not a surprise: your Nov 6 report
+    also shows two shortcuts taking about 1.1 and 1.5 SECONDS each
+    (⇪space and ⇪⇧.). That is main-thread work and it is a separate
+    fault — it is why a run of six shortcuts can span the five seconds
+    the storm rule measures. Tell me whether ⇪space FEELS slow when
+    you press it and that is the next release.
+F3. 🔨 While this was happening the Mac was unusable — every key ran a
+    shortcut and nothing typed. My reading is that it is the same
+    class as 6.214.0, and the honest pass count is 1. Your tag.
+
+
 
 ## 6.419.0
 
@@ -184,53 +266,6 @@ D1. Is the Console noticeably quieter now? That was the point. If any
     report STILL doubles, name it — the sentry says that should be
     impossible, and an exception would mean it is reaching the Console
     by a route I have not found.
-
-
-
-## 6.416.0
-
-6.416.0 verify with LL — 🩺 THE SELF TEST TELLS THE TRUTH (KNOWN GROUND)
-WHAT CHANGED: your word was "6.413.0: do better". Three faults in the
-block you read every morning, all mine.
-🚨 AND YOUR SNIPPETS WERE NEVER MISSING. The row asked a global this
-config has never published, so it counted zero and said "NO snippets
-are loaded" — on every Mac, for ever, over your nineteen hundred. The
-gate certified it because my own test file invented that global.
-
-A. THE HEADLINE — reload and read the 🩺 block.
-A1. EXPECT the Snippets row to read a REAL NUMBER:
-      ✅ Snippets  1926 loaded · the tap is running · _G.snippetsReport()
-    **A FAIL is "NO snippets are loaded"** — that is the old row.
-A2. EXPECT the ⇪ shortcuts row to read **111**, the same number as the
-    🧭 line above it. It used to say 119.
-A3. EXPECT the summary to read "every tool answered" with no ⚠️.
-    PASTE THE WHOLE BLOCK.
-
-B. THE RIGHT DOOR FOR SNIPPETS — and this is the "good report" you
-   asked for, which already existed and I had never pointed you at.
-B1. Console: `_G.snippetsReport()`.
-    EXPECT: a short block — how many triggers, how long they took to
-    load, where the packs came from, any problems, and your recent
-    picks. NOT two thousand lines.
-B2. `_G.snippetsList()` WAS the firehose, deliberately: one line per
-    trigger. That is what flooded your Console, and it was my message
-    that sent you there. ⚠️ SUPERSEDED BY 6.419.0 — it answers with a
-    summary and twenty rows now, and the firehose is
-    `_G.snippetsList(true)`. Score this step from 6.419.0's plan, not
-    this one.
-
-C. MUST STILL WORK.
-C1. ⇪⇧S opens the picker; a trigger you type still expands.
-C2. The other seven 🩺 rows are unchanged.
-C3. `_G.selfTest()` still runs the block on demand.
-
-D. A JUDGEMENT ONLY YOU CAN MAKE.
-D1. Now that the block is not lying, is it WELCOME at every boot, or
-    noise? That question was worth nothing while one row was wrong, so
-    I am asking it again. `settings = { self_test = { sayBoot = false } }`
-    makes it quiet and leaves the command.
-D2. Which other tools belong on it? Candidates not added: Hamsidian's
-    notes folder, the clipboard poll, the backup, OneDrive.
 
 
 

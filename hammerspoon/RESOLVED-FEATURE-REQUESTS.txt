@@ -1,5 +1,5 @@
 ========================================================================
-RESOLVED FEATURE REQUESTS — Hammerspoon config 6.419.0
+RESOLVED FEATURE REQUESTS — Hammerspoon config 6.420.0
 Every feature and how to use it. Generated from the modules' own
 cheat sheets (the rows ⇪/ draws), so it is never out of date.
 ⇪ = Caps Lock held (the hyper key). ⇪⇧X = Caps Lock + Shift + X.
@@ -175,8 +175,10 @@ In the Console, _G.<tool>Report() prints any tool's own report.
   90 days   Pruned once a session; nothing else ever removes a row
   forget    _G.draftForget(n) removes one · _G.draftForgetAll()
   report    _G.draftKeeperReport() — what it kept and what it refused
-  is it on? _G.draftCheck() — click into a box and run it: it says what
-            it can see in that field right now, and what would happen
+  ⇪⇧]   IS IT WORKING? Press it WITH THE CARET IN YOUR TEXT BOX —
+            it names the app, the field, and whether this would be kept
+  is it on? _G.draftCheck() in the Console can only ever see the Console,
+            because typing it moves the focus — which is why ⇪⇧] exists
 
 🗒 QUICK APPEND PAD (via ⇪N or ⇪J — one box, four destinations)   [modules/note_pad.lua]
   in ⇪N   The "+ ➕ Append" row in SCRATCH NOTES opens an Append tab — type entries, one per line (⇪2 was this pad's key until 6.182.0; it is the sequential copy now)
@@ -917,6 +919,7 @@ In the Console, _G.<tool>Report() prints any tool's own report.
 
 📜 RELEASE INDEX — newest first, one line per release (the full story of each is in CHANGELOG.md)
 ------------------------------------------------------------------------
+  6.420.0  ⏱ A PANEL'S ⇪ DEADLINE IS ABSOLUTE
   6.419.0  📋 `_G.snippetsList()` ANSWERS BEFORE IT DUMPS
   6.418.0  ℹ️ A MAC WITH NO PROFILE OF ITS OWN SAYS SO
   6.417.0  📠 A REPORT PRINTS ONCE (35 reports across modules/

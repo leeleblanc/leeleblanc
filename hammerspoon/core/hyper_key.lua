@@ -80,6 +80,78 @@
 -- file is at its line budget and this one already owns the hyper key.
 -- §3.12 asks it and falls back to the old single sentence if this file
 -- did not load — it degrades, it never breaks.
+-- =====================================================================
+-- ⏱ 6.420.0 — A PANEL'S DEADLINE IS ABSOLUTE, AND TYPING CANNOT MOVE IT
+-- =====================================================================
+-- LL, 2026-11-07: "I can't use Hammerspoon right now." His own storm
+-- report is the evidence: an 18.4-SECOND ⇪ hold with Chrome in front
+-- and a Unified Search handoff pending, while he typed into the panel.
+--
+-- 🔎 THE MECHANISM, and it is two lines deep. 6.165.1 shortens the hold
+-- for a panel that says it took the keyboard, and it does it by
+-- BACKDATING `hyperHeldAt` so the ordinary 8-second watchdog comes due
+-- in 1.5. But every key under ⇪ calls `_G.hyperTouch()`, which stamps
+-- `hyperHeldAt = now` — so the first keystroke wipes the backdate. And
+-- the watchdog's re-arm then asks for `hyperLatchSecs - quiet`, which
+-- is the FULL EIGHT SECONDS again. One letter typed into the panel
+-- destroys the 1.5-second deadline for the rest of that hold, and he
+-- types into the panel, so it was destroyed every time.
+--
+-- 🔑 SO THE DEADLINE BECOMES A WALL-CLOCK INSTANT RATHER THAN A SILENCE.
+-- `_G.hyperHandoffUntil` is set once, by the panel, and nothing moves
+-- it: not a keystroke, not an autorepeat, not a second panel asking for
+-- longer (the EARLIEST wins). Typing still stamps `hyperHeldAt`, so an
+-- ORDINARY hold keeps 6.162.1's contract exactly — a real finger still
+-- holds ⇪ for as long as it likes. Only a panel that has DECLARED it
+-- took the keyboard is bounded, which is the one case where the keys
+-- arriving prove nothing about Caps Lock: they are going to the panel.
+--
+-- 📏 THE COST, NAMED: with a panel open, ⇪ lets go `secs` after the
+-- panel said so even if he is still holding Caps Lock down. That is
+-- 6.165.1's own premise ("a shortcut that opens a text field is one
+-- nobody holds ⇪ through") made true rather than hoped for, and a real
+-- finger re-enters the hold on the next F18 autorepeat as it always did.
+--
+-- PURE, so the gate drives every branch with no Mac and no clock: the
+-- planner is handed the time rather than reading one.
+function _G.hyperLatchPlan(o)
+    o = o or {}
+    local now   = tonumber(o.now)          or 0
+    local held  = tonumber(o.heldAt)       or 0
+    local upto  = tonumber(o.handoffUntil)        -- nil = no panel declared
+    local latch = tonumber(o.latchSecs)    or 8
+    local floor = tonumber(o.floor)        or 0.05
+
+    -- 🚨 THE PANEL'S DEADLINE IS ASKED AGAINST THE CLOCK, never against
+    -- the silence. That is the release: the old rule had no deadline
+    -- test at all and re-armed for `latchSecs`, so a stream of
+    -- keystrokes bought the hold eight more seconds, for ever.
+    -- 📏 AND THE ORDER OF THE TWO TESTS IS NOT LOAD-BEARING, said rather
+    -- than implied: both answer "release", so swapping them changes no
+    -- behaviour — the sweep proved it by surviving. What it DOES change
+    -- is the REASON, and a report that blames "silence" for a panel's
+    -- own deadline sends the next diagnosis somewhere else, so the
+    -- order is kept and a check holds the reason rather than the order.
+    if upto and now >= upto then
+        return "release", nil, "the panel's own deadline passed"
+    end
+    local quiet = now - held
+    if quiet >= latch - 0.05 then
+        return "release", nil, "silence"
+    end
+    -- Still typing. Look again when the silence would be up — but NEVER
+    -- later than the panel's deadline, or the re-arm smuggles the eight
+    -- seconds back in through the window the first test just closed.
+    local wait = latch - quiet
+    if upto then
+        local toDeadline = upto - now
+        if toDeadline < wait then wait = toDeadline end
+    end
+    if wait < floor then wait = floor end
+    return "wait", wait,
+           upto and "typing, and the panel's deadline binds" or "typing"
+end
+
 function _G.hyperEndVerdict(o)
     o = o or {}
     local kind = "latch"

@@ -2,10 +2,33 @@
 -- * Working VERSION *
 -- =====================================================================
 -- =====================================================================
--- 11-07-26 using Claude          ← EDITED date. Bumped with every release.
+-- 11-08-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.419.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.420.0
 -- =====================================================================
+
+-- NEW IN 6.420.0 — ⏱ A PANEL'S ⇪ DEADLINE IS ABSOLUTE (init.lua §3.12
+--   + core/hyper_key.lua). LL: "I can't use Hammerspoon right now." His
+--   own storm report is the evidence — an 18.4-SECOND ⇪ hold, Chrome in
+--   front, a Unified Search handoff pending, while he typed into that
+--   panel. 6.165.1 shortens the hold for a panel that says it took the
+--   keyboard, and did it by BACKDATING hyperHeldAt; every key calls
+--   _G.hyperTouch(), which stamps hyperHeldAt = now and wipes the
+--   backdate, and the watchdog's re-arm then asks for the FULL eight
+--   seconds. One letter typed into the panel destroyed the 1.5 s
+--   deadline for the rest of that hold — and he types into the panel.
+--   🔑 THE DEADLINE IS A WALL-CLOCK INSTANT NOW (_G.hyperHandoffUntil),
+--   set once by the panel, moved by nothing: not a keystroke, not an
+--   autorepeat, not a second panel asking for longer (EARLIEST wins).
+--   One PURE planner decides (_G.hyperLatchPlan), so the gate drives
+--   every branch with no Mac and no clock; a Hammerspoon without
+--   core/hyper_key.lua falls back to the pre-6.420.0 rule exactly.
+--   🔒 AN ORDINARY HOLD IS UNTOUCHED — with no panel declared a key
+--   still proves the hold is real and still pushes the watchdog out
+--   (6.162.1). Only a panel that DECLARED it took the keys is bounded,
+--   which is the one case where the keys prove nothing about Caps Lock.
+--   📏 COST: with a panel open, ⇪ lets go `secs` after the panel said
+--   so even under a finger — 6.165.1's own premise made true.
 
 -- NEW IN 6.419.0 — 📋 _G.snippetsList() ANSWERS BEFORE IT DUMPS
 --   (modules/text_expander.lua). LL: "way too much in the console. Give
@@ -27,26 +50,11 @@
 --   pack is read off the library, never typed (6.361.0). An unreadable
 --   listShow is NAMED, never echoed as though it worked (6.362.0).
 
--- NEW IN 6.418.0 — ℹ️ A MAC WITH NO PROFILE OF ITS OWN SAYS SO
---   (core/boot_report.lua). LL: "Are you also ensuring our Hammerspoon
---   tools work on our work MacBook?" Every path degrades and the gate
---   drives the degraded paths with hs stubbed — a Mac with nothing. But
---   §profiles picks with `profiles[hostTag] and hostTag or "default"`,
---   and the work-Mac key is a PLACEHOLDER nobody has replaced with the
---   real ComputerName, so that Mac takes the default and gets none of
---   its tuning — silently, the only trace a row inside _G.bootReport().
---   6.317.0: a fallback nobody is told about is indistinguishable from
---   the thing it replaced. The boot line names the machine and lists the
---   profiles this build knows (6.276.0 — a hand-kept register is safe
---   only when forgetting is loud). ℹ️ and never ⚠️: an untuned Mac is
---   not a broken one, and a warning over a healthy state is one he
---   scrolls past (6.269.0).
-
--- (6.417.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.418.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 cut the inline count to
 --  TWO; a gate check proves every entry here is also in CHANGELOG.md.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.419.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.420.0
 -- =====================================================================
 -- The catalogue that used to sit here moved to GUIDE.md ("What each
 -- tool does") in 6.180.0 — 259 lines of prose inside the orchestrator.
@@ -135,7 +143,7 @@ function _G.consoleRuleSay(what)
     return true
 end
 
-_G.configVersion = "6.419.0"
+_G.configVersion = "6.420.0"
 _G.consoleRuleSay("▶ BOOT")
 
 local function safeRequire(mod)
@@ -1989,6 +1997,11 @@ _G.hyperPanelHandovers = 0      -- a panel declared it was taking the keys
 _G.hyperRelayReleases  = 0      -- a panel's page relayed the real keyUp
 _G.hyperSaidHandover   = {}     -- panel -> already explained once
 _G.hyperLatchTimer    = nil     -- HELD: an unreferenced timer is collected
+-- ⏱ 6.420.0 — THE PANEL DEADLINE, as a wall-clock instant. nil when no
+-- panel has declared a handoff. Typing stamps `hyperHeldAt` and CANNOT
+-- touch this; _G.hyperLatchPlan (core/hyper_key.lua) reads both.
+_G.hyperHandoffUntil  = nil
+_G.hyperHandoffCuts   = 0       -- holds this deadline really ended
 
 local hyperExit  -- forward: the watchdog calls it
 
@@ -1997,11 +2010,30 @@ local function hyperWatchLatch(delay)
     _G.hyperLatchTimer = hs.timer.doAfter(delay, function()
         _G.hyperLatchTimer = nil
         if not _G.hyperActive then return end
-        local quiet = hs.timer.secondsSinceEpoch() - (_G.hyperHeldAt or 0)
-        if quiet < _G.hyperLatchSecs - 0.05 then
+        local now   = hs.timer.secondsSinceEpoch()
+        local quiet = now - (_G.hyperHeldAt or 0)
+        -- ⏱ 6.420.0 — one planner decides, and it is PURE so the gate can
+        -- drive every branch. A Hammerspoon where core/hyper_key.lua did
+        -- not load falls back to the pre-6.420.0 rule exactly, rather
+        -- than to no watchdog at all (IT DEGRADES, IT NEVER BREAKS).
+        local act, wait
+        if _G.hyperLatchPlan then
+            act, wait = _G.hyperLatchPlan({
+                now = now, heldAt = _G.hyperHeldAt,
+                handoffUntil = _G.hyperHandoffUntil,
+                latchSecs = _G.hyperLatchSecs })
+        elseif quiet < _G.hyperLatchSecs - 0.05 then
+            act, wait = "wait", _G.hyperLatchSecs - quiet
+        else
+            act = "release"
+        end
+        if act == "wait" then
             -- keys were still arriving under a real hold: look again
-            hyperWatchLatch(_G.hyperLatchSecs - quiet)
+            hyperWatchLatch(wait)
             return
+        end
+        if _G.hyperHandoffUntil and now >= _G.hyperHandoffUntil then
+            _G.hyperHandoffCuts = _G.hyperHandoffCuts + 1
         end
         -- A panel that SAID it would take the keyboard is not a latch:
         -- same deadline, same release, opposite fact.
@@ -2043,7 +2075,18 @@ end
 _G.hyperExpectRelease = function(secs, who)
     if not _G.hyperActive then return false end
     secs = tonumber(secs) or 1.5
-    _G.hyperHeldAt = hs.timer.secondsSinceEpoch() - math.max(0, _G.hyperLatchSecs - secs)
+    local now = hs.timer.secondsSinceEpoch()
+    -- ⏱ 6.420.0 — AN ABSOLUTE DEADLINE, and the EARLIEST one wins. Two
+    -- panels in one hold must not let the later one buy the first one
+    -- more time; and nothing below may push it out.
+    local want = now + math.max(0, secs)
+    if _G.hyperHandoffUntil == nil or want < _G.hyperHandoffUntil then
+        _G.hyperHandoffUntil = want
+    end
+    -- The backdate STAYS, and only as the degrade: on a Hammerspoon with
+    -- no planner it is the whole of 6.165.1's behaviour, so that Mac is
+    -- exactly as it was rather than worse.
+    _G.hyperHeldAt = now - math.max(0, _G.hyperLatchSecs - secs)
     _G.hyperReleaseExpected = who or "a text panel"
     if _G.hyperLatchTimer then _G.hyperLatchTimer:stop(); _G.hyperLatchTimer = nil end
     hyperWatchLatch(secs)
@@ -2090,6 +2133,11 @@ hyperExit = function()
     _G.hyperActive = false
     _G.hyperEnteredAt = nil
     _G.hyperReleaseExpected = nil
+    -- 6.420.0 — the next hold is independent of this one. Every way out
+    -- passes through here (the watchdog, a relayed keyUp, the real F18
+    -- release, the storm guard, the panic chord), so there is one place
+    -- to clear it and none of them can forget.
+    _G.hyperHandoffUntil = nil
     if _G.hyperLatchTimer then _G.hyperLatchTimer:stop(); _G.hyperLatchTimer = nil end
     if not _G.hyperDispatchEngaged then _G.hyperModal:exit() end
 end

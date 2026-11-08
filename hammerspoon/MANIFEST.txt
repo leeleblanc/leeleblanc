@@ -1,6 +1,6 @@
 # MANIFEST — what this release carries, one row per runtime file
-# version: 6.419.0
-# 94 file(s), 4921388 bytes
+# version: 6.420.0
+# 94 file(s), 4938889 bytes
 #
 # Read by modules/install_check.lua: _G.installCheck() stats each path
 # below, relative to ~/.hammerspoon, and names every file that disagrees.
@@ -11,7 +11,7 @@
 # ENTRY for this version, which is a better question than its length) ·
 # snippets/bundled.lua (generated, and rebuildable on his own Mac) · the
 # docs, tests/ and the other tools (not loaded or started by the config).
-init.lua	178612
+init.lua	181216
 core/boot_cost.lua	18672
 core/boot_report.lua	11351
 core/capabilities.lua	37112
@@ -21,7 +21,7 @@ core/coexist.lua	55971
 core/console.lua	13649
 core/diagnostics.lua	20763
 core/double_tap.lua	20818
-core/hyper_key.lua	54262
+core/hyper_key.lua	58159
 core/key_trail.lua	7913
 core/lag.lua	67304
 core/notices.lua	44763
@@ -50,7 +50,7 @@ modules/default_apps.lua	22923
 modules/define.lua	35488
 modules/doc_keywords.lua	23677
 modules/doc_memory.lua	27962
-modules/draft_keeper.lua	54366
+modules/draft_keeper.lua	65366
 modules/editor_picker.lua	54586
 modules/file_tracker.lua	70954
 modules/focus_mode.lua	45918
