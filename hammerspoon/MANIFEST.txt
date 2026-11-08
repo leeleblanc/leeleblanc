@@ -1,6 +1,6 @@
 # MANIFEST — what this release carries, one row per runtime file
-# version: 6.420.0
-# 94 file(s), 4938889 bytes
+# version: 6.427.0
+# 94 file(s), 4983974 bytes
 #
 # Read by modules/install_check.lua: _G.installCheck() stats each path
 # below, relative to ~/.hammerspoon, and names every file that disagrees.
@@ -11,13 +11,13 @@
 # ENTRY for this version, which is a better question than its length) ·
 # snippets/bundled.lua (generated, and rebuildable on his own Mac) · the
 # docs, tests/ and the other tools (not loaded or started by the config).
-init.lua	181216
+init.lua	180112
 core/boot_cost.lua	18672
 core/boot_report.lua	11351
-core/capabilities.lua	37112
+core/capabilities.lua	38851
 core/changelog_csv.lua	2651
 core/cheatsheet.lua	109926
-core/coexist.lua	55971
+core/coexist.lua	64759
 core/console.lua	13649
 core/diagnostics.lua	20763
 core/double_tap.lua	20818
@@ -50,13 +50,13 @@ modules/default_apps.lua	22923
 modules/define.lua	35488
 modules/doc_keywords.lua	23677
 modules/doc_memory.lua	27962
-modules/draft_keeper.lua	65366
+modules/draft_keeper.lua	72085
 modules/editor_picker.lua	54586
 modules/file_tracker.lua	70954
 modules/focus_mode.lua	45918
 modules/ground_probe.lua	25564
 modules/health_monitor.lua	18645
-modules/hyper_storm.lua	32414
+modules/hyper_storm.lua	35803
 modules/install_check.lua	24243
 modules/key_caster.lua	39831
 modules/mac_panel.lua	20953
@@ -74,13 +74,13 @@ modules/numpad_layer.lua	44786
 modules/ocr_engine.lua	88787
 modules/onedrive_check.lua	79898
 modules/pomodoro.lua	57328
-modules/power_tools.lua	121164
+modules/power_tools.lua	122481
 modules/quick_append.lua	18589
 modules/recent_docs.lua	61536
 modules/right_click.lua	26236
 modules/scratch_pad.lua	169686
 modules/screen_veil.lua	26691
-modules/screenshot_editor.lua	146171
+modules/screenshot_editor.lua	152487
 modules/screenshots.lua	194435
 modules/search_index.lua	16298
 modules/self_test.lua	15905
@@ -93,11 +93,11 @@ modules/text_case.lua	17189
 modules/text_expander.lua	145296
 modules/timer.lua	51105
 modules/ui_style.lua	13120
-modules/unified_search.lua	104299
+modules/unified_search.lua	122043
 modules/universal_actions.lua	36244
 modules/update_tracker.lua	35418
 modules/url_cleaner.lua	21584
-modules/vault.lua	329610
+modules/vault.lua	329787
 modules/video_player.lua	164734
 modules/window_arranger.lua	18495
 modules/window_move.lua	40328

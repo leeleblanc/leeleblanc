@@ -1897,9 +1897,17 @@ do
     did = pt.panic("chord")
     local sids = {}
     for _, s3 in ipairs(did) do sids[#sids + 1] = s3.id end
-    check("the screenshot editor is closed by the panic chord",
-          table.concat(sids, ","):find("shoteditor", 1, true) ~= nil
-          and shot.closed == true, table.concat(sids, ","))
+    -- 🧪 THE SWEEP'S OWN FINDING, and it is 6.236.0 for the fourth time:
+    -- this read `find("shoteditor")`, so renaming the step to
+    -- "shoteditor_x" — which is how a step quietly stops being the one
+    -- the chord looks for — passed, because the new name CONTAINS the
+    -- old. A name check matches the WHOLE name.
+    check("the screenshot editor is closed by the panic chord", (function()
+        for _, st in ipairs(did) do
+            if st.id == "shoteditor" then return shot.closed == true end
+        end
+        return false
+    end)(), table.concat(sids, ","))
     -- 🚨 AND IT ASKS FOR HIS MARKS ON THE WAY OUT. close() would have
     -- been one word shorter and would throw away the only copy of the
     -- work (6.286.0); `now` is what stops it waiting out the 0.4 s belt
@@ -1919,8 +1927,12 @@ do
     local sids2 = {}
     for _, s4 in ipairs(did) do sids2[#sids2 + 1] = s4.id end
     check("…and a CLOSED editor is not counted as something released",
-          table.concat(sids2, ","):find("shoteditor", 1, true) == nil,
-          table.concat(sids2, ","))
+          (function()
+              for _, st in ipairs(did) do
+                  if st.id == "shoteditor" then return false end
+              end
+              return true
+          end)(), table.concat(sids2, ","))
     _G.screenshotEditor = nil
 
     -- Pressed twice: the second press must not un-pause what the first

@@ -1,4 +1,4 @@
-# TESTING — how to score release 6.423.0
+# TESTING — how to score release 6.427.0
 
 You install ONE archive and it carries several releases. Below are the
 steps for each release this archive is new for, newest first. Run the
@@ -26,6 +26,167 @@ else is a LOSS and I fix it before building further. You are the only
 scorer; I never mark my own.
 
 ---
+
+## 6.427.0
+
+6.427.0 verify with LL — 📋 EVERY REPORT, THE WHITE BOX, THE WHOLE
+DRAFT (KNOWN GROUND) — this block covers 6.424.0, 6.425.0, 6.426.0 AND
+6.427.0: they shipped in one archive and share one test plan.
+📏 FILED UNDER THE NEWEST ON PURPOSE: tools/build-test-plan.lua reads
+one version per heading, so a batch goes under its newest and names
+the others in its own section headings.
+
+🚑 BEFORE ANYTHING ELSE — THE WHITE BOX ON YOUR SCREEN RIGHT NOW.
+Any one of these clears it, in the order I would try them:
+  1. **⌃⌥⌘⇧Esc** — the panic chord. On 6.424.0 it closes the editor;
+     on the build you are running it will not, so go to 2.
+  2. Console: `_G.screenshotEditor.close()`
+  3. Console: `hs.reload()`
+Then install 6.427.0, which is what stops it happening again.
+
+── 1. 🪟 THE WHITE BOX (6.424.0) ───────────────────────────────────
+1a. ⇪4 a screenshot, then ⇪⇧1 to open the editor. Do it five or six
+    times, closing with Esc between.
+    EXPECT: it opens every time, with your shot in it.
+    **A FAIL is a white box, or a press that does nothing.**
+1b. If a press ever does nothing now, that is the release WORKING —
+    you should get an alert reading "macOS would not put the editor on
+    screen, so nothing was left behind — press ⇪⇧1 again". Press it
+    again; it opens.
+    RETURN: that alert's wording, if you ever see it.
+1c. Console: `_G.screenshotEditorReport()`.
+    RETURN: the whole block. There is a new `opens :` line — on a good
+    day it reads "N — macOS put every editor window on screen". If it
+    ever reads a ⚠️, that line names which of two faults it was
+    (macOS refusing, or a page that could not be built) and says
+    nothing was left on screen either way.
+1d. With the editor OPEN, press **⌃⌥⌘⇧Esc**.
+    EXPECT: the editor closes along with everything else, and the
+    panic alert lists "screenshot editor closed".
+    RETURN: that list.
+1e. Open the editor, draw an arrow, press ⌃⌥⌘⇧Esc, then ⇪⇧1 on the
+    SAME shot. EXPECT: your arrow is back. The chord asks the page for
+    your marks on the way out rather than throwing them away.
+
+── 2. 💾 THE WHOLE DRAFT (6.426.0) ─────────────────────────────────
+2a. Console: `_G.draftKeeperReport()`.
+    RETURN: the whole block. Two things are new — a `whole  :` line
+    naming the ceiling, and `already kept, unchanged` on the skipped
+    line.
+2b. Look at your two 23,603-character rows from this morning. They
+    will still say CUT, because they were written under the old
+    ceiling — that is honest, not a bug.
+2c. Now type (or paste) something long into a Chrome box — more than
+    ten thousand characters; a Console dump is ideal. Stop typing and
+    wait fifteen seconds.
+2d. `_G.draftKeeperReport()` again.
+    EXPECT: the new row's character count is the REAL length with no
+    "⚠️ CUT" after it.
+    RETURN: that row's line. **A CUT marker on anything under 120,000
+    characters is a FAIL.**
+2e. Press ⇪D, type `@draft`, ⏎ on that row, then ⌘V somewhere.
+    EXPECT: the WHOLE thing comes back, in order, with its newlines.
+    That is the release.
+2f. THE DUPLICATE. With that draft still in the box, click into
+    another tab or app, then click back into it and leave it alone for
+    fifteen seconds.
+    EXPECT: `_G.draftKeeperReport()` shows **no new row** and the
+    `already kept, unchanged` count has gone UP.
+    **A FAIL is a second identical row** — that is the bug you have
+    two of in today's file.
+2g. Now ADD a sentence to it and wait again.
+    EXPECT: a new row IS written. The guard is about unchanged text,
+    not about the field.
+    RETURN: whether 2f and 2g both behaved.
+
+── 3. 📋 @report (6.427.0) ─────────────────────────────────────────
+3a. Press ⇪D and type a single `@`.
+    EXPECT **16 sources** now, and **📋 @report** among them.
+3b. ⏎ on it. EXPECT a long list, each row a plain sentence saying what
+    that report answers, with `_G.somethingReport()` underneath it.
+3c. Type `@report draft` — it narrows. Put the highlight on the draft
+    keeper's row and read the pane on the right.
+3d. Press **⏎**.
+    EXPECT: the panel closes, an alert says "the answer is in the
+    Console", and the report is printed there.
+    RETURN: confirmation, and tell me whether having to open the
+    Console yourself is a nuisance (see Q3).
+3e. Press ⇪D, `@report`, highlight any row and press **⌘⏎**.
+    EXPECT: "📋 _G.xReport() copied" — the command on your clipboard
+    instead of running it.
+3f. Scroll the list for any **⚠️** rows.
+    RETURN: paste them. Two kinds, and both are findings:
+    · "_G.xReport() is NOT published this session" — that module did
+      not load, or I renamed something. Those rows deliberately do
+      NOT run.
+    · "no description written yet" — a report I have not described.
+      Those DO run.
+    On a healthy Mac I expect none of the first kind.
+3g. Read a dozen of the sentences.
+    RETURN: any that are WRONG about what that report does. That is
+    the one thing I cannot check from here, and a wrong sentence is
+    worse than none.
+
+── 4. 🔎 THE SEARCH THAT FOUND NOTHING (6.425.0) ───────────────────
+4a. ⇪3, press ⌘F and type `draftkeeper` — spelled with two Es in the
+    middle, which your screenshot did not have.
+    EXPECT: still no note, because this box searches NAMES, not the
+    words inside a note. The empty row now SAYS so: "no note NAMED
+    "draftkeeper" — this box searches names and headings, never the
+    words inside a note. Press ⌘⇧F to search inside every note."
+4b. Press **⌘⇧F** and type `draftkeeper`.
+    EXPECT: the note you were looking at, with the line it is on. ⏎
+    opens it there.
+    RETURN: whether it found it. **That is the answer to "cannot be
+    searched" — it could, by a key nothing had ever named.**
+4c. 📏 AND THE OTHER HALF, which no release fixes: your filter box in
+    the screenshot read **draftkepper**. The note says draftkeeper.
+    One letter. The row echoes what you typed now, so the two sit
+    side by side.
+
+── 5. MUST STILL WORK — this batch touched the editor, the panic
+──    chord, Hamsidian and ⇪D, so this half matters more than 1–4 ──
+5a. ⇪⇧1: the nine drawing tools, ⌘Z, ⌘⏎ save, Esc, and Esc-then-reopen
+    keeping your marks. ⌘O load a shot. ⌘-drag the title strip.
+5b. ⌃⌥⌘⇧Esc with nothing open: it still pauses Hammerspoon and says
+    how to come back. ⇪⇧Esc resumes.
+5c. ⇪3 and ⇪N: your notes and tabs, ⌘F, ↑↓, ⏎, ⌘N, the ✕ delete, and
+    **⌘Z inside a note after a scan lands** (that is 6.323.0 and this
+    batch touched that file).
+5d. ⇪D: @clip, @ocr, @shots, @vault, @logs all still search. ⏎ on a
+    @clip row still PASTES.
+5e. ⇪V, ⇪space, ⇪Y, ⇪⇧S all open.
+5f. Boot: All green, 79 modules, 111 ⇪ shortcuts.
+5g. `_G.installCheck()` — the manifest should match.
+    RETURN: anything in 5a–5g that behaves differently from today.
+
+❓ QUESTIONS — ANSWERS WANTED, NOTHING TO RUN
+Q1. **The mouse jumping in full screen is NOT fixed, and I want one
+    sentence before I touch it.** It is ⇪1, mouse-follows, doing
+    exactly what it was built to do: your Console shows it warping on
+    every app activation, and ⌥Tab into a full-screen app on another
+    desktop is an activation. Press **⇪1** to turn it off and see
+    whether that is the whole of it. Then tell me which you want —
+    (a) leave it off, (b) never jump onto a FULL-SCREEN window but
+    keep it elsewhere, or (c) never jump when the switch came from
+    ⌥Tab. I did not pick one because (b) and (c) each cost you the
+    jump in a case you may want it.
+Q2. **60 characters and 10 seconds** are still MY numbers for the
+    draft keeper — the floor a draft must pass, and the pause before
+    it is written. "Start to save as a sentence is typed" may mean
+    you want that pause shorter. Say a number; writing on every
+    keystroke into OneDrive is the thing that cost you drag-and-drop
+    in 6.228.0, so there is a real floor, but 10 s is not it.
+Q3. **Should ⏎ on an @report row bring the Console forward?** It
+    prints there and says so. Opening it would activate Hammerspoon
+    and take your focus for something you did not ask for (6.251.0's
+    named price), so I did not. One word and it does.
+Q4. **Are any of the @report sentences wrong?** Step 3g. Ninety-seven
+    of them are my words for your tools.
+Q5. **The work MacBook's name** — `scutil --get ComputerName`. Still
+    owed, and it is what gives that Mac a profile of its own.
+
+
 
 ## 6.423.0
 
@@ -284,61 +445,6 @@ E1. The twenty rows are the alphabetical FIRST twenty, so on your Mac
     becomes that.
 E2. Is the `collections` breakdown the answer you wanted, or were you
     after something else entirely when you said "a good report"?
-
-
-
-## 6.418.0
-
-6.418.0 verify with LL — ℹ️ WHICH MAC IS THIS? (KNOWN GROUND)
-WHAT CHANGED: if a Mac has no profile of its own, the boot line now
-SAYS so and names the machine. On the Air you should see nothing new.
-🚨 AND THIS IS THE ANSWER TO YOUR QUESTION about the work MacBook, with
-the uncomfortable half first. Every path in this config degrades and
-says so, and the whole gate runs on Linux with the Mac API stubbed out
-— which IS a Mac with nothing — so no-OneDrive, no-blueutil,
-no-Accessibility and no-permission are exercised on every release.
-What is NOT true is that anything has ever been verified ON that Mac.
-And there is a concrete hole: the work-Mac entry in the profile table
-is **a name I invented** — "Lees-Work-MacBook" — over a comment saying
-"put your work machine's name here". If your work Mac is called
-anything else, it silently takes the DEFAULT and gets none of its
-tuning.
-
-A. THE HEADLINE — on the Air, ten seconds.
-A1. Reload. Read the 🧭 line and the line under it.
-    EXPECT: exactly what you see today — "All green…" and NOTHING about
-    profiles. The Air matches its own profile, so this release is
-    invisible there. **A FAIL is an ℹ️ line on the Air**, which would
-    mean its profile stopped matching.
-
-B. ON THE WORK MACBOOK — this is the one that matters.
-B1. Install and reload. Read the 🧭 block.
-    EXPECT, if that Mac has no profile:
-      ℹ️ No profile for "<its name>" — running the DEFAULT. Nothing is
-         broken; this Mac has no tuning of its own.
-         this build knows: Lees-MacBook-Air · Lees-Work-MacBook
-B2. **PASTE THAT LINE.** The name in the quotes is the one thing I
-    cannot get from here, and it is all I need to give that Mac a real
-    profile. `scutil --get ComputerName` in Terminal is the same answer.
-B3. If you see NO ℹ️ line there, that Mac already matches a profile and
-    nothing is owed — tell me which name the boot reports.
-
-C. MUST STILL WORK — this touched the file that prints every boot.
-C1. The 🧭 line still names the host, the module count, the ⇪ shortcut
-    count and the boot time.
-C2. `_G.bootReport()` still prints the full block, and its Modules row
-    still names the profile.
-C3. A boot with a real problem still prints its ⚠️ rows instead of
-    "All green".
-
-D. A JUDGEMENT ONLY YOU CAN MAKE.
-D1. It is ℹ️, not ⚠️, on purpose — a Mac with no profile is untuned, not
-    broken, and a warning over a healthy state is one you scroll past.
-    If you would rather it shouted, say so.
-D2. 📏 NAMED, NOT FIXED: this does not prove the config RUNS well on the
-    work Mac. The honest next step there is you installing it and
-    sending `_G.selfTest()` and `_G.stormReport()` from that machine —
-    the storm report has been owed since 6.214.2.
 
 
 

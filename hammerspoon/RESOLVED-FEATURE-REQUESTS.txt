@@ -1,5 +1,5 @@
 ========================================================================
-RESOLVED FEATURE REQUESTS — Hammerspoon config 6.423.0
+RESOLVED FEATURE REQUESTS — Hammerspoon config 6.427.0
 Every feature and how to use it. Generated from the modules' own
 cheat sheets (the rows ⇪/ draws), so it is never out of date.
 ⇪ = Caps Lock held (the hyper key). ⇪⇧X = Caps Lock + Shift + X.
@@ -919,6 +919,10 @@ In the Console, _G.<tool>Report() prints any tool's own report.
 
 📜 RELEASE INDEX — newest first, one line per release (the full story of each is in CHANGELOG.md)
 ------------------------------------------------------------------------
+  6.427.0  📋 @report: EVERY REPORT, AND WHAT EACH ONE ANSWERS
+  6.426.0  💾 THE WHOLE DRAFT, AND ONLY ONCE
+  6.425.0  🔎 THE FILTER BOX SAYS WHERE THE BODY SEARCH IS
+  6.424.0  🪟 A WINDOW macOS REFUSES IS NEVER LEFT ON SCREEN
   6.423.0  🩺 THE DRAFT KEEPER'S CHECK RUNS WHERE THE CARET IS
   6.422.0  🪪 NO TWO FILES PUBLISH THE SAME _G. NAME
   6.421.0  📋 A KEYBOARD-KILLING EVENT HANDS ITS REPORT OVER
