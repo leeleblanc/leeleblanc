@@ -1693,6 +1693,28 @@ end tell]]
             m.hide()
             return true
         end },
+        -- 🖌 6.424.0 — THE SCREENSHOT EDITOR, and it belonged here from
+        -- the day this chord was written. The rule at the top of this
+        -- table — any panel that can take the SCREEN or the KEYBOARD gets
+        -- a row — names it twice over: the editor is a webview sized to
+        -- the shot (on a 4K that is most of the display) and it holds
+        -- `allowTextEntry(true)` with every drawing tool bound to a bare
+        -- letter. It was missed because it is reached from a key rather
+        -- than from a list, which is the same reason 6.189.0 found the
+        -- cheat sheet missing.
+        -- 🚨 `true` IS THE SECOND ARGUMENT AND IT IS LOAD-BEARING: it asks
+        -- the page for his marks (6.286.0 — Esc through this same door is
+        -- what stopped them being thrown away) and closes in the same
+        -- breath instead of waiting out the 0.4 s belt. A panic chord that
+        -- waits is a panic chord that has not worked yet.
+        { id = "shoteditor", what = "screenshot editor closed", run = function()
+            local e = _G.screenshotEditor
+            if not (e and e.webview and type(e.requestClose) == "function") then
+                return nil
+            end
+            e.requestClose("panic chord", true)
+            return true
+        end },
         -- The two canvas overlays that already own panic keys of their
         -- own. Calling them here does not replace those — it means LL
         -- only has to remember one chord.

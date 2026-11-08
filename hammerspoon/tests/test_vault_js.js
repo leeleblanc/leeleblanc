@@ -334,7 +334,28 @@ else {
         env.rows.innerHTML.includes("\u{1F4DD} groceries") && env.rows.innerHTML.includes("\u{1F578} Alpha"),
         env.rows.innerHTML.slice(0, 300));
   env.q.value = "gro"; env.q.listeners.input({});
-  check("the filter narrows the tabs too and drops the + row", env.rows.innerHTML.includes('data-tab="t1"') && !env.rows.innerHTML.includes('data-tab="t2"') && !env.rows.innerHTML.includes('data-tab="+"') && env.rows.innerHTML.includes("no note matches"));
+  check("the filter narrows the tabs too and drops the + row", env.rows.innerHTML.includes('data-tab="t1"') && !env.rows.innerHTML.includes('data-tab="t2"') && !env.rows.innerHTML.includes('data-tab="+"') && env.rows.innerHTML.includes("no note NAMED"));
+
+  // 🔎 6.425.0 — THE FILTER BOX SEARCHES NAMES, AND NOW SAYS SO. LL,
+  // with a screenshot of this very row: "Search did not find the word
+  // draftkeeper. What you see in view is the word on the write so this
+  // proves it is in an active note. But cannot be searched." It is in a
+  // note's BODY, and this box has only ever matched the file name, the
+  // path and the heading — ⌘⇧F is the one that greps the text. Both
+  // halves were honest and nothing anywhere joined them, which is
+  // 6.317.0 again: the instrument was not the gap, the DOOR was.
+  check("🔎 the empty filter row names the body search, where he hits the wall",
+        env.rows.innerHTML.includes("⌘⇧F")
+        && /searches names and headings/.test(env.rows.innerHTML),
+        env.rows.innerHTML);
+  check("…and still says ⏎ creates it, which is what the row did before",
+        /⏎ here creates it/.test(env.rows.innerHTML), env.rows.innerHTML);
+  // 🚨 AND IT ECHOES WHAT HE TYPED. His box read "draftkepper" and the
+  // note says "draftkeeper" — one letter, and nothing on screen put the
+  // two side by side.
+  check("…and echoes the typed text, so a typo is visible next to the list",
+        env.rows.innerHTML.includes("&quot;") || env.rows.innerHTML.includes('"'),
+        env.rows.innerHTML);
   env.q.value = ""; env.q.listeners.input({});
   env.sent.length = 0;
   env.key("ArrowDown", { altKey: true }); env.key("Enter", { altKey: true });

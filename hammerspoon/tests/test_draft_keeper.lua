@@ -1134,6 +1134,119 @@ do
                      and (not warmAt or bindAt < warmAt)
           end)())
 end
+
+-- =====================================================================
+out("\n§14 6.426.0 — the WHOLE draft, and only once\n")
+-- =====================================================================
+-- 🧪 §16 restores the REAL os.time, so a section after it that drives the
+-- settle has to put the stub back or `os.time() - changedAt` is always 0
+-- and nothing ever settles — the suite would then prove the guard by
+-- never reaching it. Clean slate for the pending and the memory too.
+os.time = function() return CLOCK end
+dk.pending, dk.wroteFor, dk.wroteDrops = nil, {}, 0
+dk.skipped.sameAgain = 0
+-- 📏 THE CEILING. LL's own report: `23603 chars (cut)`, so the draft he
+-- would paste back held a third of what he typed — and he asked for "a
+-- pastable sentence or string of characters that is put back in the
+-- sequence it was typed".
+check("§14 the ceiling is no longer 8000 — a 23,603-character draft is kept whole",
+      dk.maxChars >= 23603, dk.maxChars)
+do
+    local big = string.rep("x", 23603)
+    local kept, n, cut = dk.clip(big, dk.maxChars)
+    check("§14 …and clip leaves it alone, uncut", (not cut) and #kept == 23603
+          and n == 23603, tostring(cut) .. " " .. #kept)
+    -- 🚨 AND THE CEILING STILL BITES, or this is not a ceiling. The
+    -- fixture is one character over, which is the only input where a
+    -- cap that works and a cap that was deleted must differ (6.230.0).
+    local over = string.rep("y", dk.maxChars + 1)
+    local k2, n2, c2 = dk.clip(over, dk.maxChars)
+    check("§14 one character over the ceiling IS cut, and says the real total",
+          c2 == true and dk.len(k2) == dk.maxChars and n2 == dk.maxChars + 1,
+          tostring(c2) .. " " .. dk.len(k2) .. "/" .. tostring(n2))
+end
+-- 🔒 THE MEMORY HOLDS NO WRITING — a fingerprint, a count and a length.
+do
+    local a = dk.markFor("the same paragraph, word for word")
+    check("§14 the mark holds no text — only n, bytes, hash and a clock",
+          a.n and a.bytes and a.hash and a.at and (function()
+              for k in pairs(a) do
+                  if k ~= "n" and k ~= "bytes" and k ~= "hash" and k ~= "at" then
+                      return false
+                  end
+              end
+              return true
+          end)())
+    check("§14 the same text answers YES",
+          dk.alreadyOn("the same paragraph, word for word", a) == true)
+    check("§14 one character different answers NO",
+          dk.alreadyOn("the same paragraph, word for Word", a) == false)
+    check("§14 longer text answers NO",
+          dk.alreadyOn("the same paragraph, word for word!", a) == false)
+    -- 🚨 FAILS CLOSED: a wrong NO costs one duplicate row, a wrong YES
+    -- costs a draft he really did change (6.319.0).
+    check("§14 no mark at all answers NO, so the draft is written",
+          dk.alreadyOn("anything", nil) == false)
+    check("§14 a malformed mark answers NO too",
+          dk.alreadyOn("anything", { n = 8 }) == false)
+end
+-- 🔁 THE BEHAVIOUR, which is the row LL actually got twice.
+do
+    local rowsBefore = #lines(PATH)
+    AX.app, AX.role = "Google Chrome", "AXTextArea"
+    AX.title = "A long prompt — Google Chrome"
+    AX.value = string.rep("The console dump he pasted in. ", 40)
+    dk.sample() ; CLOCK = CLOCK + 20 ; dk.sample()
+    check("§14 the long draft is written once", #lines(PATH) == rowsBefore + 1,
+          #lines(PATH))
+    local after = #lines(PATH)
+    local sameBefore = dk.skipped.sameAgain
+    -- away…
+    AX.app = "Terminal" ; dk.sample()
+    -- …and back, to the very same field, unchanged
+    AX.app, AX.title = "Google Chrome", "A long prompt — Google Chrome"
+    dk.sample() ; CLOCK = CLOCK + 20 ; dk.sample()
+    check("§14 leaving the field and coming back does NOT write it again",
+          #lines(PATH) == after, #lines(PATH))
+    check("§14 …and that is COUNTED, not silent",
+          dk.skipped.sameAgain > sameBefore, dk.skipped.sameAgain)
+    -- 🚨 AND GROWTH MUST STILL BE KEPT, or this trades a duplicate for a
+    -- lost draft — the worse failure of the two.
+    AX.value = AX.value .. string.rep("And then he typed more. ", 6)
+    dk.sample() ; CLOCK = CLOCK + 20 ; dk.sample()
+    check("§14 but the same field GROWN is written — the guard is about"
+          .. " unchanged text, not about the field",
+          #lines(PATH) == after + 1, #lines(PATH))
+end
+-- 📏 THE BOUND IS A STATE (6.197.2): past it the oldest half goes and a
+-- field older than that can keep one duplicate — said, never forgotten
+-- in silence.
+do
+    dk.wroteFor, dk.wroteDrops = {}, 0
+    for i = 1, dk.wroteMax do
+        dk.rememberWrote("field-" .. i, "text " .. i)
+    end
+    local n = 0 ; for _ in pairs(dk.wroteFor) do n = n + 1 end
+    check("§14 the memory holds up to its bound without dropping anything",
+          n == dk.wroteMax and dk.wroteDrops == 0, n .. "/" .. dk.wroteDrops)
+    dk.rememberWrote("one-too-many", "over the line")
+    local m = 0 ; for _ in pairs(dk.wroteFor) do m = m + 1 end
+    check("§14 one past it drops the oldest half, and counts every drop",
+          m < dk.wroteMax and dk.wroteDrops > 0, m .. "/" .. dk.wroteDrops)
+    check("§14 …and the newest key survives the drop",
+          dk.wroteFor["one-too-many"] ~= nil)
+    printed = {}
+    pcall(_G.draftKeeperReport)
+    local blk = table.concat(printed, "\n")
+    check("§14 the report SAYS the memory filled rather than hiding it",
+          blk:find("memory filled", 1, true) ~= nil, blk:sub(1, 200))
+    check("§14 the report names the ceiling and the tail it trades against",
+          blk:find("whole  :", 1, true) ~= nil
+          and blk:find(tostring(dk.maxChars), 1, true) ~= nil, blk:sub(1, 200))
+    check("§14 an empty key is refused rather than stored",
+          dk.rememberWrote("", "x") == false and dk.wroteFor[""] == nil)
+end
+
 print = realPrint
 os.execute("rm -rf '" .. ROOT .. "'")
 io.write(("\n   %s test_draft_keeper — %d passed, %d failed\n")

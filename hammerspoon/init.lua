@@ -4,47 +4,42 @@
 -- =====================================================================
 -- 11-08-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.423.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.427.0
 -- =====================================================================
 
--- NEW IN 6.423.0 — 🩺 THE DRAFT KEEPER'S CHECK RUNS WHERE THE CARET IS
---   (modules/draft_keeper.lua, ⇪⇧]). LL typed into a text box, brought
---   up @draft, and nothing was saved. Two findings, both mine.
---   `_G.draftCheck()` CANNOT SEE THE FIELD IT MEASURES: it reads the
---   front app's focused element at CALL time, so typing the command
---   focuses the Console and the only field it can ever read is the
---   Console's own box — 6.411.0's verify block asked him to "leave the
---   caret in that box and run, in the Console", which cannot be done.
---   A hyper key moves no focus, so ⇪⇧] runs it in place and shows the
---   verdict in an alert. And the sampler THREW AWAY the name of an app
---   it was not watching, so "nothing is kept here" could not say where
---   here was; the register keeps one row per app, bounded, and the
---   bound is a STATE (6.197.2). 🔒 The report says the COUNT and never
---   his words (6.404.0) — a diagnostic that prints a half-written email
---   into the Console is a worse tool than the one that said nothing.
--- NEW IN 6.422.0 — 🪪 NO TWO FILES PUBLISH THE SAME _G. NAME
---   (core/coexist.lua + tests/test_integration.lua). `_G.focusReport`
---   was defined in core/coexist.lua (6.401.0's focus door) AND in
---   modules/focus_mode.lua (⇪Q's own report). core/ loads BEFORE
---   modules/, so focus_mode's definition overwrote the door's on every
---   boot for twenty releases: typing `_G.focusReport()` has always
---   printed FOCUS MODE's block, and the door's report has never once
---   been seen on his Mac — while 6.401.0's verify block said "PASTE
---   THAT" and 6.402.0 named it as half of a pair that tells two faults
---   apart. 6.308.0 one level out: load order picks the loser in
---   silence and the config boots green either way. The door renames to
---   `_G.focusDoorReport()` — ⇪Q's is older and bound to a key — and a
---   sentry closes the class over the whole tree (one collision, this
---   one). 🧪 AND THE SUITE CERTIFIED IT: test_panel_drag loads coexist
---   in ISOLATION, so the door's definition is the only one there and
---   its checks passed. 6.273.0 — a harness that does not reproduce the
---   real load order does not miss the bug, it certifies it.
+-- NEW IN 6.427.0 — 📋 @report: EVERY REPORT, AND WHAT EACH ONE ANSWERS
+--   (modules/unified_search.lua). LL: "I'd like an @report so I can pick
+--   and run different items like _G.draftKeeperReport() and each of
+--   those reports should give me a description of what it does."
+--   🔎 THERE ARE NINETY-SEVEN AND THEY HAVE NEVER BEEN LISTED ANYWHERE.
+--   Nearly every rule in this project ends in "paste the report", and
+--   the only way to learn one's NAME was to be told it in a message —
+--   6.317.0 for the Nth time: the instruments were not the gap, the
+--   DOOR was. ⏎ runs one, ⌘⏎ copies the command.
+--   🚨 THE LIST IS READ FROM _G, THE SENTENCES ARE WRITTEN (6.276.0),
+--   and BOTH directions of drift are loud: a report with no sentence is
+--   a ⚠️ row, and a sentence naming a report nothing published is a ⚠️
+--   row that is deliberately NOT runnable. The first run of that join
+--   found eight reports this table had missed.
 
--- (6.421.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- NEW IN 6.426.0 — 💾 THE WHOLE DRAFT, AND ONLY ONCE
+--   (modules/draft_keeper.lua). LL: "the draft needs to make sense and
+--   be a pastable sentence or string of characters that is put back in
+--   the sequence it was typed." It already was in sequence — this reads
+--   the FIELD'S VALUE rather than reconstructing keystrokes (6.404.0) —
+--   and then CUT it at 8,000 characters. His own report: 23603 chars
+--   (cut). A third of what he typed is not a pastable copy of it.
+--   🔁 AND IT WROTE THE SAME ROW TWICE. `pending.wrote` was the only
+--   memory of what is on disk for a field, and the pending dies the
+--   moment the caret moves — so clicking out of a long draft and back
+--   wrote it again. A per-field mark survives that now, and it holds a
+--   fingerprint and two counts, never his writing (6.404.0's own rule).
+
+-- (6.425.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 cut the inline count to
 --  TWO; a gate check proves every entry here is also in CHANGELOG.md.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.423.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.427.0
 -- =====================================================================
 -- The catalogue that used to sit here moved to GUIDE.md ("What each
 -- tool does") in 6.180.0 — 259 lines of prose inside the orchestrator.
@@ -133,7 +128,7 @@ function _G.consoleRuleSay(what)
     return true
 end
 
-_G.configVersion = "6.423.0"
+_G.configVersion = "6.427.0"
 _G.consoleRuleSay("▶ BOOT")
 
 local function safeRequire(mod)

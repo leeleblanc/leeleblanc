@@ -2430,6 +2430,27 @@ function M.setup(core)
                         .. tostring(ed.closeGraceSecs) .. "s — those marks were"
                         .. " not kept, and that is the bug to report"
         end
+        -- 🪟 6.424.0 — THE WINDOW ITSELF. Three different ways the editor
+        -- can fail to open, counted apart because they have three
+        -- different fixes and the old report could name none of them:
+        -- macOS refusing the show, the page failing to build, and (the
+        -- one LL met) a refusal that used to leave a blank window on
+        -- screen anyway.
+        do
+            local w = ed.shows or {}
+            if (w.refused or 0) == 0 and (w.noPage or 0) == 0 then
+                L[#L + 1] = "   opens   : " .. tostring(w.asked or 0)
+                            .. " — macOS put every editor window on screen"
+            else
+                L[#L + 1] = ("   opens   : %d asked · ⚠️ %d refused by macOS · ⚠️ %d"
+                          .. " with a page that could not be built"):format(
+                                tonumber(w.asked) or 0, tonumber(w.refused) or 0,
+                                tonumber(w.noPage) or 0)
+                L[#L + 1] = "   ↳ last  : " .. tostring(w.why)
+                            .. (w.at and (" at " .. tostring(w.at)) or "")
+                L[#L + 1] = "   ↳ nothing was left on screen either way — press ⇪⇧1 again"
+            end
+        end
         -- 🖼 6.270.0 — the layout, and what it RESERVES. Printed because
         -- "the buttons are on top of the picture" and "the picture is
         -- squeezed" look the same in a screenshot and are opposite faults.
@@ -2576,6 +2597,33 @@ function M.setup(core)
     ed.closeTimer     = nil     -- HELD: an unreferenced timer never fires
     ed.closes = { asked = 0, stashed = 0, belt = 0, atOnce = 0, last = nil }
 
+    -- 🪟 6.424.0 — THE WINDOW'S OWN ANSWERS. ed.open had three separate
+    -- ways to put a window on screen that nobody owned, and LL met all
+    -- three at once: "I was taking a screenshot that went fine. Then,
+    -- after I brought up the editor I now have a white box that won't go
+    -- away." His Console, 08:44:18:
+    --     ⚠️ Screenshot editor: macOS raised while ordering the window
+    --        on screen
+    -- That line is 6.391.0's shared door working. What did not work is
+    -- everything after it, and each half is a rule this project had
+    -- already written and not paid HERE:
+    --   · the door's answer was DISCARDED (6.352.0 — a show whose return
+    --     nobody reads), so a refusal carried on as if it were a success;
+    --   · `bringToFront(true)` then ran UNCONDITIONALLY, on the very
+    --     window macOS had just refused to order on screen. That is how a
+    --     window that should not be up gets up — and because the show
+    --     never completed, it is up with nothing drawn in it. A white box;
+    --   · `ed.webview` was published BEFORE the show (6.326.0 — a handle
+    --     recorded before the window is up is a handle that lies), so
+    --     every gate downstream read a refused window as an open editor;
+    --   · and `view:html()` sat in a bare pcall (6.406.0, in a second
+    --     file): if ed.buildHtml raises, no document is ever written and
+    --     the show happens anyway — an hs.webview with no document draws
+    --     BLANK, with nothing in the Console and no record anywhere.
+    -- Counted apart because they are different faults with different
+    -- fixes, and the old report could name none of them.
+    ed.shows = { asked = 0, refused = 0, noPage = 0, why = nil, at = nil }
+
     function ed.stopCloseBelt()
         if ed.closeTimer then pcall(function() ed.closeTimer:stop() end) end
         ed.closeTimer = nil
@@ -2597,11 +2645,21 @@ function M.setup(core)
         return "ask", "asking the page to hand its work back first"
     end
 
-    function ed.requestClose(why)
+    -- 🚨 6.424.0 — `now` IS ADDITIVE (6.299.0's shape; every existing
+    -- caller passes one argument and is unchanged). It is for the panic
+    -- chord, which must not wait: with it the page is still ASKED for its
+    -- work — so the marks are not thrown away — and the window closes in
+    -- the same breath rather than `closeGraceSecs` later. A chord pressed
+    -- because the screen is stuck cannot have a grace period in it.
+    function ed.requestClose(why, now)
         local hasPage  = ed.webview ~= nil
         local canAsk   = hasPage and ed.webview.evaluateJavaScript ~= nil
-        local canTimer = (hs.timer and hs.timer.doAfter) ~= nil
+        local canTimer = (hs.timer and hs.timer.doAfter) ~= nil and not now
         local plan, reason = ed.closePlan(hasPage, canAsk, canTimer)
+        if now and plan == "askThenNow" then
+            reason = "the panic chord — the work is asked for, and the window "
+                     .. "closes at once"
+        end
         ed.closes.last = tostring(why or "?") .. " — " .. reason
         if plan == "now" then
             if hasPage then ed.closes.atOnce = ed.closes.atOnce + 1 end
@@ -2719,7 +2777,11 @@ function M.setup(core)
 
         local okV, view = pcall(hs.webview.new, rect, {}, uc)
         if not (okV and view) then ed.uc = nil return false end
-        ed.webview, ed.currentPath = view, path
+        -- 🚨 6.424.0 — `ed.webview` IS NOT ASSIGNED HERE ANY MORE. It is a
+        -- CLAIM about the world and it is written after the world agrees
+        -- (6.326.0); set here, a refused show left every reader of it —
+        -- the Esc router, ⌘-drag, the panic chord, ed.open's own
+        -- close-first line — pointing at a window that is not on screen.
         pcall(function() view:windowTitle("Blur — " .. (path:match("[^/]+$") or path)) end)
         pcall(function() view:allowTextEntry(true) end)   -- ⌘Z/⌘⏎ need key status
         -- 🚨 6.286.0 — `closeOnEscape(true)` IS GONE. It let WebKit close
@@ -2735,21 +2797,67 @@ function M.setup(core)
         -- The slot is keyed by path, so a different screenshot simply does
         -- not match and opens clean — no clearing, no staleness.
         local keep = (ed.kept and ed.kept.path == path) and ed.kept or nil
-        pcall(function()
+
+        -- 🪟 6.424.0 — WRITE THE PAGE, AND READ WHETHER IT WAS WRITTEN.
+        -- 6.406.0 found this exact shape in vault.lua and named the cost:
+        -- a webview with no document draws a blank window, so a builder
+        -- that raises inside a bare pcall produces a white box and no
+        -- error anywhere. The order (page, THEN show) was already right
+        -- here; what was missing is the answer.
+        local okHtml, htmlWhy = pcall(function()
             view:html(ed.buildHtml("data:image/png;base64," .. b64, keep))
         end)
+        if not okHtml then
+            ed.shows.noPage = ed.shows.noPage + 1
+            ed.shows.why    = "the page could not be written — " .. tostring(htmlWhy)
+            pcall(function() ed.shows.at = os.date("%H:%M:%S") end)
+            -- 🚨 TORN DOWN, NEVER SHOWN (6.265.0 · 6.314.0). A window we
+            -- cannot draw into must not reach the screen at all, and an
+            -- abandoned one keeps its Esc claim and its usercontent
+            -- bridge.
+            pcall(function() view:delete() end)
+            ed.uc = nil
+            if core.degrade then
+                pcall(core.degrade, "Screenshot editor",
+                      "the editor's page could not be built, so no window was "
+                      .. "opened — " .. tostring(htmlWhy))
+            end
+            return false, ed.shows.why
+        end
+
+        -- 🪟 6.391.0 — the shared door reads BOTH refusals (a throw and
+        -- a false return). Guarded, so a build without it still opens.
+        -- 🚨 6.424.0 — AND ITS ANSWER IS READ. Discarding it is what let a
+        -- refused window be dragged on screen by the bringToFront below.
+        ed.shows.asked = ed.shows.asked + 1
+        local shown, swhy
+        if _G.showWebviewSafely then
+            shown, swhy = _G.showWebviewSafely(view, "Screenshot editor")
+        else
+            shown = pcall(function() view:show() end)
+            swhy  = shown and "shown" or "macOS would not put the window on screen"
+        end
+        if not shown then
+            ed.shows.refused = ed.shows.refused + 1
+            ed.shows.why     = tostring(swhy)
+            pcall(function() ed.shows.at = os.date("%H:%M:%S") end)
+            pcall(function() view:delete() end)
+            ed.uc = nil
+            if core.degrade then
+                pcall(core.degrade, "Screenshot editor",
+                      "macOS would not put the editor on screen, so nothing was "
+                      .. "left behind — press ⇪⇧1 again (" .. tostring(swhy) .. ")")
+            end
+            return false, swhy
+        end
+
+        -- ✅ THE WORLD AGREED. Only now is the handle true (6.326.0).
+        ed.webview, ed.currentPath = view, path
         if keep then
             pcall(function()
                 hs.alert.show("🖌 Your last edits on this shot are back", 2)
             end)
             say("restored the work kept from the last close")
-        end
-        -- 🪟 6.391.0 — the shared door reads BOTH refusals (a throw and
-        -- a false return). Guarded, so a build without it still opens.
-        if _G.showWebviewSafely then
-            _G.showWebviewSafely(view, "Screenshot editor")
-        else
-            pcall(function() view:show() end)
         end
         pcall(function() view:bringToFront(true) end)
         say("editing " .. (path:match("[^/]+$") or path))

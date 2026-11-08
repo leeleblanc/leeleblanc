@@ -903,6 +903,200 @@ function M.setup(core)
         end
     end
 
+    -- 📋 6.427.0 — EVERY REPORT THIS CONFIG PUBLISHES, WITH WHAT IT
+    -- ANSWERS. LL: "I'd like an @report so I can pick and run different
+    -- items like _G.draftKeeperReport() and each of those reports should
+    -- give me a description of what it does."
+    --
+    -- 🔎 THERE ARE EIGHTY-ODD OF THEM and they have never been listed
+    -- anywhere. Nearly every rule in this project ends in "paste the
+    -- report", and the only way to learn a report's NAME was to be told
+    -- it in a message — which is 6.317.0 for the Nth time: the
+    -- instruments were not the gap, the DOOR was.
+    --
+    -- 🚨 THE LIST IS READ FROM `_G`, THE SENTENCES ARE WRITTEN (6.276.0).
+    -- A hand-kept list of what exists is the defect this project has
+    -- deleted twice — it was wrong about ⇪⇧pad. for five releases. So the
+    -- rows come from the live globals, and this table only says what each
+    -- one is FOR. Both directions of drift are LOUD rather than silent:
+    --   · a report that exists with no sentence here → a ⚠️ row, so a new
+    --     report added next year is visible the day it ships;
+    --   · a sentence here naming a report that does not exist → a ⚠️ row,
+    --     so a rename or a module that failed to load is visible too.
+    -- That is `watchFor`'s shape (6.317.0): forgetting is loud in both
+    -- directions, which is the only thing that makes a hand-kept half
+    -- safe.
+    uni.reportDocs = {
+        -- the keyboard, and the three things that can take it away
+        hyperKeyReport      = "⇪ — how each hold ended: a keyUp relay, a panel handover, or a real latch",
+        stormReport         = "⇪ storms — every time Caps Lock latched, and what the probe measured at the moment it did",
+        secureInputReport   = "whether anything has locked the keyboard — the state that kills every shortcut and snippet at once",
+        keyTrailReport      = "the last 24 ⇪ shortcuts, with how long each took and whether it threw",
+        chordAudit          = "⇪ keys whose forward lands on a real chord — an unclaimed key firing something else",
+        freeKeys            = "which ⇪ keys are still unclaimed — asked of the live registry, never a list",
+        doubleTapReport     = "⌘⌘ and ⌥⌥ — the double-tap gestures and whether their watcher is running",
+        -- is it saving?
+        saved               = "every store: its size, rows, last write and growth since boot",
+        stores              = "where your stores are and when each last saved — the boot block, again",
+        writeLedgerReport   = "the same ledger, with the probe write that proves the folder still takes one",
+        todayReport         = "what failed today, read back off disk so it survives a reload — the 4 PM check",
+        degradeReport       = "every tool that has degraded this session, and any sticky NOT SAVED warning",
+        noticesReport       = "the notices ledger — what was alerted, held through Focus, or recorded",
+        errorsReport        = "errors recorded since this config loaded",
+        -- did the release land, and is the Mac well?
+        installCheck        = "are all of this release's files here, at the size it shipped — and any stray",
+        selfTest            = "do the big tools answer — one row per tool, the block printed after every boot",
+        bootReport          = "the full portability block: storage, data, backup, Asana, hotkeys, modules",
+        bootCostReport      = "what each module cost at boot, ranked, against the median of the last ten",
+        capabilityReport    = "what this Mac can do — OneDrive, Accessibility, Secure Input, OCR, the package manager",
+        groundReport        = "what this Mac answers about six platform surfaces, and the release each answer decides",
+        healthReport        = "⇪⇧H — disk, memory, uptime and the rest",
+        lagReport           = "main-thread lag — how often this config was slow to answer",
+        stallGuardReport    = "the outside watchdog: its heartbeat, its log, and any relaunch it has made",
+        -- windows and panels that can refuse to open
+        webviewShowReport   = "webview panels macOS refused to put on screen — Hamsidian, the editor, the players",
+        canvasShowReport    = "canvas panels macOS refused, and which were handed back for a retry",
+        popupShowReport     = "pickers macOS refused to open, and which one",
+        screenReport        = "which monitor placed the last panel, and which rule chose it",
+        dragReport          = "how the last panel drag ended — the release, a late button-up, or the watchdog",
+        escapeReport        = "who claims Esc, in order, and who refused to let go of it",
+        cheatSheetReport    = "the ⇪/ cards — how many, any drawn empty, and any module that registered none",
+        alertReport         = "alerts macOS refused to draw, and what the last refused one said",
+        windowMoveReport    = "⌘-drag — the panels it can move and the last drag it handled",
+        switcherReport      = "⌥Tab — what it listed, what it remembered, and how long the sweep took",
+        -- what you typed, copied, read or lost
+        draftKeeperReport   = "the drafts a web form would have lost — what was kept, refused, and what it costs",
+        draftCheck          = "what the draft keeper can see RIGHT NOW — press ⇪⇧] with the caret in the field",
+        clipboardPollReport = "the clipboard watcher — changes seen, and any rest the thrash breaker took",
+        clipboardWriteReport= "every clipboard write this config made, and every one macOS refused",
+        autocorrectReport   = "the correction rules, what ⇪Z has taught, and the dates written out in full",
+        snippetsReport      = "the snippet library, the tap, and your recent picks",
+        snippetsList        = "the snippets themselves — a summary first, then rows (true for all of them)",
+        ocrReport           = "the OCR engine — what it has read and from where",
+        screenshotsReport   = "⇪4 and ⇪5 — the routes, the OCR naming, the clipboard, the folder",
+        screenshotEditorReport = "⇪⇧1 — the window, its size rule, the captures and the closes",
+        -- the notes, the tabs, the search
+        vaultReport         = "Hamsidian notes — the index, the page, the bin, the board, the saves",
+        vaultTrash          = "the notes in the bin, newest first, with when each was deleted",
+        scratchPadReport    = "Hamsidian tabs — what is open, what was sent, what was written as a note",
+        unifiedSearchReport = "⇪D itself — every store it gathered, its counts, and any that failed",
+        fileIndexReport     = "the file index ⇪D searches — how many paths and when it was built",
+        masterLogReport     = "the combined searchable log and its database",
+        recentDocsReport    = "⇪I — the documents, the learned file types, and what was held back",
+        docMemoryReport     = "which document each app has open, asked through Accessibility",
+        activityDocsReport  = "the documents your app-time was recorded against",
+        fileTrackerReport   = "the file-move watcher — the folders watched, the wake-ups and what they bought",
+        -- the tools
+        musicReport         = "the Jug Player — the queue, the history, ⏯, the drop and the window",
+        mugReport           = "the Mug Player — the deck, the way in, the codecs and full screen",
+        mouseGridReport     = "⇪X — the cells, the split, the arrows and the rings",
+        mouseFollowsReport  = "⇪1 — every pointer jump and, as usefully, every one it skipped and why",
+        pomodoroReport      = "⇪⇧P — the phase, the count today, the tone and the dock",
+        timerReport         = "⇪⇧T — what is running, whether the card is hidden, and whose Esc it is",
+        focusReport         = "⇪Q focus mode — what it engages and what it mutes",
+        focusDoorReport     = "the focus borrow-and-return door — who took the keyboard and whether it came back",
+        rightClickReport    = "⇪⇧F — whether it aimed at the selection or at the pointer",
+        universalActionsReport = "⇪⇧A — the selection it acted on and whether it re-read it in time",
+        powerReport         = "⇪; — the power tools, and the borrowed-clipboard guard",
+        killReport          = "⇪⇧K — what it has quit",
+        renameReport        = "⇪R bulk rename — the last plan and what can be undone",
+        caseReport          = "⇪⇧C — the text case conversions",
+        defineReport        = "the dictionary lookups",
+        urlReport           = "the URL cleaner — what it stripped and what can be undone",
+        menuSearchReport    = "⇪. — the front app's menus and how they were read",
+        menuBarReport       = "the menu-bar inventory and what the scan cost",
+        appLauncherReport   = "⇪space — the app list and how it was built",
+        appRemoveReport     = "⇪⇧[ — what App Removal last listed, what it judged risky, and what it moved",
+        tabReport           = "⇪⇧B — the browser tabs it found",
+        editorPickerReport  = "⌃⌃ — the editors it offers and how they were learned",
+        defaultAppsReport   = "the 📎 default-apps tool",
+        settingsReport      = "the settings panes",
+        macReport           = "⇪7 — this Mac's own details",
+        netReport           = "⇪6 — the network tools",
+        netWatchReport      = "⇪⇧6 — what is talking to the network",
+        bluetoothReport     = "⇪⇧7 — the paired devices and which engine answered",
+        battReport          = "the battery saver — what it has done and what it never touches",
+        docKeywordsReport   = "the document keyword tagging",
+        panicReport         = "⌃⌥⌘⇧Esc — what the panic chord released the last time it was pressed",
+        -- Asana and the backups
+        asanaSubmitReport   = "whether Asana ACCEPTED each task, not just whether it was sent",
+        asanaDashboardReport= "⇪L · ⇪C · ⇪B — the dashboard's keys and its fetches",
+        asanaRefreshReport  = "the five-minute Asana reload and which menu path it used",
+        asanaTeams          = "what Asana answered about your teams, beside the names this config asks for",
+        oneDriveCheck       = "which files OneDrive has taken the bytes of back off this Mac",
+        backupReport        = "the nightly rebuild kit, the half-hourly store mirror and the catch-up run",
+        crashReport         = "the newest Hammerspoon crash report on this Mac, and its full path",
+        -- 🔎 THESE EIGHT WERE FOUND BY THE CHECK BELOW, not by reading:
+        -- the first run of the both-directions join named every report
+        -- this table had missed. That is the design paying for itself
+        -- before it shipped, and it is why the ⚠️ rows exist at all.
+        anchorsReport       = "⇪⇧U — what it named in front, and which of its four legs answered",
+        chromeHistoryReport = "⇪Y — the archive, the export, and what a keystroke costs to search",
+        clipboardReport     = "⇪V — the newest item, how many are stored, and every refusal by reason",
+        taskFormReport      = "⇪T — the form's size, its fields and the last task it created",
+        monoReport          = "the screen veil's mono and invert",
+        windowReturnReport  = "window return — switched OFF on your word, and the layouts it still holds",
+    }
+
+    -- 📋 6.427.0 — the rows. The LIST comes from `_G`; the table above
+    -- only says what each one is for.
+    local function srcReports(add)
+        local seen, names = {}, {}
+        for k in pairs(uni.reportDocs) do names[#names + 1] = k end
+        -- 🔤 SORTED. pairs() hands back a different order every run, and a
+        -- picker whose rows reshuffle under your hand is one you cannot
+        -- aim at (6.410.0's rule about ties, in a list).
+        table.sort(names)
+        for _, name in ipairs(names) do
+            seen[name] = true
+            local what = uni.reportDocs[name]
+            local fn   = rawget(_G, name)
+            if type(fn) == "function" then
+                add{ tag = "report", icon = "📋", src = "Reports",
+                     text = what,
+                     sub  = "_G." .. name .. "()",
+                     full = "_G." .. name .. "()\n\n" .. what
+                            .. "\n\n⏎ runs it — the answer prints in the Console."
+                            .. "\n⌘⏎ copies the command instead.",
+                     kind = "report", report = name }
+            else
+                -- 🚨 A SENTENCE WITH NO REPORT BEHIND IT: either that
+                -- module did not load this session or the global was
+                -- renamed. Opposite facts, both worth seeing, and neither
+                -- of them is "nothing to report" (6.196.1).
+                add{ tag = "report", icon = "📋", src = "Reports",
+                     text = "⚠️ _G." .. name .. "() is NOT published this session",
+                     sub  = "its module did not load, or it was renamed",
+                     full = "This list names _G." .. name .. "() and nothing"
+                            .. " published it this session.\n\n" .. what
+                            .. "\n\n_G.bootReport() says which modules loaded.",
+                     -- the NAME, but no `kind`: this row is readable and
+                     -- deliberately not runnable. Offering to run a
+                     -- report that is not there would be the list lying
+                     -- about what exists, which is the whole defect
+                     -- 6.276.0 deleted.
+                     report = name }
+            end
+        end
+        -- …then every published report nobody has described. A new one
+        -- added next year shows up here on the day it ships rather than
+        -- being quietly absent from the list for a year.
+        local extra = {}
+        for k, v in pairs(_G) do
+            if type(k) == "string" and not seen[k] and type(v) == "function"
+               and k:match("Report$") then extra[#extra + 1] = k end
+        end
+        table.sort(extra)
+        for _, name in ipairs(extra) do
+            add{ tag = "report", icon = "📋", src = "Reports",
+                 text = "⚠️ _G." .. name .. "() — no description written yet",
+                 sub  = "_G." .. name .. "()",
+                 full = "_G." .. name .. "() is published and this list does not"
+                        .. " say what it answers.\n\n⏎ still runs it.",
+                 kind = "report", report = name }
+        end
+    end
+
     -- Rebuilt on every open rather than cached at boot, exactly as the
     -- standalone picker did: the cheat sheet is assembled from whichever
     -- modules actually LOADED, and a module can fail to load — a cached
@@ -981,6 +1175,12 @@ function M.setup(core)
           what = "your Hamsidian notes, by name" },
         { tag = "web",   icon = "🕘", label = "Chrome",       fn = srcWeb,
           what = "your Chrome history — ⇪Y's 90 days" },
+        -- 📋 6.427.0 — beside @tool and above it, for the same reason both
+        -- are at the bottom: these rows are always there, so they stay
+        -- under the things you actually saved. @report puts them on top.
+        { tag = "report", icon = "📋", label = "Reports",     fn = srcReports,
+          what = "every report this config can print and what each one"
+                 .. " answers — ⏎ runs it, ⌘⏎ copies the command" },
         -- 🔧 LAST ON PURPOSE. Rows are gathered in this order and the page
         -- lists them in it, so the things you SAVED stay above the tools
         -- that are always there. @tool (or ⇪⇧/) puts them on top instead.
@@ -1496,6 +1696,45 @@ if (q.focus) q.focus();
         return true
     end
 
+    -- 📋 6.427.0 — ⏎ ON A REPORT ROW RUNS IT. Same shape as a tool row
+    -- and for the same reason: the panel goes away FIRST and the call is
+    -- a run-loop turn later, because several of these open a window or a
+    -- picker of their own and this webview is holding the keyboard.
+    function uni.runReport(row)
+        local name = tostring(row.report or "")
+        uni.hide()
+        local fn = rawget(_G, name)
+        if type(fn) ~= "function" then
+            -- Not published this session. Being handed the command is the
+            -- fallback, not a lie about having run it.
+            if core.copyText("_G." .. name .. "()", "⇪D (a report)") then
+                hs.alert.show("📋 _G." .. name .. "()  — not published this"
+                              .. " session; the command is copied", 3)
+            end
+            return
+        end
+        local t = hs.timer.doAfter(0.05, function()
+            local ok, err = pcall(fn)
+            if ok then
+                hs.alert.show("📋 _G." .. name .. "() — the answer is in the Console", 2)
+                say("ran _G." .. name .. "()")
+                return
+            end
+            -- 🚨 A REPORT THAT RAISES IS WORSE THAN ONE THAT LIES
+            -- (6.282.0): it takes itself down and says nothing, in the
+            -- one place this config goes to find out what is wrong. So a
+            -- throw is named on screen, in the Console AND in the ledger.
+            warn("_G." .. name .. "() threw: " .. tostring(err))
+            hs.alert.show("⚠️ _G." .. name .. "() threw — see the Console", 4)
+            if _G.notices then
+                pcall(_G.notices.record, "unified", "a report threw",
+                      name .. " — " .. tostring(err))
+            end
+        end)
+        uni.runTimers[#uni.runTimers + 1] = t
+        while #uni.runTimers > 8 do table.remove(uni.runTimers, 1) end
+    end
+
     -- ---- the detail pane's answer (6.204.0) ----------------------------------
     -- The full text is cut to uni.detailMax CHARACTERS, never mid-glyph:
     -- a byte cut can split a UTF-8 sequence, and a Lua string that is
@@ -1594,6 +1833,20 @@ if (q.focus) q.focus();
         -- kind acts, which is why it is checked before the copy paths and
         -- not folded into them.
         if row.kind == "tool" then uni.runTool(row) return end
+        -- 📋 6.427.0 — a report row ACTS too, so it is checked here with
+        -- the tool rows and not folded into the copy paths below.
+        if row.kind == "report" then
+            if a == "path" then
+                local cmd = "_G." .. tostring(row.report) .. "()"
+                if core.copyText(cmd, "⇪D (a report)") then
+                    hs.alert.show("📋 " .. cmd .. " copied", 2)
+                end
+                uni.hide()
+                return
+            end
+            uni.runReport(row)
+            return
+        end
         -- 🕸 6.172.0 — a vault row OPENS the note in the ⇪3 window.
         if row.vaultNote and _G.vault and _G.vault.openNote then
             uni.hide()

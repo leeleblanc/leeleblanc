@@ -94,10 +94,27 @@ console.log("── Unified Search: page JavaScript, executed ──");
 // =====================================================================
 {
   const env = load();
-  check("nine rows across five stores", env.call("ROWS.length") === 9,
-        env.call("ROWS.length"));
+  // 🧪 6.427.0 — WAS 9 AND 5. @report is a sixth source that is read
+  // from `_G` rather than from a store, so the fixture grew by its one
+  // report row. The numbers moved and the rule did not, which is
+  // 6.248.0: these say "the fixture's stores are all here, counted",
+  // against what the dump actually built rather than a number typed in.
+  check("eleven rows across six stores — the five fixture stores and @report",
+        env.call("ROWS.length") === 11, env.call("ROWS.length"));
   check("sources carry their counts",
-        env.call("SRCS.filter(function(s){return s.n>0}).length") === 5);
+        env.call("SRCS.filter(function(s){return s.n>0}).length") === 6);
+  // 🔎 TWO report rows, and the second one is the design working in
+  // front of you: the dump describes ONE report, and the module
+  // publishes `_G.unifiedSearchReport` at setup — so the extras scan
+  // finds a published report nobody described and draws it as a ⚠️ row.
+  // Forgetting is loud in both directions (6.276.0 · 6.317.0).
+  check("…and @report is read from _G: the described one, plus the "
+        + "undescribed one the module itself publishes",
+        env.call("ROWS.filter(function(r){return r.tag==='report'}).length") === 2,
+        env.call("ROWS.filter(function(r){return r.tag==='report'}).length"));
+  check("…and that second one SAYS it has no description rather than hiding",
+        /no description written yet/.test(env.list.innerHTML),
+        env.list.innerHTML.slice(0, 200));
   check("screenshot rows carry a thumbnail data URI",
         env.call("ROWS.filter(function(r){return r.img}).length") === 2);
 }
@@ -108,11 +125,11 @@ console.log("── Unified Search: page JavaScript, executed ──");
 {
   const env = load();
   check("every non-empty store gets a section header",
-        (env.list.innerHTML.match(/class="sec"/g) || []).length === 5,
+        (env.list.innerHTML.match(/class="sec"/g) || []).length === 6,
         env.list.innerHTML.slice(0, 120));
   check("…named and counted", env.list.innerHTML.indexOf("Clipboard — 3") !== -1);
   check("the count line says what is indexed",
-        env.count.textContent.indexOf("9 items indexed") === 0,
+        env.count.textContent.indexOf("11 items indexed") === 0,
         env.count.textContent);
   check("thumbnails render at panel size",
         env.list.innerHTML.indexOf('<img class="th" src="data:image') !== -1);

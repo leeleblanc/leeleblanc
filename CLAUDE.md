@@ -602,6 +602,124 @@ work Mac.
   files and two `core.provide` services. That is a wide mechanical
   edit and it does not belong in an archive with three other releases.
 
+- 🪟 THE SHOW'S ANSWER IS NOT OPTIONAL, AND NEITHER IS WHAT RUNS AFTER IT
+  (6.424.0, modules/screenshot_editor.lua + power_tools.lua — LL: "We've
+  got a white box again. I was taking a screenshot that went fine. Then,
+  after I brought up the editor I now have a white box that won't go
+  away."). His Console at 08:44:18 named it: `⚠️ Screenshot editor: macOS
+  raised while ordering the window on screen`. That line is 6.391.0's
+  shared door WORKING. Everything after it was the defect.
+  🔑 FOUR RULES, ALL ALREADY WRITTEN HERE, NONE OF THEM PAID IN THIS ONE
+  FUNCTION — which is the finding, not the white box: the door's answer
+  was discarded (6.352.0); `bringToFront(true)` then ran
+  UNCONDITIONALLY, on the very window macOS had just refused, which is
+  how a window that never finished being shown reaches the screen with
+  nothing drawn in it; `ed.webview` was published BEFORE the show
+  (6.326.0), so every reader of it pointed at a window that is not
+  there; and `view:html()` sat in a bare pcall (6.406.0, in a second
+  file), so a builder that raises leaves no document and the show
+  happens anyway.
+  🔑 GENERAL, AND IT IS THE ONE TO CARRY: **A GUARDED CALL WHOSE ANSWER
+  IS DISCARDED IS WORSE THAN A BARE ONE.** A bare `view:show()` that
+  throws at least stops the function. A pcall'd one that nobody reads
+  lets the next line act on a world that did not happen — and the next
+  line here was the one that put the window on screen. When a door is
+  added to close a class (6.391.0 closed eleven bare shows), grep the
+  CALL SITES for the ones that take the door and throw the answer away:
+  they read as fixed and are not.
+  🖌 AND THE PANIC CHORD DID NOT REACH THE EDITOR. `pt.panicSteps`'
+  own opening rule — any panel that can take the SCREEN or the KEYBOARD
+  gets a row — names it twice over (a webview sized to the shot, holding
+  `allowTextEntry` with every tool on a bare letter), and it was missed
+  for exactly the reason 6.189.0 missed the cheat sheet: it is reached
+  from a KEY, not from a list of panels. 🚨 It takes `requestClose(why,
+  true)`, an additive argument (6.299.0): the page is still asked for
+  his marks (6.286.0) and the window closes in the same breath, because
+  a chord pressed because the screen is stuck cannot have a 0.4 s grace
+  period in it.
+  🔬 AND THE STUB COULD NOT REFUSE (6.290.0, the fifteenth time): the
+  suite's `view:show()` always succeeded, so a caller ignoring the
+  answer was invisible to 306 green checks. It models BOTH refusals now,
+  and `bringToFront` is recorded — "it was not shown" and "it was not
+  shown AND not dragged to the front anyway" are different facts, and
+  only the second is the white box being prevented.
+
+- 🔎 A SEARCH BOX THAT SEARCHES ONE THING OWES THE OTHER ONE A SENTENCE
+  (6.425.0, modules/vault.lua — LL, with a screenshot: "Search did not
+  find the word draftkeeper. What you see in view is the word on the
+  write so this proves it is in an active note. But cannot be
+  searched."). ⌘F's box matches a note's NAME, its path and its heading;
+  ⌘⇧F greps the TEXT. The word was in a body. Both halves honest, the
+  join missing — 6.317.0 again, and the cheapest instance of it yet.
+  🔑 AND THE DESIGN IS RIGHT, so the fix is a door and not a rewrite:
+  the name filter runs in the page on every keystroke, the body search
+  is a grep out of process, and merging them makes every keystroke a
+  grep. What was owed is one sentence AT THE MOMENT HE HITS THE WALL,
+  which is the only moment it is worth reading. GENERAL: when a surface
+  has two searches and one of them is the one you are not in, the empty
+  state is where the other one gets named — not the help, not the card.
+  📏 AND IT ECHOES WHAT HE TYPED, which is worth more than it looks: his
+  box read "draftkepper" and the note says "draftkeeper". Two reasons
+  for one empty list, and nothing put them side by side.
+
+- 💾 "IN THE SEQUENCE IT WAS TYPED" WAS ALREADY TRUE — WHAT WAS WRONG IS
+  THAT IT WAS CUT (6.426.0, modules/draft_keeper.lua — LL: "the draft
+  needs to make sense and be a pastable sentence or string of characters
+  that is put back in the sequence it was typed"). It reads the FIELD'S
+  VALUE rather than reconstructing keystrokes (6.404.0 chose that
+  deliberately), so the order, the spaces, the newlines and the
+  punctuation have always been exactly what is on his screen. Then
+  `maxChars = 8000` threw two thirds of it away: his own report reads
+  `23603 chars (cut)`, and 54,286 the next session.
+  🔑 GENERAL: when someone asks for a thing a tool already does, read
+  the ASK for the part that is false. "Pastable" was the word doing the
+  work, and a third of a paste is not one. A ceiling that silently
+  truncates the longest drafts is a ceiling that is wrong for exactly
+  the rows worth keeping.
+  📏 AND THE NEW CEILING IS PRICED, NOT WAVED PAST: the reader takes the
+  last `tailBytes` of the file, so a bigger row means fewer rows
+  readable. Both numbers are in the report, so the trade is visible
+  instead of being a surprise the day a row goes missing.
+  🔁 AND IT WROTE THE SAME ROW TWICE, which his report carried in plain
+  sight: two rows, fourteen minutes apart, both 23,603 characters, both
+  reasoned "the first draft of this field". `pending.wrote` was the only
+  memory of what is on disk, and the pending dies the moment the caret
+  moves — so leaving a long draft and coming back read as a brand-new
+  field. GENERAL: a memory that lives on the object being watched
+  forgets every time the watch moves; if the question is "have we
+  already done this to THIS thing", the answer outlives the watch.
+  🔒 AND IT HOLDS NO WRITING. A fingerprint and two counts answer "is
+  this the very same text" exactly, so the long-lived table is not a
+  second store of his half-written emails — this module's own rule is
+  the COUNT, never the text (6.404.0). It fails CLOSED onto "no"
+  (6.319.0): a wrong no costs one duplicate row, a wrong yes costs a
+  draft he really did change.
+
+- 📋 A DIAGNOSTIC NOBODY CAN NAME IS A DIAGNOSTIC THAT DOES NOT EXIST
+  (6.427.0, modules/unified_search.lua — LL: "I'd like an @report so I
+  can pick and run different items like _G.draftKeeperReport() and each
+  of those reports should give me a description of what it does").
+  🔎 THERE ARE NINETY-SEVEN OF THEM AND THEY HAD NEVER BEEN LISTED
+  ANYWHERE. Nearly every rule in this file ends in "ask him for the
+  report", and the only way to learn one's NAME was to be told it in a
+  message he read days ago. 6.317.0 at its largest scale yet: the
+  instruments were never the gap, and this time the gap was the whole
+  diagnostic surface.
+  🔑 THE LIST IS READ FROM `_G`; ONLY THE SENTENCES ARE WRITTEN
+  (6.276.0). A hand-kept list of what EXISTS is the defect this project
+  has deleted twice. 🚨 AND BOTH DIRECTIONS OF DRIFT ARE LOUD, which is
+  the only thing that makes a hand-kept half safe (6.317.0's `watchFor`
+  shape): a published report with no sentence is a ⚠️ row that still
+  runs, and a sentence naming a report nothing published is a ⚠️ row
+  that is deliberately NOT runnable — offering to run something that is
+  not there is the list lying about what exists. The first run of that
+  join found EIGHT reports the table had missed, which is the design
+  paying for itself before it shipped.
+  🚨 A REPORT THAT RAISES IS NAMED (6.282.0): a throw gets an alert, a
+  Console line and a ledger row, because this is the one place you go to
+  find out what is wrong and a panel that closes and does nothing is the
+  worst possible answer there.
+
 - 🔎 A CHOOSER WITH A queryChangedCallback STOPS FILTERING FOR ITSELF
   (6.408.0, modules/menu_search.lua — LL: "Menu search is not filtering.
   Somewhat filters when typing a question mark but does nothing after
@@ -7437,6 +7555,11 @@ that must be READ before a new cause is named.
 
 | symptom, in his words | where it lives | releases | passes | tag |
 |---|---|---|---|---|
+| "We've got a white box again … after I brought up the editor I now have a white box that won't go away" | modules/screenshot_editor.lua · the show's answer discarded, and bringToFront run anyway | 6.424.0 | 1 | ask |
+| "Search did not find the word draftkeeper … this proves it is in an active note. But cannot be searched" | modules/vault.lua · ⌘F searches NAMES, ⌘⇧F searches bodies — and his box read "draftkepper" | 6.425.0 | 1 | degraded — both halves honest, nothing joined them |
+| "the draft needs to make sense and be a pastable sentence … put back in the sequence it was typed" | modules/draft_keeper.lua · cut at 8,000 characters, and the same row written twice | 6.404.0 · 6.411.0 · 6.423.0 · 6.426.0 | 4 | ask |
+| "I'd like an @report so I can pick and run different items like _G.draftKeeperReport()" | modules/unified_search.lua — ninety-seven reports, never listed anywhere | 6.427.0 | 1 | a door, not a defect |
+| "in full screen the mouse keeps jumping to that app when I am trying to get to another app on another desktop" | modules/mouse_follows.lua — the feature working as built; ⇪1 switches it off | (open — asked, not built) | 0 | his call: off, or narrowed |
 | "Does the console automatically generate a report for any condition that kills my keyboard and is automatically pasted to the clipboard?" | the three keyboard-killers — hyper_storm · capabilities · stall_guard, and none of them touched the clipboard | 6.421.0 | 1 | his question found the gap, not a report of a break |
 | "when I typed in this textbox and then I bring up @drafts then nothing is show to be saved" | modules/draft_keeper.lua · the check could not see the field it measured | 6.411.0 · 6.423.0 | 2 | ask |
 | `_G.focusReport()` printing focus MODE's block when the focus DOOR was asked for | core/coexist.lua + modules/focus_mode.lua · one global name, two files | 6.422.0 | 1 | nothing broke; a report I asked for twice could not be reached |
@@ -7611,6 +7734,10 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
+| 6.427.0 | 📋 @report — every report this config can print, and what each one answers | pending |
+| 6.426.0 | 💾 The whole draft, not a third of it — and never the same row twice | pending |
+| 6.425.0 | 🔎 The filter box says where the body search is | pending |
+| 6.424.0 | 🪟 A window macOS refuses is never left on screen — the white box | pending |
 | 6.423.0 | 🩺 The draft keeper's check runs where the caret already is — ⇪⇧], because typing the command moved the focus it was measuring | pending |
 | 6.422.0 | 🪪 The focus door's report was unreachable — two files published `_G.focusReport` and core/ loses | pending |
 | 6.421.0 | 📋 A keyboard-killing event puts its own report on your clipboard — his question found that none of them did | pending |
@@ -9313,6 +9440,163 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.427.0 verify with LL — 📋 EVERY REPORT, THE WHITE BOX, THE WHOLE
+  DRAFT (KNOWN GROUND) — this block covers 6.424.0, 6.425.0, 6.426.0 AND
+  6.427.0: they shipped in one archive and share one test plan.
+  📏 FILED UNDER THE NEWEST ON PURPOSE: tools/build-test-plan.lua reads
+  one version per heading, so a batch goes under its newest and names
+  the others in its own section headings.
+
+  🚑 BEFORE ANYTHING ELSE — THE WHITE BOX ON YOUR SCREEN RIGHT NOW.
+  Any one of these clears it, in the order I would try them:
+    1. **⌃⌥⌘⇧Esc** — the panic chord. On 6.424.0 it closes the editor;
+       on the build you are running it will not, so go to 2.
+    2. Console: `_G.screenshotEditor.close()`
+    3. Console: `hs.reload()`
+  Then install 6.427.0, which is what stops it happening again.
+
+  ── 1. 🪟 THE WHITE BOX (6.424.0) ───────────────────────────────────
+  1a. ⇪4 a screenshot, then ⇪⇧1 to open the editor. Do it five or six
+      times, closing with Esc between.
+      EXPECT: it opens every time, with your shot in it.
+      **A FAIL is a white box, or a press that does nothing.**
+  1b. If a press ever does nothing now, that is the release WORKING —
+      you should get an alert reading "macOS would not put the editor on
+      screen, so nothing was left behind — press ⇪⇧1 again". Press it
+      again; it opens.
+      RETURN: that alert's wording, if you ever see it.
+  1c. Console: `_G.screenshotEditorReport()`.
+      RETURN: the whole block. There is a new `opens :` line — on a good
+      day it reads "N — macOS put every editor window on screen". If it
+      ever reads a ⚠️, that line names which of two faults it was
+      (macOS refusing, or a page that could not be built) and says
+      nothing was left on screen either way.
+  1d. With the editor OPEN, press **⌃⌥⌘⇧Esc**.
+      EXPECT: the editor closes along with everything else, and the
+      panic alert lists "screenshot editor closed".
+      RETURN: that list.
+  1e. Open the editor, draw an arrow, press ⌃⌥⌘⇧Esc, then ⇪⇧1 on the
+      SAME shot. EXPECT: your arrow is back. The chord asks the page for
+      your marks on the way out rather than throwing them away.
+
+  ── 2. 💾 THE WHOLE DRAFT (6.426.0) ─────────────────────────────────
+  2a. Console: `_G.draftKeeperReport()`.
+      RETURN: the whole block. Two things are new — a `whole  :` line
+      naming the ceiling, and `already kept, unchanged` on the skipped
+      line.
+  2b. Look at your two 23,603-character rows from this morning. They
+      will still say CUT, because they were written under the old
+      ceiling — that is honest, not a bug.
+  2c. Now type (or paste) something long into a Chrome box — more than
+      ten thousand characters; a Console dump is ideal. Stop typing and
+      wait fifteen seconds.
+  2d. `_G.draftKeeperReport()` again.
+      EXPECT: the new row's character count is the REAL length with no
+      "⚠️ CUT" after it.
+      RETURN: that row's line. **A CUT marker on anything under 120,000
+      characters is a FAIL.**
+  2e. Press ⇪D, type `@draft`, ⏎ on that row, then ⌘V somewhere.
+      EXPECT: the WHOLE thing comes back, in order, with its newlines.
+      That is the release.
+  2f. THE DUPLICATE. With that draft still in the box, click into
+      another tab or app, then click back into it and leave it alone for
+      fifteen seconds.
+      EXPECT: `_G.draftKeeperReport()` shows **no new row** and the
+      `already kept, unchanged` count has gone UP.
+      **A FAIL is a second identical row** — that is the bug you have
+      two of in today's file.
+  2g. Now ADD a sentence to it and wait again.
+      EXPECT: a new row IS written. The guard is about unchanged text,
+      not about the field.
+      RETURN: whether 2f and 2g both behaved.
+
+  ── 3. 📋 @report (6.427.0) ─────────────────────────────────────────
+  3a. Press ⇪D and type a single `@`.
+      EXPECT **16 sources** now, and **📋 @report** among them.
+  3b. ⏎ on it. EXPECT a long list, each row a plain sentence saying what
+      that report answers, with `_G.somethingReport()` underneath it.
+  3c. Type `@report draft` — it narrows. Put the highlight on the draft
+      keeper's row and read the pane on the right.
+  3d. Press **⏎**.
+      EXPECT: the panel closes, an alert says "the answer is in the
+      Console", and the report is printed there.
+      RETURN: confirmation, and tell me whether having to open the
+      Console yourself is a nuisance (see Q3).
+  3e. Press ⇪D, `@report`, highlight any row and press **⌘⏎**.
+      EXPECT: "📋 _G.xReport() copied" — the command on your clipboard
+      instead of running it.
+  3f. Scroll the list for any **⚠️** rows.
+      RETURN: paste them. Two kinds, and both are findings:
+      · "_G.xReport() is NOT published this session" — that module did
+        not load, or I renamed something. Those rows deliberately do
+        NOT run.
+      · "no description written yet" — a report I have not described.
+        Those DO run.
+      On a healthy Mac I expect none of the first kind.
+  3g. Read a dozen of the sentences.
+      RETURN: any that are WRONG about what that report does. That is
+      the one thing I cannot check from here, and a wrong sentence is
+      worse than none.
+
+  ── 4. 🔎 THE SEARCH THAT FOUND NOTHING (6.425.0) ───────────────────
+  4a. ⇪3, press ⌘F and type `draftkeeper` — spelled with two Es in the
+      middle, which your screenshot did not have.
+      EXPECT: still no note, because this box searches NAMES, not the
+      words inside a note. The empty row now SAYS so: "no note NAMED
+      "draftkeeper" — this box searches names and headings, never the
+      words inside a note. Press ⌘⇧F to search inside every note."
+  4b. Press **⌘⇧F** and type `draftkeeper`.
+      EXPECT: the note you were looking at, with the line it is on. ⏎
+      opens it there.
+      RETURN: whether it found it. **That is the answer to "cannot be
+      searched" — it could, by a key nothing had ever named.**
+  4c. 📏 AND THE OTHER HALF, which no release fixes: your filter box in
+      the screenshot read **draftkepper**. The note says draftkeeper.
+      One letter. The row echoes what you typed now, so the two sit
+      side by side.
+
+  ── 5. MUST STILL WORK — this batch touched the editor, the panic
+  ──    chord, Hamsidian and ⇪D, so this half matters more than 1–4 ──
+  5a. ⇪⇧1: the nine drawing tools, ⌘Z, ⌘⏎ save, Esc, and Esc-then-reopen
+      keeping your marks. ⌘O load a shot. ⌘-drag the title strip.
+  5b. ⌃⌥⌘⇧Esc with nothing open: it still pauses Hammerspoon and says
+      how to come back. ⇪⇧Esc resumes.
+  5c. ⇪3 and ⇪N: your notes and tabs, ⌘F, ↑↓, ⏎, ⌘N, the ✕ delete, and
+      **⌘Z inside a note after a scan lands** (that is 6.323.0 and this
+      batch touched that file).
+  5d. ⇪D: @clip, @ocr, @shots, @vault, @logs all still search. ⏎ on a
+      @clip row still PASTES.
+  5e. ⇪V, ⇪space, ⇪Y, ⇪⇧S all open.
+  5f. Boot: All green, 79 modules, 111 ⇪ shortcuts.
+  5g. `_G.installCheck()` — the manifest should match.
+      RETURN: anything in 5a–5g that behaves differently from today.
+
+  ❓ QUESTIONS — ANSWERS WANTED, NOTHING TO RUN
+  Q1. **The mouse jumping in full screen is NOT fixed, and I want one
+      sentence before I touch it.** It is ⇪1, mouse-follows, doing
+      exactly what it was built to do: your Console shows it warping on
+      every app activation, and ⌥Tab into a full-screen app on another
+      desktop is an activation. Press **⇪1** to turn it off and see
+      whether that is the whole of it. Then tell me which you want —
+      (a) leave it off, (b) never jump onto a FULL-SCREEN window but
+      keep it elsewhere, or (c) never jump when the switch came from
+      ⌥Tab. I did not pick one because (b) and (c) each cost you the
+      jump in a case you may want it.
+  Q2. **60 characters and 10 seconds** are still MY numbers for the
+      draft keeper — the floor a draft must pass, and the pause before
+      it is written. "Start to save as a sentence is typed" may mean
+      you want that pause shorter. Say a number; writing on every
+      keystroke into OneDrive is the thing that cost you drag-and-drop
+      in 6.228.0, so there is a real floor, but 10 s is not it.
+  Q3. **Should ⏎ on an @report row bring the Console forward?** It
+      prints there and says so. Opening it would activate Hammerspoon
+      and take your focus for something you did not ask for (6.251.0's
+      named price), so I did not. One word and it does.
+  Q4. **Are any of the @report sentences wrong?** Step 3g. Ninety-seven
+      of them are my words for your tools.
+  Q5. **The work MacBook's name** — `scutil --get ComputerName`. Still
+      owed, and it is what gives that Mac a profile of its own.
+
 - 6.423.0 verify with LL — 📋 THE KEYBOARD'S OWN REPORT, ON YOUR
   CLIPBOARD (KNOWN GROUND) — this block covers 6.421.0, 6.422.0 AND
   6.423.0: they shipped in one archive and share one test plan.

@@ -85,5 +85,18 @@ M.setup({
   end,
 })
 
+-- 📋 6.427.0 — @report IS READ FROM `_G`, so in the real config it is
+-- ninety-odd rows. This fixture is about how the PAGE DRAWS rows, not
+-- about how many reports exist, and flooding it would bury every check
+-- about order and selection in the suite below. So the catalogue is
+-- trimmed to exactly ONE published report: the section still renders,
+-- the ⏎-runs-it row is still drawn, and the fixture stays readable.
+-- The Lua side of @report — the both-directions join, the ⚠️ rows, the
+-- sort — is proven in full in tests/test_unified.lua §9.
+_G.unifiedSearch.reportDocs = {
+  fixtureReport = "what the fixture's one report answers",
+}
+_G.fixtureReport = function() end
+
 _G.unifiedSearch.gather()
 io.write(_G.unifiedSearch.buildHtml(""))

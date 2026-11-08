@@ -185,9 +185,23 @@ function M.setup(core)
     dk.sampleMaxSecs = 60     -- the slowest it backs off to
     dk.slowMs       = 60      -- a read past this takes the door and backs off
     dk.axTimeout    = 0.20    -- seconds a single AX question may take
-    dk.maxChars     = 8000    -- characters of a draft kept in a row
+    -- 📏 6.426.0 — 8000 UNTIL NOW, AND IT WAS CUTTING HIS WRITING IN
+    -- THIRDS. LL: "the draft needs to make sense and be a pastable
+    -- sentence or string of characters that is put back in the sequence
+    -- it was typed." It already was, in order and with every space and
+    -- newline, because this reads the FIELD'S VALUE rather than
+    -- reconstructing keystrokes (6.404.0) — and then threw two thirds of
+    -- it away. His own report: `23603 chars (cut)`, twice, and 54286 on
+    -- the next session. Those long ones are the drafts most worth having.
+    -- 🚨 AND THE CEILING IS NOT FREE, so it is priced rather than waved
+    -- past: the reader takes the LAST `tailBytes` of the file, so a
+    -- bigger row means fewer rows readable. 120000 characters against a
+    -- 1 MB tail is ~8 of his largest or dozens of ordinary ones, and the
+    -- report prints both numbers so the trade is visible instead of
+    -- being a surprise the day a row goes missing.
+    dk.maxChars     = 120000  -- characters of a draft kept in a row
     dk.days         = 90      -- his number
-    dk.tailBytes    = 256 * 1024   -- read back from the end of the file
+    dk.tailBytes    = 1024 * 1024  -- read back from the end of the file
     dk.maxRows      = 400     -- rows a reader hands back
     dk.local_       = false   -- true: keep the CSV out of OneDrive
     dk.apps = {               -- matched as WHOLE WORDS of the app's name
@@ -239,7 +253,21 @@ function M.setup(core)
     dk.everySecs  = nil   -- the interval in force; nil until warm arms it
     dk.timer      = nil   -- HELD (6.196.1)
     dk.refused    = { secure = 0, role = 0, secureInput = 0, paused = 0 }
-    dk.skipped    = { app = 0, nothing = 0, notText = 0 }
+    dk.skipped    = { app = 0, nothing = 0, notText = 0, sameAgain = 0 }
+    -- 🔁 6.426.0 — WHAT IS ON DISK FOR A FIELD, AFTER THE FOCUS HAS LEFT
+    -- IT. `pending.wrote` is the only memory this had, and the pending is
+    -- thrown away the moment the caret moves — so clicking out of a long
+    -- draft and back wrote the identical row again, and again. LL's
+    -- report carried it: two rows, 06:21:54 and 06:35:30, both 23603
+    -- characters, both reasoned "the first draft of this field".
+    -- 🔒 IT HOLDS NO WRITING. A fingerprint, a character count and a byte
+    -- count answer "is this the same text we already kept?" exactly, and
+    -- this module's own rule is the COUNT, never the text (6.404.0) — a
+    -- long-lived table of his half-written emails is a second store
+    -- nobody asked for.
+    dk.wroteFor   = {}    -- fieldKey -> { n, bytes, hash, at }
+    dk.wroteMax   = 60    -- keys kept; past it the oldest half goes
+    dk.wroteDrops = 0     -- times the bound bit (a STATE, 6.197.2)
     -- 🔎 6.421.0 — WHICH app, not merely that it was one. The sampler has
     -- read the front app's name every few seconds since 6.404.0 and
     -- thrown it away whenever it was unwatched, so the one fact that
@@ -434,6 +462,67 @@ function M.setup(core)
             return s:sub(1, off - 1), n, true
         end
         return s:sub(1, maxChars), n, true
+    end
+
+    -- ---- PURE: a fingerprint, so the memory holds no writing ---------
+    -- FNV-1a over the bytes. Not a security hash and it does not need to
+    -- be: the only question it answers is "is this the very same text we
+    -- already wrote for this field", and it is asked alongside the
+    -- character count AND the byte count, so a collision would have to
+    -- agree on all three.
+    function dk.fingerprint(s)
+        s = tostring(s or "")
+        local h = 2166136261
+        for i = 1, #s do
+            h = h ~ s:byte(i)
+            h = (h * 16777619) & 0xFFFFFFFF
+        end
+        return h
+    end
+
+    -- ---- PURE: the mark kept for a field, and the question it answers --
+    function dk.markFor(text)
+        text = tostring(text or "")
+        return { n = dk.len(text), bytes = #text,
+                 hash = dk.fingerprint(text), at = os.time() }
+    end
+
+    -- 🚨 FAILS CLOSED ONTO "NO" (6.319.0 — a default is chosen against the
+    -- damage its own feature can do). A wrong NO costs one duplicate row;
+    -- a wrong YES means a draft he really did change is never kept, which
+    -- is this tool's whole job. So anything missing or malformed answers
+    -- false and the text is written.
+    function dk.alreadyOn(text, mark)
+        if type(mark) ~= "table" then return false end
+        text = tostring(text or "")
+        if dk.len(text) ~= mark.n then return false end
+        if #text ~= mark.bytes then return false end
+        return dk.fingerprint(text) == mark.hash
+    end
+
+    -- Bounded, and the bound is a STATE rather than a silent forget
+    -- (6.197.2): past dk.wroteMax the OLDEST half goes, which can cost a
+    -- duplicate on a field not touched for a long time — counted, and
+    -- printed in the report.
+    function dk.rememberWrote(key, text)
+        if type(key) ~= "string" or key == "" then return false end
+        dk.wroteFor[key] = dk.markFor(text)
+        local n = 0
+        for _ in pairs(dk.wroteFor) do n = n + 1 end
+        if n <= (tonumber(dk.wroteMax) or 60) then return true end
+        local ages = {}
+        for k, m in pairs(dk.wroteFor) do
+            ages[#ages + 1] = { k = k, at = tonumber(m and m.at) or 0 }
+        end
+        table.sort(ages, function(a, b)
+            if a.at ~= b.at then return a.at < b.at end
+            return a.k < b.k          -- ties by name, or the order is pairs()'
+        end)
+        for i = 1, math.floor(#ages / 2) do
+            dk.wroteFor[ages[i].k] = nil
+            dk.wroteDrops = dk.wroteDrops + 1
+        end
+        return true
     end
 
     -- ---- PURE: one row is one line -----------------------------------
@@ -714,6 +803,13 @@ function M.setup(core)
         local p = dk.pending
         dk.pending = nil
         if not p then return false, "nothing pending" end
+        -- 🔁 6.426.0 — THE SAME TEXT, ALREADY ON DISK FROM AN EARLIER
+        -- VISIT TO THIS FIELD. Without this the memory is `p.wrote`
+        -- alone, which dies with the pending.
+        if p.wrote == nil and dk.alreadyOn(p.text, dk.wroteFor[p.key]) then
+            dk.skipped.sameAgain = dk.skipped.sameAgain + 1
+            return false, "already kept — this field is unchanged since its row"
+        end
         local keep, kwhy = dk.keepVerdict(p.text, p.wrote, dk.minChars, dk.minGrowth)
         if not keep then return false, kwhy end
         local text, chars, cut = dk.clip(p.text, dk.maxChars)
@@ -733,6 +829,7 @@ function M.setup(core)
         end
         dk.kept       = dk.kept + 1
         dk.lastKeptAt = os.time()
+        dk.rememberWrote(p.key, p.text)   -- 6.426.0, the same on both doors
         dk.lastKept   = { app = p.app, title = p.title, role = p.role,
                           chars = chars, why = (why or "settled"), keep = kwhy }
         -- 💾 ONE CONSOLE LINE PER SESSION, so it is visibly alive without
@@ -849,6 +946,14 @@ function M.setup(core)
 
         -- unchanged: has it settled?
         if os.time() - (p.changedAt or 0) < dk.settleSecs then return end
+        if p.wrote == nil and dk.alreadyOn(text, dk.wroteFor[p.key]) then
+            -- 🔁 6.426.0 — returned to a field whose row is already on
+            -- disk. Recorded as written so later GROWTH is still measured
+            -- from here rather than reading as a fresh first draft.
+            p.wrote = text
+            dk.skipped.sameAgain = dk.skipped.sameAgain + 1
+            return
+        end
         local keep, kwhy = dk.keepVerdict(text, p.wrote, dk.minChars, dk.minGrowth)
         if not keep then return end
         local clipped, chars, cut = dk.clip(text, dk.maxChars)
@@ -864,6 +969,7 @@ function M.setup(core)
             return
         end
         p.wrote = text                   -- what is on disk for THIS field
+        dk.rememberWrote(p.key, text)    -- …and after the focus leaves it
         dk.kept = dk.kept + 1
         dk.lastKeptAt = os.time()
         dk.lastKept = { app = p.app, title = p.title, role = p.role,
@@ -1209,6 +1315,13 @@ function M.setup(core)
         line("last   : " .. dk.lastFieldLine())
         line("rule   : " .. dk.minChars .. "+ characters, unchanged for "
              .. dk.settleSecs .. " s — then a row")
+        -- 📏 6.426.0 — THE CEILING, SAID RATHER THAN DISCOVERED. A row
+        -- marked (cut) is a draft he cannot paste back whole, and until
+        -- this line the only way to know the limit was to read the file.
+        line(("whole  : up to %d characters kept per draft · the reader takes"
+              .. " the last %d KB of the file, so a very long draft means"
+              .. " fewer rows readable")
+             :format(dk.maxChars, math.floor(dk.tailBytes / 1024)))
         line("file   : " .. dk.path()
              .. (dk.local_ and "  (local, never synced)" or "  (it SYNCS — it is in your"
                  .. " Logs folder; settings = { draft_keeper = { local_ = true } })"))
@@ -1263,8 +1376,17 @@ function M.setup(core)
         else
             line("refused: none — no password field and no unreadable field was met")
         end
-        line(("skipped: %d not a watched app · %d nothing focused · %d not a text field")
-             :format(s.app, s.nothing, s.notText))
+        line(("skipped: %d not a watched app · %d nothing focused · %d not a text field"
+              .. " · %d already kept, unchanged")
+             :format(s.app, s.nothing, s.notText, s.sameAgain or 0))
+        -- 🔁 6.426.0 — the bound on the per-field memory is a STATE: past
+        -- it the oldest half goes, and a field not touched since then can
+        -- write its row a second time. Said, never silently forgotten.
+        if (dk.wroteDrops or 0) > 0 then
+            line(("         ↳ ⚠️ the %d-field memory filled %d time(s) — a field"
+                  .. " older than that can keep one duplicate row")
+                 :format(dk.wroteMax, dk.wroteDrops))
+        end
         if dk.lastRefusal then
             line("         ↳ last: " .. tostring(dk.lastRefusal))
         end
@@ -1311,7 +1433,9 @@ function M.setup(core)
                 L[#L + 1] = ("   %2d. %s %s · %s · %d chars%s")
                             :format(i, tostring(x.date), tostring(x.clock),
                                     tostring(x.app), x.chars or 0,
-                                    x.cut and " (cut)" or "")
+                                    x.cut and (" — ⚠️ CUT, only the first "
+                                        .. tostring(dk.maxChars)
+                                        .. " characters are here") or "")
                 L[#L + 1] = "       " .. one
             end
             line("forget : _G.draftForget(n) removes one · _G.draftForgetAll() empties it")

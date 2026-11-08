@@ -802,16 +802,34 @@ _G.asanaTaskHistory, _G.capturePad = nil, nil
 for p in pairs(FILES) do FILES[p] = nil end
 CORE.call = function() return nil end
 U.gather()
-check("with every SAVED store gone, the tools are still listed — they are "
-      .. "read from the live cheat sheet, not from disk", (function()
-    for _, r in ipairs(U.rows) do if r.tag ~= "tool" then return false end end
+-- 🧪 6.427.0 — THESE TWO ASSERTED A CONSTANT WHERE THE RULE IS A CLASS
+-- (6.248.0, and this is why it keeps happening): "only tool rows" and
+-- "zero rows" were true while the cheat sheet was the ONLY source that
+-- does not read a store. @report is the second — it is read from _G,
+-- which is there whatever the disk is doing — so the numbers moved and
+-- the rule did not. Stated as the rule now: a dead disk costs the stores
+-- and nothing else.
+check("with every SAVED store gone, the sources that do not read a store "
+      .. "are still listed — the cheat sheet's tools and the reports",
+      (function()
+    for _, r in ipairs(U.rows) do
+        if r.tag ~= "tool" and r.tag ~= "report" then return false end
+    end
     return #U.rows > 0
 end)(), #U.rows)
+check("…and @report is one of them — it is read from _G, so it survives a "
+      .. "disk that answers nothing", (function()
+    for _, r in ipairs(U.rows) do if r.tag == "report" then return true end end
+    return false
+end)())
 local savedSheet = _G.cheatSheet
 _G.cheatSheet = nil
 U.gather()
-check("no store and no cheat sheet at all still means an empty list, not "
-      .. "an error", #U.rows == 0, #U.rows)
+check("no store and no cheat sheet at all is still not an error — what is "
+      .. "left is reports and nothing else", (function()
+    for _, r in ipairs(U.rows) do if r.tag ~= "report" then return false end end
+    return true
+end)(), #U.rows)
 check("…and the panel still opens over it", U.show() == true and U.webview ~= nil)
 U.hide()
 _G.cheatSheet = savedSheet
@@ -1836,6 +1854,139 @@ do
 
     local ran = (pass + fail) - before
     check("§8 ran all of its checks (" .. ran .. " of 11)", ran >= 11, ran)
+end
+
+-- =====================================================================
+out("\n9. 📋 6.427.0 — @report: every report, what it answers, and ⏎ runs it\n")
+-- =====================================================================
+do
+    local n9 = pass + fail
+    -- the source is listed with the rest, and says what it holds
+    local src9
+    for _, so in ipairs(U.sources) do if so.tag == "report" then src9 = so end end
+    check("§9 @report is a source, with a sentence of its own (6.298.0)",
+          src9 ~= nil and type(src9.what) == "string" and #src9.what > 20,
+          src9 and src9.what)
+
+    -- 🚨 NOTHING PUBLISHED: every documented report is a ⚠️ row, and NOT
+    -- ONE of them is runnable. A list that offered to run a report that
+    -- does not exist would be worse than no list (6.276.0).
+    for name in pairs(U.reportDocs) do rawset(_G, name, nil) end
+    U.gather()
+    local rows9, runnable9 = {}, 0
+    for _, r in ipairs(U.rows) do
+        if r.tag == "report" then
+            rows9[#rows9 + 1] = r
+            if r.kind == "report" then runnable9 = runnable9 + 1 end
+        end
+    end
+    check("§9 with nothing published, every report row is a ⚠️ row",
+          #rows9 > 50 and (function()
+              for _, r in ipairs(rows9) do
+                  if not tostring(r.text):find("NOT published", 1, true) then
+                      return false
+                  end
+              end
+              return true
+          end)(), #rows9)
+    check("§9 …and none of them is runnable", runnable9 == 0, runnable9)
+
+    -- …now publish two: one described, one not.
+    local RANR = {}
+    rawset(_G, "draftKeeperReport", function() RANR[#RANR + 1] = "draft" end)
+    rawset(_G, "zzzMadeUpReport",   function() RANR[#RANR + 1] = "madeup" end)
+    U.gather()
+    local described, undescribed, order = nil, nil, {}
+    for _, r in ipairs(U.rows) do
+        if r.tag == "report" then
+            order[#order + 1] = tostring(r.report)
+            if r.report == "draftKeeperReport" then described = r end
+            if r.report == "zzzMadeUpReport"   then undescribed = r end
+        end
+    end
+    check("§9 a published report is a plain row carrying its own sentence",
+          described ~= nil and described.kind == "report"
+          and described.text == U.reportDocs.draftKeeperReport,
+          described and described.text)
+    check("§9 …and the command is the row's second line, so it can be read"
+          .. " without running anything",
+          described and described.sub == "_G.draftKeeperReport()",
+          described and described.sub)
+    -- 🚨 THE OTHER DIRECTION, and it is the half that keeps the hand-kept
+    -- table honest: a report added next year with no sentence here shows
+    -- up on the day it ships rather than being quietly absent for a year.
+    check("§9 a PUBLISHED report nobody described is a ⚠️ row — forgetting"
+          .. " is loud in both directions (6.276.0 · 6.317.0)",
+          undescribed ~= nil
+          and tostring(undescribed.text):find("no description", 1, true) ~= nil,
+          undescribed and undescribed.text)
+    check("§9 …and it still RUNS, because it exists",
+          undescribed and undescribed.kind == "report"
+          and undescribed.report == "zzzMadeUpReport")
+    -- 🔤 sorted, or the picker reshuffles under his hand between opens
+    check("§9 the documented rows are in a stable, sorted order", (function()
+        local last = nil
+        for _, sub in ipairs(order) do
+            if sub == "zzzMadeUpReport" then break end       -- the extras tail
+            if last and sub < last then return false end
+            last = sub
+        end
+        return #order > 50
+    end)(), #order)
+
+    -- ⏎ RUNS IT. Same shape as a tool row: the panel first, the call a
+    -- turn later, because a report can open a window of its own.
+    U.show()
+    ALERTS, RANR = {}, {}
+    BRIDGE({ body = { a = "pick", id = described.id } })
+    check("§9 the panel is put away BEFORE the report runs",
+          U.webview == nil and #RANR == 0)
+    drain()
+    check("§9 …and then it runs", RANR[1] == "draft", RANR[1])
+    check("§9 …and says where the answer went",
+          (ALERTS[#ALERTS] or ""):find("Console", 1, true) ~= nil,
+          ALERTS[#ALERTS])
+
+    -- ⌘⏎ copies the command instead of running it.
+    U.show() ; PB, ALERTS, RANR = nil, {}, {}
+    BRIDGE({ body = { a = "path", id = described.id } })
+    check("§9 ⌘⏎ copies the command and runs nothing",
+          PB == "_G.draftKeeperReport()" and #RANR == 0, tostring(PB))
+
+    -- 🚨 A REPORT THAT RAISES IS WORSE THAN ONE THAT LIES (6.282.0) — it
+    -- takes itself down silently in the one place you go to find out
+    -- what is wrong. So a throw is NAMED.
+    rawset(_G, "draftKeeperReport", function() error("this report is broken", 0) end)
+    U.gather()
+    local broken
+    for _, r in ipairs(U.rows) do
+        if r.report == "draftKeeperReport" then broken = r end
+    end
+    U.show() ; ALERTS = {}
+    BRIDGE({ body = { a = "pick", id = broken.id } })
+    drain()
+    check("§9 a report that THROWS is named on screen, not swallowed",
+          (ALERTS[#ALERTS] or ""):find("threw", 1, true) ~= nil,
+          ALERTS[#ALERTS])
+
+    -- …and a row whose report vanished between the gather and the press
+    -- hands over the command rather than claiming it ran.
+    U.gather()
+    local live
+    for _, r in ipairs(U.rows) do
+        if r.report == "zzzMadeUpReport" then live = r end
+    end
+    rawset(_G, "zzzMadeUpReport", nil)
+    U.show() ; PB, ALERTS = nil, {}
+    U.runReport(live)
+    check("§9 a report that went away before ⏎ hands over the command and"
+          .. " does not pretend it ran",
+          PB == "_G.zzzMadeUpReport()"
+          and (ALERTS[#ALERTS] or ""):find("not published", 1, true) ~= nil,
+          tostring(PB))
+
+    check("§9 ran all of its checks", (pass + fail) - n9 == 14,
+          (pass + fail) - n9)
 end
 
 io.write(("\n%d passed, %d failed\n"):format(pass, fail))

@@ -5,6 +5,211 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.427.0 — 📋 @report: EVERY REPORT, AND WHAT EACH ONE ANSWERS
+               (modules/unified_search.lua)
+
+  LL: "I'd like an @report so I can pick and run different items like
+  _G.draftKeeperReport() and each of those reports should give me a
+  description of what it does."
+
+  🔎 THERE ARE NINETY-SEVEN OF THEM AND THEY HAVE NEVER BEEN LISTED
+  ANYWHERE. Nearly every rule in this project ends in "ask him for the
+  report", and the only way to learn one's NAME was to be told it in a
+  message he read days ago. That is 6.317.0 for the Nth time, and the
+  costliest costume yet, because it is the whole diagnostic surface:
+  the instruments were not the gap, the DOOR was.
+
+  Type `@` in ⇪D and there is a 📋 @report source. Every row is a
+  sentence saying what that report ANSWERS, with the command under it.
+  ⏎ runs it — the panel goes away first and the call is a run-loop turn
+  later, exactly as a tool row does, because several of these open a
+  window of their own and this webview holds the keyboard. ⌘⏎ copies
+  the command instead.
+
+  🚨 THE LIST IS READ FROM `_G`; ONLY THE SENTENCES ARE WRITTEN
+  (6.276.0). A hand-kept list of what EXISTS is the defect this project
+  has deleted twice — it told him ⇪⇧pad. was free for five releases
+  while the music player held it. So the rows come from the live
+  globals and the table beside them says only what each is for.
+
+  🔑 AND BOTH DIRECTIONS OF DRIFT ARE LOUD, which is the only thing
+  that makes a hand-kept half safe (6.317.0's `watchFor` shape):
+    · a report that is PUBLISHED with no sentence → a ⚠️ row saying so,
+      and it still runs. A report added next year is visible the day it
+      ships rather than quietly absent from the list for a year.
+    · a sentence naming a report NOTHING PUBLISHED → a ⚠️ row, and it
+      is deliberately NOT runnable. Offering to run something that is
+      not there would be the list lying about what exists. That state
+      has two opposite causes — a module that failed to load, or a
+      rename — and the row says so rather than picking one.
+  The first run of that join found EIGHT reports the table had missed.
+  The design paid for itself before it shipped, which is why the ⚠️
+  rows exist at all.
+
+  🚨 A REPORT THAT RAISES IS NAMED (6.282.0). An instrument that throws
+  is worse than one that lies, and this is the one place you go to find
+  out what is wrong: a throw gets an alert, a Console line and a ledger
+  row rather than a panel that closed and did nothing.
+
+  📏 THE ANSWER GOES TO THE CONSOLE and the alert says so. Bringing the
+  Console forward would activate Hammerspoon and take his focus
+  (6.251.0's named price) for something he did not ask for.
+
+
+NEW IN 6.426.0 — 💾 THE WHOLE DRAFT, AND ONLY ONCE
+               (modules/draft_keeper.lua)
+
+  LL: "Can we have the draftkeeper start to save as a sentence is typed
+  and each character is appened to the one before it with appropriate
+  spaces, news line, punctuation? Essentially the draft needs to make
+  sense and be a pastable sentence or string of characters that is put
+  back in the sequence it was typed."
+
+  🔎 THE SEQUENCE WAS NEVER THE PROBLEM, and saying so is the first
+  half of the answer: this reads the FIELD'S VALUE rather than
+  reconstructing keystrokes (6.404.0 chose that deliberately — a
+  keystroke tap never sees a paste and holds a mangled transcript after
+  any edit), so every space, newline and mark of punctuation is already
+  exactly what is on his screen, in order.
+
+  📏 WHAT WAS WRONG IS THAT IT CUT HIM OFF AT 8,000 CHARACTERS. His own
+  report: `23603 chars (cut)`, and 54,286 the next session. Those long
+  ones — a whole Console dump pasted into a chat box — are the drafts
+  most worth having, and what he would have pasted back was a third of
+  one. The ceiling is 120,000 now, which keeps both of his whole.
+
+  🚨 AND THE CEILING IS PRICED RATHER THAN WAVED PAST. The reader takes
+  the last `tailBytes` of the file, so a bigger row means fewer rows
+  readable; the tail went to 1 MB with it, and the report prints BOTH
+  numbers so the trade is visible instead of being a surprise the day a
+  row goes missing. A row that really is over the ceiling now says how
+  many characters are actually there instead of a bare "(cut)".
+
+  🔁 AND IT WROTE THE SAME ROW TWICE. His report carried it in plain
+  sight: two rows, 06:21:54 and 06:35:30, both 23,603 characters, both
+  reasoned "the first draft of this field". `pending.wrote` was the
+  only memory of what is on disk for a field, and the pending is thrown
+  away the moment the caret moves — so clicking out of a long draft and
+  back read as a brand-new field with a brand-new first draft.
+
+  🔒 THE MEMORY THAT SURVIVES THAT HOLDS NO WRITING. A 32-bit
+  fingerprint, a character count and a byte count answer "is this the
+  very same text we already kept?" exactly, and this module's own rule
+  is the COUNT, never the text (6.404.0) — a long-lived table of his
+  half-written emails is a second store nobody asked for.
+
+  🚨 IT FAILS CLOSED ONTO "NO" (6.319.0 — a default is chosen against
+  the damage its own feature can do). A wrong no costs one duplicate
+  row; a wrong yes means a draft he really did change is never kept,
+  which is the whole job. So a missing or malformed mark writes.
+
+  📏 THE BOUND IS A STATE (6.197.2): sixty fields are remembered and
+  past that the oldest half goes, which can cost one duplicate on a
+  field untouched since. Counted, and said in the report.
+
+  🗳 STILL HIS TO DECIDE: 60 characters and 10 seconds — the floor a
+  draft must pass and the pause before it is written — are MY numbers
+  and this release did not move them. "Start to save as a sentence is
+  typed" may mean he wants the pause shorter, and that is a judgement
+  about his own typing, not a defect.
+
+
+NEW IN 6.425.0 — 🔎 THE FILTER BOX SAYS WHERE THE BODY SEARCH IS
+               (modules/vault.lua)
+
+  LL, with a screenshot of the empty row: "Search did not find the word
+  draftkeeper. What you see in view is the word on the write so this
+  proves it is in an active note. But cannot be searched."
+
+  🔎 TWO THINGS WERE TRUE AT ONCE AND NOTHING ON SCREEN SAID EITHER.
+  ⌘F's box matches a note's NAME, its path and its heading — never the
+  words inside it; ⌘⇧F is the one that greps the text, and that word is
+  in a body. Both halves were honest and the join was missing.
+
+  🔑 AND THE DESIGN IS RIGHT, so this is a door and not a rewrite. The
+  name filter is instant and runs in the page on every keystroke; the
+  body search is a grep over the folder, out of process. Merging them
+  would make every keystroke a grep. What was missing is a sentence at
+  the moment he hits the wall, which is the only moment it is worth
+  reading — 6.317.0 again, and 6.320.0's other half: a refusal he
+  cannot act on is a defect even when the refusal is correct.
+
+  📏 AND IT ECHOES WHAT HE TYPED, which matters more than it looks: his
+  box read "draftkepper" and the note says "draftkeeper". One letter,
+  and nothing put the two side by side.
+
+
+NEW IN 6.424.0 — 🪟 A WINDOW macOS REFUSES IS NEVER LEFT ON SCREEN
+               (modules/screenshot_editor.lua + power_tools.lua)
+
+  LL: "We've got a white box again. I was taking a screenshot that went
+  fine. Then, after I brought up the editor I now have a white box that
+  won't go away."
+
+  🔎 HIS CONSOLE CARRIED THE DIAGNOSIS, at 08:44:18:
+      ⚠️ Screenshot editor: macOS raised while ordering the window on
+         screen
+  That line is 6.391.0's shared door working. What did not work is
+  everything after it — and each half is a rule this project had
+  already written and not paid HERE:
+
+    · THE DOOR'S ANSWER WAS DISCARDED (6.352.0). `ed.open` called it
+      for effect and carried on as though a refusal were a success.
+    · `bringToFront(true)` THEN RAN UNCONDITIONALLY, on the very window
+      macOS had just refused to order on screen. That is how a window
+      that never finished being shown ends up on screen anyway — and
+      because the show never completed, it is up with nothing drawn in
+      it. A white box.
+    · `ed.webview` WAS PUBLISHED BEFORE THE SHOW (6.326.0 — a handle
+      recorded before the window is up is a handle that lies), so every
+      reader of it — the Esc router, ⌘-drag, ed.open's own close-first
+      line — pointed at a window that is not really there.
+    · AND `view:html()` SAT IN A BARE pcall (6.406.0, in a second
+      file). If the page builder raises, no document is ever written
+      and the show happens anyway; an hs.webview with no document draws
+      BLANK, with nothing in the Console and no record anywhere.
+
+  All four are closed. A refused show is torn down (6.265.0 · 6.314.0 —
+  an abandoned window keeps its Esc claim and its bridge), nothing is
+  published, nothing is dragged to the front, open() answers false, and
+  the 🔔 door names macOS's own words. A page that cannot be built means
+  the window is never shown at all. The handle is written only once the
+  world has agreed.
+
+  🖌 AND THE PANIC CHORD REACHES THE EDITOR NOW. It belonged in
+  `pt.panicSteps` from the day the chord was written: the rule at the
+  top of that table — any panel that can take the SCREEN or the
+  KEYBOARD gets a row — names it twice over, because the editor is a
+  webview sized to the shot (on a 4K, most of the display) holding
+  `allowTextEntry` with every drawing tool bound to a bare letter. It
+  was missed for the same reason 6.189.0 found the cheat sheet missing:
+  it is reached from a key, not from a list of panels.
+
+  🚨 IT ASKS THE PAGE FOR HIS MARKS ON THE WAY OUT. `requestClose`
+  gains an additive second argument (6.299.0's shape; every existing
+  caller is unchanged) that asks and closes in the same breath instead
+  of waiting out the 0.4 s belt. `close()` would have been shorter and
+  would throw away the only copy of his work (6.286.0); a chord pressed
+  because the screen is stuck cannot have a grace period in it.
+
+  🔬 THE STUB HAD TO BE ABLE TO REFUSE FIRST (6.290.0, and this is why
+  that ratchet exists): the suite's `view:show()` always succeeded, so
+  a caller that ignores the answer was invisible to 306 green checks.
+  It models both refusals now — the THROW his Mac produced and the
+  FALSE return macOS also uses (6.265.0: those are different facts) —
+  and `bringToFront` is recorded, because "it was not shown" and "it
+  was not shown AND not dragged to the front anyway" are different
+  facts and only the second is the white box being prevented.
+
+  📏 SAID RATHER THAN CLAIMED: this is a correct fix for a mechanism
+  that is readable in the source and that his Console named at the
+  right second. Whether it is the whole of what he saw is a reading,
+  not a verdict (6.198.0) — his Mac refuses window shows often, and the
+  same hour carried two cheat-sheet refusals and one from the screen
+  veil. The new `opens :` line in `_G.screenshotEditorReport()` is what
+  will say so next time.
+
+
 NEW IN 6.423.0 — 🩺 THE DRAFT KEEPER'S CHECK RUNS WHERE THE CARET IS
                (modules/draft_keeper.lua, ⇪⇧])
 

@@ -64,6 +64,15 @@ DEGRADES = {}           -- 6.255.0: every core.degrade the module takes
 FOCUSED = false
 NO_HSWINDOW = false
 NO_TIMER = false
+-- 🔬 6.424.0 — THE STUB MUST BE ABLE TO REFUSE, BOTH WAYS. 6.290.0's
+-- ratchet: a show that always succeeds cannot see a caller that ignores
+-- the answer, which is exactly what let a refused window be dragged on
+-- screen by the bringToFront below it. "throw" is the shape LL's Mac
+-- produced ("macOS raised while ordering the window on screen");
+-- "false" is the other one macOS uses, and 6.265.0 is the release that
+-- learned they are different facts.
+SHOW_MODE  = "ok"       -- "ok" · "throw" · "false"
+HTML_THROW = false      -- the page builder raising (6.406.0's white box)
 
 hs = {
     webview = {
@@ -76,9 +85,19 @@ hs = {
         },
         new = function(rect, opts, uc)
             local v = { rect = rect, deleted = false, shown = false }
-            function v:html(s) LAST_HTML = s; return self end
-            function v:show() self.shown = true; self.hidden = false
-                              EVENTS[#EVENTS + 1] = "show"; return self end
+            function v:html(s)
+                if HTML_THROW then error("the page could not be built", 0) end
+                LAST_HTML = s; return self
+            end
+            function v:show()
+                EVENTS[#EVENTS + 1] = "show"
+                if SHOW_MODE == "throw" then
+                    error("macOS raised while ordering the window on screen", 0)
+                end
+                if SHOW_MODE == "false" then return false end
+                self.shown = true; self.hidden = false
+                return self
+            end
             -- 🧪 6.255.0 — a hide() that only returns self would let every
             -- "it got out of the way" check pass over a window that never
             -- moved: the getter-only stub, SIXTH time (6.193.0). It really
@@ -96,7 +115,12 @@ hs = {
             function v:closeOnEscape() return self end
             function v:level() return self end
             function v:behaviorAsLabels() return self end
-            function v:bringToFront() return self end
+            -- 🚨 RECORDED (6.424.0): "it was not shown" and "it was not
+            -- shown AND NOT dragged to the front anyway" are different
+            -- facts, and only the second is the white box being prevented.
+            function v:bringToFront()
+                EVENTS[#EVENTS + 1] = "front"; return self
+            end
             -- 6.286.0 — recorded in EVENTS too, so a check can assert that
             -- the close belt is armed BEFORE the page is asked. Ordering is
             -- the rule; a check that only counts cannot see it.
@@ -1941,6 +1965,134 @@ do
 
     c17("§17 ran every one of its checks", (pass + fail) - n17 == 13,
         (pass + fail) - n17)
+end
+
+-- =====================================================================
+out("\n18. 🪟 6.424.0 — a window macOS refuses is never left on screen\n")
+-- =====================================================================
+-- LL: "I was taking a screenshot that went fine. Then, after I brought
+-- up the editor I now have a white box that won't go away." His Console
+-- at 08:44:18 carried the diagnosis — "Screenshot editor: macOS raised
+-- while ordering the window on screen" — and everything after that line
+-- carried on as though the show had worked.
+do
+    local n18 = pass + fail
+    local function c18(l, ok, x) check(l, ok, x) end
+
+    E.close()
+    -- ---- 1. macOS RAISES, with the shared door in place ---------------
+    _G.showWebviewSafely = function(view, label)
+        local answer
+        local ok = pcall(function() answer = view:show() end)
+        if ok and answer ~= false then return true, "shown" end
+        return false, ok and "macOS would not put the window on screen"
+                          or "macOS raised while ordering the window on screen"
+    end
+    SHOW_MODE = "throw"
+    EVENTS, DEGRADES = {}, {}
+    local opened = E.open(SRC)
+    c18("a refused show makes open() answer FALSE, not true", opened == false,
+        tostring(opened))
+    c18("…and NOTHING is published — the handle is a claim about the world"
+        .. " and the world said no (6.326.0)", E.webview == nil)
+    c18("…and the window is torn down rather than abandoned",
+        VIEW ~= nil and VIEW.deleted == true)
+    -- 🚨 THE ONE THAT IS THE BUG. bringToFront ran unconditionally, on
+    -- the very window macOS had just refused — which is how a window
+    -- that never finished being shown ends up on screen with nothing
+    -- drawn in it.
+    c18("…and it is NOT dragged to the front anyway — that is the white box",
+        (function()
+            for _, e in ipairs(EVENTS) do if e == "front" then return false end end
+            return true
+        end)(), table.concat(EVENTS, ","))
+    c18("…and it takes the 🔔 door, naming macOS's own words",
+        #DEGRADES > 0 and DEGRADES[#DEGRADES].why:find("raised", 1, true) ~= nil,
+        #DEGRADES > 0 and DEGRADES[#DEGRADES].why)
+
+    -- ---- 2. macOS REFUSES BY RETURNING FALSE --------------------------
+    -- 6.265.0, for the seventh time: ABSENT is not REFUSING, and a show
+    -- that returns false is not a show that throws.
+    SHOW_MODE = "false"
+    EVENTS, DEGRADES = {}, {}
+    c18("a show that RETURNS FALSE is refused too, not just a throw",
+        E.open(SRC) == false and E.webview == nil and VIEW.deleted == true)
+
+    -- ---- 3. no shared door at all -------------------------------------
+    _G.showWebviewSafely = nil
+    SHOW_MODE = "throw"
+    EVENTS, DEGRADES = {}, {}
+    c18("with no shared door, the fallback reads its own answer as well",
+        E.open(SRC) == false and E.webview == nil and VIEW.deleted == true)
+    c18("…and still does not drag the refused window to the front",
+        (function()
+            for _, e in ipairs(EVENTS) do if e == "front" then return false end end
+            return true
+        end)(), table.concat(EVENTS, ","))
+
+    -- ---- 4. the page that could not be built (6.406.0's white box) ----
+    SHOW_MODE, HTML_THROW = "ok", true
+    EVENTS, DEGRADES = {}, {}
+    c18("a page that cannot be built means the window is never SHOWN at"
+        .. " all — an empty webview draws blank",
+        E.open(SRC) == false and (function()
+            for _, e in ipairs(EVENTS) do if e == "show" then return false end end
+            return true
+        end)(), table.concat(EVENTS, ","))
+    c18("…and that window is deleted too", VIEW.deleted == true)
+    c18("…and it is a named failure, not a silence",
+        #DEGRADES > 0 and DEGRADES[#DEGRADES].why:find("page", 1, true) ~= nil,
+        #DEGRADES > 0 and DEGRADES[#DEGRADES].why)
+
+    -- ---- 5. and a healthy Mac is untouched ----------------------------
+    SHOW_MODE, HTML_THROW = "ok", false
+    EVENTS, DEGRADES = {}, {}
+    c18("a show that works still opens, publishes and comes to the front",
+        E.open(SRC) == true and E.webview ~= nil and VIEW.shown == true)
+    c18("…in that order: shown BEFORE it is brought to the front",
+        (function()
+            local si, fi
+            for i, e in ipairs(EVENTS) do
+                if e == "show"  and not si then si = i end
+                if e == "front" and not fi then fi = i end
+            end
+            return si and fi and si < fi
+        end)(), table.concat(EVENTS, ","))
+    c18("…and nothing degraded on the healthy path (6.269.0)", #DEGRADES == 0,
+        #DEGRADES)
+
+    -- ---- 6. the report names it ---------------------------------------
+    local blk = {}
+    local realPrint = print
+    print = function(...) blk[#blk + 1] = table.concat({ ... }, " ") end
+    pcall(_G.screenshotEditorReport)
+    print = realPrint
+    local txt = table.concat(blk, "\n")
+    c18("the report counts the refusals apart from the pages that could"
+        .. " not be built — two faults, two fixes",
+        txt:find("refused by macOS", 1, true) ~= nil
+        and txt:find("could not be built", 1, true) ~= nil, txt:sub(1, 400))
+    c18("…and says nothing was left on screen either way",
+        txt:find("left on screen", 1, true) ~= nil, txt:sub(1, 400))
+
+    -- ---- 7. the panic chord's second argument -------------------------
+    -- 🚨 It must ASK the page (so his marks are not thrown away) and
+    -- close in the same breath, never wait out the belt.
+    E.close() ; E.open(SRC)
+    JS = {}
+    local okP = E.requestClose("panic chord", true)
+    c18("requestClose(why, true) asks the page for the work first",
+        okP == true and (function()
+            for _, j in ipairs(JS) do
+                if tostring(j):find("stashAndCancel", 1, true) then return true end
+            end
+            return false
+        end)(), table.concat(JS, " | "))
+    c18("…and the window is gone AT ONCE — a panic chord cannot have a"
+        .. " grace period in it", E.webview == nil)
+
+    c18("§18 ran every one of its checks", (pass + fail) - n18 == 18,
+        (pass + fail) - n18)
 end
 
 out(("\n%d passed, %d failed\n"):format(pass, fail))

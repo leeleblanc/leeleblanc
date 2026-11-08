@@ -3042,7 +3042,9 @@ function drawRows(){
   // index the first open's scan filled in after he had already left.
   if (!h.length) h.push('<li style="opacity:.4;cursor:default">'
     + (tag !== null ? (SCANNED ? 'no note carries #' + esc(tag) : 'reading your notes…')
-      : (f ? (SCANNED ? 'no note matches — ⏎ creates &quot;' + esc(q.value.trim()) + '&quot;'
+      : (f ? (SCANNED ? 'no note NAMED &quot;' + esc(q.value.trim()) + '&quot; — this box'
+                        + ' searches names and headings, never the words inside a note.'
+                        + ' Press ⌘⇧F to search inside every note. ⏎ here creates it.'
                       : 'reading your notes… — ⏎ creates once the list is in')
            : (SCANNED ? 'no notes yet — ⌘N' : 'reading your notes…'))) + '</li>');
   // 6.195.0 — LL: "can I have a way to quickly create a Hammer-sidian note

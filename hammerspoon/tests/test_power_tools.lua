@@ -1878,6 +1878,51 @@ do
     check("the alert says how to come back", (ALERTS[#ALERTS] or ""):find("back on", 1, true) ~= nil,
           ALERTS[#ALERTS])
 
+    -- 🖌 6.424.0 — THE SCREENSHOT EDITOR. It belonged in this table from
+    -- the day the chord was written: it is a webview sized to the shot
+    -- (on a 4K, most of the display) holding allowTextEntry with every
+    -- drawing tool on a bare letter — the rule at the top of the table
+    -- names it twice over. It was missed for the same reason 6.189.0
+    -- found the cheat sheet missing: it is reached from a key, not from
+    -- a list of panels.
+    reset()
+    local shot = { webview = true, asked = nil, closed = false }
+    shot.requestClose = function(why, now)
+        shot.asked, shot.closed = { why = why, now = now }, true
+        shot.webview = nil
+        return true
+    end
+    _G.screenshotEditor = shot
+    _G.hsPaused = false
+    did = pt.panic("chord")
+    local sids = {}
+    for _, s3 in ipairs(did) do sids[#sids + 1] = s3.id end
+    check("the screenshot editor is closed by the panic chord",
+          table.concat(sids, ","):find("shoteditor", 1, true) ~= nil
+          and shot.closed == true, table.concat(sids, ","))
+    -- 🚨 AND IT ASKS FOR HIS MARKS ON THE WAY OUT. close() would have
+    -- been one word shorter and would throw away the only copy of the
+    -- work (6.286.0); `now` is what stops it waiting out the 0.4 s belt
+    -- while the screen is stuck.
+    check("…through requestClose, so his marks are asked for — and with "
+          .. "`now`, so the chord does not wait out the belt",
+          shot.asked ~= nil and shot.asked.now == true
+          and tostring(shot.asked.why):find("panic", 1, true) ~= nil,
+          shot.asked and tostring(shot.asked.why) .. "/" .. tostring(shot.asked.now))
+    -- A closed editor is not a step that did anything (6.174.1's rule
+    -- about the grid: the chord must not take credit for a panel that
+    -- was never up).
+    reset()
+    _G.screenshotEditor = { webview = nil, requestClose = function() return true end }
+    _G.hsPaused = false
+    did = pt.panic("chord")
+    local sids2 = {}
+    for _, s4 in ipairs(did) do sids2[#sids2 + 1] = s4.id end
+    check("…and a CLOSED editor is not counted as something released",
+          table.concat(sids2, ","):find("shoteditor", 1, true) == nil,
+          table.concat(sids2, ","))
+    _G.screenshotEditor = nil
+
     -- Pressed twice: the second press must not un-pause what the first
     -- press paused. A panic key that toggles is a panic key that hurts.
     local before = _G.hsPaused
@@ -1889,8 +1934,14 @@ do
     check("the report names the chord and the Console door",
           rep:find("escape", 1, true) ~= nil and rep:find("_G.hsPanic()", 1, true) ~= nil,
           rep)
+    -- 🧪 6.424.0 — WAS `pressed : 3`, A CONSTANT WHERE THE RULE IS "every
+    -- press is counted" (6.248.0, the tenth time). It went red the moment
+    -- a new section pressed the chord twice more, with nothing to say
+    -- about the change it existed to prove. Asserted against the counter
+    -- the module keeps, which is the thing the line renders.
     check("…and counts the presses and remembers the last one",
-          rep:find("pressed : 3", 1, true) ~= nil
+          rep:find("pressed : " .. tostring(pt.panicCount), 1, true) ~= nil
+          and pt.panicCount > 1
           and rep:find("threw: grid", 1, true) ~= nil, rep)
     -- 6.174.1 — LL's first press reported "4 released ... grid" with no
     -- grid on the screen: grid.hide is idempotent and always succeeds, so
