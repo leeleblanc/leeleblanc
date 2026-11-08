@@ -7478,6 +7478,24 @@ THE METHOD, when something breaks after a stacked zip:
    6.415.0's plan called this door "still the firehose, deliberately".
    That step is marked SUPERSEDED in its own verify block rather than
    quietly rewritten, so the record shows the call was made and changed.
+   · 6.421.0 · 6.422.0 · 6.423.0 — 9313323 (code, suites and ceremony in
+   one commit; the archive for them is 6.427.0's, below).
+   · 6.424.0–6.427.0 — 24cb1f3 (the code and the suites) · e4503d1 (the
+   ceremony and the archive), and **e4503d1 is the SHA every link to it
+   must carry** — a branch-pinned link dies the moment the next release
+   deletes the file, which is why 6.356.0–6.358.0 never reached his
+   Downloads (6.360.0). 19 of 19 mutations bit and the no-op control
+   survived, restore sha-verified; the one survivor of the first pass
+   was a MISSING CHECK — the panic step's id matched with find(), so
+   renaming it "shoteditor_x" passed because the new name CONTAINS the
+   old (6.236.0, fourth time).
+   🔑 FOUR RELEASES IN FOUR DIFFERENT FILES on purpose, so a break still
+   names its version by which thing fails: a white box after ⇪⇧1, or a
+   panic chord that leaves the editor up, is 6.424.0
+   (screenshot_editor + power_tools) · a ⌘F filter that says nothing
+   about ⌘⇧F is 6.425.0 (vault) · a draft that comes back CUT, or the
+   same row twice, is 6.426.0 (draft_keeper) · @report missing from ⇪D's
+   `@` list is 6.427.0 (unified_search).
    Keep this list current: one line per release, appended at ceremony
    time.
 4. A BISECT IS AN OPTION, NOT THE FIRST MOVE — it costs him an install
