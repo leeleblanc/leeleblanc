@@ -225,6 +225,27 @@ fresh.setup({ configDir = ROOT })
 _G.stormReport()
 check("a fresh session with nothing on disk reads as never, not as zero", PRINTED[1]:find("no storm this session", 1, true) and PRINTED[1]:find("no report on disk", 1, true))
 
+-- 📠 6.417.0's RULE, AND THE SWEEP FOUND IT UNDRIVEN HERE. Moving the
+-- asked-for-text guard BELOW the print survived every check in this
+-- suite: the report would print AND return, so typing it in the Console
+-- shows the whole block twice (the Console echoes a return), and
+-- 6.421.0's hand-off would print it at the moment the keyboard dies.
+-- The silent mode is the whole reason the argument exists, so it is
+-- asserted rather than assumed (6.273.0 — the line is not the finding,
+-- the missing check is).
+PRINTED = {}
+local asText = _G.stormReport(true)
+check("📠 _G.stormReport(true) RETURNS the text and prints NOTHING — the "
+      .. "Console echoes a return, so a report that does both doubles",
+      type(asText) == "string" and #PRINTED == 0
+      and asText:find("Hyper storm guard", 1, true) ~= nil,
+      "#printed=" .. #PRINTED .. " type=" .. type(asText))
+PRINTED = {}
+local unasked = _G.stormReport()
+check("📠 ...and unasked it still PRINTS and returns nothing, so the "
+      .. "silent mode has not cost the ordinary one",
+      #PRINTED == 1 and unasked == nil, "#printed=" .. #PRINTED)
+
 out("9) the hooks in init.lua, against the source\n")
 local init = readAll(HS .. "/init.lua") or ""
 check("hyperEnter records when the hold BEGAN, only for a new hold", init:find("_G.hyperEnteredAt = hs.timer.secondsSinceEpoch()", 1, true) ~= nil
@@ -554,6 +575,93 @@ do
     check("…and the file does not promise an answer that is not coming",
           offText:find("appended at the END", 1, true) == nil, offText:sub(1, 200))
     st.probeOn = true
+
+    -- ---- 📋 6.421.0 — the storm hands its report to the clipboard -------
+    -- LL: "Does the console automatically generate a report for any
+    -- condition that kills my keyboard and is automatically pasted to the
+    -- clipboard?" It did not: the alert names a FILE PATH, and a path
+    -- cannot be copied out of an hs.alert — so the one moment he could
+    -- not type `_G.stormReport()` was the moment the keyboard was dead.
+    -- 🔗 BOTH SIDES OF THE JOIN (6.388.0): test_panel_drag proves the DOOR
+    -- in core/coexist.lua, and this proves the storm ASKS it. Half a join
+    -- is a contract nobody holds.
+    do
+        local ASKED = {}
+        local keptHand = _G.clipHandOff
+        _G.clipHandOff = function(who, event, text)
+            ASKED[#ASKED + 1] = { who = who, event = event, text = text }
+            return true, "the whole report is on your clipboard — ⌘V sends it"
+        end
+
+        st.probes = { asked = 0, landed = 0, noTimer = 0, dropped = 0, failed = 0 }
+        st.probeWaiting, st.probeTimer = {}, nil
+        st.times, st.storms = {}, 0
+        ORDER = {}
+        st.order = { { "h", "eight" } }
+        local okF, msgF = st.fire(9, NOW + 600)
+        check("📋 a storm hands its report over", okF == true and #ASKED >= 1,
+              #ASKED)
+        check("📋 …and it hands over the REPORT, not the alert — the "
+              .. "newest file's text is what he needs to send",
+              ASKED[1] and type(ASKED[1].text) == "string"
+              and ASKED[1].text:find("Hyper storm guard", 1, true) ~= nil,
+              ASKED[1] and ASKED[1].text:sub(1, 80) or "none")
+        check("📋 …and the ALERT says so, so he knows ⌘V has it",
+              type(msgF) == "string" and msgF:find("⌘V", 1, true) ~= nil, msgF)
+        check("🪪 …under the storm's own second as the event id",
+              ASKED[1] and ASKED[1].event == "storm-" .. tostring(math.floor(NOW + 600)),
+              ASKED[1] and ASKED[1].event or "none")
+
+        -- 🔑 THE CLAUSE THE WHOLE NO-CLOCK RULE EXISTS FOR: 6.403.0's probe
+        -- answers are appended a beat LATER, and those three lines are the
+        -- reason that release exists. A hand-off only at the fire would put
+        -- the report on his clipboard with its "why" section missing.
+        local before = #ASKED
+        st.probeLand()
+        check("🔑 the probe's answers landing hand the report over AGAIN, so "
+              .. "the clipboard carries the 'why' section and not the report "
+              .. "without its diagnosis",
+              #ASKED == before + 1, #ASKED - before)
+        check("🪪 …under the SAME event id, so the door reads it as the same "
+              .. "event GROWN rather than a second storm — a different id "
+              .. "would hand over needlessly when the probe added nothing",
+              ASKED[#ASKED] and ASKED[#ASKED].event == ASKED[1].event,
+              ASKED[#ASKED] and ASKED[#ASKED].event or "none")
+
+        -- nothing waiting → nothing handed over a second time
+        local before2 = #ASKED
+        st.probeWaiting = {}
+        st.probeLand()
+        check("📏 a probe landing with nothing waiting hands over nothing",
+              #ASKED == before2, #ASKED - before2)
+
+        -- 🚪 ORDER, ASSERTED (6.220.0): the release is what lets his next
+        -- key type and the hand-off is diagnosis, so a hand-off that THROWS
+        -- must cost the sentence and nothing else.
+        _G.clipHandOff = function() error("the clipboard exploded", 0) end
+        st.times, st.storms = {}, 0
+        ORDER = {}
+        st.order = { { "i", "nine" } }
+        local okT, msgT = st.fire(9, NOW + 700)
+        check("🚪 a hand-off that THROWS still RELEASES the hold and still "
+              .. "writes the report — it can never cost him his keyboard",
+              okT == true and ORDER[1] == "release", table.concat(ORDER, ","))
+        check("🚪 …and the alert simply does not claim the clipboard has it",
+              type(msgT) == "string" and msgT:find("⌘V", 1, true) == nil, msgT)
+
+        -- a Hammerspoon with no door at all (an older core/coexist.lua)
+        _G.clipHandOff = nil
+        st.times, st.storms = {}, 0
+        ORDER = {}
+        st.order = { { "j", "ten" } }
+        local okN2, msgN2 = st.fire(9, NOW + 800)
+        check("🛟 with no hand-off door at all the storm is unchanged",
+              okN2 == true and ORDER[1] == "release"
+              and msgN2:find("⌘V", 1, true) == nil, table.concat(ORDER, ","))
+
+        _G.clipHandOff = keptHand
+        st.probeWaiting, st.probeTimer = {}, nil
+    end
 
     -- ---- the source sentries -------------------------------------------
     local src = readAll(HS .. "/modules/hyper_storm.lua") or ""

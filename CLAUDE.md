@@ -487,6 +487,121 @@ work Mac.
   can answer it. A guard that fails on correct code is switched off
   inside a week (6.269.0).
 
+- 📋 A REPORT HE CANNOT REACH IS A REPORT THAT DOES NOT EXIST AT THE
+  MOMENT IT IS NEEDED (6.421.0, core/coexist.lua's `_G.clipHandOff` —
+  LL: "Does the console automatically generate a report for any
+  condition that kills my keyboard and is automatically pasted to the
+  clipboard?"). No, and no was the smaller half. Three conditions here
+  can leave him unable to type — a latched ⇪, macOS's SECURE INPUT
+  (every tap AND every hotkey, system-wide, no error anywhere), a
+  stopped main thread — and GREPPED: hyper_storm.lua, stall_guard.lua,
+  capabilities.lua and hyper_key.lua carry ZERO pasteboard writes
+  between them.
+  🚨 AND THE ALERT NAMES A FILE PATH, which is what makes it a defect
+  rather than a gap: a path cannot be copied out of an hs.alert, and
+  the one moment he cannot type `_G.stormReport()` is the moment the
+  keyboard is dead. Every rule here about a break being SEEN (6.214.0)
+  stops at the screen. GENERAL, past this config: when a diagnostic
+  exists for a failure that disables the INPUT, ask how he gets the
+  text OUT — a report reachable only by typing is unreachable exactly
+  when it matters.
+  🔑 THE RULE NEEDS NO CLOCK, and that is the half to carry: hand over
+  on a NEW event, or when the SAME event's report has GROWN. The
+  second clause is 6.403.0's probe answers, appended a beat later. A
+  rate limit with a number in it was the obvious build and is strictly
+  worse — both callers fire on a TRANSITION, so there is nothing to
+  rate-limit, and the number is one more thing to get wrong.
+  🗳 IT TAKES HIS CLIPBOARD, so the default is chosen against its own
+  damage (6.319.0): ⇪V still holds what it overwrote, the sentence
+  names ⇪V (6.398.0), and it fires only on the way INTO a state where
+  he cannot type. 📏 A report he CAN reach by typing is not handed over
+  — the next-boot announce and the stall guard's are left alone, named
+  as a decision rather than an omission (6.353.0).
+
+- 🪪 NO TWO FILES PUBLISH THE SAME `_G.` NAME — LOAD ORDER PICKS THE
+  LOSER IN SILENCE (6.422.0, core/coexist.lua + a gate sentry).
+  `_G.focusReport` was defined in core/coexist.lua (6.401.0's focus
+  door) AND in modules/focus_mode.lua (⇪Q's report). core/ loads first,
+  so focus_mode's won on every boot for twenty releases: typing
+  `_G.focusReport()` has always printed FOCUS MODE's block and the
+  door's has never been seen on his Mac.
+  🚨 AND I ASKED HIM TO PASTE IT TWICE — 6.401.0's verify block says
+  "PASTE THAT" and 6.402.0 names it as half of a pair that separates
+  two faults. A step he cannot run reads as a feature that does not
+  work (6.377.0).
+  🔑 6.308.0 ONE LEVEL OUT: that release found a module with TWO
+  `M.warm`, where load order silently picked the loser. Two FILES and
+  one global name is the same defect — both functions correct on their
+  own, the config green, and the only symptom a command printing
+  somebody else's block.
+  🧪 AND THE SUITE CERTIFIED IT. test_panel_drag loads coexist in
+  ISOLATION, so the door's definition is the only one there and its
+  checks passed. 6.273.0 word for word — a harness that does not
+  reproduce the real LOAD ORDER does not miss the bug, it certifies it.
+  GENERAL: no functional check can see a collision, because each file
+  is right by itself; only a sweep across the tree can, so the fix is a
+  sentry and never an edit. Swept: one collision, 172 published
+  globals.
+  🔎 AND THE SENTRY FOUND A SECOND THING BY FAILING IN SILENCE:
+  test_integration printed its FAILURES list ABOVE its last sentries,
+  so a failure there was COUNTED and never NAMED — "1 failed" and
+  nothing listed. GENERAL: a suite that cannot say what broke is the
+  same defect as a report that cannot (6.282.0), and the place to look
+  is whatever runs after the summary.
+
+- 🩺 A DIAGNOSTIC THAT READS THE FOCUSED FIELD CANNOT BE RUN BY TYPING
+  (6.423.0, modules/draft_keeper.lua — LL: "when I typed in this
+  textbox and then I bring up @drafts then nothing is show to be
+  saved"). `_G.draftCheck()` reads the front app's focused element at
+  CALL time, so typing the command focuses the Console and the only
+  field it can ever read is the Console's own box. 6.411.0's verify
+  block asked him to "leave the caret in that box and run, in the
+  Console" — the act of running it is the act of moving the focus. He
+  did exactly what it said and got an answer about the wrong field.
+  🔑 GENERAL, and it generalises past this tool: ANY INSTRUMENT WHOSE
+  SUBJECT IS "WHAT IS FOCUSED RIGHT NOW" CANNOT BE REACHED THROUGH A
+  CHANNEL THAT TAKES THE FOCUS. A hyper key moves none, so ⇪⇧] runs it
+  in place. Before writing a step that says "run this in the Console",
+  ask whether running it changes the thing being measured — that is
+  6.242.0's rule (make the measurement the feature) with the
+  observer's own cost in it.
+  🩺 AND THE SAMPLER THREW THE NAME AWAY: an unwatched app was counted
+  and forgotten, so "nothing is kept here" could not say where here
+  was. One row per app, ties broken by NAME (without it the order is
+  pairs()' own, a different list each run), bounded, and the bound is
+  a STATE that says FULL rather than quietly forgetting (6.197.2).
+  🔒 It says the COUNT and never his words (6.404.0), and the ONE-LINE
+  verdict refuses a password field as well as the long one — a short
+  answer must not say KEPT about a field the block turns away.
+
+- 📠 6.417.0 CLOSED HALF A CLASS AND ITS SENTRY SAID IT WAS CLOSED
+  (found 2026-11-08, NAMED AND NOT FIXED — its own release). That
+  release stopped reports printing twice, and its sentry searches for
+  the literal `print(s)\n return s` — the variable named **s**.
+  FOURTEEN report sites use the variable named **out** and still do
+  both, so they still double in the Console: `_G.vaultReport()`,
+  `_G.scratchPadReport()`, `_G.recentDocsReport()`,
+  `_G.draftKeeperReport()`, `_G.clipboardWriteReport()`,
+  `_G.appRemoveReport()`, `_G.asanaRefreshReport()`, `_G.battReport()`,
+  `_G.eco.report()`, `_G.snippetsReport()`, `_G.todayReport()`,
+  `_G.focusWindows()`, `_G.focusDoorReport()` and
+  `sp.taskPreview()`. MEASURED, not read: each one's enclosing
+  function takes no argument and returns unconditionally.
+  🔑 THE RULE, and it is 6.308.0's about textual sentries in the place
+  it hurts most: **A SENTRY THAT MATCHES ONE SPELLING OF A SHAPE
+  CLOSES ONE SPELLING, AND REPORTS THE CLASS AS CLOSED.** The note at
+  6.417.0 says "the class closes here, and a new report written next
+  year cannot reopen it" — which was true of `s` and false of
+  everything else. When a sentry is written for a CLASS, the check
+  that earns its place is one that reintroduces the defect UNDER A
+  DIFFERENT NAME (6.360.0 found exactly that for a climb).
+  📏 WHY IT IS NOT FIXED IN THE SAME BREATH, said rather than left to
+  look like rationing: the sentry and the fourteen must ship TOGETHER
+  (a correct sentry turns the gate red until every site is fixed), and
+  the fourteen signature changes drag ~30 call sites in nine test
+  files and two `core.provide` services. That is a wide mechanical
+  edit and it does not belong in an archive with three other releases.
+
 - 🔎 A CHOOSER WITH A queryChangedCallback STOPS FILTERING FOR ITSELF
   (6.408.0, modules/menu_search.lua — LL: "Menu search is not filtering.
   Somewhat filters when typing a question mark but does nothing after
@@ -7137,7 +7252,7 @@ THE METHOD, when something breaks after a stacked zip:
    📏 AND 6.401.0 AND 6.402.0 SHARE A MECHANISM, which is worth knowing
    before bisecting: the paste CANNOT work without the focus door, so a
    ⏎ that copies instead of pasting may be either release. The ⏎ clip
-   line in `_G.unifiedSearchReport()` and `_G.focusReport()` separate
+   line in `_G.unifiedSearchReport()` and `_G.focusDoorReport()` separate
    them in one run.
    · 6.404.0 be196bf (the code and the ceremony) · **204bb19 is the
    archive, and 204bb19 is the SHA every link to it must carry** — a
@@ -7322,6 +7437,10 @@ that must be READ before a new cause is named.
 
 | symptom, in his words | where it lives | releases | passes | tag |
 |---|---|---|---|---|
+| "Does the console automatically generate a report for any condition that kills my keyboard and is automatically pasted to the clipboard?" | the three keyboard-killers — hyper_storm · capabilities · stall_guard, and none of them touched the clipboard | 6.421.0 | 1 | his question found the gap, not a report of a break |
+| "when I typed in this textbox and then I bring up @drafts then nothing is show to be saved" | modules/draft_keeper.lua · the check could not see the field it measured | 6.411.0 · 6.423.0 | 2 | ask |
+| `_G.focusReport()` printing focus MODE's block when the focus DOOR was asked for | core/coexist.lua + modules/focus_mode.lua · one global name, two files | 6.422.0 | 1 | nothing broke; a report I asked for twice could not be reached |
+| "You're not grouping your questions" · "verification explanations are muddled" · "tasks … grouped in order by need … and what you want me to return" | not a module — how a release is written up | 6.421.0 (the shape, from here on) | 1 | a method defect, like the ⌨️ and 🔨/✨ rules |
 | "a translucent floppy-disc beside a text field … watching the typing" · "Escalate draft keeper" | modules/draft_keeper.lua — @draft in ⇪D | 6.404.0 | 1 | a new tool, not a defect — the ask was three years of web forms losing what he typed |
 | "I had a white box that was Hamsidian" · "then was left with that box" | modules/vault.lua — a bare pcall around the page write, and a handle published before the show | 6.406.0 | 1 | ask |
 | "No notes to pick yet" over a full vault · "is this so obvious I'm missing it" | modules/anchors.lua · vault.lua's index state | 6.340.0 · 6.405.0 | 2 | ask — 6.340.0 fixed the surface and swept no reader |
@@ -7492,6 +7611,11 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
+| 6.423.0 | 🩺 The draft keeper's check runs where the caret already is — ⇪⇧], because typing the command moved the focus it was measuring | pending |
+| 6.422.0 | 🪪 The focus door's report was unreachable — two files published `_G.focusReport` and core/ loses | pending |
+| 6.421.0 | 📋 A keyboard-killing event puts its own report on your clipboard — his question found that none of them did | pending |
+| 6.420.0 | ⏱ A panel's ⇪ deadline is absolute — typing into the panel used to buy the hold another eight seconds | pending |
+| 6.419.0 | 📋 `_G.snippetsList()` answers before it dumps — 1,937 lines became 32 | pending |
 | 6.418.0 | ℹ️ A Mac with no profile of its own says so at boot — the work MacBook almost certainly has none | pending |
 | 6.417.0 | 📠 A report prints ONCE — every one of them showed twice in the Console | pending |
 | 6.416.0 | 🩺 The self test stops saying you have no snippets over a library of nineteen hundred | pending |
@@ -9189,6 +9313,116 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.423.0 verify with LL — 📋 THE KEYBOARD'S OWN REPORT, ON YOUR
+  CLIPBOARD (KNOWN GROUND) — this block covers 6.421.0, 6.422.0 AND
+  6.423.0: they shipped in one archive and share one test plan.
+  📏 FILED UNDER THE NEWEST ON PURPOSE: tools/build-test-plan.lua reads
+  one version per heading (`- 6.X.Y verify with LL`), so a batch of
+  releases goes under its newest and names the others in its own
+  section headers. A heading listing three versions is silently skipped
+  by the generator and the steps never reach TESTING.md — which is
+  6.271.0's whole finding, so it is written down here rather than left
+  to be rediscovered.
+  🔎 THIS BATCH CAME OUT OF YOUR OWN QUESTION, which is worth saying
+  first: you asked whether the Console automatically generates a report
+  for anything that kills your keyboard and automatically pastes it to
+  the clipboard. Going to answer it found THREE defects, and all three
+  are mine.
+
+  DO THESE IN ORDER. Each step says what to send back.
+
+  ── 1. THE ONE THAT PAYS WHEN THE KEYBOARD DIES (6.421.0) ──────────
+  1a. Nothing to press. If ⇪ ever latches again, you now get the same
+      alert with one clause added: "the whole report is on your
+      clipboard — ⌘V sends it (whatever you had copied is still in ⇪V)".
+      RETURN: ⌘V it into a message to me. That is the whole release —
+      you no longer have to remember `_G.stormReport()` while your
+      keyboard is misbehaving.
+  1b. Console: `_G.clipboardWriteReport()`.
+      RETURN: the whole block. Its new `hand-off:` line reads "nothing
+      has asked — no ⇪ storm and no Secure Input lock this session" on a
+      good day. That sentence is deliberate: it says what it MEASURED
+      rather than that all is well.
+  1c. If macOS ever refuses the clipboard, the sentence changes to
+      "macOS would not take the clipboard — the report is in the
+      Console" and does NOT say ⌘V.
+      RETURN: that line if you ever see it.
+
+  ── 2. THE REPORT I ASKED YOU TO PASTE TWICE AND YOU COULD NOT (6.422.0) ──
+  2a. Console: `_G.focusDoorReport()`.
+      RETURN: the whole block — asked / returned / watching / refused /
+      holding.
+      WHY IT IS A NEW NAME: `_G.focusReport` was defined in TWO files,
+      and core/ loads first, so ⇪Q's focus-mode report overwrote the
+      focus door's on every boot since 6.401.0. Every time you typed
+      `_G.focusReport()` you got focus mode's block. My 6.401.0 and
+      6.402.0 steps both told you to paste the door's — which could not
+      be reached.
+  2b. Console: `_G.focusReport()`.
+      EXPECT: focus MODE's block (⇪Q), unchanged. The two are separate
+      tools and now have separate names.
+      RETURN: nothing unless it looks wrong.
+
+  ── 3. THE DRAFT KEEPER, CHECKABLE WHERE YOU ARE (6.423.0) ──────────
+  3a. Click into a text box in Chrome and type two or three sentences —
+      more than sixty characters. LEAVE THE CARET THERE.
+  3b. Press **⇪⇧]** — hold Caps Lock and Shift and press the **]** key,
+      right of **[**.
+      EXPECT: an alert like "💾 Google Chrome · AXTextArea · 212
+      character(s) — THIS WOULD BE KEPT", and the full block in the
+      Console.
+      RETURN: the alert's wording and the Console block.
+      🚨 WHY THIS KEY EXISTS AND WHY MY OLD STEP WAS IMPOSSIBLE:
+      `_G.draftCheck()` reads the focused field at the moment it runs,
+      so TYPING the command focuses the Console — the only field it can
+      ever see is the Console's own box. 6.411.0's step said "leave the
+      caret in that box and run, in the Console", which cannot be done.
+      A hyper key moves no focus.
+  3c. Now type `_G.draftCheck()` in the Console instead.
+      EXPECT: "💾 That is the Console — press ⇪⇧] with the caret in your
+      text box". It names itself rather than reporting an empty field.
+      RETURN: confirmation that it says that.
+  3d. Press ⇪⇧] with the caret in Word, or Terminal, or anything not
+      watched.
+      EXPECT: "💾 Microsoft Word is NOT watched — nothing here is kept",
+      naming the app.
+      RETURN: which apps you tried and what each said. That list is what
+      tells me whether the watch list is the right one.
+  3e. Console: `_G.draftKeeperReport()`.
+      RETURN: the whole block. Three lines are new — `where :` (the
+      unwatched apps you have had the caret in, busiest first), `check :`
+      and `last :`.
+      🔒 NOTE WHAT IS NOT IN IT: your words. It says the app, the role
+      and the character COUNT and never the text.
+
+  ── 4. MUST STILL WORK — this touched the ⇪ guard and the clipboard,
+  ──    so this half matters more than 1–3 ────────────────────────────
+  4a. A spread of keys: ⇪T, ⇪D, ⇪N, ⇪3, ⇪X, ⇪4, ⇪space, ⇪V, ⇪/, ⇪⇧S.
+  4b. ⇪⇧Esc pauses and resumes. ⌃⌥⌘⇧Esc still releases everything.
+  4c. Copy three things and press ⇪V — your history is unchanged.
+  4d. ⇪Q engages focus mode; ⇪⇧Q prints focus mode's report.
+  4e. Boot: All green, 79 modules, the usual ⇪ shortcut count.
+  4f. `_G.installCheck()` — the manifest should match.
+      RETURN: anything in 4a–4f that behaves differently from last week.
+
+  ❓ QUESTIONS — ANSWERS WANTED, NOTHING TO RUN
+  Q1. **Is taking your clipboard on a storm the right trade?** It only
+      happens on the way into a state where you cannot type, what it
+      overwrites is still in ⇪V, and the alert says so. If you would
+      rather it never touched the clipboard, say so and it is one line.
+  Q2. **Is ⇪⇧] a key you will remember for the draft check?** It is the
+      last genuinely free shifted key. Say if you want it somewhere else.
+  Q3. **Which apps should the draft keeper watch?** Step 3d's list is the
+      answer. Right now: Chrome, Chromium, Safari, Edge, Firefox, Brave,
+      Arc, Vivaldi, Opera and Outlook.
+  Q4. **Sixty characters and ten seconds** are still MY numbers, not
+      yours — the floor a draft has to pass and the pause before it is
+      written. You escalated the feature without answering that, and I
+      will not leave it in a settings line for you to type. Say whether
+      anything is being kept that you did not want, or anything missed.
+  Q5. **The work MacBook's name** — `scutil --get ComputerName`. Still
+      owed, and it is what gives that Mac a profile of its own.
+
 - 6.420.0 verify with LL — ⏱ ⇪ LETS GO WHEN A PANEL SAYS SO (KNOWN GROUND)
   WHAT CHANGED: when a panel tells this config it has taken the keyboard,
   ⇪ now lets go at the deadline that panel asked for — and typing into
@@ -10572,7 +10806,10 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
       nothing about it changed, and it is the comparison you used.
 
   D. PASTE BACK, PASS OR FAIL.
-  D1. Console: `_G.focusReport()` — NEW. On a healthy Mac:
+  D1. Console: `_G.focusDoorReport()` — NEW. (It was `_G.focusReport()`
+      until 6.422.0, where that name turned out to be taken by ⇪Q's own
+      report in another file — so this step could not be run.) On a
+      healthy Mac:
         asked   : 3 borrow(s) · returned 3 · nothing to give back 0 · already held 0
         watching: yes · last app seen: Google Chrome
         refused : none — every app asked for came back

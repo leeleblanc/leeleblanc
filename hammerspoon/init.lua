@@ -4,57 +4,47 @@
 -- =====================================================================
 -- 11-08-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.420.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.423.0
 -- =====================================================================
 
--- NEW IN 6.420.0 — ⏱ A PANEL'S ⇪ DEADLINE IS ABSOLUTE (init.lua §3.12
---   + core/hyper_key.lua). LL: "I can't use Hammerspoon right now." His
---   own storm report is the evidence — an 18.4-SECOND ⇪ hold, Chrome in
---   front, a Unified Search handoff pending, while he typed into that
---   panel. 6.165.1 shortens the hold for a panel that says it took the
---   keyboard, and did it by BACKDATING hyperHeldAt; every key calls
---   _G.hyperTouch(), which stamps hyperHeldAt = now and wipes the
---   backdate, and the watchdog's re-arm then asks for the FULL eight
---   seconds. One letter typed into the panel destroyed the 1.5 s
---   deadline for the rest of that hold — and he types into the panel.
---   🔑 THE DEADLINE IS A WALL-CLOCK INSTANT NOW (_G.hyperHandoffUntil),
---   set once by the panel, moved by nothing: not a keystroke, not an
---   autorepeat, not a second panel asking for longer (EARLIEST wins).
---   One PURE planner decides (_G.hyperLatchPlan), so the gate drives
---   every branch with no Mac and no clock; a Hammerspoon without
---   core/hyper_key.lua falls back to the pre-6.420.0 rule exactly.
---   🔒 AN ORDINARY HOLD IS UNTOUCHED — with no panel declared a key
---   still proves the hold is real and still pushes the watchdog out
---   (6.162.1). Only a panel that DECLARED it took the keys is bounded,
---   which is the one case where the keys prove nothing about Caps Lock.
---   📏 COST: with a panel open, ⇪ lets go `secs` after the panel said
---   so even under a finger — 6.165.1's own premise made true.
+-- NEW IN 6.423.0 — 🩺 THE DRAFT KEEPER'S CHECK RUNS WHERE THE CARET IS
+--   (modules/draft_keeper.lua, ⇪⇧]). LL typed into a text box, brought
+--   up @draft, and nothing was saved. Two findings, both mine.
+--   `_G.draftCheck()` CANNOT SEE THE FIELD IT MEASURES: it reads the
+--   front app's focused element at CALL time, so typing the command
+--   focuses the Console and the only field it can ever read is the
+--   Console's own box — 6.411.0's verify block asked him to "leave the
+--   caret in that box and run, in the Console", which cannot be done.
+--   A hyper key moves no focus, so ⇪⇧] runs it in place and shows the
+--   verdict in an alert. And the sampler THREW AWAY the name of an app
+--   it was not watching, so "nothing is kept here" could not say where
+--   here was; the register keeps one row per app, bounded, and the
+--   bound is a STATE (6.197.2). 🔒 The report says the COUNT and never
+--   his words (6.404.0) — a diagnostic that prints a half-written email
+--   into the Console is a worse tool than the one that said nothing.
+-- NEW IN 6.422.0 — 🪪 NO TWO FILES PUBLISH THE SAME _G. NAME
+--   (core/coexist.lua + tests/test_integration.lua). `_G.focusReport`
+--   was defined in core/coexist.lua (6.401.0's focus door) AND in
+--   modules/focus_mode.lua (⇪Q's own report). core/ loads BEFORE
+--   modules/, so focus_mode's definition overwrote the door's on every
+--   boot for twenty releases: typing `_G.focusReport()` has always
+--   printed FOCUS MODE's block, and the door's report has never once
+--   been seen on his Mac — while 6.401.0's verify block said "PASTE
+--   THAT" and 6.402.0 named it as half of a pair that tells two faults
+--   apart. 6.308.0 one level out: load order picks the loser in
+--   silence and the config boots green either way. The door renames to
+--   `_G.focusDoorReport()` — ⇪Q's is older and bound to a key — and a
+--   sentry closes the class over the whole tree (one collision, this
+--   one). 🧪 AND THE SUITE CERTIFIED IT: test_panel_drag loads coexist
+--   in ISOLATION, so the door's definition is the only one there and
+--   its checks passed. 6.273.0 — a harness that does not reproduce the
+--   real load order does not miss the bug, it certifies it.
 
--- NEW IN 6.419.0 — 📋 _G.snippetsList() ANSWERS BEFORE IT DUMPS
---   (modules/text_expander.lua). LL: "way too much in the console. Give
---   me a good report." It printed 1,937 lines over a library of 1,926,
---   and the count he asked for was the FIRST of them — so the answer
---   scrolled off the top before the dump ended. The summary prints first
---   and in full now (count, provenance, a per-collection breakdown, what
---   did NOT load, and THE CONTROLS) with the rows a BOUNDED TAIL under
---   it: 32 lines by default, 11 for the summary alone.
---   📏 THE BOUND IS A STATE (6.196.1), three of them: a count shows that
---   many · 0 none · true every row, the old firehose kept reachable and
---   asked for. One settings line, or the same three to the call for one
---   answer. ONE reader (exp.listBound), answering nil for "nothing said
---   here" so the state can be fallen through to (6.231.0).
---   ✂️ A string that is not "all" names ONE collection, matched exactly,
---   then case-blind, then by fragment; the bound still applies inside it.
---   A filter matching nothing SAYS SO (6.196.1). The controls sit ABOVE
---   the rows — a way out behind the flood is not one — and their example
---   pack is read off the library, never typed (6.361.0). An unreadable
---   listShow is NAMED, never echoed as though it worked (6.362.0).
-
--- (6.418.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.421.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 cut the inline count to
 --  TWO; a gate check proves every entry here is also in CHANGELOG.md.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.420.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.423.0
 -- =====================================================================
 -- The catalogue that used to sit here moved to GUIDE.md ("What each
 -- tool does") in 6.180.0 — 259 lines of prose inside the orchestrator.
@@ -143,7 +133,7 @@ function _G.consoleRuleSay(what)
     return true
 end
 
-_G.configVersion = "6.420.0"
+_G.configVersion = "6.423.0"
 _G.consoleRuleSay("▶ BOOT")
 
 local function safeRequire(mod)

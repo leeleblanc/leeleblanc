@@ -5,6 +5,191 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.423.0 — 🩺 THE DRAFT KEEPER'S CHECK RUNS WHERE THE CARET IS
+               (modules/draft_keeper.lua, ⇪⇧])
+
+  LL typed into a text box, brought up @draft, and nothing was saved.
+  Two findings, both mine.
+
+  🚨 `_G.draftCheck()` CANNOT SEE THE FIELD IT MEASURES. It reads the
+  front app's focused element at CALL time — so typing the command
+  focuses the Console, and the only field it can ever read is the
+  Console's own box. 6.411.0's verify block asked him to "leave the
+  caret in that box and run, in the Console", which cannot be done: the
+  act of running it is the act of moving the focus. He did exactly what
+  it said and got an answer about the wrong field, which is why he
+  concluded the feature was not keeping anything.
+
+  🔑 A HYPER KEY MOVES NO FOCUS. ⇪⇧] runs the check in place: the
+  verdict in an alert, the full block in the Console. ⇪⇧] is the last
+  genuinely free shifted key (⇪⇧[ went to app removal in 6.384.0 and
+  ⇪⇧\ to the clipboard typist in 6.379.0), and the registry was asked
+  rather than this file's own notes (6.276.0).
+
+  🩺 AND THE SAMPLER THREW AWAY THE NAME. An app it was not watching
+  was counted and forgotten, so "nothing is kept here" could not say
+  where here was. It keeps one row per app now, newest-busiest first,
+  ties broken by NAME (without that the order is pairs()' own, which is
+  a different list every run), BOUNDED — and the bound is a STATE that
+  says FULL rather than quietly forgetting, because a register that
+  silently stops recording reads exactly like an app never seen
+  (6.197.2).
+
+  🔒 IT SAYS THE COUNT AND NEVER HIS WORDS (6.404.0). The report names
+  the app, the role and the character count; a diagnostic that prints a
+  half-written email into the Console is a worse tool than the one that
+  said nothing. A password field is refused in the ONE-LINE verdict as
+  well as the long one — the short answer must not say KEPT about a
+  field the block turns away.
+
+  🔤 The key is BUILT into every sentence that names it, never typed
+  (6.361.0): moving `dk.checkKey` moves the alert, the report and the
+  cheat sheet together.
+
+  🧪 THE SWEEP, and two of its findings are about the checks rather
+  than the code: deleting either argument guard on the register made
+  this suite DIE instead of fail — a run with no ❌ in it (6.186.0) —
+  so the checks pcall it and read "THREW" as an answer. 14 mutations,
+  14 bit, the no-op control survived, tree restored sha-verified.
+
+
+NEW IN 6.422.0 — 🪪 NO TWO FILES PUBLISH THE SAME _G. NAME
+               (core/coexist.lua + tests/test_integration.lua)
+
+  `_G.focusReport` was defined in core/coexist.lua — 6.401.0's focus
+  door, the one that gives the keyboard back when a panel closes — AND
+  in modules/focus_mode.lua, which is ⇪Q's own report. core/ loads
+  BEFORE modules/, so focus_mode's definition overwrote the door's on
+  every boot since 6.401.0 shipped. Typing `_G.focusReport()` has
+  always printed FOCUS MODE's block. The door's report has never once
+  been seen on his Mac.
+
+  🚨 AND I ASKED HIM TO PASTE IT TWICE. 6.401.0's own verify block
+  says "Console: `_G.focusReport()` — NEW … PASTE THAT", and 6.402.0's
+  note names it beside `_G.unifiedSearchReport()` as the pair that
+  tells two faults apart. Both were asking for something unreachable,
+  and a step he cannot run reads as a feature that does not work
+  (6.377.0).
+
+  🔑 THIS IS 6.308.0 ONE LEVEL OUT. That release found a module with
+  TWO `M.warm` functions, where load order silently picked the loser
+  and nothing could see it. Here it is two FILES and one global name,
+  and everything else is the same: both functions are correct on their
+  own, the config boots green, and the only symptom is a command
+  printing somebody else's block.
+
+  🧪 AND THE SUITE CERTIFIED IT. tests/test_panel_drag.lua loads
+  core/coexist.lua in ISOLATION, so the door's definition is the only
+  one present and its checks passed for twenty releases. 6.273.0 word
+  for word: a harness that does not reproduce the real load order does
+  not merely MISS the bug, it CERTIFIES it. No functional check can
+  see this — each file is right by itself — so only a sweep across the
+  tree can, which is why the fix is a sentry and not an edit.
+
+  🔑 THE DOOR RENAMES, NOT ⇪Q's REPORT: focus_mode's is older, is
+  bound to a key he presses, and is what "focusReport" would mean to
+  him. The door is `_G.focusDoorReport()`.
+
+  🔎 SWEPT, NOT GUESSED (6.319.0): one collision in the whole tree —
+  init.lua, 13 core files and 79 modules, 172 published globals.
+
+  🔎 AND THE SENTRY FOUND A SECOND THING BY FAILING IN SILENCE.
+  test_integration printed its FAILURES list ABOVE its last sentries,
+  so a failure in any of them was COUNTED and never NAMED: the run
+  said "1 failed" and listed nothing. The list moved to the end. A
+  suite that cannot say what broke is the same defect as a report that
+  cannot (6.282.0).
+
+  📏 AND THE FIRST VERSION OF THE SENTRY ASSERTED A NUMBER I GUESSED
+  (`defs > 200`), which went red at the real 172 and would have gone
+  red again the next time a global was deleted. The floor only has to
+  prove the pattern matched something; two NAMED globals beside it
+  prove it matched the right thing, and neither can go stale without
+  the thing itself being gone (6.248.0).
+
+
+NEW IN 6.421.0 — 📋 A KEYBOARD-KILLING EVENT HANDS ITS REPORT OVER
+               (core/coexist.lua + hyper_storm.lua + capabilities.lua)
+
+  LL: "Does the console automatically generate a report for any
+  condition that kills my keyboard and is automatically pasted to the
+  clipboard?"
+
+  🔎 THE ANSWER WAS NO, AND NO IS THE SMALLER HALF. Three conditions
+  in this config can leave him unable to type: a latched ⇪ (every key
+  runs a shortcut), macOS's SECURE INPUT (every tap AND every hotkey
+  dies system-wide with no error anywhere — 6.196.0, four hours of his
+  life), and a main thread that stopped (6.208.0's stall guard). Two
+  of the three write a report. NONE of them touched the clipboard:
+  grepped, and modules/hyper_storm.lua, modules/stall_guard.lua,
+  core/capabilities.lua and core/hyper_key.lua carry ZERO pasteboard
+  writes between them.
+
+  🚨 AND THE ALERT NAMES A FILE PATH, which is what makes it a defect
+  rather than a gap: `Report: ~/.hammerspoon/.storm/storm-<epoch>.txt`
+  cannot be copied out of an hs.alert, and the one moment he cannot
+  type `_G.stormReport()` is the moment the keyboard is dead. Every
+  rule in this config about a break being SEEN (6.214.0) stops at the
+  screen; this is the half that outlives the ten seconds an alert is
+  up.
+
+  🔑 THE RULE IS THE SHAPE OF AN APPEND, AND IT NEEDS NO CLOCK. A
+  hand-off happens when the report is for a NEW event, or when the
+  SAME event's report has GROWN — never otherwise. That second clause
+  is not a nicety: 6.403.0's probe answers are appended to the storm
+  file a BEAT LATER, and those three lines (which of the remap, the
+  tap or Secure Input was wrong) are the whole reason that release
+  exists, so copying only at the fire would hand him the report with
+  its diagnosis missing. A rate limit with a number in it was the
+  obvious build and is strictly worse — both callers fire on a
+  TRANSITION, so there is nothing to rate-limit, and the number would
+  be one more thing to get wrong.
+
+  🗳 IT TAKES HIS CLIPBOARD, which is damage, so the default is chosen
+  against the damage it can do (6.319.0): what it overwrites is still
+  in ⇪V's history, the sentence SAYS the clipboard was taken and names
+  ⇪V (6.398.0 — an unannounced correct default is indistinguishable
+  from a tool quietly helping itself), and it fires only on the way
+  INTO a state where he cannot type.
+
+  📏 A REPORT HE CAN REACH BY TYPING IS NOT HANDED OVER, said rather
+  than discovered: the storm's next-boot announce does not take his
+  clipboard and neither does the stall guard's, because by then the
+  keyboard works, the path is already in the line, and a boot that
+  helped itself to his clipboard would be worse than the gap. Narrow
+  by decision, not by omission (6.353.0 — record the refusal).
+
+  🔒 SECURE INPUT IS THE ONE THAT MATTERS MOST, and it had no report
+  handed anywhere: with the lock held he cannot press ⇪⇧Esc, cannot
+  type the command, and cannot reach anything this config draws. The
+  clipboard is the one channel still open, because what is dead is the
+  INPUT and not Hammerspoon — the poll that just noticed is still
+  running, and ⌘V is a shortcut macOS serves itself. Keyed on a
+  COUNTER, not the app's name: the same app locking, letting go and
+  locking again is a new event, which a name cannot say.
+
+  🚪 ORDER, ASSERTED (6.220.0): the release is what lets his next key
+  type and the hand-off is diagnosis, so it is pcall'd whole and its
+  answer is optional — a clipboard that refuses, a report that throws
+  and a Hammerspoon with no door at all each cost the sentence and
+  nothing else. `_G.clipWrite` reads what macOS actually said (6.325.0)
+  and takes the degrade door itself, so a refusal reaches the ledger
+  and `_G.todayReport()` with no second place to remember.
+
+  🔎 THE SENTENCE IS BUILT IN ONE PLACE: the storm's alert and Secure
+  Input's Console line are two readers of one fact (6.231.0), and two
+  copies of "it is on your clipboard" would come to disagree about
+  whether it actually is. On a refusal it does NOT say ⌘V.
+
+  🧪 19 mutations, 19 bit, the no-op control survived. The one that
+  survived the first sweep was a MISSING CHECK on this release's own
+  new code: moving `_G.stormReport`'s asked-for-text guard below the
+  print survived everything, so the report would print AND return —
+  doubling in the Console, and printing itself at the moment the
+  keyboard dies. The silent mode is the whole reason the argument
+  exists, so it is asserted now (6.273.0).
+
+
 NEW IN 6.420.0 — ⏱ A PANEL'S ⇪ DEADLINE IS ABSOLUTE
                (init.lua §3.12 + core/hyper_key.lua)
 

@@ -2316,6 +2316,119 @@ if capChunk then
             rep3:find("ALREADY HELD", 1, true) == nil, rep3)
     end
 
+    -- =================================================================
+    -- 📋 6.421.0 — THE LOCK HANDS ITS REPORT TO THE CLIPBOARD
+    -- =================================================================
+    -- This is the worst of the three keyboard-killers: Secure Input stops
+    -- every tap AND every hotkey dispatch system-wide (6.196.0), so he
+    -- cannot press ⇪⇧Esc, cannot type `_G.secureInputReport()`, and
+    -- cannot reach anything this config draws. The clipboard is the one
+    -- channel still open — what is dead is the INPUT, not Hammerspoon, so
+    -- the poll that just noticed this is still running and ⌘V is a
+    -- shortcut macOS serves itself.
+    -- 🔗 BOTH SIDES OF THE JOIN (6.388.0): test_panel_drag proves the DOOR
+    -- in core/coexist.lua, and this proves the lock ASKS it.
+    do
+      local ASKED = {}
+      local keptHand = _G.clipHandOff
+      _G.clipHandOff = function(who, event, text)
+        ASKED[#ASKED + 1] = { who = who, event = event, text = text }
+        return true, "the whole report is on your clipboard — ⌘V sends it"
+      end
+
+      freshMac()
+      _G.secureInputCheck()
+      local said = {}
+      local realPrint = print
+      print = function(s) said[#said + 1] = tostring(s) end
+      if T.cbs.narrow then T.cbs.narrow(nil, 'kCGSSessionSecureInputPID" = 5151') end
+      print = realPrint
+      local all = table.concat(said, "\n")
+
+      check("📋 a lock hands its report over", #ASKED == 1, #ASKED)
+      check("📋 …and it hands over the REPORT, not the one-line warning",
+            ASKED[1] and type(ASKED[1].text) == "string"
+            and ASKED[1].text:find("SECURE INPUT", 1, true) ~= nil,
+            ASKED[1] and ASKED[1].text:sub(1, 80) or "none")
+      check("📋 …and the Console line SAYS so, so he knows ⌘V has it "
+            .. "without being able to type anything",
+            all:find("⌘V", 1, true) ~= nil, all)
+
+      -- 🪪 A COUNTER, NOT THE APP NAME. The same app locking, letting go
+      -- and locking again is a NEW event and must hand over again — which
+      -- a name alone cannot say, because it has not changed.
+      local first = ASKED[1] and ASKED[1].event
+      -- 🚨 EACH ANSWER NEEDS ITS OWN PROBE. The first version of this
+      -- section fed the callback of a probe that had already finished, and
+      -- 6.304.0's generation guard refused it — correctly. A stale answer
+      -- is exactly what that guard exists to turn away, so the harness has
+      -- to ask for a fresh probe before every answer it supplies.
+      _G.secureInputCheck()                                   -- let it go
+      if T.cbs.narrow then T.cbs.narrow(nil, "no pid here") end
+      local hopNow = hop()
+      if hopNow and hopNow.fn then hopNow.fn() end
+      if T.cbs.broad then T.cbs.broad(nil, "no pid here") end
+      _G.secureInputCheck()                                   -- and lock again
+      if T.cbs.narrow then T.cbs.narrow(nil, 'kCGSSessionSecureInputPID" = 5151') end
+      check("🪪 the SAME app locking a second time is a NEW event and hands "
+            .. "over again — keyed on a counter, because the app's name has "
+            .. "not changed and a name alone would read as a duplicate",
+            #ASKED == 2 and ASKED[2].event ~= first,
+            tostring(first) .. " -> " .. tostring(ASKED[2] and ASKED[2].event))
+
+      -- 🔕 AND LETTING GO HANDS OVER NOTHING. The release is good news and
+      -- the keyboard is back, so taking his clipboard for it would be the
+      -- tool helping itself for no reason (6.269.0).
+      local before = #ASKED
+      _G.secureInputCheck()
+      if T.cbs.narrow then T.cbs.narrow(nil, "no pid here") end
+      local hop2 = hop()
+      if hop2 and hop2.fn then hop2.fn() end
+      if T.cbs.broad then T.cbs.broad(nil, "no pid here") end
+      check("🔕 Secure Input RELEASING hands over nothing — the keyboard is "
+            .. "back and he can type the command himself",
+            #ASKED == before, #ASKED - before)
+
+      -- 🚪 ORDER (6.220.0): the announcement is what he reads, and a
+      -- hand-off that throws must cost the sentence and nothing else.
+      _G.clipHandOff = function() error("the clipboard exploded", 0) end
+      freshMac()
+      _G.secureInputCheck()
+      local said2 = {}
+      print = function(s) said2[#said2 + 1] = tostring(s) end
+      if T.cbs.narrow then T.cbs.narrow(nil, 'kCGSSessionSecureInputPID" = 6262') end
+      print = realPrint
+      local all2 = table.concat(said2, "\n")
+      check("🚪 a hand-off that THROWS still announces the lock, and simply "
+            .. "does not claim the clipboard has the report",
+            all2:find("SECURE INPUT IS ON", 1, true) ~= nil
+            and all2:find("⌘V", 1, true) == nil, all2)
+
+      -- a Hammerspoon with no door at all (an older core/coexist.lua)
+      _G.clipHandOff = nil
+      freshMac()
+      _G.secureInputCheck()
+      local said3 = {}
+      print = function(s) said3[#said3 + 1] = tostring(s) end
+      if T.cbs.narrow then T.cbs.narrow(nil, 'kCGSSessionSecureInputPID" = 7373') end
+      print = realPrint
+      check("🛟 with no hand-off door at all the announcement is unchanged",
+            table.concat(said3, "\n"):find("SECURE INPUT IS ON", 1, true) ~= nil,
+            table.concat(said3, "\n"))
+
+      -- 📠 and the report can be ASKED for its text — the mode the
+      -- hand-off needs, which must not have cost the printing one.
+      local asText = _G.secureInputReport(true)
+      check("📠 _G.secureInputReport(true) RETURNS the text in silence",
+            type(asText) == "string"
+            and asText:find("SECURE INPUT", 1, true) ~= nil, tostring(asText))
+      local printed = capture(_G.secureInputReport)
+      check("📠 …and unasked it still PRINTS, exactly as before",
+            printed:find("SECURE INPUT", 1, true) ~= nil, printed)
+
+      _G.clipHandOff = keptHand
+    end
+
     -- 🔁 AND A REAL CHANGE STILL ANNOUNCES BOTH WAYS. The asymmetry must
     -- not have cost the thing that already worked.
     do

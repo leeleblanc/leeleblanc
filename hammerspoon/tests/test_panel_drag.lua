@@ -546,6 +546,135 @@ do
 end
 
 -- =====================================================================
+-- 📋 6.421.0 — A KEYBOARD-KILLING EVENT HANDS ITS REPORT OVER
+-- =====================================================================
+-- LL: "Does the console automatically generate a report for any
+-- condition that kills my keyboard and is automatically pasted to the
+-- clipboard?" It did not — grepped, and the four files that handle a
+-- latched ⇪, a stalled main thread and Secure Input carry ZERO
+-- pasteboard writes between them, while the alert names a file path
+-- that cannot be copied out of an hs.alert.
+--
+-- 🔑 THE RULE NEEDS NO CLOCK: a NEW event, or the SAME event's report
+-- having GROWN. The second clause is what carries 6.403.0's probe
+-- answers, appended a beat after the fire.
+do
+  local REFUSE, GOT = false, nil
+  hs.pasteboard = { setContents = function(t)
+      if REFUSE then return false end
+      GOT = t ; return true
+  end }
+  local keptDeg = _G.degrade
+  _G.degrade = function(tool, why) return false, why end
+  _G.clipHandOffs = { asked = 0, copied = 0, skipped = 0, refused = 0,
+                      last = nil, seen = {} }
+
+  check("📋 the planner and the door are both published",
+        type(_G.clipHandOffPlan) == "function" and type(_G.clipHandOff) == "function")
+
+  -- ---- the PURE rule: four answers, and the REASONS are what differ ----
+  -- 🚨 Two of the four share an ACTION, so a check that asserted only
+  -- the action would pass with either branch deleted (6.389.0).
+  local a1, w1 = _G.clipHandOffPlan({ event = "storm-100", chars = 40 })
+  check("📋 a first report is a NEW event and is handed over",
+        a1 == "copy" and w1 == "a new event", tostring(a1) .. " / " .. tostring(w1))
+
+  local a2, w2 = _G.clipHandOffPlan({ event = "storm-100", chars = 40,
+                                      lastEvent = "storm-100", lastChars = 40 })
+  check("📏 the SAME event at the SAME size is already on the clipboard "
+        .. "and is NOT taken again",
+        a2 == "skip" and w2:find("already on the clipboard", 1, true) ~= nil,
+        tostring(a2) .. " / " .. tostring(w2))
+
+  local a3, w3 = _G.clipHandOffPlan({ event = "storm-100", chars = 90,
+                                      lastEvent = "storm-100", lastChars = 40 })
+  check("🔑 the SAME event whose report has GROWN is handed over again — "
+        .. "this is the clause 6.403.0's probe answers arrive through, and "
+        .. "its reason must differ from a new event's or the check above "
+        .. "passes with the branch deleted",
+        a3 == "copy" and w3:find("has grown", 1, true) ~= nil
+        and w3 ~= w1, tostring(a3) .. " / " .. tostring(w3))
+
+  local a4, w4 = _G.clipHandOffPlan({ event = "storm-200", chars = 10,
+                                      lastEvent = "storm-100", lastChars = 400 })
+  check("🪪 a NEW event SHRINKING is still handed over — the rule is about "
+        .. "the event, and a second storm's report is shorter than a first "
+        .. "one that has been appended to",
+        a4 == "copy" and w4 == "a new event", tostring(a4) .. " / " .. tostring(w4))
+
+  local a5, w5 = _G.clipHandOffPlan({ event = "storm-100", chars = 0 })
+  check("📏 nothing to hand over is its OWN answer", a5 == "skip"
+        and w5:find("nothing to hand over", 1, true) ~= nil, tostring(w5))
+
+  -- 🚨 FAILS CLOSED. A caller that names no event cannot be told from
+  -- the last one, so the alternative to skipping is taking his clipboard
+  -- on every poll — and the reason is NAMED rather than silently dropped.
+  local a6, w6 = _G.clipHandOffPlan({ chars = 40 })
+  check("🚨 a caller that names NO event fails CLOSED and says why, "
+        .. "rather than helping itself to the clipboard every poll",
+        a6 == "skip" and w6:find("named no event", 1, true) ~= nil
+        and w6 ~= w5, tostring(a6) .. " / " .. tostring(w6))
+  local a7 = _G.clipHandOffPlan()
+  check("🛟 the planner survives being asked nothing at all", a7 == "skip")
+
+  -- ---- the door ----------------------------------------------------------
+  GOT = nil
+  local ok1, say1 = _G.clipHandOff("⇪ storm guard", "storm-1", "the whole report")
+  check("📋 a hand-off really lands on the clipboard",
+        ok1 == true and GOT == "the whole report", tostring(ok1) .. " / " .. tostring(GOT))
+  check("🗳 …and the sentence SAYS the clipboard was taken and names the way "
+        .. "back, because an unannounced correct default is indistinguishable "
+        .. "from a tool helping itself (6.398.0)",
+        type(say1) == "string" and say1:find("⌘V", 1, true) ~= nil
+        and say1:find("⇪V", 1, true) ~= nil, tostring(say1))
+
+  GOT = nil
+  local ok2, say2 = _G.clipHandOff("⇪ storm guard", "storm-1", "the whole report")
+  check("📏 the same event at the same size is refused, and nothing is "
+        .. "written to the pasteboard at all",
+        ok2 == false and GOT == nil and _G.clipHandOffs.skipped == 1,
+        tostring(ok2) .. " / " .. tostring(GOT))
+  check("📏 …and a skip says NOTHING to the caller, because \"already "
+        .. "copied\" inside a storm alert is noise", say2 == nil, tostring(say2))
+
+  GOT = nil
+  local ok3 = _G.clipHandOff("⇪ storm guard", "storm-1",
+                             "the whole report ── why (measured at the storm) ──")
+  check("🔑 the probe's appended answers DO reach the clipboard — the same "
+        .. "event, grown",
+        ok3 == true and GOT:find("why (measured", 1, true) ~= nil,
+        tostring(ok3) .. " / " .. tostring(GOT))
+
+  -- 🚨 A REFUSED CLIPBOARD IS NOT A SILENT ONE, and the sentence must not
+  -- claim the report is where it is not.
+  REFUSE, GOT = true, nil
+  local ok4, say4 = _G.clipHandOff("Secure Input", "secure-1", "the lock report")
+  REFUSE = false
+  check("🚨 a clipboard macOS refuses answers FALSE and is COUNTED",
+        ok4 == false and _G.clipHandOffs.refused == 1, tostring(ok4))
+  check("🚨 …and the sentence does NOT say it is on the clipboard — a "
+        .. "message that is false at the moment it is acted on is the worst "
+        .. "shape a message can have (6.198.0)",
+        type(say4) == "string" and say4:find("would not take", 1, true) ~= nil
+        and say4:find("⌘V", 1, true) == nil, tostring(say4))
+
+  -- 🔎 the report: three states, and the healthy one says what it MEASURED
+  local rep = _G.clipboardWriteReport()
+  check("🔎 the hand-off rides in the clipboard report rather than getting "
+        .. "one of its own (6.413.0)",
+        rep:find("hand%-off:") ~= nil and rep:find("handed over", 1, true) ~= nil, rep)
+  _G.clipHandOffs = { asked = 0, copied = 0, skipped = 0, refused = 0,
+                      last = nil, seen = {} }
+  local rep2 = _G.clipboardWriteReport()
+  check("🔎 …and with nothing asked it says NOTHING HAS ASKED rather than "
+        .. "that all is well — a caller whose nil-guard never resolves "
+        .. "reads the same from here (6.308.0)",
+        rep2:find("nothing has asked", 1, true) ~= nil, rep2)
+
+  _G.degrade = keptDeg
+end
+
+-- =====================================================================
 -- 🎯 6.401.0 — THE FOCUS, GIVEN BACK
 -- =====================================================================
 -- LL, on the 6.397.0 document edit window: "window does not return
@@ -558,7 +687,7 @@ end
 do
   check("🎯 coexist publishes the focus door",
         type(_G.focusBorrow) == "function" and type(_G.focusReturn) == "function"
-        and type(_G.focusReport) == "function")
+        and type(_G.focusDoorReport) == "function")
   check("🎯 ...and started the application watcher AT LOAD, so the FIRST "
         .. "edit of a session has an app to go back to",
         #APP_WATCHERS == 1 and APP_WATCHERS[1].on == true,
@@ -711,7 +840,7 @@ do
   reset()
   fireActivated(chrome)
   _G.focusBorrow("Edit window")
-  local rep = _G.focusReport(true)
+  local rep = _G.focusDoorReport(true)
   check("🔎 the report names what is still holding the focus",
         rep:find("Edit window", 1, true) ~= nil
         and rep:find("holding", 1, true) ~= nil, rep)
@@ -722,7 +851,7 @@ do
         and rep:find("Google Chrome", 1, true) ~= nil, rep)
   FRONT = me
   _G.focusReturn("Edit window")
-  local rep2 = _G.focusReport(true)
+  local rep2 = _G.focusDoorReport(true)
   check("🔎 ...and reads as healthy when nothing owes the focus back",
         rep2:find("nothing — no panel owes", 1, true) ~= nil
         and rep2:find("refused : none", 1, true) ~= nil, rep2)

@@ -349,11 +349,158 @@ function _G.clipboardWriteReport()
     else
         L[#L + 1] = "   last   : nothing has been copied through this door yet"
     end
+    -- 📋 6.421.0 — the hand-off rides in THIS report rather than getting
+    -- one of its own: a hand-off IS a clipboard write, and a reader of a
+    -- failure here is asking one question, not two (6.413.0).
+    local h = _G.clipHandOffs
+    if h.asked > 0 then
+        L[#L + 1] = "   hand-off: " .. h.copied .. " report(s) handed over · "
+                    .. h.skipped .. " skipped · " .. h.refused .. " refused by macOS"
+        if h.last then
+            L[#L + 1] = "      " .. (h.last.ok and "✅ " or "⚠️ ") .. h.last.who
+                        .. " · " .. h.last.chars .. " character(s) · "
+                        .. os.date("%H:%M:%S", math.floor(tonumber(h.last.at) or 0))
+                        .. " — " .. tostring(h.last.why)
+        end
+    else
+        -- 🔎 THREE STATES, and this one is the reassuring sentence, so it
+        -- says what it MEASURED rather than that all is well: nothing has
+        -- asked. A caller whose nil-guard never resolves reads the same
+        -- from here, which is why test_integration drives a real storm and
+        -- asserts this number moved (6.308.0 — never infer health from the
+        -- absence of a complaint).
+        L[#L + 1] = "   hand-off: nothing has asked — no ⇪ storm and no Secure Input"
+                    .. " lock this session"
+    end
     local out = table.concat(L, "\n")
     print(out)
     return out
 end
 
+-- =====================================================================
+-- 📋 A KEYBOARD-KILLING EVENT HANDS ITS REPORT OVER (6.421.0)
+-- =====================================================================
+-- LL: "Does the console automatically generate a report for any
+-- condition that kills my keyboard and is automatically pasted to the
+-- clipboard?"
+--
+-- 🔎 THE ANSWER WAS NO, AND NO IS THE SMALLER HALF. Three conditions in
+-- this config can leave him unable to type: a latched ⇪ (every key runs
+-- a shortcut), macOS's SECURE INPUT (every tap AND every hotkey dies
+-- system-wide with no error anywhere — 6.196.0, four hours of his life),
+-- and a main thread that stopped (6.208.0's stall guard). Two of the
+-- three write a report. NONE of them touched the clipboard: grepped,
+-- and modules/hyper_storm.lua, modules/stall_guard.lua,
+-- core/capabilities.lua and core/hyper_key.lua carry ZERO pasteboard
+-- writes between them.
+--
+-- 🚨 AND THE ALERT NAMES A FILE PATH, which is what makes it a defect
+-- rather than a gap: `Report: ~/.hammerspoon/.storm/storm-<epoch>.txt`
+-- cannot be copied out of an hs.alert, and the one moment he cannot
+-- type `_G.stormReport()` is the moment the keyboard is dead. Every
+-- rule in this config about a break being SEEN (6.214.0) stops at the
+-- screen; this is the half that outlives the ten seconds the alert is
+-- up.
+--
+-- 🔑 THE RULE IS THE SHAPE OF AN APPEND, AND IT NEEDS NO CLOCK. A
+-- hand-off happens when the report is for a NEW event, or when the SAME
+-- event's report has GROWN — never otherwise. That second clause is not
+-- a nicety: 6.403.0's probe answers are appended to the storm file a
+-- BEAT LATER, and those three lines are the whole reason that release
+-- exists, so copying only at the moment of the fire would hand him a
+-- report with its "why" section missing. A rate limit with a number in
+-- it was the obvious build and is strictly worse — both callers fire on
+-- a TRANSITION, so there is nothing to rate-limit, and the number would
+-- be one more thing to get wrong.
+--
+-- 🗳 IT TAKES HIS CLIPBOARD, which is damage, so the default is chosen
+-- against the damage it can do (6.319.0): what it overwrites is still in
+-- ⇪V's history, the sentence SAYS the clipboard was taken and names ⇪V
+-- (6.398.0 — an unannounced correct default is indistinguishable from a
+-- tool quietly helping itself), and it fires only on the way INTO a
+-- state where he cannot type.
+--
+-- 📏 A REPORT HE CAN REACH BY TYPING IS NOT HANDED OVER, said rather
+-- than discovered: the storm's next-boot announce does not take his
+-- clipboard and neither does the stall guard's, because by then the
+-- keyboard works, the path is already in the line, and a boot that
+-- helped itself to his clipboard would be worse than the gap. Narrow by
+-- decision, not by omission (6.353.0 — record the refusal).
+--
+-- 📏 AND A MISSING EVENT FAILS CLOSED. A caller that names no event
+-- cannot be told from the last one, so the alternative to skipping is
+-- taking his clipboard on every poll. It is skipped, COUNTED and named
+-- in the report rather than silently dropped (6.255.0).
+_G.clipHandOffs = { asked = 0, copied = 0, skipped = 0, refused = 0,
+                    last = nil, seen = {} }
+
+-- PURE. Four answers, two actions, and the REASONS differ — a check
+-- that asserted only the action would pass with a branch deleted
+-- (6.389.0), so every check on this asserts the sentence.
+function _G.clipHandOffPlan(o)
+    o = o or {}
+    local chars = tonumber(o.chars) or 0
+    local event = o.event
+    if chars <= 0 then
+        return "skip", "there was nothing to hand over"
+    end
+    if event == nil or event == "" then
+        return "skip", "the caller named no event, so it cannot be told from the last one"
+    end
+    local lastEvent = o.lastEvent
+    local lastChars = tonumber(o.lastChars) or 0
+    if lastEvent ~= event then
+        return "copy", "a new event"
+    end
+    if chars > lastChars then
+        return "copy", "the same event's report has grown"
+    end
+    return "skip", "this event's report is already on the clipboard"
+end
+
+-- 🔑 THE SENTENCE IS BUILT HERE AND NOWHERE ELSE. The storm's alert and
+-- Secure Input's Console line are two readers of one fact (6.231.0);
+-- two copies of "it is on your clipboard" would come to disagree about
+-- whether it actually is.
+-- Answers (ok, sentence): sentence is nil on a skip, because "already
+-- copied" inside a storm alert is noise. The reason always reaches
+-- _G.clipboardWriteReport().
+function _G.clipHandOff(who, event, text)
+    local st = _G.clipHandOffs
+    who  = tostring(who or "a tool")
+    text = (type(text) == "string") and text or ""
+    st.asked = st.asked + 1
+    local prev = st.seen[who]
+    local act, why = _G.clipHandOffPlan({
+        event     = event,
+        chars     = #text,
+        lastEvent = prev and prev.event or nil,
+        lastChars = prev and prev.chars or 0 })
+    -- 🕒 the EPOCH, never a formatted string (6.282.0).
+    local at
+    pcall(function() at = hs.timer.secondsSinceEpoch() end)
+    at = (type(at) == "number") and at or os.time()
+    if act ~= "copy" then
+        st.skipped = st.skipped + 1
+        st.last = { who = who, ok = false, why = why, chars = #text, at = at }
+        return false, nil
+    end
+    -- _G.clipWrite reads what macOS actually said (6.325.0) and takes
+    -- the degrade door itself on a refusal, so there is no second place
+    -- here that has to remember to say it.
+    local wrote, cwhy = _G.clipWrite(text, who)
+    st.seen[who] = { event = event, chars = #text }
+    if wrote then
+        st.copied = st.copied + 1
+        st.last = { who = who, ok = true, why = why, chars = #text, at = at }
+        return true, "the whole report is on your clipboard — ⌘V sends it "
+                     .. "(whatever you had copied is still in ⇪V)"
+    end
+    st.refused = st.refused + 1
+    st.last = { who = who, ok = false, why = cwhy or "macOS refused the write",
+                chars = #text, at = at }
+    return false, "macOS would not take the clipboard — the report is in the Console"
+end
 -- =====================================================================
 -- 🎯 THE FOCUS, GIVEN BACK (6.401.0)
 -- =====================================================================
@@ -546,7 +693,26 @@ function _G.focusReturn(who)
     return focusNote(true, nil, who, loan.name)
 end
 
-function _G.focusReport()
+-- 🪪 IT WAS CALLED _G.focusReport() AND IT WAS NEVER REACHABLE (6.422.0).
+-- modules/focus_mode.lua publishes a function of exactly that name too —
+-- ⇪Q's own report — and core/ loads BEFORE modules/, so focus_mode's
+-- definition overwrote this one on every boot since 6.401.0. Typing
+-- `_G.focusReport()` has always printed FOCUS MODE's block, and this
+-- report has never once been seen on his Mac.
+-- 🚨 AND I ASKED HIM TO PASTE IT TWICE: 6.401.0's own verify block says
+-- "Console: `_G.focusReport()` — NEW … PASTE THAT", and 6.402.0's note
+-- names it beside _G.unifiedSearchReport() as the pair that tells two
+-- faults apart. Both were asking for something he could not reach.
+-- 🧪 AND THE SUITE CERTIFIED IT: tests/test_panel_drag.lua loads
+-- core/coexist.lua in ISOLATION, so this definition is the only one
+-- there and the checks pass. 6.273.0 exactly — a harness that does not
+-- reproduce the real load order does not merely miss the bug, it
+-- certifies it. test_integration has a sentry for the class now: no two
+-- files may publish the same _G. name, swept over the whole tree (one
+-- collision, this one).
+-- 🔑 THE DOOR RENAMES, NOT ⇪Q's REPORT: focus_mode's is older, is bound
+-- to a key he presses, and is what "focusReport" would mean to him.
+function _G.focusDoorReport()
     local st = _G.focusState
     local L = { "🎯 FOCUS — panels that take the keyboard, and give it back" }
     L[#L + 1] = "   asked   : " .. st.asked .. " borrow(s) · returned "

@@ -1,4 +1,4 @@
-# TESTING — how to score release 6.420.0
+# TESTING — how to score release 6.423.0
 
 You install ONE archive and it carries several releases. Below are the
 steps for each release this archive is new for, newest first. Run the
@@ -26,6 +26,120 @@ else is a LOSS and I fix it before building further. You are the only
 scorer; I never mark my own.
 
 ---
+
+## 6.423.0
+
+6.423.0 verify with LL — 📋 THE KEYBOARD'S OWN REPORT, ON YOUR
+CLIPBOARD (KNOWN GROUND) — this block covers 6.421.0, 6.422.0 AND
+6.423.0: they shipped in one archive and share one test plan.
+📏 FILED UNDER THE NEWEST ON PURPOSE: tools/build-test-plan.lua reads
+one version per heading (`- 6.X.Y verify with LL`), so a batch of
+releases goes under its newest and names the others in its own
+section headers. A heading listing three versions is silently skipped
+by the generator and the steps never reach TESTING.md — which is
+6.271.0's whole finding, so it is written down here rather than left
+to be rediscovered.
+🔎 THIS BATCH CAME OUT OF YOUR OWN QUESTION, which is worth saying
+first: you asked whether the Console automatically generates a report
+for anything that kills your keyboard and automatically pastes it to
+the clipboard. Going to answer it found THREE defects, and all three
+are mine.
+
+DO THESE IN ORDER. Each step says what to send back.
+
+── 1. THE ONE THAT PAYS WHEN THE KEYBOARD DIES (6.421.0) ──────────
+1a. Nothing to press. If ⇪ ever latches again, you now get the same
+    alert with one clause added: "the whole report is on your
+    clipboard — ⌘V sends it (whatever you had copied is still in ⇪V)".
+    RETURN: ⌘V it into a message to me. That is the whole release —
+    you no longer have to remember `_G.stormReport()` while your
+    keyboard is misbehaving.
+1b. Console: `_G.clipboardWriteReport()`.
+    RETURN: the whole block. Its new `hand-off:` line reads "nothing
+    has asked — no ⇪ storm and no Secure Input lock this session" on a
+    good day. That sentence is deliberate: it says what it MEASURED
+    rather than that all is well.
+1c. If macOS ever refuses the clipboard, the sentence changes to
+    "macOS would not take the clipboard — the report is in the
+    Console" and does NOT say ⌘V.
+    RETURN: that line if you ever see it.
+
+── 2. THE REPORT I ASKED YOU TO PASTE TWICE AND YOU COULD NOT (6.422.0) ──
+2a. Console: `_G.focusDoorReport()`.
+    RETURN: the whole block — asked / returned / watching / refused /
+    holding.
+    WHY IT IS A NEW NAME: `_G.focusReport` was defined in TWO files,
+    and core/ loads first, so ⇪Q's focus-mode report overwrote the
+    focus door's on every boot since 6.401.0. Every time you typed
+    `_G.focusReport()` you got focus mode's block. My 6.401.0 and
+    6.402.0 steps both told you to paste the door's — which could not
+    be reached.
+2b. Console: `_G.focusReport()`.
+    EXPECT: focus MODE's block (⇪Q), unchanged. The two are separate
+    tools and now have separate names.
+    RETURN: nothing unless it looks wrong.
+
+── 3. THE DRAFT KEEPER, CHECKABLE WHERE YOU ARE (6.423.0) ──────────
+3a. Click into a text box in Chrome and type two or three sentences —
+    more than sixty characters. LEAVE THE CARET THERE.
+3b. Press **⇪⇧]** — hold Caps Lock and Shift and press the **]** key,
+    right of **[**.
+    EXPECT: an alert like "💾 Google Chrome · AXTextArea · 212
+    character(s) — THIS WOULD BE KEPT", and the full block in the
+    Console.
+    RETURN: the alert's wording and the Console block.
+    🚨 WHY THIS KEY EXISTS AND WHY MY OLD STEP WAS IMPOSSIBLE:
+    `_G.draftCheck()` reads the focused field at the moment it runs,
+    so TYPING the command focuses the Console — the only field it can
+    ever see is the Console's own box. 6.411.0's step said "leave the
+    caret in that box and run, in the Console", which cannot be done.
+    A hyper key moves no focus.
+3c. Now type `_G.draftCheck()` in the Console instead.
+    EXPECT: "💾 That is the Console — press ⇪⇧] with the caret in your
+    text box". It names itself rather than reporting an empty field.
+    RETURN: confirmation that it says that.
+3d. Press ⇪⇧] with the caret in Word, or Terminal, or anything not
+    watched.
+    EXPECT: "💾 Microsoft Word is NOT watched — nothing here is kept",
+    naming the app.
+    RETURN: which apps you tried and what each said. That list is what
+    tells me whether the watch list is the right one.
+3e. Console: `_G.draftKeeperReport()`.
+    RETURN: the whole block. Three lines are new — `where :` (the
+    unwatched apps you have had the caret in, busiest first), `check :`
+    and `last :`.
+    🔒 NOTE WHAT IS NOT IN IT: your words. It says the app, the role
+    and the character COUNT and never the text.
+
+── 4. MUST STILL WORK — this touched the ⇪ guard and the clipboard,
+──    so this half matters more than 1–3 ────────────────────────────
+4a. A spread of keys: ⇪T, ⇪D, ⇪N, ⇪3, ⇪X, ⇪4, ⇪space, ⇪V, ⇪/, ⇪⇧S.
+4b. ⇪⇧Esc pauses and resumes. ⌃⌥⌘⇧Esc still releases everything.
+4c. Copy three things and press ⇪V — your history is unchanged.
+4d. ⇪Q engages focus mode; ⇪⇧Q prints focus mode's report.
+4e. Boot: All green, 79 modules, the usual ⇪ shortcut count.
+4f. `_G.installCheck()` — the manifest should match.
+    RETURN: anything in 4a–4f that behaves differently from last week.
+
+❓ QUESTIONS — ANSWERS WANTED, NOTHING TO RUN
+Q1. **Is taking your clipboard on a storm the right trade?** It only
+    happens on the way into a state where you cannot type, what it
+    overwrites is still in ⇪V, and the alert says so. If you would
+    rather it never touched the clipboard, say so and it is one line.
+Q2. **Is ⇪⇧] a key you will remember for the draft check?** It is the
+    last genuinely free shifted key. Say if you want it somewhere else.
+Q3. **Which apps should the draft keeper watch?** Step 3d's list is the
+    answer. Right now: Chrome, Chromium, Safari, Edge, Firefox, Brave,
+    Arc, Vivaldi, Opera and Outlook.
+Q4. **Sixty characters and ten seconds** are still MY numbers, not
+    yours — the floor a draft has to pass and the pause before it is
+    written. You escalated the feature without answering that, and I
+    will not leave it in a settings line for you to type. Say whether
+    anything is being kept that you did not want, or anything missed.
+Q5. **The work MacBook's name** — `scutil --get ComputerName`. Still
+    owed, and it is what gives that Mac a profile of its own.
+
+
 
 ## 6.420.0
 
@@ -225,47 +339,6 @@ D2. 📏 NAMED, NOT FIXED: this does not prove the config RUNS well on the
     work Mac. The honest next step there is you installing it and
     sending `_G.selfTest()` and `_G.stormReport()` from that machine —
     the storm report has been owed since 6.214.2.
-
-
-
-## 6.417.0
-
-6.417.0 verify with LL — 📠 A REPORT PRINTS ONCE (KNOWN GROUND)
-WHAT CHANGED: every report in this config printed itself TWICE in the
-Console. Now once.
-🔎 YOUR OWN PASTE WAS THE ARTEFACT: `_G.draftCheck()` gave you the whole
-block, then the whole block again. The Console ECHOES whatever an
-expression returns, and thirty-five reports ended by both printing the
-text and returning it.
-
-A. THE HEADLINE — ten seconds.
-A1. Console: `_G.draftCheck()`.
-    EXPECT: the block ONCE. **A FAIL is seeing it twice.**
-A2. Three or four others: `_G.screenshotsReport()`, `_G.musicReport()`,
-    `_G.autocorrectReport()`, `_G.selfTest()`.
-    EXPECT: each prints once, and reads exactly as it did before.
-A3. `_G.draftCheck(true)`.
-    EXPECT: the text comes back ONCE as the Console's echo, with no
-    timestamp in front of it. That is the "give it to me as text" form.
-
-B. THE THREE THAT COPY — these are what made this more than one line.
-B1. ⇪⇧ and the focus-mode key (the report chord). EXPECT: the report
-    prints, AND an alert says it was copied. ⌘V somewhere: you get it.
-B2. Same for the menu-bar inventory and the health report.
-B3. 🚨 If any of those three ever says "— macOS refused the copy", paste
-    it. That is NEW and it is honest: those three used to claim
-    "printed and copied" whether or not the clipboard write happened.
-
-C. MUST STILL WORK.
-C1. ⇪⇧D's diagnostic report still prints in full.
-C2. The boot blocks (🩺 self test, 💾 stores) still print at boot.
-C3. `_G.todayReport()`, `_G.degradeReport()`, `_G.saved()`.
-
-D. A JUDGEMENT ONLY YOU CAN MAKE.
-D1. Is the Console noticeably quieter now? That was the point. If any
-    report STILL doubles, name it — the sentry says that should be
-    impossible, and an exception would mean it is reaching the Console
-    by a route I have not found.
 
 
 

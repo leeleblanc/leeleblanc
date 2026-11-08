@@ -970,6 +970,170 @@ end
 
 -- ---- results -----------------------------------------------------------
 os.time = realOsTime
+
+-- =====================================================================
+-- 🩺 6.423.0 — THE CHECK RUNS WHERE THE CARET ALREADY IS
+-- =====================================================================
+-- LL typed into a text box, brought up @draft, and nothing was saved.
+-- Two findings, both mine:
+--   · `_G.draftCheck()` CANNOT SEE THE FIELD IT MEASURES. It reads the
+--     front app's focused element at CALL time, so typing the command
+--     focuses the Console and the only field it can ever see is the
+--     Console's own box. 6.411.0's verify block asked him to "leave the
+--     caret in that box and run, in the Console" — which cannot be done.
+--   · the sampler threw away the name of an app it was NOT watching, so
+--     "nothing is kept here" could not say WHERE here was.
+-- A hyper key moves no focus, so ⇪⇧] runs it in place.
+out("\n🩺 the check, where the caret already is\n")
+do
+    -- ---- the unwatched register: five answers, and the bound is a STATE
+    local seen = {}
+    check("🩺 a first unwatched app is ADDED",
+          dk.noteUnwatched(seen, "Slack", 3) == "added" and seen.Slack == 1)
+    check("🩺 ...and seeing it again is COUNTED, not added twice",
+          dk.noteUnwatched(seen, "Slack", 3) == "counted" and seen.Slack == 2)
+    -- 🧪 pcall'd, because BOTH of these guards are the only thing standing
+    -- between a bad argument and a `table index is nil` throw. Called bare,
+    -- the mutation that deletes either one KILLS this suite instead of
+    -- failing a check — and a run that dies has no ❌ to read (6.186.0).
+    local function answer(...)
+        local ok, r = pcall(dk.noteUnwatched, ...)
+        return ok and r or "THREW"
+    end
+    check("🩺 a nameless app is its OWN answer, never a silent drop (6.255.0)",
+          answer(seen, nil, 3) == "unnamed" and answer(seen, "", 3) == "unnamed",
+          answer(seen, nil, 3))
+    check("🛟 ...and no table at all is refused rather than thrown at",
+          answer(nil, "Slack", 3) == "no-table", answer(nil, "Slack", 3))
+    dk.noteUnwatched(seen, "Terminal", 3)
+    dk.noteUnwatched(seen, "Finder", 3)
+    check("📏 the register is BOUNDED, and the bound says FULL rather than "
+          .. "quietly forgetting — a register that silently stops recording "
+          .. "reads exactly like an app that was never seen (6.197.2)",
+          dk.noteUnwatched(seen, "Preview", 3) == "full" and seen.Preview == nil)
+    check("📏 ...and a name already in a FULL register is still counted, so "
+          .. "the bound costs new names and not the counts it already has",
+          dk.noteUnwatched(seen, "Slack", 3) == "counted" and seen.Slack == 3)
+
+    -- ---- the rows: busiest first, and ties by NAME or the order is pairs()
+    local rows, more, total = dk.unwatchedRows(
+        { Slack = 9, Terminal = 2, Finder = 2, Mail = 1 }, 3)
+    check("🩺 the rows come back busiest first", #rows == 3
+          and rows[1].name == "Slack" and rows[1].n == 9, rows[1] and rows[1].name)
+    check("🔎 ...and a TIE is broken by NAME — without that the order is "
+          .. "pairs()' own, which is a different list on every run and a "
+          .. "check that passes or fails by luck",
+          rows[2].name == "Finder" and rows[3].name == "Terminal",
+          rows[2].name .. "," .. rows[3].name)
+    check("📏 ...and what is not shown is COUNTED, with the real total beside it",
+          more == 1 and total == 4, more .. "/" .. total)
+    local none, m0, t0 = dk.unwatchedRows(nil, 3)
+    check("🛟 no register at all answers an empty list, not a throw",
+          #none == 0 and m0 == 0 and t0 == 0)
+
+    -- ---- the key is BUILT, never typed (6.361.0)
+    local keptK, keptM = dk.checkKey, dk.checkMods
+    check("🔤 the key label is built from the key itself",
+          dk.keyLabel() == "⇪⇧]", dk.keyLabel())
+    dk.checkKey, dk.checkMods = "p", {}
+    check("🔤 ...so moving the key moves every sentence that names it — a "
+          .. "label typed out by hand is one that drifts the day it moves",
+          dk.keyLabel() == "⇪p", dk.keyLabel())
+    dk.checkKey, dk.checkMods = keptK, keptM
+
+    -- ---- the last field read: three states, and NEVER the text
+    dk.lastField = nil
+    check("🔎 with nothing read yet it SAYS so rather than reading as a "
+          .. "field holding nothing (6.196.1)",
+          dk.lastFieldLine():find("no watched field has been read", 1, true) ~= nil,
+          dk.lastFieldLine())
+    dk.lastField = { app = "Google Chrome", role = "AXTextArea", chars = 212,
+                     at = CLOCK, text = "the secret paragraph" }
+    local lfl = dk.lastFieldLine()
+    check("🔎 ...and with one read it names the app, the role and the COUNT",
+          lfl:find("Google Chrome", 1, true) ~= nil
+          and lfl:find("AXTextArea", 1, true) ~= nil
+          and lfl:find("212", 1, true) ~= nil, lfl)
+    check("🔒 ...and NEVER his words. A tool that reads what he is typing "
+          .. "must say the count and not the text (6.404.0) — and a "
+          .. "diagnostic that prints a half-written email into the Console "
+          .. "is a worse tool than the one that said nothing",
+          lfl:find("secret paragraph", 1, true) == nil, lfl)
+    dk.lastField = nil
+
+    -- ---- the verdict, in one line, for an alert a hyper key can show
+    -- 🚨 AND THE SWITCH HAS TO BE SET, NOT ASSUMED. The first version of
+    -- this section captured dk.enabled and restored it — and an earlier
+    -- section had already switched the module OFF, so every verdict below
+    -- read "Draft keeper is OFF" and four checks failed for a reason that
+    -- had nothing to do with what they were about.
+    local keptOn = dk.enabled
+    dk.enabled = false
+    check("🔌 switched OFF it says so first of all",
+          dk.checkShort({}):find("is OFF", 1, true) ~= nil, dk.checkShort({}))
+    dk.enabled = true
+
+    -- 🚨 THE FINDING ITSELF. The Console is an unwatched app, so running
+    -- the check by TYPING it can only ever measure the Console's own box —
+    -- and the answer has to name that rather than reading as "your field
+    -- holds nothing", which is what sent him looking for a broken feature.
+    local con = dk.checkShort({ unwatched = true, app = "Hammerspoon" })
+    check("🚨 the Console names ITSELF and points at the key — this is the "
+          .. "whole finding: typing the command moves the focus, so the "
+          .. "field he was asking about can never be the one it reads",
+          con:find("That is the Console", 1, true) ~= nil
+          and con:find(dk.keyLabel(), 1, true) ~= nil, con)
+    local unw = dk.checkShort({ unwatched = true, app = "Transmission" })
+    check("🩺 ...and any OTHER unwatched app is named, so \"nothing is kept "
+          .. "here\" can say where here is",
+          unw:find("Transmission", 1, true) ~= nil
+          and unw:find("NOT watched", 1, true) ~= nil
+          and unw:find("That is the Console", 1, true) == nil, unw)
+    local nof = dk.checkShort({ app = "Google Chrome" })
+    check("🔎 a watched app with nothing focused is its own answer",
+          nof:find("nothing is focused", 1, true) ~= nil, nof)
+    local short = dk.checkShort({ app = "Google Chrome", role = "AXTextArea",
+                                  value = string.rep("a", 10) })
+    check("📏 a field under the floor says the COUNT and the floor, so he "
+          .. "can see how much more it wants",
+          short:find("10 character", 1, true) ~= nil
+          and short:find(tostring(dk.minChars), 1, true) ~= nil, short)
+    local keep = dk.checkShort({ app = "Google Chrome", role = "AXTextArea",
+                                 value = string.rep("a", 212) })
+    check("✅ and a field over it says THIS WOULD BE KEPT",
+          keep:find("THIS WOULD BE KEPT", 1, true) ~= nil
+          and keep:find("212", 1, true) ~= nil, keep)
+    local pw = dk.checkShort({ app = "Google Chrome", role = "AXSecureTextField",
+                               value = string.rep("a", 212) })
+    check("🔒 a password field is REFUSED in the one-line verdict too — the "
+          .. "short answer must not say KEPT about a field the long one "
+          .. "turns away",
+          pw:find("refused", 1, true) ~= nil
+          and pw:find("KEPT", 1, true) == nil, pw)
+
+    -- ---- the block: the Console case explains itself there too
+    local blk = table.concat(dk.checkLines({ unwatched = true,
+                                             app = "Hammerspoon" }), "\n")
+    check("🚨 the full block explains the Console rather than reporting an "
+          .. "empty field",
+          blk:find("Console", 1, true) ~= nil
+          and blk:find(dk.keyLabel(), 1, true) ~= nil, blk)
+
+    -- ---- the key is claimed in setup(), not in warm()
+    -- 6.386.0: a ⇪ key must be registered while setup runs — the list the
+    -- finaliser drains is read ONCE, after the module loader, so a bind
+    -- made in warm() is a dead key on a config that boots green.
+    dk.enabled = keptOn
+    check("⌨️ the key is claimed in setup(), where a ⇪ bind still counts",
+          provided ~= nil and (function()
+              local src = slurp(HS .. "/modules/draft_keeper.lua") or ""
+              local setupAt = src:find("function M.setup", 1, true)
+              local warmAt  = src:find("function M.warm", 1, true)
+              local bindAt  = src:find("core.hyperAddShortcut(dk.checkMods", 1, true)
+              return setupAt and bindAt and setupAt < bindAt
+                     and (not warmAt or bindAt < warmAt)
+          end)())
+end
 print = realPrint
 os.execute("rm -rf '" .. ROOT .. "'")
 io.write(("\n   %s test_draft_keeper — %d passed, %d failed\n")

@@ -433,6 +433,32 @@ function M.setup(core)
                 st.probeWhy = why
             end
         end
+        -- 📋 6.421.0 — HAND IT OVER AGAIN, now that the "why" lines are in
+        -- the file. This is the clause the no-clock rule exists for: the
+        -- fire already put the report on his clipboard, and these three
+        -- lines — which of the remap, the tap or Secure Input was wrong —
+        -- are the whole reason 6.403.0 exists, so a clipboard holding the
+        -- report WITHOUT them is the report minus its diagnosis.
+        -- 🪪 THE NEWEST WAITING ENTRY NAMES IT, because _G.stormReport
+        -- reads the newest file on disk and the id should describe the text
+        -- being handed over. `pending` is in insertion order, so the last
+        -- entry is the most recent storm.
+        -- 📏 SAID RATHER THAN CHECKED: no mutation can kill this choice.
+        -- With two storms waiting, an older entry's id reads as a NEW event
+        -- and copies, and the newest reads as the same event GROWN and
+        -- copies — the same outcome either way. It is the honest label, not
+        -- a guard, and a check asserting it would be one that cannot fail
+        -- (6.199.0).
+        local newest = pending[#pending]
+        if newest then
+            pcall(function()
+                if type(_G.clipHandOff) ~= "function" then return end
+                local okT, text = pcall(_G.stormReport, true)
+                if not okT or type(text) ~= "string" then return end
+                _G.clipHandOff("⇪ storm guard",
+                               "storm-" .. tostring(math.floor(newest.at)), text)
+            end)
+        end
         return true
     end
 
@@ -477,6 +503,30 @@ function M.setup(core)
         st.last = { at = t, age = age, keys = #st.order, path = path, why = werr,
                     paused = paused, released = released, asked = asked }
         st.holdId, st.seen, st.order = nil, {}, {}
+        -- 📋 6.421.0 — HAND THE REPORT TO THE CLIPBOARD. The alert names a
+        -- file path and a path cannot be copied out of an hs.alert, so the
+        -- one moment he cannot type `_G.stormReport()` was the moment the
+        -- keyboard was dead. LL: "Does the console automatically generate a
+        -- report for any condition that kills my keyboard and is
+        -- automatically pasted to the clipboard?" — it did not.
+        -- 🚪 ORDER, asserted rather than hoped (6.220.0): the RELEASE above
+        -- is what lets his next key type, and this is diagnosis. It is
+        -- pcall'd whole and its answer is optional, so a clipboard that
+        -- refuses, a report that throws and a Hammerspoon with no hand-off
+        -- door at all each cost the sentence and nothing else.
+        -- 🪪 The event id is the storm's own second, so 6.403.0's probe
+        -- answers — appended a beat later — hand over again as the SAME
+        -- event with MORE in it rather than being refused as a duplicate.
+        local handed
+        pcall(function()
+            if type(_G.clipHandOff) ~= "function" then return end
+            local okT, text = pcall(_G.stormReport, true)
+            if not okT or type(text) ~= "string" then return end
+            local _, sentence = _G.clipHandOff("⇪ storm guard",
+                                               "storm-" .. tostring(math.floor(t)), text)
+            handed = sentence
+        end)
+        if handed then msg = msg .. " · " .. handed end
         print(msg .. "\n   _G.stormReport() prints the report.")
         alert(msg, 10)
         record("storm", string.format("%.0f s, %d keys%s", age, st.last.keys, paused and ", paused" or ""))
@@ -527,7 +577,7 @@ function M.setup(core)
     end
 
     -- ---- the report ------------------------------------------------------------
-    function _G.stormReport()
+    function _G.stormReport(asText)
         local L = { "🌩 Hyper storm guard — " .. (st.on == false and "OFF (settings)" or
             string.format("watching: %d s held · %d different shortcuts · no Caps Lock autorepeat within %d s",
                           st.secs, st.keys, st.repeatGrace)) }
@@ -582,7 +632,12 @@ function M.setup(core)
         else
             L[#L + 1] = "   newest : no report on disk"
         end
-        print(table.concat(L, "\n"))
+        -- 📠 6.417.0 — unasked it prints; asked it returns in silence,
+        -- because the Console echoes a return and the block would double.
+        -- 6.421.0 needs the TEXT so a storm can hand it to the clipboard.
+        local out = table.concat(L, "\n")
+        if asText then return out end
+        print(out)
     end
 end
 

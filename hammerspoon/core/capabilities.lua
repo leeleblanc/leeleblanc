@@ -159,12 +159,35 @@ return function(core)
             if not firstOn then si.changes = si.changes + 1 end
             si.firstWasOn = si.firstWasOn or (firstOn and true) or nil
             if si.on then
+                -- 📋 6.421.0 — HAND THE REPORT TO THE CLIPBOARD, and this is
+                -- the worst of the three keyboard-killers: Secure Input
+                -- stops every tap AND every hotkey dispatch system-wide
+                -- (6.196.0 — it took his keyboard for four hours), so he
+                -- cannot press ⇪⇧Esc, cannot type the command, and cannot
+                -- reach anything this config draws. The clipboard is the one
+                -- channel still open, because what is dead is the INPUT and
+                -- not Hammerspoon — the poll that just noticed this is still
+                -- running, and ⌘V is a shortcut macOS serves itself.
+                -- 🪪 A COUNTER, NOT THE APP NAME: the same app locking,
+                -- letting go and locking again is a NEW event and must hand
+                -- over again, which a name alone cannot say.
+                si.onEvent = (tonumber(si.onEvent) or 0) + 1
+                local handed
+                pcall(function()
+                    if type(_G.clipHandOff) ~= "function" then return end
+                    local okT, text = pcall(_G.secureInputReport, true)
+                    if not okT or type(text) ~= "string" then return end
+                    local _, sentence = _G.clipHandOff("Secure Input",
+                                                       "secure-" .. si.onEvent, text)
+                    handed = sentence
+                end)
                 print("🔒 SECURE INPUT IS ON — " .. tostring(si.app) .. " has locked "
                       .. "the keyboard. Snippets, autocorrect and MOST ⇪ shortcuts "
                       .. "will do nothing until it lets go. Not a fault in this "
                       .. "config: quit that app, or leave its password field."
                       .. (firstOn and "  (ALREADY held when this config "
-                                      .. "started — it did not just happen)" or ""))
+                                      .. "started — it did not just happen)" or "")
+                      .. (handed and ("  " .. handed) or ""))
                 if _G.notices then
                     pcall(_G.notices.record, "runtime", "secure input",
                           "on — " .. tostring(si.app))
@@ -363,7 +386,7 @@ return function(core)
     end
     _G.secureInputCheck = siProbe
 
-    function _G.secureInputReport()
+    function _G.secureInputReport(asText)
         local si = _G.secureInput
         local L = { "🔒 SECURE INPUT — can anything else read the keyboard?" }
         if si.on == nil then
@@ -426,7 +449,11 @@ return function(core)
         end
         -- ONE string, one print: core/console.lua's repeat gate eats rows
         -- from a report printed line by line (6.179.1).
-        print(table.concat(L, "\n"))
+        -- 📠 unasked it prints; asked it returns the TEXT in silence, so
+        -- 6.421.0 can hand it to the clipboard when the keyboard dies.
+        local out = table.concat(L, "\n")
+        if asText then return out end
+        print(out)
         return si
     end
 

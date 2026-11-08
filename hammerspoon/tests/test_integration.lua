@@ -3899,10 +3899,12 @@ end
 
 realPrint(table.concat(printed, "\n"))
 out("\n")
-if fail > 0 then
-    out("FAILURES:\n")
-    for _, f in ipairs(failures) do out("   ❌ " .. f .. "\n") end
-end
+-- 🔎 6.422.0 — THE FAILURE LIST MOVED TO THE END. It used to print HERE,
+-- which is above the last sentries, so a failure in any of them was
+-- COUNTED and never NAMED: the run said "1 failed" and listed nothing.
+-- Found by adding a sentry below and watching it fail in silence. A
+-- suite that cannot say what broke is the same defect as a report that
+-- cannot (6.282.0).
 -- =====================================================================
 -- 📠 6.417.0 — A REPORT PRINTS ONCE
 -- =====================================================================
@@ -3942,5 +3944,100 @@ do
           #offenders == 0, table.concat(offenders, " "))
 end
 
+-- =====================================================================
+-- 🪪 6.422.0 — NO TWO FILES PUBLISH THE SAME _G. NAME
+-- =====================================================================
+-- `_G.focusReport` was defined in core/coexist.lua (6.401.0's focus
+-- door) AND in modules/focus_mode.lua (⇪Q's own report). core/ loads
+-- BEFORE modules/, so focus_mode's definition overwrote the door's on
+-- every boot for twenty releases: typing `_G.focusReport()` has always
+-- printed FOCUS MODE's block, and the door's report has never once been
+-- seen on his Mac — while 6.401.0's verify block said "PASTE THAT" and
+-- 6.402.0 named it as half of a pair that tells two faults apart.
+--
+-- 🚨 THIS IS 6.308.0 ONE LEVEL OUT. That release found a module with
+-- TWO M.warm functions, where load order silently picked the loser and
+-- nothing could see it. Here it is two FILES and one global name, and
+-- the same thing is true: the config boots green, both functions are
+-- correct, and the only symptom is a command printing somebody else's
+-- block.
+--
+-- 🧪 AND THE SUITE CERTIFIED IT. tests/test_panel_drag.lua loads
+-- core/coexist.lua in ISOLATION, so the door's definition is the only
+-- one present and its checks passed — 6.273.0 word for word: a harness
+-- that does not reproduce the real load order does not merely miss the
+-- bug, it certifies it. No functional check can see this, because each
+-- file is right on its own; only a sweep across the tree can.
+--
+-- 🔎 SWEPT, NOT GUESSED (6.319.0): one collision in the whole tree.
+out("\n=== 🪪 6.422.0 — no two files publish the same _G. name ===\n")
+do
+    local owners, defs, scanned = {}, 0, 0
+    local function scan(path, label)
+        local fh = io.open(path, "r")
+        if not fh then return end
+        local src = fh:read("a") ; fh:close()
+        scanned = scanned + 1
+        -- comments stripped (6.262.0): the note above quotes the very
+        -- name it is about, and a sentry must not match prose.
+        src = src:gsub("\n%s*%-%-[^\n]*", "\n")
+        for name in src:gmatch("\n%s*function%s+_G%.([A-Za-z_][A-Za-z0-9_]*)%s*%(") do
+            defs = defs + 1
+            owners[name] = owners[name] or {}
+            local seen = false
+            for _, f in ipairs(owners[name]) do if f == label then seen = true end end
+            if not seen then owners[name][#owners[name] + 1] = label end
+        end
+    end
+    scan(HS .. "/init.lua", "init.lua")
+    for _, dir in ipairs({ "core", "modules" }) do
+        local pipe = io.popen("ls " .. HS .. "/" .. dir .. "/*.lua 2>/dev/null")
+        for path in (pipe and pipe:lines() or function() end) do
+            scan(path, dir .. "/" .. path:match("[^/]+$"))
+        end
+        if pipe then pipe:close() end
+    end
+    local clashes = {}
+    for name, files in pairs(owners) do
+        if #files > 1 then
+            table.sort(files)
+            clashes[#clashes + 1] = "_G." .. name .. " (" .. table.concat(files, " + ") .. ")"
+        end
+    end
+    table.sort(clashes)
+    -- 🚨 A SENTRY OVER AN EMPTY HAYSTACK IS GREEN AND MEASURES NOTHING
+    -- (6.313.0): assert it read the tree and found real definitions
+    -- before trusting its no.
+    check("the sentry read the whole tree", scanned > 60, scanned)
+    -- 🚨 A FLOOR, AND A NAMED ONE BESIDE IT (6.248.0). The first version
+    -- of this asserted `defs > 200` — a number I guessed, which went red
+    -- at the real 172 and would have gone red again the next time a
+    -- global was deleted. The floor only has to prove the pattern
+    -- matched SOMETHING; naming two globals that must be in the table is
+    -- what proves it matched the right thing, and neither can go stale
+    -- without the thing itself being gone.
+    check("...and found the published globals it is about", defs > 100, defs)
+    check("...and the pattern really matches a published global, indented "
+          .. "inside a setup() as most of them are",
+          owners["stormReport"] ~= nil and owners["clipWrite"] ~= nil,
+          tostring(owners["stormReport"]) .. " / " .. tostring(owners["clipWrite"]))
+    check("🪪 no _G. function is defined in two files — load order picks "
+          .. "the loser in silence, and the config boots green either way",
+          #clashes == 0, table.concat(clashes, " · "))
+    -- 🔑 AND THE DOOR'S REPORT IS REACHABLE BY ITS NEW NAME, which is the
+    -- half a collision count cannot say: the rename has to have landed
+    -- somewhere he can type.
+    local co = io.open(HS .. "/core/coexist.lua", "r")
+    local cosrc = co and co:read("a") or "" ; if co then co:close() end
+    check("🪪 ...and the focus DOOR answers to _G.focusDoorReport(), not to "
+          .. "the name ⇪Q's report already owns",
+          cosrc:find("function _G.focusDoorReport()", 1, true) ~= nil
+          and cosrc:find("\nfunction _G.focusReport(", 1, true) == nil)
+end
+
+if fail > 0 then
+    out("FAILURES:\n")
+    for _, f in ipairs(failures) do out("   ❌ " .. f .. "\n") end
+end
 out(("\n%d passed, %d failed\n\n"):format(pass, fail))
 os.exit(fail == 0 and 0 or 1)
