@@ -487,6 +487,36 @@ work Mac.
   can answer it. A guard that fails on correct code is switched off
   inside a week (6.269.0).
 
+- 🎯 A GUARD WRITTEN AS "US OR NOT US" CANNOT SEE THE CASE WHERE
+  NOTHING NEEDS DOING (6.419.0, core/coexist.lua's focus door — LL,
+  escalating, with the alert in a screenshot: "When I select from the
+  clipboard, the item should immediately paste").
+  🔎 ⇪D IS A NON-ACTIVATING PANEL. It takes the keyboard without making
+  Hammerspoon frontmost — that is the whole point of the windowMask
+  plumbing it borrows from capture_pad — so the front app is HIS app for
+  the entire life of the panel. `focusReturn`'s guard asked "are we still
+  the front app?" and read no as "he moved on", so it refused on EVERY
+  press and ⏎ has copied and never pasted since 6.402.0 shipped it. The
+  release that built it was proven against the EDIT WINDOW, which
+  activates — so the one caller that could not work was the one it was
+  written for.
+  🔑 THE THIRD STATE IS A SUCCESS, not a refusal: the loan's own app
+  already being in front means the place the keystroke must land already
+  has the keyboard. The guard exists to stop us dragging him off
+  something he chose himself, never to refuse when the world is already
+  correct. GENERAL, past this door: when a guard compares the world
+  against ONE expected state, ask what else the world can honestly be —
+  and whether the extra case needs an ACTION at all. An action nobody
+  needs is how a correct guard comes to cost a whole feature.
+  📏 IDENTITY IS THE PID, NEVER THE TABLE: hs.application hands back a
+  new object per call, so `front == loan.app` is false for one process
+  and refuses exactly as before — the plausible wrong fix, with its own
+  mutation. The NAME is the floor where :pid() refuses, asked SECOND
+  because two apps can share a name and two processes cannot share a pid.
+  🚨 AND THE GUARD KEEPS ITS TEETH: a THIRD app in front is still "you
+  moved on" (6.266.0). The fixture that bites is 6.230.0's — Chrome in
+  front AND Chrome on loan, the only input where right and wrong differ.
+
 - 🔎 A CHOOSER WITH A queryChangedCallback STOPS FILTERING FOR ITSELF
   (6.408.0, modules/menu_search.lua — LL: "Menu search is not filtering.
   Somewhat filters when typing a question mark but does nothing after
@@ -7383,6 +7413,7 @@ that must be READ before a new cause is named.
 | "Fix the Asana dashboard or tell me what this means?" · "make this move safe-proof and non-destructive … both on my home and work mac" | init.lua §6 → modules/asana_dashboard.lua | 6.386.0 | 1 | not a defect — init.lua was five lines under its ceiling |
 | "window does not return cursour/ mouse to the active field it was already in" · "I just use my trackpad to get back here" | core/coexist.lua's focus door · modules/ocr_engine.lua · unified_search | 6.401.0 · 6.402.0 | 1 | degraded — nothing broke; a panel borrowed the keyboard and never gave it back |
 | "First result from history clipboard list is not pasted when selected" | modules/unified_search.lua — ⏎ copied, and row one IS the clipboard | 6.402.0 | 1 | ask |
+| "the app you were in could not be brought back" · "when I select from the clipboard, the item should immediately paste" | core/coexist.lua's focus door — a non-activating panel is never frontmost, so the guard refused every time | 6.402.0 · 6.419.0 | 2 | ask |
 | "create a divider above this line so I can see where one section ends and this begins" | init.lua §0.0 · §3.12a — the Console had no mark between sessions | 6.400.0 | 1 | not a defect — a readability ask |
 | "⌘+hyper does not actuate a picker for every single Hammerspoon tool" | modules/unified_search.lua — @tool already lists every tool, on ⇪⇧/ | (open — a DOOR, not an instrument) | 0 | 6.317.0's shape again; the key is his to name |
 
@@ -7474,6 +7505,7 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
+| 6.419.0 | 📋 ⏎ on a clipboard row pastes — the guard refused on every press since 6.402.0 | pending |
 | 6.418.0 | ℹ️ A Mac with no profile of its own says so at boot — the work MacBook almost certainly has none | pending |
 | 6.417.0 | 📠 A report prints ONCE — every one of them showed twice in the Console | pending |
 | 6.416.0 | 🩺 The self test stops saying you have no snippets over a library of nineteen hundred | pending |
@@ -9171,6 +9203,86 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.419.0 verify with LL — 📋 ⏎ ON A CLIPBOARD ROW PASTES (KNOWN GROUND)
+  WHAT CHANGED: pressing Return on a clipboard row in ⇪D now PASTES it
+  where you were typing. It has only ever copied.
+  🔎 AND THE ALERT YOU PHOTOGRAPHED IS THE DIAGNOSIS — "the app you were
+  in could not be brought back" is not the message for something going
+  wrong, it is the message for the paste REFUSING, and it was refusing
+  every single time. ⇪D takes the keyboard WITHOUT bringing Hammerspoon
+  to the front — deliberately, so the panel does not yank you out of your
+  app. So when the paste asked "am I still the front app?", the honest
+  answer was always no, and it read that as "you have moved on
+  yourself" and stood down. 6.402.0 built the paste correctly and proved
+  it against the EDIT window, which DOES come to the front. The one door
+  it could never work on is the one it was written for.
+
+  A. THE HEADLINE — thirty seconds, and it is the whole release.
+  A1. Click into a text box you can type in — a Chrome field, a Word
+      document, this one. Leave the caret there.
+  A2. Press ⇪V (or ⇪D and type `@clip`). Press **Return on any row**.
+      EXPECT: the panel closes and the text appears AT THE CARET.
+      **A FAIL is the alert you photographed** — "📋 It is on your
+      clipboard — ⌘V pastes it / the app you were in could not be brought
+      back". That sentence should now be impossible on an ordinary press.
+  A3. Do it again on the FIRST row, which is the one you reported in
+      6.402.0. EXPECT: it pastes. (Row one is whatever is already on your
+      clipboard, so a copy there changes nothing you can see — which is
+      why it was the row that looked deadest.)
+  A4. Three or four more rows, in two different apps.
+
+  B. THE ONES THAT PROTECT YOU — these matter more than A.
+  B1. Press ⇪V and then press **Escape**.
+      EXPECT: nothing is pasted anywhere.
+  B2. Press ⇪V, then — before pressing Return — **click into a different
+      app yourself**. Then come back and press Return on a row.
+      EXPECT: it does NOT paste. You get "📋 It is on your clipboard —
+      ⌘V pastes it / you had already moved on". That is the guard still
+      doing its job: a ⌘V posted into something you moved to yourself
+      could type into a document you did not mean to touch.
+      **A FAIL here is it pasting anyway**, and it is the serious one —
+      tell me at once.
+  B3. ⏎ on a **non-clipboard** row — an @ocr reading, an @shots path, an
+      @vault note. EXPECT: it still only COPIES and says "📋 Copied".
+      A file path typed into your document is not what Return means
+      there, and that line has not moved.
+
+  C. MUST STILL WORK — this touched the door every panel uses to give the
+     focus back, so this half matters more than A.
+  C1. ⇪⇧V, Return on a row to open the edit window, change something and
+      save (or Escape). EXPECT: you are back in your text box with the
+      caret in it, as in 6.401.0. That window ACTIVATES, so it takes the
+      other path through the same door — if the focus stops coming back
+      there, this release did it.
+  C2. ⇪⇧W the documents list, and ⇪⇧O — same thing.
+  C3. ⇪D still searches everything; ↑↓ walk, the preview pane follows.
+  C4. ⌘⏎ on a row still copies its path; ⌥⏎ still opens it.
+  C5. ⌘⌘ still opens the clipboard history.
+
+  D. PASTE BACK, PASS OR FAIL.
+  D1. `_G.focusReport()` — there is a NEW line and it is the artefact:
+        already : 4 — the app was ALREADY in front, so there was nothing
+                  to bring back. A success, and what a non-activating
+                  panel (⇪D) does every time.
+      **That number climbing is the release working.** Before today every
+      one of those presses was counted as "moved on" and refused.
+  D2. `_G.unifiedSearchReport()` — the `⏎ clip :` line:
+        ⏎ clip : 4 picked · 4 ⌘V posted · 0 left on the clipboard only
+      If "left on the clipboard only" is still climbing on ordinary
+      presses, paste both reports — that would mean a second cause I have
+      not found, and the two lines together name which half.
+
+  E. A JUDGEMENT ONLY YOU CAN MAKE.
+  E1. `settings = { unified_search = { pasteOnPick = false } }` goes back
+      to copy-only, if a paste ever lands somewhere you did not want.
+  E2. Should ⏎ paste for OTHER sources too — @ocr readings, say? It is
+      deliberately clipboard-only (B3). Your call, and it is one line.
+  E3. 🔨 This one is yours to tag: nothing broke and nothing was lost —
+      the text was always on the clipboard and ⌘V always worked. What it
+      cost is the feature you asked for not existing for eleven releases
+      while reporting itself as working. My reading is that it degraded
+      gracefully and said something true but useless; the pass count is 2.
+
 - 6.418.0 verify with LL — ℹ️ WHICH MAC IS THIS? (KNOWN GROUND)
   WHAT CHANGED: if a Mac has no profile of its own, the boot line now
   SAYS so and names the machine. On the Air you should see nothing new.

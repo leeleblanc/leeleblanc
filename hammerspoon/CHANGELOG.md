@@ -5,6 +5,76 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.419.0 — 📋 ⏎ ON A CLIPBOARD ROW PASTES, AT LAST
+               (core/coexist.lua's focus door)
+
+  LL, escalating, with a screenshot of the alert: "ESCALATE: provide an
+  immediate fix. When I select from the clipboard, the item should
+  immediately paste." The alert read "📋 It is on your clipboard — ⌘V
+  pastes it / the app you were in could not be brought back".
+
+  🔎 AND THAT SENTENCE IS THE DIAGNOSIS, because it is not the message
+  for a failure — it is the message for a REFUSAL, and the refusal is
+  structural rather than occasional. 6.402.0 built the paste correctly
+  and put it behind one guard: a ⌘V is only posted once the focus is
+  proven back, because posted while the panel holds the keyboard it goes
+  nowhere, and posted after he has moved on it lands in whatever he
+  moved to. Right, and the guard it rests on asks a question with two
+  answers: are we still the front app, or not?
+
+  🚨 ⇪D IS A NON-ACTIVATING PANEL. capture_pad's windowMask plumbing
+  (pad.applyNonActivating, borrowed by uni.show) gives it the keyboard
+  WITHOUT making Hammerspoon frontmost — that is the whole point of it,
+  and 6.251.0 named the price every other panel pays for not having it.
+  So on ⇪D the front app is HIS app, for the entire life of the panel.
+  "Not us" is therefore TRUE on every single press, and the guard read
+  it as "he moved on" and refused. ⏎ has copied and never pasted since
+  6.402.0 shipped, on every Mac, for every row — and the release that
+  built it could not see this, because it was proven against the EDIT
+  WINDOW, which activates.
+
+  🔑 THE RULE, AND IT IS THE ONE TO CARRY: A GUARD WRITTEN AS "US OR NOT
+  US" CANNOT SEE THE CASE WHERE NOTHING NEEDS DOING. The world has three
+  states and the third is the loan's own app ALREADY being in front —
+  which is a SUCCESS, not a refusal, because the place the keystroke has
+  to land already has the keyboard. The guard exists to stop us dragging
+  him off something he chose himself; it was never meant to refuse when
+  the world is already correct. GENERAL, past this door: when a guard
+  compares the world against ONE expected state, ask what else the world
+  can honestly be — and whether the extra case needs an action at all.
+
+  📏 MATCHED ON THE PID, NEVER THE TABLE. hs.application hands back a
+  new object per call, so `front == loan.app` is false for one process
+  and the door would refuse exactly as before — the plausible wrong fix,
+  which has its own mutation. The NAME is the floor for a Hammerspoon
+  whose :pid() refuses, and it is asked SECOND because it is a weaker
+  claim (two apps can share a name; two processes cannot share a pid).
+
+  🚨 AND THE GUARD KEEPS ITS TEETH, which is what makes this narrow: a
+  THIRD app in front is still "you moved on". Widening it to "anything
+  that is not us" would yank him out of Word — 6.266.0's rule, and the
+  mutation that does it fails eight checks by name.
+
+  🔎 COUNTED APART (6.196.1). `_G.focusReport()` gains an `already :`
+  line: "the app was ALREADY in front, so there was nothing to bring
+  back. A success, and what a non-activating panel (⇪D) does every
+  time." Summing it into `returned` would hide the mechanism, and summing
+  it into `moved on` is the bug.
+
+  🧪 THE SWEEP, and the fixture is 6.230.0's: with Chrome in front AND
+  Chrome on loan, the old guard says no and the new one says yes — the
+  only input where right and wrong must differ. Three mutations, three
+  bites: the third state made unreachable (4 checks), identity by table
+  rather than pid (2), and the guard widened to anything-but-us (8). The
+  stub gained :pid(), which a real hs.application answers and the fake
+  did not (6.290.0, fifteenth time) — without it the pid path was
+  unreachable from the gate and only the name floor ran.
+
+  📏 NAMED, NOT SWEPT: the edit window (ocr_engine) DOES activate, so it
+  took the `stillUs` path before and takes it now — unchanged. What
+  changes for it is that a build where its activation is refused now
+  succeeds instead of leaving him on the trackpad.
+
 NEW IN 6.418.0 — ℹ️ A MAC WITH NO PROFILE OF ITS OWN SAYS SO
                (core/boot_report.lua)
 

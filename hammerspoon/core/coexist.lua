@@ -412,7 +412,8 @@ end
 -- difference between a register and a leak.
 _G.focusLoans = {}
 _G.focusState = { asked = 0, returned = 0, refused = 0, moved = 0,
-                  wasUs = 0, dropped = 0, kept = 0, last = nil }
+                  wasUs = 0, dropped = 0, kept = 0, alreadyThere = 0,
+                  last = nil }
 _G.focusLoanMax = 12
 _G.focusLast    = nil    -- { app, name, at } — the last app that was NOT us
 _G.focusWatcher = nil
@@ -519,13 +520,37 @@ function _G.focusReturn(who)
     if not loan or not loan.app then
         return focusNote(false, "nothing was borrowed", who, nil)
     end
-    -- 🚨 THE GUARD. If we are not the front app any more, he has moved on
-    -- by himself and the focus is not ours to move.
-    local stillUs = false
-    pcall(function()
-        local front = hs.application.frontmostApplication()
-        stillUs = front and focusIsMine(front)
-    end)
+    -- 🚨 THE GUARD, AND IT HAS THREE ANSWERS, NOT TWO (6.419.0).
+    -- "We are still in front" and "he moved on" are not the whole world:
+    -- a NON-ACTIVATING panel never makes Hammerspoon frontmost at all, so
+    -- on ⇪D the front app is the app he came from, the ENTIRE TIME. Read
+    -- as two states that is indistinguishable from "he moved on", and the
+    -- door refused on every single press — which is ⏎ on a clipboard row
+    -- never pasting since 6.402.0 shipped.
+    -- 🔑 THE THIRD STATE IS THE LOAN'S OWN APP ALREADY BEING IN FRONT, and
+    -- it is a SUCCESS: there is nothing to yank him out of, because the
+    -- place he wants the keystroke is already the place that has it. The
+    -- guard exists to stop us dragging him off something he chose himself
+    -- — not to refuse when the world is already correct. GENERAL: a guard
+    -- written as "us or not us" is a guard that cannot see the case where
+    -- nothing needs doing, and refusing there costs the whole feature.
+    local front, stillUs, alreadyThere = nil, false, false
+    pcall(function() front = hs.application.frontmostApplication() end)
+    pcall(function() stillUs = (front ~= nil) and focusIsMine(front) end)
+    if front and not stillUs then
+        -- By pid first — an app is one process and two handles to it
+        -- compare unequal. The name is the floor for a Hammerspoon whose
+        -- :pid() refuses, and it is a WEAKER claim, so it is asked second.
+        pcall(function() alreadyThere = (front:pid() == loan.app:pid()) end)
+        if not alreadyThere and loan.name then
+            pcall(function() alreadyThere = (front:name() == loan.name) end)
+        end
+    end
+    if alreadyThere then
+        st.alreadyThere = (st.alreadyThere or 0) + 1
+        return focusNote(true, "already in front — nothing to give back",
+                         who, loan.name)
+    end
     if not stillUs then
         st.moved = st.moved + 1
         return focusNote(false, "you had already moved on — the focus was not "
@@ -562,6 +587,12 @@ function _G.focusReport()
                     .. " — macOS would not bring the app back (it may have quit)"
     else
         L[#L + 1] = "   refused : none — every app asked for came back"
+    end
+    if (st.alreadyThere or 0) > 0 then
+        L[#L + 1] = "   already : " .. st.alreadyThere .. " — the app was ALREADY"
+                    .. " in front, so there was nothing to bring back. A"
+                    .. " success, and what a non-activating panel (⇪D) does"
+                    .. " every time."
     end
     if st.moved > 0 then
         L[#L + 1] = "   moved on: " .. st.moved .. " — you were already somewhere"

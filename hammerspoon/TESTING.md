@@ -1,4 +1,4 @@
-# TESTING — how to score release 6.418.0
+# TESTING — how to score release 6.419.0
 
 You install ONE archive and it carries several releases. Below are the
 steps for each release this archive is new for, newest first. Run the
@@ -26,6 +26,90 @@ else is a LOSS and I fix it before building further. You are the only
 scorer; I never mark my own.
 
 ---
+
+## 6.419.0
+
+6.419.0 verify with LL — 📋 ⏎ ON A CLIPBOARD ROW PASTES (KNOWN GROUND)
+WHAT CHANGED: pressing Return on a clipboard row in ⇪D now PASTES it
+where you were typing. It has only ever copied.
+🔎 AND THE ALERT YOU PHOTOGRAPHED IS THE DIAGNOSIS — "the app you were
+in could not be brought back" is not the message for something going
+wrong, it is the message for the paste REFUSING, and it was refusing
+every single time. ⇪D takes the keyboard WITHOUT bringing Hammerspoon
+to the front — deliberately, so the panel does not yank you out of your
+app. So when the paste asked "am I still the front app?", the honest
+answer was always no, and it read that as "you have moved on
+yourself" and stood down. 6.402.0 built the paste correctly and proved
+it against the EDIT window, which DOES come to the front. The one door
+it could never work on is the one it was written for.
+
+A. THE HEADLINE — thirty seconds, and it is the whole release.
+A1. Click into a text box you can type in — a Chrome field, a Word
+    document, this one. Leave the caret there.
+A2. Press ⇪V (or ⇪D and type `@clip`). Press **Return on any row**.
+    EXPECT: the panel closes and the text appears AT THE CARET.
+    **A FAIL is the alert you photographed** — "📋 It is on your
+    clipboard — ⌘V pastes it / the app you were in could not be brought
+    back". That sentence should now be impossible on an ordinary press.
+A3. Do it again on the FIRST row, which is the one you reported in
+    6.402.0. EXPECT: it pastes. (Row one is whatever is already on your
+    clipboard, so a copy there changes nothing you can see — which is
+    why it was the row that looked deadest.)
+A4. Three or four more rows, in two different apps.
+
+B. THE ONES THAT PROTECT YOU — these matter more than A.
+B1. Press ⇪V and then press **Escape**.
+    EXPECT: nothing is pasted anywhere.
+B2. Press ⇪V, then — before pressing Return — **click into a different
+    app yourself**. Then come back and press Return on a row.
+    EXPECT: it does NOT paste. You get "📋 It is on your clipboard —
+    ⌘V pastes it / you had already moved on". That is the guard still
+    doing its job: a ⌘V posted into something you moved to yourself
+    could type into a document you did not mean to touch.
+    **A FAIL here is it pasting anyway**, and it is the serious one —
+    tell me at once.
+B3. ⏎ on a **non-clipboard** row — an @ocr reading, an @shots path, an
+    @vault note. EXPECT: it still only COPIES and says "📋 Copied".
+    A file path typed into your document is not what Return means
+    there, and that line has not moved.
+
+C. MUST STILL WORK — this touched the door every panel uses to give the
+   focus back, so this half matters more than A.
+C1. ⇪⇧V, Return on a row to open the edit window, change something and
+    save (or Escape). EXPECT: you are back in your text box with the
+    caret in it, as in 6.401.0. That window ACTIVATES, so it takes the
+    other path through the same door — if the focus stops coming back
+    there, this release did it.
+C2. ⇪⇧W the documents list, and ⇪⇧O — same thing.
+C3. ⇪D still searches everything; ↑↓ walk, the preview pane follows.
+C4. ⌘⏎ on a row still copies its path; ⌥⏎ still opens it.
+C5. ⌘⌘ still opens the clipboard history.
+
+D. PASTE BACK, PASS OR FAIL.
+D1. `_G.focusReport()` — there is a NEW line and it is the artefact:
+      already : 4 — the app was ALREADY in front, so there was nothing
+                to bring back. A success, and what a non-activating
+                panel (⇪D) does every time.
+    **That number climbing is the release working.** Before today every
+    one of those presses was counted as "moved on" and refused.
+D2. `_G.unifiedSearchReport()` — the `⏎ clip :` line:
+      ⏎ clip : 4 picked · 4 ⌘V posted · 0 left on the clipboard only
+    If "left on the clipboard only" is still climbing on ordinary
+    presses, paste both reports — that would mean a second cause I have
+    not found, and the two lines together name which half.
+
+E. A JUDGEMENT ONLY YOU CAN MAKE.
+E1. `settings = { unified_search = { pasteOnPick = false } }` goes back
+    to copy-only, if a paste ever lands somewhere you did not want.
+E2. Should ⏎ paste for OTHER sources too — @ocr readings, say? It is
+    deliberately clipboard-only (B3). Your call, and it is one line.
+E3. 🔨 This one is yours to tag: nothing broke and nothing was lost —
+    the text was always on the clipboard and ⌘V always worked. What it
+    cost is the feature you asked for not existing for eleven releases
+    while reporting itself as working. My reading is that it degraded
+    gracefully and said something true but useless; the pass count is 2.
+
+
 
 ## 6.418.0
 
@@ -164,54 +248,6 @@ D1. Now that the block is not lying, is it WELCOME at every boot, or
     makes it quiet and leaves the command.
 D2. Which other tools belong on it? Candidates not added: Hamsidian's
     notes folder, the clipboard poll, the backup, OneDrive.
-
-
-
-## 6.415.0
-
-6.415.0 verify with LL — 🖼 THE LOADED SHOT MOVES (KNOWN GROUND)
-WHAT CHANGED: ⌘O's loaded screenshot is a MARK now — drag it anywhere,
-including on top of the first.
-🔎 YOUR TWO SENTENCES WERE ONE MECHANISM. "First screenshot is above the
-second" is the growth working as designed (a wide shot grows DOWN). "I
-should be able to position the second screenshot on top of the second
-or where I want" is the ask — and it could not be done, because ⌘O
-baked the shot into the canvas, so where it landed was permanent.
-
-A. THE HEADLINE — a minute.
-A1. ⇪⇧1 on a screenshot. Press ⌘O and pick another shot.
-    EXPECT: the canvas grows and the loaded shot appears in the new
-    space — and it is SELECTED, with handles.
-A2. Drag it. EXPECT: it moves, anywhere you like, INCLUDING over the
-    first shot. **A FAIL is it not moving** — that is the old
-    behaviour.
-A3. Drag its corner. EXPECT: it scales, keeping its shape.
-A4. Press ⌫. EXPECT: it comes off. ⌘Z brings it back.
-A5. You should see ONE alert the first time per session: "🖼 Drag it
-    where you want — it is a mark now. ⌘Z undoes the whole thing."
-
-B. THE ONE THAT MATTERS MOST — ⌘Z is still ONE press.
-B1. Press ⌘O, then immediately ⌘Z.
-    EXPECT: the canvas goes back to its old size AND the loaded shot is
-    gone, in one press. **A FAIL is needing two presses**, or the
-    canvas shrinking while the shot stays.
-B2. Draw an arrow on the first shot BEFORE pressing ⌘O. After the grow,
-    the arrow must still point at exactly the same thing.
-
-C. THE PARTNER TOOL.
-C1. Load a shot, drag it to overlap the first, then press K and crop to
-    what you want. That is the pair 6.414.0 and this release make.
-
-D. MUST STILL WORK.
-D1. ⌘V paste image, ⌘A add capture, ⌘D delayed, ⌘F full screen.
-D2. The nine drawing tools, ⌘⏎ save, Esc, and Esc-then-reopen keeping
-    your marks.
-
-E. A JUDGEMENT ONLY YOU CAN MAKE.
-E1. The loaded shot arrives at its own size in new space below (or
-    beside) the first. Would you rather it arrived ON the first shot
-    straight away, for you to position? That is a different default and
-    it is yours to pick.
 
 
 

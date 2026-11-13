@@ -97,10 +97,17 @@ local FRONT, APP_WATCHERS, WATCHER_REFUSES = nil, {}, false
 -- comparison picked a different arbitrary one. A fixture where the
 -- right and wrong implementations AGREE proves nothing (6.230.0).
 local CLOCK = 1000.5
-local function mkApp(name, bundle, how)
-  local a = { nm = name, bid = bundle or ("com.test." .. name), activated = 0 }
+local PIDS = 100
+local function mkApp(name, bundle, how, noPid)
+  PIDS = PIDS + 1
+  local a = { nm = name, bid = bundle or ("com.test." .. name), activated = 0,
+              p = PIDS }
   function a:name() return self.nm end
   function a:bundleID() return self.bid end
+  -- 🔬 A REAL hs.application ANSWERS :pid() (6.290.0). `noPid` plays the
+  -- Hammerspoon whose :pid() refuses, which is the only input on which
+  -- the door's name floor is the thing doing the work.
+  if not noPid then function a:pid() return self.p end end
   function a:activate()
     self.activated = self.activated + 1
     if how == "throw" then error("macOS refused to activate " .. self.nm, 0) end
@@ -567,7 +574,8 @@ do
   local function reset()
     _G.focusLoans = {}
     _G.focusState = { asked = 0, returned = 0, refused = 0, moved = 0,
-                      wasUs = 0, dropped = 0, kept = 0, last = nil }
+                      wasUs = 0, dropped = 0, kept = 0, alreadyThere = 0,
+                      last = nil }
     _G.focusLast = nil
   end
 
@@ -602,6 +610,81 @@ do
         _G.focusLoans["Edit window"] == nil
         and select(1, _G.focusReturn("Edit window")) == false
         and chrome.activated == 1, chrome.activated)
+
+  -- 📋 6.419.0 — THE THIRD STATE, AND IT IS THE WHOLE OF ⇪D.
+  -- LL, escalating: "When I select from the clipboard, the item should
+  -- immediately paste", with a screenshot of "the app you were in could
+  -- not be brought back". ⇪D is a NON-ACTIVATING panel — it takes the
+  -- keyboard without making Hammerspoon frontmost — so the front app is
+  -- HIS app for the whole life of the panel. Read as two states that is
+  -- indistinguishable from "he moved on", so the door refused on every
+  -- press and ⏎ never once pasted. THIS IS THE FIXTURE WHERE RIGHT AND
+  -- WRONG MUST DIFFER (6.230.0): with Chrome in front and Chrome on loan,
+  -- the old guard says no and the new one says yes.
+  reset()
+  fireActivated(chrome)
+  _G.focusBorrow("⇪D")
+  FRONT = chrome                      -- never displaced: a non-activating panel
+  chrome.activated = 0
+  local okA, whyA = _G.focusReturn("⇪D")
+  check("📋 a NON-ACTIVATING panel never took the focus, so the app is "
+        .. "ALREADY in front — that is a SUCCESS, not 'he moved on', and "
+        .. "it is what makes ⏎ on a clipboard row paste at all",
+        okA == true and tostring(whyA):find("already in front", 1, true) ~= nil,
+        tostring(okA) .. " · " .. tostring(whyA))
+  check("📋 ...and NOTHING is activated, because nothing needs to be — "
+        .. "an activate here is a window order we did not have to ask for",
+        chrome.activated == 0, chrome.activated)
+  check("📋 ...counted apart from a return and from a moved-on, because "
+        .. "three outcomes that read as one number cannot be diagnosed",
+        _G.focusState.alreadyThere == 1 and _G.focusState.moved == 0
+        and _G.focusState.returned == 0,
+        _G.focusState.alreadyThere .. " already · " .. _G.focusState.moved
+        .. " moved · " .. _G.focusState.returned .. " returned")
+  check("📋 ...and the loan is SPENT either way, so a second return "
+        .. "cannot claim the app a third time",
+        _G.focusLoans["⇪D"] == nil)
+
+  -- 📏 THE SAME APP BY A DIFFERENT HANDLE. hs.application hands back a
+  -- new object per call, so comparing the TABLES would answer false for
+  -- one process and the door would refuse exactly as before.
+  reset()
+  fireActivated(chrome)
+  _G.focusBorrow("⇪D")
+  local twin = mkApp("Google Chrome")
+  twin.p = chrome.p                   -- one process, two handles
+  FRONT = twin
+  chrome.activated = 0
+  check("📏 the same app reached through a DIFFERENT handle is the same "
+        .. "app — matched on the pid, never on the table",
+        _G.focusReturn("⇪D") == true and chrome.activated == 0
+        and _G.focusState.alreadyThere == 1,
+        _G.focusState.alreadyThere .. " already")
+
+  -- 🎯 THE NAME FLOOR, which only bites where :pid() refuses.
+  reset()
+  local noPidChrome = mkApp("Google Chrome", nil, nil, true)
+  fireActivated(noPidChrome)
+  _G.focusBorrow("⇪D")
+  FRONT = mkApp("Google Chrome", nil, nil, true)
+  check("🎯 a Hammerspoon whose :pid() refuses falls to the NAME, which "
+        .. "is a weaker claim and is therefore asked second",
+        _G.focusReturn("⇪D") == true and _G.focusState.alreadyThere == 1,
+        _G.focusState.alreadyThere .. " already")
+
+  -- 🚨 AND THE GUARD KEEPS ITS TEETH. This is the half that makes the
+  -- release narrow: a THIRD app in front is still "he moved on".
+  reset()
+  fireActivated(chrome)
+  _G.focusBorrow("⇪D")
+  FRONT = mkApp("Microsoft Word")
+  chrome.activated = 0
+  local okW, whyW = _G.focusReturn("⇪D")
+  check("🚨 a THIRD app in front is still 'you moved on' — widening the "
+        .. "guard to 'anything but us' would yank him out of Word",
+        okW == false and chrome.activated == 0
+        and _G.focusState.alreadyThere == 0 and _G.focusState.moved == 1
+        and tostring(whyW):find("moved on", 1, true) ~= nil, tostring(whyW))
 
   -- 🚨 THE GUARD: he moved on himself, so the focus is not ours to move.
   reset()
