@@ -7657,6 +7657,10 @@ THE METHOD, when something breaks after a stacked zip:
    quietly rewritten, so the record shows the call was made and changed.
    · 6.421.0 · 6.422.0 · 6.423.0 — 9313323 (code, suites and ceremony in
    one commit; the archive for them is 6.427.0's, below).
+   · 6.429.0 — 859eefc (the code, the suites and the ceremony in one
+   commit; **the archive SHA is added below once it is committed** — a
+   branch-pinned link dies the moment the next release deletes the file,
+   which is why 6.356.0–6.358.0 never reached his Downloads (6.360.0)).
    · 6.428.0 — 2760c22 (the code, the suites and the three findings) ·
    **0778309 is the ceremony and the archive, and 0778309 is the SHA
    every link to it must carry** — a branch-pinned link dies the moment
