@@ -4,8 +4,28 @@
 -- =====================================================================
 -- 11-08-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.427.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.428.0
 -- =====================================================================
+
+-- NEW IN 6.428.0 — ✂️ EVERY CELL SPLIT INTO FOUR, IN THE TIMER'S YELLOW
+--   (modules/mouse_grid.lua). LL: "Split all boxes into fours again.
+--   Overall, the boxes are too big and not useful enough at that size.
+--   Make the grid letters the same translucent yellow as the Timer card
+--   tool that flashes yellow when the timer is up."
+--   📐 BOTH HIS SENTENCES ARE ONE NUMBER: 26 letters squared is 676
+--   cells, ~45pt on the Air against a 28–40pt button. Every cell is
+--   DIVIDED 2 × 2 before it is drawn, so the box is a quarter of the
+--   area and the code he types is the same length — precision bought
+--   with geometry, none of it spent on his typing (6.176.0 proved a
+--   three-character label cannot be read at 30pt).
+--   🎯 AND "AGAIN" IS THE SECOND HALF: the landed box refines FOUR ways
+--   — a/s/d/f for the four quarters, repeatable, ⌫ restoring the parent.
+--   🟡 `grid.labelInk()` READS `_G.uiStyle.accent`, the same table
+--   modules/timer.lua:439 takes its ⏱ TIME UP flash from (6.231.0 — one
+--   literal, three readers), so "the Timer's yellow" is true by
+--   construction. White was never a taste: 6.372.0 measured white on
+--   white at 1.00:1.
+--   🔎 An unreadable grid DECLINES before it takes the keyboard.
 
 -- NEW IN 6.427.0 — 📋 @report: EVERY REPORT, AND WHAT EACH ONE ANSWERS
 --   (modules/unified_search.lua). LL: "I'd like an @report so I can pick
@@ -22,24 +42,11 @@
 --   row that is deliberately NOT runnable. The first run of that join
 --   found eight reports this table had missed.
 
--- NEW IN 6.426.0 — 💾 THE WHOLE DRAFT, AND ONLY ONCE
---   (modules/draft_keeper.lua). LL: "the draft needs to make sense and
---   be a pastable sentence or string of characters that is put back in
---   the sequence it was typed." It already was in sequence — this reads
---   the FIELD'S VALUE rather than reconstructing keystrokes (6.404.0) —
---   and then CUT it at 8,000 characters. His own report: 23603 chars
---   (cut). A third of what he typed is not a pastable copy of it.
---   🔁 AND IT WROTE THE SAME ROW TWICE. `pending.wrote` was the only
---   memory of what is on disk for a field, and the pending dies the
---   moment the caret moves — so clicking out of a long draft and back
---   wrote it again. A per-field mark survives that now, and it holds a
---   fingerprint and two counts, never his writing (6.404.0's own rule).
-
--- (6.425.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.426.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 cut the inline count to
 --  TWO; a gate check proves every entry here is also in CHANGELOG.md.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.427.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.428.0
 -- =====================================================================
 -- The catalogue that used to sit here moved to GUIDE.md ("What each
 -- tool does") in 6.180.0 — 259 lines of prose inside the orchestrator.
@@ -128,7 +135,7 @@ function _G.consoleRuleSay(what)
     return true
 end
 
-_G.configVersion = "6.427.0"
+_G.configVersion = "6.428.0"
 _G.consoleRuleSay("▶ BOOT")
 
 local function safeRequire(mod)

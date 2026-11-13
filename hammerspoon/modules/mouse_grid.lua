@@ -136,9 +136,76 @@
 -- hs.eventtap, which macOS gates behind Accessibility. Without it the
 -- grid still jumps and SPACE reports why it could not click, rather than
 -- doing nothing and looking broken.
+--
+-- ---------------------------------------------------------------------
+-- ✂️ 6.428.0 — EVERY CELL IS SPLIT INTO FOUR, AND THE LETTERS ARE THE
+-- TIMER'S YELLOW
+-- ---------------------------------------------------------------------
+-- LL: "Split all boxes into fours again. Overall, the boxes are too big
+-- and not useful enough at that size. Make the grid letters the same
+-- translucent yellow as the Timer card tool that flashes yellow when the
+-- timer is up. Do this instead of white letters in the boxes. If you can
+-- think of a better system for the grid, do it."
+--
+-- 📐 HIS TWO SENTENCES ARE ONE NUMBER, AND IT IS THE ARITHMETIC ABOVE.
+-- "Split into fours" and "the boxes are too big" are the same request
+-- read from two sides: capacity is `#alphabet ^ labelLength`, and at 26
+-- letters squared that is 676 cells — ~45pt on the Air panel, ~71pt on
+-- the 4K, against a toolbar button of 28–40pt. The cell was about twice
+-- the target, every time. So every cell `planScreen` lays out is now
+-- DIVIDED 2 × 2 before anything is drawn (`grid.subdivisions`), which
+-- quarters the area without touching the label length: the code he types
+-- is the same length it was, and the box it lands in is a quarter of the
+-- size. That is the whole release, and it is why the answer was not
+-- "type a fourth letter" — the label is the binding constraint (6.176.0
+-- proved a 30pt cell with a three-character label is unreadable, and his
+-- verdict then was "HOLY SHIT! The grid is insane"), so the fix buys
+-- precision with GEOMETRY and spends none of his typing on it.
+--
+-- 🎯 AND "AGAIN" IS THE SECOND HALF — the landed box refines FOUR WAYS
+-- now, not two. 6.192.0's ⌥+arrow halving was removed on his own word
+-- ("Too convoluted"), 6.252.0 replaced it with a two-letter split along
+-- the longer side, and this makes it a/s/d/f → top-left, top-right,
+-- bottom-left, bottom-right, repeatable, with ⌫ restoring the parent.
+-- `grid.quarterOf` is PURE and built from `grid.halfOf`, so the 16pt
+-- floor, the refusals and their reasons are the ones already proven;
+-- `grid.refineSpec` answers the keys AND the parts AND where they came
+-- from, so a bad `quarterKeys` override falls back to asdf and SAYS so
+-- rather than binding nothing. Two-way splitting is still reachable
+-- (`refineParts = 2`) because it is his muscle memory from 6.252.0.
+--
+-- 🟡 THE LETTERS ARE THE CONFIG'S ACCENT, READ AND NEVER RETYPED.
+-- `grid.labelInk()` reads `_G.uiStyle.accent` — ui_style.lua:157, "the
+-- pomodoro flash amber — THE accent of this config" — which is the same
+-- table modules/timer.lua:439 takes its ⏱ TIME UP flash from. One
+-- literal, three readers (6.231.0): the Timer card, the grid labels and
+-- the fallback inside each are the same four numbers, so "the same
+-- yellow as the Timer" is true by construction rather than by eye. White
+-- was not a taste: 6.372.0 measured white-on-white at 1.00:1, which is
+-- the ring being invisible on most of what is on screen, and a label is
+-- the same problem. Each label keeps a small dark backplate so the
+-- translucent yellow has something to be legible against.
+--
+-- 🔎 AND AN UNREADABLE GRID IS REFUSED BEFORE IT TAKES THE KEYBOARD.
+-- Quartering costs cells, and cells cost points: `fittedLabelSize`
+-- answers the point size a three-character label really gets in the cell
+-- this screen produces, the layout reduces density rather than drawing
+-- letters nobody can read, and a frame that still cannot carry one
+-- DECLINES — no modal, no capture, a sentence saying why. That order is
+-- the rule this file already lives by: a keyboard-eating mode with no
+-- legible visual is the hazard, so the check happens while the keyboard
+-- is still his.
+--
+-- 🚨 AND THE CARBON FALLBACK DECLINES THIS TOOL, said rather than left
+-- to be discovered. When ⇪ is running on the Carbon dispatcher rather
+-- than the event tap, this Carbon-modal overlay is not entered at all —
+-- an explicit loss of the grid on that path, never a claim that it
+-- works there. ⇪⇧L (find the pointer) is a separate tool and is
+-- unaffected.
+--
 
 local M = {
-    version = "6.167.0",   -- printed by the report: which file is loaded
+    version = "6.428.0",   -- printed by the report: which file is loaded
     name  = "Mouse Grid",
     order = 13.6,
     family = "windows",
@@ -147,17 +214,18 @@ local M = {
         entries = {
             { "⇪X",       "Overlay the labelled grid on every display" },
             { "⇪⇧X",      "Same, but click the moment you finish typing" },
-            { "asdfghjkl","Type a cell's 3 letters — the pointer jumps there" },
-            { "snap",     "A button under the cell? The pointer lands ON it — including one WIDER than the cell (6.181.0), which is most of them" },
+            { "a–z",     "Type a cell's 3 letters — the pointer jumps there" },
+            { "snap",     "Off by default: land in the chosen cell without querying app controls. Optional Accessibility snapping remains available" },
             { "⌫",        "Undo one letter while typing" },
             { "⎋",        "Cancel — the pointer does not move" },
             { "-- after it lands --", "" },
             { "space",    "Left click · ⇧space right click · 2 double click" },
             { "↑↓←→",     "Nudge 8pt a press — HOLD it and it repeats at that same 8pt, like an arrow in a text box (the old climb to 64pt is gone, 6.360.0) · with ⇧ nudge 1pt for a tight target" },
-            { "two keys", "6.373.0: TWO keystrokes land you, not three — 26 letters two deep is 676 cells, within 4% of the 729 it replaces, so the boxes are the size you know and a third of the typing is gone" },
-            { "split",    "After you land, the box is drawn SPLIT IN HALF with a letter in each side (the first two of the alphabet — the badge names them). Press one and that half is kept, the pointer goes to its middle, and it splits again — two or three presses narrow a big cell onto a small button" },
+            { "3 letters", "Smaller initial cells: every former cell is divided into four" },
+            { "a s / d f", "After landing: top-left / top-right / bottom-left / bottom-right. Repeat to refine; the letters are drawn in Timer yellow" },
+            { "⌫", "Undo the last refinement; Escape finishes without clicking" },
             { "⎋",        "Done — leave the pointer where it is" },
-            { "⇪⇧L",      "Find the pointer — three white rings pulse out from it, again and again, for 5 s" },
+            { "⇪⇧L",      "Find the pointer — three coloured rings pulse out from it, again and again, for 5 s" },
             { "",         "6.372.0: BIGGER (180 pt, was 110) and in colour — magenta, orange, violet in turn. It shipped WHITE, which is 1.00:1 on a white window, so over Finder or Word the ring was genuinely not there. Every colour now clears 2.5:1 on white AND on black" },
             { "",         "Sized to the screen (×1.5 on a 4K at full points); grid.locateRadius / locateColors / locateSecs / locateScale to taste" },
             { "⌃⌥⌘⇧X",   "PANIC — tear the overlay down whatever state it is in" },
@@ -230,7 +298,9 @@ function M.setup(core)
     -- than the home row, so two reaches replace three home-row taps.
     -- That was his to judge, and he judged it.
     grid.alphabet    = "abcdefghijklmnopqrstuvwxyz"
-    grid.labelLength = 2
+    grid.labelLength = 3
+    grid.subdivisions = 2       -- 2 x 2 children per former cell
+    grid.maxCells = 4096        -- bounded canvas/label work across all displays
     -- ✏️ How slow a geometry build has to be before the Console says so
     -- (milliseconds). See the note where it is used: the cost is once
     -- per display layout, never per press.
@@ -270,11 +340,12 @@ function M.setup(core)
     -- lets a label grow to fill its box on a coarse grid, and the whole
     -- thing is clamped by width so a 3-character label can never spill
     -- out of a narrow cell (see fittedLabelSize below).
-    grid.labelSize    = 14      -- floor, in points. Never smaller than this.
+    grid.labelSize    = 14      -- preferred; dense cells shrink it to fit
     grid.labelFitFrac = 0.55    -- of cell HEIGHT, when there is room for more
     grid.labelMaxSize = 34      -- ceiling, so a 2-column grid isn't absurd
     grid.labelWhite  = 1.00
-    grid.labelAlpha  = 0.95
+    grid.labelAlpha  = nil      -- inherit the Timer card accent alpha
+    grid.labelBackplates = true -- small dark plates keep yellow readable over white apps
 
     -- 🟡 6.65.0 — THE MATCH HIGHLIGHT. Once you type a letter, the cells
     -- that are still reachable get a thick yellow box and everything else
@@ -298,7 +369,7 @@ function M.setup(core)
     -- web buttons/links in Chrome answer AXButton/AXLink, an open menu's
     -- rows are AXMenuItems. Text, images and table cells are left out —
     -- landing on a paragraph's centre is not what "jump onto it" means.
-    grid.snapToControls = true
+    grid.snapToControls = false  -- precise coordinate targeting; no AX hit-tests by default
     grid.snapBudget     = 0.08      -- seconds of hit-testing per landing
     grid.snapTimeout    = 0.05      -- per AX question (setTimeout)
     -- 🎯 6.181.0 — THE SECOND-CHANCE SNAP. LL: "I am still a bit too far
@@ -368,6 +439,8 @@ function M.setup(core)
     -- each box. Remove the ⌥halve option as I don't use that. Too
     -- convoluted." nil means "the first two of grid.alphabet"; a string of
     -- two DIFFERENT characters overrides it.
+    grid.refineParts = 4        -- four quarters; 2 retains the older two-way mode
+    grid.quarterKeys = "asdf"   -- top-left, top-right, bottom-left, bottom-right
     grid.halveKeys   = nil          -- settings = { mouse_grid = { halveKeys = "jk" } }
     grid.landedSecs  = 8            -- landed badge up, nothing pressed
     -- 🖱 6.155.0 — a click by HAND ends landed mode. LL's Console, after
@@ -384,6 +457,19 @@ function M.setup(core)
     -- alerts. Change this only if something pokes through.
     grid.windowLevel = "screenSaver"
     -- ----------------------------------------------------------------------
+
+    function grid.labelInk()
+        local style = type(_G.uiStyle) == "table" and _G.uiStyle or {}
+        local accent = type(style.accent) == "table" and style.accent or {}
+        local function channel(value, fallback)
+            local n = tonumber(value)
+            if not n or n ~= n or n == math.huge or n == -math.huge then return fallback end
+            return math.max(0, math.min(1, n))
+        end
+        return { red = channel(accent.red, 1), green = channel(accent.green, 0.84),
+                 blue = channel(accent.blue, 0),
+                 alpha = channel(grid.labelAlpha, channel(accent.alpha, 0.96)) }
+    end
 
     -- ---- state -----------------------------------------------------------
     -- 🚨 THE INVARIANT: state ~= nil  ⟺  a modal is entered  ⟺  a canvas
@@ -411,39 +497,26 @@ function M.setup(core)
     grid.shown = {}
 
     local function showCanvas(c)
-        if not c then return end
-        -- 🚨 6.66.3 — THROUGH showCanvasSafely, NOT A BARE :show().
-        -- From LL's Console, on a hotkey press while Safari's URL-completion
-        -- popup was on screen:
-        --   NSInternalInconsistencyException: '<NSRemoteView …
-        --   SPCompletionListServiceViewController> notified of <HSCanvasWindow>
-        --   but expected (null)' in -[NSRemoteView containingWindowWillOrderOnScreen:]
-        -- AppKit asserts when our window is ordered on screen while ANOTHER
-        -- process's remote view is mid-transition. It is a timing collision, not
-        -- a permanent state, which is why the shared helper retries once a run
-        -- loop turn later and only then reports. A bare :show() throws, abandons
-        -- the rest of the open sequence, and leaves a half-ordered ghost.
-        -- 🚨 6.266.0 — AND THE RETRY IS OURS TO ANSWER NOW. The helper
-        -- used to re-show a refused canvas by itself 50 ms later; this
-        -- list is emptied by hideAllShown(), so an Esc in that window
-        -- left a box on screen that grid.hide() could no longer reach —
-        -- LL's "Frozen grid again", clearable only by a reload. The
-        -- helper hands the canvas BACK now and this decides.
+        if not c then return false end
+        local owner = grid.state
         local function late(panel)
-            -- `grid.state ~= nil` ⟺ a modal is entered (the invariant at
-            -- the top of this file). The grid is gone: do NOT show it.
-            if not grid.state then return end
-            if not pcall(function() panel:show() end) then return end
-            -- RE-RECORDED, or it is on screen and off the only list
-            -- hide() walks — which is the whole bug, one turn later.
+            -- A callback belongs to this exact invocation, not whichever
+            -- newer grid happens to be open when it finally arrives.
+            if not owner or grid.state ~= owner then return end
+            local ok, shown = pcall(function() return panel:show() end)
+            if not ok or not shown then return end
             grid.shown[#grid.shown + 1] = panel
         end
-        if _G.showCanvasSafely then
-            _G.showCanvasSafely(c, "mouse grid", late)
-        else
-            pcall(function() c:show() end)
-        end
+        -- Register even a partial native show before trying it: AppKit can
+        -- order a window and then throw. hide() must still be able to reach it.
         grid.shown[#grid.shown + 1] = c
+        local ok, shown
+        if _G.showCanvasSafely then
+            ok, shown = pcall(_G.showCanvasSafely,c,"mouse grid",late)
+        else
+            ok, shown = pcall(function() return c:show() end)
+        end
+        return ok and shown ~= false and shown ~= nil
     end
 
     -- Idempotent, and each canvas is pcall'd on its own: one throwing must
@@ -533,9 +606,12 @@ function M.setup(core)
         -- absence, and a guard no test can fail is dead code with a
         -- comment on it (6.199.0). scrimAlpha's own entry here predates
         -- that and is left alone.
-        parts[#parts + 1] = string.format("|%s^%d|%.2f|%.2f|%.2f",
-            grid.alphabet, grid.labelLength, grid.scrimAlpha, grid.lineAlpha,
+        parts[#parts + 1] = string.format("|%s^%s|%.2f|%.2f|%.2f",
+            tostring(grid.alphabet), tostring(grid.labelLength), grid.scrimAlpha, grid.lineAlpha,
             grid.labelSize)
+        local ink = grid.labelInk()
+        parts[#parts + 1] = table.concat({ tostring(grid.subdivisions), tostring(grid.maxCells), tostring(grid.labelBackplates),
+            tostring(ink.red), tostring(ink.green), tostring(ink.blue), tostring(ink.alpha) }, ",")
         return table.concat(parts, ";")
     end
 
@@ -598,7 +674,18 @@ function M.setup(core)
         -- to exponentiate a table. Same family of precedence trap that
         -- crashed capabilities.lua's word-wrap in 6.44.13 — clever
         -- one-liners in arithmetic buy nothing and cost a crash.
-        local capacity = (#chars) ^ grid.labelLength
+        local depth = tonumber(grid.labelLength)
+        if not depth or depth ~= math.floor(depth) or depth < 1 or depth > 4 then
+            return nil, "labelLength must be a whole number from 1 to 4"
+        end
+        local capacity = (#chars) ^ depth
+        if capacity < 1 then return nil, "no usable label keys" end
+        local divisions = tonumber(grid.subdivisions) == 1 and 1 or 2
+        local limit = math.min(4096, math.max(4, math.floor(num(grid.maxCells, 4096))))
+        local budget = math.min(capacity, limit)
+        local coarseCapacity = divisions == 1 and budget
+            or math.min((#chars) ^ math.max(1, depth - 1), math.floor(budget / 4))
+        if coarseCapacity < 1 then return nil, "not enough labels for four-way cells" end
         local screens  = hs.screen.allScreens()
 
         -- Sanity-filter FIRST. Every number below is divided by or looped
@@ -622,37 +709,44 @@ function M.setup(core)
             return nil, "no display reported a usable frame"
         end
 
-        local plan, index, truncated = {}, 0, 0
+        local plan, slots = {}, 0
         for _, f in ipairs(usable) do
-            local share = math.floor(capacity * (f.w * f.h) / totalArea)
+            local share = math.floor(coarseCapacity * (f.w * f.h) / totalArea)
             local cols, rows = planScreen(f, share)
-            local cw, ch = f.w / cols, f.h / rows
-
-            local cells = {}
-            for r = 0, rows - 1 do
-                for c = 0, cols - 1 do
-                    if index >= capacity then
-                        -- Reported, never silent. A silently truncated grid
-                        -- means a corner of a screen you can never reach and
-                        -- no clue as to why.
-                        truncated = truncated + 1
-                    else
-                        cells[#cells + 1] = {
-                            label = labelFor(index, chars),
-                            -- canvas-relative, for drawing
-                            rx = c * cw, ry = r * ch, rw = cw, rh = ch,
-                            -- absolute screen coords, for the pointer
-                            ax = f.x + c * cw + cw / 2,
-                            ay = f.y + r * ch + ch / 2,
-                        }
-                        index = index + 1
-                    end
+            cols, rows = cols * divisions, rows * divisions
+            local adjusted = false
+            if divisions == 2 then
+                local function fit()
+                    return math.min((f.w / cols * 0.92) / (depth * 0.62), f.h / rows / 1.25)
+                end
+                while fit() < 8 and share > 1 do
+                    share = math.max(1, math.floor(share / 2))
+                    cols, rows = planScreen(f, share)
+                    cols, rows = cols * divisions, rows * divisions
+                    adjusted = true
+                end
+                if fit() < 8 then return nil, "display cannot fit readable grid labels" end
+            end
+            slots = slots + cols * rows
+            plan[#plan + 1] = { frame = f, cols = cols, rows = rows,
+                cellW = f.w / cols, cellH = f.h / rows, cells = {}, densityReduced=adjusted }
+        end
+        if slots > budget then return nil, "display layout exceeds the bounded label budget" end
+        local index, truncated = 0, 0
+        for _, p in ipairs(plan) do
+            for r = 0, p.rows - 1 do
+                for c = 0, p.cols - 1 do
+                    -- Spread three-character codes across the alphabet so
+                    -- the first character still narrows a contiguous band.
+                    local code = divisions == 1 and index or math.floor(index * capacity / slots)
+                    p.cells[#p.cells + 1] = {
+                        label = labelFor(code, chars),
+                        rx = c * p.cellW, ry = r * p.cellH, rw = p.cellW, rh = p.cellH,
+                        ax = p.frame.x + (c + 0.5) * p.cellW,
+                        ay = p.frame.y + (r + 0.5) * p.cellH }
+                    index = index + 1
                 end
             end
-            plan[#plan + 1] = {
-                frame = f, cols = cols, rows = rows,
-                cellW = cw, cellH = ch, cells = cells,
-            }
         end
 
         local ms = (hs.timer.secondsSinceEpoch() - t0) * 1000
@@ -678,7 +772,7 @@ function M.setup(core)
                 -- is left: 9 home-row keys at 2 deep is 81 cells, which
                 -- is a coarse grid that builds instantly.
                 .. "settings = { mouse_grid = { alphabet = \"asdfghjkl\" } } "
-                .. "(81 cells, much bigger cells).", index, ms))
+                .. "(fewer labels; larger cells).", index, ms))
         end
         return { screens = plan, used = index, capacity = capacity,
                  truncated = truncated, chars = chars }
@@ -776,11 +870,13 @@ function M.setup(core)
     -- label: after "a" the cell shows two characters and may therefore
     -- use a larger size than it could have at three.
     local function fittedLabelSize(p, chars)
-        chars = math.max(1, chars or grid.labelLength)
-        local byHeight = p.cellH * grid.labelFitFrac
-        local byWidth  = (p.cellW * 0.92) / (chars * 0.62)
-        local size     = math.min(byHeight, byWidth, grid.labelMaxSize)
-        return math.max(grid.labelSize, size)
+        chars = math.max(1, tonumber(chars) or tonumber(grid.labelLength) or 3)
+        local byHeight = p.cellH * num(grid.labelFitFrac,0.55)
+        local byWidth = (p.cellW * 0.92) / (chars * 0.62)
+        local ceiling = math.max(8,math.min(100,num(grid.labelMaxSize,34)))
+        local preferred = math.max(8,num(grid.labelSize,14))
+        local size = math.min(byHeight,byWidth,ceiling)
+        return math.max(1,math.min(math.max(preferred,size),byWidth,p.cellH/1.25,ceiling))
     end
 
     -- The label canvas carries BOTH the amber match boxes and the text,
@@ -816,11 +912,18 @@ function M.setup(core)
                                   h = math.max(1, p.cellH - grid.matchWidth) },
                     }
                 end
+                if grid.labelBackplates then
+                    local w=math.min(cell.rw-1,size*(grid.labelLength-typedLen)*0.66+4)
+                    local h=math.min(p.cellH-1,size*1.25+2)
+                    els[#els+1]={type="rectangle",action="fill",
+                        fillColor={white=0,alpha=0.72},roundedRectRadii={xRadius=2,yRadius=2},
+                        frame={x=cell.rx+(cell.rw-w)/2,y=cell.ry+(p.cellH-h)/2,w=w,h=h}}
+                end
                 els[#els + 1] = {
                     type = "text",
                     text = cell.label:sub(typedLen + 1),
                     textSize  = size,
-                    textColor = { white = grid.labelWhite, alpha = grid.labelAlpha },
+                    textColor = grid.labelInk(),
                     textAlignment = "center",
                     frame = { x = cell.rx, y = cell.ry + pad,
                               w = cell.rw, h = p.cellH - pad },
@@ -894,7 +997,11 @@ function M.setup(core)
         if not (x and y and w and h) or w <= 0 or h <= 0 then
             return nil, "the box has no size"
         end
+        for _, v in ipairs({ x, y, w, h }) do
+            if v ~= v or v == math.huge or v == -math.huge then return nil, "non-finite box" end
+        end
         local floorPt = tonumber(minPt) or 0
+        if floorPt ~= floorPt or floorPt == math.huge or floorPt == -math.huge then floorPt = 8 end
         if floorPt < 0 then floorPt = 0 end
         if dir == "up" or dir == "down" then
             if h / 2 < floorPt then
@@ -949,6 +1056,56 @@ function M.setup(core)
         end
         return { first = first, second = second,
                  axis = wide and "x" or "y", sides = { d1, d2 } }
+    end
+
+    function grid.quarterOf(box, minPt)
+        if type(box) ~= "table" then return nil, "there is no box to quarter" end
+        local top, why = grid.halfOf(box, "up", minPt)
+        local bottom = grid.halfOf(box, "down", minPt)
+        if not top or not bottom then return nil, why end
+        local a, wa = grid.halfOf(top, "left", minPt)
+        local b = grid.halfOf(top, "right", minPt)
+        local c = grid.halfOf(bottom, "left", minPt)
+        local d = grid.halfOf(bottom, "right", minPt)
+        if not (a and b and c and d) then return nil, wa end
+        return { first = a, second = b, third = c, fourth = d, axis = "xy" }
+    end
+
+    function grid.refineSpec()
+        if grid.splitBound and grid.splitBound.ok then
+            return grid.splitBound.keys, grid.splitBound.parts, grid.splitBound.from
+        end
+        if tonumber(grid.refineParts) == 2 then
+            local a, b, from = grid.halvePair(grid.halveKeys, grid.alphabet)
+            return a and (a .. b) or nil, 2, from
+        end
+        local function four(value)
+            if type(value) ~= "string" or #value ~= 4 or value:find("[^a-z]") then return nil end
+            local seen = {}
+            for ch in value:gmatch(".") do if seen[ch] then return nil end; seen[ch] = true end
+            return value
+        end
+        return four(grid.quarterKeys) or "asdf", 4,
+            four(grid.quarterKeys) and "grid.quarterKeys" or "default asdf (invalid override)"
+    end
+
+    function grid.refinementOf(box)
+        local _, parts = grid.refineSpec()
+        if parts == 2 then return grid.splitOf(box, grid.halveMin) end
+        return grid.quarterOf(box, grid.halveMin)
+    end
+
+    function grid.refreshCheatsheet()
+        local keys, parts = grid.refineSpec()
+        M.cheatsheet.title = "🎯 MOUSE GRID (⇪X — type " .. tostring(grid.labelLength) .. " letters)"
+        M.cheatsheet.entries[3] = { tostring(grid.alphabet), "Type " .. tostring(grid.labelLength) .. " letters from the visible label" }
+        M.cheatsheet.entries[4] = { "snap", grid.snapToControls == true
+            and "Optional app-control snapping is ON; it can move the pointer to a control centre"
+            or "OFF: coordinate targeting, without app-control Accessibility hit-tests" }
+        M.cheatsheet.entries[10] = { tostring(grid.labelLength) .. " letters", "Initial cells are divided " .. tostring(grid.subdivisions) .. " × " .. tostring(grid.subdivisions) .. " before drawing" }
+        M.cheatsheet.entries[11] = { keys or "unavailable", parts == 4
+            and "Four quarters: top-left, top-right, bottom-left, bottom-right; repeat to refine"
+            or "Two halves along the longer side; repeat to refine" }
     end
 
     -- =====================================================================
@@ -1035,9 +1192,11 @@ function M.setup(core)
         -- turn off between two draws of an identically sized box — and a
         -- canvas that only MOVED would keep drawing letters that no longer
         -- do anything.
-        local sp = grid.halve and grid.splitOf(box, grid.halveMin) or nil
+        local sp = grid.halve and grid.refinementOf(box) or nil
+        local ink, keys, parts = grid.labelInk(), grid.refineSpec()
         local want = { x = box.x, y = box.y, w = box.w, h = box.h,
-                       split = sp and true or false }
+                       split = sp and true or false, keys=keys, parts=parts,
+                       ink=table.concat({ink.red,ink.green,ink.blue,ink.alpha},",") }
         -- 🏃 6.247.0 — the hot path: a nudge changes x and y and nothing
         -- else, so the window moves and the elements are left alone.
         if moveCanvas(grid.boxDraw, grid.boxAt, want, "boxMove") then
@@ -1061,34 +1220,30 @@ function M.setup(core)
         -- Drawn in the box's OWN coordinates (the canvas is the box), so a
         -- move carries them without a thought.
         if sp then
-            local k1, k2 = grid.halvePair(grid.halveKeys, grid.alphabet)
-            if k1 then
-                local vertical = (sp.axis == "x")
-                local ink = { red = 1, green = 0.78, blue = 0.25, alpha = 0.95 }
-                els[#els + 1] = { type = "segments", action = "stroke",
-                    strokeColor = ink, strokeWidth = 1,
-                    coordinates = vertical
-                        and { { x = box.w / 2, y = 0 }, { x = box.w / 2, y = box.h } }
-                        or  { { x = 0, y = box.h / 2 }, { x = box.w, y = box.h / 2 } } }
-                -- Sized to the HALF it sits in, floored so a small box
-                -- still shows a letter you can read.
-                local halfW = vertical and (box.w / 2) or box.w
-                local halfH = vertical and box.h or (box.h / 2)
-                local size  = math.max(10, math.min(22,
-                                  math.floor(math.min(halfW, halfH) * 0.5)))
-                local function label(ch, x, y, w2, h2)
-                    els[#els + 1] = { type = "text", text = ch,
-                        textSize = size, textAlignment = "center",
-                        textColor = { white = 1.0, alpha = 0.98 },
-                        frame = { x = x, y = y + math.max(0, (h2 - size) / 2),
-                                  w = w2, h = math.min(h2, size + 4) } }
+            local keys, parts = grid.refineSpec()
+            if keys then
+                local ink = grid.labelInk()
+                local function divider(x1, y1, x2, y2)
+                    els[#els + 1] = { type = "segments", action = "stroke", strokeColor = ink,
+                        strokeWidth = 1, coordinates = { { x=x1,y=y1 }, { x=x2,y=y2 } } }
                 end
-                if vertical then
-                    label(k1, 0, 0, box.w / 2, box.h)
-                    label(k2, box.w / 2, 0, box.w / 2, box.h)
-                else
-                    label(k1, 0, 0, box.w, box.h / 2)
-                    label(k2, 0, box.h / 2, box.w, box.h / 2)
+                if sp.axis == "xy" or sp.axis == "x" then divider(box.w/2,0,box.w/2,box.h) end
+                if sp.axis == "xy" or sp.axis == "y" then divider(0,box.h/2,box.w,box.h/2) end
+                for i, name in ipairs({ "first", "second", "third", "fourth" }) do
+                    if i <= parts then
+                        local q = sp[name]
+                        local size = math.max(8, math.min(22, math.min(q.w, q.h)*0.55))
+                        if grid.labelBackplates then
+                            local w,h=math.min(q.w-1,size*0.66+4),math.min(q.h-1,size*1.25+2)
+                            els[#els+1]={type="rectangle",action="fill",fillColor={white=0,alpha=0.72},
+                                roundedRectRadii={xRadius=2,yRadius=2},
+                                frame={x=q.x-box.x+(q.w-w)/2,y=q.y-box.y+(q.h-h)/2,w=w,h=h}}
+                        end
+                        els[#els+1] = { type="text",text=keys:sub(i,i),textSize=size,
+                            textAlignment="center",textColor=grid.labelInk(),
+                            frame={ x=q.x-box.x,y=q.y-box.y+math.max(0,(q.h-size*1.25)/2),
+                                    w=q.w,h=q.h } }
+                    end
                 end
             end
         end
@@ -1101,13 +1256,14 @@ function M.setup(core)
         -- 🚨 The box must never eat the click it is helping LL aim. It is
         -- decoration over the target, so it is transparent to the mouse.
         pcall(function() c:canvasMouseEvents(false, false, false, false) end)
-        if _G.showCanvasSafely then
-            if not _G.showCanvasSafely(c, "grid halved box") then return false end
-        else
-            local ok = pcall(function() c:show() end)
-            if not ok then return false end
-        end
         grid.boxDraw = c
+        local okShow, shown
+        if _G.showCanvasSafely then
+            okShow, shown = pcall(_G.showCanvasSafely,c,"grid quarter box")
+        else
+            okShow, shown = pcall(function() return c:show() end)
+        end
+        if not okShow or not shown then return false end
         grid.boxAt   = want
         return true
     end
@@ -1172,10 +1328,9 @@ function M.setup(core)
                       or ("space click · ↑↓←→ nudge"
                           .. (function()
                                 if not grid.halve then return "" end
-                                local a, b = grid.halvePair(grid.halveKeys,
-                                                            grid.alphabet)
-                                if not a then return "" end
-                                return " · " .. a .. b .. " split"
+                                local keys, parts = grid.refineSpec()
+                                if not keys then return "" end
+                                return " · " .. keys .. (parts == 4 and " quarters" or " split")
                              end)() .. " · ⎋ done")),
               textSize = 11, textColor = { white = 1.0, alpha = 0.95 },
               textAlignment = "center",
@@ -1189,11 +1344,14 @@ function M.setup(core)
         -- 6.88.0 — the LAST bare canvas:show() in the config, found the
         -- hard way: LL's Console caught the NSRemoteView throw killing a
         -- whole hotkey callback. Through showCanvasSafely like the rest.
-        if _G.showCanvasSafely then _G.showCanvasSafely(c, "grid crosshair")
-        else pcall(function() c:show() end) end
-        grid.cross   = c
-        grid.crossAt = want
-        return true
+        grid.cross,grid.crossAt = c,want
+        local okShow,shown
+        if _G.showCanvasSafely then
+            okShow,shown=pcall(_G.showCanvasSafely,c,"grid crosshair")
+        else
+            okShow,shown=pcall(function() return c:show() end)
+        end
+        return okShow and shown ~= false and shown ~= nil
     end
 
     -- =====================================================================
@@ -1211,6 +1369,7 @@ function M.setup(core)
     end
 
     function grid.hide(reason)
+        grid.watchdogSerial=(grid.watchdogSerial or 0)+1
         if grid.watchdog then
             pcall(function() grid.watchdog:stop() end)
             grid.watchdog = nil
@@ -1231,10 +1390,21 @@ function M.setup(core)
 
     local function armWatchdog(secs, why)
         if grid.watchdog then pcall(function() grid.watchdog:stop() end) end
-        grid.watchdog = hs.timer.doAfter(secs, function()
+        grid.watchdog = nil
+        grid.watchdogSerial=(grid.watchdogSerial or 0)+1
+        local serial,owner=grid.watchdogSerial,grid.state
+        local ok, timer = pcall(hs.timer.doAfter, secs, function()
+            if grid.watchdogSerial~=serial or grid.state~=owner then return end
             warn("watchdog fired after " .. secs .. "s — " .. why)
             grid.hide("watchdog")
         end)
+        if not ok or not timer then
+            grid.hide("watchdog unavailable")
+            warn("watchdog unavailable — grid closed; keyboard capture refused")
+            return false
+        end
+        grid.watchdog = timer
+        return true
     end
 
     -- 🖱 The hand-click listener (6.155.0). The badge is click-through
@@ -1366,7 +1536,7 @@ function M.setup(core)
     end
 
     function grid.snapPoint(cell)
-        if not grid.snapToControls then return nil, "snap is off" end
+        if grid.snapToControls ~= true then return nil, "snap is off" end
         if not axAvailable() then return nil, "no Accessibility" end
         local okSys, sys = pcall(function() return hs.axuielement.systemWideElement() end)
         if not (okSys and sys) then return nil, "no system-wide element" end
@@ -1471,7 +1641,14 @@ function M.setup(core)
     local function enterLanded(point, snap, box)
         -- ✂️ 6.252.0 — before the modal is entered, and after any settings
         -- override has landed. Idempotent.
-        if grid.halve then pcall(grid.ensureSplitKeys) end
+        if grid.halve then
+            local ok, bound = pcall(grid.ensureSplitKeys)
+            if not ok or not bound or not bound.ok then
+                grid.hide("refinement keys unavailable")
+                warn("refinement keys unavailable — pointer moved, keyboard capture refused")
+                return false
+            end
+        end
         hideAllShown()
         pcall(function() grid.pickModal:exit() end)
         local okEnter = pcall(function() grid.landModal:enter() end)
@@ -1483,7 +1660,11 @@ function M.setup(core)
             return
         end
         grid.state = { phase = "landed", point = point, snapped = snap,
-                       box = box, halvings = 0 }
+                       box = box, halvings = 0, history = {} }
+        if select(2, grid.refineSpec()) == 4 and not showBox(box) then
+            grid.hide("quarter labels could not be drawn")
+            return false
+        end
         local hint
         if snap then
             hint = tostring(snap.title or snap.role or ""):sub(1, 18)
@@ -1495,7 +1676,7 @@ function M.setup(core)
                  .. "invisibly; the pointer has still moved")
             return
         end
-        armWatchdog(grid.landedSecs, "landed badge left open")
+        if not armWatchdog(grid.landedSecs, "landed badge left open") then return false end
         startClickTap()
         say("landed at " .. math.floor(point.x) .. "," .. math.floor(point.y))
     end
@@ -1512,6 +1693,12 @@ function M.setup(core)
         -- ⌥+arrow refuse after any nudge — nudge a little, then halve, is
         -- exactly how these two get used together. It never resizes: a
         -- nudge is a move, and only ⌥+arrow changes precision.
+        if s.history then
+            for _, old in ipairs(s.history) do
+                old.box = { x=old.box.x+dx,y=old.box.y+dy,w=old.box.w,h=old.box.h }
+                old.point = { x=old.point.x+dx,y=old.point.y+dy }
+            end
+        end
         if s.box then
             s.box.x, s.box.y = s.box.x + dx, s.box.y + dy
             if not showBox(s.box) then
@@ -1527,7 +1714,7 @@ function M.setup(core)
                  .. "keys invisibly")
             return
         end
-        armWatchdog(grid.landedSecs, "landed badge left open")
+        if not armWatchdog(grid.landedSecs, "landed badge left open") then return false end
     end
 
     -- ✂️ 6.252.0 — PRESS A LETTER, KEEP THAT HALF. The box you landed in
@@ -1550,15 +1737,17 @@ function M.setup(core)
             say("split ignored: grid.halve is false")
             return
         end
-        local sp, whySplit = grid.splitOf(s.box, grid.halveMin)
+        local sp, whySplit = grid.refinementOf(s.box)
         local box, why = (sp and sp[which]), whySplit
         if not box then
             hs.alert.show("🎯 " .. tostring(why))
             say("halve refused: " .. tostring(why))
-            armWatchdog(grid.landedSecs, "landed badge left open")
+            if not armWatchdog(grid.landedSecs, "landed badge left open") then return false end
             return
         end
         local p = { x = box.x + box.w / 2, y = box.y + box.h / 2 }
+        s.history = s.history or {}
+        s.history[#s.history + 1] = { box = s.box, point = s.point }
         s.box, s.point, s.halvings = box, p, (s.halvings or 0) + 1
         movePointer(p)
         if not showBox(box) or not showCrosshair(p.x, p.y) then
@@ -1567,7 +1756,7 @@ function M.setup(core)
                  .. "refusing to capture keys invisibly")
             return
         end
-        armWatchdog(grid.landedSecs, "landed badge left open")
+        if not armWatchdog(grid.landedSecs, "landed badge left open") then return false end
         say(string.format("split %s -> %.0fx%.0f at %.0f,%.0f (%d deep)",
             which, box.w, box.h, p.x, p.y, s.halvings))
     end
@@ -1581,25 +1770,38 @@ function M.setup(core)
     -- first.
     function grid.ensureSplitKeys()
         if grid.splitBound then return grid.splitBound end
-        local k1, k2, from = grid.halvePair(grid.halveKeys, grid.alphabet)
-        if not k1 then
+        local keys, parts, from = grid.refineSpec()
+        if not keys then
             grid.splitBound = { ok = false, why = from }
             return grid.splitBound
         end
-        local okB = pcall(function()
-            grid.landModal:bind({}, k1, function()
-                local ok, err = pcall(splitTo, "first")
-                if not ok then warn("split first: " .. tostring(err)) end
-            end)
-            grid.landModal:bind({}, k2, function()
-                local ok, err = pcall(splitTo, "second")
-                if not ok then warn("split second: " .. tostring(err)) end
-            end)
+        local names = { "first", "second", "third", "fourth" }
+        local okB, bindErr = pcall(function()
+            for i=1,parts do
+                local which = names[i]
+                local binding = grid.landModal:bind({},keys:sub(i,i),function()
+                    local ok, err = pcall(splitTo, which)
+                    if not ok then grid.hide("refinement error");warn("refinement: "..tostring(err)) end
+                end)
+                if not binding then error("modal refused "..keys:sub(i,i)) end
+            end
         end)
-        grid.splitBound = { ok = okB, keys = k1 .. k2, from = from,
-                            why = okB and ("bound " .. k1 .. k2 .. " from " .. from)
-                                      or "the modal refused the keys" }
+        grid.splitBound = { ok=okB, keys=keys,parts=parts,from=from,
+            why=okB and ("bound "..keys.." from "..from) or ("modal refused keys: "..tostring(bindErr)) }
         return grid.splitBound
+    end
+
+    function grid.undoRefinement()
+        local st=grid.state
+        if not (st and st.phase=="landed") then return false end
+        local old=st.history and table.remove(st.history)
+        if not old then return false end
+        st.box,st.point,st.halvings=old.box,old.point,math.max(0,(st.halvings or 0)-1)
+        movePointer(st.point)
+        if not showBox(st.box) or not showCrosshair(st.point.x,st.point.y) then
+            grid.hide("undo could not draw");return false
+        end
+        return armWatchdog(grid.landedSecs,"landed badge left open")
     end
 
     local function landedClick(kind)
@@ -1696,7 +1898,7 @@ function M.setup(core)
         end
 
         s.typed, s.matches = nextTyped, matches
-        armWatchdog(grid.timeoutSecs, "grid left open mid-type")
+        if not armWatchdog(grid.timeoutSecs, "grid left open mid-type") then return false end
 
         if #s.typed >= grid.labelLength then
             local cell = cellFor(s.typed)
@@ -1746,7 +1948,7 @@ function M.setup(core)
             end
         end
         s.matches = matches
-        armWatchdog(grid.timeoutSecs, "grid left open mid-type")
+        if not armWatchdog(grid.timeoutSecs, "grid left open mid-type") then return false end
         redraw()
     end
 
@@ -1755,6 +1957,12 @@ function M.setup(core)
     -- =====================================================================
     function grid.show(clickOnArrival)
         if not grid.enabled then return false end
+        if _G.hyperDispatchEngaged == true then
+            grid.hide("Carbon modal unavailable")
+            warn("grid unavailable while Carbon fallback is active; no keyboard capture attempted")
+            return false
+        end
+        grid.refreshCheatsheet()
         -- Pressing the trigger while it is already up means "put it away".
         if grid.state then grid.hide("toggled off") return false end
 
@@ -1784,8 +1992,9 @@ function M.setup(core)
                 -- final frame.
                 setElements(p.gridCanvas, gridElements(p))
                 setElements(p.labelCanvas, p.fullLabels)
-                showCanvas(p.gridCanvas)
-                showCanvas(p.labelCanvas)
+                if not showCanvas(p.gridCanvas) or not showCanvas(p.labelCanvas) then
+                    error("native grid canvas could not be shown")
+                end
             end
         end)
         if not okDraw then
@@ -1805,7 +2014,7 @@ function M.setup(core)
             warn("pickModal:enter() failed")
             return false
         end
-        armWatchdog(grid.timeoutSecs, "grid left open with nothing typed")
+        if not armWatchdog(grid.timeoutSecs, "grid left open with nothing typed") then return false end
 
         say(string.format("shown: %d cells across %d screens in %.1fms%s",
             cache.used, #cache.screens,
@@ -1829,11 +2038,18 @@ function M.setup(core)
             "🎯 MOUSE GRID on " .. tostring(core.hostTag),
             string.format("   alphabet %q ^ %d = %d labels; %d cells in use",
                 grid.alphabet, grid.labelLength, cache.capacity, cache.used),
+            "   layout   : "..tostring(grid.subdivisions).." x "..tostring(grid.subdivisions).." children per former cell; bounded at "..tostring(grid.maxCells).." cells",
+            string.format("   letters  : Timer accent rgba(%.2f, %.2f, %.2f, %.2f)",
+                grid.labelInk().red,grid.labelInk().green,grid.labelInk().blue,grid.labelInk().alpha),
+            "   contrast : small dark label plates "..tostring(grid.labelBackplates).."; the rest of each cell remains transparent after typing",
         }
         for i, p in ipairs(cache.screens) do
             out[#out + 1] = string.format(
-                "   screen %d  %.0fx%.0f px   %d x %d cells   cell = %.0f x %.0f pt",
+                "   screen %d  %.0fx%.0f pt   %d x %d cells   cell = %.0f x %.0f pt",
                 i, p.frame.w, p.frame.h, p.cols, p.rows, p.cellW, p.cellH)
+            if p.densityReduced then
+                out[#out+1]="            density reduced to preserve readable three-letter labels"
+            end
             -- 44pt is Apple's own minimum control size. Below it, most
             -- targets are a straight hit; above it, expect to nudge.
             if p.cellW > 60 or p.cellH > 60 then
@@ -1857,7 +2073,7 @@ function M.setup(core)
         out[#out + 1] = "   clicking: " .. (axAvailable()
             and "✅ Accessibility granted"
             or  "⚪️ Accessibility OFF — the jump works, space-to-click does not")
-        out[#out + 1] = "   snap    : " .. (not grid.snapToControls
+        out[#out + 1] = "   snap    : " .. (grid.snapToControls ~= true
             and "off (grid.snapToControls)"
             or (axAvailable()
                 and string.format("✅ a control inside the typed cell is landed on "
@@ -1873,18 +2089,14 @@ function M.setup(core)
         -- will read as broken when it is working exactly as written.
         do
             local st = grid.state
-            local k1, k2, from = grid.halvePair(grid.halveKeys, grid.alphabet)
+            local keys, parts, from = grid.refineSpec()
             local bound = grid.splitBound
-            out[#out + 1] = "   split   : " .. (not grid.halve
-                and "off (grid.halve)"
-                or (not k1) and ("⚠️ " .. tostring(from))
-                or string.format("✅ %s / %s keep that half of the box you "
-                                 .. "landed in, down to %d pt (grid.halveMin) · %s%s",
-                                 k1, k2, math.floor(num(grid.halveMin, 0)), from,
-                                 (st and st.phase == "landed" and st.box)
-                                   and string.format(" · now %.0fx%.0f, %d deep",
-                                                     st.box.w, st.box.h, st.halvings or 0)
-                                   or ""))
+            out[#out + 1] = "   split   : " .. (not grid.halve and "off (grid.halve)"
+                or not keys and ("unavailable: "..tostring(from))
+                or table.concat((function()
+                    local t={};for k in keys:gmatch(".") do t[#t+1]=k end;return t end)()," / ")
+                   .. " keep that " .. (parts==4 and "quarter" or "half")
+                   .. " · floor "..tostring(grid.halveMin).." pt · "..tostring(from))
             -- 🔎 THREE STATES: never landed yet ≠ bound ≠ the modal refused
             -- them. "the letters do nothing" is answered by this line.
             out[#out + 1] = "             keys: " .. (bound == nil
@@ -2008,6 +2220,10 @@ function M.setup(core)
     end)
 
     grid.landModal:bind({}, "escape", function() grid.hide("escape") end)
+    grid.landModal:bind({}, "delete", function()
+        local ok,err=pcall(grid.undoRefinement)
+        if not ok then grid.hide("undo error");warn(tostring(err)) end
+    end)
     grid.landModal:bind({}, "space",  function() landedClick("left")   end)
     grid.landModal:bind({}, "return", function() landedClick("left")   end)
     grid.landModal:bind({ "shift" }, "space", function() landedClick("right") end)
@@ -2385,6 +2601,10 @@ function M.setup(core)
     _G.mouseGrid = grid
     M.grid   = grid
     M.config = grid   -- so a machine profile can retune it per Mac
+end
+
+function M.warm()
+    if _G.mouseGrid and _G.mouseGrid.refreshCheatsheet then _G.mouseGrid.refreshCheatsheet() end
 end
 
 return M

@@ -440,6 +440,157 @@ work Mac.
      ("find the field that separates them BEFORE saying either out
      loud") broken in the direction that costs him the most.
 
+- ✂️ FOUR BOXES WHERE THERE WAS ONE, AND HIS TWO SENTENCES WERE ONE
+  NUMBER (6.428.0, modules/mouse_grid.lua — LL: "Split all boxes into
+  fours again. Overall, the boxes are too big and not useful enough at
+  that size. Make the grid letters the same translucent yellow as the
+  Timer card tool that flashes yellow when the timer is up… If you can
+  think of a better system for the grid, do it.").
+  📐 "SPLIT INTO FOURS" AND "THE BOXES ARE TOO BIG" ARE THE SAME REQUEST
+  READ FROM TWO SIDES, and the arithmetic says so: capacity is
+  `#alphabet ^ labelLength`, 26 letters squared is 676 cells, ~45pt on
+  the Air against a 28–40pt button. So every cell is DIVIDED 2 × 2
+  before it is drawn — a quarter of the area, with the label exactly as
+  long as it was. 🔑 THE LABEL IS THE BINDING CONSTRAINT AND THIS
+  RELEASE DOES NOT SPEND IT: 6.176.0 bought the same density with a
+  fourth character and his verdict was "HOLY SHIT! The grid is insane."
+  Precision comes out of GEOMETRY; the typing is unchanged. GENERAL:
+  when an ask names a shape and a complaint names a size, check whether
+  one number satisfies both before scoping two releases.
+  🎯 AND "AGAIN" IS THE SECOND HALF — a/s/d/f for the four quarters,
+  repeatable, ⌫ restoring the parent. `grid.quarterOf` is built FROM
+  `grid.halfOf` rather than beside it, so the 16pt floor and every
+  refusal are the ones 6.192.0 already proved; `grid.refineSpec` answers
+  the keys AND the parts AND where they came from, so a malformed
+  override falls back and SAYS so instead of binding nothing, and
+  `grid.refreshCheatsheet` builds the ⇪/ rows from those same answers so
+  the card cannot advertise a key the tool does not have (6.181.0).
+  🟡 THE LETTERS ARE `_G.uiStyle.accent`, READ AND NEVER RETYPED — the
+  same table modules/timer.lua:439 takes its ⏱ TIME UP flash from
+  (ui_style.lua:157, "THE accent of this config"). One literal, three
+  readers (6.231.0), each carrying the same four numbers as its own
+  fail-closed fallback, so "the same yellow as the Timer card" is true
+  by CONSTRUCTION rather than by eye. White was never a taste: 6.372.0
+  measured white-on-white at 1.00:1.
+  🔎 AND AN UNREADABLE GRID DECLINES BEFORE IT TAKES THE KEYBOARD.
+  Quartering costs points, so the layout reduces density rather than
+  drawing letters nobody can read, and a frame that still cannot carry
+  one is refused — no modal, no capture, a sentence saying why. That
+  ORDER is the rule: a keyboard-eating mode with no legible visual is
+  the hazard, so the check happens while the keyboard is still his.
+
+- 🆔 THE INSTALLER WAS READING A COMMENT WHERE THE VERSION GOES, AND ITS
+  OWN VERIFY COULD NOT FAIL (6.428.0, tools/hs-install.sh). Five sites
+  used `grep -m1 '_G.configVersion'`, and init.lua carries a COMMENT
+  mentioning that name ABOVE the assignment — its own "📏
+  `_G.configVersion` is assigned HERE" rule — so grep stopped there and
+  the sed found no closing quote to strip. MEASURED, not read: the old
+  shape answered the whole comment line.
+  🚨 THE COST WAS STEP 4's VERIFY, the one check that proves the right
+  version landed: it compares the installed version with the source's,
+  both were that same comment, so they were EQUAL and it passed over
+  whatever had been copied — 6.199.0's guard no input can fail, inside
+  the half-install that script exists to catch.
+  🔑 GENERAL, and it is why this sat for releases: THE COMMENT THAT
+  BROKE IT WAS ADDED BY A RELEASE ABOUT THE SAME NAME. A rule written
+  into prose above an assignment is invisible to every Lua check in the
+  gate, because the reader is SHELL. When a release documents a global
+  at its definition, ask what parses that file with a pattern.
+  🧪 The check runs the shipped extractor as the installer runs it and
+  requires the real stamp back, with the OLD shape as the fixture that
+  must not match (6.230.0) — and through a temp FILE, because Lua's %q
+  escapes a newline as a backslash-newline that a Lua literal accepts
+  and `sh -c` reads as a line continuation (6.269.0, caught before it
+  shipped).
+
+- 🚨 A SUMMARY IS A CLAIM; THE EXIT STATUS IS THE OUTCOME (6.428.0,
+  tools/run-tests.sh). Every stage judged a suite by the line it PRINTED
+  and discarded the child's status, so a suite that printed "0 failed"
+  and then died — a throw after the summary, an os.exit(1) for another
+  reason — was reported ✅ AND ITS CHECKS WERE TALLIED.
+  🔑 THIS PROJECT KEEPS MEETING THAT SHAPE FROM THE INSIDE and never
+  from the outside: 6.186.0 (a mutation ends a run with "0 failed" never
+  printed), 6.422.0 (a failure counted and never named). From outside it
+  is invisible, because a green gate is exactly what it looks like. Both
+  halves are required now, in all eight stages, and the DISAGREEMENT is
+  itself the finding.
+  🔒 AND THE SENTRY IS LOAD-BEARING: run-tests.sh does not `set -u`, so
+  deleting a `rc=$?` leaves `[ "$rc" -ne 0 ]` comparing an empty string
+  — sh calls that an illegal number and evaluates FALSE, so the stage
+  PASSES and the guard is disarmed by its own absence, with nothing in
+  the output saying so. The captures and the consultations are counted
+  and required to match. GENERAL: when a guard rests on a variable the
+  shell will not defend, count both halves rather than grepping for one.
+  📏 MEASURED AGAINST THE HEALTHY TREE FIRST (6.269.0): every one of the
+  83 suites prints its summary and exits 0, so the hardening is silent
+  on a good day — swept before it shipped, not asserted.
+
+- 📋 A GENERATOR THAT CANNOT NAME THE RELEASE MUST NOT WRITE THE PLAN
+  (6.428.0, tools/build-test-plan.lua). `version` fell back to "?" when
+  it read no stamp — which is what happens when the tool is run without
+  its <hs> argument, and is exactly how it was hit during 6.427.0's own
+  ceremony: it wrote a TESTING.md headed "release ?" at the repo root.
+  🚨 AND IT COULD NAME THIS RELEASE WHILE DESCRIBING THE LAST ONE.
+  `shown` counted any blocks found, so steps for older releases with
+  none for the one being built produced a file headed "how to score
+  release 6.428.0" whose newest section was 6.427.0 — he would run the
+  PREVIOUS release's steps believing they were this one's. 6.271.0's own
+  rule from the other side: a stale plan is worse than none, because he
+  reports a pass on something that was not built. Both are REFUSALS now,
+  not a note at the bottom of a file he has already started.
+  🔎 And a verify block on the source's FIRST line was skipped, because
+  the scan needed a newline in front of the header. In CLAUDE.md the
+  blocks are never first, which is precisely why nothing could see it.
+
+- 🗿 A REVIEW'S OWN NEW TESTS ARE NOT A RELEASE BLOCKER, AND "BLOCKED"
+  IS NOT A MEASUREMENT (6.428.0, on a 6.428.0 source-review package LL
+  forwarded: "Can you fix this so it is a complete and full and error
+  free install?"). It arrived marked BLOCKED, with three red gate
+  stages, 31 of 40 "safety expectations" failed, and an installer that
+  exited 3 instead of installing.
+  🔎 ALL THREE RED STAGES WERE ITS OWN NEW SUITES, measured rather than
+  argued: no existing suite was dropped, 99 of them and 14,799 checks
+  passed, and the runtime it faulted is BYTE-IDENTICAL to 6.427.0 —
+  which is running on his Mac and which he has scored. Its own documents
+  half-admit it ("candidate-specific compatibility assumptions"; "the
+  affected runtime is unchanged from the uploaded 6.427.0").
+  · `test_storm_watchdog` demanded a `hyperWatchdogIncident` hook that
+    appears in exactly ONE file in the entire archive: the test that
+    wants it. 35 failures is one unbuilt feature asserted 35 ways.
+  · `test_profile_identity` demanded `PROFILE IDENTITY BEGIN/END`
+    markers in init.lua and a whole unbuilt subsystem behind them, and
+    died on line 4 before its first check.
+  · `test_file_tracker_isolation` demanded `file_tracker.enabled =
+    false` in EVERY profile — which would switch ⌃⌥⇧F's history off on
+    both Macs as a side effect of a grid release, reversing 6.229.0 ·
+    6.230.0 · 6.241.0, which fixed that module's cost rather than
+    turning it off.
+  🔑 THE RULE, and it is 6.360.0 from the other end: A MEASURED
+  REJECTION IS EVIDENCE ABOUT ONE IMPLEMENTATION — and a FAILING TEST
+  SOMEBODY JUST WROTE IS EVIDENCE ABOUT THE TEST until its subject is
+  shown to exist. Read what a red stage ASKS FOR before reading it as a
+  defect: grep the runtime for the name it demands. If the name is only
+  in the test, the finding is a feature request wearing a gate stage's
+  clothes, and 6.269.0 says such a stage is switched off inside a week.
+  ✅ AND THE HALF THAT EARNED ITS PLACE WAS KEPT, which is the other
+  half of the rule: three real findings came out of the same review —
+  the installer reading a comment, the test-plan generator writing
+  "release ?", and the gate trusting a printed summary over an exit
+  status. Every one of them was a check that could not fail. A review
+  that is wrong about its conclusion can still be right about its
+  evidence; separate them item by item rather than by verdict.
+  🚨 AND ITS MODULE HEADER HAD TO BE PUT BACK. 123 lines of
+  mouse_grid.lua's own memory — the safety invariant, the capacity
+  arithmetic, why an Accessibility tree walk was refused, what 6.176.0
+  measured — were replaced with a 21-line summary of the review itself.
+  Comments are discarded at parse and are the only record of WHY; this
+  project's own rule is to trim on the milliseconds, never the
+  kilobytes. A release that loses the reasoning costs the next one.
+  📏 AND NATIVE ACCEPTANCE IS STILL HIS, which the review was right
+  about and is the one thing no amount of work here changes: no Mac has
+  run this. That is what the verify block is for, and it is why nothing
+  in this project calls itself certified.
+
 - 🩺 A DELIVERY THAT ASKS "DID IT ALL LAND?" IS ANSWERED BY A STAT, NOT A
   DOCUMENT (6.399.0, MANIFEST.txt + modules/install_check.lua — LL, after
   a Console installer had placed one module by hand: "Will this be added
@@ -7573,6 +7724,8 @@ that must be READ before a new cause is named.
 
 | symptom, in his words | where it lives | releases | passes | tag |
 |---|---|---|---|---|
+| "Split all boxes into fours again … the boxes are too big and not useful enough at that size" · "the same translucent yellow as the Timer card" | modules/mouse_grid.lua · 26² = 676 cells is ~45pt against a 28–40pt button | 6.176.0 · 6.181.0 · 6.184.0 · 6.192.0 · 6.252.0 · 6.360.0 · 6.373.0 · 6.428.0 | 8 | ask — and 6.360.0 scored "The grid is so much better" |
+| "Can you fix this so it is a complete and full and error free install?" (a review package marked BLOCKED, installer exiting 3) | not a module — three red stages that were the review's OWN new suites, plus three real findings in hs-install.sh, build-test-plan.lua and run-tests.sh | 6.428.0 | 1 | ask |
 | "We've got a white box again … after I brought up the editor I now have a white box that won't go away" | modules/screenshot_editor.lua · the show's answer discarded, and bringToFront run anyway | 6.424.0 | 1 | ask |
 | "Search did not find the word draftkeeper … this proves it is in an active note. But cannot be searched" | modules/vault.lua · ⌘F searches NAMES, ⌘⇧F searches bodies — and his box read "draftkepper" | 6.425.0 | 1 | degraded — both halves honest, nothing joined them |
 | "the draft needs to make sense and be a pastable sentence … put back in the sequence it was typed" | modules/draft_keeper.lua · cut at 8,000 characters, and the same row written twice | 6.404.0 · 6.411.0 · 6.423.0 · 6.426.0 | 4 | ask |
@@ -7752,6 +7905,7 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
+| 6.428.0 | ✂️ Four boxes where there was one, in the Timer's yellow — and an installer whose version check could not fail | pending |
 | 6.427.0 | 📋 @report — every report this config can print, and what each one answers | pending |
 | 6.426.0 | 💾 The whole draft, not a third of it — and never the same row twice | pending |
 | 6.425.0 | 🔎 The filter box says where the body search is | pending |
@@ -7943,6 +8097,42 @@ next boot announced it (LL: "fortunately hammerspoon caught itself"). LL is on
 built. The work Mac's storm report is still owed, on 6.215.0 now.
 
 ## Open items — update as they move
+
+- 📋 TWO IDEAS THAT ARRIVED AS FAILING GATE STAGES, LOGGED SO THEY ARE
+  NOT LOST (6.428.0's review — see the 🗿 hard rule). Neither is a
+  defect and neither blocked anything; both are real features somebody
+  wrote a test for before writing the thing.
+  🪪 **A WATCHDOG INCIDENT SNAPSHOT** — `hyperWatchdogIncident(snapshot)`,
+  a hook called at the moment the ⇪ watchdog releases a hold, handed a
+  DETACHED record of the pre-release state: the hold's start, the last
+  activity, the quiet interval, the counters before the release, the
+  dispatch facts. 35 assertions were written against it and the name is
+  in no runtime file in either tree.
+  🔑 WHAT IS WORTH TAKING FROM IT, and what is not: this config ALREADY
+  writes a storm file (6.214.1) and 6.403.0 appends WHY — the remap, the
+  tap, Secure Input — so a second incident channel is 6.317.0's shape
+  (the instrument is not the gap). What those 35 assertions do name, and
+  what the storm file does NOT carry, is the ORDER: that the hook runs
+  AFTER the release, after the modal exits, and that a later hold cannot
+  edit a saved incident. That is a real property and it is one check
+  against `_G.hyperEndVerdict`, not a subsystem. 📏 AND 6.321.0's
+  same-second collision applies here too: two storms in one second
+  overwrite, which his own log has already produced once (two storms 45 s
+  apart, 6.403.0).
+  🪪 **PROFILE IDENTITY BY ComputerName** — resolve the per-machine
+  profile by asking macOS `hs.network.configuration` for the computer
+  name and NORMALISING it ("Lee's Work MacBook" → "Lees-Work-MacBook")
+  rather than matching the Finder hostname, with `_G.profileIdentity`
+  recording which method answered and `_G.profileIdentityReport()`
+  printing it, a lookupError when the API refuses, and a SAFE override.
+  🔑 THIS IS THE NEXT STEP OF 6.418.0 AND IT IS GENUINELY GOOD, because
+  it dissolves the open question rather than answering it: the work-Mac
+  profile key is a name I INVENTED, and a normalised ComputerName match
+  would find that Mac without him editing anything or me guessing. It is
+  its own release — it changes which profile every Mac resolves to, which
+  is not something to smuggle into a grid release — and the four API
+  failure states (missing, throws, nil, name throws) all have to read as
+  "default, and here is why" rather than as a match.
 
 - 📥 HIS 2026-10-29 BATCH — FIVE BUILT, HIS ANSWERS LOGGED, AND WHAT IS
   LEFT. He asked "what is left to build?", got the list, and answered
@@ -9458,6 +9648,128 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.428.0 verify with LL — ✂️ FOUR BOXES WHERE THERE WAS ONE, IN THE
+  TIMER'S YELLOW (KNOWN GROUND for the grid; the install is new)
+  WHAT CHANGED: every grid cell is split into four, so the box you land
+  in is a quarter of the size it was — and the letters are the Timer
+  card's yellow instead of white.
+  📐 YOUR TWO SENTENCES WERE ONE NUMBER, which is why this is one
+  release. 26 letters squared is 676 cells, which is about 45 points on
+  the Air against a toolbar button of 28–40 — so the box really was
+  about twice the size of the thing you were aiming at. Quartering fixes
+  that WITHOUT making you type a fourth letter: 6.176.0 tried that and
+  your verdict was "HOLY SHIT! The grid is insane. Way too small."
+  🟡 AND THE YELLOW IS THE SAME FOUR NUMBERS THE TIMER FLASHES, read out
+  of one table rather than copied — so it cannot drift from it.
+
+  A. THE HEADLINE — a minute, and do A4 even if A1–A3 look right.
+  A1. Press **⇪X**. EXPECT: the grid, and the cells are visibly SMALLER
+      than you are used to — four where there was one.
+      **A FAIL is cells the same size as last week**, or a press that
+      does nothing at all.
+  A2. Look at the letters. EXPECT: translucent YELLOW, the same colour
+      the ⏱ card flashes when a timer ends, each on a small dark patch
+      so it reads over a white window as well as a dark one.
+      **A FAIL is white letters** — that is the old behaviour.
+  A3. Type the three letters of a cell. EXPECT: the pointer lands there,
+      exactly as it always has. The code is the SAME LENGTH as before —
+      if you are typing a fourth letter, tell me, because that is not
+      what this release does.
+  A4. 🔎 Open something with small controls — a Finder toolbar, a
+      dialog's buttons — and aim at one. EXPECT: the box you land in is
+      close to the size of the button. That is the whole point of the
+      release and it is the one thing I cannot see from here.
+
+  B. THE FOUR QUARTERS — this is the "again" half of your ask.
+  B1. ⇪X, type three letters to land. EXPECT: the yellow box is drawn
+      divided into FOUR, with a letter in each quarter.
+  B2. Press **a** — top-left. EXPECT: that quarter is kept, the pointer
+      goes to its middle, and it divides into four again.
+      Then **s** is top-right, **d** is bottom-left, **f** is
+      bottom-right. Two or three presses put you on a small button.
+  B3. Press **⌫** (Backspace). EXPECT: the box goes back UP one — the
+      quarter you just took is undone.
+  B4. Keep refining until it refuses. EXPECT: it SAYS why rather than
+      doing nothing — there is a 16-point floor, because a box smaller
+      than that is not something you can aim with.
+  B5. Press **space**. EXPECT: it clicks where the pointer is.
+  B6. Press **⎋** (Escape). EXPECT: the grid goes away and the keyboard
+      is yours.
+
+  C. MUST STILL WORK — this is a full-screen overlay that captures
+     keys, so this half matters more than A and B.
+  C1. ⇪X then ⎋, five or six times briskly. EXPECT: it opens every time
+      and closes every time. **If an overlay is ever left on screen with
+      nothing closing it, that is the serious failure** — ⌃⌥⌘⇧X is the
+      panic key (hold Control, Option, Command and Shift, press X) and
+      I want to know at once.
+  C2. ⇪X, land, then nudge with the **arrow keys**. EXPECT: 8 points a
+      press, 1 point with ⇧ held, and a HELD arrow crawls steadily
+      rather than taking off (that is 6.360.0 and it must not have
+      moved).
+  C3. ⇪⇧X — the same grid, but it clicks the moment you finish typing.
+  C4. ⇪⇧L — find the pointer. EXPECT: three coloured rings, unchanged.
+      That is a separate tool and nothing here touched it.
+  C5. While the grid is up, press **⌘Q** or **⌘Tab**. EXPECT: they still
+      work. Only the letters and a handful of control keys are claimed,
+      deliberately — an overlay you cannot ⌘Q out of is the hazard.
+  C6. On BOTH screens if you can: the Air's panel and the LG. EXPECT: a
+      readable grid on each.
+
+  D. THE INSTALL ITSELF — new in this archive, so worth two minutes.
+  D1. Unpack it and run, in Terminal:
+          sh ~/Downloads/<the folder you unpacked>/tools/hs-install.sh \
+             ~/Downloads/<that same folder> --dry-run
+      EXPECT a line reading **6.427.0  →  6.428.0**.
+      **A FAIL is a version that reads like a sentence** — something
+      beginning "-- 📏 `_G.configVersion` is assigned HERE". That is the
+      bug this release fixes: the installer was reading a COMMENT where
+      the version goes, which also meant its own final check compared
+      that comment with itself and could never fail. If you see it,
+      this archive is not the one I built.
+  D2. Then the real thing, without `--dry-run`. EXPECT it to back your
+      current config up first, copy, verify, and tell you to reload.
+  D3. Reload Hammerspoon. EXPECT the boot line to read 6.428.0, All
+      green, 79 modules.
+  D4. Console: `_G.installCheck()`. EXPECT every runtime file present at
+      the size this release carries.
+
+  E. PASTE BACK, PASS OR FAIL.
+  E1. Console: `_G.mouseGridReport()` — the whole block. Three lines are
+      the ones I want:
+      · `cells :` — the REAL cell size in points on the screen you are
+        on. I have been reasoning about that number from arithmetic and
+        I would rather have it from your display.
+      · `split :` — it should name **a s d f**, four parts, and say
+        where the keys came from.
+      · `labels:` — the four numbers of the yellow, which should be the
+        same ones `_G.timerReport()` shows for the flash.
+  E2. If the grid ever DECLINES to open with a sentence about the labels
+      being too small to read, paste it. That is the new refusal working
+      — the overlay stays off the screen rather than capturing your
+      keyboard behind letters you cannot read — and the number in it
+      tells me whether the floor is set right for your eyes.
+
+  ❓ QUESTIONS — ANSWERS WANTED, NOTHING TO RUN
+  Q1. **Is a quarter the right size, or should it go further?** This
+      divides each cell 2 × 2. If the box is still bigger than the
+      buttons you aim at, one line makes it 3 × 3 (nine per cell) — but
+      that is a third of the label size again, so I want your eyes on
+      it before I spend them. "right" · "smaller" · "too small now".
+  Q2. **Are a/s/d/f the right four keys?** They are the home row's left
+      hand, in reading order. You had two letters for the half-split in
+      6.252.0 and this replaces that habit, so say if it fights your
+      fingers — and `refineParts = 2` puts the old two-way split back
+      if you would rather have it.
+  Q3. **Is the yellow readable on YOUR screens?** It is the Timer's
+      exact accent at its own alpha, on a dark backplate. White was
+      measured at 1.00:1 on a white window — invisible — but I cannot
+      see your displays, and if the yellow is now the thing that is
+      hard to read, that is a number I will move rather than argue.
+  Q4. **The work MacBook's name** — `scutil --get ComputerName`. Still
+      owed from 6.418.0, and it is the one thing that gives that Mac a
+      profile of its own instead of the fallback.
+
 - 6.427.0 verify with LL — 📋 EVERY REPORT, THE WHITE BOX, THE WHOLE
   DRAFT (KNOWN GROUND) — this block covers 6.424.0, 6.425.0, 6.426.0 AND
   6.427.0: they shipped in one archive and share one test plan.

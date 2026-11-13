@@ -27,6 +27,24 @@
 #     what it did
 # =====================================================================
 
+# 🆔 6.428.0 — THE VERSION IS READ FROM THE ASSIGNMENT, NOT FROM THE
+# FIRST LINE THAT MENTIONS IT. This replaced five copies of
+#     grep -m1 '_G.configVersion' "$f" | sed 's/.*"\(.*\)".*/\1/'
+# which had been reading A COMMENT since one was added above the
+# assignment: init.lua:93 says "`_G.configVersion` is assigned HERE",
+# grep -m1 stops there, and the sed finds no closing quote to strip, so
+# every one of those five sites got the whole comment line back where a
+# version belongs. MEASURED, not read: the old shape answered
+#     -- 📏 `_G.configVersion` is assigned HERE: this rule claims "our output
+# 🚨 AND IT COST THE ONE CHECK THAT PROVES THE RIGHT VERSION LANDED.
+# Step 4 compares INSTVER with NEWVER; both were that same comment, so
+# they were EQUAL and the verify passed whatever had been copied — a
+# guard no input could fail (6.199.0), in the half-install this whole
+# script exists to catch. The line is anchored to the assignment now.
+config_version() {
+    sed -n 's/^[[:space:]]*_G\.configVersion[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "$1" | head -1
+}
+
 set -u
 
 HS="${HAMMERSPOON_DIR:-$HOME/.hammerspoon}"
@@ -79,7 +97,7 @@ if [ "$ROLLBACK" = "1" ]; then
         rm -f "$HS/snippets/bundled.lua"
     fi
     say "   ✅ restored. Reload Hammerspoon (menu bar → Reload Config)."
-    say "   version now: $(grep -m1 '_G.configVersion' "$HS/init.lua" | sed 's/.*"\(.*\)".*/\1/')"
+    say "   version now: $(config_version "$HS/init.lua")"
     exit 0
 fi
 
@@ -91,7 +109,7 @@ fi
 # silent failure: the file exists, looks fine, and has lost its tail.
 say "── 1. CHECKING WHAT YOU DOWNLOADED ──"
 [ -f "$SRC/init.lua" ] || die "no init.lua in $SRC"
-NEWVER=$(grep -m1 '_G.configVersion' "$SRC/init.lua" | sed 's/.*"\(.*\)".*/\1/')
+NEWVER=$(config_version "$SRC/init.lua")
 [ -n "$NEWVER" ] || die "$SRC/init.lua has no version marker — it is not a config file."
 
 miss=""
@@ -157,7 +175,7 @@ else
 fi
 
 CURVER="none"
-[ -f "$HS/init.lua" ] && CURVER=$(grep -m1 '_G.configVersion' "$HS/init.lua" | sed 's/.*"\(.*\)".*/\1/')
+[ -f "$HS/init.lua" ] && CURVER=$(config_version "$HS/init.lua")
 say ""
 say "   $CURVER  →  $NEWVER"
 
@@ -245,7 +263,7 @@ fi
 say ""
 say "── 4. VERIFYING ──"
 fail=""
-INSTVER=$(grep -m1 '_G.configVersion' "$HS/init.lua" | sed 's/.*"\(.*\)".*/\1/')
+INSTVER=$(config_version "$HS/init.lua")
 [ "$INSTVER" = "$NEWVER" ] || fail="$fail version-mismatch"
 for a in "_G.configVersion" "loadModules" "Core Systems Booted"; do
     grep -q "$a" "$HS/init.lua" || fail="$fail truncated"

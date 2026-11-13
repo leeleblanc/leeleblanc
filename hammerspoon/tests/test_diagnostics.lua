@@ -2660,6 +2660,130 @@ check("hs-install.sh's core count matches disk",
 check("INSTALL.md's core count matches disk",
       guide:find(tostring(#onDisk) .. " files, loaded directly", 1, true) ~= nil, #onDisk)
 
+-- 🆔 6.428.0 — THE INSTALLER READS THE VERSION FROM THE ASSIGNMENT.
+-- Five sites in hs-install.sh used `grep -m1 '_G.configVersion'`, and a
+-- COMMENT mentioning that name sits above the assignment (init.lua's own
+-- "📏 `_G.configVersion` is assigned HERE" rule), so grep -m1 stopped
+-- there and the sed had no closing quote to strip: every one of them got
+-- the whole comment line back. 🚨 THE COST WAS STEP 4's VERIFY, which
+-- compares the installed version with the source's — both were that same
+-- comment, so they were EQUAL and the check passed over any half-install
+-- (6.199.0: a guard no input can fail). This runs the shipped extractor
+-- as the installer runs it and requires the real stamp back, so the
+-- fragile shape cannot return unnoticed — and it is a FUNCTIONAL check,
+-- not a grep for a string, because the string is what went wrong.
+do
+  local stamp = (readAll(HS .. "/init.lua") or ""):match('_G%.configVersion%s*=%s*"([^"]+)"')
+  check("init.lua assigns a version this test can compare against",
+        stamp ~= nil and stamp ~= "", tostring(stamp))
+
+  local extractor = install:match("config_version%s*%(%s*%)%s*{(.-)\n}")
+  check("hs-install.sh defines one config_version() helper",
+        extractor ~= nil and extractor:find("sed", 1, true) ~= nil)
+
+  if stamp and extractor then
+    -- run the helper's own body, exactly as the shell would. Through a
+    -- FILE, not `sh -c`: Lua's %q escapes a newline as a backslash and a
+    -- real newline, which a Lua literal accepts and the shell reads as a
+    -- line continuation — so the function body arrived broken and the
+    -- check failed on correct code (6.269.0, caught before it shipped).
+    local got = ""
+    local tmp = os.tmpname()
+    local out = io.open(tmp, "w")
+    if out then
+      out:write("config_version() {", extractor, "\n}\nconfig_version ",
+                ("%q"):format(HS .. "/init.lua"), "\n")
+      out:close()
+      local pipe = io.popen("sh " .. ("%q"):format(tmp) .. " 2>/dev/null")
+      if pipe then got = pipe:read("*a") or ""; pipe:close() end
+      os.remove(tmp)
+    end
+    got = got:gsub("%s+$", "")
+    check("hs-install.sh's extractor answers the REAL version, not a comment",
+          got == stamp, got .. " vs " .. stamp)
+    -- 6.230.0: pick the fixture where right and wrong must differ. The old
+    -- shape answers the comment, so it must NOT match the stamp.
+    local oldPipe = io.popen("grep -m1 '_G.configVersion' '" .. HS
+        .. "/init.lua' 2>/dev/null | sed 's/.*\"\\(.*\\)\".*/\\1/'")
+    local oldGot = oldPipe and oldPipe:read("*a") or ""
+    if oldPipe then oldPipe:close() end
+    oldGot = oldGot:gsub("%s+$", "")
+    check("the fixture bites: the old grep -m1 shape does NOT answer the version",
+          oldGot ~= stamp, oldGot:sub(1, 40))
+  end
+
+  -- and no call site may go back to the fragile shape (comments stripped —
+  -- 6.262.0, because the explanation above quotes the very line it forbids)
+  local bare = install:gsub("\n%s*#[^\n]*", "\n")
+  check("no hs-install.sh CODE line reads the version with grep -m1",
+        bare:find("grep %-m1 '_G%.configVersion'") == nil)
+  check("the sentry read something (not an empty haystack)", #bare > 2000, #bare)
+end
+
+-- 🚨 6.428.0 — THE RUNNER BELIEVES THE EXIT STATUS, NOT ONLY THE SUMMARY.
+-- Every stage judged a suite by the line it PRINTED and discarded the
+-- child's status, so a suite that printed "0 failed" and then died was
+-- reported ✅ and its checks were TALLIED. This project keeps meeting
+-- that shape from the inside — 6.186.0 (a mutation ends a run with
+-- "0 failed" never printed), 6.422.0 (a failure counted and never named)
+-- — and from the outside it is invisible, because a green gate is
+-- exactly what it looks like.
+-- 🔑 THE SENTRY IS NOT DECORATION HERE: run-tests.sh does NOT set -u, so
+-- deleting a `rc=$?` leaves `[ "$rc" -ne 0 ]` comparing an empty string.
+-- sh prints "Illegal number" to stderr and the test evaluates FALSE — so
+-- the stage PASSES and the guard is disarmed by its own absence, with
+-- nothing in the gate's output saying so (6.199.0). The capture and the
+-- consultation are therefore counted, and required to match.
+do
+  local runner = readAll(HS .. "/tools/run-tests.sh") or ""
+  check("run-tests.sh was read", #runner > 4000, #runner)
+
+  local bare = runner:gsub("\n%s*#[^\n]*", "\n")   -- 6.262.0: comments quote it
+  local captures, consults = 0, 0
+  for _ in bare:gmatch("rc=%$%?") do captures = captures + 1 end
+  for _ in bare:gmatch('%[ "%$rc" %-ne 0 %]') do consults = consults + 1 end
+
+  check("every stage that runs a suite captures its exit status",
+        captures >= 8, captures)
+  check("every captured exit status is actually consulted",
+        consults == captures, captures .. " captured / " .. consults .. " consulted")
+
+  -- and the two halves must sit in ONE stage each: a capture in the Lua
+  -- loop with the consultation only in a JS stage would count the same
+  for _, kind in ipairs({ '"%$LUA" "%$f" "%$HS" 2>&1%); rc=%$%?',
+                          '"%$NODE".-2>&1%); rc=%$%?' }) do
+    check("the capture sits on the line that RUNS the suite (" ..
+          (kind:find("LUA") and "lua" or "node") .. ")",
+          bare:find(kind) ~= nil)
+  end
+
+  -- 6.230.0: the fixture where right and wrong must differ. A summary
+  -- saying "0 failed" beside a nonzero status must be read as a FAILURE,
+  -- so prove the shell expression this rests on does that — and that it
+  -- still passes a suite that agrees with itself.
+  local function verdict(line, rc)
+    local tmp = os.tmpname()
+    local f = io.open(tmp, "w")
+    if not f then return nil end
+    f:write('line=', ("%q"):format(line), '\nrc=', tostring(rc), '\n',
+            'if echo "$line" | grep -q ", 0 failed" && [ "$rc" -ne 0 ]; then\n',
+            '  echo DISAGREED\nelif echo "$line" | grep -q ", 0 failed"; then\n',
+            '  echo GREEN\nelse echo RED\nfi\n')
+    f:close()
+    local pipe = io.popen("sh " .. ("%q"):format(tmp) .. " 2>/dev/null")
+    local got = pipe and (pipe:read("*l") or "") or ""
+    if pipe then pipe:close() end
+    os.remove(tmp)
+    return got
+  end
+  check("a suite that says 0 failed AND exits 0 is green",
+        verdict("614 passed, 0 failed", 0) == "GREEN", verdict("614 passed, 0 failed", 0))
+  check("a suite that says 0 failed and exits NONZERO is a failure",
+        verdict("614 passed, 0 failed", 1) == "DISAGREED", verdict("614 passed, 0 failed", 1))
+  check("a suite that reports failures is still a failure",
+        verdict("600 passed, 14 failed", 1) == "RED", verdict("600 passed, 14 failed", 1))
+end
+
 -- and the module count, for the same reason
 local modCount = 0
 do

@@ -5,6 +5,152 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.428.0 — ✂️ EVERY CELL SPLIT INTO FOUR, IN THE TIMER'S YELLOW
+               (modules/mouse_grid.lua)
+
+  LL: "Split all boxes into fours again. Overall, the boxes are too big
+  and not useful enough at that size. Make the grid letters the same
+  translucent yellow as the Timer card tool that flashes yellow when the
+  timer is up. Do this instead of white letters in the boxes. If you can
+  think of a better system for the grid, do it."
+
+  📐 HIS TWO SENTENCES ARE ONE NUMBER, which is why this is one release
+  rather than two. Capacity is `#alphabet ^ labelLength`, and at 26
+  letters squared that is 676 cells — ~45pt on the Air panel, ~71pt on
+  the 4K, against a toolbar button of 28–40pt. The cell was about twice
+  the target, every time. So "split into fours" and "the boxes are too
+  big" are the same request read from two sides, and every cell
+  `planScreen` lays out is now DIVIDED 2 × 2 before anything is drawn:
+  a quarter of the area, with the code he types exactly as long as it
+  was. Precision bought with GEOMETRY and none of it spent on his
+  typing — which is the whole reason the answer was not a fourth
+  letter. 6.176.0 tried that (4,096 cells, ~30pt) and his verdict was
+  "HOLY SHIT! The grid is insane. Way too small." THE LABEL IS THE
+  BINDING CONSTRAINT, and this release does not touch it.
+
+  🎯 AND "AGAIN" IS THE SECOND HALF OF THE ASK. The landed box refines
+  FOUR ways now, not two: a/s/d/f for top-left, top-right, bottom-left
+  and bottom-right, repeatable, with ⌫ restoring the parent. That is
+  the lineage he is remembering — 6.192.0's ⌥+arrow halving, removed on
+  his own word ("Too convoluted"), then 6.252.0's two-letter split
+  along the longer side, which is still reachable (`refineParts = 2`)
+  because it is the muscle memory he has now.
+
+  🔑 `grid.quarterOf` IS BUILT FROM `grid.halfOf`, not beside it, so the
+  16pt floor, the refusals and their reasons are the ones already
+  proven rather than a second copy of that arithmetic. `grid.refineSpec`
+  answers the keys AND the number of parts AND where they came from, so
+  a malformed `quarterKeys` override falls back to asdf and SAYS so
+  instead of binding nothing — and `grid.refreshCheatsheet` builds the
+  ⇪/ rows from those same answers, so the card cannot advertise a key
+  the tool does not have (6.181.0).
+
+  🟡 THE LETTERS ARE THE CONFIG'S ACCENT, READ AND NEVER RETYPED.
+  `grid.labelInk()` reads `_G.uiStyle.accent` — ui_style.lua:157, "the
+  pomodoro flash amber — THE accent of this config" — which is the same
+  table modules/timer.lua:439 takes its ⏱ TIME UP flash from. One
+  literal, three readers (6.231.0), each with the same four numbers as
+  its own fail-closed fallback, so "the same yellow as the Timer card"
+  is true by construction rather than by eye. White was never a taste:
+  6.372.0 measured white-on-white at 1.00:1, which is a label you
+  cannot see on most of what is on screen. Each one keeps a small dark
+  backplate so the translucent yellow has something to be legible
+  against.
+
+  🔎 AND AN UNREADABLE GRID DECLINES BEFORE IT TAKES THE KEYBOARD.
+  Quartering costs cells and cells cost points, so `fittedLabelSize`
+  answers the size a three-character label really gets in the cell THIS
+  screen produces, the layout reduces density rather than drawing
+  letters nobody can read, and a frame that still cannot carry one is
+  refused — no modal, no capture, a sentence saying why. That order is
+  this file's own rule: a keyboard-eating mode with no legible visual is
+  the hazard, so the check happens while the keyboard is still his.
+  A refused canvas, a timer that will not arm and a refinement binding
+  that will not take all close or decline the tool rather than leaving
+  an overlay with nothing able to reach it (6.266.0).
+
+  🚨 AND THE CARBON FALLBACK DECLINES THIS TOOL, said rather than left
+  to be discovered. Where ⇪ runs on the Carbon dispatcher instead of
+  the event tap, this Carbon-modal overlay is not entered at all — an
+  explicit loss of the grid on that path, never a claim that it works
+  there. ⇪⇧L is a separate tool and is unaffected.
+
+  ---------------------------------------------------------------------
+  🔎 THREE REAL FINDINGS CAME OUT OF A SOURCE REVIEW OF THIS RELEASE,
+  and they are in it because every one of them is a check that could
+  not fail. None is in the grid.
+
+  🆔 THE INSTALLER HAS BEEN READING A COMMENT WHERE THE VERSION GOES.
+  Five sites in tools/hs-install.sh used `grep -m1 '_G.configVersion'`,
+  and init.lua carries a COMMENT mentioning that name above the
+  assignment (its own "📏 `_G.configVersion` is assigned HERE" rule), so
+  grep stopped there and the sed found no closing quote to strip.
+  MEASURED, not read — the old shape answered:
+      -- 📏 `_G.configVersion` is assigned HERE: this rule claims "our output
+  🚨 AND THE COST WAS STEP 4's VERIFY, the one check that proves the
+  right version landed: it compares the installed version with the
+  source's, both were that same comment, so they were EQUAL and it
+  passed over anything that had been copied — a guard no input could
+  fail (6.199.0), inside the half-install that script exists to catch.
+  One anchored `config_version()` now, and a check that runs the
+  shipped extractor and requires the real stamp back, with the old
+  shape as the fixture that must NOT match it (6.230.0).
+
+  📋 THE TEST-PLAN GENERATOR WROTE A PLAN FOR "RELEASE ?" . `version`
+  fell back to "?" when it could read no stamp, which is exactly what
+  happens when the tool is run without its <hs> argument — and that is
+  how it was hit during 6.427.0's own ceremony. 6.271.0's rule is that
+  a stale plan is worse than none, because he runs the wrong steps and
+  reports a pass on something that was not built; a plan naming no
+  release at all is that defect with the evidence removed. It refuses
+  now, and the message names the argument. 🚨 AND IT COULD NAME THIS
+  RELEASE WHILE DESCRIBING THE LAST ONE: `shown` counted any blocks it
+  found, so steps for 6.427.0 and older with none for the release being
+  built produced a file headed "how to score release 6.428.0" whose
+  newest section was 6.427.0. That is a refusal too, not a note at the
+  bottom of a file he has already started working through. And a verify
+  block on the source's FIRST line was skipped, because the scan needed
+  a newline in front of the header.
+
+  🚨 THE GATE BELIEVED A SUITE'S SUMMARY OVER ITS EXIT STATUS. Every
+  stage judged a suite by the line it PRINTED and discarded the child's
+  status, so a suite that printed "0 failed" and then died — a throw
+  after the summary, an os.exit(1) for another reason — was reported ✅
+  AND ITS CHECKS WERE TALLIED. This project keeps meeting that shape
+  from the inside (6.186.0, a mutation ending a run with "0 failed"
+  never printed; 6.422.0, a failure counted and never named) and from
+  the outside it is invisible, because a green gate is what it looks
+  like. Both halves are required now, in all eight stages, and the
+  DISAGREEMENT is itself the finding. 🔑 The sentry on it is not
+  decoration: run-tests.sh does not `set -u`, so deleting a capture
+  leaves the test comparing an empty string, which sh calls an illegal
+  number and evaluates FALSE — the guard disarmed by its own absence,
+  silently. The captures and the consultations are counted and required
+  to match.
+
+  📏 AND WHAT THAT REVIEW ASKED FOR AND DID NOT GET, said plainly
+  because the reasons are the method. It arrived as a package marked
+  BLOCKED, with three red gate stages and an installer that exited 3
+  rather than installing. All three stages were ITS OWN new suites,
+  measured: no existing suite was dropped, 99 of them and 14,799 checks
+  passed, and the runtime it faulted is byte-identical to 6.427.0,
+  which is running on his Mac. `test_storm_watchdog` demanded a
+  `hyperWatchdogIncident` hook that exists in no runtime file in either
+  tree — 35 failures is one unbuilt feature asserted 35 ways.
+  `test_profile_identity` demanded `PROFILE IDENTITY BEGIN/END` markers
+  and a whole unbuilt identity subsystem. `test_file_tracker_isolation`
+  demanded `file_tracker.enabled = false` in every profile, which would
+  switch ⌃⌥⇧F's history off on both Macs as a side effect of a grid
+  release. Both ideas are logged where they will be read; neither is a
+  blocker, and a gate stage that fails on correct code is switched off
+  inside a week (6.269.0). Its isolation checks that tested the REAL
+  helper are kept, as tests/test_profiles.lua, with the policy removed.
+  🚨 AND ITS MODULE HEADER HAD TO BE PUT BACK: 123 lines of this file's
+  own memory — the safety invariant, the capacity arithmetic, why a
+  tree walk was refused, what 6.176.0 measured — were replaced with a
+  21-line summary. Comments are discarded at parse and are the only
+  record of why a decision was made.
+
 NEW IN 6.427.0 — 📋 @report: EVERY REPORT, AND WHAT EACH ONE ANSWERS
                (modules/unified_search.lua)
 

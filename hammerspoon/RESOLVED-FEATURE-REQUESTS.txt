@@ -1,5 +1,5 @@
 ========================================================================
-RESOLVED FEATURE REQUESTS — Hammerspoon config 6.427.0
+RESOLVED FEATURE REQUESTS — Hammerspoon config 6.428.0
 Every feature and how to use it. Generated from the modules' own
 cheat sheets (the rows ⇪/ draws), so it is never out of date.
 ⇪ = Caps Lock held (the hyper key). ⇪⇧X = Caps Lock + Shift + X.
@@ -122,17 +122,18 @@ In the Console, _G.<tool>Report() prints any tool's own report.
 🎯 MOUSE GRID (⇪X — type 3 letters, the pointer goes there)   [modules/mouse_grid.lua]
   ⇪X      Overlay the labelled grid on every display
   ⇪⇧X   Same, but click the moment you finish typing
-  asdfghjkl Type a cell's 3 letters — the pointer jumps there
-  snap      A button under the cell? The pointer lands ON it — including one WIDER than the cell (6.181.0), which is most of them
+  a–z     Type a cell's 3 letters — the pointer jumps there
+  snap      Off by default: land in the chosen cell without querying app controls. Optional Accessibility snapping remains available
   ⌫       Undo one letter while typing
   ⎋       Cancel — the pointer does not move
   -- after it lands -- 
   space     Left click · ⇧space right click · 2 double click
   ↑↓←→ Nudge 8pt a press — HOLD it and it repeats at that same 8pt, like an arrow in a text box (the old climb to 64pt is gone, 6.360.0) · with ⇧ nudge 1pt for a tight target
-  two keys  6.373.0: TWO keystrokes land you, not three — 26 letters two deep is 676 cells, within 4% of the 729 it replaces, so the boxes are the size you know and a third of the typing is gone
-  split     After you land, the box is drawn SPLIT IN HALF with a letter in each side (the first two of the alphabet — the badge names them). Press one and that half is kept, the pointer goes to its middle, and it splits again — two or three presses narrow a big cell onto a small button
+  3 letters Smaller initial cells: every former cell is divided into four
+  a s / d f After landing: top-left / top-right / bottom-left / bottom-right. Repeat to refine; the letters are drawn in Timer yellow
+  ⌫       Undo the last refinement; Escape finishes without clicking
   ⎋       Done — leave the pointer where it is
-  ⇪⇧L   Find the pointer — three white rings pulse out from it, again and again, for 5 s
+  ⇪⇧L   Find the pointer — three coloured rings pulse out from it, again and again, for 5 s
             6.372.0: BIGGER (180 pt, was 110) and in colour — magenta, orange, violet in turn. It shipped WHITE, which is 1.00:1 on a white window, so over Finder or Word the ring was genuinely not there. Every colour now clears 2.5:1 on white AND on black
             Sized to the screen (×1.5 on a 4K at full points); grid.locateRadius / locateColors / locateSecs / locateScale to taste
   ⌃⌥⌘⇧X PANIC — tear the overlay down whatever state it is in
@@ -919,6 +920,7 @@ In the Console, _G.<tool>Report() prints any tool's own report.
 
 📜 RELEASE INDEX — newest first, one line per release (the full story of each is in CHANGELOG.md)
 ------------------------------------------------------------------------
+  6.428.0  ✂️ EVERY CELL SPLIT INTO FOUR, IN THE TIMER'S YELLOW
   6.427.0  📋 @report: EVERY REPORT, AND WHAT EACH ONE ANSWERS
   6.426.0  💾 THE WHOLE DRAFT, AND ONLY ONCE
   6.425.0  🔎 THE FILTER BOX SAYS WHERE THE BODY SEARCH IS

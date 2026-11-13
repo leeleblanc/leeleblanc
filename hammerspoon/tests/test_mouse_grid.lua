@@ -367,8 +367,16 @@ local function loadModule(src)
     -- still a bound key.
     DEFAULT_ALPHABET = grid.alphabet
     DEFAULT_LABELLEN = grid.labelLength
+    DEFAULT_SUBDIVISIONS = grid.subdivisions
+    DEFAULT_REFINEPARTS = grid.refineParts
+    DEFAULT_LABEL_PLATES = grid.labelBackplates
+    DEFAULT_SNAP = grid.snapToControls
     grid.alphabet = PIN_ALPHABET or grid.alphabet
     grid.labelLength = PIN_LABELLEN or grid.labelLength
+    grid.subdivisions = PIN_SUBDIVISIONS or 1
+    grid.refineParts = PIN_REFINEPARTS or 2
+    grid.labelBackplates = PIN_LABEL_PLATES == true
+    grid.snapToControls = PIN_SNAP == nil or PIN_SNAP
     return M
 end
 
@@ -569,12 +577,11 @@ local cache = grid.cache
 check("⌨️ the SHIPPED alphabet is the whole lowercase alphabet",
       DEFAULT_ALPHABET == "abcdefghijklmnopqrstuvwxyz"
       and #DEFAULT_ALPHABET == 26, DEFAULT_ALPHABET)
-check("…which is 676 cells, and it is TWO keystrokes",
-      (#DEFAULT_ALPHABET) ^ 2 == 676 and DEFAULT_LABELLEN == 2,
+check("…which has THREE-character capacity for the four-way denser layout",
+      (#DEFAULT_ALPHABET) ^ 3 == 17576 and DEFAULT_LABELLEN == 3,
       tostring(DEFAULT_LABELLEN))
-check("…so the CELL is within 4% of the 729-cell grid it replaces — the"
-      .. " typing got shorter, the boxes did not get bigger",
-      math.abs(676 - 729) / 729 < 0.08)
+check("…the shipped layout divides every former cell into four",
+      DEFAULT_SUBDIVISIONS == 2 and DEFAULT_REFINEPARTS == 4)
 check("…and every one of those keys is a plain letter",
       DEFAULT_ALPHABET:match("^[a-z]+$") ~= nil, DEFAULT_ALPHABET)
 -- the escape hatch has to keep working in BOTH directions, or "one line,
@@ -617,7 +624,7 @@ do
           -- the home row IS the smaller one today, so the rule it
           -- protects is that the advice names something SMALLER.
           and said:find("alphabet = ", 1, true) ~= nil
-          and said:find("81 cells", 1, true) ~= nil
+          and said:find("fewer labels", 1, true) ~= nil
           and said:find(DEFAULT_ALPHABET, 1, true) == nil, said)
     grid.buildSlowMs = 120
     grid.cache = nil
@@ -1161,8 +1168,7 @@ end)(), #grid.cache.screens[1].gridCanvas.elements)
 grid.hide("t"); checkInv("cleanup")
 
 out("   -- 6.65.0: label size is a floor plus a fit --\n")
-check("labelSize is the FLOOR and it is at least 14pt — 12 was chosen to "
-      .. "fit, not to be read at a glance", grid.labelSize >= 14)
+check("labelSize is the preferred 14pt size; dense labels are fitted below it", grid.labelSize >= 14)
 grid.show(false)
 check("no label is ever drawn below the floor", (function()
     for _, e in ipairs(grid.cache.screens[1].labelCanvas.elements) do
@@ -2725,7 +2731,7 @@ do
           CANVASES[#CANVASES].frame.w .. " vs " .. G.locateSpan(pinned) * 2)
     local rep = tostring(_G.mouseGridReport() or "")
     check("the report's ring line names the version, the radius here and what the last press drew",
-          rep:find("ring    : ⇪⇧L (6.167.0) · radius " .. pinned
+          rep:find("ring    : ⇪⇧L (6.428.0) · radius " .. pinned
                    .. " pt here (scale 2.00, pinned by grid.locateScale)", 1, true) ~= nil
           and rep:find("last press drew radius " .. pinned .. " at scale 2.00",
                        1, true) ~= nil, rep:match("ring[^\n]*"))
@@ -3520,9 +3526,9 @@ do
         for _, t in ipairs(late) do pcall(t.fn) end
         local up = 0
         for _, c in ipairs(CANVASES) do if c.visible then up = up + 1 end end
-        check("the grid is still up, so the retry DOES bring the overlay in "
-              .. "— the fix is not 'stop retrying'", up > 0, up)
-        check("...and the grid knows the box is up", grid.state ~= nil)
+        check("6428: refused initial drawing aborts keyboard capture instead of waiting invisible",
+              up == 0 and grid.state == nil, up)
+        check("6428: an explicit fresh invocation can still open the grid",grid.show(false)==true)
 
         grid.hide("done")
 
@@ -3550,13 +3556,21 @@ do
             if TIMERS[i].secs == 0.05 then late[#late + 1] = TIMERS[i] end
         end
         check("the refused draw handed its canvases back", #late > 0, #late)
+        REFUSE_SHOW = false
+        grid.show(false)  -- a NEW invocation; old retries may not take it over
         pickKey("a"); pickKey("s"); pickKey("d")      -- land: hideAllShown()
         check("the grid is LANDED — still up, and the hide list was emptied "
               .. "underneath it", grid.state ~= nil
               and grid.state.phase == "landed",
               grid.state and tostring(grid.state.phase))
         REFUSE_SHOW = false
+        local visibleBefore = 0
+        for _,c in ipairs(CANVASES) do if c.visible then visibleBefore=visibleBefore+1 end end
         for _, t in ipairs(late) do pcall(t.fn) end
+        local visibleAfter = 0
+        for _,c in ipairs(CANVASES) do if c.visible then visibleAfter=visibleAfter+1 end end
+        check("6428: an old draw retry cannot put the picker over a newer landed session",
+              visibleBefore==visibleAfter)
         grid.hide("done")
         local stillUp = 0
         for _, c in ipairs(CANVASES) do
@@ -3574,6 +3588,222 @@ do
           okSection == true, secErr)
     local ran = (pass + fail) - before
     check("§6.266.0 ran all of its checks (" .. ran .. " of 22+)", ran >= 22, ran)
+end
+
+-- 6.428.0: real default behaviour, not the legacy pinned fixtures.
+out("\n=== 6.428.0 FOUR-WAY GRID, COLOUR, AND FAILURE BOUNDARIES ===\n")
+do
+    local keepA,keepL,keepS,keepR,keepP,keepSnap=PIN_ALPHABET,PIN_LABELLEN,PIN_SUBDIVISIONS,PIN_REFINEPARTS,PIN_LABEL_PLATES,PIN_SNAP
+    PIN_ALPHABET="abcdefghijklmnopqrstuvwxyz";PIN_LABELLEN=3
+    PIN_SUBDIVISIONS=2;PIN_REFINEPARTS=4;PIN_LABEL_PLATES=true;PIN_SNAP=false
+    local function same(a,b) return math.abs(a-b)<1e-7 end
+    local function fresh(screens)
+        setScreens(screens or ONE);local mod=loadModule()
+        _G.hyperDispatchEngaged=false
+        return mod
+    end
+    local function firstLabel() return grid.cache.screens[1].cells[1].label end
+    local function landed()
+        grid.show(false);typeLabel(firstLabel())
+        return grid.state
+    end
+    local function yellow(c)
+        return c and same(c.red or -1,1) and same(c.green or -1,0.84)
+            and same(c.blue or -1,0) and same(c.alpha or -1,0.96)
+    end
+    _G.uiStyle=nil
+    local mod=fresh(ONE)
+    check("6428: default is exactly three letters and four quarter keys",
+        DEFAULT_LABELLEN==3 and DEFAULT_SUBDIVISIONS==2 and DEFAULT_REFINEPARTS==4)
+    check("6428: missing style provider uses Timer's yellow fallback",yellow(grid.labelInk()))
+    for _,screens in ipairs({ONE,TWO,{mkScreen(1,-2560,83,2560,1410),mkScreen(2,0,30,2560,1410)}}) do
+        fresh(screens);grid.show(false)
+        local dense=grid.cache;grid.hide("test")
+        grid.labelLength=2;grid.subdivisions=1;grid.cache=nil;grid.show(false)
+        local old=grid.cache
+        check("6428: four times as many initial cells across this layout",dense.used==4*old.used,
+            tostring(dense.used).."/"..tostring(old.used))
+        for i,p in ipairs(dense.screens) do
+            check("6428: each former cell has exactly two columns and rows",p.cols==2*old.screens[i].cols and p.rows==2*old.screens[i].rows)
+            check("6428: child width and height are each half",same(p.cellW*2,old.screens[i].cellW) and same(p.cellH*2,old.screens[i].cellH))
+        end
+        grid.hide("test")
+    end
+    mod=fresh(TWO);check("6428: default grid opens",grid.show(false)==true);checkInv("6428 new show")
+    local seen,valid,ink,fits={},true,true,true
+    for _,p in ipairs(grid.cache.screens) do
+        for _,c in ipairs(p.cells) do
+            if #c.label~=3 or seen[c.label] then valid=false end;seen[c.label]=true
+            if c.ax<p.frame.x or c.ax>p.frame.x+p.frame.w or c.ay<p.frame.y or c.ay>p.frame.y+p.frame.h then valid=false end
+        end
+        for _,e in ipairs(p.labelCanvas.elements) do
+            if e.type=="text" then
+                ink=ink and yellow(e.textColor)
+                fits=fits and (e.textSize*3*0.62<=e.frame.w+0.001)
+            end
+        end
+    end
+    check("6428: every label is unique, reachable and three characters",valid)
+    check("6428: initial letters use translucent Timer yellow",ink)
+    local plates=0
+    for _,p in ipairs(grid.cache.screens) do for _,e in ipairs(p.labelCanvas.elements) do
+        if e.type=="rectangle" and e.fillColor and e.fillColor.white==0 and e.fillColor.alpha==0.72 then plates=plates+1 end
+    end end
+    check("6428: every initial label has a small dark readability plate",plates==grid.cache.used)
+    local function lum(c)
+        local function s(x) return x<=0.04045 and x/12.92 or ((x+0.055)/1.055)^2.4 end
+        return 0.2126*s(c[1])+0.7152*s(c[2])+0.0722*s(c[3])
+    end
+    local bg=0.28 -- black plate at 72% over a white application
+    local fg={0.96+0.04*bg,0.96*0.84+0.04*bg,0.04*bg}
+    check("6428: default yellow clears 4.5:1 over a white app with its plate",
+        (lum(fg)+0.05)/(lum({bg,bg,bg})+0.05)>=4.5)
+    check("6428: three letters fit the narrower cell",fits)
+    check("6428: geometry is bounded at 4096 cells",grid.cache.used<=4096)
+    local label=firstLabel();pickKey(label:sub(1,1))
+    local matchesYellow=true
+    for _,p in ipairs(grid.cache.screens) do for _,e in ipairs(p.labelCanvas.elements) do
+        if e.type=="text" and not yellow(e.textColor) then matchesYellow=false end
+    end end
+    check("6428: narrowed labels retain the same yellow",matchesYellow)
+    pickKey(label:sub(2,2));pickKey(label:sub(3,3));checkInv("6428 first landing")
+    check("6428: default landing performs no app-control Accessibility queries",DEFAULT_SNAP==false and ASKS==0)
+    grid.snapToControls="yes"
+    local askBefore=ASKS
+    local notSnapped=grid.snapPoint(grid.cache.screens[1].cells[1])
+    check("6428: malformed opt-in never triggers Accessibility queries",notSnapped==nil and ASKS==askBefore)
+    grid.snapToControls=false
+    local parent={x=grid.state.box.x,y=grid.state.box.y,w=grid.state.box.w,h=grid.state.box.h}
+    local letters,ntext={},0
+    for _,e in ipairs(grid.boxDraw.elements) do if e.type=="text" then
+        letters[e.text]=yellow(e.textColor);ntext=ntext+1
+    end end
+    check("6428: four visible yellow labels appear immediately on landing",
+        ntext==4 and letters.a and letters.s and letters.d and letters.f)
+    local literal=grid.quarterOf({x=10,y=20,w=80,h=40},8)
+    for i,name in ipairs({"first","second","third","fourth"}) do
+        local want=({{10,20},{50,20},{10,40},{50,40}})[i]
+        local q=literal[name]
+        check("6428: independently calculated quarter "..name,
+            q.x==want[1] and q.y==want[2] and q.w==40 and q.h==20)
+    end
+    local expected=grid.quarterOf(parent,grid.halveMin)
+    landKey("s")
+    check("6428: s chooses top-right with a quarter of the old area",
+        same(grid.state.box.x,expected.second.x) and same(grid.state.box.y,expected.second.y)
+        and same(grid.state.box.w*grid.state.box.h,parent.w*parent.h/4))
+    check("6428: the pointer moves to the selected quarter's centre",
+        same(MOUSE_AT.x,grid.state.box.x+grid.state.box.w/2)
+        and same(MOUSE_AT.y,grid.state.box.y+grid.state.box.h/2))
+    check("6428: Backspace restores the parent box",grid.undoRefinement()==true
+        and same(grid.state.box.x,parent.x) and same(grid.state.box.w,parent.w)
+        and grid.state.halvings==0)
+    checkInv("6428 undo")
+    for _,k in ipairs({"a","s","d","f"}) do
+        check("6428: quarter key "..k.." does not autorepeat",grid.landModal.repeats["|"..k]==nil)
+    end
+    local unwanted=false
+    for ch in ("abcdefghijklmnopqrstuvwxyz"):gmatch(".") do
+        if not ("asdf"):find(ch,1,true) and grid.landModal.binds["|"..ch] then unwanted=true end
+    end
+    check("6428: only the four visible refinement letters are claimed",not unwanted)
+    grid.hide("test");checkInv("6428 hide")
+    for i,k in ipairs({"a","s","d","f"}) do
+        fresh(ONE);local st=landed();local box=st.box
+        local q=grid.quarterOf(box,grid.halveMin);local names={"first","second","third","fourth"}
+        landKey(k)
+        check("6428: quadrant position "..k.." matches the drawn layout",
+            same(grid.state.box.x,q[names[i]].x) and same(grid.state.box.y,q[names[i]].y))
+        grid.hide("test");checkInv("6428 quadrant "..k)
+    end
+    fresh(ONE);landed();landKey("a");landKey("right")
+    local beforeUndoX=MOUSE_AT.x
+    grid.undoRefinement()
+    check("6428: undo after a nudge retains the translated parent",grid.state and grid.state.halvings==0 and grid.state.point.x>beforeUndoX)
+    grid.hide("test")
+    fresh(ONE);grid.quarterKeys="jkl;";local keys,parts=grid.refineSpec()
+    check("6428: invalid quarter keys fail back to distinct asdf",keys=="asdf" and parts==4)
+    grid.quarterKeys="jklh";landed()
+    check("6428: valid overrides draw and bind the same four letters",
+        grid.splitBound.keys=="jklh" and grid.landModal.binds["|j"] and grid.landModal.binds["|h"])
+    grid.hide("test")
+    fresh(ONE);local small,why=grid.quarterOf({x=0,y=0,w=15,h=15},8)
+    check("6428: minimum-size refinement refuses without moving",small==nil and type(why)=="string")
+    check("6428: non-finite boxes refuse rather than reach native canvas",
+        grid.quarterOf({x=0/0,y=0,w=80,h=80},8)==nil)
+    fresh({mkScreen(1,0,0,800,480)});grid.show(false)
+    check("6428: a small screen reduces density to keep labels readable",
+        grid.cache.screens[1].densityReduced==true)
+    local readable=true
+    for _,e in ipairs(grid.cache.screens[1].labelCanvas.elements) do
+        if e.type=="text" and e.textSize<8 then readable=false end
+    end
+    check("6428: adaptive default labels remain at least 8pt",readable)
+    grid.hide("test")
+    fresh({mkScreen(1,0,0,1,1)})
+    check("6428: an unreadable display declines capture",grid.show(false)==false and not grid.state)
+    checkInv("6428 unreadable frame")
+    local before=MOUSE_AT;fresh(ONE)
+    local savedAfter=hs.timer.doAfter
+    hs.timer.doAfter=function() return nil end
+    local ok,answer=pcall(grid.show,false)
+    hs.timer.doAfter=savedAfter
+    check("6428: refused timer closes the grid and returns false",ok and answer==false and not grid.state)
+    checkInv("6428 nil watchdog")
+    fresh(ONE);savedAfter=hs.timer.doAfter
+    hs.timer.doAfter=function() error("timer refused") end
+    ok,answer=pcall(grid.show,false);hs.timer.doAfter=savedAfter
+    check("6428: throwing timer cannot leave captured keys",ok and answer==false and not grid.state)
+    checkInv("6428 throwing watchdog")
+    fresh(ONE);grid.show(false)
+    local stale=grid.watchdog
+    stale.stop=function() error("native stop refused") end
+    local code=firstLabel();pickKey(code:sub(1,1))
+    local current=grid.state
+    stale.fn()
+    check("6428: an old stopped timer cannot close a newly rearmed picking state",
+        grid.state==current and grid.state.typed==code:sub(1,1))
+    grid.hide("test")
+    fresh(ONE);grid.show(false);stale=grid.watchdog
+    stale.stop=function() error("native stop refused") end
+    grid.hide("test");grid.show(false);current=grid.state
+    stale.fn()
+    check("6428: a timer from an earlier invocation cannot close the new grid",grid.state==current)
+    grid.hide("test")
+    fresh(ONE);local bind=grid.landModal.bind
+    grid.landModal.bind=function() return nil end
+    grid.show(false);typeLabel(firstLabel())
+    grid.landModal.bind=bind
+    check("6428: refused refinement key binding exits instead of capturing",grid.state==nil)
+    checkInv("6428 binding refusal")
+    fresh(ONE);_G.hyperDispatchEngaged=true
+    ok,answer=pcall(grid.show,false);_G.hyperDispatchEngaged=false
+    check("6428: unavailable Carbon modal degrades by declining capture",ok and answer==false and not grid.state)
+    checkInv("6428 Carbon fallback")
+    fresh(ONE);grid.show(true);local auto=firstLabel();typeLabel(auto)
+    check("6428: click-on-arrival still clicks once and exits",#CLICKS==1 and grid.state==nil)
+    checkInv("6428 auto click")
+    _G.uiStyle={accent={red=0.8,green=0.7,blue=0.1,alpha=0.42}}
+    fresh(ONE);local color=grid.labelInk()
+    check("6428: grid inherits a customized Timer accent and alpha",
+        color.red==0.8 and color.green==0.7 and color.blue==0.1 and color.alpha==0.42)
+    local timerModule=dofile(HS.."/modules/timer.lua")
+    local okTimer,tm=pcall(timerModule.setup,CORE)
+    local tc=timerModule.config and timerModule.config.bgFlash or tm and tm.bgFlash
+    check("6428: colour matches the actual Timer module's resolved flash colour",
+        okTimer and tc and color.red==tc.red and color.green==tc.green and color.blue==tc.blue and color.alpha==tc.alpha)
+    _G.uiStyle=nil
+    mod=fresh(ONE);mod.warm()
+    check("6428: cheat sheet says three letters and preserves arrow help",
+        mod.cheatsheet.title:find("3 letters",1,true)
+        and mod.cheatsheet.entries[9][2]:find("Nudge",1,true)
+        and mod.cheatsheet.entries[11][1]=="asdf")
+    grid.labelLength=2;grid.refineParts=2;grid.halveKeys="jk";mod.warm()
+    check("6428: cheat sheet follows configured label length and actual keys",
+        mod.cheatsheet.title:find("2 letters",1,true) and mod.cheatsheet.entries[11][1]=="jk")
+    grid.hide("test")
+    PIN_ALPHABET,PIN_LABELLEN,PIN_SUBDIVISIONS,PIN_REFINEPARTS,PIN_LABEL_PLATES,PIN_SNAP=keepA,keepL,keepS,keepR,keepP,keepSnap
+    _G.uiStyle=nil;_G.hyperDispatchEngaged=false
 end
 
 -- =====================================================================

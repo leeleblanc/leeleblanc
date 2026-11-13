@@ -1,4 +1,4 @@
-# TESTING — how to score release 6.427.0
+# TESTING — how to score release 6.428.0
 
 You install ONE archive and it carries several releases. Below are the
 steps for each release this archive is new for, newest first. Run the
@@ -26,6 +26,132 @@ else is a LOSS and I fix it before building further. You are the only
 scorer; I never mark my own.
 
 ---
+
+## 6.428.0
+
+6.428.0 verify with LL — ✂️ FOUR BOXES WHERE THERE WAS ONE, IN THE
+TIMER'S YELLOW (KNOWN GROUND for the grid; the install is new)
+WHAT CHANGED: every grid cell is split into four, so the box you land
+in is a quarter of the size it was — and the letters are the Timer
+card's yellow instead of white.
+📐 YOUR TWO SENTENCES WERE ONE NUMBER, which is why this is one
+release. 26 letters squared is 676 cells, which is about 45 points on
+the Air against a toolbar button of 28–40 — so the box really was
+about twice the size of the thing you were aiming at. Quartering fixes
+that WITHOUT making you type a fourth letter: 6.176.0 tried that and
+your verdict was "HOLY SHIT! The grid is insane. Way too small."
+🟡 AND THE YELLOW IS THE SAME FOUR NUMBERS THE TIMER FLASHES, read out
+of one table rather than copied — so it cannot drift from it.
+
+A. THE HEADLINE — a minute, and do A4 even if A1–A3 look right.
+A1. Press **⇪X**. EXPECT: the grid, and the cells are visibly SMALLER
+    than you are used to — four where there was one.
+    **A FAIL is cells the same size as last week**, or a press that
+    does nothing at all.
+A2. Look at the letters. EXPECT: translucent YELLOW, the same colour
+    the ⏱ card flashes when a timer ends, each on a small dark patch
+    so it reads over a white window as well as a dark one.
+    **A FAIL is white letters** — that is the old behaviour.
+A3. Type the three letters of a cell. EXPECT: the pointer lands there,
+    exactly as it always has. The code is the SAME LENGTH as before —
+    if you are typing a fourth letter, tell me, because that is not
+    what this release does.
+A4. 🔎 Open something with small controls — a Finder toolbar, a
+    dialog's buttons — and aim at one. EXPECT: the box you land in is
+    close to the size of the button. That is the whole point of the
+    release and it is the one thing I cannot see from here.
+
+B. THE FOUR QUARTERS — this is the "again" half of your ask.
+B1. ⇪X, type three letters to land. EXPECT: the yellow box is drawn
+    divided into FOUR, with a letter in each quarter.
+B2. Press **a** — top-left. EXPECT: that quarter is kept, the pointer
+    goes to its middle, and it divides into four again.
+    Then **s** is top-right, **d** is bottom-left, **f** is
+    bottom-right. Two or three presses put you on a small button.
+B3. Press **⌫** (Backspace). EXPECT: the box goes back UP one — the
+    quarter you just took is undone.
+B4. Keep refining until it refuses. EXPECT: it SAYS why rather than
+    doing nothing — there is a 16-point floor, because a box smaller
+    than that is not something you can aim with.
+B5. Press **space**. EXPECT: it clicks where the pointer is.
+B6. Press **⎋** (Escape). EXPECT: the grid goes away and the keyboard
+    is yours.
+
+C. MUST STILL WORK — this is a full-screen overlay that captures
+   keys, so this half matters more than A and B.
+C1. ⇪X then ⎋, five or six times briskly. EXPECT: it opens every time
+    and closes every time. **If an overlay is ever left on screen with
+    nothing closing it, that is the serious failure** — ⌃⌥⌘⇧X is the
+    panic key (hold Control, Option, Command and Shift, press X) and
+    I want to know at once.
+C2. ⇪X, land, then nudge with the **arrow keys**. EXPECT: 8 points a
+    press, 1 point with ⇧ held, and a HELD arrow crawls steadily
+    rather than taking off (that is 6.360.0 and it must not have
+    moved).
+C3. ⇪⇧X — the same grid, but it clicks the moment you finish typing.
+C4. ⇪⇧L — find the pointer. EXPECT: three coloured rings, unchanged.
+    That is a separate tool and nothing here touched it.
+C5. While the grid is up, press **⌘Q** or **⌘Tab**. EXPECT: they still
+    work. Only the letters and a handful of control keys are claimed,
+    deliberately — an overlay you cannot ⌘Q out of is the hazard.
+C6. On BOTH screens if you can: the Air's panel and the LG. EXPECT: a
+    readable grid on each.
+
+D. THE INSTALL ITSELF — new in this archive, so worth two minutes.
+D1. Unpack it and run, in Terminal:
+        sh ~/Downloads/<the folder you unpacked>/tools/hs-install.sh \
+           ~/Downloads/<that same folder> --dry-run
+    EXPECT a line reading **6.427.0  →  6.428.0**.
+    **A FAIL is a version that reads like a sentence** — something
+    beginning "-- 📏 `_G.configVersion` is assigned HERE". That is the
+    bug this release fixes: the installer was reading a COMMENT where
+    the version goes, which also meant its own final check compared
+    that comment with itself and could never fail. If you see it,
+    this archive is not the one I built.
+D2. Then the real thing, without `--dry-run`. EXPECT it to back your
+    current config up first, copy, verify, and tell you to reload.
+D3. Reload Hammerspoon. EXPECT the boot line to read 6.428.0, All
+    green, 79 modules.
+D4. Console: `_G.installCheck()`. EXPECT every runtime file present at
+    the size this release carries.
+
+E. PASTE BACK, PASS OR FAIL.
+E1. Console: `_G.mouseGridReport()` — the whole block. Three lines are
+    the ones I want:
+    · `cells :` — the REAL cell size in points on the screen you are
+      on. I have been reasoning about that number from arithmetic and
+      I would rather have it from your display.
+    · `split :` — it should name **a s d f**, four parts, and say
+      where the keys came from.
+    · `labels:` — the four numbers of the yellow, which should be the
+      same ones `_G.timerReport()` shows for the flash.
+E2. If the grid ever DECLINES to open with a sentence about the labels
+    being too small to read, paste it. That is the new refusal working
+    — the overlay stays off the screen rather than capturing your
+    keyboard behind letters you cannot read — and the number in it
+    tells me whether the floor is set right for your eyes.
+
+❓ QUESTIONS — ANSWERS WANTED, NOTHING TO RUN
+Q1. **Is a quarter the right size, or should it go further?** This
+    divides each cell 2 × 2. If the box is still bigger than the
+    buttons you aim at, one line makes it 3 × 3 (nine per cell) — but
+    that is a third of the label size again, so I want your eyes on
+    it before I spend them. "right" · "smaller" · "too small now".
+Q2. **Are a/s/d/f the right four keys?** They are the home row's left
+    hand, in reading order. You had two letters for the half-split in
+    6.252.0 and this replaces that habit, so say if it fights your
+    fingers — and `refineParts = 2` puts the old two-way split back
+    if you would rather have it.
+Q3. **Is the yellow readable on YOUR screens?** It is the Timer's
+    exact accent at its own alpha, on a dark backplate. White was
+    measured at 1.00:1 on a white window — invisible — but I cannot
+    see your displays, and if the yellow is now the thing that is
+    hard to read, that is a number I will move rather than argue.
+Q4. **The work MacBook's name** — `scutil --get ComputerName`. Still
+    owed from 6.418.0, and it is the one thing that gives that Mac a
+    profile of its own instead of the fallback.
+
+
 
 ## 6.427.0
 
@@ -381,70 +507,6 @@ F2. 📏 NAMED, NOT FIXED, so it is not a surprise: your Nov 6 report
 F3. 🔨 While this was happening the Mac was unusable — every key ran a
     shortcut and nothing typed. My reading is that it is the same
     class as 6.214.0, and the honest pass count is 1. Your tag.
-
-
-
-## 6.419.0
-
-6.419.0 verify with LL — 📋 A GOOD REPORT FROM `_G.snippetsList()` (YOUR ASK)
-WHAT CHANGED: you said it was way too much in the Console and asked for
-a good report. It printed **1,937 lines** over your 1,926 snippets, and
-the count you wanted was on the FIRST of them — so it had scrolled off
-the top before the dump finished. It now prints the SUMMARY first and
-in full, then at most twenty rows. **32 lines by default instead of
-1,937.**
-🚨 AND I AM CORRECTING MYSELF: 6.415.0's test plan told you this door
-was "still the firehose, deliberately". That was my call and it was the
-wrong one for the command you reach for by name. The firehose still
-exists — you just have to ask for it now.
-
-A. THE HEADLINE — Console, ten seconds.
-A1. `_G.snippetsList()`
-    EXPECT: about thirty lines, not two thousand. In order: a ✂️ line
-    with the trigger count, where your own snippets live, 📦 the file
-    the packs came from, a `collections` block with a count per pack
-    (ComposeKey, Emoji_Pack, Ghostty_or_Terminal, Mac_symbols and
-    whatever else you have), then `rows / more / set`, then twenty
-    rows, then "… N more row(s) not shown".
-    **A FAIL is any version of this that floods the pane.**
-A2. Read the `more :` line. It names a collection of YOUR library — the
-    biggest one — not an example I typed in.
-
-B. THE THREE STATES — this is the part I want your opinion on.
-B1. `_G.snippetsList(0)`  → the summary ALONE, no rows at all (11 lines).
-B2. `_G.snippetsList(60)` → sixty rows under the same summary.
-B3. `_G.snippetsList(true)` → every row, all 1,937 lines. The old
-    behaviour, still there, now something you ask for.
-B4. `_G.snippetsList("emoji")` → only Emoji_Pack's rows, still capped at
-    twenty. Part of a name is enough and case does not matter.
-B5. `_G.snippetsList("banana")` → it says no collection matches, and the
-    `collections` block above it is the list of what it could have
-    matched. **A FAIL is a silent empty list**, which would read as
-    "you have no snippets".
-
-C. THE DEFAULT IS YOURS TO SET. Twenty is my guess at "a screenful
-   without the headline scrolling away". One line in your profile:
-       settings = { expander = { listShow = 40 } }
-   0 means "always just the summary"; true means "always everything".
-C1. Set it to something, reload, and run `_G.snippetsList()` — the
-    `set :` line should read back the value you chose.
-
-D. MUST STILL WORK — this is the module that watches every keystroke.
-D1. ⇪⇧S still opens the picker, and your recent picks are still at the
-    top.
-D2. A trigger you TYPE still expands — `;bd`, `gg1`, whatever you use.
-D3. `_G.snippetsReport()` is unchanged: the library, the recent queue
-    and its store.
-D4. `_G.snippetsImport()` and `_G.snippetAdd("gg1", "text")` still work.
-
-E. A JUDGEMENT ONLY YOU CAN MAKE.
-E1. The twenty rows are the alphabetical FIRST twenty, so on your Mac
-    they will all be `!!`-prefixed Mac_symbols. That is honest (the line
-    says "A–Z") but it is not a representative sample. If you would
-    rather the tail showed a few from EACH collection, say so and it
-    becomes that.
-E2. Is the `collections` breakdown the answer you wanted, or were you
-    after something else entirely when you said "a good report"?
 
 
 

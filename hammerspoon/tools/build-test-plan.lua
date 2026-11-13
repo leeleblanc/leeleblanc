@@ -88,7 +88,24 @@ local function readAll(p)
 end
 
 local init    = readAll(HS .. "/init.lua") or ""
-local version = init:match("ARCHITECTURE VERSION CONTROL: ([%d%.]+)") or "?"
+local version = init:match("ARCHITECTURE VERSION CONTROL: ([%d%.]+)")
+
+-- 🚨 6.428.0 — NO VERSION MEANS NO PLAN, AND IT USED TO MEAN "?" .
+-- `or "?"` wrote a file headed "how to score release ?" and said nothing
+-- else about it, which happens the moment this is run without its <hs>
+-- argument — the working tree has no init.lua at its root, so it read
+-- none, took the fallback, and wrote a plan for a release that does not
+-- exist. 6.271.0's rule is that a stale plan is worse than no plan,
+-- because he runs the wrong steps and reports a pass on something that
+-- was not built; a plan with no release at all is that defect with the
+-- evidence removed. It refuses now, and the message names the argument.
+if not version or version == "" then
+    io.stderr:write("build-test-plan: no ARCHITECTURE VERSION CONTROL stamp in "
+                    .. HS .. "/init.lua — pass the config directory, e.g."
+                    .. " `lua5.4 tools/build-test-plan.lua hammerspoon`."
+                    .. " No test plan written.\n")
+    os.exit(1)
+end
 
 -- CLAUDE.md lives at the REPO root, one level above the config. It is
 -- deliberately not in the package; only these blocks are.
@@ -101,14 +118,21 @@ end
 -- Each block runs from its "- 6.X.Y verify with LL" header to the next
 -- top-level "- " bullet at column 0. Versions are sorted numerically,
 -- newest first: "6.9.0" must not sort above "6.270.0".
+-- 🔎 6.428.0 — AND A BLOCK ON THE SOURCE'S FIRST LINE IS A BLOCK. The
+-- scan below needs a newline in front of the header, so a source whose
+-- very first character starts a verify block had that block skipped
+-- silently. In CLAUDE.md the blocks are never first, which is exactly
+-- why nothing could see it; the leading "\n" makes position 1 reachable
+-- without changing any other match.
 local blocks, order = {}, {}
+local memScan = "\n" .. memory
 local pos = 1
 while true do
-    local s, e, hdr = memory:find("\n(%- 6[%d%.]+ verify with LL)", pos)
+    local s, e, hdr = memScan:find("\n(%- 6[%d%.]+ verify with LL)", pos)
     if not s then break end
     local vnum = hdr:match("^%- (6[%d%.]+) verify") or ""
-    local nxt = memory:find("\n%- [^ ]", e) or #memory
-    local body = memory:sub(s + 1, nxt)
+    local nxt = memScan:find("\n%- [^ ]", e) or #memScan
+    local body = memScan:sub(s + 1, nxt)
     if vnum ~= "" and not blocks[vnum] then
         blocks[vnum] = body
         order[#order + 1] = vnum
@@ -121,6 +145,22 @@ local function key(v)
     return (tonumber(a) or 0) * 1000000 + (tonumber(b) or 0) * 1000 + (tonumber(c) or 0)
 end
 table.sort(order, function(x, y) return key(x) > key(y) end)
+
+-- 🚨 6.428.0 — AND THE CURRENT RELEASE MUST BE IN IT. `shown` counts any
+-- blocks found, so a source holding steps for 6.427.0 and older but none
+-- for the release being built produced a file headed "how to score
+-- release 6.428.0" whose newest section was 6.427.0 — he would run the
+-- PREVIOUS release's steps believing they were this one's, and report a
+-- pass on a feature nobody had written steps for. That is 6.271.0's own
+-- finding reached from the other side, so it is a refusal and not a note
+-- at the bottom of a file he has already started working through.
+if not blocks[version] then
+    io.stderr:write("build-test-plan: no \"- " .. version .. " verify with LL\""
+                    .. " block in the release notes — the plan would describe"
+                    .. " an older release while naming this one. Write the"
+                    .. " steps first. No test plan written.\n")
+    os.exit(1)
+end
 
 local L = {}
 local function out(s) L[#L + 1] = s end
