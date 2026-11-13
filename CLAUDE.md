@@ -7245,6 +7245,9 @@ THE METHOD, when something breaks after a stacked zip:
    this. The only shared file it touches is the JS test harness's canvas
    stub, whose row stride now follows cv.width as a real canvas's does.
    · 6.415.0 01ac16c · 6.416.0 7cf6328 · 6.417.0 15e189c · 6.418.0 4976c6f
+   · 6.419.0 **61ebf96 is the code, the ceremony and the archive, and
+   61ebf96 is the SHA every link to it must carry** — a branch-pinned
+   link dies the moment the next release deletes the file (6.360.0).
    🔑 FOUR RELEASES IN FOUR DIFFERENT PLACES on purpose, so a break still
    names its version by which thing fails: ⌘O's loaded shot refusing to
    move is 6.415.0 (modules/screenshot_editor.lua) · the 🩺 block lying
