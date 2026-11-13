@@ -7631,6 +7631,27 @@ THE METHOD, when something breaks after a stacked zip:
    quietly rewritten, so the record shows the call was made and changed.
    · 6.421.0 · 6.422.0 · 6.423.0 — 9313323 (code, suites and ceremony in
    one commit; the archive for them is 6.427.0's, below).
+   · 6.428.0 — 2760c22 (the code, the suites and the three findings) ·
+   **0778309 is the ceremony and the archive, and 0778309 is the SHA
+   every link to it must carry** — a branch-pinned link dies the moment
+   the next release deletes the file, which is why 6.356.0–6.358.0 never
+   reached his Downloads (6.360.0). 9 mutations on the new grid code, 6
+   killed on the first pass and 8 of 8 after the two fixtures that pass
+   found missing, the no-op control survived, restore SHA-verified after
+   every one.
+   🩺 AND THE INSTALL WAS RUN, not only built: against a sandbox holding
+   a real 6.427.0 plus secret.lua, logs/ and applock.json, as an
+   unprivileged user — dry run printed `6.427.0  →  6.428.0` (the line
+   that used to print a comment), the install backed up and verified
+   itself, `--rollback` restored 6.427.0 and printed `version now:
+   6.427.0`, forward again was clean, and the three private files were
+   byte-identical throughout. The manifest checks clean against the
+   INSTALLED tree, which is what `_G.installCheck()` does on his Mac.
+   📏 It is ONE module and three tools, which matters for a bisect: if
+   anything other than ⇪X / ⇪⇧X changes behaviour on 6.428.0 it is not
+   the grid — the other three changes are tools/hs-install.sh,
+   tools/build-test-plan.lua and tools/run-tests.sh, none of which his
+   Mac runs at all.
    · 6.424.0–6.427.0 — 24cb1f3 (the code and the suites) · e4503d1 (the
    ceremony and the archive), and **e4503d1 is the SHA every link to it
    must carry** — a branch-pinned link dies the moment the next release
