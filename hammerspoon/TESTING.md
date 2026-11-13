@@ -1,4 +1,4 @@
-# TESTING — how to score release 6.429.0
+# TESTING — how to score release 6.430.0
 
 You install ONE archive and it carries several releases. Below are the
 steps for each release this archive is new for, newest first. Run the
@@ -26,6 +26,70 @@ else is a LOSS and I fix it before building further. You are the only
 scorer; I never mark my own.
 
 ---
+
+## 6.430.0
+
+6.430.0 verify with LL — 🔗 WHAT THE CLEANER LEFT (KNOWN GROUND)
+WHAT CHANGED: ⇪K stops saying "Already clean" about a link it simply
+did not recognise, and Credit Karma's tracking is now stripped.
+📏 YOUR LINK, MEASURED: 851 characters, SEVEN parameters. `ctPayload`
+decodes to an analytics beacon carrying an event code, the screen and
+section you were on, a hash and a timestamp. The cleaner removed 0 of 7
+— which was CORRECT, it only drops names it knows — and then called
+that clean, which was not.
+
+A. THE HEADLINE — ten seconds.
+A1. Copy that Credit Karma link again and press **⇪K**.
+    EXPECT: `https://www.creditkarma.com/u/cards/shop` and nothing else.
+    851 characters down to 40. **A FAIL is "Already clean".**
+A2. Press **⇪⇧K**. EXPECT: the original back, exactly.
+
+B. THE HALF THAT WAS LYING — this is the real release.
+B1. Copy any ordinary link with a parameter the cleaner does not know —
+    `https://example.com/x?notificationId=abc&channel=email` will do.
+B2. Press ⇪K. EXPECT: the link is UNCHANGED (correct — those names are
+    load-bearing on other sites), and the alert now reads
+    **"🔗 Nothing removed — 2 parameter(s) left, none recognised as
+    tracking"**, NAMES them, and tells you `cleaner.dropForHost` is how
+    to add a rule for that site.
+    **A FAIL is "Already clean".**
+B3. Copy a link with no parameters at all — `https://example.com/page`.
+    EXPECT: **"🔗 Nothing to remove — no parameters on this link"**.
+    Those two messages must differ. That difference IS the release.
+
+C. IT MUST NOT BREAK OTHER SITES — more important than A.
+C1. Copy a courier link: `https://www.ups.com/track?trackingId=1Z999AA1`.
+    Press ⇪K. EXPECT: **UNTOUCHED.** `trackingId` is dropped on Credit
+    Karma and nowhere else, because on a courier's page it is the whole
+    point of the link.
+C2. `https://app.example.com/i?notificationId=abc` — untouched.
+C3. A lookalike: `https://notcreditkarma.com/x?channel=email` —
+    untouched. The rule matches the apex and real subdomains only.
+
+D. MUST STILL WORK.
+D1. `https://news.com/a?utm_source=x&utm_medium=y&id=5` → keeps `id=5`,
+    drops both utm_. ⇪⇧K undoes.
+D2. An Outlook safelink unwraps to the real URL.
+D3. A shortener (bit.ly, t.co) is NOT expanded, and says why —
+    expanding it would register the click.
+D4. ⇪K on a paragraph with several links cleans each and leaves the
+    prose alone.
+
+E. PASTE BACK.
+E1. If you meet another link it calls "Nothing removed" that you think
+    SHOULD be cleaned, paste the link. That is now a one-line host rule
+    rather than a diagnosis — and the alert naming the parameters is
+    what makes it a thirty-second fix.
+
+❓ QUESTIONS — ANSWERS WANTED, NOTHING TO RUN
+Q1. **Which other senders do this to you?** Each is one line in
+    `dropForHost` and I would rather add five than have you meet them
+    one at a time. Banks, airlines, retailers — whoever fills your
+    inbox.
+Q2. **Is the new message the right length?** It names up to four
+    parameters and then "…". Too chatty for something you press often?
+
+
 
 ## 6.429.0
 
@@ -401,120 +465,6 @@ Q3. **Should ⏎ on an @report row bring the Console forward?** It
     named price), so I did not. One word and it does.
 Q4. **Are any of the @report sentences wrong?** Step 3g. Ninety-seven
     of them are my words for your tools.
-Q5. **The work MacBook's name** — `scutil --get ComputerName`. Still
-    owed, and it is what gives that Mac a profile of its own.
-
-
-
-## 6.423.0
-
-6.423.0 verify with LL — 📋 THE KEYBOARD'S OWN REPORT, ON YOUR
-CLIPBOARD (KNOWN GROUND) — this block covers 6.421.0, 6.422.0 AND
-6.423.0: they shipped in one archive and share one test plan.
-📏 FILED UNDER THE NEWEST ON PURPOSE: tools/build-test-plan.lua reads
-one version per heading (`- 6.X.Y verify with LL`), so a batch of
-releases goes under its newest and names the others in its own
-section headers. A heading listing three versions is silently skipped
-by the generator and the steps never reach TESTING.md — which is
-6.271.0's whole finding, so it is written down here rather than left
-to be rediscovered.
-🔎 THIS BATCH CAME OUT OF YOUR OWN QUESTION, which is worth saying
-first: you asked whether the Console automatically generates a report
-for anything that kills your keyboard and automatically pastes it to
-the clipboard. Going to answer it found THREE defects, and all three
-are mine.
-
-DO THESE IN ORDER. Each step says what to send back.
-
-── 1. THE ONE THAT PAYS WHEN THE KEYBOARD DIES (6.421.0) ──────────
-1a. Nothing to press. If ⇪ ever latches again, you now get the same
-    alert with one clause added: "the whole report is on your
-    clipboard — ⌘V sends it (whatever you had copied is still in ⇪V)".
-    RETURN: ⌘V it into a message to me. That is the whole release —
-    you no longer have to remember `_G.stormReport()` while your
-    keyboard is misbehaving.
-1b. Console: `_G.clipboardWriteReport()`.
-    RETURN: the whole block. Its new `hand-off:` line reads "nothing
-    has asked — no ⇪ storm and no Secure Input lock this session" on a
-    good day. That sentence is deliberate: it says what it MEASURED
-    rather than that all is well.
-1c. If macOS ever refuses the clipboard, the sentence changes to
-    "macOS would not take the clipboard — the report is in the
-    Console" and does NOT say ⌘V.
-    RETURN: that line if you ever see it.
-
-── 2. THE REPORT I ASKED YOU TO PASTE TWICE AND YOU COULD NOT (6.422.0) ──
-2a. Console: `_G.focusDoorReport()`.
-    RETURN: the whole block — asked / returned / watching / refused /
-    holding.
-    WHY IT IS A NEW NAME: `_G.focusReport` was defined in TWO files,
-    and core/ loads first, so ⇪Q's focus-mode report overwrote the
-    focus door's on every boot since 6.401.0. Every time you typed
-    `_G.focusReport()` you got focus mode's block. My 6.401.0 and
-    6.402.0 steps both told you to paste the door's — which could not
-    be reached.
-2b. Console: `_G.focusReport()`.
-    EXPECT: focus MODE's block (⇪Q), unchanged. The two are separate
-    tools and now have separate names.
-    RETURN: nothing unless it looks wrong.
-
-── 3. THE DRAFT KEEPER, CHECKABLE WHERE YOU ARE (6.423.0) ──────────
-3a. Click into a text box in Chrome and type two or three sentences —
-    more than sixty characters. LEAVE THE CARET THERE.
-3b. Press **⇪⇧]** — hold Caps Lock and Shift and press the **]** key,
-    right of **[**.
-    EXPECT: an alert like "💾 Google Chrome · AXTextArea · 212
-    character(s) — THIS WOULD BE KEPT", and the full block in the
-    Console.
-    RETURN: the alert's wording and the Console block.
-    🚨 WHY THIS KEY EXISTS AND WHY MY OLD STEP WAS IMPOSSIBLE:
-    `_G.draftCheck()` reads the focused field at the moment it runs,
-    so TYPING the command focuses the Console — the only field it can
-    ever see is the Console's own box. 6.411.0's step said "leave the
-    caret in that box and run, in the Console", which cannot be done.
-    A hyper key moves no focus.
-3c. Now type `_G.draftCheck()` in the Console instead.
-    EXPECT: "💾 That is the Console — press ⇪⇧] with the caret in your
-    text box". It names itself rather than reporting an empty field.
-    RETURN: confirmation that it says that.
-3d. Press ⇪⇧] with the caret in Word, or Terminal, or anything not
-    watched.
-    EXPECT: "💾 Microsoft Word is NOT watched — nothing here is kept",
-    naming the app.
-    RETURN: which apps you tried and what each said. That list is what
-    tells me whether the watch list is the right one.
-3e. Console: `_G.draftKeeperReport()`.
-    RETURN: the whole block. Three lines are new — `where :` (the
-    unwatched apps you have had the caret in, busiest first), `check :`
-    and `last :`.
-    🔒 NOTE WHAT IS NOT IN IT: your words. It says the app, the role
-    and the character COUNT and never the text.
-
-── 4. MUST STILL WORK — this touched the ⇪ guard and the clipboard,
-──    so this half matters more than 1–3 ────────────────────────────
-4a. A spread of keys: ⇪T, ⇪D, ⇪N, ⇪3, ⇪X, ⇪4, ⇪space, ⇪V, ⇪/, ⇪⇧S.
-4b. ⇪⇧Esc pauses and resumes. ⌃⌥⌘⇧Esc still releases everything.
-4c. Copy three things and press ⇪V — your history is unchanged.
-4d. ⇪Q engages focus mode; ⇪⇧Q prints focus mode's report.
-4e. Boot: All green, 79 modules, the usual ⇪ shortcut count.
-4f. `_G.installCheck()` — the manifest should match.
-    RETURN: anything in 4a–4f that behaves differently from last week.
-
-❓ QUESTIONS — ANSWERS WANTED, NOTHING TO RUN
-Q1. **Is taking your clipboard on a storm the right trade?** It only
-    happens on the way into a state where you cannot type, what it
-    overwrites is still in ⇪V, and the alert says so. If you would
-    rather it never touched the clipboard, say so and it is one line.
-Q2. **Is ⇪⇧] a key you will remember for the draft check?** It is the
-    last genuinely free shifted key. Say if you want it somewhere else.
-Q3. **Which apps should the draft keeper watch?** Step 3d's list is the
-    answer. Right now: Chrome, Chromium, Safari, Edge, Firefox, Brave,
-    Arc, Vivaldi, Opera and Outlook.
-Q4. **Sixty characters and ten seconds** are still MY numbers, not
-    yours — the floor a draft has to pass and the pause before it is
-    written. You escalated the feature without answering that, and I
-    will not leave it in a settings line for you to type. Say whether
-    anything is being kept that you did not want, or anything missed.
 Q5. **The work MacBook's name** — `scutil --get ComputerName`. Still
     owed, and it is what gives that Mac a profile of its own.
 

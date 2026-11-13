@@ -140,6 +140,36 @@ function M.setup(core)
     cleaner.dropPrefix = { "utm_", "utm-", "pk_", "piwik_", "matomo_",
                            "hsa_", "mtm_", "stm_", "vero_", "at_custom" }
 
+    -- ---- per-host rules --------------------------------------------------
+    --
+    -- 📏 6.430.0 — THE LIST ABOVE IS DELIBERATELY GLOBAL AND THEREFORE
+    -- DELIBERATELY CONSERVATIVE, and that is what left a Credit Karma email
+    -- link untouched: seven parameters, 851 characters, and not one name it
+    -- recognised. The names it carries are `trackingId`, `notificationId`,
+    -- `notificationAuthFactorId`, `notificationType`, `categories`,
+    -- `channel` and `ctPayload` — a gzipped analytics beacon carrying
+    -- system_eventCode, content_screen, content_section, dataHash and a
+    -- timestamp.
+    --
+    -- 🚨 AND NOT ONE OF THEM IS SAFE TO ADD GLOBALLY. A parcel courier's
+    -- page uses ?trackingId=; a deep link uses ?notificationId=; something
+    -- called an AUTH FACTOR may be what makes the link work at all; and
+    -- `channel`, `categories` and `notificationType` are load-bearing
+    -- somewhere on the web with certainty. The header's own rule stands: a
+    -- cleaner that leaves a stray parameter is a nuisance, one that breaks
+    -- a link is worse.
+    --
+    -- So the decision is made PER SITE, where it can be made honestly. Each
+    -- entry is a Lua host pattern and the exact names to drop ON THAT HOST.
+    -- Names are matched lowercased, as parseQuery lowercases them.
+    cleaner.dropForHost = {
+        { host = "%.creditkarma%.com$", params = {
+            "ctpayload", "trackingid", "notificationid",
+            "notificationauthfactorid", "notificationtype",
+            "categories", "channel",
+        } },
+    }
+
     -- ---- the redirect wrappers ------------------------------------------
     -- host pattern -> the query parameter holding the real URL.
     cleaner.wrappers = {
@@ -218,7 +248,20 @@ function M.setup(core)
         return out
     end
 
-    local function shouldDrop(name)
+    local function shouldDrop(name, host)
+        for _, rule in ipairs(cleaner.dropForHost or {}) do
+            -- Matched against "." .. host so a leading-dot pattern covers
+            -- the apex AND every subdomain while refusing a LOOKALIKE:
+            -- ".www.creditkarma.com" and ".creditkarma.com" both match
+            -- "%.creditkarma%.com$", and ".notcreditkarma.com" does not,
+            -- because the character before the pattern is "t" and not ".".
+            -- 6.236.0's rule for name sentries, applied to a host.
+            if host and rule.host and ("." .. host):match(rule.host) then
+                for _, n in ipairs(rule.params or {}) do
+                    if name == tostring(n):lower() then return true end
+                end
+            end
+        end
         for _, n in ipairs(cleaner.dropExact) do if name == n then return true end end
         for _, p in ipairs(cleaner.dropPrefix) do
             if name:sub(1, #p) == p then return true end
@@ -297,19 +340,23 @@ function M.setup(core)
     local function stripParams(url)
         local u = splitURL(url); if not u then return url, 0 end
         if u.query == "" then return url, 0 end
-        local kept, removed = {}, 0
+        local kept, removed, left = {}, 0, {}
+        local host = hostOnly(u.host or "")
         for _, p in ipairs(parseQuery(u.query)) do
-            if shouldDrop(p.name) then removed = removed + 1
-            else kept[#kept + 1] = p.raw end
+            if shouldDrop(p.name, host) then removed = removed + 1
+            else
+                kept[#kept + 1] = p.raw
+                left[#left + 1] = p.name
+            end
         end
         u.query = table.concat(kept, "&")
-        return joinURL(u), removed
+        return joinURL(u), removed, left
     end
 
     -- The whole pipeline for ONE url. Returns cleaned, report table.
     function cleaner.clean(url)
         local report = { unwrapped = {}, removed = 0, shortener = nil,
-                         changed = false }
+                         changed = false, kept = {} }
         local current = tostring(url or ""):gsub("^%s+", ""):gsub("%s+$", "")
         if not splitURL(current) then return url, report end
 
@@ -320,8 +367,8 @@ function M.setup(core)
             current = inner
         end
 
-        local stripped, n = stripParams(current)
-        current, report.removed = stripped, n
+        local stripped, n, left = stripParams(current)
+        current, report.removed, report.kept = stripped, n, left or {}
 
         -- A query that is now empty leaves a bare "?" — cosmetic, and the
         -- point of this tool is a link you would be happy to paste.
@@ -341,7 +388,8 @@ function M.setup(core)
     -- links in it, clean every link and leave the prose alone — which is
     -- what you want after copying a paragraph out of an email.
     function cleaner.cleanText(text)
-        local totals = { urls = 0, removed = 0, unwrapped = 0, shorteners = {} }
+        local totals = { urls = 0, removed = 0, unwrapped = 0, shorteners = {},
+                          kept = {} }
         local out = tostring(text or ""):gsub("https?://[%w%-%._~:/%?#%[%]@!%$&'%(%)%*%+,;=%%]+",
             function(match)
                 -- Trailing sentence punctuation is not part of the link.
@@ -362,6 +410,12 @@ function M.setup(core)
                 totals.unwrapped = totals.unwrapped + #rep.unwrapped
                 if rep.shortener then
                     totals.shorteners[#totals.shorteners + 1] = rep.shortener
+                end
+                -- 6.430.0: what it LEFT, so "nothing removed" can say which
+                -- of two things it means. Bounded, because this runs over a
+                -- whole paragraph of links.
+                for _, nm in ipairs(rep.kept or {}) do
+                    if #totals.kept < 12 then totals.kept[#totals.kept + 1] = nm end
                 end
                 return cleaned .. trail
             end)
@@ -388,7 +442,29 @@ function M.setup(core)
 
         local cleaned, t = cleaner.cleanText(text)
         if cleaned == text then
-            local msg = "🔗 Already clean"
+            -- 🔎 6.430.0 — THREE STATES, NOT ONE. "🔗 Already clean" was
+            -- printed whenever nothing was removed, so a link carrying no
+            -- tracking at all and a link carrying seven parameters this
+            -- tool does not recognise read IDENTICALLY. LL ran it on a
+            -- Credit Karma email link — 851 characters, seven parameters,
+            -- a gzipped analytics beacon among them — and was told it was
+            -- clean. 6.196.1 in the one tool whose entire job is saying
+            -- whether a link is safe to paste.
+            --
+            -- It is a REPORT and not a warning: most links carry a
+            -- load-bearing parameter (?q=, ?id=, ?page=) and a ⚠️ on every
+            -- one of those is a tool he switches off (6.269.0). It states
+            -- what it did and what it left, and he decides.
+            local msg
+            if #t.kept == 0 then
+                msg = "🔗 Nothing to remove — no parameters on this link"
+            else
+                local names = table.concat(t.kept, ", ", 1, math.min(#t.kept, 4))
+                if #t.kept > 4 then names = names .. ", …" end
+                msg = "🔗 Nothing removed — " .. #t.kept .. " parameter(s) left, "
+                    .. "none recognised as tracking\n" .. names
+                    .. "\n⇪⇧K is undo; cleaner.dropForHost adds a rule for this site"
+            end
             if #t.shorteners > 0 then
                 msg = "🔗 " .. t.shorteners[1] .. " is a shortener — the real "
                     .. "destination is only on their server.\nExpanding it would "
@@ -396,7 +472,7 @@ function M.setup(core)
                     .. "this does not do it."
             end
             hs.alert.show(msg, cleaner.alertSeconds)
-            say("no change (" .. t.urls .. " url(s))")
+            say("no change (" .. t.urls .. " url(s), " .. #t.kept .. " param(s) left)")
             return
         end
 

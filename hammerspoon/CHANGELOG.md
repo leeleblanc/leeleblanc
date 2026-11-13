@@ -5,6 +5,71 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.430.0 — 🔗 "ALREADY CLEAN" WAS THE WRONG WORD
+               (modules/url_cleaner.lua)
+
+  LL, pasting a Credit Karma email link: "Running URL cleaner and it said
+  this was clean. That doesn't seem to be the case?"
+
+  📏 IT WAS NOT, AND THE NUMBERS SAY SO. 851 characters, SEVEN
+  parameters: trackingId, notificationId, notificationAuthFactorId,
+  notificationType, categories, channel, and a `ctPayload` which decodes
+  (base64 → gzip → JSON) to an analytics beacon carrying
+  system_eventCode, system_eventType, content_screen, content_section,
+  dataHash, two flex string fields and a timestamp. Driven through the
+  SHIPPED function rather than reasoned about: 0 of 7 removed, 851
+  characters in, 851 out, and the alert read "🔗 Already clean".
+
+  🔑 THE REMOVAL WAS CORRECT. This module only drops names it knows, and
+  its own header says why: `id`, `q`, `page` and `source` are
+  load-bearing all over the web, so "a cleaner that occasionally leaves a
+  stray parameter is a nuisance; one that breaks a link is worse." None
+  of Credit Karma's seven names is on the list. Nothing malfunctioned.
+
+  🚨 THE DEFECT IS THE WORD. "I removed nothing" and "I recognised none
+  of these seven" are different facts, and the alert printed the same
+  sentence for both — 6.196.1, in the one tool whose entire job is
+  telling him whether a link is safe to paste. Three states now:
+
+     · no parameters at all     → "Nothing to remove — no parameters"
+     · N left, none recognised  → "Nothing removed — N parameter(s) left,
+                                   none recognised as tracking", NAMED,
+                                   with the way to add a rule
+     · N removed                → unchanged
+
+  🔕 IT IS A REPORT, NOT A WARNING. Most links carry a load-bearing
+  parameter, and a ⚠️ on every ?id= is a tool he switches off (6.269.0).
+  It states what it did and what it left; he decides.
+
+  🚨 AND NOT ONE OF THE SEVEN IS SAFE TO ADD GLOBALLY, which is the half
+  worth keeping. A courier's page uses ?trackingId=. A deep link uses
+  ?notificationId=. Something called an AUTH FACTOR may be what makes the
+  link work at all. `channel`, `categories` and `notificationType` are
+  load-bearing somewhere with certainty. So the decision moves to where
+  it can be made honestly: `cleaner.dropForHost` is a host pattern plus
+  the exact names to drop ON THAT HOST, seeded with creditkarma.com. His
+  link now cleans to https://www.creditkarma.com/u/cards/shop — 851
+  characters to 40 — while https://www.ups.com/track?trackingId=… is
+  untouched, which is the check that earns the mechanism its place.
+
+  🔎 THE HOST PATTERN IS MATCHED AGAINST "." .. host, so one rule covers
+  the apex and every subdomain and still refuses a LOOKALIKE:
+  ".www.creditkarma.com" and ".creditkarma.com" both match
+  "%.creditkarma%.com$", and ".notcreditkarma.com" does not, because the
+  character before the match is "t" and not ".". 6.236.0's boundary rule
+  for name sentries, applied to a host — and it has its own check,
+  because the plausible wrong answer here silently strips another site's
+  parameters.
+
+  📏 `report.kept` carries the names left behind so the message can be
+  specific rather than merely honest, bounded at 12 across a whole
+  paragraph because ⇪K runs on every link on the clipboard (6.197.2).
+
+  🧪 AND ONE EXISTING CHECK ASSERTED THE LIE BY NAME — it searched the
+  alert for "Already clean" (6.248.0). It asks the RULE now: that the
+  message says NOTHING was removed, with a second check for which of the
+  two nothings it was.
+
 NEW IN 6.429.0 — 📐 BIGGER BOXES, TWO LETTERS: THE LABEL PUT BACK
                (modules/mouse_grid.lua)
 

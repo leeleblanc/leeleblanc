@@ -7775,6 +7775,7 @@ that must be READ before a new cause is named.
 
 | symptom, in his words | where it lives | releases | passes | tag |
 |---|---|---|---|---|
+| "Running URL cleaner and it said this was clean. That doesn't seem to be the case?" | modules/url_cleaner.lua · it removed 0 of 7 and called that clean — the blocklist is global and none of Credit Karma's names is on it | 6.430.0 | 1 | ask |
 | "I can't see past the boxes. I'd say start the boxes bigger using less letters?" | modules/mouse_grid.lua · 6.428.0 shipped a 3-letter label over 4,096 cells and quartered them, which its own comment forbade | 6.429.0 | 1 | ask |
 | "Split all boxes into fours again … the boxes are too big and not useful enough at that size" · "the same translucent yellow as the Timer card" | modules/mouse_grid.lua · 26² = 676 cells is ~45pt against a 28–40pt button | 6.176.0 · 6.181.0 · 6.184.0 · 6.192.0 · 6.252.0 · 6.360.0 · 6.373.0 · 6.428.0 | 8 | ask — and 6.360.0 scored "The grid is so much better" |
 | "Can you fix this so it is a complete and full and error free install?" (a review package marked BLOCKED, installer exiting 3) | not a module — three red stages that were the review's OWN new suites, plus three real findings in hs-install.sh, build-test-plan.lua and run-tests.sh | 6.428.0 | 1 | ask |
@@ -7957,6 +7958,7 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
+| 6.430.0 | 🔗 "Already clean" was the wrong word — 0 of 7 removed on a Credit Karma link, reported as success; plus per-host rules | pending |
 | 6.429.0 | 📐 Bigger boxes, two letters — 6.428.0 spent the label its own comment forbade, and nothing drove the shipped defaults | pending |
 | 6.428.0 | ✂️ Four boxes where there was one, in the Timer's yellow — and an installer whose version check could not fail | LOSS — LL, with a screenshot: "I can't see past the boxes. I'd say start the boxes bigger using less letters?" It shipped `labelLength = 3` over 4,096 cells, quartered, which is 6.176.0 exactly → fix 6.429.0 |
 | 6.427.0 | 📋 @report — every report this config can print, and what each one answers | pending |
@@ -9701,6 +9703,66 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.430.0 verify with LL — 🔗 WHAT THE CLEANER LEFT (KNOWN GROUND)
+  WHAT CHANGED: ⇪K stops saying "Already clean" about a link it simply
+  did not recognise, and Credit Karma's tracking is now stripped.
+  📏 YOUR LINK, MEASURED: 851 characters, SEVEN parameters. `ctPayload`
+  decodes to an analytics beacon carrying an event code, the screen and
+  section you were on, a hash and a timestamp. The cleaner removed 0 of 7
+  — which was CORRECT, it only drops names it knows — and then called
+  that clean, which was not.
+
+  A. THE HEADLINE — ten seconds.
+  A1. Copy that Credit Karma link again and press **⇪K**.
+      EXPECT: `https://www.creditkarma.com/u/cards/shop` and nothing else.
+      851 characters down to 40. **A FAIL is "Already clean".**
+  A2. Press **⇪⇧K**. EXPECT: the original back, exactly.
+
+  B. THE HALF THAT WAS LYING — this is the real release.
+  B1. Copy any ordinary link with a parameter the cleaner does not know —
+      `https://example.com/x?notificationId=abc&channel=email` will do.
+  B2. Press ⇪K. EXPECT: the link is UNCHANGED (correct — those names are
+      load-bearing on other sites), and the alert now reads
+      **"🔗 Nothing removed — 2 parameter(s) left, none recognised as
+      tracking"**, NAMES them, and tells you `cleaner.dropForHost` is how
+      to add a rule for that site.
+      **A FAIL is "Already clean".**
+  B3. Copy a link with no parameters at all — `https://example.com/page`.
+      EXPECT: **"🔗 Nothing to remove — no parameters on this link"**.
+      Those two messages must differ. That difference IS the release.
+
+  C. IT MUST NOT BREAK OTHER SITES — more important than A.
+  C1. Copy a courier link: `https://www.ups.com/track?trackingId=1Z999AA1`.
+      Press ⇪K. EXPECT: **UNTOUCHED.** `trackingId` is dropped on Credit
+      Karma and nowhere else, because on a courier's page it is the whole
+      point of the link.
+  C2. `https://app.example.com/i?notificationId=abc` — untouched.
+  C3. A lookalike: `https://notcreditkarma.com/x?channel=email` —
+      untouched. The rule matches the apex and real subdomains only.
+
+  D. MUST STILL WORK.
+  D1. `https://news.com/a?utm_source=x&utm_medium=y&id=5` → keeps `id=5`,
+      drops both utm_. ⇪⇧K undoes.
+  D2. An Outlook safelink unwraps to the real URL.
+  D3. A shortener (bit.ly, t.co) is NOT expanded, and says why —
+      expanding it would register the click.
+  D4. ⇪K on a paragraph with several links cleans each and leaves the
+      prose alone.
+
+  E. PASTE BACK.
+  E1. If you meet another link it calls "Nothing removed" that you think
+      SHOULD be cleaned, paste the link. That is now a one-line host rule
+      rather than a diagnosis — and the alert naming the parameters is
+      what makes it a thirty-second fix.
+
+  ❓ QUESTIONS — ANSWERS WANTED, NOTHING TO RUN
+  Q1. **Which other senders do this to you?** Each is one line in
+      `dropForHost` and I would rather add five than have you meet them
+      one at a time. Banks, airlines, retailers — whoever fills your
+      inbox.
+  Q2. **Is the new message the right length?** It names up to four
+      parameters and then "…". Too chatty for something you press often?
+
 - 6.429.0 verify with LL — 📐 BIGGER BOXES, TWO LETTERS (KNOWN GROUND)
   WHAT CHANGED: the grid is back to TWO letters, the boxes are four times
   the area they were, and nothing is divided before you type. The a/s/d/f

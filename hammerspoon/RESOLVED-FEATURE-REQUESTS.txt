@@ -1,5 +1,5 @@
 ========================================================================
-RESOLVED FEATURE REQUESTS — Hammerspoon config 6.429.0
+RESOLVED FEATURE REQUESTS — Hammerspoon config 6.430.0
 Every feature and how to use it. Generated from the modules' own
 cheat sheets (the rows ⇪/ draws), so it is never out of date.
 ⇪ = Caps Lock held (the hyper key). ⇪⇧X = Caps Lock + Shift + X.
@@ -920,6 +920,7 @@ In the Console, _G.<tool>Report() prints any tool's own report.
 
 📜 RELEASE INDEX — newest first, one line per release (the full story of each is in CHANGELOG.md)
 ------------------------------------------------------------------------
+  6.430.0  🔗 "ALREADY CLEAN" WAS THE WRONG WORD
   6.429.0  📐 BIGGER BOXES, TWO LETTERS: THE LABEL PUT BACK
   6.428.0  ✂️ EVERY CELL SPLIT INTO FOUR, IN THE TIMER'S YELLOW
   6.427.0  📋 @report: EVERY REPORT, AND WHAT EACH ONE ANSWERS

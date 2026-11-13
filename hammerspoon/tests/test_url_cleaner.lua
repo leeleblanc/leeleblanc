@@ -226,8 +226,26 @@ CLIP = "https://already.clean/x" ; ALERTS = {}
 HYPER["|k"]()
 check("an already-clean link is left exactly alone",
       CLIP == "https://already.clean/x")
+-- 6.430.0: the RULE, not the wording (6.248.0). What this has to say is
+-- that it removed NOTHING; which of the two "nothing"s it was is the
+-- distinction the next check makes.
 check("...and it says so rather than claiming to have done something",
-      ALERTS[#ALERTS]:find("Already clean", 1, true) ~= nil, ALERTS[#ALERTS])
+      ALERTS[#ALERTS]:find("Nothing", 1, true) ~= nil, ALERTS[#ALERTS])
+check("...naming this one as carrying no parameters at all",
+      ALERTS[#ALERTS]:find("no parameters", 1, true) ~= nil, ALERTS[#ALERTS])
+
+-- the state that was lying: parameters present, none recognised
+CLIP = "https://example.com/x?notificationId=abc&channel=email" ; ALERTS = {}
+HYPER["|k"]()
+check("a link it does not recognise is still left alone",
+      CLIP == "https://example.com/x?notificationId=abc&channel=email")
+check("...but it does NOT call that clean",
+      ALERTS[#ALERTS]:find("Already clean", 1, true) == nil, ALERTS[#ALERTS])
+check("...it says how many it left",
+      ALERTS[#ALERTS]:find("2 parameter", 1, true) ~= nil, ALERTS[#ALERTS])
+check("...and names them, so the next step is obvious",
+      ALERTS[#ALERTS]:find("notificationid", 1, true) ~= nil
+      and ALERTS[#ALERTS]:find("dropForHost", 1, true) ~= nil, ALERTS[#ALERTS])
 
 CLIP = "no link here at all" ; ALERTS = {}
 HYPER["|k"]()
@@ -406,6 +424,74 @@ do
           .. "idempotent, still a URL, every real parameter kept, every "
           .. "tracker gone, fragment intact", nWrapped, nPlain),
           bad == nil, bad)
+end
+
+-- =====================================================================
+out("\n=== 6.430.0 Per-host rules, and the three states ===\n")
+-- =====================================================================
+-- LL ran ⇪K on a Credit Karma email link and was told "🔗 Already clean".
+-- It carried SEVEN parameters in 851 characters, one of them a gzipped
+-- analytics beacon, and the cleaner recognised none of them — so it
+-- removed nothing, which is correct, and then reported that as success,
+-- which is not. 6.196.1 in the one tool whose job is saying whether a
+-- link is safe to paste.
+local CK = "https://www.creditkarma.com/u/cards/shop?ctPayload=H4sIAAAA"
+        .. "&trackingId=a4a900869b7bce39&categories=Bulk,US,Revenue"
+        .. "&notificationId=66d84ca44238a729&notificationAuthFactorId=7090e0a5"
+        .. "&notificationType=cc_lightbox_highprop_tof&channel=email"
+eq("his link cleans to the bare page", CK,
+   "https://www.creditkarma.com/u/cards/shop")
+do
+    local _, rep = C.clean(CK)
+    check("…and reports all seven removed", rep.removed == 7, tostring(rep.removed))
+    check("…leaving nothing behind", #rep.kept == 0, tostring(#rep.kept))
+end
+
+-- 🚨 THE REASON THIS IS PER-HOST AND NOT GLOBAL. Every one of those names
+-- is load-bearing somewhere: a courier's page uses ?trackingId=, a deep
+-- link uses ?notificationId=, and something called an AUTH FACTOR may be
+-- what makes the link work at all.
+eq("a courier's trackingId is NOT touched on another host",
+   "https://www.ups.com/track?trackingId=1Z999AA10123456784",
+   "https://www.ups.com/track?trackingId=1Z999AA10123456784")
+eq("nor is a notificationId elsewhere",
+   "https://app.example.com/i?notificationId=abc123",
+   "https://app.example.com/i?notificationId=abc123")
+
+-- 6.236.0's boundary rule, applied to a host: the pattern is matched
+-- against "." .. host, so it covers the apex and every subdomain and
+-- still refuses a lookalike.
+eq("the apex is covered",  "https://creditkarma.com/x?channel=email",
+   "https://creditkarma.com/x")
+eq("a subdomain is covered", "https://www.creditkarma.com/x?channel=email",
+   "https://www.creditkarma.com/x")
+eq("a LOOKALIKE host is refused", "https://notcreditkarma.com/x?channel=email",
+   "https://notcreditkarma.com/x?channel=email")
+
+-- The three states the alert collapsed into one.
+do
+    local _, t1 = C.cleanText("https://example.com/plain")
+    check("state 1: no parameters at all", #t1.kept == 0 and t1.removed == 0)
+
+    local _, t2 = C.cleanText("https://example.com/x?id=42&page=2")
+    check("state 2: parameters left, none recognised",
+        t2.removed == 0 and #t2.kept == 2, table.concat(t2.kept, ","))
+    check("…and it names them, so 'nothing removed' can be acted on",
+        t2.kept[1] == "id" and t2.kept[2] == "page")
+
+    local _, t3 = C.cleanText("https://example.com/x?id=42&utm_source=news")
+    check("state 3: something removed, the rest reported",
+        t3.removed == 1 and #t3.kept == 1 and t3.kept[1] == "id")
+end
+
+-- the aggregate over a paragraph is bounded, because this runs on every
+-- link in whatever is on the clipboard
+do
+    local many = {}
+    for i = 1, 30 do many[#many+1] = "https://e.com/p?a" .. i .. "=1" end
+    local _, tb = C.cleanText(table.concat(many, " "))
+    check("the kept-name list is bounded over a whole paragraph",
+        #tb.kept <= 12, tostring(#tb.kept))
 end
 
 out("\n")

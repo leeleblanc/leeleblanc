@@ -4,8 +4,34 @@
 -- =====================================================================
 -- 11-13-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.429.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.430.0
 -- =====================================================================
+
+-- NEW IN 6.430.0 — 🔗 "ALREADY CLEAN" WAS THE WRONG WORD
+--   (modules/url_cleaner.lua). LL ran ⇪K on a Credit Karma email link
+--   and was told it was clean: "That doesn't seem to be the case?"
+--   📏 IT WAS NOT. 851 characters, SEVEN parameters — trackingId,
+--   notificationId, notificationAuthFactorId, notificationType,
+--   categories, channel, and a `ctPayload` that decodes (gzip, base64)
+--   to an analytics beacon carrying system_eventCode, content_screen,
+--   content_section, dataHash and a timestamp. The cleaner removed 0 of
+--   7, which is CORRECT — it only drops names it knows, and that rule is
+--   why it has never broken a link — and then reported it as success.
+--   🔑 THE DEFECT IS THE WORD, NOT THE BLOCKLIST. "I removed nothing"
+--   and "I recognised none of these seven" are different facts and the
+--   alert collapsed them (6.196.1), in the one tool whose whole job is
+--   saying whether a link is safe to paste. Three states now: no
+--   parameters at all · N left and none recognised, NAMED · N removed.
+--   It is a report, not a ⚠️ — most links carry a load-bearing ?id= or
+--   ?q=, and a warning on every one is a tool he switches off (6.269.0).
+--   🚨 AND NOT ONE OF THOSE SEVEN IS SAFE TO ADD GLOBALLY: a courier
+--   uses ?trackingId=, a deep link uses ?notificationId=, and an AUTH
+--   FACTOR may be what makes the link work. So `cleaner.dropForHost`
+--   decides PER SITE, where the decision can be made honestly. Seeded
+--   with creditkarma.com; his link now cleans 851 chars → 40.
+--   🔎 The host pattern is matched against "." .. host, so it covers the
+--   apex and every subdomain and refuses a LOOKALIKE — ".notcreditkarma
+--   .com" does not match "%.creditkarma%.com$" (6.236.0, on a host).
 
 -- NEW IN 6.429.0 — 📐 BIGGER BOXES, TWO LETTERS: THE LABEL PUT BACK
 --   (modules/mouse_grid.lua). LL, with a screenshot of a wall of
@@ -34,31 +60,11 @@
 --   that configuration end to end, and fails if the prose ever again
 --   claims a label length the code does not ship.
 
--- NEW IN 6.428.0 — ✂️ EVERY CELL SPLIT INTO FOUR, IN THE TIMER'S YELLOW
---   (modules/mouse_grid.lua). LL: "Split all boxes into fours again.
---   Overall, the boxes are too big and not useful enough at that size.
---   Make the grid letters the same translucent yellow as the Timer card
---   tool that flashes yellow when the timer is up."
---   📐 BOTH HIS SENTENCES ARE ONE NUMBER: 26 letters squared is 676
---   cells, ~45pt on the Air against a 28–40pt button. Every cell is
---   DIVIDED 2 × 2 before it is drawn, so the box is a quarter of the
---   area. ⚠️ AS SHIPPED IT ALSO RAISED THE LABEL TO THREE CHARACTERS,
---   which is the one thing this block swore it would not spend — see
---   6.429.0 above, which puts it back.
---   🎯 AND "AGAIN" IS THE SECOND HALF: the landed box refines FOUR ways
---   — a/s/d/f for the four quarters, repeatable, ⌫ restoring the parent.
---   🟡 `grid.labelInk()` READS `_G.uiStyle.accent`, the same table
---   modules/timer.lua:439 takes its ⏱ TIME UP flash from (6.231.0 — one
---   literal, three readers), so "the Timer's yellow" is true by
---   construction. White was never a taste: 6.372.0 measured white on
---   white at 1.00:1.
---   🔎 An unreadable grid DECLINES before it takes the keyboard.
-
--- (6.427.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.428.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 cut the inline count to
 --  TWO; a gate check proves every entry here is also in CHANGELOG.md.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.429.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.430.0
 -- =====================================================================
 -- The catalogue that used to sit here moved to GUIDE.md ("What each
 -- tool does") in 6.180.0 — 259 lines of prose inside the orchestrator.
@@ -147,7 +153,7 @@ function _G.consoleRuleSay(what)
     return true
 end
 
-_G.configVersion = "6.429.0"
+_G.configVersion = "6.430.0"
 _G.consoleRuleSay("▶ BOOT")
 
 local function safeRequire(mod)
