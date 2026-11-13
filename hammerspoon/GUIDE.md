@@ -976,7 +976,7 @@ CREATED AUTOMATICALLY (never make these yourself):
 Eighty-three Lua suites, 13,742 checks, plus seven more that run the
 Capture Pad's, the screenshot editor's, unified search's, the vault's,
 the music player's, the Mug Player's and Hamsidian's own page JavaScript
-under `node` for a further 888 — **14,652 checks over ninety-two
+under `node` for a further 888 — **14,654 checks over ninety-two
 stages** in
 all. Every Lua stage runs with `lua5.4` on any machine — no Mac required,
 they stub the `hs` API:

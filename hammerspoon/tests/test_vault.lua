@@ -3859,9 +3859,34 @@ do
          rep2:find("non-activating panel cannot be given the keyboard", 1, true) ~= nil)
     v.nonActivating = false
 
+    -- H. 🚨 CLOSING WITH A CHASE STILL IN FLIGHT — and the sweep is what
+    -- found this one: deleting v.stopFocusChase() from hide() passed all
+    -- 644 checks, because every other fixture reaches hide() with the
+    -- chase already finished. 6.273.0 — the line was not the finding,
+    -- the missing CHECK was. An abandoned timer holds a reference to a
+    -- window that is gone (6.266.0 · 6.410.0).
+    FOCUSED_ID = nil
+    if v.webview then v.hide("t") end
+    v.show()
+    local w3 = WEBVIEWS[#WEBVIEWS]
+    w3.focusRefused = true                 -- the focus never lands, so it keeps trying
+    -- 🔑 and the KEY state has to be cleared AFTER the show, or the
+    -- chase finds the window already key (the show just took the keys)
+    -- and stops before it has started — a fixture measuring itself.
+    FOCUSED_ID = nil
+    v.focusWindowSoon()
+    local live = v.focusTimer
+    sect("§6.420.0 a refused focus really does leave a chase running",
+         live ~= nil and live.stopped == false)
+    v.hide("t")
+    sect("§6.420.0 ...and closing the window tears that chase down AT ONCE",
+         v.focusTimer == nil and live ~= nil and live.stopped == true,
+         live and tostring(live.stopped))
+    w3.focusRefused = false
+
     _G.focusBorrow, _G.focusReturn = nil, nil
     if v.webview then v.hide("t") end
-    check("§6.420.0 ran all of its checks (" .. ran .. " of 17)", ran >= 17, ran)
+    check("§6.420.0 ran all of its checks (" .. ran .. " of 19)", ran >= 19, ran)
 end
 
 out(string.format("\n%d passed, %d failed\n", pass, fail))
