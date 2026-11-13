@@ -3727,8 +3727,50 @@ do
     check("6428: valid overrides draw and bind the same four letters",
         grid.splitBound.keys=="jklh" and grid.landModal.binds["|j"] and grid.landModal.binds["|h"])
     grid.hide("test")
+
+    -- 🧪 A DUPLICATE LETTER IS TWO QUARTERS ON ONE KEY, so one of them is
+    -- unreachable — and nothing drove it, so the rule that rejects it was
+    -- deletable with the suite still green (6.273.0). It must fall back to
+    -- asdf and SAY the override was refused, never bind three keys.
+    -- 📏 AND THE CACHED BINDING WINS, which this fixture had to learn:
+    -- `refineSpec` answers `grid.splitBound` first, because the keys are
+    -- claimed on the FIRST landing and hs.hotkey.modal has no unbind
+    -- (6.252.0). So the override is only ever read before anything is
+    -- bound — which is the real path, and the fixture must use it.
+    for _,bad in ipairs({"aasd","abab","dddd"}) do
+        grid.splitBound=nil;grid.quarterKeys=bad
+        local keys,parts,from=grid.refineSpec()
+        check("6428: a repeated letter in quarterKeys is refused ("..bad..")",
+            keys=="asdf" and parts==4 and type(from)=="string"
+            and from:find("invalid",1,true)~=nil,tostring(keys).."/"..tostring(from))
+    end
+    -- and the valid one is still accepted, so the rule is not refusing all
+    grid.splitBound=nil;grid.quarterKeys="jklh"
+    check("6428: four distinct letters are still honoured",
+        (select(1,grid.refineSpec()))=="jklh")
+    grid.splitBound=nil;grid.quarterKeys=nil
     fresh(ONE);local small,why=grid.quarterOf({x=0,y=0,w=15,h=15},8)
     check("6428: minimum-size refinement refuses without moving",small==nil and type(why)=="string")
+
+    -- 🧪 AND THE FIXTURE ABOVE CANNOT REACH THE SECOND FLOOR GUARD, which
+    -- a mutation said before any reading did: a 15 × 15 box fails on its
+    -- FIRST half (7.5pt tall), so `if not top or not bottom` catches it
+    -- and `if not (a and b and c and d)` is never consulted. 6.230.0 — the
+    -- input where right and wrong must differ is a box that halves fine
+    -- VERTICALLY and cannot halve horizontally: 15 × 80 gives two 15 × 40
+    -- halves, and each of those gives 7.5 × 40 quarters.
+    local thin,whyThin=grid.quarterOf({x=0,y=0,w=15,h=80},8)
+    check("6428: a box that halves one way and not the other refuses too",
+        thin==nil and type(whyThin)=="string",tostring(thin))
+    local flat,whyFlat=grid.quarterOf({x=0,y=0,w=80,h=15},8)
+    check("6428: and the same the other way round",
+        flat==nil and type(whyFlat)=="string",tostring(flat))
+    -- a box one point over the floor on BOTH axes must still refine, or
+    -- the guard above is simply refusing everything (6.199.0)
+    local justOk=grid.quarterOf({x=0,y=0,w=34,h=34},8)
+    check("6428: a box just above the floor still quarters",
+        type(justOk)=="table" and justOk.first and justOk.second
+        and justOk.third and justOk.fourth)
     check("6428: non-finite boxes refuse rather than reach native canvas",
         grid.quarterOf({x=0/0,y=0,w=80,h=80},8)==nil)
     fresh({mkScreen(1,0,0,800,480)});grid.show(false)
