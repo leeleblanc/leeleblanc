@@ -517,6 +517,45 @@ work Mac.
   moved on" (6.266.0). The fixture that bites is 6.230.0's — Chrome in
   front AND Chrome on loan, the only input where right and wrong differ.
 
+- ⌨️ UP, IN FRONT AND KEY ARE THREE DIFFERENT STATES — AND A
+  NON-ACTIVATING PANEL CAN NEVER REACH THE THIRD (6.420.0,
+  modules/vault.lua — LL: "Hamsidian and other open tools don't often
+  retain focus and I have to click on them to use escape").
+  🔎 THE WINDOW CARRIED THE NON-ACTIVATING MASK, which is 6.419.0's
+  mechanism one window along: the mask exists so the window never makes
+  Hammerspoon frontmost, and macOS hands the keyboard only to a KEY
+  window of an ACTIVE app. `bringToFront` RAISED it and could not make it
+  key, so the only thing that ever did was his click. On the one panel in
+  this config he types PARAGRAPHS into, for 247 releases.
+  🔑 AND THE RULE WAS WRITTEN AND THE FILE WAS NAMED. 6.401.0 says a
+  panel that must be TYPED INTO has no such option and lists Hamsidian
+  among the unswept; 6.225.0 and 6.251.0 built the third step, and FIVE
+  modules have it while this one had none. GENERAL: when a release names
+  the callers it did not sweep, that list is a DEBT, and the next report
+  about any name on it is that debt coming due — check the named file
+  before diagnosing anything else.
+  🚨 A MASK IS REFUSED BY NAME, NEVER CHASED: four tries against a
+  non-activating window would spend the bound and report "gave up" about
+  a decision somebody made on purpose (6.196.1). And a window macOS will
+  not NAME gets ONE attempt, because retrying cannot make key a window
+  that cannot be named.
+  🎯 AND A PANEL THAT TAKES THE KEYBOARD OWES IT BACK (6.401.0): the
+  borrow is recorded BEFORE anything is raised, or the door remembers
+  ourselves; a refusal is COUNTED APART, never read as a failure.
+  📏 COST, NAMED: opening it activates Hammerspoon, so an open Console
+  comes forward with it — 6.251.0's price, paid knowingly, with
+  `nonActivating = true` as the way back.
+  🔬 AND THE GATE COULD NOT SEE IT: the suite's webview stub had NO
+  `:hswindow()` at all, so every focus attempt would have "succeeded"
+  while moving nothing — 6.290.0, and 6.251.0 paid the identical one in
+  the music card. A stub whose focus() does not MOVE the focus makes
+  "it took the keys" unreachable.
+  🔒 AND TWO SENTRIES EXPIRED (6.321.0, third time): "no hs.window in
+  this file" was right while nothing here could legitimately ask and
+  wrong the day the window must learn whether it is key. The rule is
+  stated now — every read is `focusedWindow`, the window SWEEP stays
+  banned — and the sentry asserts it READ something (6.313.0).
+
 - 🔎 A CHOOSER WITH A queryChangedCallback STOPS FILTERING FOR ITSELF
   (6.408.0, modules/menu_search.lua — LL: "Menu search is not filtering.
   Somewhat filters when typing a question mark but does nothing after
@@ -7508,6 +7547,7 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
+| 6.420.0 | ⌨️ Hamsidian takes the keyboard — Escape works without clicking, and the focus comes back | pending |
 | 6.419.0 | 📋 ⏎ on a clipboard row pastes — the guard refused on every press since 6.402.0 | pending |
 | 6.418.0 | ℹ️ A Mac with no profile of its own says so at boot — the work MacBook almost certainly has none | pending |
 | 6.417.0 | 📠 A report prints ONCE — every one of them showed twice in the Console | pending |
@@ -7845,7 +7885,11 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
         promise from 6.311.0's verify block he ran and got nil from.
      3. The draft keeper (his "ONLY 90 DAYS" answers the last question).
      4. Size the Mug Player to the film ("like VLC").
-     5. Anchors' cold start · the crop tool · ⇪7's macOS detail.
+     5. Anchors' cold start · ⇪7's macOS detail. (✅ THE CROP TOOL
+        SHIPPED AS 6.414.0 and this row listed it as open for six
+        releases — 6.319.0's rule, and it is the second time a
+        shipped row has survived in this file: a stale row here
+        does not merely mislead, it spends a release.)
 
 - 📥 HIS 2026-10-17 REPORT — ALL FOUR BUILT, AND TWO OF THEM WERE
   ALREADY HALF-THERE. He asked for the full alpha inventory first (it is
@@ -9206,6 +9250,92 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.420.0 verify with LL — ⌨️ HAMSIDIAN TAKES THE KEYBOARD (KNOWN GROUND)
+  WHAT CHANGED: Hamsidian takes the keyboard when it opens, so Escape,
+  ⌘F and ⌘N work on the first press without clicking the window — and it
+  hands the focus BACK to the app you came from when it closes.
+  🔎 WHY IT DID NOT, and it is the SAME mechanism as 6.419.0 one window
+  along: that window was created as a NON-ACTIVATING panel. The whole
+  point of that mask is that the window never makes Hammerspoon the
+  frontmost app — and macOS hands the keyboard only to a KEY window of an
+  ACTIVE app. So raising it could never make it key, and the only thing
+  that ever did was your click. On the one panel you type paragraphs into.
+  🔑 AND THE RULE WAS WRITTEN AND THIS WINDOW WAS NAMED. 6.401.0 says a
+  panel that must be TYPED INTO has no such option, and listed Hamsidian
+  as still unswept. You have now named it, which is how that list was
+  always meant to be drained.
+
+  A. THE HEADLINE — twenty seconds, and do A2 first.
+  A1. Click into a text box in another app and type a word, so the caret
+      is somewhere you can see it leave.
+  A2. Press ⇪3. **WITHOUT TOUCHING THE TRACKPAD**, press Escape.
+      EXPECT: Hamsidian closes.
+      **A FAIL is Escape doing nothing until you click the window** —
+      that is the bug, unchanged.
+  A3. ⇪3 again, and type straight into the note. No click first.
+      EXPECT: your letters land in the note.
+  A4. ⇪3, then ⌘F, and type. EXPECT: the filter box takes it.
+  A5. ⇪N (the tabs side) — the same window. Escape without clicking.
+
+  B. THE HALF THAT GIVES IT BACK — 6.401.0's door, now on this window.
+  B1. Click into a text box, type a word, leave the caret there.
+  B2. ⇪3, then Escape.
+      EXPECT: you are back in that text box with the caret in it. Type
+      immediately — no click, no trackpad.
+  B3. The one that protects you: ⇪3, then **click into a different app
+      yourself**, then come back and close Hamsidian.
+      EXPECT: you stay where YOU put yourself. It must NOT drag you back
+      to the app you originally came from. If it yanks you somewhere,
+      tell me at once — that is worse than the bug this fixes.
+
+  C. 📏 THE COST, NAMED, because you will meet it and it is real:
+  C1. Opening Hamsidian now ACTIVATES Hammerspoon. If the Hammerspoon
+      Console is open, it comes forward with the window. That is the
+      price of the keyboard (6.251.0) and it is the same price the music
+      card has paid since then.
+  C2. If that trade is wrong, `settings = { vault = { nonActivating =
+      true } }` is every release before this one, exactly — and say so
+      and I will change the default back rather than leave you a line to
+      type.
+
+  D. MUST STILL WORK — this touched the window that holds your writing,
+     so this half matters more than A.
+  D1. 🚨 **⌘Z IN A NOTE** — open a note, delete a paragraph, wait ten
+      seconds for a background scan to land, then ⌘Z. EXPECT: your text
+      comes back (6.323.0). If undo is gone, stop and tell me.
+  D2. Type in a note, close Hamsidian, reopen: your words are there.
+  D3. ⌘N a note · ⌘F filter · ↑↓ ⏎ · the ✕ delete · 🗑 the bin ·
+      ⌘⇧K tasks · ⌘⇧F search · ⌘G graph · ⌘⇧B board · ⌘⇧S export.
+  D4. 📌 pin it, then press Escape. EXPECT: a pinned window still stays
+      up and Escape only hands the keys back, as before.
+  D5. ⇪/ the cheat sheet still closes LAST when both are open.
+  D6. Drag the window somewhere, close it, reopen: it is where you left
+      it.
+
+  E. PASTE BACK, PASS OR FAIL.
+  E1. `_G.vaultReport()` — there are TWO new lines:
+        keyboard: took the keys on try 1 · right now: this window HAS the keys
+        ↳ focus : 3 hand-back(s) to the app you came from · 0 you had already moved on from
+      **PASTE BOTH.** "took the keys on try 1" is the release working.
+      Four other things that line can say, each a different fact:
+      · "gave up after 4 tries — click the window once" → macOS would not
+        make it key on your Mac. Paste it; that is the finding.
+      · "cannot focus this window — no hswindow" → macOS would not name
+        the window at all.
+      · "⚠️ OFF — a non-activating panel…" → the mask is back on, which
+        means a settings line is doing it.
+      · "off (takeKeyboard)" → the switch is off.
+  E2. If `↳ focus` ever reads "⚠️ the focus door is not loaded", paste it
+      — core/coexist.lua did not load and nothing is handed back.
+
+  F. A JUDGEMENT ONLY YOU CAN MAKE.
+  F1. Is the Console coming forward (C1) acceptable, or worse than the
+      clicking? That is the whole trade and it is yours.
+  F2. 📏 NAMED, NOT SWEPT, so it is not a surprise: this release gave the
+      keyboard to HAMSIDIAN. The task form (⇪T), the screenshot editor
+      (⇪⇧1) and the two players still have the old shape. Tell me which
+      annoys you next and it takes the same door — one per release.
+
 - 6.419.0 verify with LL — 📋 ⏎ ON A CLIPBOARD ROW PASTES (KNOWN GROUND)
   WHAT CHANGED: pressing Return on a clipboard row in ⇪D now PASTES it
   where you were typing. It has only ever copied.

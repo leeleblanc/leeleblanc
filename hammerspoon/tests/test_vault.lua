@@ -14,7 +14,8 @@
 -- links without a rescan; ⌘D opens Daily/<date>.md; following a
 -- Markdown link resolves relative to the note; ⌘K writes a relative
 -- link; the page carries the row walker and the ⇪ keyup forward; the
--- prompt fallback still edits and saves; no eventtap, no hs.window read.
+-- prompt fallback still edits and saves; no eventtap, and the only
+-- hs.window read is focusedWindow, for "is this window KEY?" (6.420.0).
 
 local HS = (arg and arg[1]) or os.getenv("HAMMERSPOON_DIR")
            or ((os.getenv("HOME") or ".") .. "/.hammerspoon")
@@ -97,6 +98,7 @@ print = function(...)
     PRINTED[#PRINTED + 1] = table.concat(p, " ")
 end
 
+local WIN_SEQ, FOCUSED_ID = 0, nil
 local function newWebviewStub(rect)
     local v = { rect = rect, _style = 0, deleted = false, shown = 0, htmlSet = nil }
     function v:windowTitle(t) self.title = t return self end
@@ -118,6 +120,22 @@ local function newWebviewStub(rect)
     function v:delete() self.deleted = true return self end
     function v:frame(f) if f then self.rect = f end return self.rect end
     function v:evaluateJavaScript(js) EVALS[#EVALS + 1] = js return self end
+    -- 🔬 6.420.0 — THE STUB HAD NO :hswindow() AT ALL, which is why this
+    -- bug was unreachable from the gate for 247 releases (6.290.0, and
+    -- 6.251.0 paid the identical one in the music card: "the stub had no
+    -- :hswindow(), and its focus() must MOVE the focus or 'it took the
+    -- keys' is unreachable"). A getter-only window would let every focus
+    -- attempt "succeed" while moving nothing.
+    v._winId = (WIN_SEQ or 0) + 1
+    WIN_SEQ = v._winId
+    function v:hswindow()
+        if self.noHswindow then return nil end
+        local id = self._winId
+        local w = { }
+        function w:id() return id end
+        function w:focus() if not v.focusRefused then FOCUSED_ID = id end return self end
+        return w
+    end
     return v
 end
 -- 🪜 6.324.0 — the hop drain (test_anchors' shape). A hop is a
@@ -159,6 +177,14 @@ hs = {
         new = function(rect) local v = newWebviewStub(rect); WEBVIEWS[#WEBVIEWS + 1] = v; return v end,
     },
     screen = { mainScreen = function() return { frame = function() return { x = 0, y = 0, w = 1440, h = 900 } end } end },
+    -- 6.420.0 — the focus really moves, so "key" is a measurable state
+    window = { focusedWindow = function()
+        if not FOCUSED_ID then return nil end
+        local id = FOCUSED_ID
+        local w = {}
+        function w:id() return id end
+        return w
+    end },
     drawing = { windowLevels = { floating = 5 } },
     alert = { show = function(m) ALERTS[#ALERTS + 1] = tostring(m) end },
     dialog = {
@@ -318,7 +344,17 @@ do
     real = rf and rf:read("a") or ""
     if rf then rf:close() end
     check("no eventtap is created (the page's keydown is the only key handler)", not real:find("hs%.eventtap%.new"))
-    check("no hs.window read", not real:find("hs%.window%."))
+    -- 🔒 6.420.0 — see §17's rule: the NAME is no longer banned, the
+    -- window SWEEP is. Asking which window has the focus is how this
+    -- window finds out whether it is KEY (6.321.0).
+    check("no window sweep — focusedWindow is the only hs.window read here",
+          (function()
+              local bad = 0
+              for call in real:gmatch("hs%.window%.([%w_]+)") do
+                  if call ~= "focusedWindow" then bad = bad + 1 end
+              end
+              return bad == 0 and not real:find("hs%.window%.filter")
+          end)())
     check("the index comes from find and grep in hs.task", real:find("hs%.task%.new, v%.FIND") and real:find("hs%.task%.new, v%.GREP"))
     check("every timer is held (doAfter/doEvery results assigned)", not real:find("\n%s*hs%.timer%.do"))
 end
@@ -471,8 +507,15 @@ out("6) the window — page contents, walker, ⇪ keyup, hide saves\n")
 -- =======================================================================
 v.show()
 local view = WEBVIEWS[#WEBVIEWS]
-check("⇪3 opens one webview, shown, non-activating applied",
-      view and view.shown == 1 and v.nonActivatingApplied == true and view.title == "Hamsidian")
+-- 🧪 6.420.0 — THIS ASSERTED THE OLD CONSTANT (6.248.0, seventh time).
+-- `nonActivatingApplied == true` was right while the mask was the
+-- shipped default and is false by design now, so it would have gone red
+-- with nothing to say about the change it existed to prove. The RULE it
+-- is actually about is that the mask is applied if and only if the
+-- config asked for it — which holds whichever way the default sits.
+check("⇪3 opens one webview, shown, and the mask follows the config",
+      view and view.shown == 1 and view.title == "Hamsidian"
+      and v.nonActivatingApplied == (v.nonActivating == true))
 check("the hyper watchdog is told to expect a release", EXPECTED[#EXPECTED] and EXPECTED[#EXPECTED].who == "the vault")
 -- 6.181.0 — 0.9, because LL asked for it in those words ("make the
 -- Scorp pad 90% black"). 6.175.2 had settled on solid after three
@@ -1579,8 +1622,28 @@ do
     local _, taskNews = real:gsub("pcall%(hs%.task%.new", "")
     check("exactly SIX task births: find, link grep, tag grep, front-matter "
           .. "grep, heading grep (6.328.0), startTask", taskNews == 6, taskNews)
-    check("no hs.json, no eventtap, no hs.window, every timer held", not real:find("hs%.json") and not real:find("hs%.eventtap%.new")
-          and not real:find("hs%.window%.") and not real:find("\n%s*hs%.timer%.do"))
+    check("no hs.json, no eventtap, every timer held", not real:find("hs%.json") and not real:find("hs%.eventtap%.new")
+          and not real:find("\n%s*hs%.timer%.do"))
+    -- 🔒 6.420.0 — THE BAN ON THE NAME EXPIRED, SO IT STATES THE RULE
+    -- (6.321.0, third time). "no hs.window in this file" was exactly
+    -- right while nothing here could legitimately ask, and exactly wrong
+    -- the day the window has to find out whether it is KEY. What must
+    -- stay banned is the window SWEEP — hs.window.filter is forbidden
+    -- config-wide, and allWindows / orderedWindows / get are the readers
+    -- that cost releases (6.152.0 · 6.160.3). Asking which window has
+    -- the focus is neither.
+    do
+        local uses, bad = 0, {}
+        for call in real:gmatch("hs%.window%.([%w_]+)") do
+            uses = uses + 1
+            if call ~= "focusedWindow" then bad[#bad + 1] = call end
+        end
+        check("every hs.window read here is focusedWindow — no sweep, no filter",
+              uses > 0 and #bad == 0, table.concat(bad, ","))
+        -- a sentry over an empty haystack is green and measures nothing
+        check("...and the sentry really read the module", #real > 1000 and uses >= 1, uses)
+        check("hs.window.filter is still absent", not real:find("hs%.window%.filter"))
+    end
     check("templates are read by /bin/cat in a task, never io.open", real:find('CAT             = "/bin/cat"', 1, true) and not real:find("io%.open%(rec"))
     check("vault.search and vault.tasks are published", PROVIDED["vault.search"] ~= nil and PROVIDED["vault.tasks"] ~= nil)
     local names = {}
@@ -3668,6 +3731,137 @@ do
     msg({ a = "ready" })
     local ran = (pass + fail) - before
     check("§6.406.0 ran all of its checks (" .. ran .. " of 25)", ran >= 25, ran)
+end
+
+-- ════════════════════════════════════════════════════════════════════
+-- §6.420.0 — HAMSIDIAN TAKES THE KEYBOARD AND HANDS IT BACK
+-- LL: "Hamsidian and other open tools don't often retain focus and I
+-- have to click on them to use escape."
+-- ════════════════════════════════════════════════════════════════════
+do
+    local ran = 0
+    local function sect(...) ran = ran + 1; return check(...) end
+
+    -- a clean window every time: show() toggles, so close first
+    local function reopen()
+        if v.webview then v.hide("t") end
+        FOCUSED_ID = nil
+        v.show()
+        return WEBVIEWS[#WEBVIEWS]
+    end
+
+    -- the focus door, as init.lua publishes it
+    local BORROWS, RETURNS = {}, {}
+    local RETURN_ANSWER = true
+    _G.focusBorrow = function(who) BORROWS[#BORROWS + 1] = who; return true end
+    _G.focusReturn = function(who) RETURNS[#RETURNS + 1] = who; return RETURN_ANSWER end
+
+    -- 🚨 THE DEFAULT IS THE FINDING. A non-activating window cannot be
+    -- given the keyboard, so this one assertion is the whole release.
+    sect("§6.420.0 Hamsidian is NOT a non-activating panel any more",
+         v.nonActivating == false, tostring(v.nonActivating))
+    sect("§6.420.0 it asks for the keyboard by default",
+         v.takeKeyboard == true)
+
+    -- A. the ordinary open
+    local w = reopen()
+    sect("§6.420.0 opening it makes the window KEY",
+         FOCUSED_ID == w._winId, tostring(FOCUSED_ID) .. " vs " .. tostring(w._winId))
+    sect("§6.420.0 ...and v.windowIsKey() agrees",
+         v.windowIsKey() == true)
+    sect("§6.420.0 ...and it says which try took them",
+         tostring(v.focus.why):find("took the keys on try 1", 1, true) ~= nil, v.focus.why)
+    -- 🔑 the chase stops the moment the window IS key: a timer left
+    -- running is a window being focused for ever (6.266.0)
+    sect("§6.420.0 ...and the chase stops once they are taken",
+         v.focusTimer == nil)
+    sect("§6.420.0 the open borrows the focus through the one door",
+         BORROWS[#BORROWS] == "Hamsidian", tostring(BORROWS[#BORROWS]))
+
+    -- B. the report reads the world rather than a flag
+    local rep = _G.vaultReport()
+    sect("§6.420.0 the report says the window has the keys",
+         rep:find("this window HAS the keys", 1, true) ~= nil)
+
+    -- C. closing hands the keyboard back
+    local before = v.focusGave
+    v.hide("t")
+    sect("§6.420.0 closing it hands the focus back",
+         RETURNS[#RETURNS] == "Hamsidian" and v.focusGave == before + 1,
+         tostring(v.focusGave))
+    sect("§6.420.0 ...and the chase is torn down with the window",
+         v.focusTimer == nil)
+
+    -- D. he moved on himself — counted apart, never a failure (6.401.0)
+    RETURN_ANSWER = false
+    reopen()
+    local keptBefore = v.focusKept
+    v.hide("t")
+    sect("§6.420.0 a focus he moved on from is counted APART, not as a hand-back",
+         v.focusKept == keptBefore + 1 and v.focusGave == before + 1,
+         v.focusKept .. "/" .. v.focusGave)
+    RETURN_ANSWER = true
+
+    -- E. a window macOS will not NAME: one attempt, then stop. The
+    -- fixture that bites is the reason — "gave up after 4 tries" here
+    -- would mean four identical failures behind a live timer.
+    FOCUSED_ID = nil
+    if v.webview then v.hide("t") end
+    v.show()
+    local w2 = WEBVIEWS[#WEBVIEWS]
+    w2.noHswindow = true
+    v.focusWindowSoon()
+    sect("§6.420.0 a window with no hswindow stops after ONE attempt",
+         v.focus.tries <= 1 and v.focusTimer == nil,
+         tostring(v.focus.tries))
+    sect("§6.420.0 ...and says it cannot be focused rather than 'gave up'",
+         tostring(v.focus.why):find("cannot focus this window", 1, true) ~= nil, v.focus.why)
+    w2.noHswindow = false
+
+    -- F. a focus macOS accepts but never applies: it spends its tries
+    -- and SAYS so, with the window still not key (6.196.1 — "gave up"
+    -- and "not asked" are different facts)
+    FOCUSED_ID = nil
+    w2.focusRefused = true
+    v.focusWindowSoon()
+    local guard = 0
+    while v.focusTimer and guard < 10 do
+        guard = guard + 1
+        local t = v.focusTimer
+        if t and not t.stopped then t.fn() end
+    end
+    sect("§6.420.0 a focus that never lands gives up and names the click",
+         tostring(v.focus.why):find("click the window once", 1, true) ~= nil, v.focus.why)
+    sect("§6.420.0 ...and the timer is not left running",
+         v.focusTimer == nil)
+    w2.focusRefused = false
+
+    -- G. the switches are real in both directions (6.228.0)
+    v.takeKeyboard = false
+    FOCUSED_ID = nil
+    v.focusWindowSoon()
+    sect("§6.420.0 takeKeyboard = false takes NO keys and says so",
+         FOCUSED_ID == nil and tostring(v.focus.why):find("takeKeyboard", 1, true) ~= nil,
+         v.focus.why)
+    v.takeKeyboard = true
+
+    -- 🚨 and a non-activating window is REFUSED BY NAME rather than
+    -- chased: four tries against a mask he asked for would report
+    -- "gave up" about a decision.
+    v.nonActivating = true
+    FOCUSED_ID = nil
+    v.focusWindowSoon()
+    sect("§6.420.0 a non-activating panel is refused by name, no tries spent",
+         v.focus.tries == 0 and FOCUSED_ID == nil
+         and tostring(v.focus.why):find("non%-activating") ~= nil, v.focus.why)
+    local rep2 = _G.vaultReport()
+    sect("§6.420.0 ...and the report says the mask is why, not a fault",
+         rep2:find("non-activating panel cannot be given the keyboard", 1, true) ~= nil)
+    v.nonActivating = false
+
+    _G.focusBorrow, _G.focusReturn = nil, nil
+    if v.webview then v.hide("t") end
+    check("§6.420.0 ran all of its checks (" .. ran .. " of 17)", ran >= 17, ran)
 end
 
 out(string.format("\n%d passed, %d failed\n", pass, fail))

@@ -285,7 +285,28 @@ function M.setup(core)
         maxNotes      = 5000,         -- rows embedded in the page
         maxLinkLines  = 40000,        -- grep lines parsed (past this the graph is partial and says so)
         focusOnOpen   = true,
-        nonActivating = true,
+        -- ⌨️ 6.420.0 — HAMSIDIAN TAKES THE KEYBOARD, AND THE MASK IS WHY
+        -- IT DID NOT (LL: "Hamsidian and other open tools don't often
+        -- retain focus and I have to click on them to use escape").
+        -- 🔎 THIS WINDOW CARRIED THE NON-ACTIVATING MASK, which is the
+        -- SAME mechanism 6.419.0 paid for in ⇪D: a non-activating window
+        -- deliberately never makes Hammerspoon the frontmost app, and
+        -- macOS hands the keyboard only to a KEY window of an ACTIVE one.
+        -- So bringToFront RAISED it and could never make it key, and the
+        -- only thing that ever did was his own click — which activates it.
+        -- Esc, ⌘F, ⌘N and every key in the page were therefore his mouse's
+        -- to unlock, on the one panel in this config he TYPES PARAGRAPHS
+        -- INTO. 6.401.0 wrote the rule and named this window as unswept:
+        -- "a panel that must be TYPED INTO has no such option".
+        -- 🗳 SO THE DEFAULT IS CHANGED AND SHIPPED (6.267.0), not left as
+        -- a settings line he has said he will not type.
+        nonActivating = false,
+        -- ⌨️ TAKE THE KEYS AFTER THE SHOW, the proven way (6.225.0 ·
+        -- 6.251.0): bringToFront raises, Lua focuses the hswindow a turn
+        -- later, bounded, stopping the moment the window IS key.
+        takeKeyboard  = true,         -- settings = { vault = { takeKeyboard = false } }
+        focusTries    = 4,            -- attempts, then it says to click once
+        focusEvery    = 0.08,         -- seconds between attempts
         skipDirs      = { ".obsidian", ".trash", ".git" },
         FIND          = "/usr/bin/find",
         GREP          = "/usr/bin/grep",
@@ -332,6 +353,10 @@ function M.setup(core)
         scanErr = nil, linkLines = 0, partial = false,
         dragTimer = nil, dragOffset = nil, opens = 0,
         nonActivatingApplied = false, nonActivatingWhy = "not requested",
+        -- HELD: the keyboard chase keeps its own slot, never another's
+        -- (6.196.1 — an unreferenced hs.timer is collected and never fires)
+        focusTimer = nil, focus = { tries = 0, why = "not asked" },
+        focusBorrowed = false, focusGave = 0, focusKept = 0,
         caret = 0, filter = "", view = "edit", pos = nil, pinned = false,
         -- 🪟 6.406.0 — WAS THE PAGE EVER WRITTEN, AND DID IT EVER SPEAK?
         -- LL: "I had a white box that was Hamsidian … then was left with
@@ -4765,6 +4790,111 @@ else {
         end
     end
 
+    -- ⌨️ 6.420.0 — UP, IN FRONT AND KEY ARE THREE DIFFERENT STATES
+    -- (6.225.0's rule, unpaid here for 247 releases). `bringToFront`
+    -- RAISES a window; only a KEY window is handed the keyboard. Five
+    -- other panels in this config grew the third step and the one he
+    -- writes in did not.
+    -- 🚨 AND IT IS ASKED OF THE WINDOW, NEVER ASSUMED: a window that
+    -- cannot be NAMED cannot be made key, so that is ONE attempt and a
+    -- stop, not four identical failures behind a timer nobody can see.
+    function v.windowIsKey()
+        local view = v.webview
+        if not view then return false, "no window" end
+        local okW, win = pcall(function() return view:hswindow() end)
+        if not (okW and win) then return false, "no hswindow" end
+        local okF, front = pcall(function() return hs.window.focusedWindow() end)
+        if not (okF and front) then return false, "cannot read the focus" end
+        local okI, same = pcall(function() return front:id() == win:id() end)
+        if not okI then return false, "cannot compare windows" end
+        return same == true, same and "key" or "another window is key"
+    end
+
+    function v.focusWindowNow()
+        local view = v.webview
+        if not view then return false, "the window closed" end
+        local okW, win = pcall(function() return view:hswindow() end)
+        if not (okW and win) then return false, "no hswindow" end
+        pcall(function() win:focus() end)
+        return true, "window focused"
+    end
+
+    function v.stopFocusChase()
+        if v.focusTimer then
+            pcall(function() v.focusTimer:stop() end)
+            v.focusTimer = nil
+        end
+    end
+
+    -- Bounded, held, and it reports which of the states this Mac reached
+    -- (6.196.1 — "not asked" and "gave up" are different facts).
+    function v.focusWindowSoon()
+        v.stopFocusChase()
+        v.focus = { tries = 0, why = "not asked" }
+        if not v.takeKeyboard then
+            v.focus.why = "off (takeKeyboard) — click the window to use it"
+            return false, v.focus.why
+        end
+        if v.nonActivating then
+            -- 🚨 SAID RATHER THAN ATTEMPTED. A non-activating window
+            -- cannot be made key, so chasing it would spend four tries
+            -- and report "gave up" about a mask he asked for.
+            v.focus.why = "off — this window is a non-activating panel, so macOS will not give it the keyboard"
+            return false, v.focus.why
+        end
+        if not v.webview then
+            v.focus.why = "no window"
+            return false, v.focus.why
+        end
+        if type(hs.timer) ~= "table" or type(hs.timer.doEvery) ~= "function" then
+            v.focus.tries = 1
+            local ok, why = v.focusWindowNow()
+            v.focus.why = ok and (why .. " — no timer to retry with")
+                             or ("could not focus: " .. tostring(why))
+            return ok, v.focus.why
+        end
+        local function attempt()
+            if not v.webview then
+                v.focus.why = "the window closed"
+                v.stopFocusChase()
+                return
+            end
+            if v.windowIsKey() then
+                v.focus.why = "took the keys on try " .. v.focus.tries
+                v.stopFocusChase()
+                return
+            end
+            if v.focus.tries >= (tonumber(v.focusTries) or 4) then
+                v.focus.why = "gave up after " .. v.focus.tries
+                           .. " tries — click the window once"
+                v.stopFocusChase()
+                return
+            end
+            v.focus.tries = v.focus.tries + 1
+            local ok, why = v.focusWindowNow()
+            if not ok then
+                v.focus.why = "cannot focus this window — " .. tostring(why)
+                v.stopFocusChase()
+                return
+            end
+            if v.windowIsKey() then
+                v.focus.why = "took the keys on try " .. v.focus.tries
+                v.stopFocusChase()
+            end
+        end
+        local okT, t = pcall(hs.timer.doEvery, tonumber(v.focusEvery) or 0.08, attempt)
+        if not (okT and t) then
+            v.focus.tries = 1
+            local ok, why = v.focusWindowNow()
+            v.focus.why = ok and (why .. " — no timer to retry with")
+                             or ("could not focus: " .. tostring(why))
+            return ok, v.focus.why
+        end
+        v.focusTimer = t      -- HELD
+        attempt()
+        return true, "chasing the keyboard"
+    end
+
     function v.hide()
         v.endDrag()
         -- 6.174.0 — back to the notes list; every task but the index scan
@@ -4778,10 +4908,23 @@ else {
         if v.doc and v.doc.scratch and sp and not sp.findTab(v.doc.scratch) then v.doc = nil end
         if v.rescanTimer then pcall(function() v.rescanTimer:stop() end); v.rescanTimer = nil end
         if v.readyBelt then pcall(function() v.readyBelt:stop() end); v.readyBelt = nil end
+        -- ⌨️ 6.420.0 — the chase dies with the window it was chasing, or
+        -- a timer outlives the handle it reads (6.266.0 · 6.410.0).
+        v.stopFocusChase()
         if v.webview then pcall(function() v.webview:delete() end); v.webview = nil end
         -- 6.406.0 — a CLOSED window is closed, not a page that never ran
         v.pageWritten, v.pageReady = false, false
         v.uc = nil
+        -- 🎯 6.420.0 — give the keyboard back to the app he was in. The
+        -- door refuses when he has since moved on himself (6.401.0), and
+        -- that refusal is counted apart rather than read as a failure.
+        if v.focusBorrowed and _G.focusReturn then
+            local okB, back = pcall(_G.focusReturn, "Hamsidian")
+            if okB and back == true then v.focusGave = v.focusGave + 1
+            else v.focusKept = v.focusKept + 1 end
+        end
+        v.focusBorrowed = false
+        v.focus = { tries = 0, why = "not asked" }
         if v.dirty then v.saveNow() end
         say("closed")
     end
@@ -5596,7 +5739,15 @@ else {
             return
         end
         v.webview = view
+        -- 🎯 6.420.0 — A PANEL THAT TAKES THE KEYBOARD OWES IT BACK
+        -- (6.401.0). The borrow is recorded BEFORE we raise anything, so
+        -- the door remembers the app HE was in rather than ourselves.
+        if _G.focusBorrow then
+            v.focusBorrowed = (pcall(_G.focusBorrow, "Hamsidian") == true) or true
+        end
         if v.focusOnOpen then pcall(function() view:bringToFront(true) end) end
+        -- ⌨️ and bringToFront is not enough: raise, THEN make it key.
+        v.focusWindowSoon()
         if _G.hyperExpectRelease then pcall(_G.hyperExpectRelease, 1.5, "the vault") end
         v.opens = v.opens + 1
         v.scan("open")
@@ -5935,6 +6086,24 @@ else {
                    v.alpha >= 1 and " (solid; vault = { alpha = 0.95 } to see through it)"
                                  or " (see-through; vault = { alpha = 1 } for solid)")
                     .. " · non-activating: " .. tostring(v.nonActivatingWhy)
+        -- ⌨️ 6.420.0 — FOUR STATES, and "not asked" must never read as
+        -- "gave up" (6.196.1). This is the line that says whether the
+        -- window has the keyboard RIGHT NOW, which is the question he
+        -- was answering with his mouse.
+        do
+            local isKey, keyWhy = v.windowIsKey()
+            L[#L + 1] = "   keyboard: " .. (v.takeKeyboard
+                            and (v.nonActivating
+                                 and "⚠️ OFF — a non-activating panel cannot be given the keyboard; click it to type"
+                                 or tostring(v.focus and v.focus.why or "not asked"))
+                            or "off (takeKeyboard) — vault = { takeKeyboard = true } to take the keys")
+                .. " · right now: " .. (v.webview
+                        and (isKey and "this window HAS the keys" or ("not key — " .. tostring(keyWhy)))
+                        or "the window is closed")
+            L[#L + 1] = "   ↳ focus : " .. v.focusGave .. " hand-back(s) to the app you came from · "
+                .. v.focusKept .. " you had already moved on from"
+                .. (_G.focusReturn and "" or "  ⚠️ the focus door is not loaded — nothing is handed back")
+        end
         local sp = v.sp()
         L[#L + 1] = "   scratch: " .. (sp and (#sp.tabs .. " tab" .. (#sp.tabs == 1 and "" or "s") .. " shown here (⇪N)"
                     .. ((v.doc and v.doc.scratch) and " · one is open" or "")) or "not hosted (the tabs are off or have their own window)")

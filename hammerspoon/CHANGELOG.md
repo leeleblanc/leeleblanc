@@ -5,6 +5,80 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.420.0 — ⌨️ HAMSIDIAN TAKES THE KEYBOARD, AND THE MASK IS WHY
+               IT DID NOT (modules/vault.lua)
+
+  LL: "Hamsidian and other open tools don't often retain focus and I
+  have to click on them to use escape."
+
+  🔎 THE MECHANISM, AND IT IS THE SAME ONE AS 6.419.0, ONE WINDOW ALONG.
+  This window was created with the NON-ACTIVATING window mask
+  (`v.nonActivating = true`, applied through `v.applyNonActivating`).
+  That mask's entire purpose is that the window never makes Hammerspoon
+  the frontmost app — and macOS hands the keyboard only to a KEY window
+  of an ACTIVE one. So `view:bringToFront(true)` raised it, could never
+  make it key, and the only thing that ever did was his own click, which
+  activates it. Esc, ⌘F, ⌘N and every key the page binds were therefore
+  his mouse's to unlock, on the one panel in this config he types
+  PARAGRAPHS into.
+
+  🔑 AND THE RULE WAS WRITTEN AND THIS WINDOW WAS NAMED AS UNSWEPT.
+  6.401.0: "a panel that must be TYPED INTO has no such option — macOS
+  hands the keyboard only to a KEY window and making one of ours key
+  activates the app", with "Hamsidian, the task form, the screenshot
+  editor, both players" listed as still leaving the focus with
+  Hammerspoon. He has now named Hamsidian, which is how that list was
+  always meant to be drained — one per release, the one he names next.
+
+  📏 UP, IN FRONT AND KEY ARE THREE DIFFERENT STATES (6.225.0 · 6.251.0),
+  and five panels here grew the third step while the one he writes in
+  did not: music_player, ocr_engine, screenshot_editor, video_player and
+  editor_picker all focus the hswindow a turn after the show. vault.lua
+  called bringToFront and nothing else, for 247 releases.
+
+  🗳 SO THE DEFAULT IS CHANGED AND SHIPPED (6.267.0) rather than left as
+  a settings line he has said he will not type: `nonActivating = false`,
+  plus `takeKeyboard` (true), `focusTries` (4) and `focusEvery` (0.08).
+  The chase is HELD in its own slot, bounded, and stops the moment the
+  window IS key.
+
+  🚨 A WINDOW THAT CANNOT BE NAMED CANNOT BE MADE KEY — one attempt and
+  a stop, never four identical failures behind a live timer; and a
+  non-activating window is refused BY NAME without spending a try, or
+  the report would say "gave up" about a mask he asked for (6.196.1 —
+  "not asked" and "gave up" are different facts).
+
+  🎯 AND A PANEL THAT TAKES THE KEYBOARD OWES IT BACK (6.401.0). The
+  borrow is recorded BEFORE anything is raised, so the door remembers
+  the app HE was in rather than ourselves; closing hands it back, and a
+  refusal — he moved on himself — is COUNTED APART rather than read as
+  a failure.
+
+  📏 COST, NAMED, because it is real and he will meet it: opening
+  Hamsidian now activates Hammerspoon, so an open Console comes forward
+  with it. That is 6.251.0's price, paid knowingly.
+  `settings = { vault = { nonActivating = true } }` is every release
+  before this one, exactly.
+
+  🔬 AND THE GATE COULD NOT HAVE SEEN THIS: test_vault's webview stub had
+  no `:hswindow()` AT ALL, so every focus attempt would have "succeeded"
+  while moving nothing (6.290.0; 6.251.0 paid the identical one in the
+  music card). The stub returns a real window with an id and a focus()
+  that MOVES the focus, and `hs.window.focusedWindow` answers from it —
+  so "key" is a measurable state. 17 new checks.
+
+  🔒 TWO SENTRIES EXPIRED AND NOW STATE THE RULE (6.321.0, third time):
+  "no hs.window in this file" was right while nothing here could
+  legitimately ask and wrong the day the window must find out whether it
+  is key. Every `hs.window.` read in the file is asserted to be
+  `focusedWindow`, the window SWEEP stays banned (hs.window.filter,
+  allWindows, orderedWindows), and the sentry asserts it READ something
+  (6.313.0). A third check asserted the old CONSTANT — 6.248.0, seventh
+  time — and asks the rule now: the mask is applied if and only if the
+  config asked for it.
+```
+
+```text
 NEW IN 6.419.0 — 📋 ⏎ ON A CLIPBOARD ROW PASTES, AT LAST
                (core/coexist.lua's focus door)
 

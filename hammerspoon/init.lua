@@ -4,9 +4,22 @@
 -- =====================================================================
 -- 11-06-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.419.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.420.0
 -- =====================================================================
 
+-- NEW IN 6.420.0 — ⌨️ HAMSIDIAN TAKES THE KEYBOARD (modules/vault.lua).
+--   LL: "Hamsidian and other open tools don't often retain focus and I
+--   have to click on them to use escape." The window carried the
+--   NON-ACTIVATING mask — the same mechanism 6.419.0 paid for in ⇪D — so
+--   it deliberately never made Hammerspoon frontmost, and macOS hands the
+--   keyboard only to a KEY window of an ACTIVE app. bringToFront RAISED
+--   it and could never make it key; only his click did. The mask is off,
+--   Lua focuses the hswindow a turn after the show (6.225.0 · 6.251.0),
+--   bounded by focusTries, and the window hands the focus BACK when it
+--   closes through 6.401.0's door. COST, NAMED: opening Hamsidian now
+--   activates Hammerspoon, so an open Console comes forward with it;
+--   `settings = { vault = { nonActivating = true } }` is the way back.
+--
 -- NEW IN 6.419.0 — 📋 ⏎ ON A CLIPBOARD ROW PASTES (core/coexist.lua).
 --   LL, escalating, with the alert in a screenshot: "the app you were in
 --   could not be brought back". ⇪D is a NON-ACTIVATING panel — it takes
@@ -25,26 +38,11 @@
 --   moved on", because widening it to "anything but us" would yank him
 --   out of what he chose (6.266.0). Counted apart (6.196.1).
 
--- NEW IN 6.418.0 — ℹ️ A MAC WITH NO PROFILE OF ITS OWN SAYS SO
---   (core/boot_report.lua). LL: "Are you also ensuring our Hammerspoon
---   tools work on our work MacBook?" Every path degrades and the gate
---   drives the degraded paths with hs stubbed — a Mac with nothing. But
---   §profiles picks with `profiles[hostTag] and hostTag or "default"`,
---   and the work-Mac key is a PLACEHOLDER nobody has replaced with the
---   real ComputerName, so that Mac takes the default and gets none of
---   its tuning — silently, the only trace a row inside _G.bootReport().
---   6.317.0: a fallback nobody is told about is indistinguishable from
---   the thing it replaced. The boot line names the machine and lists the
---   profiles this build knows (6.276.0 — a hand-kept register is safe
---   only when forgetting is loud). ℹ️ and never ⚠️: an untuned Mac is
---   not a broken one, and a warning over a healthy state is one he
---   scrolls past (6.269.0).
-
--- (6.417.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.418.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 cut the inline count to
 --  TWO; a gate check proves every entry here is also in CHANGELOG.md.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.419.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.420.0
 -- =====================================================================
 -- The catalogue that used to sit here moved to GUIDE.md ("What each
 -- tool does") in 6.180.0 — 259 lines of prose inside the orchestrator.
@@ -133,7 +131,7 @@ function _G.consoleRuleSay(what)
     return true
 end
 
-_G.configVersion = "6.419.0"
+_G.configVersion = "6.420.0"
 _G.consoleRuleSay("▶ BOOT")
 
 local function safeRequire(mod)

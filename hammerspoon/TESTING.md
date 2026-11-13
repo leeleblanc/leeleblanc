@@ -1,4 +1,4 @@
-# TESTING — how to score release 6.419.0
+# TESTING — how to score release 6.420.0
 
 You install ONE archive and it carries several releases. Below are the
 steps for each release this archive is new for, newest first. Run the
@@ -26,6 +26,96 @@ else is a LOSS and I fix it before building further. You are the only
 scorer; I never mark my own.
 
 ---
+
+## 6.420.0
+
+6.420.0 verify with LL — ⌨️ HAMSIDIAN TAKES THE KEYBOARD (KNOWN GROUND)
+WHAT CHANGED: Hamsidian takes the keyboard when it opens, so Escape,
+⌘F and ⌘N work on the first press without clicking the window — and it
+hands the focus BACK to the app you came from when it closes.
+🔎 WHY IT DID NOT, and it is the SAME mechanism as 6.419.0 one window
+along: that window was created as a NON-ACTIVATING panel. The whole
+point of that mask is that the window never makes Hammerspoon the
+frontmost app — and macOS hands the keyboard only to a KEY window of an
+ACTIVE app. So raising it could never make it key, and the only thing
+that ever did was your click. On the one panel you type paragraphs into.
+🔑 AND THE RULE WAS WRITTEN AND THIS WINDOW WAS NAMED. 6.401.0 says a
+panel that must be TYPED INTO has no such option, and listed Hamsidian
+as still unswept. You have now named it, which is how that list was
+always meant to be drained.
+
+A. THE HEADLINE — twenty seconds, and do A2 first.
+A1. Click into a text box in another app and type a word, so the caret
+    is somewhere you can see it leave.
+A2. Press ⇪3. **WITHOUT TOUCHING THE TRACKPAD**, press Escape.
+    EXPECT: Hamsidian closes.
+    **A FAIL is Escape doing nothing until you click the window** —
+    that is the bug, unchanged.
+A3. ⇪3 again, and type straight into the note. No click first.
+    EXPECT: your letters land in the note.
+A4. ⇪3, then ⌘F, and type. EXPECT: the filter box takes it.
+A5. ⇪N (the tabs side) — the same window. Escape without clicking.
+
+B. THE HALF THAT GIVES IT BACK — 6.401.0's door, now on this window.
+B1. Click into a text box, type a word, leave the caret there.
+B2. ⇪3, then Escape.
+    EXPECT: you are back in that text box with the caret in it. Type
+    immediately — no click, no trackpad.
+B3. The one that protects you: ⇪3, then **click into a different app
+    yourself**, then come back and close Hamsidian.
+    EXPECT: you stay where YOU put yourself. It must NOT drag you back
+    to the app you originally came from. If it yanks you somewhere,
+    tell me at once — that is worse than the bug this fixes.
+
+C. 📏 THE COST, NAMED, because you will meet it and it is real:
+C1. Opening Hamsidian now ACTIVATES Hammerspoon. If the Hammerspoon
+    Console is open, it comes forward with the window. That is the
+    price of the keyboard (6.251.0) and it is the same price the music
+    card has paid since then.
+C2. If that trade is wrong, `settings = { vault = { nonActivating =
+    true } }` is every release before this one, exactly — and say so
+    and I will change the default back rather than leave you a line to
+    type.
+
+D. MUST STILL WORK — this touched the window that holds your writing,
+   so this half matters more than A.
+D1. 🚨 **⌘Z IN A NOTE** — open a note, delete a paragraph, wait ten
+    seconds for a background scan to land, then ⌘Z. EXPECT: your text
+    comes back (6.323.0). If undo is gone, stop and tell me.
+D2. Type in a note, close Hamsidian, reopen: your words are there.
+D3. ⌘N a note · ⌘F filter · ↑↓ ⏎ · the ✕ delete · 🗑 the bin ·
+    ⌘⇧K tasks · ⌘⇧F search · ⌘G graph · ⌘⇧B board · ⌘⇧S export.
+D4. 📌 pin it, then press Escape. EXPECT: a pinned window still stays
+    up and Escape only hands the keys back, as before.
+D5. ⇪/ the cheat sheet still closes LAST when both are open.
+D6. Drag the window somewhere, close it, reopen: it is where you left
+    it.
+
+E. PASTE BACK, PASS OR FAIL.
+E1. `_G.vaultReport()` — there are TWO new lines:
+      keyboard: took the keys on try 1 · right now: this window HAS the keys
+      ↳ focus : 3 hand-back(s) to the app you came from · 0 you had already moved on from
+    **PASTE BOTH.** "took the keys on try 1" is the release working.
+    Four other things that line can say, each a different fact:
+    · "gave up after 4 tries — click the window once" → macOS would not
+      make it key on your Mac. Paste it; that is the finding.
+    · "cannot focus this window — no hswindow" → macOS would not name
+      the window at all.
+    · "⚠️ OFF — a non-activating panel…" → the mask is back on, which
+      means a settings line is doing it.
+    · "off (takeKeyboard)" → the switch is off.
+E2. If `↳ focus` ever reads "⚠️ the focus door is not loaded", paste it
+    — core/coexist.lua did not load and nothing is handed back.
+
+F. A JUDGEMENT ONLY YOU CAN MAKE.
+F1. Is the Console coming forward (C1) acceptable, or worse than the
+    clicking? That is the whole trade and it is yours.
+F2. 📏 NAMED, NOT SWEPT, so it is not a surprise: this release gave the
+    keyboard to HAMSIDIAN. The task form (⇪T), the screenshot editor
+    (⇪⇧1) and the two players still have the old shape. Tell me which
+    annoys you next and it takes the same door — one per release.
+
+
 
 ## 6.419.0
 
@@ -204,50 +294,6 @@ D1. Is the Console noticeably quieter now? That was the point. If any
     report STILL doubles, name it — the sentry says that should be
     impossible, and an exception would mean it is reaching the Console
     by a route I have not found.
-
-
-
-## 6.416.0
-
-6.416.0 verify with LL — 🩺 THE SELF TEST TELLS THE TRUTH (KNOWN GROUND)
-WHAT CHANGED: your word was "6.413.0: do better". Three faults in the
-block you read every morning, all mine.
-🚨 AND YOUR SNIPPETS WERE NEVER MISSING. The row asked a global this
-config has never published, so it counted zero and said "NO snippets
-are loaded" — on every Mac, for ever, over your nineteen hundred. The
-gate certified it because my own test file invented that global.
-
-A. THE HEADLINE — reload and read the 🩺 block.
-A1. EXPECT the Snippets row to read a REAL NUMBER:
-      ✅ Snippets  1926 loaded · the tap is running · _G.snippetsReport()
-    **A FAIL is "NO snippets are loaded"** — that is the old row.
-A2. EXPECT the ⇪ shortcuts row to read **111**, the same number as the
-    🧭 line above it. It used to say 119.
-A3. EXPECT the summary to read "every tool answered" with no ⚠️.
-    PASTE THE WHOLE BLOCK.
-
-B. THE RIGHT DOOR FOR SNIPPETS — and this is the "good report" you
-   asked for, which already existed and I had never pointed you at.
-B1. Console: `_G.snippetsReport()`.
-    EXPECT: a short block — how many triggers, how long they took to
-    load, where the packs came from, any problems, and your recent
-    picks. NOT two thousand lines.
-B2. `_G.snippetsList()` is still the firehose, deliberately: one line
-    per trigger. That is what flooded your Console, and it was my
-    message that sent you there.
-
-C. MUST STILL WORK.
-C1. ⇪⇧S opens the picker; a trigger you type still expands.
-C2. The other seven 🩺 rows are unchanged.
-C3. `_G.selfTest()` still runs the block on demand.
-
-D. A JUDGEMENT ONLY YOU CAN MAKE.
-D1. Now that the block is not lying, is it WELCOME at every boot, or
-    noise? That question was worth nothing while one row was wrong, so
-    I am asking it again. `settings = { self_test = { sayBoot = false } }`
-    makes it quiet and leaves the command.
-D2. Which other tools belong on it? Candidates not added: Hamsidian's
-    notes folder, the clipboard poll, the backup, OneDrive.
 
 
 
