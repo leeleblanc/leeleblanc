@@ -298,8 +298,8 @@ function M.setup(core)
     -- than the home row, so two reaches replace three home-row taps.
     -- That was his to judge, and he judged it.
     grid.alphabet    = "abcdefghijklmnopqrstuvwxyz"
-    grid.labelLength = 3
-    grid.subdivisions = 2       -- 2 x 2 children per former cell
+    grid.labelLength = 2
+    grid.subdivisions = 1       -- 1 = no pre-draw division; precision is a/s/d/f
     grid.maxCells = 4096        -- bounded canvas/label work across all displays
     -- ✏️ How slow a geometry build has to be before the Console says so
     -- (milliseconds). See the note where it is used: the cost is once
@@ -345,7 +345,16 @@ function M.setup(core)
     grid.labelMaxSize = 34      -- ceiling, so a 2-column grid isn't absurd
     grid.labelWhite  = 1.00
     grid.labelAlpha  = nil      -- inherit the Timer card accent alpha
+    -- 📏 THE PLATE IS OCCLUSION, AND HE SAW IT FIRST: "I can't see past
+    -- the boxes." A plate exists only so the yellow reads over a white
+    -- window (6.372.0 measured white-on-white at 1.00:1), so it hugs the
+    -- glyphs and nothing more. labelBackplates = false removes them.
     grid.labelBackplates = true -- small dark plates keep yellow readable over white apps
+    -- 0.72 is MEASURED, not chosen: it is the value at which this yellow
+    -- clears 4.5:1 over a white application, and the suite recomputes that
+    -- ratio from whatever is set here (6.239.0). Lower it and the gate
+    -- says so rather than letting the letters quietly go unreadable.
+    grid.labelPlateAlpha = 0.72 -- how opaque that plate is (0 = invisible, 1 = solid)
 
     -- 🟡 6.65.0 — THE MATCH HIGHLIGHT. Once you type a letter, the cells
     -- that are still reachable get a thick yellow box and everything else
@@ -913,10 +922,10 @@ function M.setup(core)
                     }
                 end
                 if grid.labelBackplates then
-                    local w=math.min(cell.rw-1,size*(grid.labelLength-typedLen)*0.66+4)
-                    local h=math.min(p.cellH-1,size*1.25+2)
+                    local w=math.min(cell.rw-1,size*(grid.labelLength-typedLen)*0.58+2)
+                    local h=math.min(p.cellH-1,size*1.06+1)
                     els[#els+1]={type="rectangle",action="fill",
-                        fillColor={white=0,alpha=0.72},roundedRectRadii={xRadius=2,yRadius=2},
+                        fillColor={white=0,alpha=grid.labelPlateAlpha},roundedRectRadii={xRadius=2,yRadius=2},
                         frame={x=cell.rx+(cell.rw-w)/2,y=cell.ry+(p.cellH-h)/2,w=w,h=h}}
                 end
                 els[#els + 1] = {
@@ -1102,7 +1111,9 @@ function M.setup(core)
         M.cheatsheet.entries[4] = { "snap", grid.snapToControls == true
             and "Optional app-control snapping is ON; it can move the pointer to a control centre"
             or "OFF: coordinate targeting, without app-control Accessibility hit-tests" }
-        M.cheatsheet.entries[10] = { tostring(grid.labelLength) .. " letters", "Initial cells are divided " .. tostring(grid.subdivisions) .. " × " .. tostring(grid.subdivisions) .. " before drawing" }
+        M.cheatsheet.entries[10] = { tostring(grid.labelLength) .. " letters", (tonumber(grid.subdivisions) or 1) > 1
+            and ("Initial cells are divided " .. tostring(grid.subdivisions) .. " × " .. tostring(grid.subdivisions) .. " before drawing")
+            or ("Type " .. tostring(grid.labelLength) .. ", then " .. (select(1, grid.refineSpec())) .. " to quarter what you landed in") }
         M.cheatsheet.entries[11] = { keys or "unavailable", parts == 4
             and "Four quarters: top-left, top-right, bottom-left, bottom-right; repeat to refine"
             or "Two halves along the longer side; repeat to refine" }

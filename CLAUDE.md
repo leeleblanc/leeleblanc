@@ -457,6 +457,32 @@ work Mac.
   Precision comes out of GEOMETRY; the typing is unchanged. GENERAL:
   when an ask names a shape and a complaint names a size, check whether
   one number satisfies both before scoping two releases.
+  🚨 AND IT SPENT THE LABEL ANYWAY — THE PROSE AND THE CODE DISAGREED ON
+  ADJACENT LINES (6.429.0, LL with a screenshot of the whole screen under
+  a wall of three-letter codes: "I can't see past the boxes. I'd say
+  start the boxes bigger using less letters?"). Two paragraphs up this
+  block swears the label is not spent; the shipped code set
+  `labelLength = 3` over `maxCells = 4096` with `subdivisions = 2` on
+  top — 6.176.0 reproduced exactly ("HOLY SHIT! The grid is insane. Way
+  too small."), quartered. The module's own comment four lines above that
+  line quoted that verdict back at itself. I read the comment.
+  🔑 GENERAL, AND IT IS 6.349.0 · 6.363.0 WHERE IT COSTS MOST: WHEN A
+  DURABLE NOTE STATES A CONSTRAINT, THE CHECK THAT EARNS ITS PLACE
+  ASSERTS THAT CONSTRAINT AGAINST THE SHIPPED DEFAULTS — never against a
+  value the suite pinned. Every section of test_mouse_grid.lua pins its
+  own alphabet and label length before it runs, so 614 checks passed over
+  a module whose shipped configuration NOTHING DROVE (6.273.0), and three
+  of them asserted the regression BY NAME (6.248.0). §6429 reads the
+  defaults captured before any pin, drives them end to end, measures the
+  label plate's share of a real cell, and fails if the module's own prose
+  ever again claims a label length the code does not ship.
+  📏 RESTORED: two letters, 676 cells, nothing divided before he types;
+  precision is the a/s/d/f refinement, which he scored fine. That is what
+  6.428.0 claimed to do. 🔎 AND THE PLATES WERE THE OCCLUSION HE NAMED —
+  kept at the alpha 6.372.0 MEASURED (0.55 drops this yellow to 3.25:1
+  over a white app, under the 4.5 the suite requires), so the occlusion
+  came out of AREA and CELL COUNT instead: 41% of a cell, measured, with
+  `labelBackplates = false` as the way to remove them entirely.
   🎯 AND "AGAIN" IS THE SECOND HALF — a/s/d/f for the four quarters,
   repeatable, ⌫ restoring the parent. `grid.quarterOf` is built FROM
   `grid.halfOf` rather than beside it, so the 16pt floor and every
@@ -7745,13 +7771,14 @@ that must be READ before a new cause is named.
 
 | symptom, in his words | where it lives | releases | passes | tag |
 |---|---|---|---|---|
+| "I can't see past the boxes. I'd say start the boxes bigger using less letters?" | modules/mouse_grid.lua · 6.428.0 shipped a 3-letter label over 4,096 cells and quartered them, which its own comment forbade | 6.429.0 | 1 | ask |
 | "Split all boxes into fours again … the boxes are too big and not useful enough at that size" · "the same translucent yellow as the Timer card" | modules/mouse_grid.lua · 26² = 676 cells is ~45pt against a 28–40pt button | 6.176.0 · 6.181.0 · 6.184.0 · 6.192.0 · 6.252.0 · 6.360.0 · 6.373.0 · 6.428.0 | 8 | ask — and 6.360.0 scored "The grid is so much better" |
 | "Can you fix this so it is a complete and full and error free install?" (a review package marked BLOCKED, installer exiting 3) | not a module — three red stages that were the review's OWN new suites, plus three real findings in hs-install.sh, build-test-plan.lua and run-tests.sh | 6.428.0 | 1 | ask |
 | "We've got a white box again … after I brought up the editor I now have a white box that won't go away" | modules/screenshot_editor.lua · the show's answer discarded, and bringToFront run anyway | 6.424.0 | 1 | ask |
 | "Search did not find the word draftkeeper … this proves it is in an active note. But cannot be searched" | modules/vault.lua · ⌘F searches NAMES, ⌘⇧F searches bodies — and his box read "draftkepper" | 6.425.0 | 1 | degraded — both halves honest, nothing joined them |
 | "the draft needs to make sense and be a pastable sentence … put back in the sequence it was typed" | modules/draft_keeper.lua · cut at 8,000 characters, and the same row written twice | 6.404.0 · 6.411.0 · 6.423.0 · 6.426.0 | 4 | ask |
 | "I'd like an @report so I can pick and run different items like _G.draftKeeperReport()" | modules/unified_search.lua — ninety-seven reports, never listed anywhere | 6.427.0 | 1 | a door, not a defect |
-| "in full screen the mouse keeps jumping to that app when I am trying to get to another app on another desktop" | modules/mouse_follows.lua — the feature working as built; ⇪1 switches it off | (open — asked, not built) | 0 | his call: off, or narrowed |
+| "in full screen the mouse keeps jumping to that app when I am trying to get to another app on another desktop" | modules/mouse_follows.lua — the feature working as built; ⇪1 switches it off | **CLOSED on his word 2026-11-13: "It works fine now." Do NOT re-ask or "helpfully" narrow it.** | 0 | not a defect |
 | "Does the console automatically generate a report for any condition that kills my keyboard and is automatically pasted to the clipboard?" | the three keyboard-killers — hyper_storm · capabilities · stall_guard, and none of them touched the clipboard | 6.421.0 | 1 | his question found the gap, not a report of a break |
 | "when I typed in this textbox and then I bring up @drafts then nothing is show to be saved" | modules/draft_keeper.lua · the check could not see the field it measured | 6.411.0 · 6.423.0 | 2 | ask |
 | `_G.focusReport()` printing focus MODE's block when the focus DOOR was asked for | core/coexist.lua + modules/focus_mode.lua · one global name, two files | 6.422.0 | 1 | nothing broke; a report I asked for twice could not be reached |
@@ -7926,7 +7953,8 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
-| 6.428.0 | ✂️ Four boxes where there was one, in the Timer's yellow — and an installer whose version check could not fail | pending |
+| 6.429.0 | 📐 Bigger boxes, two letters — 6.428.0 spent the label its own comment forbade, and nothing drove the shipped defaults | pending |
+| 6.428.0 | ✂️ Four boxes where there was one, in the Timer's yellow — and an installer whose version check could not fail | LOSS — LL, with a screenshot: "I can't see past the boxes. I'd say start the boxes bigger using less letters?" It shipped `labelLength = 3` over 4,096 cells, quartered, which is 6.176.0 exactly → fix 6.429.0 |
 | 6.427.0 | 📋 @report — every report this config can print, and what each one answers | pending |
 | 6.426.0 | 💾 The whole draft, not a third of it — and never the same row twice | pending |
 | 6.425.0 | 🔎 The filter box says where the body search is | pending |
@@ -9669,6 +9697,94 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.429.0 verify with LL — 📐 BIGGER BOXES, TWO LETTERS (KNOWN GROUND)
+  WHAT CHANGED: the grid is back to TWO letters, the boxes are four times
+  the area they were, and nothing is divided before you type. The a/s/d/f
+  quartering you said is fine does the precision.
+  🚨 AND 6.428.0 WAS MINE. It shipped a three-letter label over 4,096
+  cells and divided every one of those 2 × 2 on top — which is 6.176.0
+  reproduced exactly, the build you called "insane. Way too small." Its
+  own comment four lines above that line said a two-character label was
+  the entire point and quoted your verdict back at me. The prose and the
+  code disagreed on adjacent lines and I read the prose.
+
+  A. THE HEADLINE — twenty seconds.
+  A1. Press **⇪X**. EXPECT: the codes are **two letters**, not three, and
+      the boxes are noticeably bigger — about four times the area of what
+      you photographed.
+      **A FAIL is three-letter codes.**
+  A2. 🔎 THE ONE YOU REPORTED: can you SEE THROUGH the grid now? You
+      should be able to read the window underneath between the labels.
+      That is the whole release and it is the thing I cannot judge from
+      here.
+  A3. Type the two letters. EXPECT: the pointer lands, one keystroke
+      sooner than last week.
+  A4. The letters are still the Timer's yellow — you said that is right
+      and nothing about the colour changed.
+
+  B. PRECISION IS STILL THERE, and this is the half that makes A safe.
+  B1. ⇪X, type two letters to land. EXPECT: the yellow box divided into
+      four with a letter in each quarter.
+  B2. Press **a** (top-left), **s**, **d**, **f**. EXPECT: each keeps
+      that quarter and divides again. Two presses puts you on a small
+      button.
+  B3. Press **⌫**. EXPECT: it steps back up one.
+  B4. Keep going until it refuses. EXPECT: it SAYS why — there is a 16 pt
+      floor, because a box below that is not something you can aim with.
+  B5. **COUNT THE KEYSTROKES** on something small — a Finder toolbar
+      button. Two letters plus one or two quarters. **Return that number.**
+      Last week it was three letters plus quarters for the same target.
+
+  C. THE PLATES — the dark patch behind each label.
+  C1. Look at one closely. EXPECT: it hugs the letters rather than
+      filling the cell. It covers 41% of a cell, measured.
+  C2. 📏 IT IS THERE FOR A REASON AND I DID NOT TRADE IT AWAY: without it
+      this yellow measures 1.00:1 over a white window — invisible. The
+      obvious fix was to make the plate more transparent, and at 0.55 the
+      contrast drops to 3.25:1, under the 4.5 the suite requires. So the
+      occlusion came out of SIZE and CELL COUNT instead.
+  C3. If the plates still bother you: `settings = { mouse_grid =
+      { labelBackplates = false } }` removes them entirely, and the
+      letters sit on the dim wash alone. Say the word and I will change
+      the default rather than leave you a line to type.
+
+  D. MUST STILL WORK — this is a full-screen overlay that eats keys, so
+     this half matters more than A.
+  D1. ⇪X then ⎋, six times briskly. EXPECT: opens and closes every time.
+      **An overlay left on screen with nothing closing it is the serious
+      failure** — ⌃⌥⌘⇧X is the panic key and I want to know at once.
+  D2. ⇪X, land, then the **arrow keys**: 8 pt a press, 1 pt with ⇧ held,
+      and a HELD arrow crawls steadily rather than taking off (6.360.0).
+  D3. ⇪⇧X — same grid, clicks the moment you finish typing.
+  D4. ⇪⇧L — the pointer rings. Separate tool, untouched.
+  D5. While the grid is up, ⌘Q and ⌘Tab still work.
+  D6. Both screens: the Air's panel and the LG.
+
+  E. PASTE BACK, PASS OR FAIL.
+  E1. Console: `_G.mouseGridReport()`. Three lines:
+      · `cells :` — the REAL cell size in points. I have been reasoning
+        about that number from arithmetic and want it from your display.
+      · `layout:` — should say no pre-draw division.
+      · `split :` — a s d f, four parts, and where the keys came from.
+  E2. If the grid ever DECLINES to open with a sentence about the labels
+      being too small, paste it. That is the refusal working — the
+      overlay stays off your screen rather than taking the keyboard
+      behind letters you cannot read.
+
+  ❓ QUESTIONS — ANSWERS WANTED, NOTHING TO RUN
+  Q1. **Is 676 the right starting size, or do you want fewer still?**
+      This is the density you scored "The grid is so much better" in
+      6.360.0, with quartering added on top. Fewer letters makes the
+      boxes bigger again and costs nothing in typing — `alphabet =
+      "asdfghjklqwertyui"` is 289 cells, half as dense again. One line,
+      and I would rather ship your answer than leave you the line.
+  Q2. **Do the plates need to go?** Step C. They buy readability over
+      white windows and they are the only thing still drawn over your
+      screen.
+  Q3. **The work MacBook's name** — `scutil --get ComputerName`, whenever
+      you next have it. Still the one thing that gives that Mac a profile
+      of its own instead of the fallback.
+
 - 6.428.0 verify with LL — ✂️ FOUR BOXES WHERE THERE WAS ONE, IN THE
   TIMER'S YELLOW (KNOWN GROUND for the grid; the install is new)
   WHAT CHANGED: every grid cell is split into four, so the box you land

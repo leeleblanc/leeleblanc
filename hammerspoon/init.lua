@@ -2,10 +2,37 @@
 -- * Working VERSION *
 -- =====================================================================
 -- =====================================================================
--- 11-08-26 using Claude          ← EDITED date. Bumped with every release.
+-- 11-13-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.428.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.429.0
 -- =====================================================================
+
+-- NEW IN 6.429.0 — 📐 BIGGER BOXES, TWO LETTERS: THE LABEL PUT BACK
+--   (modules/mouse_grid.lua). LL, with a screenshot of a wall of
+--   three-letter codes: "I can't see past the boxes. I'd say start the
+--   boxes bigger using less letters?"
+--   🚨 HE IS RIGHT AND 6.428.0 IS MINE. That release shipped
+--   `labelLength = 3` over `maxCells = 4096` and divided every cell
+--   2 × 2 on top — which is 6.176.0 reproduced exactly ("HOLY SHIT! The
+--   grid is insane. Way too small.") plus a quartering. Its own comment
+--   four lines above said a two-character label was the whole point and
+--   quoted that verdict back. THE PROSE AND THE CODE DISAGREED ON
+--   ADJACENT LINES, which is 6.349.0 · 6.363.0, and I read the comment.
+--   📏 RESTORED: two letters, 676 cells, nothing divided before he types.
+--   Precision is the a/s/d/f refinement he already scored as fine — one
+--   press halves the box, two quarters it — so the geometry still pays
+--   and the typing is not spent. That is what 6.428.0 CLAIMED to do.
+--   🔎 AND THE PLATES WERE THE OCCLUSION HE NAMED: each label sits on a
+--   dark plate so the yellow clears 4.5:1 over a white app (6.372.0).
+--   They hug the glyphs now — 41% of a cell, MEASURED, against a wall of
+--   them before — and `labelBackplates = false` removes them entirely.
+--   🧪 THE GATE COULD NOT SEE ANY OF IT, because every section pins its
+--   own values before it runs, so nothing drove the shipped defaults
+--   (6.273.0). §6429 asserts the RULE off the captured defaults — a
+--   landing costs at most two keystrokes, no cell is divided before a
+--   keystroke, the drawn count stays within the 676 he scored — drives
+--   that configuration end to end, and fails if the prose ever again
+--   claims a label length the code does not ship.
 
 -- NEW IN 6.428.0 — ✂️ EVERY CELL SPLIT INTO FOUR, IN THE TIMER'S YELLOW
 --   (modules/mouse_grid.lua). LL: "Split all boxes into fours again.
@@ -15,9 +42,9 @@
 --   📐 BOTH HIS SENTENCES ARE ONE NUMBER: 26 letters squared is 676
 --   cells, ~45pt on the Air against a 28–40pt button. Every cell is
 --   DIVIDED 2 × 2 before it is drawn, so the box is a quarter of the
---   area and the code he types is the same length — precision bought
---   with geometry, none of it spent on his typing (6.176.0 proved a
---   three-character label cannot be read at 30pt).
+--   area. ⚠️ AS SHIPPED IT ALSO RAISED THE LABEL TO THREE CHARACTERS,
+--   which is the one thing this block swore it would not spend — see
+--   6.429.0 above, which puts it back.
 --   🎯 AND "AGAIN" IS THE SECOND HALF: the landed box refines FOUR ways
 --   — a/s/d/f for the four quarters, repeatable, ⌫ restoring the parent.
 --   🟡 `grid.labelInk()` READS `_G.uiStyle.accent`, the same table
@@ -27,26 +54,11 @@
 --   white at 1.00:1.
 --   🔎 An unreadable grid DECLINES before it takes the keyboard.
 
--- NEW IN 6.427.0 — 📋 @report: EVERY REPORT, AND WHAT EACH ONE ANSWERS
---   (modules/unified_search.lua). LL: "I'd like an @report so I can pick
---   and run different items like _G.draftKeeperReport() and each of
---   those reports should give me a description of what it does."
---   🔎 THERE ARE NINETY-SEVEN AND THEY HAVE NEVER BEEN LISTED ANYWHERE.
---   Nearly every rule in this project ends in "paste the report", and
---   the only way to learn one's NAME was to be told it in a message —
---   6.317.0 for the Nth time: the instruments were not the gap, the
---   DOOR was. ⏎ runs one, ⌘⏎ copies the command.
---   🚨 THE LIST IS READ FROM _G, THE SENTENCES ARE WRITTEN (6.276.0),
---   and BOTH directions of drift are loud: a report with no sentence is
---   a ⚠️ row, and a sentence naming a report nothing published is a ⚠️
---   row that is deliberately NOT runnable. The first run of that join
---   found eight reports this table had missed.
-
--- (6.426.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.427.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 cut the inline count to
 --  TWO; a gate check proves every entry here is also in CHANGELOG.md.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.428.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.429.0
 -- =====================================================================
 -- The catalogue that used to sit here moved to GUIDE.md ("What each
 -- tool does") in 6.180.0 — 259 lines of prose inside the orchestrator.
@@ -135,7 +147,7 @@ function _G.consoleRuleSay(what)
     return true
 end
 
-_G.configVersion = "6.428.0"
+_G.configVersion = "6.429.0"
 _G.consoleRuleSay("▶ BOOT")
 
 local function safeRequire(mod)

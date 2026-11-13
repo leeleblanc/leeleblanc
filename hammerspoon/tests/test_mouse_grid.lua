@@ -577,11 +577,21 @@ local cache = grid.cache
 check("⌨️ the SHIPPED alphabet is the whole lowercase alphabet",
       DEFAULT_ALPHABET == "abcdefghijklmnopqrstuvwxyz"
       and #DEFAULT_ALPHABET == 26, DEFAULT_ALPHABET)
-check("…which has THREE-character capacity for the four-way denser layout",
-      (#DEFAULT_ALPHABET) ^ 3 == 17576 and DEFAULT_LABELLEN == 3,
-      tostring(DEFAULT_LABELLEN))
-check("…the shipped layout divides every former cell into four",
-      DEFAULT_SUBDIVISIONS == 2 and DEFAULT_REFINEPARTS == 4)
+-- 6.429.0 — THE RULE, NOT THE NUMBER (6.248.0). 6.428.0 shipped a
+-- three-character label over 4,096 cells and divided each one 2 x 2 on
+-- top, which is 6.176.0 reproduced exactly ("HOLY SHIT! The grid is
+-- insane") plus a quartering, and is what "I can't see past the boxes"
+-- was reporting. A landing costs at most two keystrokes and nothing
+-- shrinks a box before he has typed; precision is the a/s/d/f refinement.
+check("…and a landing costs at most TWO keystrokes",
+      DEFAULT_LABELLEN ~= nil and DEFAULT_LABELLEN <= 2,
+      "labelLength ships at " .. tostring(DEFAULT_LABELLEN))
+check("…drawing no more cells than the 676 he scored 'so much better'",
+      ((#DEFAULT_ALPHABET) ^ DEFAULT_LABELLEN) <= 676,
+      tostring((#DEFAULT_ALPHABET) ^ DEFAULT_LABELLEN) .. " cells")
+check("…and nothing divides a cell before he has typed",
+      DEFAULT_SUBDIVISIONS == 1 and DEFAULT_REFINEPARTS == 4,
+      "subdivisions=" .. tostring(DEFAULT_SUBDIVISIONS))
 check("…and every one of those keys is a plain letter",
       DEFAULT_ALPHABET:match("^[a-z]+$") ~= nil, DEFAULT_ALPHABET)
 -- the escape hatch has to keep working in BOTH directions, or "one line,
@@ -3613,8 +3623,8 @@ do
     end
     _G.uiStyle=nil
     local mod=fresh(ONE)
-    check("6428: default is exactly three letters and four quarter keys",
-        DEFAULT_LABELLEN==3 and DEFAULT_SUBDIVISIONS==2 and DEFAULT_REFINEPARTS==4)
+    check("6428: the four quarter keys are the shipped refinement",
+        DEFAULT_REFINEPARTS==4)
     check("6428: missing style provider uses Timer's yellow fallback",yellow(grid.labelInk()))
     for _,screens in ipairs({ONE,TWO,{mkScreen(1,-2560,83,2560,1410),mkScreen(2,0,30,2560,1410)}}) do
         fresh(screens);grid.show(false)
@@ -3647,14 +3657,16 @@ do
     check("6428: initial letters use translucent Timer yellow",ink)
     local plates=0
     for _,p in ipairs(grid.cache.screens) do for _,e in ipairs(p.labelCanvas.elements) do
-        if e.type=="rectangle" and e.fillColor and e.fillColor.white==0 and e.fillColor.alpha==0.72 then plates=plates+1 end
+        if e.type=="rectangle" and e.fillColor and e.fillColor.white==0 and e.fillColor.alpha==grid.labelPlateAlpha then plates=plates+1 end
     end end
     check("6428: every initial label has a small dark readability plate",plates==grid.cache.used)
     local function lum(c)
         local function s(x) return x<=0.04045 and x/12.92 or ((x+0.055)/1.055)^2.4 end
         return 0.2126*s(c[1])+0.7152*s(c[2])+0.0722*s(c[3])
     end
-    local bg=0.28 -- black plate at 72% over a white application
+    -- the white app showing THROUGH the plate, computed from the
+    -- shipped alpha so lowering it is a gate failure, not a surprise
+    local bg=1-grid.labelPlateAlpha
     local fg={0.96+0.04*bg,0.96*0.84+0.04*bg,0.04*bg}
     check("6428: default yellow clears 4.5:1 over a white app with its plate",
         (lum(fg)+0.05)/(lum({bg,bg,bg})+0.05)>=4.5)
@@ -3836,8 +3848,8 @@ do
         okTimer and tc and color.red==tc.red and color.green==tc.green and color.blue==tc.blue and color.alpha==tc.alpha)
     _G.uiStyle=nil
     mod=fresh(ONE);mod.warm()
-    check("6428: cheat sheet says three letters and preserves arrow help",
-        mod.cheatsheet.title:find("3 letters",1,true)
+    check("6428: cheat sheet follows the configured label length, not a literal",
+        mod.cheatsheet.title:find(tostring(grid.labelLength).." letters",1,true)
         and mod.cheatsheet.entries[9][2]:find("Nudge",1,true)
         and mod.cheatsheet.entries[11][1]=="asdf")
     grid.labelLength=2;grid.refineParts=2;grid.halveKeys="jk";mod.warm()
@@ -3846,6 +3858,103 @@ do
     grid.hide("test")
     PIN_ALPHABET,PIN_LABELLEN,PIN_SUBDIVISIONS,PIN_REFINEPARTS,PIN_LABEL_PLATES,PIN_SNAP=keepA,keepL,keepS,keepR,keepP,keepSnap
     _G.uiStyle=nil;_G.hyperDispatchEngaged=false
+end
+
+-- =====================================================================
+-- §6429 THE SHIPPED DEFAULTS, READ FROM THE SOURCE
+--
+-- 6.428.0 raised grid.labelLength from 2 to 3 and divided every cell
+-- 2 x 2 on top, while the comment four lines above it said a
+-- two-character label was the whole point and quoted his own verdict on
+-- 4,096 three-letter cells ("HOLY SHIT! The grid is insane"). The prose
+-- and the code disagreed on adjacent lines and the gate could not see
+-- it, because every section pins its own values before it runs.
+--
+-- So these read the SHIPPED text (6.276.0: ask the thing itself, never
+-- a copy) and assert the RULE rather than the number (6.248.0): a
+-- landing costs at most two keystrokes, and nothing shrinks the box
+-- before he has typed anything. Precision is the a/s/d/f refinement.
+do
+    local f = assert(io.open(MODFILE, "r")); local src = f:read("a"); f:close()
+    local len, subs = DEFAULT_LABELLEN, DEFAULT_SUBDIVISIONS
+    local alpha = DEFAULT_ALPHABET
+    local plate = tonumber(src:match("\n%s*grid%.labelPlateAlpha%s*=%s*([%d%.]+)"))
+
+    check("6429: a landing costs at most two keystrokes",
+        len ~= nil and len <= 2,
+        "labelLength ships at " .. tostring(len) .. " — a third character is what 6.176.0 measured and he rejected twice")
+
+    check("6429: nothing divides a cell before he has typed",
+        subs ~= nil and subs == 1,
+        "subdivisions ships at " .. tostring(subs) .. " — the box is a quarter before any keystroke, which is 'I can't see past the boxes'")
+
+    -- Capacity, not the label alone: a wider alphabet puts the cells
+    -- back without touching labelLength.
+    -- (#alpha)^len, parenthesised: ^ binds TIGHTER than #, so #alpha ^ len
+    -- is #(alpha ^ len) and raises. A raise here would end the run with the
+    -- summary never printed (6.186.0), so the arithmetic is guarded too.
+    local okCells, cells = pcall(function()
+        return (alpha and len) and ((#alpha) ^ len) or nil
+    end)
+    cells = okCells and cells or nil
+    check("6429: the shipped grid draws no more cells than 6.373.0 proved",
+        cells ~= nil and cells <= 676,
+        "ships " .. tostring(cells) .. " cells; 676 is the size he scored 'so much better'")
+
+    check("6429: the label plate is a real, tunable opacity",
+        plate ~= nil and plate > 0 and plate <= 1,
+        "labelPlateAlpha ships at " .. tostring(plate))
+
+    -- 6.349.0 / 6.363.0: a comment that promises what the line beside it
+    -- does not do. This is the one that would have caught 6.428.0.
+    -- 6.273.0: every section above pins its own values, so until now NO
+    -- check drove the configuration he actually runs. Drive it.
+    do
+        local keepA,keepL,keepS,keepR,keepP =
+            PIN_ALPHABET,PIN_LABELLEN,PIN_SUBDIVISIONS,PIN_REFINEPARTS,PIN_LABEL_PLATES
+        PIN_ALPHABET = alpha; PIN_LABELLEN = len
+        PIN_SUBDIVISIONS = subs; PIN_REFINEPARTS = 4; PIN_LABEL_PLATES = true
+        local okRun, why = pcall(function()
+            setScreens({ mkScreen(1, 0, 0, 1512, 982) })
+            loadModule()
+            grid.show(false)
+            local p = grid.cache.screens[1]
+            check("6429: the shipped grid draws cells bigger than a toolbar button",
+                p.cellW >= 40 and p.cellH >= 40,
+                ("%.0f x %.0f pt"):format(p.cellW, p.cellH))
+            check("6429: every shipped label is exactly the keystrokes advertised",
+                #p.cells[1].label == len, p.cells[1].label)
+
+            -- HIS REPORT, AS A NUMBER: "I can't see past the boxes." The
+            -- plates are the only thing drawn over the screen once the
+            -- scrim is accounted for, so measure the share of a cell one
+            -- covers rather than asserting it "looks" small.
+            local plateArea, cellArea = 0, p.cellW * p.cellH
+            for _, e in ipairs(p.labelCanvas.elements) do
+                if e.type == "rectangle" and e.fillColor and e.fillColor.white == 0 then
+                    plateArea = math.max(plateArea, e.frame.w * e.frame.h)
+                end
+            end
+            -- MEASURED FIRST (6.269.0): a plate that still sits behind the
+            -- glyphs covers 41% of a shipped cell, so 45% is the guard with
+            -- headroom — it catches a return to three characters or a
+            -- denser layout without failing on correct code. Removing the
+            -- occlusion entirely is labelBackplates = false, which is his.
+            check("6429: a label plate stays inside its own cell's budget",
+                cellArea > 0 and plateArea > 0 and plateArea / cellArea < 0.45,
+                ("%.0f%% of the cell"):format(100 * plateArea / math.max(cellArea, 1)))
+            grid.hide("test")
+        end)
+        if not okRun then
+            check("6429: the shipped configuration drives without raising", false, tostring(why))
+        end
+        PIN_ALPHABET,PIN_LABELLEN,PIN_SUBDIVISIONS,PIN_REFINEPARTS,PIN_LABEL_PLATES =
+            keepA,keepL,keepS,keepR,keepP
+    end
+
+    check("6429: the prose does not claim a label length the code does not ship",
+        (not src:find("two%-character label")) or len == 2,
+        "the source says 'two-character label' while shipping " .. tostring(len))
 end
 
 -- =====================================================================

@@ -5,6 +5,88 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.429.0 — 📐 BIGGER BOXES, TWO LETTERS: THE LABEL PUT BACK
+               (modules/mouse_grid.lua)
+
+  LL, with a screenshot of the whole screen under a wall of three-letter
+  codes: "I can't see past the boxes. I'd say start the boxes bigger
+  using less letters?"
+
+  🚨 HE IS RIGHT, AND 6.428.0 IS MINE. That release shipped
+  `grid.labelLength = 3` over `grid.maxCells = 4096` and set
+  `grid.subdivisions = 2` so every cell was divided 2 × 2 before it was
+  drawn. Four thousand cells carrying a three-character label IS 6.176.0,
+  exactly — the release whose verdict from him was "HOLY SHIT! The grid
+  is insane. Way too small." — and then quartered on top of that.
+
+  🔑 AND THE COMMENT FOUR LINES ABOVE THE LINE SAID THE OPPOSITE. Its own
+  prose read "a two-character label is wider-spaced in the same box, so
+  it reads better rather than worse, which is the trap 6.176.0 fell
+  into: 4,096 cells was a 30 pt box carrying a three-character label, and
+  his reaction … was correct." The NEW IN block in init.lua claimed "the
+  code he types is the same length". Both were true of 6.427.0 and false
+  of the line beside them. That is 6.349.0 and 6.363.0 — a comment that
+  promises what the code does not do — and I read the comment rather than
+  the line, in a release whose whole durable note is that THE LABEL IS
+  THE BINDING CONSTRAINT AND THIS RELEASE DOES NOT SPEND IT.
+
+  📏 RESTORED, AND IT IS WHAT 6.428.0 SAID IT WAS DOING: two letters, 676
+  cells, `subdivisions = 1` so nothing is divided before he types.
+  Precision is the a/s/d/f refinement, which he has now scored as fine —
+  one press halves the box, two quarters it, repeatably, with ⌫ to step
+  back up. So the geometry still buys the precision and the typing is
+  not spent. 6.373.0's two keystrokes are intact.
+
+  🔎 AND THE PLATES WERE THE OCCLUSION HE NAMED. Each label sits on a
+  dark plate because 6.372.0 measured this yellow at 1.00:1 over a white
+  window; the plate is what makes it readable there. They were sized for
+  a three-character label at 0.72 opacity, so across 4,096 cells they
+  were most of the screen. They hug the glyphs now (0.58 × 1.06 of the
+  advance rather than 0.66 × 1.25), which with two characters instead of
+  three is half the area, over 676 cells instead of 4,096.
+  `grid.labelPlateAlpha` exposes the opacity and `labelBackplates =
+  false` removes them entirely — his call, named rather than assumed.
+
+  🚨 THE 4.5:1 IS KEPT RATHER THAN TRADED AWAY. The obvious fix is to
+  make the plate more transparent, and it is wrong: at 0.55 this yellow
+  measures 3.25:1 over a white app, under the 4.5 the suite requires. So
+  the alpha stays where it is MEASURED to work and the occlusion comes
+  out of area and cell count instead. The suite recomputes that ratio
+  from whatever `labelPlateAlpha` ships (6.239.0), so lowering it later
+  is a gate failure and not a surprise.
+
+  🧪 AND THE GATE COULD NOT SEE ANY OF IT, which is the half worth
+  keeping. Every section of test_mouse_grid.lua pins its own alphabet,
+  label length and subdivisions before it runs, so 614 checks passed over
+  a module whose SHIPPED configuration nothing drove — 6.273.0, where a
+  line no mutation can kill means the missing CHECK is the finding. Worse,
+  three checks asserted the regression by name ("…which has THREE-character
+  capacity", "…the shipped layout divides every former cell into four"),
+  which is 6.248.0: a check pinned to a literal that was wrong.
+
+  §6429 asserts the RULE off the defaults captured before any pin — a
+  landing costs at most two keystrokes, nothing divides a cell before a
+  keystroke, the drawn count stays within the 676 he scored "so much
+  better" — then DRIVES that configuration end to end and measures the
+  plate's share of a real cell. 41% is the measured healthy value and the
+  guard sits at 45% with the number in its message (6.269.0: a new
+  instrument is measured against the healthy case first).
+
+  📏 AND ONE SENTRY IS ABOUT THE PROSE, because that is what failed: if
+  the module's own text says "two-character label", the shipped
+  labelLength must be 2. A comment going quietly false is invisible to
+  every check in this gate, which reads code.
+
+  🐛 Found while writing it: `#alpha ^ len` parses as `#(alpha ^ len)` —
+  `^` binds tighter than `#` — and raised, which ended the run with the
+  summary never printed (6.186.0). Parenthesised, and the arithmetic is
+  guarded so a future raise fails a check instead of killing the suite.
+
+  📏 WHAT IS UNCHANGED: ⇪X, ⇪⇧X, ⇪⇧L, the arrows at 8 pt with no
+  acceleration (6.360.0), the 16 pt refusal floor, the snap, the escape
+  order, and the Timer yellow read from `_G.uiStyle.accent` (6.428.0's
+  half that was right).
+
 NEW IN 6.428.0 — ✂️ EVERY CELL SPLIT INTO FOUR, IN THE TIMER'S YELLOW
                (modules/mouse_grid.lua)
 
