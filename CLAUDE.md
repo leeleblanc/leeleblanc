@@ -7284,6 +7284,21 @@ THE METHOD, when something breaks after a stacked zip:
    this. The only shared file it touches is the JS test harness's canvas
    stub, whose row stride now follows cv.width as a real canvas's does.
    · 6.415.0 01ac16c · 6.416.0 7cf6328 · 6.417.0 15e189c · 6.418.0 4976c6f
+   · 6.420.0 c980bc7 (the code and the ceremony) · **627d8e9 is the
+   archive, and 627d8e9 is the SHA every link to it must carry** — a
+   branch-pinned link dies the moment the next release deletes the file,
+   which is why 6.356.0–6.358.0 never reached his Downloads (6.360.0).
+   🔑 IT IS ONE MODULE AND ONE WINDOW, which matters for a bisect: if
+   anything else in this config changes behaviour on 6.420.0, it is not
+   this. The only shared thing it touches is core/coexist.lua's focus
+   door, as a CALLER — the door itself is unchanged, so ⇪D's paste and
+   the edit window's focus return are untouched. The symptom that names
+   this release is Hamsidian taking or not taking the keyboard, and
+   `_G.vaultReport()`'s new `keyboard:` line answers it in one run.
+   📏 AND ITS COST IS A BEHAVIOUR CHANGE, not a bug: opening Hamsidian
+   now activates Hammerspoon, so an open Console comes forward with it
+   (6.251.0's named price). `vault = { nonActivating = true }` is the
+   way back.
    · 6.419.0 **61ebf96 is the code, the ceremony and the archive, and
    61ebf96 is the SHA every link to it must carry** — a branch-pinned
    link dies the moment the next release deletes the file (6.360.0).
