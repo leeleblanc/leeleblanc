@@ -2577,9 +2577,18 @@ if capChunk then
             legs.root and legs.root.err
             and legs.root.err:find("unknown option", 1, true) ~= nil,
             legs.root and tostring(legs.root.err))
+      -- 🚨 AND THE BYTE COUNT NEEDS OUTPUT TO COUNT. The first version of
+      -- this asserted `bytes == 0` off the error leg above — where a
+      -- correct implementation and one that records a hard-coded 0
+      -- agree, so the check passed and the mutation survived (6.230.0).
+      -- The fixture that bites is a leg that produced something.
+      freshMac()
+      _G.secureInputCheck()
+      if T.cbs.root then T.cbs.root(0, "no pid here, but 24 bytes", "") end
+      local sized = (_G.secureInput.legs or {}).root
       check("📏 ...and how many BYTES it produced — a keyed leg returning "
             .. "megabytes proves -k narrowed nothing",
-            legs.root and legs.root.bytes == 0, legs.root and legs.root.bytes)
+            sized and sized.bytes == 25, sized and sized.bytes)
       check("📏 ...and its milliseconds, which is why this release exists",
             legs.root and type(legs.root.ms) == "number", legs.root and legs.root.ms)
 

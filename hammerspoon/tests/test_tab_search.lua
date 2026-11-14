@@ -443,18 +443,46 @@ end)(), TASKS[1] and table.concat(TASKS[1].args, "|", 3))
 -- easily not have been: four browsers answer in whatever order they
 -- finish, and ⌘–1–⌘9 name a POSITION — so a row that moves between
 -- presses is a jump to the wrong tab.
-check("🚨 the rows are in a fixed order — browser, then window, then "
-      .. "tab — so ⌘9 means the same tab twice running", (function()
-    local prev
-    for _, r in ipairs(ts.rows) do
-      if prev and prev.browser == r.browser then
-        if r.win < prev.win then return false end
-        if r.win == prev.win and r.tab <= prev.tab then return false end
-      end
-      prev = r
+-- 🚨 THE FIXTURE ANSWERS OUT OF ORDER, OR IT PROVES NOTHING. Chrome
+-- answering LAST is what separates a sorted list from one that is
+-- merely in the order the browsers happened to finish — with them
+-- answering in sorted order already, both implementations agree and the
+-- check passes with the sort deleted (6.230.0, found by the sweep).
+do
+    reset()
+    ts.show()
+    -- Answer in REVERSE, and hand Chrome's windows back high-to-low.
+    for i = #TASKS, 1, -1 do
+        local t, b = TASKS[i], TASKS[i].args and TASKS[i].args[3]
+        local keep = {}
+        for line in FIXTURE:gmatch("[^\n]+") do
+            if b and line:sub(1, #b) == b then table.insert(keep, 1, line) end
+        end
+        t.cb(0, table.concat(keep, "\n") .. (#keep > 0 and "\n" or ""), "")
     end
-    return true
-end)())
+    local rank = {}
+    for i, b in ipairs(ts.browsers()) do rank[b] = i end
+    check("🚨 the rows are in a fixed order — browser, then window, then "
+          .. "tab — so ⌘9 means the same tab twice running", (function()
+        local prev
+        for _, r in ipairs(ts.rows) do
+          if prev then
+            local ra, rp = rank[r.browser] or 99, rank[prev.browser] or 99
+            if ra < rp then return false end
+            if ra == rp then
+              if r.win < prev.win then return false end
+              if r.win == prev.win and r.tab <= prev.tab then return false end
+            end
+          end
+          prev = r
+        end
+        return #ts.rows == 4
+    end)(), (function()
+        local p = {}
+        for _, r in ipairs(ts.rows) do p[#p+1] = r.browser.."/"..r.win.."/"..r.tab end
+        return table.concat(p, " ")
+    end)())
+end
 
 -- =====================================================================
 out("\n=== 7. nothing found, and nothing answering, are different ===\n")

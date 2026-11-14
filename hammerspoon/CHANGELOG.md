@@ -5,6 +5,299 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.439.0 — 🗂 ONE osascript PER BROWSER, SO A SLOW ONE IS NAMED
+               (modules/tab_search.lua)
+
+  LL, 2026-11-14: "Chrome tab scan fails. Not sure what you mean but
+  fix please."
+
+  🔎 AND HIS SCREENSHOT CHANGED THE DIAGNOSIS, WHICH IS THE HALF WORTH
+  READING FIRST. This file's own note said the next step was to check
+  System Settings → Privacy & Security → Automation before touching any
+  code. He sent that pane: Hammerspoon with Finder, Calendar, System
+  Events, Google Chrome, Microsoft Outlook and VLC all switched ON. The
+  grant is there and has been. That leaves `osascript exited 15` as
+  exactly what it literally is — SIGTERM — and the only thing sending
+  SIGTERM is our own six-second kill, nineteen lines below. The script
+  was never refused. It was still working when we shot it.
+
+  🚨 AND THE OLD SHAPE COULD NOT HAVE SAID WHICH BROWSER. Every browser
+  went into ONE osascript under ONE budget. A browser with two hundred
+  tabs — each `URL of t` is a separate Apple Event round trip — spends
+  the whole six seconds by itself, and every other browser is killed
+  alongside it, with nothing partial kept and nothing named. The alert
+  then read "No browser answered in 6s. If this is the first run, check
+  for an Automation prompt." Both halves wrong: one of them probably
+  answered, and the prompt was granted years ago.
+  🔑 GENERAL, and it is 6.430.0's finding one module along: A MESSAGE
+  THAT NAMES THE WRONG CAUSE IS WORSE THAN NO MESSAGE. "Already clean"
+  sent him to look at a link that was filthy; "check for an Automation
+  prompt" sent him to a settings pane where every switch was already on.
+  Both are a tool asserting a diagnosis it had not made.
+
+  🗂 SO EACH BROWSER GETS ITS OWN TASK, its own slot (6.196.1 — one
+  slot for several tasks is the use-after-free), its own budget and its
+  own row. FOUR OUTCOMES, because they want four different fixes:
+  answered with tabs · answered with none · exited non-zero and said why
+  · never answered at all. Only the last two are faults.
+
+  🔑 AND WHICH BROWSERS ARE RUNNING IS A LUA QUESTION NOW. The script's
+  first line was `tell application "System Events" to set runningNames
+  to name of every process` — an Apple Event to a THIRD app, needing its
+  own Automation grant and its own launch (System Events is faceless and
+  may have to start), before a single tab could be read. Hammerspoon
+  already knows every running app and the list costs nothing. One fewer
+  permission, one fewer app in the chain, and the answer arrives before
+  osascript is started at all. `ts.runningFrom` is PURE, so the rule
+  that stops this key LAUNCHING every browser you own is proven with no
+  Mac — and the fixture that bites is Safari CLOSED, because with every
+  browser running, filtering and not filtering agree (6.230.0).
+
+  🔎 AN EMPTY APP LIST IS A REFUSAL, NOT AN EMPTY MAC (6.196.1).
+  `runningApplications()` can never legitimately come back empty —
+  Hammerspoon is itself one of them — so a zero-length answer is macOS
+  declining, and the module asks every browser blind rather than
+  reporting "no browser is running". The report SAYS the rows were
+  asked blind rather than measured. The suite first went red here over
+  correct code, because its stub returned the impossible answer: a
+  fixture that cannot happen tests a branch no Mac can reach (6.290.0).
+
+  🚨 AND THE ROWS ARE SORTED, WHICH IS A HAZARD THIS RELEASE INTRODUCED
+  RATHER THAN ONE IT FOUND. With one osascript the order was the
+  script's; with four, the rows arrive in whatever order the browsers
+  happen to finish. ⌘1–⌘9 name a POSITION, so a row that moves between
+  presses is a jump to the wrong tab. Sorted by the browser order this
+  module already declares, then window, then tab. The check for it
+  survived its own mutation until the fixture answered OUT of order —
+  with the browsers answering in sorted order already, both
+  implementations agree (6.230.0, found by the sweep).
+
+  📏 AND EVERY RECORD OF THE LAST SCAN IS CLEARED when a scan finds no
+  browser running, not just the counts: leaving `lastLegs` behind made
+  the report describe the PREVIOUS scan's browsers as this one's, which
+  is 6.352.0 exactly — a stale field read as a live one, in the report
+  whose whole job is saying what just happened.
+
+NEW IN 6.438.0 — ✒️ THE GRID LINES ARE FAINTER THAN THE LETTERS
+               (modules/mouse_grid.lua)
+
+  LL, 2026-11-14: "Make the mouse grid box lines fainter, the letters
+  are more important."
+
+  🔎 HE IS DESCRIBING A TIE. The lines drew at alpha 0.55 and the labels
+  at the accent's own 0.96 — but a one-point hairline running the full
+  height of the screen covers far more of it than a two-character label
+  does, so the thing with the LOWER alpha was winning the screen on area
+  alone. That is 6.429.0's finding read backwards: occlusion is AREA,
+  not opacity, and this is the same arithmetic applied to the other mark
+  on the same overlay.
+
+  📏 0.22 over this module's own 0.55 black scrim leaves the lines
+  visible as STRUCTURE — you can still see where a cell ends — without
+  competing with the glyph you are reading. `grid.lineAlpha = 0.55` puts
+  the old weight back.
+
+  🧪 AND THE CHECK ASSERTS THE RULE AGAINST THE SHIPPED DEFAULTS, as a
+  RELATION rather than as the number 0.22: a later release is free to
+  retune both, and what must not come back is the TIE. 6.429.0 shipped a
+  regression past 614 green checks because every section pinned its own
+  numbers first, so this one reads the source. Both directions are
+  proven: it fails at 0.55 (the tie) and at 0.05 (invisible), because a
+  grid with no visible cell edges is a wall of letters with no geometry,
+  which is a complaint he has already made once.
+
+NEW IN 6.437.0 — ⏱ THE 4-SECOND POLL STOPS ASKING EVERY APP ITS NAME
+               (modules/focus_mode.lua)
+
+  LL's own `_G.lagReport()`, 2026-11-14:
+      modules/focus_mode.lua:866  4.00s  260 fires  avg 12.99ms
+                                        max 18.30ms  242 slow
+  242 of 260 fires over the budget, on the MAIN THREAD, every four
+  seconds, all day. The worst single offender in this config, and
+  6.228.0's exact class — a busy main thread is a mouse this Mac has
+  lost, and it is the leading explanation for a ⇪ shortcut taking a
+  second and a half in his own key trail.
+
+  🔎 WHERE IT WENT: `hs.application.runningApplications()` hands back
+  every app on the Mac, and the loop then asked EACH of them for its
+  name. On a working day that is forty-odd Accessibility round trips to
+  find the two or three that could possibly be in a meeting.
+
+  🔑 AND THE ANSWER WAS ALREADY IN THE MODULE. It has had an application
+  watcher since 6.63.0, for launched / activated / terminated. The set
+  of running apps only changes when that watcher fires — so the sweep
+  runs when the set MOVES, and between moves the handful of handles it
+  kept are asked directly. The window TITLES are still read every tick,
+  because a meeting is a title changing and no watcher fires for that.
+  GENERAL: before optimising a poll, ask what in it can actually change
+  between ticks — and then ask what already knows when it does.
+
+  🚨 AND THE BELT IS NOT OPTIONAL, BECAUSE THE WATCHER CAN BE REFUSED.
+  His Console on the same day carries "System Settings didn't accept an
+  Accessibility watcher" from another module. With no watcher the
+  generation never moves, and a cache with no clock on it would be stale
+  for the rest of the session — a tool that silently stopped noticing
+  new apps. `fm.rescanSecs` (60) sweeps anyway, so the worst case is the
+  OLD cadence rather than a dead feature, and the report says which of
+  the two is carrying it.
+
+  🚨 AND A CACHED HANDLE OUTLIVES THE APP IT NAMES, which is the one way
+  this cache could be WRONG rather than merely stale: quitting Zoom
+  leaves a dead object in the list until the next sweep, and asking it
+  for its windows would hold a meeting open after the app went.
+  Liveness is asked every tick, which is cheap.
+
+  🔎 A REFUSED ENUMERATION KEEPS THE OLD LIST rather than emptying it.
+  An empty answer and "macOS would not say" are opposite facts (6.196.1)
+  and clearing here would drop focus mode mid-meeting on one bad answer.
+
+  📏 AND THE REPORT SAYS WHAT THE CACHE BOUGHT, beside what it cost
+  (6.229.0's yield line): sweeps against cached ticks. If `sweeps`
+  climbs in step with `cached`, the cache is not holding and this
+  release did nothing — quietly, which is the failure that matters.
+
+  🧪 THE SWEEP FOUND THE HALF NOBODY DROVE. Deleting the watcher's
+  generation bump survived the whole suite, because every check set
+  `fm.appGen` by hand — proving the cache READS it and saying nothing
+  about whether the watcher still WRITES it. Half a join (6.388.0), and
+  the half that costs a meeting app opened mid-session never being seen.
+  The real callback is fired now, in all three directions: a launch
+  bumps, a quit bumps, an ACTIVATION does not — bumping there would
+  re-enumerate on every app switch, which is the cost this release
+  exists to remove.
+
+NEW IN 6.436.0 — 🔬 FOUR LEGS, EACH TIMED AND NAMED — SECURE INPUT HAS
+               NEVER ONCE ANSWERED ON HIS MAC (core/capabilities.lua)
+
+  Every report LL has sent since 6.196.0 reads `not probed yet` or
+  `ioreg was asked and never answered in 20s`, and his 2026-11-13 storm
+  file carries `secure: not known` at the one moment it mattered — the
+  ⇪ latch that the "why" section was built to explain.
+
+  🔎 AND THE FILE SAID WHY, IN ITS OWN COMMENT, FOR 240 RELEASES. The
+  chain was narrow → broad, and the paragraph above it reads: "the broad
+  form is the fallback and runs ONLY when the narrow one came back with
+  nothing — which on a healthy Mac is EVERY time, so this fallback is
+  the normal path, not a rare one." The broad form was a bare
+  `ioreg -l`: a dump of the WHOLE IO registry, megabytes, through a
+  pipe, every sixty seconds. The expensive leg was the one that always
+  ran, and it was named as such in writing.
+  🔑 GENERAL: when a comment calls a fallback "the normal path", it is
+  not a fallback — it is the design, and it should be costed like one.
+
+  🧪 SO THE CHEAP LEGS COME FIRST AND THE EXPENSIVE ONE IS NARROWED:
+    root      — what shipped: IOConsoleUsers on Root.
+    resources — the same property on IOResources, which is where macOS
+                publishes it on some builds. This is the likeliest
+                reason the root leg has always found nothing.
+    keyed     — the whole tree, but `-k` so only that property prints:
+                a few lines instead of a few megabytes.
+    full      — the bare dump that used to be leg two. KEPT as the last
+                resort, because whether `-k` is honoured on his macOS is
+                a fact about HIS Mac that no source in this container
+                can read (6.233.0), and dropping it on that guess would
+                trade a slow answer for none.
+
+  📏 SO THIS IS A PROBE AS MUCH AS A FIX, AND SAYS SO. Each leg records
+  its milliseconds, its exit code, its stderr and how many BYTES it
+  produced — and the byte count is what settles it: a keyed leg
+  returning a few hundred bytes proves `-k` works here and `full` can go
+  next release; megabytes, or a non-zero exit with a complaint on
+  stderr, proves it does not. Neither is guessable from here and both
+  are one paste away.
+  📏 AND A LEG WITH NO ROW DID NOT RUN. With a timeout above them, the
+  first missing row NAMES the leg the belt fired inside — the single
+  most useful sentence this report can carry, and unobtainable before.
+
+  🔬 ALL THREE VALUES ARE READ (6.179.0). The task callback is
+  (exitCode, stdOut, stdErr) and this took only stdOut, so a leg macOS
+  REFUSED a flag on — exit 1, the complaint on stderr, nothing on
+  stdout — was indistinguishable from one that ran perfectly and found
+  nothing. Those are opposite facts and they are the whole question
+  this release asks.
+
+  🔑 AND THE KILL READS THE LEG LIST RATHER THAN A COPY OF IT. 6.343.0
+  taught the belt to terminate the ioreg it gives up on (LL counted 93
+  orphans); it walked a hand-written `{ "narrow", "broad" }`, correct
+  with two legs and silently blind to the other two the day there were
+  four. One literal, two readers (6.231.0).
+
+  🔬 AND THE STUB COULD NOT TELL TWO LEGS APART. It classified by "has
+  -l", which merged `keyed` and `full` — a stub that cannot distinguish
+  two legs certifies that they are interchangeable (6.290.0), and
+  whether they differ IS the question. It reads the real arguments now.
+  Five sections then had to learn to drain the whole chain: each was
+  answering two legs and stopping, which left the probe in flight and
+  the checks asserting "off" against a reading that had not happened —
+  6.248.0 from the other side, a check pinned to the SHAPE of the chain
+  rather than to the rule it was testing.
+
+NEW IN 6.435.0 — 🪪 THE WORK MAC HAS A PROFILE, AND A SCAN TO PASTE BACK
+               (init.lua + modules/machine_scan.lua)
+
+  LL, 2026-11-14: "Work Macbook name: MLC409N-153212 and be sure to give
+  me a comprehensive Hammerspoon console report so that when I install
+  this on any work Macbook, I can give you a rich, detailed output,
+  perhaps something like _G.workmacbookScan()."
+
+  🪪 THE NAME FIRST, BECAUSE IT IS THE EMBARRASSING HALF.
+  "Lees-Work-MacBook" was a name I INVENTED, sitting under a comment
+  telling him to replace it — so that Mac has been taking the DEFAULT
+  profile for every release it has ever run, silently until 6.418.0
+  taught the boot line to say so. The invented key is GONE rather than
+  left beside the real one: a profile key matching no Mac on earth is
+  exactly what 6.418.0 was written to make loud.
+
+  🪪 AND THE MATCH IS BY NAME, THEN BY A NORMALISED NAME, AND IT SAYS
+  WHICH. A key had to equal hostTag EXACTLY, and hostTag is the
+  computer's name with spaces hyphenated and everything else dropped —
+  so one character of punctuation between the key and the machine means
+  a silent fall back to the default. The normalised pass catches it.
+  🚨 AND AN AMBIGUOUS MATCH REFUSES. `pairs` has no order, so two keys
+  that normalise alike would hand this Mac a different profile on
+  different boots — tuning that changes under him with nothing on screen
+  saying so. Collected, sorted, and more than one is a REFUSAL that
+  names them: fail closed (6.276.0), because a wrong profile is worse
+  than no profile and only one of the two is visible in the boot line.
+
+  🚪 AND THE SCAN IS A DOOR, NOT A TENTH INSTRUMENT. 6.317.0's rule,
+  paid for the fifth time: nearly every fact he wants already exists —
+  `_G.capabilityReport()` has the permissions, `_G.bootReport()` the
+  modules, `_G.stores()` the folders, `_G.snippetsReport()` the library,
+  `_G.selfTest()` whether the tools answer. What has never existed is
+  ONE command that gathers them with the three facts none of them
+  carries: what this Mac is CALLED, which profile that resolved to and
+  HOW, and which of the external binaries this config reaches for are
+  actually on the disk — with both Homebrew prefixes, because an
+  Apple-silicon Mac puts brew under /opt/homebrew and an Intel one under
+  /usr/local and a work Mac is as likely to be one as the other.
+
+  🔒 AND IT NEVER DOES THE THING (6.413.0). No screenshot, no snippet,
+  no write, no app activated, no process started — every row is a stat,
+  a table read or a report asked for its text. Asserted against the
+  SOURCE, not by driving it: a functional check can only prove it did
+  not act on the ONE path it drove, and this is a claim about every path
+  there is. The sentry bans the CALL shapes (hs.task, io.open,
+  setContents) and not the binary NAMES, because naming
+  /usr/sbin/screencapture and saying whether it is there is the feature.
+
+  🔎 A MISSING BINARY NAMES EVERY PATH IT LOOKED IN — one whose search
+  path is secret is one nobody can install — and a stat that RAISES is
+  "could not ask", never "not there" (6.196.1): only the second is
+  actionable. Folders get four states for the same reason, and a Mac
+  with no cloud folder SHOUTS, because that is Hamsidian honestly
+  reporting "no notes yet" about a local folder it created itself
+  (6.317.0) and on a work Mac it is the likeliest single failure there
+  is.
+
+  📏 AND THE PRIVATE SNIPPET PACK IS NAMED AS DELIBERATELY ABSENT. The
+  four public packs ship inside the archive; textpanders holds real
+  addresses, a phone number and an employee id, lives only in his
+  OneDrive snippets folder and is in NO archive, by a hard rule. So a
+  work Mac without that folder synced has the public packs and nothing
+  else — and that is the config working, not a failed install. Saying it
+  in the scan is what stops it being diagnosed as one.
+
 NEW IN 6.434.0 — 🔎 HAMMERSPOON IS IN ITS OWN MENU-BAR PICKER
                (modules/menubar_items.lua)
 

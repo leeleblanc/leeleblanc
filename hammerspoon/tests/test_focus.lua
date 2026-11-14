@@ -41,6 +41,7 @@ local function out(s) io.write(s) end
 
 -- ---- a controllable Mac ----------------------------------------------
 local NOW, APPS, ALERTS, TASKS, CANVASES, WINDOWS = 1000, {}, {}, {}, {}, {}
+local WATCH_FN
 local MIC = { muted = false, volume = 70, canMute = true }
 local printed, HYPER, PROVIDED, TIMEOUTS = {}, {}, {}, {}
 print = function(...)
@@ -100,7 +101,14 @@ hs = {
             GETCALLS = GETCALLS + 1
             for _, a in ipairs(APPS) do if a._name == n then return a end end
         end,
-        watcher = { new = function(fn) return { fn = fn, start = function() end } end,
+        -- ⏱ 6.437.0 — THE CALLBACK IS CAPTURED, because the generation
+        -- bump lives inside it. The suite could set fm.appGen by hand
+        -- and prove the RULE, which left the WATCHER free to stop paying
+        -- it — half a join, and the half nobody drove (6.388.0).
+        watcher = { new = function(fn)
+                        WATCH_FN = fn
+                        return { fn = fn, start = function() end }
+                    end,
                     launched = 1, activated = 2, terminated = 3 },
     },
     audiodevice = { defaultInputDevice = function()
@@ -810,6 +818,13 @@ end
 out("\n-- 6.437.0 the app-list cache --\n")
 do
     local fm = boot()
+    -- The watcher is created in warm(), not setup() — a running-app
+    -- sweep on the boot path is exactly what the two-phase loader exists
+    -- to keep off it (6.267.0). So warm has to run before §C2 can ask
+    -- whether the watcher pays the generation.
+    WATCH_FN = nil
+    fm.enabled, fm.auto = true, true
+    pcall(M.warm)
 
     -- §A THE RULE IS PURE, so the whole decision is proven with no Mac.
     local need, why = fm.needsSweep(nil, 0, 100, 60)
@@ -850,12 +865,48 @@ do
     fm.tick()
     check("⏱ a moved generation re-enumerates", calls == 2, calls)
 
+    -- 🚨 §C2 AND THE WATCHER IS WHAT MOVES IT. The check above sets the
+    -- generation by hand, so it proves the CACHE reads it and says
+    -- nothing about whether the watcher still writes it — half a join,
+    -- and deleting the bump survived the whole suite (6.388.0 · 6.273.0).
+    -- An app LAUNCHING is the fixture: a cache that cannot see a new app
+    -- is a meeting app opened mid-session that detection never finds.
+    if WATCH_FN then
+        local genBefore = fm.appGen
+        WATCH_FN("zoom.us", hs.application.watcher.launched)
+        check("🚨 the app watcher itself bumps the generation on a LAUNCH",
+              fm.appGen == genBefore + 1,
+              tostring(genBefore) .. " -> " .. tostring(fm.appGen))
+        genBefore = fm.appGen
+        WATCH_FN("zoom.us", hs.application.watcher.terminated)
+        check("🚨 ...and on a QUIT, because a cached handle to a dead app "
+              .. "is the one way this cache could be wrong rather than stale",
+              fm.appGen == genBefore + 1,
+              tostring(genBefore) .. " -> " .. tostring(fm.appGen))
+        genBefore = fm.appGen
+        WATCH_FN("Finder", hs.application.watcher.activated)
+        check("🔎 ...but an ACTIVATION does not — the set did not move, and "
+              .. "bumping there would re-enumerate on every app switch, "
+              .. "which is the cost this release exists to remove",
+              fm.appGen == genBefore, fm.appGen)
+    else
+        check("🚨 the app watcher callback was captured", false, "no watcher")
+    end
+
     -- §D AND SO DOES THE CLOCK, WITH THE GENERATION STUCK — the refused
     -- watcher case, which is the one his Mac demonstrably has.
+    -- §C2 above moved the generation, so settle the cache at the current
+    -- one FIRST: otherwise this sweep happens because the generation
+    -- moved and the check would pass without the clock rule existing at
+    -- all (6.230.0 — pick the input where the two must differ).
+    fm.tick()
+    local sweepsBefore = fm.sweeps
     NOW = NOW + (fm.rescanSecs or 60) + 1
     fm.tick()
+    check("🚨 ...and it really was a NEW enumeration, not a cached tick",
+          fm.sweeps == sweepsBefore + 1, fm.sweeps)
     check("🚨 the clock re-enumerates with the generation unmoved",
-          calls == 3, calls)
+          calls >= 3, calls)
     check("...and that sweep is counted as the BELT, not as the watcher",
           (fm.rescanBelt or 0) >= 1, fm.rescanBelt)
 

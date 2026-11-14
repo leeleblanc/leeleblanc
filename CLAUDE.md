@@ -440,6 +440,154 @@ work Mac.
      ("find the field that separates them BEFORE saying either out
      loud") broken in the direction that costs him the most.
 
+- 🪪 A PLACEHOLDER UNDER A COMMENT TELLING SOMEBODY TO REPLACE IT IS A
+  VALUE NOBODY EVER REPLACED (6.435.0, init.lua §0.3 + a new module — LL:
+  "Work Macbook name: MLC409N-153212"). `_G.moduleProfiles` carried the key
+  `["Lees-Work-MacBook"]`, a name I INVENTED, over a comment reading "put
+  your work machine's name here". He does not edit init.lua (6.267.0), so
+  that Mac has matched nothing and silently taken the DEFAULT profile for
+  every release it has ever run.
+  🔑 AND THE MATCH IS NORMALISED BUT NEVER GUESSED. `profileNorm` lowers
+  and strips punctuation, so a name differing only in spacing or case
+  matches — and TWO keys that normalise alike are AMBIGUOUS, which takes
+  the default and SAYS which keys collided. A tie resolved by sorted order
+  would bind a Mac to whichever profile happened to sort first, which is
+  worse than no profile at all (6.276.0: fail closed).
+  📏 6.418.0 BUILT THE INSTRUMENT AND NOT THE DOOR, which is this
+  project's own 6.317.0 one layer out: that release made a profile-less Mac
+  SAY so, and the thing it said was a name only I could supply. The boot
+  line now has four states (exact · normalised, naming both · ambiguous,
+  ⚠️ · default, ℹ️) and `_G.profileIdentity` is the one record all of them
+  read.
+  🪪 AND THE SCAN IS A READER, NOT AN ACTOR. `_G.workmacbookScan()`
+  describes a Mac in seven sections — identity, permissions, binaries,
+  folders, snippets, modules, what to run next — and a gate sentry asserts
+  it makes NO `hs.task`, `io.open`, `hs.execute`, `keyStrokes` or
+  pasteboard call anywhere: a tool whose whole job is describing a Mac I
+  cannot see must not be able to change it. Every binary row names EVERY
+  path it looked in, because "⚠️ missing" without a path is a row he cannot
+  act on (6.430.0).
+  🔎 THREE STATES PER BINARY, and the third is the one that matters: ✅ at
+  a named path · ⚠️ not at any of N paths, listed · ❔ the stat RAISED, which
+  is NOT "missing". An unanswerable question printed as an absence is how a
+  present tool gets installed twice.
+  🚨 AND THE SECTION WRAPPER EARNS ITS PLACE BY FAILING: each section runs
+  in its own pcall and a throw prints `❔ this section could not be read`
+  while the SIX OTHERS still print. This is the block he will read INSTEAD
+  of my asking him questions (6.413.0's rule), so one exploding row must
+  not take the report down — and the check that proves it drives a raise
+  inside the FIRST section and asserts the later ones survived.
+
+- 🔒 A FALLBACK THAT IS THE NORMAL PATH IS NOT A FALLBACK — IT IS THE
+  FEATURE, AT THE FALLBACK'S PRICE (6.436.0, core/capabilities.lua — LL's
+  answer "Yes, the three above", and his every report since 6.196.0 reading
+  `secure: not known`).
+  🔎 THE FILE'S OWN COMMENT ADMITTED IT: the narrow `ioreg` probe "finds
+  nothing EVERY time on a healthy Mac", so the broad leg "is the normal
+  path, not a rare one". And the broad leg was a bare `ioreg -l` — THE
+  WHOLE IO REGISTRY through a pipe, every sixty seconds, for one key. So
+  the one row that can explain a dead keyboard system-wide has been
+  answering UNKNOWN for two hundred and forty releases while costing
+  megabytes a minute.
+  🪜 FOUR LEGS NOW, CHEAPEST FIRST, and each one TIMED with its exit, its
+  byte count and macOS's own stderr. `-n Root -d1 -k IOConsoleUsers` ·
+  `-n IOResources -d1 -k` · `-l -k` · `-l`. The report prints the block, so
+  ONE paste settles whether `-k` is honoured on his macOS — which is a
+  platform fact this container cannot read (6.233.0), and the reason the
+  expensive leg is kept rather than deleted on a belief.
+  🔑 GENERAL, and it is the half to carry: when a guarded chain's LAST leg
+  is the one that normally answers, the chain is not a fallback ladder —
+  measure each rung's cost and reorder, because the cost you are paying is
+  the most expensive rung's, every time.
+  🪜 Each hop is a HELD `doAfter(0)` in its own slot so no leg is started
+  from inside another's callback (6.196.1, which killed this process
+  natively twice), and the walker is one `step(i)` rather than four nested
+  callbacks — a shape where a fifth leg cannot be added wrongly.
+  🧪 AND THE SUITE HAD TO LEARN TO DRAIN. Five existing sections answered
+  two legs and stopped, leaving a probe in flight with four; `drainOff()`
+  answers the rest. A suite that leaves the thing under test half-run
+  measures the next section's world, not its own.
+
+- 🕰 A TIMER THAT ENUMERATES EVERY APP IS A COST PAID PER TICK FOR AN
+  ANSWER THAT CHANGES PER MONTH (6.437.0, modules/focus_mode.lua — his own
+  `_G.lagReport()`: focus_mode fired 260 times and **242 of them were over
+  budget**, 13 ms each, every four seconds, on the thread his keyboard
+  waits on).
+  🔎 `hs.application.runningApplications()` plus `app:name()` for EVERY
+  app, four times a minute, to find out whether Teams or Zoom is running —
+  while this module's own app watcher already knew the moment that set
+  moved. 6.228.0's rule in the place it costs most: a busy main thread is a
+  mouse this Mac has lost.
+  🔑 THE WATCHER BUMPS A GENERATION AND THE SWEEP ASKS WHETHER IT HAS TO.
+  `fm.needsSweep(cache, gen, now, every)` is PURE with three answers —
+  first look · the app set changed · the periodic re-sweep — so the fast
+  path is a comparison and the enumeration happens on a LAUNCH or a QUIT.
+  📏 AND A 60-SECOND BELT IS KEPT DELIBERATELY, not as a hedge: macOS can
+  refuse an application watcher, and `fm.watcherOK` records whether it
+  started. With no watcher the re-sweep IS the mechanism, so the report
+  says ⚠️ NO APP WATCHER rather than reading as health — detection still
+  works and a meeting app launched mid-session can take a minute to be
+  seen, which is a cost worth naming (6.196.1).
+  🧪 THE SWEEP'S OWN FINDING, and it is 6.388.0: every check set `fm.appGen`
+  BY HAND, so the watcher's half of the join was driven by nothing and
+  deleting the bump passed. The checks fire the real watcher callback for
+  launched · terminated · activated now, and assert that an ACTIVATION does
+  NOT bump it — a generation that moves on every app switch is the
+  enumeration back, wearing a cache's clothes.
+  ⚖️ AND THE YIELD LINE IS WHAT MAKES THE CLAIM CHECKABLE (6.229.0): "892
+  of 896 tick(s) (99%) skipped the enumeration". A release that says it
+  stopped doing something must print the number, on his Mac, or it is a
+  sentence with nothing under it.
+
+- ✒️ WHEN TWO THINGS SHARE A SURFACE, COUNT THE AREA BEFORE CALLING THE
+  OPACITY A TIE (6.438.0, modules/mouse_grid.lua — LL: "Make the mouse grid
+  box lines fainter, the letters are more important"). The cell lines drew
+  at 0.55 and the labels at 0.96 — which reads as the letters winning
+  comfortably, and is nearly a tie once you notice the lines cover every
+  cell's whole perimeter while a label covers a fraction of its middle.
+  🔑 6.429.0's FINDING READ BACKWARDS: that release took the occlusion out
+  of AREA rather than out of alpha, because dropping this yellow to 0.55
+  measures 3.25:1 over a white app, under the 4.5 the suite requires. The
+  same arithmetic says the LINES are the thing with area to spend — 0.22
+  keeps the geometry visible and stops it competing with the thing you are
+  reading. GENERAL: alpha is not a ranking; alpha × area is.
+
+- 🗂 ONE BUDGET ACROSS SEVERAL ASKS IS A BUDGET THE SLOWEST ONE SPENDS
+  (6.439.0, modules/tab_search.lua — LL: "Chrome tab scan fails. Not sure
+  what you mean but fix please", with a screenshot of System Settings →
+  Automation showing Hammerspoon's grants for Finder, Calendar, System
+  Events, Chrome, Outlook and VLC **all ON**).
+  🔎 HIS SCREENSHOT IS WHAT REFRAMED IT, and it retires my own diagnosis:
+  this file's note said `osascript exited 15` meant an unanswered
+  Automation prompt. The grant is there, in his own hand, so 15 is SIGTERM
+  — OUR OWN six-second kill. All browsers were asked in ONE script sharing
+  ONE budget, so a Chrome with two hundred tabs spent it and every other
+  browser died with it, reported as "No browser answered" and blamed on a
+  permission granted years ago. 6.430.0 exactly: a message naming the wrong
+  cause is worse than no message, because it sends him to argue with a
+  settings pane that is already correct.
+  🔑 ONE TASK PER BROWSER, ONE BUDGET EACH, and the slow one can no longer
+  starve the others. Each gets its own slot and its own killer timer
+  (6.304.0's one-belt-per-leg), and the report prints a ROW PER BROWSER
+  with its state and its milliseconds — so "Chrome takes 7 s" becomes a
+  number he can read instead of a tool that fails.
+  🚨 AND ANSWERS THAT ARRIVE IN ANY ORDER MUST BE SORTED BEFORE THEY ARE
+  NUMBERED. Parallel tasks finish in whatever order they finish, and ⌘1–⌘9
+  address a ROW — so rows are ordered by browser, then window, then tab
+  before they are handed over, or two presses of the key reach two
+  different tabs. The fixture answers in REVERSE with windows high-to-low,
+  because a fixture that is already sorted proves nothing (6.230.0).
+  🔎 AND IT ASKS WHICH BROWSERS ARE RUNNING FIRST, which is cheaper and
+  honest: a browser that is not running reads `⏳ not running, so never
+  named` rather than ⚠️ — those are opposite facts and only one is a fault
+  (6.196.1). `ts.runningFrom` is PURE; an EMPTY running-app list is a
+  REFUSAL and falls back to asking everything, because Hammerspoon is
+  itself in that list and an empty answer can only mean macOS would not
+  say (6.352.0's stale field, in the other direction).
+  🚨 AND System Events IS OUT OF THE SCRIPT. It was asked for the app list
+  and is a second Automation grant to depend on for something
+  `hs.application` answers in-process, for free.
+
 - ⎋ A POLICY REACHED THROUGH A FALLBACK'S DOOR ONLY EXISTS WHERE THE
   FALLBACK IS NEEDED (6.432.0, core/hyper_key.lua — LL: "Escape does not
   drop the Unified Search History window if I move off of it").
@@ -7925,6 +8073,11 @@ that must be READ before a new cause is named.
 
 | symptom, in his words | where it lives | releases | passes | tag |
 |---|---|---|---|---|
+| "Work Macbook name: MLC409N-153212" · a Mac that has never had a profile of its own | init.lua §0.3 + modules/machine_scan.lua · the profile key was a name I invented under a comment telling him to replace it | 6.418.0 · 6.435.0 | 2 | ask |
+| `secure: not known` in every report since 6.196.0 · "Yes, the three above" | core/capabilities.lua · the broad `ioreg -l` leg WAS the normal path, every 60 s | 6.196.0 · 6.304.0 · 6.436.0 | 3 | ask |
+| 242 of 260 timer fires over budget, 13 ms each | modules/focus_mode.lua · enumerating every running app four times a minute on the main thread | 6.437.0 | 1 | ask |
+| "Make the mouse grid box lines fainter, the letters are more important" | modules/mouse_grid.lua · alpha looked like a ranking; alpha × area is | 6.438.0 | 1 | not a defect — a shape ask |
+| "Chrome tab scan fails. Not sure what you mean but fix please" | modules/tab_search.lua · one 6 s budget shared by every browser, and `exited 15` was our own kill blamed on an Automation prompt he had granted | 6.439.0 | 1 | ask |
 | "Escape does not drop the Unified Search History window if I move off of it" | core/hyper_key.lua · the escape route lived behind the dead-Carbon dispatcher's gate, and five panels let WebKit close a window behind Lua's back | 6.432.0 | 1 | ask |
 | "Why don't I see Hammerspoon in Alt+Tab anymore?" | modules/window_switcher.lua · one title matched, one bit recorded, five facts | 6.433.0 | 1 (an instrument as much as a fix) | ask |
 | "Why don't I see Hammerspoon as menu bar item I can search?" | modules/menubar_items.lua · hidden by name since the list was written | 6.434.0 | 1 | not a defect — a judgement he overruled |
@@ -8113,6 +8266,11 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
+| 6.439.0 | 🗂 ⇪⇧' asks each browser separately, so one slow browser no longer kills the scan | pending |
+| 6.438.0 | ✒️ The grid's cell lines are fainter so the letters read first | pending |
+| 6.437.0 | 🕰 ⇪Q stops enumerating every app four times a minute | pending |
+| 6.436.0 | 🔒 Secure Input can finally answer — four legs, cheapest first, each timed | pending |
+| 6.435.0 | 🪪 The work MacBook has a profile of its own, and `_G.workmacbookScan()` describes any Mac in one paste | pending |
 | 6.434.0 | 🔎 Hammerspoon is in its own menu-bar picker — it was hidden by name | pending |
 | 6.433.0 | 🪟 Every window this process owns is an ⌥Tab card, and the report says which of five things it found | pending |
 | 6.432.0 | ⎋ Escape drops a panel you have moved off — the route only existed on a Mac with a dead Carbon layer | pending |
@@ -9862,6 +10020,157 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.439.0 verify with LL — 🪪 THE WORK MAC, THE KEYBOARD PROBE AND THE
+  SLOW TIMER — this block covers 6.435.0, 6.436.0, 6.437.0, 6.438.0 AND
+  6.439.0: they shipped in one archive, in five different files, and
+  share one test plan.
+  📏 FILED UNDER THE NEWEST ON PURPOSE: tools/build-test-plan.lua reads
+  one version per heading, so a batch goes under its newest and names
+  the others in its own section headings.
+  🔑 FIVE RELEASES IN FIVE PLACES, so a break still names its version by
+  which thing fails: no profile line or no scan is 6.435.0 (init.lua +
+  a new module) · Secure Input still UNKNOWN is 6.436.0 (capabilities) ·
+  ⇪Q or the Mac feeling slower is 6.437.0 (focus_mode) · the grid
+  looking wrong is 6.438.0 (mouse_grid) · ⇪⇧' finding no tabs is
+  6.439.0 (tab_search).
+
+  ── 1. 🪪 THE WORK MAC (6.435.0) ─────────────────────────────
+  1a. ON THE AIR, reload and read the 🧭 block.
+      EXPECT: exactly what you see today, and NOTHING new about profiles.
+      **An ℹ️ or ⚠️ profile line on the Air is a FAIL** — it would mean
+      its own profile stopped matching.
+  1b. ON THE WORK MACBOOK, install and reload.
+      EXPECT: **no profile line at all.** It has a profile now
+      (MLC409N-153212), so the "No profile for …" line should be gone.
+      If it still appears, PASTE IT — the name in the quotes is what
+      that Mac really calls itself and the key needs to match it.
+  1c. Console, on EITHER Mac: `_G.workmacbookScan()`.
+      EXPECT a block in seven parts: 🪪 this Mac · 🔑 permissions ·
+      🧰 binaries · 📁 folders · ✂️ snippets · 🧩 modules ·
+      📋 what to run next.
+      **PASTE THE WHOLE THING FROM THE WORK MAC.** That is the release
+      — it is the first build on which one command describes a Mac I
+      cannot see.
+  1d. Read the `profile :` line. EXPECT "matched by name".
+      "⚠️ DEFAULT — N keys match this name" would mean two profile keys
+      collide; "ℹ️ DEFAULT" means the name still does not match.
+  1e. Read the 🧰 binaries block.
+      EXPECT ✅ for osascript, ioreg, screencapture, sqlite3, rsync, find,
+      mdfind, hidutil and the rest; ⚠️ for blueutil, brew, zbarimg and wn
+      unless you have installed them. **Every ⚠️ names every path it
+      looked in** — that is the line that makes one installable.
+      RETURN: which are missing on the work Mac. Each is one feature
+      that degrades and says so, and that list is what I cannot guess.
+  1f. 🚨 Look for a 🚨 NO CLOUD FOLDER line. On the work Mac this is
+      the one that matters most: it means Hamsidian is reading a LOCAL
+      folder and will honestly say "no notes yet" about the wrong place.
+      PASTE IT IF YOU SEE IT.
+
+  ── 2. 🔒 SECURE INPUT, AT LAST (6.436.0) ─────────────────────
+  2a. Reload, wait a minute, then Console: `_G.secureInputReport()`.
+      EXPECT `state  : off — nothing is holding the keyboard`.
+      **A FAIL is `state : UNKNOWN` again** — which is what it has said
+      on your Mac since 6.196.0, in every report you have ever sent.
+  2b. **PASTE THE `legs   :` BLOCK.** Four rows, cheapest first:
+            ✅ root         12 ms  ·      180 bytes  · exit 0
+            ✅ resources    14 ms  ·      240 bytes  · exit 0
+            ✅ keyed        95 ms  ·      310 bytes  · exit 0
+            ⏳ full         did not run
+      That block is the whole release. The old chain's second leg was a
+      dump of your entire IO registry — megabytes through a pipe, every
+      sixty seconds — and it is why this has never answered.
+  2c. Read the BYTES on the `keyed` row. A few hundred proves the narrow
+      flag works on your macOS and the `full` leg can be deleted next
+      release. Megabytes, or a non-zero exit with words after it, proves
+      it does not. **Neither is guessable from here.**
+  2d. If any row reads ⏳ "did not run" AND there is a timeout line
+      above, that row NAMES the leg that hung. Paste it.
+  2e. Console: `_G.hyperKeyReport()`. EXPECT its `secure:` row to read a
+      real answer instead of "capabilities.lua has not answered yet" —
+      the line your 2026-11-13 storm file carries at the one moment it
+      mattered.
+
+  ── 3. ⏱ THE SLOW TIMER (6.437.0) ─────────────────────────
+  3a. Use the Mac normally for a few hours.
+  3b. Console: `_G.lagReport()`. Find the focus_mode row.
+      EXPECT the "slow" count to be a small fraction of the fires. On
+      6.434.0 it was **242 slow out of 260**, 13 ms each, every four
+      seconds, on the thread your keyboard waits on.
+      **PASTE THAT ROW.** It is the measurement, and it is yours.
+  3c. Console: `_G.focusReport()`. Two new lines:
+            app list      : 4 full sweep(s) · 892 tick(s) from the cache
+               ↳ yield: 892 of 896 tick(s) (99%) skipped the enumeration
+      EXPECT the yield to be high. If `full sweep` climbs in step with
+      `cached`, the cache is not holding and this release did nothing.
+  3d. 🚨 If it reads **⚠️ NO APP WATCHER**, paste it: macOS refused the
+      watcher on that Mac, so a 60-second re-sweep is the only thing
+      keeping the list current. Detection still works; a meeting app
+      launched mid-session can take up to a minute to be seen.
+  3e. ⇪Q must still engage and disengage focus mode by hand.
+  3f. Join a Teams or Zoom meeting. EXPECT focus mode to engage as
+      always. LEAVE it. EXPECT it to disengage within the watchdog
+      window. **That is the behaviour this release must not have cost**,
+      and it is the one thing only you can test.
+
+  ── 4. ✒️ THE GRID LINES (6.438.0) ───────────────────────
+  4a. Press ⇪X. EXPECT the cell lines noticeably fainter and the yellow
+      letters unchanged — the letters should now be the first thing you
+      see. **A FAIL is lines as strong as before.**
+  4b. EXPECT you can still SEE where each cell ends. If the geometry has
+      gone, that is the opposite failure and it is one line to move.
+  4c. Type the two letters; a/s/d/f refine; ⌫ steps back; ⎋ closes.
+      All unchanged.
+
+  ── 5. 🗂 THE TAB SCAN (6.439.0) ───────────────────────
+  5a. With Chrome open, press **⇪⇧'** — hold Caps Lock and Shift and
+      press the apostrophe key, right of the semicolon.
+      EXPECT your open tabs, searchable. **A FAIL is "No browser
+      answered".**
+  5b. Console: `_G.tabReport()`. **PASTE IT.** One row per browser:
+            Google Chrome            ✅ 143 tab(s)  · 2140 ms
+            Safari                   ⏳ not running, so never named
+      EXPECT the milliseconds. If Chrome takes more than six seconds,
+      THAT is your bug and the number is the fix — it is one setting.
+  5c. If a row ever reads ⚠️, it now names the browser and what happened
+      to it. It must NOT mention an Automation prompt: your screenshot
+      shows every grant already on, and blaming one was the old
+      message's whole defect.
+  5d. Press ⏎ on a tab. EXPECT it jumps to that tab.
+  5e. Press ⇪⇧' twice and compare the list order. EXPECT the SAME order
+      both times. The browsers are asked in parallel now and answer in
+      whatever order they finish, so if rows move between presses, ⌘1–⌘9
+      would jump to the wrong tab — tell me at once.
+  5f. Quit every browser and press ⇪⇧'.
+      EXPECT "no browser is running", NOT "none answered". Those are
+      different facts and only the second is a fault.
+
+  ── 6. MUST STILL WORK — this batch touched init.lua's boot, a core
+  ──    file and three modules, so this half matters more than 1–5 ──
+  6a. Boot: All green, **80 modules** (was 79 — machine_scan is new),
+      and the same ⇪ shortcut count as before. A different shortcut
+      count is a finding: the new module binds no key at all.
+  6b. A spread of keys: ⇪T, ⇪D, ⇪N, ⇪3, ⇪X, ⇪4, ⇪space, ⇪V, ⇪/,
+      ⇪⇧S, ⇪I, ⇪⇧..
+  6c. `_G.installCheck()` — EXPECT 93 runtime files now, all matching.
+  6d. `_G.selfTest()` — every row still answers.
+  6e. ⇪/ and search `machine scan` — the 🪪 card is there, under CONFIG.
+  6f. Type normally for a while in Chrome and Word. No missed keys, no
+      lag. If anything feels HEAVIER on this build, stop and tell me:
+      6.437.0 changed a timer that runs every four seconds.
+
+  ❓ QUESTIONS — ANSWERS WANTED, NOTHING TO RUN
+  Q1. **The `legs :` block from step 2b.** It decides whether the next
+      release deletes the expensive leg or keeps it — and whether Secure
+      Input can finally be ruled in or out as the thing latching ⇪.
+  Q2. **The focus_mode row from `_G.lagReport()` after a day** (3b).
+      That is the before-and-after on the worst offender in the config.
+  Q3. **`_G.workmacbookScan()` from the work MacBook** (1c), and which
+      binaries are missing there (1e).
+  Q4. **Does ⇪⇧' work now, and how many milliseconds does Chrome
+      take?** (5b). If it is over six seconds the fix is a number.
+  Q5. **Are the grid lines right?** (4a–4b). Fainter is the ask;
+      invisible is a different bug and it is one value either way.
+
 - 6.434.0 verify with LL — 🔧 THE FOUR YOU NAMED (KNOWN GROUND) — this
   block covers 6.431.0, 6.432.0, 6.433.0 AND 6.434.0: they shipped in one
   archive, in four different files, and share one test plan.

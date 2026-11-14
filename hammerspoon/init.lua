@@ -2,59 +2,64 @@
 -- * Working VERSION *
 -- =====================================================================
 -- =====================================================================
--- 11-13-26 using Claude          ← EDITED date. Bumped with every release.
+-- 11-14-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.434.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.439.0
 -- =====================================================================
 
--- NEW IN 6.434.0 — 🔎 HAMMERSPOON IS IN ITS OWN MENU-BAR PICKER
---   (modules/menubar_items.lua). LL: "Why don't I see Hammerspoon as
---   menu bar item I can search?" Because this module hid it, by name,
---   with the reason "our own 🩺 and calendar items" — a judgement taken
---   when they read as clutter, and he has just overruled it by going
---   looking for them. Three are real and clickable: 🩺 health_monitor,
---   the mini calendar, and the pause indicator power_tools puts up.
---   🔑 GENERAL: a list that hides the thing somebody is hunting for is a
---   list that lies to them, and the whole cost of hiding is paid by the
---   one person who went looking (6.361.0 — a tool you cannot find is the
---   same thing as a tool that is not there). Every other name on that
---   list is an Apple background agent with nothing behind it to click;
---   ours has something behind it to click, which is the difference.
---   🧪 AND THE SUITE ASSERTED THE OPPOSITE IN ITS OWN WORDS — "listing
---   yourself is noise" (6.248.0). It asks the rule now, in BOTH
---   directions (6.346.0): our items are listed, AND the skip list still
---   turns Control Center away, or "Hammerspoon is listed" would pass
---   just as well over a filter somebody had switched off entirely.
+-- NEW IN 6.439.0 — 🗂 ONE osascript PER BROWSER, SO A SLOW ONE IS
+--   NAMED (modules/tab_search.lua). LL: "Chrome tab scan fails. Not
+--   sure what you mean but fix please."
+--   🔎 AND HIS SCREENSHOT CHANGED THE DIAGNOSIS. This file's own note
+--   said the next step was to check Automation; his System Settings pane
+--   shows Hammerspoon with Finder, Calendar, System Events, Chrome,
+--   Outlook and VLC all switched ON. So the grant is there, which leaves
+--   `osascript exited 15` as what it literally is — SIGTERM, from OUR
+--   OWN six-second kill. The script was not refused. It was still
+--   working when we shot it.
+--   🚨 AND THE OLD SHAPE COULD NOT SAY WHICH BROWSER. All of them went
+--   into ONE osascript under ONE budget, so a browser with two hundred
+--   tabs — each `URL of t` is an Apple Event round trip — spent the
+--   whole six seconds and every other browser was killed with it, then
+--   reported as "No browser answered" and blamed on a prompt granted
+--   years ago. A message that names the wrong cause is worse than none
+--   (6.430.0's "Already clean", one module along). Four outcomes now:
+--   answered with tabs · answered with none · exited non-zero and said
+--   why · never answered — each with its browser and its milliseconds.
+--   🔑 AND WHICH BROWSERS ARE RUNNING IS A LUA QUESTION. The script's
+--   first line asked System Events for the process list: an Apple Event
+--   to a THIRD app, with its own Automation grant and its own launch,
+--   before a single tab could be read. Hammerspoon already knows, free.
+--   🚨 THE ROWS ARE SORTED, and that is a hazard this release
+--   INTRODUCED rather than found: four browsers answer in whatever order
+--   they finish, and ⌘1–⌘9 name a POSITION — so a row that moves
+--   between presses is a jump to the wrong tab.
 
--- NEW IN 6.433.0 — 🪟 EVERY WINDOW THIS PROCESS OWNS IS AN ⌥TAB CARD
---   (modules/window_switcher.lua). LL: "Why don't I see Hammerspoon in
---   Alt+Tab anymore?"
---   🔎 AND NOTHING COULD ANSWER THAT. The listing walked our own windows
---   for the one titled exactly "Hammerspoon Console" and recorded ONE
---   BIT, so five different facts arrived as the same false: the console
---   is closed (ordinary), this build has no hs.processInfo,
---   applicationForPID answered nothing, allWindows() answered an EMPTY
---   LIST (6.152.0 named that as the first suspect on a Dock-less
---   accessory app, which this config has been since 6.66.2), or it
---   answered windows and none carried that title. The report printed
---   "not seen yet this session" for all five.
---   🚨 AND THAT TITLE IS A LITERAL NOBODY HERE OWNS (6.236.0, fifth
---   time): it is Hammerspoon's string, and on the day it moves the only
---   window ⌥Tab can list stops being listed, silently.
---   🔑 SO IT ASKS THE QUESTION HE ASKED — which windows does THIS
---   PROCESS own? Every one is a card under its own real title, and the
---   `console` flag (which only decides that choosing it goes through
---   hs.openConsole) is the one whose title matches. A rename then costs
---   the flag, which nobody can see, instead of costing the card.
---   📏 Still our process only, by pid: one app, no cross-app AX, never
---   hs.console.hswindow() (6.160.3 — a second full sweep, 2.6s).
---   🔎 `_G.switcherReport()` NAMES which of the five it found.
+-- NEW IN 6.438.0 — ✒️ THE GRID LINES ARE FAINTER THAN THE LETTERS
+--   (modules/mouse_grid.lua). LL: "Make the mouse grid box lines
+--   fainter, the letters are more important."
+--   🔎 HE IS DESCRIBING A TIE. The lines drew at alpha 0.55 and the
+--   labels at the accent's own 0.96 — but a one-point hairline running
+--   the full height of the screen covers far more of it than a
+--   two-character label does, so the thing with the LOWER alpha was
+--   winning the screen on area alone. That is 6.429.0's finding read
+--   backwards: occlusion is AREA, not opacity.
+--   📏 0.22 over this module's own 0.55 black scrim leaves them visible
+--   as STRUCTURE — you can still see where a cell ends — without
+--   competing with the glyph you are reading. `lineAlpha = 0.55` is the
+--   way back.
+--   🧪 AND THE CHECK ASSERTS THE RULE AGAINST THE SHIPPED DEFAULTS, as
+--   a RELATION rather than the number: 6.429.0 shipped a regression past
+--   614 green checks because every section pinned its own values first.
+--   Proven in BOTH directions — it fails at 0.55 (the tie) and at 0.05
+--   (invisible), because a grid with no visible cell edges is a wall of
+--   letters with no geometry, which is a complaint he has made once.
 
--- (6.432.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.437.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 cut the inline count to
 --  TWO; a gate check proves every entry here is also in CHANGELOG.md.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.434.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.439.0
 -- =====================================================================
 -- The catalogue that used to sit here moved to GUIDE.md ("What each
 -- tool does") in 6.180.0 — 259 lines of prose inside the orchestrator.
@@ -143,7 +148,7 @@ function _G.consoleRuleSay(what)
     return true
 end
 
-_G.configVersion = "6.434.0"
+_G.configVersion = "6.439.0"
 _G.consoleRuleSay("▶ BOOT")
 
 local function safeRequire(mod)

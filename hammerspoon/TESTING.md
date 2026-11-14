@@ -1,4 +1,4 @@
-# TESTING — how to score release 6.434.0
+# TESTING — how to score release 6.439.0
 
 You install ONE archive and it carries several releases. Below are the
 steps for each release this archive is new for, newest first. Run the
@@ -26,6 +26,161 @@ else is a LOSS and I fix it before building further. You are the only
 scorer; I never mark my own.
 
 ---
+
+## 6.439.0
+
+6.439.0 verify with LL — 🪪 THE WORK MAC, THE KEYBOARD PROBE AND THE
+SLOW TIMER — this block covers 6.435.0, 6.436.0, 6.437.0, 6.438.0 AND
+6.439.0: they shipped in one archive, in five different files, and
+share one test plan.
+📏 FILED UNDER THE NEWEST ON PURPOSE: tools/build-test-plan.lua reads
+one version per heading, so a batch goes under its newest and names
+the others in its own section headings.
+🔑 FIVE RELEASES IN FIVE PLACES, so a break still names its version by
+which thing fails: no profile line or no scan is 6.435.0 (init.lua +
+a new module) · Secure Input still UNKNOWN is 6.436.0 (capabilities) ·
+⇪Q or the Mac feeling slower is 6.437.0 (focus_mode) · the grid
+looking wrong is 6.438.0 (mouse_grid) · ⇪⇧' finding no tabs is
+6.439.0 (tab_search).
+
+── 1. 🪪 THE WORK MAC (6.435.0) ─────────────────────────────
+1a. ON THE AIR, reload and read the 🧭 block.
+    EXPECT: exactly what you see today, and NOTHING new about profiles.
+    **An ℹ️ or ⚠️ profile line on the Air is a FAIL** — it would mean
+    its own profile stopped matching.
+1b. ON THE WORK MACBOOK, install and reload.
+    EXPECT: **no profile line at all.** It has a profile now
+    (MLC409N-153212), so the "No profile for …" line should be gone.
+    If it still appears, PASTE IT — the name in the quotes is what
+    that Mac really calls itself and the key needs to match it.
+1c. Console, on EITHER Mac: `_G.workmacbookScan()`.
+    EXPECT a block in seven parts: 🪪 this Mac · 🔑 permissions ·
+    🧰 binaries · 📁 folders · ✂️ snippets · 🧩 modules ·
+    📋 what to run next.
+    **PASTE THE WHOLE THING FROM THE WORK MAC.** That is the release
+    — it is the first build on which one command describes a Mac I
+    cannot see.
+1d. Read the `profile :` line. EXPECT "matched by name".
+    "⚠️ DEFAULT — N keys match this name" would mean two profile keys
+    collide; "ℹ️ DEFAULT" means the name still does not match.
+1e. Read the 🧰 binaries block.
+    EXPECT ✅ for osascript, ioreg, screencapture, sqlite3, rsync, find,
+    mdfind, hidutil and the rest; ⚠️ for blueutil, brew, zbarimg and wn
+    unless you have installed them. **Every ⚠️ names every path it
+    looked in** — that is the line that makes one installable.
+    RETURN: which are missing on the work Mac. Each is one feature
+    that degrades and says so, and that list is what I cannot guess.
+1f. 🚨 Look for a 🚨 NO CLOUD FOLDER line. On the work Mac this is
+    the one that matters most: it means Hamsidian is reading a LOCAL
+    folder and will honestly say "no notes yet" about the wrong place.
+    PASTE IT IF YOU SEE IT.
+
+── 2. 🔒 SECURE INPUT, AT LAST (6.436.0) ─────────────────────
+2a. Reload, wait a minute, then Console: `_G.secureInputReport()`.
+    EXPECT `state  : off — nothing is holding the keyboard`.
+    **A FAIL is `state : UNKNOWN` again** — which is what it has said
+    on your Mac since 6.196.0, in every report you have ever sent.
+2b. **PASTE THE `legs   :` BLOCK.** Four rows, cheapest first:
+          ✅ root         12 ms  ·      180 bytes  · exit 0
+          ✅ resources    14 ms  ·      240 bytes  · exit 0
+          ✅ keyed        95 ms  ·      310 bytes  · exit 0
+          ⏳ full         did not run
+    That block is the whole release. The old chain's second leg was a
+    dump of your entire IO registry — megabytes through a pipe, every
+    sixty seconds — and it is why this has never answered.
+2c. Read the BYTES on the `keyed` row. A few hundred proves the narrow
+    flag works on your macOS and the `full` leg can be deleted next
+    release. Megabytes, or a non-zero exit with words after it, proves
+    it does not. **Neither is guessable from here.**
+2d. If any row reads ⏳ "did not run" AND there is a timeout line
+    above, that row NAMES the leg that hung. Paste it.
+2e. Console: `_G.hyperKeyReport()`. EXPECT its `secure:` row to read a
+    real answer instead of "capabilities.lua has not answered yet" —
+    the line your 2026-11-13 storm file carries at the one moment it
+    mattered.
+
+── 3. ⏱ THE SLOW TIMER (6.437.0) ─────────────────────────
+3a. Use the Mac normally for a few hours.
+3b. Console: `_G.lagReport()`. Find the focus_mode row.
+    EXPECT the "slow" count to be a small fraction of the fires. On
+    6.434.0 it was **242 slow out of 260**, 13 ms each, every four
+    seconds, on the thread your keyboard waits on.
+    **PASTE THAT ROW.** It is the measurement, and it is yours.
+3c. Console: `_G.focusReport()`. Two new lines:
+          app list      : 4 full sweep(s) · 892 tick(s) from the cache
+             ↳ yield: 892 of 896 tick(s) (99%) skipped the enumeration
+    EXPECT the yield to be high. If `full sweep` climbs in step with
+    `cached`, the cache is not holding and this release did nothing.
+3d. 🚨 If it reads **⚠️ NO APP WATCHER**, paste it: macOS refused the
+    watcher on that Mac, so a 60-second re-sweep is the only thing
+    keeping the list current. Detection still works; a meeting app
+    launched mid-session can take up to a minute to be seen.
+3e. ⇪Q must still engage and disengage focus mode by hand.
+3f. Join a Teams or Zoom meeting. EXPECT focus mode to engage as
+    always. LEAVE it. EXPECT it to disengage within the watchdog
+    window. **That is the behaviour this release must not have cost**,
+    and it is the one thing only you can test.
+
+── 4. ✒️ THE GRID LINES (6.438.0) ───────────────────────
+4a. Press ⇪X. EXPECT the cell lines noticeably fainter and the yellow
+    letters unchanged — the letters should now be the first thing you
+    see. **A FAIL is lines as strong as before.**
+4b. EXPECT you can still SEE where each cell ends. If the geometry has
+    gone, that is the opposite failure and it is one line to move.
+4c. Type the two letters; a/s/d/f refine; ⌫ steps back; ⎋ closes.
+    All unchanged.
+
+── 5. 🗂 THE TAB SCAN (6.439.0) ───────────────────────
+5a. With Chrome open, press **⇪⇧'** — hold Caps Lock and Shift and
+    press the apostrophe key, right of the semicolon.
+    EXPECT your open tabs, searchable. **A FAIL is "No browser
+    answered".**
+5b. Console: `_G.tabReport()`. **PASTE IT.** One row per browser:
+          Google Chrome            ✅ 143 tab(s)  · 2140 ms
+          Safari                   ⏳ not running, so never named
+    EXPECT the milliseconds. If Chrome takes more than six seconds,
+    THAT is your bug and the number is the fix — it is one setting.
+5c. If a row ever reads ⚠️, it now names the browser and what happened
+    to it. It must NOT mention an Automation prompt: your screenshot
+    shows every grant already on, and blaming one was the old
+    message's whole defect.
+5d. Press ⏎ on a tab. EXPECT it jumps to that tab.
+5e. Press ⇪⇧' twice and compare the list order. EXPECT the SAME order
+    both times. The browsers are asked in parallel now and answer in
+    whatever order they finish, so if rows move between presses, ⌘1–⌘9
+    would jump to the wrong tab — tell me at once.
+5f. Quit every browser and press ⇪⇧'.
+    EXPECT "no browser is running", NOT "none answered". Those are
+    different facts and only the second is a fault.
+
+── 6. MUST STILL WORK — this batch touched init.lua's boot, a core
+──    file and three modules, so this half matters more than 1–5 ──
+6a. Boot: All green, **80 modules** (was 79 — machine_scan is new),
+    and the same ⇪ shortcut count as before. A different shortcut
+    count is a finding: the new module binds no key at all.
+6b. A spread of keys: ⇪T, ⇪D, ⇪N, ⇪3, ⇪X, ⇪4, ⇪space, ⇪V, ⇪/,
+    ⇪⇧S, ⇪I, ⇪⇧..
+6c. `_G.installCheck()` — EXPECT 93 runtime files now, all matching.
+6d. `_G.selfTest()` — every row still answers.
+6e. ⇪/ and search `machine scan` — the 🪪 card is there, under CONFIG.
+6f. Type normally for a while in Chrome and Word. No missed keys, no
+    lag. If anything feels HEAVIER on this build, stop and tell me:
+    6.437.0 changed a timer that runs every four seconds.
+
+❓ QUESTIONS — ANSWERS WANTED, NOTHING TO RUN
+Q1. **The `legs :` block from step 2b.** It decides whether the next
+    release deletes the expensive leg or keeps it — and whether Secure
+    Input can finally be ruled in or out as the thing latching ⇪.
+Q2. **The focus_mode row from `_G.lagReport()` after a day** (3b).
+    That is the before-and-after on the worst offender in the config.
+Q3. **`_G.workmacbookScan()` from the work MacBook** (1c), and which
+    binaries are missing there (1e).
+Q4. **Does ⇪⇧' work now, and how many milliseconds does Chrome
+    take?** (5b). If it is over six seconds the fix is a number.
+Q5. **Are the grid lines right?** (4a–4b). Fainter is the ask;
+    invisible is a different bug and it is one value either way.
+
+
 
 ## 6.434.0
 
@@ -341,132 +496,6 @@ Q2. **Do the plates need to go?** Step C. They buy readability over
 Q3. **The work MacBook's name** — `scutil --get ComputerName`, whenever
     you next have it. Still the one thing that gives that Mac a profile
     of its own instead of the fallback.
-
-
-
-## 6.428.0
-
-6.428.0 verify with LL — ✂️ FOUR BOXES WHERE THERE WAS ONE, IN THE
-TIMER'S YELLOW (KNOWN GROUND for the grid; the install is new)
-WHAT CHANGED: every grid cell is split into four, so the box you land
-in is a quarter of the size it was — and the letters are the Timer
-card's yellow instead of white.
-📐 YOUR TWO SENTENCES WERE ONE NUMBER, which is why this is one
-release. 26 letters squared is 676 cells, which is about 45 points on
-the Air against a toolbar button of 28–40 — so the box really was
-about twice the size of the thing you were aiming at. Quartering fixes
-that WITHOUT making you type a fourth letter: 6.176.0 tried that and
-your verdict was "HOLY SHIT! The grid is insane. Way too small."
-🟡 AND THE YELLOW IS THE SAME FOUR NUMBERS THE TIMER FLASHES, read out
-of one table rather than copied — so it cannot drift from it.
-
-A. THE HEADLINE — a minute, and do A4 even if A1–A3 look right.
-A1. Press **⇪X**. EXPECT: the grid, and the cells are visibly SMALLER
-    than you are used to — four where there was one.
-    **A FAIL is cells the same size as last week**, or a press that
-    does nothing at all.
-A2. Look at the letters. EXPECT: translucent YELLOW, the same colour
-    the ⏱ card flashes when a timer ends, each on a small dark patch
-    so it reads over a white window as well as a dark one.
-    **A FAIL is white letters** — that is the old behaviour.
-A3. Type the three letters of a cell. EXPECT: the pointer lands there,
-    exactly as it always has. The code is the SAME LENGTH as before —
-    if you are typing a fourth letter, tell me, because that is not
-    what this release does.
-A4. 🔎 Open something with small controls — a Finder toolbar, a
-    dialog's buttons — and aim at one. EXPECT: the box you land in is
-    close to the size of the button. That is the whole point of the
-    release and it is the one thing I cannot see from here.
-
-B. THE FOUR QUARTERS — this is the "again" half of your ask.
-B1. ⇪X, type three letters to land. EXPECT: the yellow box is drawn
-    divided into FOUR, with a letter in each quarter.
-B2. Press **a** — top-left. EXPECT: that quarter is kept, the pointer
-    goes to its middle, and it divides into four again.
-    Then **s** is top-right, **d** is bottom-left, **f** is
-    bottom-right. Two or three presses put you on a small button.
-B3. Press **⌫** (Backspace). EXPECT: the box goes back UP one — the
-    quarter you just took is undone.
-B4. Keep refining until it refuses. EXPECT: it SAYS why rather than
-    doing nothing — there is a 16-point floor, because a box smaller
-    than that is not something you can aim with.
-B5. Press **space**. EXPECT: it clicks where the pointer is.
-B6. Press **⎋** (Escape). EXPECT: the grid goes away and the keyboard
-    is yours.
-
-C. MUST STILL WORK — this is a full-screen overlay that captures
-   keys, so this half matters more than A and B.
-C1. ⇪X then ⎋, five or six times briskly. EXPECT: it opens every time
-    and closes every time. **If an overlay is ever left on screen with
-    nothing closing it, that is the serious failure** — ⌃⌥⌘⇧X is the
-    panic key (hold Control, Option, Command and Shift, press X) and
-    I want to know at once.
-C2. ⇪X, land, then nudge with the **arrow keys**. EXPECT: 8 points a
-    press, 1 point with ⇧ held, and a HELD arrow crawls steadily
-    rather than taking off (that is 6.360.0 and it must not have
-    moved).
-C3. ⇪⇧X — the same grid, but it clicks the moment you finish typing.
-C4. ⇪⇧L — find the pointer. EXPECT: three coloured rings, unchanged.
-    That is a separate tool and nothing here touched it.
-C5. While the grid is up, press **⌘Q** or **⌘Tab**. EXPECT: they still
-    work. Only the letters and a handful of control keys are claimed,
-    deliberately — an overlay you cannot ⌘Q out of is the hazard.
-C6. On BOTH screens if you can: the Air's panel and the LG. EXPECT: a
-    readable grid on each.
-
-D. THE INSTALL ITSELF — new in this archive, so worth two minutes.
-D1. Unpack it and run, in Terminal:
-        sh ~/Downloads/<the folder you unpacked>/tools/hs-install.sh \
-           ~/Downloads/<that same folder> --dry-run
-    EXPECT a line reading **6.427.0  →  6.428.0**.
-    **A FAIL is a version that reads like a sentence** — something
-    beginning "-- 📏 `_G.configVersion` is assigned HERE". That is the
-    bug this release fixes: the installer was reading a COMMENT where
-    the version goes, which also meant its own final check compared
-    that comment with itself and could never fail. If you see it,
-    this archive is not the one I built.
-D2. Then the real thing, without `--dry-run`. EXPECT it to back your
-    current config up first, copy, verify, and tell you to reload.
-D3. Reload Hammerspoon. EXPECT the boot line to read 6.428.0, All
-    green, 79 modules.
-D4. Console: `_G.installCheck()`. EXPECT every runtime file present at
-    the size this release carries.
-
-E. PASTE BACK, PASS OR FAIL.
-E1. Console: `_G.mouseGridReport()` — the whole block. Three lines are
-    the ones I want:
-    · `cells :` — the REAL cell size in points on the screen you are
-      on. I have been reasoning about that number from arithmetic and
-      I would rather have it from your display.
-    · `split :` — it should name **a s d f**, four parts, and say
-      where the keys came from.
-    · `labels:` — the four numbers of the yellow, which should be the
-      same ones `_G.timerReport()` shows for the flash.
-E2. If the grid ever DECLINES to open with a sentence about the labels
-    being too small to read, paste it. That is the new refusal working
-    — the overlay stays off the screen rather than capturing your
-    keyboard behind letters you cannot read — and the number in it
-    tells me whether the floor is set right for your eyes.
-
-❓ QUESTIONS — ANSWERS WANTED, NOTHING TO RUN
-Q1. **Is a quarter the right size, or should it go further?** This
-    divides each cell 2 × 2. If the box is still bigger than the
-    buttons you aim at, one line makes it 3 × 3 (nine per cell) — but
-    that is a third of the label size again, so I want your eyes on
-    it before I spend them. "right" · "smaller" · "too small now".
-Q2. **Are a/s/d/f the right four keys?** They are the home row's left
-    hand, in reading order. You had two letters for the half-split in
-    6.252.0 and this replaces that habit, so say if it fights your
-    fingers — and `refineParts = 2` puts the old two-way split back
-    if you would rather have it.
-Q3. **Is the yellow readable on YOUR screens?** It is the Timer's
-    exact accent at its own alpha, on a dark backplate. White was
-    measured at 1.00:1 on a white window — invisible — but I cannot
-    see your displays, and if the yellow is now the thing that is
-    hard to read, that is a number I will move rather than argue.
-Q4. **The work MacBook's name** — `scutil --get ComputerName`. Still
-    owed from 6.418.0, and it is the one thing that gives that Mac a
-    profile of its own instead of the fallback.
 
 
 
