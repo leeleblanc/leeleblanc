@@ -7929,6 +7929,26 @@ THE METHOD, when something breaks after a stacked zip:
    quietly rewritten, so the record shows the call was made and changed.
    · 6.421.0 · 6.422.0 · 6.423.0 — 9313323 (code, suites and ceremony in
    one commit; the archive for them is 6.427.0's, below).
+   · 6.435.0 · 6.436.0 · 6.437.0 · 6.438.0 · 6.439.0 — 1498771 (the
+   code and the suites) · 797760c (the ceremony and the sweep's own three
+   findings) · **5220c85 is the archive, and 5220c85 is the SHA every
+   link to it must carry** — a branch-pinned link dies the moment the next
+   release deletes the file, which is why 6.356.0–6.358.0 never reached
+   his Downloads (6.360.0).
+   🔑 FIVE RELEASES IN FIVE FILES on purpose, so a break still names
+   its version by which thing fails: no profile line, or no
+   `_G.workmacbookScan()`, is 6.435.0 (init.lua §0.3 + boot_report + a new
+   module) · Secure Input still UNKNOWN is 6.436.0 (core/capabilities.lua)
+   · ⇪Q, or the Mac feeling heavier, is 6.437.0 (modules/focus_mode.lua)
+   · the grid looking wrong is 6.438.0 (modules/mouse_grid.lua) · ⇪⇧'
+   finding no tabs is 6.439.0 (modules/tab_search.lua).
+   📏 AND 6.435.0 IS THE ONE THAT TOUCHES THE BOOT, which is worth
+   knowing before bisecting: it rewrote how every Mac resolves its
+   profile. If ANY machine-specific setting stops applying on 6.435.0,
+   that is this release and `_G.profileIdentity` is the evidence — its
+   `how` field says exact · normalised · ambiguous · default.
+   23 mutations, 20 killed on the first sweep and 23 of 23 after, the
+   no-op control survived, tree sha256-verified after every one.
    · 6.431.0 · 6.432.0 · 6.433.0 · 6.434.0 — 3170ade (the code, the
    suites and the whole ceremony) · e8c8127 (the sweep's own two
    findings) · **1eeb950 is the archive, and 1eeb950 is the SHA every
