@@ -75,9 +75,26 @@ check("three profiles ship: the Air, the work Mac and the fallback", n == 3, n)
 check("the fallback profile is present", (profiles or {}).default ~= nil)
 
 local air  = (profiles or {})["Lees-MacBook-Air"]
-local work = (profiles or {})["Lees-Work-MacBook"]
+-- 🪪 6.435.0 — THE WORK MAC IS FOUND BY RULE, NOT BY NAME. This asked
+-- for the literal "Lees-Work-MacBook" — a name I INVENTED under a
+-- comment telling him to replace it — so the check went green for 240
+-- releases over a key that matched no machine on earth, and went RED
+-- the moment the real name arrived. 6.248.0 exactly: a literal standing
+-- in for a rule. The rule is that there are two named profiles besides
+-- the fallback and that the one which is not the Air is the work Mac.
+local work, workName
+for name, p in pairs(profiles or {}) do
+    if name ~= "default" and name ~= "Lees-MacBook-Air" then
+        work, workName = p, name
+    end
+end
 check("the Air has a profile", air ~= nil)
-check("the work Mac has a profile", work ~= nil)
+check("the work Mac has a profile, whatever it is called", work ~= nil, workName)
+-- 🚨 AND IT MUST NOT BE THE INVENTED ONE. A key nobody's Mac answers
+-- to is the defect this release fixed, and nothing but a check stops it
+-- being typed back in by the next person who wants a placeholder.
+check("...and it is not the placeholder name any more",
+      workName ~= "Lees-Work-MacBook", workName)
 
 if air and work then
     -- 6.213.2, on LL's own words: "solid when I go over, about 30% when

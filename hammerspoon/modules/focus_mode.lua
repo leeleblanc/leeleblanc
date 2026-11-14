@@ -96,6 +96,12 @@ function M.setup(core)
     fm.key           = "q"        -- ⇪Q toggle · ⇪⇧Q report
     fm.auto          = true       -- false = ⇪Q only, no detection at all
     fm.pollSecs      = 4          -- how often detection looks
+    -- ⏱ 6.437.0 — how often the app LIST is re-enumerated when the
+    -- watcher has told us nothing. The watcher is what normally triggers
+    -- a sweep; this is the belt for a Mac where it was refused, and 60 s
+    -- is chosen so the worst case is the OLD cadence rather than a
+    -- feature that quietly stopped seeing new apps.
+    fm.rescanSecs    = 60
     fm.watchdogSecs  = 90         -- engaged with no meeting seen this long → leave
     fm.axTimeout     = 0.10       -- 🚨 per-app Accessibility timeout. Freeze guard.
     fm.scanBudget    = 1.0        -- hard stop for one detection sweep, seconds
@@ -260,6 +266,55 @@ function M.setup(core)
     end
 
     -- ---- detection: is a meeting happening? -------------------------------
+    -- ⏱ 6.437.0 — THE APP LIST IS NOT RE-ENUMERATED EVERY FOUR SECONDS.
+    -- LL's own `_G.lagReport()`, 2026-11-14:
+    --     modules/focus_mode.lua:866  4.00s  260 fires  avg 12.99ms
+    --                                        max 18.30ms  242 slow
+    -- 242 of 260 fires over the budget, on the MAIN THREAD, every four
+    -- seconds, all day. That is 6.228.0's class — a busy main thread is
+    -- a mouse this Mac has lost — and this is the single worst offender
+    -- in the config.
+    --
+    -- 🔎 WHERE IT WENT: `hs.application.runningApplications()` hands back
+    -- every app on the Mac, and the loop then asked EACH of them for its
+    -- name. On a working day that is forty-odd Accessibility round trips
+    -- to find the two or three that could possibly be in a meeting.
+    --
+    -- 🔑 AND THE ANSWER WAS ALREADY IN THE MODULE: it has had an
+    -- application watcher since 6.63.0 for launched / activated /
+    -- terminated. The set of running apps only changes when that watcher
+    -- fires — so the sweep runs when the set MOVES, and between moves
+    -- the handful of handles it found are asked directly. The windows
+    -- are still read every tick, because a meeting is a window TITLE
+    -- changing and no watcher fires for that.
+    --
+    -- 🚨 AND THE BELT IS NOT OPTIONAL, because the watcher can be
+    -- refused: his Console on the same day carries "System Settings
+    -- didn't accept an Accessibility watcher". If the generation never
+    -- moves because nothing is watching, a cache with no clock on it
+    -- would be stale for the rest of the session and the feature would
+    -- silently stop noticing new apps. `fm.rescanSecs` sweeps anyway, so
+    -- the worst case is the OLD behaviour at a minute's cadence rather
+    -- than a tool that quietly died.
+    fm.appGen    = 0      -- bumped by the watcher when the app set moves
+    fm.appCache  = nil    -- { gen, at, apps = { {app=, name=} } }
+    fm.sweeps    = 0      -- full enumerations
+    fm.cacheHits = 0      -- ticks served from the cache
+    fm.rescanBelt = 0     -- sweeps the clock forced, not the watcher
+
+    -- PURE: does this tick need a full enumeration? Three reasons, and
+    -- they are counted apart because they mean different things — no
+    -- cache yet is a cold start, a moved generation is the watcher
+    -- working, and an expired clock is the watcher NOT working.
+    function fm.needsSweep(cache, gen, nowS, everyS)
+        if type(cache) ~= "table" then return true, "first look" end
+        if cache.gen ~= gen then return true, "the app set changed" end
+        if (nowS - (cache.at or 0)) >= (everyS or 60) then
+            return true, "the periodic re-sweep"
+        end
+        return false, "cached"
+    end
+
     -- Returns appObject, reason  — or nil.
     function fm.detectMeetingWindow()
         local t0 = now()
@@ -268,19 +323,61 @@ function M.setup(core)
         -- scan sits this tick out. A skipped scan costs a 4-second wait;
         -- a stale app object costs nothing (isRunning is checked at use).
         fm._outlook = nil
-        local okApps, apps = pcall(hs.application.runningApplications)
-        if not okApps or not apps then return nil end
-        for _, app in ipairs(apps) do
+
+        -- ⏱ THE EXPENSIVE HALF, RUN ONLY WHEN IT CAN HAVE CHANGED.
+        local need, whySweep = fm.needsSweep(fm.appCache, fm.appGen,
+                                             now(), fm.rescanSecs)
+        if need then
+            local okApps, apps = pcall(hs.application.runningApplications)
+            if not okApps or not apps then
+                -- 🔎 A REFUSED ENUMERATION KEEPS THE OLD CACHE rather than
+                -- emptying it. An empty list and "macOS would not say"
+                -- are opposite facts (6.196.1), and clearing here would
+                -- drop focus mode mid-meeting on one bad answer.
+                fm.sweepFails = (fm.sweepFails or 0) + 1
+                if not fm.appCache then return nil end
+            else
+                local kept = {}
+                for _, app in ipairs(apps) do
+                    if now() - t0 > fm.scanBudget then
+                        warn("detection budget exhausted")
+                        break
+                    end
+                    local name = "?"
+                    pcall(function() name = app:name() or "?" end)
+                    -- Only the handles this module can ever care about
+                    -- are kept. Everything else is dropped here, once,
+                    -- instead of being re-asked its name every tick.
+                    if fm.meetingApps[name] or name == "Microsoft Outlook" then
+                        kept[#kept + 1] = { app = app, name = name }
+                    end
+                end
+                fm.appCache = { gen = fm.appGen, at = now(), apps = kept }
+                fm.sweeps   = (fm.sweeps or 0) + 1
+                if whySweep == "the periodic re-sweep" then
+                    fm.rescanBelt = (fm.rescanBelt or 0) + 1
+                end
+            end
+        else
+            fm.cacheHits = (fm.cacheHits or 0) + 1
+        end
+
+        for _, entry in ipairs((fm.appCache or {}).apps or {}) do
             -- Budget checked EVERY iteration, not at the end. A partial
             -- sweep is strictly better than holding the keyboard.
             if now() - t0 > fm.scanBudget then
                 warn("detection budget exhausted")
                 return nil
             end
-            local name = "?"
-            pcall(function() name = app:name() or "?" end)
-            if name == "Microsoft Outlook" then fm._outlook = app end
-            local spec = fm.meetingApps[name]
+            local app, name = entry.app, entry.name
+            -- 🚨 A CACHED HANDLE OUTLIVES THE APP. Quitting Zoom leaves a
+            -- dead object here until the next sweep, and asking a dead
+            -- app for its windows is the one way this cache could report
+            -- a meeting that ended. Asked every tick, which is cheap.
+            local alive = true
+            pcall(function() alive = app:isRunning() end)
+            if name == "Microsoft Outlook" and alive then fm._outlook = app end
+            local spec = alive and fm.meetingApps[name]
             if spec then
                 local okW, wins = pcall(function() return app:allWindows() end)
                 for _, w in ipairs((okW and wins) or {}) do
@@ -821,6 +918,44 @@ function M.setup(core)
         if fm.focusOnShortcut == "" then
             L[#L + 1] = "   ⚠️ no Focus Shortcut set — notifications are NOT silenced"
         end
+        -- ⏱ 6.437.0 — WHAT THE CACHE BOUGHT, BESIDE WHAT IT COST. A
+        -- release that claims it stopped doing expensive work owes the
+        -- number that proves it on HIS Mac (6.229.0's yield line): ticks
+        -- served from the cache against full enumerations. If `sweeps`
+        -- climbs in step with `cached`, the cache is not holding and
+        -- this release did nothing — quietly, which is the failure mode
+        -- that matters.
+        do
+            local sw, hit = fm.sweeps or 0, fm.cacheHits or 0
+            local total = sw + hit
+            L[#L + 1] = string.format(
+                "   app list      : %d full sweep(s) · %d tick(s) from the cache",
+                sw, hit)
+            if total > 0 then
+                L[#L + 1] = string.format(
+                    "      ↳ yield: %d of %d tick(s) (%d%%) skipped the enumeration",
+                    hit, total, math.floor(hit / total * 100 + 0.5))
+            else
+                L[#L + 1] = "      ↳ detection has not looked yet this session"
+            end
+            -- THREE REASONS A SWEEP HAPPENS and they are not the same
+            -- fact: the watcher firing is the design working, the clock
+            -- forcing one is the watcher NOT working, and a refused
+            -- enumeration is macOS saying no.
+            if fm.watcherOK == false then
+                L[#L + 1] = "      ⚠️ NO APP WATCHER — macOS refused it, so the "
+                            .. fm.rescanSecs .. "s re-sweep is the only thing"
+                L[#L + 1] = "         keeping the list current. Detection still works;"
+                L[#L + 1] = "         a new meeting app can take up to that long to be seen."
+            elseif (fm.rescanBelt or 0) > 0 then
+                L[#L + 1] = "      ↳ " .. fm.rescanBelt .. " of those sweep(s) were the "
+                            .. fm.rescanSecs .. "s belt, not the watcher"
+            end
+            if (fm.sweepFails or 0) > 0 then
+                L[#L + 1] = "      ⚠️ " .. fm.sweepFails .. " enumeration(s) REFUSED by "
+                            .. "macOS — the previous list was kept rather than emptied"
+            end
+        end
         L[#L + 1] = "   recent:"
         for _, l in ipairs(fm.log) do L[#L + 1] = "     " .. l end
         local s = table.concat(L, "\n")
@@ -891,6 +1026,15 @@ function M.setup(core)
         -- makes LEAVING reliable. Both are needed — an app watcher never
         -- fires for "the meeting window changed title".
         local okW, w = pcall(hs.application.watcher.new, function(name, event)
+            -- ⏱ 6.437.0 — THE SET MOVED, SO THE CACHE IS STALE. Bumped for
+            -- EVERY app, not just a meeting one: the cache holds Outlook
+            -- too, and more to the point a sweep that only noticed the
+            -- apps it already knows about could never pick up a meeting
+            -- app being launched for the first time.
+            if event == hs.application.watcher.launched
+               or event == hs.application.watcher.terminated then
+                fm.appGen = (fm.appGen or 0) + 1
+            end
             if event == hs.application.watcher.launched
                or event == hs.application.watcher.activated then
                 if fm.meetingApps[name] then hs.timer.doAfter(1.0, fm.tick) end
@@ -900,8 +1044,25 @@ function M.setup(core)
                 end
             end
         end)
-        if okW and w then fm.appWatcher = w; pcall(function() w:start() end) end
-        say("detection armed, polling every " .. fm.pollSecs .. "s")
+        -- 🚨 AND A REFUSED WATCHER IS RECORDED, not swallowed. His own
+        -- Console on 2026-11-14 carries "System Settings didn't accept an
+        -- Accessibility watcher", so this really is refused sometimes —
+        -- and without the watcher the generation never moves and the
+        -- clock belt is the only thing re-sweeping. The report says which
+        -- of the two is carrying the feature, because "the watcher works"
+        -- and "the belt is doing all of it" are different facts and only
+        -- one of them is healthy.
+        if okW and w then
+            fm.appWatcher = w
+            local started = true
+            pcall(function() started = w:start() ~= nil end)
+            fm.watcherOK = started and true or false
+        else
+            fm.watcherOK = false
+        end
+        say("detection armed, polling every " .. fm.pollSecs .. "s"
+            .. (fm.watcherOK and "" or " — ⚠️ no app watcher; the "
+                .. fm.rescanSecs .. "s re-sweep is carrying it"))
     end
 
     _G.focusMode = fm

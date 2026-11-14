@@ -429,10 +429,20 @@ local forceBackupDir = nil  -- e.g. homeDir .. "/Documents/HSBackup" (nil = auto
 -- and custom_shortcuts.json (see §3.9 / §1.6): they change rarely and
 -- benefit both Macs. Existing untagged files are adopted automatically.
 local hostTag = "Mac"
+-- 🪪 6.435.0 — THE RAW NAME IS KEPT BESIDE THE TAG. hostTag is this
+-- name with spaces turned to hyphens and everything else dropped, which
+-- is right for a FILENAME and lossy for an IDENTITY: "MLC409N 153212"
+-- and "MLC409N-153212" tag the same and a profile key can only equal
+-- one of them. The raw string is what a person reads off
+-- `scutil --get ComputerName`, so it is what the scan prints and what
+-- the normalised profile match below compares against.
+local hostRaw = nil
 pcall(function()
-    hostTag = (hs.host.localizedName() or "Mac"):gsub("%s+", "-"):gsub("[^%w%-]", "")
+    hostRaw = hs.host.localizedName()
+    hostTag = (hostRaw or "Mac"):gsub("%s+", "-"):gsub("[^%w%-]", "")
     if hostTag == "" then hostTag = "Mac" end
 end)
+_G.hostRawName = hostRaw
 
 local cloudDir = nil
 pcall(function()
@@ -2839,6 +2849,13 @@ local BASE = {
                           --     asks whether the FILES are here, this one asks
                           --     whether the TOOLS work, and a report that
                           --     answered both could not say which half failed)
+    "machine_scan",       -- 🪪 _G.workmacbookScan() — what IS this Mac?
+                          --    (no key, 6.435.0 — his ask, by that name. A DOOR
+                          --     to the reports that already exist, plus the three
+                          --     facts none of them carries: this Mac's NAME, which
+                          --     profile it resolved to and HOW, and which external
+                          --     binaries are actually on the disk. Read-only: it
+                          --     never captures, types, writes or starts anything)
     "right_click",        -- 🖱 ⇪⇧F a real right-click at the pointer
     "mouse_follows",      -- 🖱 ⇪⇧3 the pointer goes where focus goes (opt-in, 6.160.2)
     -- 6.119.0 — THE PUNCTUATION TIER. Every ⇪ letter and every ⇪⇧ letter
@@ -2955,10 +2972,15 @@ _G.moduleProfiles = {
     } },
 
     -- ---- work Mac ----
-    -- ✏️ PUT YOUR WORK MACHINE'S NAME HERE. Find it by running
-    --      scutil --get ComputerName
-    -- on that Mac, or read the 🧭 line at the top of its Console.
-    ["Lees-Work-MacBook"] = profileFrom({
+    -- 🪪 6.435.0 — THE REAL NAME AT LAST. "Lees-Work-MacBook" was a name
+    -- I INVENTED, under a comment telling him to replace it, so that Mac
+    -- has been taking the DEFAULT profile for every release it has ever
+    -- run — silently until 6.418.0 taught the boot line to say so. He
+    -- sent `MLC409N-153212` on 2026-11-14 and that is the key now; the
+    -- old invented one is gone rather than left beside it, because a
+    -- profile key matching no Mac on earth is exactly the thing 6.418.0
+    -- was written to make loud.
+    ["MLC409N-153212"] = profileFrom({
         settings = {
             pomodoro = { alphaIdle = 0.30, alphaAlert = 1 },   -- 6.213.2, as on the Air
             -- Examples — delete or edit freely. These are exactly the
@@ -3293,8 +3315,44 @@ pcall(function()
     safeMode = hs.fs.attributes(hs.configdir .. "/SAFE") ~= nil
 end)
 
-_G.moduleProfileName = _G.moduleProfiles[hostTag] and hostTag or "default"
-if safeMode then _G.moduleProfileName = "SAFE" end
+-- 🪪 6.435.0 — RESOLVED BY NAME, THEN BY A NORMALISED NAME, AND IT SAYS
+-- WHICH. A profile key had to equal hostTag EXACTLY, and hostTag is the
+-- computer's name with spaces hyphenated and everything else dropped —
+-- so one character of punctuation between the key and the machine means
+-- a silent fall back to the default, which is what 6.418.0 found the
+-- work Mac doing for every release it had ever run. The normalised pass
+-- (lower-cased, non-alphanumerics removed) catches that near-miss.
+-- 🚨 AND AN AMBIGUOUS MATCH REFUSES RATHER THAN PICKING ONE. `pairs`
+-- has no order, so two keys that normalise alike would hand this Mac a
+-- different profile on different boots — a machine whose tuning changes
+-- under it with nothing on screen saying so. Collected, sorted, and more
+-- than one is a REFUSAL that names them: fail closed (6.276.0), because
+-- a wrong profile is worse than no profile and only one of them is
+-- visible in the boot line.
+local function profileNorm(s) return (tostring(s or ""):lower():gsub("[^%w]", "")) end
+do
+    local id = { raw = hostRaw, tag = hostTag, how = "default", key = nil }
+    if _G.moduleProfiles[hostTag] then
+        id.how, id.key = "exact", hostTag
+    else
+        local want, hits = profileNorm(hostTag), {}
+        for k in pairs(_G.moduleProfiles) do
+            if k ~= "default" and profileNorm(k) == want then hits[#hits + 1] = k end
+        end
+        table.sort(hits)
+        if #hits == 1 then
+            id.how, id.key = "normalised", hits[1]
+        elseif #hits > 1 then
+            id.how, id.ambiguous = "ambiguous", hits
+        end
+    end
+    _G.profileIdentity = id
+end
+_G.moduleProfileName = _G.profileIdentity.key or "default"
+if safeMode then
+    _G.moduleProfileName = "SAFE"
+    _G.profileIdentity.how, _G.profileIdentity.key = "safe mode", nil
+end
 do
     local profile = _G.moduleProfiles[_G.moduleProfileName]
     if safeMode then

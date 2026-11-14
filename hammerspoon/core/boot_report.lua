@@ -171,18 +171,43 @@ return function(core)
         -- profiles that do exist, because a hand-kept register is only safe
         -- when forgetting is loud (6.276.0) — a key in that table matching
         -- no Mac on earth is exactly what went unnoticed here.
+        local pid = _G.profileIdentity or {}
         if _G.moduleProfileName == "default" then
             local known = {}
             for name in pairs(_G.moduleProfiles or {}) do
                 if name ~= "default" then known[#known + 1] = name end
             end
             table.sort(known)
+            -- 🚨 6.435.0 — AMBIGUOUS IS NOT UNTUNED, and printing them
+            -- alike would send him looking for a missing key when the real
+            -- fault is two keys that normalise alike. It is ⚠️ rather than
+            -- ℹ️ because a profile this build cannot choose between is a
+            -- defect in the table, not a fact about his Mac.
+            if pid.how == "ambiguous" then
+                print(string.format(
+                    "   ⚠️ \"%s\" matches %d profile keys once punctuation is"
+                    .. " ignored — running the DEFAULT rather than guessing.",
+                    tostring(hostTag), #(pid.ambiguous or {})))
+                print("      they are: " .. table.concat(pid.ambiguous or {}, " · ")
+                      .. "  — rename all but one.")
+            else
+                print(string.format(
+                    "   ℹ️ No profile for \"%s\" — running the DEFAULT. Nothing is"
+                    .. " broken; this Mac has no tuning of its own.", tostring(hostTag)))
+                print("      this build knows: "
+                      .. (#known > 0 and table.concat(known, " · ")
+                                     or "(no named profile at all)"))
+            end
+        elseif pid.how == "normalised" then
+            -- 🔎 A MATCH THAT NEEDED THE FALLBACK IS A MATCH THAT SAYS SO.
+            -- It works, so this is not a warning — but the key and the
+            -- machine differ by punctuation, and the day somebody reads
+            -- that table expecting it to be exact, this line is why it
+            -- still worked.
             print(string.format(
-                "   ℹ️ No profile for \"%s\" — running the DEFAULT. Nothing is"
-                .. " broken; this Mac has no tuning of its own.", tostring(hostTag)))
-            print("      this build knows: "
-                  .. (#known > 0 and table.concat(known, " · ")
-                                 or "(no named profile at all)"))
+                "   ℹ️ Profile \"%s\" matched \"%s\" on name alone — they differ"
+                .. " by punctuation. Working as intended.",
+                tostring(_G.moduleProfileName), tostring(hostTag)))
         end
     end
 

@@ -29,10 +29,16 @@
 -- have would start a browser you did not want, every time, and the list
 -- would then contain that browser's blank new tab.
 --
--- So the script asks System Events for the running process list FIRST
--- and skips anything not in it. This is the same hazard the pause key in
--- power_tools has, guarded the same way, and it is worth stating twice
--- because it is invisible until it happens to you.
+-- So nothing is ever NAMED to AppleScript unless it is already running,
+-- and that check happens in LUA before osascript is started at all. It
+-- used to be the script's first line — `tell application "System
+-- Events" to set name of every process` — which meant an Apple Event
+-- to a THIRD app, with its own Automation grant and its own launch,
+-- before a single tab could be read. 6.439.0 moved it: Hammerspoon
+-- already knows every running app and the list costs nothing. This is
+-- the same hazard the pause key in power_tools has, guarded the same
+-- way, and it is worth stating twice because it is invisible until it
+-- happens to you.
 --
 -- ---------------------------------------------------------------------
 -- 🚨 WHY THE SCRIPT RUNS IN A CHILD PROCESS
@@ -151,41 +157,38 @@ function M.setup(core)
 on run argv
     set sep to character id 31
     set out to ""
-    tell application "System Events" to set runningNames to name of every process
     repeat with b in argv
         set bn to b as text
-        if runningNames contains bn then
-            if bn starts with "Safari" then
-                using terms from application "Safari"
-                    try
-                        tell application bn
-                            repeat with wi from 1 to (count of windows)
-                                try
-                                    repeat with ti from 1 to (count of tabs of window wi)
-                                        set t to tab ti of window wi
-                                        set out to out & bn & sep & wi & sep & ti & sep & (URL of t) & sep & (name of t) & linefeed
-                                    end repeat
-                                end try
-                            end repeat
-                        end tell
-                    end try
-                end using terms from
-            else
-                using terms from application "Google Chrome"
-                    try
-                        tell application bn
-                            repeat with wi from 1 to (count of windows)
-                                try
-                                    repeat with ti from 1 to (count of tabs of window wi)
-                                        set t to tab ti of window wi
-                                        set out to out & bn & sep & wi & sep & ti & sep & (URL of t) & sep & (title of t) & linefeed
-                                    end repeat
-                                end try
-                            end repeat
-                        end tell
-                    end try
-                end using terms from
-            end if
+        if bn starts with "Safari" then
+            using terms from application "Safari"
+                try
+                    tell application bn
+                        repeat with wi from 1 to (count of windows)
+                            try
+                                repeat with ti from 1 to (count of tabs of window wi)
+                                    set t to tab ti of window wi
+                                    set out to out & bn & sep & wi & sep & ti & sep & (URL of t) & sep & (name of t) & linefeed
+                                end repeat
+                            end try
+                        end repeat
+                    end tell
+                end try
+            end using terms from
+        else
+            using terms from application "Google Chrome"
+                try
+                    tell application bn
+                        repeat with wi from 1 to (count of windows)
+                            try
+                                repeat with ti from 1 to (count of tabs of window wi)
+                                    set t to tab ti of window wi
+                                    set out to out & bn & sep & wi & sep & ti & sep & (URL of t) & sep & (title of t) & linefeed
+                                end repeat
+                            end try
+                        end repeat
+                    end tell
+                end try
+            end using terms from
         end if
     end repeat
     return out
@@ -223,52 +226,212 @@ end run]]
         return all
     end
 
+    -- 🗂 6.439.0 — WHICH BROWSERS ARE RUNNING IS DECIDED IN LUA NOW.
+    -- The script's first line was
+    --     tell application "System Events" to set name of every process
+    -- which is an Apple Event to a THIRD app, needing its own Automation
+    -- grant and its own launch, before a single tab is read — and
+    -- System Events is a faceless background app that may have to start
+    -- first. Hammerspoon already knows every running app, for free, from
+    -- a list it asks for elsewhere. One fewer permission, one fewer app
+    -- in the chain, and the answer arrives before osascript is even
+    -- started.
+    -- PURE given the app list, so the whole rule is proven with no Mac.
+    function ts.runningFrom(names, want)
+        local live, out = {}, {}
+        for _, n in ipairs(names or {}) do live[n] = true end
+        for _, b in ipairs(want or {}) do
+            if live[b] then out[#out + 1] = b end
+        end
+        return out
+    end
+
+    function ts.runningBrowsers()
+        local names = {}
+        local ok = pcall(function()
+            for _, a in ipairs(hs.application.runningApplications() or {}) do
+                local n
+                pcall(function() n = a:name() end)
+                if n then names[#names + 1] = n end
+            end
+        end)
+        -- 🔎 AN EMPTY LIST IS A REFUSAL, NOT AN EMPTY MAC (6.196.1).
+        -- `runningApplications()` can never legitimately come back empty
+        -- — Hammerspoon is itself one of them — so a zero-length answer
+        -- is macOS declining, and the two must not read alike. Falling
+        -- back to "ask every browser" costs a few osascript runs that
+        -- find nothing; reporting "no browser is running" when macOS
+        -- simply would not say is the answer that sends him looking in
+        -- the wrong place. The report counts the fallback and SAYS the
+        -- rows were asked blind rather than measured.
+        if not ok or #names == 0 then
+            ts.listRefused = (ts.listRefused or 0) + 1
+            return ts.browsers(), false
+        end
+        return ts.runningFrom(names, ts.browsers()), true
+    end
+
+    -- 🗂 6.439.0 — ONE osascript PER BROWSER, SO A SLOW ONE IS NAMED
+    -- RATHER THAN COSTING THE REST. LL, 2026-11-14: "Chrome tab scan
+    -- fails. Not sure what you mean but fix please."
+    --
+    -- 🔎 AND HIS SCREENSHOT CHANGED THE DIAGNOSIS. This file's own note
+    -- said the next step was to check Automation — and his System
+    -- Settings pane shows Hammerspoon with Finder, Calendar, System
+    -- Events, Google Chrome, Outlook and VLC all switched ON. So the
+    -- grant is there, which leaves `osascript exited 15` as what it
+    -- literally is: SIGTERM, from OUR OWN six-second kill below. The
+    -- script was not refused. It was still working when we shot it.
+    --
+    -- 🚨 AND THE OLD SHAPE COULD NOT SAY WHICH BROWSER. All of them went
+    -- into ONE osascript under ONE budget, so a browser with two hundred
+    -- tabs — each `URL of t` is an Apple Event round trip — spent the
+    -- whole six seconds and every other browser was killed with it,
+    -- reported as "No browser answered" and blamed on a permission
+    -- prompt that had been granted years ago. A message that names the
+    -- wrong cause is worse than none: it is 6.430.0's "Already clean" in
+    -- another module.
+    --
+    -- Each browser now gets its own task, its own slot (6.196.1 — one
+    -- slot for several tasks is the use-after-free), its own budget and
+    -- its own row in the report. The picker opens when they have all
+    -- answered or the last one has run out of time.
     function ts.scan(done)
         if ts.pending then return false end
-        local t0 = hs.timer.secondsSinceEpoch()
-        local args = { "-e", ts.scanScript }
-        for _, b in ipairs(ts.browsers()) do args[#args + 1] = b end
-        local t
-        local okNew = pcall(function()
-            t = hs.task.new("/usr/bin/osascript", function(code, out, err)
-                ts.pending = false
-                ts.scanTask = nil
-                if ts.scanTimer then
-                    pcall(function() ts.scanTimer:stop() end)
-                    ts.scanTimer = nil
-                end
-                ts.lastMs = math.floor((hs.timer.secondsSinceEpoch() - t0) * 1000)
-                ts.scans  = ts.scans + 1
-                local rows, counts = ts.parse(out)
-                ts.lastCounts = counts
-                if #rows == 0 and code ~= 0 then
-                    note("osascript exited " .. tostring(code) .. ": "
-                         .. tostring(err):gsub("%s+", " "):sub(1, 160))
-                end
-                pcall(done, rows)
-            end, args)
-        end)
-        if not (okNew and t) then
-            note("could not start osascript — no tabs can be read")
+        local want, listOK = ts.runningBrowsers()
+        ts.lastListOK = listOK
+        ts.lastBrowsers = want
+        if #want == 0 then
+            -- 🔎 "No browser is RUNNING" and "no browser ANSWERED" are
+            -- opposite facts and only the second is a fault. The old
+            -- code could only ever say the second.
+            -- 🚨 EVERY RECORD OF THE LAST SCAN GOES, not just the counts.
+            -- Leaving `lastLegs` behind made the report describe the
+            -- PREVIOUS scan's browsers as though they were this one's —
+            -- 6.352.0's exact finding: a stale field read as a live one,
+            -- in the report whose whole job is saying what just happened.
+            ts.lastCounts, ts.lastWhy = {}, "no browser is running"
+            ts.lastLegs, ts.lastMs    = {}, 0
+            note("no browser is running — nothing to scan")
             pcall(done, {})
             return false
         end
-        ts.pending  = true
-        ts.scanTask = t
-        pcall(function() t:start() end)
-        ts.scanTimer = hs.timer.doAfter(ts.scanTimeout, function()
-            ts.scanTimer = nil
-            if not ts.pending then return end
-            ts.pending = false
-            pcall(function() t:terminate() end)
-            ts.scanTask = nil
-            note("no browser answered within " .. ts.scanTimeout .. "s")
-            if _G.notices then
-                _G.notices.record("tabSearch", "tab scan timed out", ts.lastNote)
+
+        local t0    = hs.timer.secondsSinceEpoch()
+        local rows  = {}
+        local left  = #want
+        local legs  = {}
+        ts.scanTasks  = ts.scanTasks  or {}
+        ts.scanTimers = ts.scanTimers or {}
+        ts.pending    = true
+
+        local finished = false
+        local function maybeDone()
+            if finished or left > 0 then return end
+            finished    = true
+            ts.pending  = false
+            ts.lastMs   = math.floor((hs.timer.secondsSinceEpoch() - t0) * 1000)
+            ts.scans    = ts.scans + 1
+            ts.lastLegs = legs
+            -- 🚨 THE ROWS ARE SORTED BEFORE ANYBODY SEES THEM, and this is
+            -- a hazard the parallel scan INTRODUCED rather than one it
+            -- found: with one osascript the order was the script's, and
+            -- with four the rows arrive in whatever order the browsers
+            -- happen to answer. That is a picker whose rows move between
+            -- presses — and ⌘1–⌘9 name a POSITION, so a row that moves
+            -- is a jump to the wrong tab. Sorted by the browser order
+            -- this module already declares, then window, then tab.
+            local rank = {}
+            for i, b in ipairs(ts.browsers()) do rank[b] = i end
+            table.sort(rows, function(a, c)
+                local ra, rc = rank[a.browser] or 99, rank[c.browser] or 99
+                if ra ~= rc then return ra < rc end
+                if a.win ~= c.win then return a.win < c.win end
+                return a.tab < c.tab
+            end)
+            local counts = {}
+            for _, r in ipairs(rows) do
+                counts[r.browser] = (counts[r.browser] or 0) + 1
             end
-            hs.alert.show("🗂 No browser answered in " .. ts.scanTimeout
-                .. "s.\nIf this is the first run, check for an Automation prompt.", 5)
-        end)
+            ts.lastCounts = counts
+            -- 📋 THE MESSAGE NAMES WHICH BROWSER, AND WHICH OF FOUR THINGS
+            -- HAPPENED TO IT. Four, not two: it answered with tabs · it
+            -- answered with none · it exited non-zero and said why · it
+            -- never answered at all. Only the last two are faults, and
+            -- they want different fixes.
+            local bad = {}
+            for _, b in ipairs(want) do
+                local g = legs[b]
+                if g and g.state == "timeout" then
+                    bad[#bad + 1] = b .. " did not answer in " .. ts.scanTimeout .. "s"
+                elseif g and g.state == "error" then
+                    bad[#bad + 1] = b .. " exited " .. tostring(g.exit)
+                                    .. (g.err and (": " .. g.err) or "")
+                end
+            end
+            if #bad > 0 then
+                ts.lastWhy = table.concat(bad, " · ")
+                note(ts.lastWhy)
+                if #rows == 0 then
+                    hs.alert.show("🗂 " .. ts.lastWhy
+                        .. "\n_G.tabReport() says what each browser did.", 5)
+                end
+            else
+                ts.lastWhy = nil
+            end
+            pcall(done, rows)
+        end
+
+        for _, b in ipairs(want) do
+            local b0 = hs.timer.secondsSinceEpoch()
+            local t
+            local function settle(state, extra)
+                if legs[b] then return end          -- answered once, one way
+                legs[b] = extra or {}
+                legs[b].state = state
+                legs[b].ms = math.floor((hs.timer.secondsSinceEpoch() - b0) * 1000)
+                if ts.scanTimers[b] then
+                    pcall(function() ts.scanTimers[b]:stop() end)
+                    ts.scanTimers[b] = nil
+                end
+                ts.scanTasks[b] = nil
+                left = left - 1
+                maybeDone()
+            end
+            local okNew = pcall(function()
+                t = hs.task.new("/usr/bin/osascript", function(code, out, err)
+                    local got = ts.parse(out)
+                    for _, r in ipairs(got) do rows[#rows + 1] = r end
+                    if code ~= 0 and #got == 0 then
+                        settle("error", { exit = code,
+                            err = tostring(err):gsub("%s+", " "):sub(1, 120) })
+                    else
+                        settle("ok", { tabs = #got })
+                    end
+                end, { "-e", ts.scanScript, b })
+            end)
+            if not (okNew and t) then
+                settle("error", { exit = -1, err = "osascript would not start" })
+            else
+                ts.scanTasks[b] = t
+                -- 🛡 THE BELT IS ARMED BEFORE THE ASK (6.246.0) — a
+                -- :start() that itself blocks has no belt otherwise.
+                ts.scanTimers[b] = hs.timer.doAfter(ts.scanTimeout, function()
+                    ts.scanTimers[b] = nil
+                    local task = ts.scanTasks[b]
+                    if task then pcall(function() task:terminate() end) end
+                    settle("timeout")
+                end)
+                -- 🔬 :start() REFUSES BY RETURNING FALSE (6.304.0) — it does
+                -- not throw, so the pcall above succeeds either way and a
+                -- refusal used to leave the scan waiting on its belt.
+                local started = false
+                pcall(function() started = t:start() ~= false end)
+                if not started then
+                    settle("error", { exit = -1, err = "macOS refused to run osascript" })
+                end
+            end
+        end
         return true
     end
 
@@ -428,16 +591,53 @@ end run]]
         local L = { "🗂 TAB SEARCH" }
         L[#L + 1] = "   scans   : " .. ts.scans .. " (last took " .. ts.lastMs .. "ms)"
         L[#L + 1] = "   jumps   : " .. ts.jumps
+        -- 🗂 6.439.0 — ONE ROW PER BROWSER, WITH WHAT HAPPENED TO IT.
+        -- This printed a tab count per browser that answered and, when
+        -- none did, one sentence blaming Automation — which is what sent
+        -- LL to a System Settings pane where every grant was already on.
+        -- Four outcomes now, because they want different fixes: it
+        -- answered with tabs · it answered with none · it exited non-zero
+        -- and said why · it never answered at all. A browser that was
+        -- not even ASKED is its own row too, so "I have Chrome open and
+        -- it is not in the list" is answerable.
+        local legs = ts.lastLegs or {}
+        local asked = {}
+        for _, b in ipairs(ts.lastBrowsers or {}) do asked[b] = true end
         local any = false
-        for b, n in pairs(ts.lastCounts) do
-            any = true
-            L[#L + 1] = ("      %-24s %d tabs"):format(b, n)
+        for _, b in ipairs(ts.browsers()) do
+            local n, g = ts.lastCounts[b], legs[b]
+            if n or g then
+                any = true
+                local state
+                if g and g.state == "timeout" then
+                    state = ("⚠️ did not answer in %ss"):format(ts.scanTimeout)
+                elseif g and g.state == "error" then
+                    state = ("⚠️ exited %s%s"):format(tostring(g.exit),
+                             g.err and (" — " .. g.err) or "")
+                elseif (n or 0) > 0 then
+                    state = ("✅ %d tab(s)"):format(n)
+                else
+                    state = "✅ running, no tabs open"
+                end
+                L[#L + 1] = ("      %-24s %s%s"):format(b, state,
+                            g and g.ms and ("  · " .. g.ms .. " ms") or "")
+            elseif not asked[b] then
+                L[#L + 1] = ("      %-24s ⏳ not running, so never named"):format(b)
+            end
         end
         if not any then
-            L[#L + 1] = "   browsers: none answered — is one running, and has it"
-            L[#L + 1] = "             granted Automation? (⇪, then “automation”)"
+            L[#L + 1] = "   browsers: no browser was running when the scan ran — which"
+            L[#L + 1] = "             is not the same as none ANSWERING, and only the"
+            L[#L + 1] = "             second is a fault."
         end
-        L[#L + 1] = "   asked   : " .. table.concat(ts.browsers(), ", ")
+        -- 🔎 WHERE THE RUNNING LIST CAME FROM. A refused app list falls
+        -- back to asking every browser, which costs a few osascript runs
+        -- that find nothing — harmless, and worth saying, because then
+        -- the rows above are "asked blind" rather than "measured".
+        if ts.lastListOK == false then
+            L[#L + 1] = "   ⚠️ macOS would not list the running apps, so every browser"
+            L[#L + 1] = "      was asked blind (" .. (ts.listRefused or 0) .. " time(s) this session)"
+        end
         if ts.lastNote then L[#L + 1] = "   last problem: " .. ts.lastNote end
         local s = table.concat(L, "\n")
         if asText then return s end

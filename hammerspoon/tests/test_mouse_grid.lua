@@ -3905,6 +3905,25 @@ do
         plate ~= nil and plate > 0 and plate <= 1,
         "labelPlateAlpha ships at " .. tostring(plate))
 
+    -- ✒️ 6.438.0 — THE LINES MUST BE FAINTER THAN THE LETTERS. LL: "Make
+    -- the mouse grid box lines fainter, the letters are more important."
+    -- Asserted against the SHIPPED defaults and as a RELATION, never as
+    -- the number 0.22: a later release is free to retune both, and the
+    -- thing that must not come back is the TIE — lines and labels at
+    -- comparable weight, with the lines winning the screen on area.
+    local lineA  = tonumber(src:match("\n%s*grid%.lineAlpha%s*=%s*([%d%.]+)"))
+    local labelA = tonumber(src:match("alpha%s*=%s*channel%(grid%.labelAlpha,%s*channel%(accent%.alpha,%s*([%d%.]+)%)"))
+    check("6438: the grid lines ship materially fainter than the labels",
+        lineA ~= nil and labelA ~= nil and lineA <= labelA * 0.5,
+        "lineAlpha " .. tostring(lineA) .. " vs label alpha " .. tostring(labelA))
+    -- 🚨 AND THE FLOOR, because the opposite complaint is one he has
+    -- already made: a grid with no visible cell edges is a wall of
+    -- letters with no geometry (6.429.0). Fainter is the ask; invisible
+    -- is a different bug.
+    check("6438: ...but still drawn — structure you can see, not none",
+        lineA ~= nil and lineA >= 0.12,
+        "lineAlpha ships at " .. tostring(lineA))
+
     -- 6.349.0 / 6.363.0: a comment that promises what the line beside it
     -- does not do. This is the one that would have caught 6.428.0.
     -- 6.273.0: every section above pins its own values, so until now NO

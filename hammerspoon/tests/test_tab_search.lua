@@ -43,6 +43,9 @@ local TIMERS   = {}
 local CHOOSERS = {}
 local SHOWS    = 0
 local NOW      = 1000
+-- Chrome and Safari, which is what FIXTURE describes. A test that wants
+-- a different world sets this and calls reset().
+local RUNNING  = { "Google Chrome", "Safari" }
 
 hs = {
     alert = { show = function(m) ALERTS[#ALERTS + 1] = tostring(m) end },
@@ -63,6 +66,20 @@ hs = {
             function t:terminate() self.terminated = true ; return self end
             TASKS[#TASKS + 1] = t
             return t
+        end,
+    },
+    -- 🗂 6.439.0 — WHICH BROWSERS ARE RUNNING IS A LUA QUESTION NOW.
+    -- The script used to ask System Events; the module asks Hammerspoon,
+    -- which is one fewer Apple Event, one fewer Automation grant and one
+    -- fewer app that has to be launched before a tab can be read. The
+    -- stub has to answer it or every scan looks like "nothing running".
+    application = {
+        runningApplications = function()
+            local out = {}
+            for _, n in ipairs(RUNNING) do
+                out[#out + 1] = { name = function() return n end }
+            end
+            return out
         end,
     },
     chooser = {
@@ -110,7 +127,32 @@ local FIXTURE = table.concat({
 
 local function reset()
     TASKS, ALERTS, TIMERS = {}, {}, {}
-    ts.pending, ts.lastNote = false, nil
+    ts.pending, ts.lastNote, ts.lastWhy = false, nil, nil
+    ts.scanTasks, ts.scanTimers = {}, {}
+end
+
+-- 🗂 6.439.0 — ONE TASK PER RUNNING BROWSER, so "answer the scan"
+-- means answering each of them. A helper, because fifteen call sites
+-- otherwise have to know how many browsers the world has.
+-- 🔬 AND IT HANDS EACH TASK ONLY ITS OWN BROWSER'S LINES, because
+-- that is what a real osascript run for one browser returns. A stub
+-- that gave every task the whole fixture would duplicate every row and
+-- certify a scan that double-counts (6.290.0).
+local function answerAll(output, code, err)
+    for _, t in ipairs(TASKS) do
+        if t.cb then
+            local b = t.args and t.args[3]
+            local mine = output
+            if mine == nil and b then
+                local keep = {}
+                for line in FIXTURE:gmatch("[^\n]+") do
+                    if line:sub(1, #b) == b then keep[#keep + 1] = line end
+                end
+                mine = table.concat(keep, "\n") .. (#keep > 0 and "\n" or "")
+            end
+            t.cb(code or 0, mine or "", err or "")
+        end
+    end
 end
 
 -- =====================================================================
@@ -137,10 +179,26 @@ out("\n=== 2. 🚨 IT ONLY ASKS BROWSERS THAT ARE ALREADY RUNNING ===\n")
 -- Naming an app in AppleScript launches it. Without this guard, ⇪⇧' on a
 -- Mac with Safari closed OPENS SAFARI — every time — and then lists its
 -- blank new tab.
-check("🚨 the script asks System Events for the running process list",
-      ts.scanScript:find("name of every process", 1, true) ~= nil)
-check("🚨 …and skips anything not in it",
-      ts.scanScript:find("runningNames contains bn", 1, true) ~= nil)
+-- 🗂 6.439.0 — THE RULE, NOT THE MECHANISM. These pinned the two
+-- lines of AppleScript that asked System Events, which was 6.248.0's
+-- defect waiting to happen: the rule is "never name a browser that is
+-- not running", and the moment that moved into Lua — one fewer Apple
+-- Event, one fewer Automation grant, one fewer app to launch — two
+-- green checks went red over code that got STRICTER.
+check("🚨 a browser that is not running is never named to AppleScript",
+      (function()
+        local got = ts.runningFrom({ "Google Chrome", "Finder" }, ts.browsers())
+        if #got ~= 1 or got[1] ~= "Google Chrome" then return false end
+        -- The fixture that bites: Safari CLOSED. With every browser
+        -- running, filtering and not filtering agree (6.230.0), and
+        -- naming Safari here is what OPENS Safari.
+        for _, b in ipairs(got) do if b:find("Safari") then return false end end
+        return true
+      end)())
+check("🚨 …and with nothing running, nothing is asked at all",
+      #ts.runningFrom({ "Finder", "Mail" }, ts.browsers()) == 0)
+check("🗂 …and the script no longer reaches for System Events",
+      ts.scanScript:find("System Events", 1, true) == nil)
 -- ⚠️ `using terms from` is what makes a dynamic `tell application bn`
 -- compile at all: AppleScript resolves an app's vocabulary at COMPILE
 -- time, and a tell whose target is a variable has none — so `tabs` and
@@ -182,9 +240,26 @@ ts.scan(function() end)
 check("🚨 the scan is a CHILD PROCESS, not hs.osascript",
       TASKS[1] and TASKS[1].bin == "/usr/bin/osascript", TASKS[1] and TASKS[1].bin)
 check("…and it was actually started", TASKS[1] and TASKS[1].started == true)
-check("every browser is passed as an argument, not baked into the script",
-      TASKS[1] and #TASKS[1].args == 2 + #ts.browsers(),
-      TASKS[1] and #TASKS[1].args)
+check("the browser is passed as an ARGUMENT, not baked into the script",
+      TASKS[1] and #TASKS[1].args == 3 and TASKS[1].args[1] == "-e",
+      TASKS[1] and table.concat(TASKS[1].args or {}, "|", 3))
+-- 🗂 ONE TASK PER RUNNING BROWSER. All of them used to go into one
+-- osascript under one budget, so a browser with two hundred tabs spent
+-- the whole six seconds and every other browser was killed with it —
+-- then reported as "No browser answered" and blamed on a permission
+-- prompt that had been granted years ago.
+check("🗂 …one task per running browser, so a slow one cannot kill "
+      .. "the rest", #TASKS == #RUNNING, #TASKS)
+check("🗂 …and each is asked about exactly one browser",
+      (function()
+        local seen = {}
+        for _, t in ipairs(TASKS) do
+          local b = t.args and t.args[3]
+          if not b or seen[b] then return false end
+          seen[b] = true
+        end
+        return true
+      end)())
 
 -- =====================================================================
 out("\n=== 3. parsing: five fields or the row is dropped ===\n")
@@ -288,28 +363,33 @@ out("\n=== 5. 🚨 THE LIST IS NEVER CACHED ===\n")
 -- from ten seconds ago describes a browser that has moved on.
 reset()
 ts.show()
-check("the first press scans", #TASKS == 1, #TASKS)
+-- 🗂 6.439.0 — ONE TASK PER RUNNING BROWSER, asserted as the RULE
+-- rather than the number 1: a single shared osascript is what let one
+-- slow browser kill every other and report it as "no browser answered".
+check("the first press scans every running browser, one task each",
+      #TASKS == #RUNNING, #TASKS .. " for " .. #RUNNING .. " browser(s)")
 -- Guarded: a build that CACHED would not scan at all, and reading
 -- TASKS[1] on nil would take the file down before it could report the
 -- failures this section exists for.
-if TASKS[1] then TASKS[1].cb(0, FIXTURE, "") end
+answerAll()
 local firstShows = SHOWS
 check("…and the panel opened", firstShows >= 1, firstShows)
 
 reset()
 ts.show()
-check("🚨 the SECOND press scans again — no cache, ever", #TASKS == 1, #TASKS)
+check("🚨 the SECOND press scans again — no cache, ever",
+      #TASKS == #RUNNING, #TASKS)
 NOW = NOW + 1
 reset()
 ts.show()
-check("…and so does the third, one second later", #TASKS == 1, #TASKS)
+check("…and so does the third, one second later", #TASKS == #RUNNING, #TASKS)
 
 -- =====================================================================
 out("\n=== 6. 🚨 A ROW CARRIES A NUMBER, NOT A TABLE ===\n")
 -- =====================================================================
 reset()
 ts.show()
-if TASKS[1] then TASKS[1].cb(0, FIXTURE, "") end
+answerAll()
 local c = CHOOSERS[#CHOOSERS]
 check("the panel lists every tab", #c.choices_ == 4, #c.choices_)
 check("every row value is a string, number or boolean", (function()
@@ -345,19 +425,43 @@ check("the URL is searchable too, so “github” finds it either way",
 end)())
 check("the placeholder counts each browser", c.placeholder:find("Google Chrome 3",
       1, true) ~= nil, c.placeholder)
+-- 🗂 6.439.0 — ASSERTED AGAINST THE ROW, NOT AGAINST A POSITION.
+-- This pinned "row 3 is Chrome window 2", which was true while one
+-- script emitted the fixture in its own order and false the moment the
+-- browsers were asked separately. The RULE is that ⏎ jumps to the tab
+-- the row describes, whatever position it is in (6.248.0).
 check("⏎ on a row jumps to THAT tab", (function()
     TASKS = {}
+    local want = ts.rows[3]
     c.cb({ idx = 3 })
     local j = TASKS[1]
-    return j and j.args[3] == "Google Chrome" and j.args[4] == "2"
+    return want and j and j.args[3] == want.browser
+           and j.args[4] == tostring(want.win)
+           and j.args[5] == tostring(want.tab)
 end)(), TASKS[1] and table.concat(TASKS[1].args, "|", 3))
+-- 🚨 AND THE ORDER IS DETERMINISTIC, which the parallel scan could
+-- easily not have been: four browsers answer in whatever order they
+-- finish, and ⌘–1–⌘9 name a POSITION — so a row that moves between
+-- presses is a jump to the wrong tab.
+check("🚨 the rows are in a fixed order — browser, then window, then "
+      .. "tab — so ⌘9 means the same tab twice running", (function()
+    local prev
+    for _, r in ipairs(ts.rows) do
+      if prev and prev.browser == r.browser then
+        if r.win < prev.win then return false end
+        if r.win == prev.win and r.tab <= prev.tab then return false end
+      end
+      prev = r
+    end
+    return true
+end)())
 
 -- =====================================================================
 out("\n=== 7. nothing found, and nothing answering, are different ===\n")
 -- =====================================================================
 reset()
 ts.show()
-if TASKS[1] then TASKS[1].cb(0, "", "") end
+answerAll("")
 check("no tabs says so, and mentions the two reasons", (function()
     for _, a in ipairs(ALERTS) do
         if a:find("No open tabs", 1, true) and a:find("Automation", 1, true) then
@@ -369,34 +473,83 @@ end)(), ALERTS[1])
 
 reset()
 ts.show()
-local scanTask = TASKS[1]
-check("a timeout timer was armed", #TIMERS >= 1, #TIMERS)
-if TIMERS[#TIMERS] then TIMERS[#TIMERS].fn() end
+local scanTasks = {}
+for i, t in ipairs(TASKS) do scanTasks[i] = t end
+check("a timeout timer was armed FOR EACH browser", #TIMERS >= #RUNNING, #TIMERS)
+for _, tm in ipairs(TIMERS) do if tm.fn then tm.fn() end end
 check("the timeout terminates the child rather than leaking it",
-      scanTask ~= nil and scanTask.terminated == true)
-check("…and points at the Automation prompt, which is the usual cause",
       (function()
+        for _, t in ipairs(scanTasks) do
+          if t.terminated ~= true then return false end
+        end
+        return #scanTasks > 0
+      end)())
+-- 🗂 6.439.0 — AND IT NAMES THE BROWSER INSTEAD OF BLAMING A
+-- PERMISSION. This asserted the words "Automation prompt", which is the
+-- sentence that sent LL to a System Settings pane where every grant was
+-- already switched on — `osascript exited 15` is SIGTERM, from this
+-- very timeout. A message that names the wrong cause is worse than
+-- none (6.430.0). The RULE is that the failure says WHICH browser and
+-- WHAT happened to it.
+check("🗂 …and the message NAMES the browser that did not answer, "
+      .. "rather than blaming a grant that is already given", (function()
     for _, a in ipairs(ALERTS) do
-        if a:find("Automation prompt", 1, true) then return true end
+        if a:find("Google Chrome", 1, true) and a:find("did not answer", 1, true) then
+            return true
+        end
     end
     return false
 end)(), ALERTS[1])
+check("🗂 …and the report keeps a row per browser, so a scan that "
+      .. "half-worked is readable rather than a single verdict",
+      (function()
+        local legs = ts.lastLegs or {}
+        local n = 0
+        for _, g in pairs(legs) do
+          if g.state ~= "timeout" then return false end
+          n = n + 1
+        end
+        return n == #RUNNING
+      end)(), ts.lastWhy)
 
 -- =====================================================================
 out("\n=== 8. the report tells the truth ===\n")
 -- =====================================================================
 reset()
 ts.show()
-if TASKS[1] then TASKS[1].cb(0, FIXTURE, "") end
+answerAll()
 local rep = _G.tabReport(true)
 check("the report names the module", rep:find("TAB SEARCH", 1, true) ~= nil)
 check("…counts tabs per browser", rep:find("Google Chrome", 1, true) ~= nil, rep)
 check("…and lists every browser it asked", rep:find("Microsoft Edge", 1, true) ~= nil)
 
-ts.lastCounts = {}
+-- 🔎 DRIVEN FOR REAL, not by emptying a count table. Setting
+-- lastCounts to {} leaves every other record of the last scan in place,
+-- so the report would be describing a world that cannot exist — and a
+-- fixture that cannot happen proves nothing about the Mac that can
+-- (6.290.0). A Mac with no browser open is one line.
+-- 🔬 AND THE FIXTURE IS A MAC WITH APPS BUT NO BROWSER, never an
+-- EMPTY app list. A real `runningApplications()` can never come back
+-- empty — Hammerspoon is itself one of them — so an empty answer means
+-- macOS refused, which the module correctly treats as "ask every
+-- browser blind" rather than "nothing is running". A stub that returns
+-- the impossible answer tests a branch no Mac can reach (6.290.0), and
+-- it is how this check first went red over correct code.
+local wasRunning = RUNNING
+RUNNING = { "Finder", "Hammerspoon" }
+reset()
+ts.show()
 rep = _G.tabReport(true)
-check("with nothing answering it says what to check",
-      rep:find("Automation", 1, true) ~= nil, rep)
+RUNNING = wasRunning
+-- 🗂 6.439.0 — "NOTHING RUNNING" IS NOT "NOTHING ANSWERED", and the
+-- report used to print one sentence for both, blaming Automation. That
+-- sentence is what sent LL to a settings pane where every grant was
+-- already on, so the check now asserts the DISTINCTION rather than the
+-- word (6.248.0 — a literal standing in for a rule).
+check("with nothing running the report says THAT, not 'nothing answered'",
+      rep:find("no browser was running", 1, true) ~= nil, rep)
+check("…and it does NOT blame a permission for an empty Mac",
+      rep:find("Automation", 1, true) == nil, rep)
 
 -- =====================================================================
 -- =====================================================================

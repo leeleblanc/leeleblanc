@@ -1679,7 +1679,17 @@ check("brew is RUN only from update_tracker and daily_backup (screenshots "
            -- only other "brew" is the install command the top row copies
            -- when there isn't one. Any OTHER brew reference still fails.
            and not (name == "bluetooth"
-                    and line:lower():find("blueutil", 1, true)) then
+                    and line:lower():find("blueutil", 1, true))
+           -- 6.435.0 — machine_scan is carved out WHOLE, and §9e below is
+           -- why that is safe rather than lazy. Every other name here
+           -- gets a narrow per-line carve-out because each of them RUNS
+           -- something found under a brew prefix, so the question for
+           -- them is WHICH line. This module runs nothing at all — it
+           -- stats paths and reads tables — so the honest guard is the
+           -- one that asserts THAT, directly, against every line of its
+           -- source. A per-line needle here would be a second rule to
+           -- keep in step with a list of binaries that is meant to grow.
+           and not (name == "machine_scan") then
           return false, name
         end
       end
@@ -1691,6 +1701,33 @@ check("brew is RUN only from update_tracker and daily_backup (screenshots "
   end
   return true
 end)())
+-- 9e. 🔒 THE MACHINE SCAN NEVER DOES THE THING (6.413.0's rule, in the
+-- module most likely to be run on a Mac where something is already
+-- wrong). It names a dozen binaries and must START none of them, write
+-- nothing and capture nothing. Asserted against the SOURCE, because a
+-- functional check can only prove it did not act on the ONE path it
+-- drove — and this is a claim about every path there is.
+do
+  local ms = moduleText.machine_scan or ""
+  check("the machine scan's source was read", #ms > 1000)
+  -- The CALL shapes, never the binary names: this module's whole job is
+  -- to name /usr/sbin/screencapture and say whether it is there, so a
+  -- needle on the name would ban the feature. hs.task is what would
+  -- RUN it, and that is the thing banned.
+  local banned = { "hs.task", "io.open", "hs.execute", "os.execute",
+                   "os.remove", "os.rename", "keyStrokes", "keyStroke",
+                   "setContents", "hs.pasteboard" }
+  for _, b in ipairs(banned) do
+    local hit
+    for line in ms:gmatch("[^\n]+") do
+      -- Comments stripped (6.262.0): this module's own prose names
+      -- several of these in the course of explaining why it has none.
+      if not line:match("^%s*%-%-") and line:find(b, 1, true) then hit = line end
+    end
+    check("the machine scan never calls " .. b, hit == nil, hit)
+  end
+end
+
 check("...a missing brew is reported, not thrown", ut:find("no Homebrew found", 1, true) ~= nil)
 check("...and every brew lookup is wrapped so a blocked shell cannot raise",
       (function()
@@ -2004,6 +2041,8 @@ if capChunk then
       local bf = realopen(HS .. "/core/capabilities.lua", "r")
       if bf then beltSrc = bf:read("*a") ; bf:close() end
     end
+    -- The leg names, in the order core/capabilities.lua walks them.
+    local SI_LEG_NAMES = { "root", "resources", "keyed", "full" }
     local realTask, realTimerSave = hs.task, hs.timer
     local T = { newCalls = 0, started = {}, cb = nil, cbs = {}, startOK = true,
                 afters = {}, order = {}, doAfterThrows = false }
@@ -2011,13 +2050,29 @@ if capChunk then
       new = function(_, cb, args)
         T.newCalls = T.newCalls + 1
         T.order[#T.order + 1] = "task.new"
-        -- narrow is `-k IOConsoleUsers`, broad is the whole `-l` dump.
-        -- Keeping them apart matters: the BROAD probe is the normal path
-        -- on a healthy Mac, and it is the one whose late callback reaches
-        -- finish() directly.
-        local kind = "narrow"
-        for _, a in ipairs(args or {}) do if a == "-l" then kind = "broad" end end
+        -- 🪜 6.436.0 — FOUR LEGS NOW, AND THE STUB TELLS THEM APART BY
+        -- THE REAL ARGUMENTS. It used to say "anything with -l is the
+        -- broad one", which was true while there were two and silently
+        -- merged `keyed` and `full` the moment there were four — a stub
+        -- that cannot distinguish two legs certifies that they are
+        -- interchangeable (6.290.0), and the whole question this release
+        -- asks is whether `-k` makes them differ.
+        local a = {}
+        for i, v in ipairs(args or {}) do a[i] = v end
+        local joined = table.concat(a, " ")
+        local kind = joined:find("Root", 1, true) and "root"
+                  or joined:find("IOResources", 1, true) and "resources"
+                  or joined:find("-k", 1, true) and "keyed"
+                  or "full"
         T.cbs[kind] = cb
+        -- The old names, kept as ALIASES so the generation-guard sections
+        -- below still read the way they were written: those checks are
+        -- about leg 1 answering and leg 2 starting, which is still what
+        -- they are. `broad` is leg TWO, not the `-l` dump any more.
+        if kind == "root"      then T.cbs.narrow = cb end
+        if kind == "resources" then T.cbs.broad  = cb end
+        T.legOrder = T.legOrder or {}
+        T.legOrder[#T.legOrder + 1] = kind
         local task = {}
         -- :start() REFUSES BY RETURNING FALSE (libtask.m, task_launch).
         -- A stub that returns the task unconditionally is gentler than
@@ -2049,10 +2104,10 @@ if capChunk then
     }
     local function freshMac()
       T.newCalls, T.started, T.cb, T.cbs = 0, {}, nil, {}
-      T.afters, T.order = {}, {}
+      T.afters, T.order, T.legOrder = {}, {}, {}
       asMac({}, { hyperRemapOK = true, ocrShortcutAvailable = true, brewPathInUse = "/b" })
       T.newCalls, T.started, T.cb, T.cbs = 0, {}, nil, {}  -- drop the boot probe's
-      T.afters, T.order = {}, {}
+      T.afters, T.order, T.legOrder = {}, {}, {}
     end
     -- The belt is the timer with a real delay; the HOP that steps the
     -- broad probe off the narrow callback is a doAfter(0). Told apart by
@@ -2065,6 +2120,26 @@ if capChunk then
     end
     local function belt() return pick("belt") end
     local function hop()  return pick("hop")  end
+    -- 🪜 6.436.0 — DRAIN THE WHOLE CHAIN. There are four legs now, and
+    -- a section that answers two of them and stops leaves the probe in
+    -- flight: `siApply` never runs, no reading is published, and a check
+    -- that then asserts "off" is asserting against a probe that has not
+    -- finished. That is exactly what five sections below were doing the
+    -- moment this release added two legs — which is 6.248.0 from the
+    -- other side: a check pinned to the SHAPE of the chain rather than
+    -- to the rule it is testing. This answers whichever leg is in flight
+    -- and steps the hop until no new leg starts.
+    local function drainOff(answer)
+      for _ = 1, #SI_LEG_NAMES + 2 do
+        local last = T.legOrder and T.legOrder[#T.legOrder]
+        local cb   = last and T.cbs[last]
+        if not cb then break end
+        local n0 = #T.legOrder
+        cb(0, answer or "no pid here", "")
+        local h = hop() ; if h and h.fn then h.fn() end
+        if #T.legOrder == n0 then break end   -- nothing new started: done
+      end
+    end
     local function capture(fn)
       printed = {}
       pcall(fn)
@@ -2299,11 +2374,7 @@ if capChunk then
       local said = {}
       local realPrint = print
       print = function(s) said[#said + 1] = tostring(s) end
-      if T.cbs.narrow then T.cbs.narrow(nil, "no pid here") end
-      if T.cbs.broad  then T.cbs.broad(nil, "no pid here")  end
-      local hopNow = hop()
-      if hopNow and hopNow.fn then hopNow.fn() end
-      if T.cbs.broad then T.cbs.broad(nil, "no pid here") end
+      drainOff()
       print = realPrint
       local all = table.concat(said, "\n")
       check("🔕 a first reading of OFF says NOTHING — a line a minute "
@@ -2364,10 +2435,7 @@ if capChunk then
       -- is exactly what that guard exists to turn away, so the harness has
       -- to ask for a fresh probe before every answer it supplies.
       _G.secureInputCheck()                                   -- let it go
-      if T.cbs.narrow then T.cbs.narrow(nil, "no pid here") end
-      local hopNow = hop()
-      if hopNow and hopNow.fn then hopNow.fn() end
-      if T.cbs.broad then T.cbs.broad(nil, "no pid here") end
+      drainOff()
       _G.secureInputCheck()                                   -- and lock again
       if T.cbs.narrow then T.cbs.narrow(nil, 'kCGSSessionSecureInputPID" = 5151') end
       check("🪪 the SAME app locking a second time is a NEW event and hands "
@@ -2381,10 +2449,7 @@ if capChunk then
       -- tool helping itself for no reason (6.269.0).
       local before = #ASKED
       _G.secureInputCheck()
-      if T.cbs.narrow then T.cbs.narrow(nil, "no pid here") end
-      local hop2 = hop()
-      if hop2 and hop2.fn then hop2.fn() end
-      if T.cbs.broad then T.cbs.broad(nil, "no pid here") end
+      drainOff()
       check("🔕 Secure Input RELEASING hands over nothing — the keyboard is "
             .. "back and he can type the command himself",
             #ASKED == before, #ASKED - before)
@@ -2434,10 +2499,7 @@ if capChunk then
     do
       freshMac()
       _G.secureInputCheck()
-      if T.cbs.narrow then T.cbs.narrow(nil, "no pid here") end
-      local hopNow = hop()
-      if hopNow and hopNow.fn then hopNow.fn() end
-      if T.cbs.broad then T.cbs.broad(nil, "no pid here") end
+      drainOff()
       local said = {}
       local realPrint = print
       print = function(s) said[#said + 1] = tostring(s) end
@@ -2456,14 +2518,104 @@ if capChunk then
       said = {}
       print = function(s) said[#said + 1] = tostring(s) end
       _G.secureInputCheck()
-      if T.cbs.narrow then T.cbs.narrow(nil, "no pid here") end
-      local h2 = hop()
-      if h2 and h2.fn then h2.fn() end
-      if T.cbs.broad then T.cbs.broad(nil, "no pid here") end
+      drainOff()
       print = realPrint
       check("🔓 ON → off is still announced",
             table.concat(said, "\n"):find("released", 1, true) ~= nil,
             table.concat(said, "\n"))
+    end
+
+    -- =================================================================
+    -- 🔬 6.436.0 — FOUR LEGS, CHEAPEST FIRST, EACH MEASURED
+    -- =================================================================
+    -- The chain was narrow → `ioreg -l`, and its own comment said the
+    -- broad leg "is the normal path, not a rare one". A whole-registry
+    -- dump through a pipe, every sixty seconds, on the probe whose
+    -- subject is a keyboard that has stopped working. It has never once
+    -- answered on LL's Mac.
+    do
+      freshMac()
+      _G.secureInputCheck()
+      check("🪜 the chain starts on the CHEAPEST leg, not the dump",
+            T.legOrder[1] == "root", table.concat(T.legOrder, ","))
+      drainOff()
+      check("🪜 ...and walks all four in order when none of them finds a pid "
+            .. "— which is EVERY probe on a healthy Mac",
+            table.concat(T.legOrder, ",") == "root,resources,keyed,full",
+            table.concat(T.legOrder, ","))
+      -- 🚨 THE FIXTURE THAT BITES IS THE SECOND LEG ANSWERING. With only
+      -- the first or only the last, "walks them in order" and "runs the
+      -- one that works" agree (6.230.0) — and `resources` is the leg
+      -- this release adds on the reading that IOConsoleUsers is
+      -- published there rather than on Root.
+      freshMac()
+      _G.secureInputCheck()
+      if T.cbs.root then T.cbs.root(0, "no pid here", "") end
+      local h = hop() ; if h and h.fn then h.fn() end
+      if T.cbs.resources then
+        T.cbs.resources(0, 'kCGSSessionSecureInputPID" = 606', "")
+      end
+      check("🪜 a leg that ANSWERS ends the chain — the expensive ones are "
+            .. "never reached",
+            _G.secureInput.pid == 606
+            and table.concat(T.legOrder, ",") == "root,resources",
+            tostring(_G.secureInput.pid) .. " / " .. table.concat(T.legOrder, ","))
+
+      -- 📏 THE MEASUREMENT HALF. This release cannot know whether `-k` is
+      -- honoured on his macOS (6.233.0 — no source in this container
+      -- can read ioreg), so it reports what each leg COST and what it
+      -- PRODUCED and lets one paste settle it. A row that records only
+      -- that a leg ran would answer nothing.
+      freshMac()
+      _G.secureInputCheck()
+      if T.cbs.root then T.cbs.root(1, "", "ioreg: unknown option -- k") end
+      local legs = _G.secureInput.legs or {}
+      check("📏 each leg records its own exit code", legs.root and legs.root.exit == 1,
+            legs.root and tostring(legs.root.exit))
+      check("📏 ...and macOS's own complaint on stderr, which is the ONE "
+            .. "thing that says whether -k is supported here",
+            legs.root and legs.root.err
+            and legs.root.err:find("unknown option", 1, true) ~= nil,
+            legs.root and tostring(legs.root.err))
+      check("📏 ...and how many BYTES it produced — a keyed leg returning "
+            .. "megabytes proves -k narrowed nothing",
+            legs.root and legs.root.bytes == 0, legs.root and legs.root.bytes)
+      check("📏 ...and its milliseconds, which is why this release exists",
+            legs.root and type(legs.root.ms) == "number", legs.root and legs.root.ms)
+
+      -- 🧟 AND THE KILL COVERS EVERY LEG. It walked a hand-written
+      -- { "narrow", "broad" }: correct with two legs and silently blind
+      -- to the other two the day there were four, leaving exactly the
+      -- ioreg pile-up 6.343.0 fixed (LL counted 93 of them). It reads
+      -- the leg list now — one literal, two readers (6.231.0).
+      freshMac()
+      _G.secureInputCheck()
+      if T.cbs.root then T.cbs.root(0, "no pid here", "") end
+      local h2 = hop() ; if h2 and h2.fn then h2.fn() end
+      local killedBefore = _G.secureInput.killed or 0
+      if belt() and belt().fn then belt().fn() end
+      check("🧟 the belt kills the leg that was in flight, whichever leg it "
+            .. "is — a leg list the kill cannot see is an orphaned ioreg",
+            (_G.secureInput.killed or 0) > killedBefore,
+            tostring(killedBefore) .. " -> " .. tostring(_G.secureInput.killed))
+      check("🔒 ...and the kill is driven off the leg list, never a second "
+            .. "copy of the names",
+            beltSrc and beltSrc:match("for _, leg in ipairs%(SI_LEGS%)") ~= nil)
+
+      -- 📋 THE REPORT SAYS WHICH LEG, AND NAMES THE ONES THAT DID NOT RUN
+      -- — with a timeout above them, the first missing row IS the leg
+      -- the belt fired inside, which is the single most useful sentence
+      -- this report can carry and was unobtainable before.
+      freshMac()
+      _G.secureInputCheck()
+      if T.cbs.root then T.cbs.root(0, "no pid here", "") end
+      local rep = capture(_G.secureInputReport)
+      check("📋 the report prints the legs", rep:find("legs   :", 1, true) ~= nil, rep)
+      check("📋 ...and a leg that never ran says so, rather than being absent",
+            rep:find("did not run", 1, true) ~= nil, rep)
+      check("📋 ...and it says what the byte count would PROVE, so the paste "
+            .. "decides the next release instead of another guess",
+            rep:find("-k is", 1, true) ~= nil, rep)
     end
 
     hs.task, hs.timer = realTask, realTimerSave

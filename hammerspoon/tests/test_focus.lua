@@ -799,6 +799,113 @@ do
     FM.disengage("cleanup")
 end
 
+-- =====================================================================
+-- ⏱ 6.437.0 — THE APP LIST IS NOT RE-ENUMERATED EVERY FOUR SECONDS
+-- =====================================================================
+-- LL's own `_G.lagReport()`, 2026-11-14: this module's 4-second tick was
+-- over the slow line on 242 of 260 fires, 13 ms each, on the main
+-- thread. It asked EVERY running app for its name to find the two that
+-- could be in a meeting. The app watcher already knew when that set
+-- moved; nothing read it.
+out("\n-- 6.437.0 the app-list cache --\n")
+do
+    local fm = boot()
+
+    -- §A THE RULE IS PURE, so the whole decision is proven with no Mac.
+    local need, why = fm.needsSweep(nil, 0, 100, 60)
+    check("⏱ no cache at all means sweep", need == true and why == "first look", why)
+    need, why = fm.needsSweep({ gen = 1, at = 100 }, 1, 110, 60)
+    check("⏱ a cache inside its window is used", need == false, why)
+    need, why = fm.needsSweep({ gen = 1, at = 100 }, 2, 110, 60)
+    check("⏱ a MOVED generation sweeps — the watcher saw an app launch",
+          need == true and why == "the app set changed", why)
+    need, why = fm.needsSweep({ gen = 1, at = 100 }, 1, 161, 60)
+    check("🚨 ...and the CLOCK sweeps even when the generation has not — "
+          .. "his own Console carries a refused Accessibility watcher, and "
+          .. "without this belt the list would be stale for the session",
+          need == true and why == "the periodic re-sweep", why)
+    check("🔎 ...and the three reasons are told APART, because 'the watcher "
+          .. "is working' and 'the belt is doing all of it' are different "
+          .. "facts and only one is healthy",
+          why ~= "the app set changed")
+
+    -- §B IT REALLY STOPS ENUMERATING. The fixture that bites is TWO ticks
+    -- with nothing changing — with one, caching and not caching agree
+    -- (6.230.0).
+    local calls = 0
+    local realRA = hs.application.runningApplications
+    hs.application.runningApplications = function() calls = calls + 1 ; return APPS end
+    APPS = { mkApp("zoom.us", { "Zoom" }), mkApp("Finder", { "Desktop" }),
+             mkApp("Safari", { "News" }) }
+    fm.appCache, fm.appGen, fm.sweeps, fm.cacheHits = nil, 0, 0, 0
+    fm.tick() ; fm.tick() ; fm.tick()
+    check("⏱ three ticks, ONE enumeration — this is the release",
+          calls == 1, calls)
+    check("...and the ticks that skipped it are counted, so a cache that "
+          .. "silently stopped holding is visible rather than merely slow",
+          (fm.cacheHits or 0) == 2, fm.cacheHits)
+
+    -- §C THE GENERATION FORCES ONE.
+    fm.appGen = fm.appGen + 1
+    fm.tick()
+    check("⏱ a moved generation re-enumerates", calls == 2, calls)
+
+    -- §D AND SO DOES THE CLOCK, WITH THE GENERATION STUCK — the refused
+    -- watcher case, which is the one his Mac demonstrably has.
+    NOW = NOW + (fm.rescanSecs or 60) + 1
+    fm.tick()
+    check("🚨 the clock re-enumerates with the generation unmoved",
+          calls == 3, calls)
+    check("...and that sweep is counted as the BELT, not as the watcher",
+          (fm.rescanBelt or 0) >= 1, fm.rescanBelt)
+
+    -- §E THE ONE THAT COULD REPORT A MEETING THAT ENDED. A cached handle
+    -- outlives the app it names; asking a dead one for its windows is the
+    -- only way this cache could be WRONG rather than merely stale.
+    local zoom = mkApp("zoom.us", { "Zoom Meeting" })
+    APPS = { zoom }
+    fm.appCache, fm.appGen = nil, 0
+    fm.tick()
+    check("🎯 a live meeting app is still detected through the cache",
+          fm.engaged == true)
+    fm.disengage("test")
+    zoom.isRunning = function() return false end   -- quit; watcher refused
+    local app = fm.detectMeetingWindow()
+    check("🚨 a cached handle whose app has QUIT is not reported as a "
+          .. "meeting — without the liveness ask the cache would hold a "
+          .. "meeting open after the app went",
+          app == nil, tostring(app))
+
+    -- §F A REFUSED ENUMERATION KEEPS THE OLD LIST. An empty answer and
+    -- "macOS would not say" are opposite facts (6.196.1), and clearing
+    -- here would drop focus mid-meeting on one bad answer.
+    zoom.isRunning = function() return true end
+    fm.appCache, fm.appGen = nil, 0
+    fm.tick()
+    local held = fm.appCache
+    hs.application.runningApplications = function() error("macOS said no") end
+    fm.appGen = fm.appGen + 1
+    fm.tick()
+    check("🔎 a REFUSED enumeration keeps the previous list rather than "
+          .. "emptying it", fm.appCache == held)
+    check("...and says so, so a Mac that can never enumerate is visible",
+          (fm.sweepFails or 0) >= 1, fm.sweepFails)
+    hs.application.runningApplications = realRA
+
+    -- §G THE YIELD LINE. A release claiming it stopped doing expensive
+    -- work owes the number that proves it on HIS Mac (6.229.0).
+    local rep = _G.focusReport(true) or ""
+    check("⏱ the report says what the cache bought",
+          rep:find("full sweep", 1, true) ~= nil, rep:sub(1, 200))
+    check("...with a yield, not just a count",
+          rep:find("yield:", 1, true) ~= nil)
+    fm.watcherOK = false
+    rep = _G.focusReport(true) or ""
+    check("🚨 and a Mac whose app watcher was REFUSED is told, because "
+          .. "there the belt is the only thing keeping the list current",
+          rep:find("NO APP WATCHER", 1, true) ~= nil, rep:sub(1, 200))
+end
+
 out("\n")
 if fail > 0 then
     out("FAILURES:\n")

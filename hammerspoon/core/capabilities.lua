@@ -86,8 +86,46 @@ return function(core)
     -- -k IOConsoleUsers so the dump is a few lines rather than the lot,
     -- and it falls back to the broad form only if the narrow one finds
     -- nothing. A probe that cannot run reports UNKNOWN and costs nothing.
-    local SI_NARROW = { "-n", "Root", "-d1", "-k", "IOConsoleUsers", "-w", "0" }
-    local SI_BROAD  = { "-l", "-w", "0" }
+    -- 🔬 6.436.0 — FOUR LEGS, EACH TIMED AND NAMED, BECAUSE THE ONE
+    -- THAT RUNS ON A HEALTHY MAC WAS THE EXPENSIVE ONE. The chain was
+    -- narrow → broad, and the comment two paragraphs up says the plain
+    -- truth nobody read back: "the broad form is the fallback and runs
+    -- ONLY when the narrow one came back with nothing — which on a
+    -- healthy Mac is EVERY time, so this fallback is the normal path."
+    -- The broad form was a bare `ioreg -l`, which is a dump of the WHOLE
+    -- IO registry — megabytes, through a pipe, every sixty seconds. On
+    -- LL's Mac it has never once finished inside the belt: every report
+    -- he has sent since 6.196.0 reads "not probed yet" or "ioreg was
+    -- asked and never answered in 20s", and his 2026-11-13 storm file
+    -- carries `secure: not known` at the one moment it mattered.
+    --
+    -- 🔑 SO THE EXPENSIVE LEG IS NARROWED AND THE CHEAP ONES COME FIRST:
+    --   root      — what shipped. IOConsoleUsers on Root.
+    --   resources — the same property on IOResources, which is where
+    --               macOS actually publishes it on some builds. This is
+    --               the likeliest reason the root leg has always found
+    --               nothing and the chain has always fallen through.
+    --   keyed     — the whole tree, but `-k` so only that one property
+    --               is printed: a few lines instead of a few megabytes.
+    --   full      — the bare dump that used to be leg two. KEPT, as the
+    --               last resort, because whether `-k` is honoured on his
+    --               macOS is a fact about HIS Mac that no source in this
+    --               container can read (6.233.0), and dropping it on
+    --               that guess would trade a slow answer for none.
+    --
+    -- 📏 SO THIS RELEASE IS A PROBE AS MUCH AS A FIX, and says so. Each
+    -- leg records its own milliseconds, its exit code and how many BYTES
+    -- it produced — and the byte count is the number that settles it: a
+    -- keyed leg returning a few hundred bytes proves `-k` works here and
+    -- the `full` leg can go next release; one returning megabytes, or
+    -- exiting non-zero with a complaint on stderr, proves it does not.
+    -- Neither is guessable from here and both are one paste away.
+    local SI_LEGS = {
+        { slot = "root",      args = { "-n", "Root", "-d1", "-k", "IOConsoleUsers", "-w", "0" } },
+        { slot = "resources", args = { "-n", "IOResources", "-d1", "-k", "IOConsoleUsers", "-w", "0" } },
+        { slot = "keyed",     args = { "-l", "-k", "IOConsoleUsers", "-w", "0" } },
+        { slot = "full",      args = { "-l", "-w", "0" } },
+    }
     _G.secureInput = _G.secureInput
         or { on = nil, pid = nil, app = nil, at = nil, checks = 0,
              fails = 0, why = "not probed yet", changes = 0, lastSaid = nil,
@@ -266,7 +304,14 @@ return function(core)
         -- stack, so this is the one place the kill is safe.
         local function killProbeTasks()
             local slots = _G.secureInputTasks or {}
-            for _, name in ipairs({ "narrow", "broad" }) do
+            -- 🔑 6.436.0 — THE SLOT NAMES ARE READ OFF SI_LEGS, NEVER
+            -- RETYPED. This held a hand-written { "narrow", "broad" },
+            -- which was correct until the day the chain gained a leg —
+            -- and then the kill would have walked past the orphan it
+            -- exists to terminate, silently, leaving exactly the ioreg
+            -- pile-up 6.343.0 fixed. One literal, two readers (6.231.0).
+            for _, leg in ipairs(SI_LEGS) do
+                local name = leg.slot
                 local t = slots[name]
                 -- `false` is what a REFUSED :start() leaves here (6.304.0),
                 -- so ask for a table before calling a method on it.
@@ -337,7 +382,24 @@ return function(core)
         local function run(slot, args, andThen)
             local why, refused
             local ok = pcall(function()
-                local t = hs.task.new("/usr/sbin/ioreg", function(_, so)
+                -- 🔬 ALL THREE VALUES ARE READ (6.179.0). The callback is
+                -- (exitCode, stdOut, stdErr) and this took only stdOut,
+                -- so a leg macOS REFUSED a flag on — exit 1, the
+                -- complaint on stderr, nothing on stdout — was
+                -- indistinguishable from one that ran perfectly and
+                -- found nothing. Those are opposite facts and the whole
+                -- question this release exists to settle (is `-k`
+                -- honoured on his macOS?) is decided by exactly that
+                -- difference.
+                local t0 = hs.timer.secondsSinceEpoch()
+                local t = hs.task.new("/usr/sbin/ioreg", function(code, so, se)
+                    _G.secureInput.legs = _G.secureInput.legs or {}
+                    _G.secureInput.legs[slot] = {
+                        ms    = math.floor((hs.timer.secondsSinceEpoch() - t0) * 1000),
+                        exit  = code,
+                        bytes = #tostring(so or ""),
+                        err   = (se and se ~= "" and se:gsub("%s+$", ""):sub(1, 120)) or nil,
+                    }
                     andThen(_G.secureInputParse(so))
                 end, args)
                 if not t then
@@ -367,21 +429,36 @@ return function(core)
             finish(nil, why, true)
             return false
         end
-        -- Narrow first. The broad form is the fallback and runs ONLY when
-        -- the narrow one came back with nothing — which on a healthy Mac
-        -- is EVERY time, so this fallback is the normal path, not a rare
-        -- one. It is started from a HELD timer rather than directly, so
-        -- the narrow callback has RETURNED before anything can release
-        -- the task that owns it. Never start a task from inside another
-        -- task's callback without stepping off it first.
-        run("narrow", SI_NARROW, function(pid)
+        -- 🪜 THE LEGS ARE WALKED IN ORDER, CHEAPEST FIRST, and the next
+        -- one starts from a HELD doAfter(0) rather than from inside the
+        -- previous callback — 6.196.1's use-after-free: starting a task
+        -- from within another task's callback can drop the only
+        -- reference to the task that owns the frame you are standing on,
+        -- and hs.task's finaliser then tears it down underneath you.
+        -- Hammerspoon dies natively with nothing in the Console.
+        -- 🚨 AND EVERY LEG HAS ITS OWN SLOT, never one slot for all four,
+        -- for the same reason: the slot is the reference that keeps the
+        -- task alive, and reusing it IS the drop.
+        _G.secureInput.legs = {}
+        local step
+        step = function(i)
             if myGen ~= siGen then return end
-            if pid then return finish(pid) end
-            _G.secureInputHop = hs.timer.doAfter(0, function()
+            local leg = SI_LEGS[i]
+            if not leg then
+                -- Every leg ran and none of them found a PID. On a
+                -- healthy Mac that is the ANSWER — nothing holds the
+                -- keyboard — so it goes through siApply as a real
+                -- reading, not through the failed path. The legs table
+                -- is what says whether they really ran.
+                return finish(nil)
+            end
+            run(leg.slot, leg.args, function(pid)
                 if myGen ~= siGen then return end
-                run("broad", SI_BROAD, function(pid2) finish(pid2) end)
+                if pid then return finish(pid) end
+                _G.secureInputHop = hs.timer.doAfter(0, function() step(i + 1) end)
             end)
-        end)
+        end
+        step(1)
         return true
     end
     _G.secureInputCheck = siProbe
@@ -439,6 +516,37 @@ return function(core)
         if (si.killed or 0) > 0 then
             L[#L + 1] = "   ↳ " .. si.killed .. " abandoned ioreg process(es) "
                         .. "KILLED — `pgrep -fl ioreg | wc -l` is the check"
+        end
+        -- 🔬 6.436.0 — WHICH LEG, HOW LONG, AND HOW MANY BYTES. This is
+        -- the whole instrument half of the release and it answers a
+        -- question nobody could ask before: the chain is four ioreg
+        -- invocations, cheapest first, and on every Mac but a locked one
+        -- it runs ALL of them. Which one is slow, which one macOS
+        -- refused a flag on, and whether `-k` narrows the dump at all
+        -- are three facts no source in this container can read (6.233.0)
+        -- and all three are in these lines.
+        -- 📏 A LEG WITH NO ROW DID NOT RUN. With a timeout above it, the
+        -- first missing row NAMES the leg the belt fired inside — which
+        -- is the single most useful thing this report can say and was
+        -- unobtainable for every one of the 240 releases before it.
+        local legs = si.legs
+        if type(legs) == "table" and next(legs) then
+            L[#L + 1] = "   legs   : (cheapest first; a leg with no row never ran)"
+            for _, name in ipairs({ "root", "resources", "keyed", "full" }) do
+                local g = legs[name]
+                if g then
+                    local mark = (g.exit == 0) and "✅" or "⚠️"
+                    L[#L + 1] = string.format(
+                        "      %s %-10s %6d ms  ·  %8d bytes  ·  exit %s%s",
+                        mark, name, g.ms or -1, g.bytes or -1, tostring(g.exit),
+                        g.err and ("  — " .. g.err) or "")
+                else
+                    L[#L + 1] = string.format("      ⏳ %-10s did not run", name)
+                end
+            end
+            L[#L + 1] = "      ↳ `keyed` returning a few hundred bytes proves -k is"
+            L[#L + 1] = "        honoured here and `full` can be dropped. Megabytes, or"
+            L[#L + 1] = "        a non-zero exit with words on stderr, proves it is not."
         end
         if (si.noBelt or 0) > 0 then
             L[#L + 1] = "   ⚠️ " .. si.noBelt .. " probe(s) ran with NO belt — this Mac "

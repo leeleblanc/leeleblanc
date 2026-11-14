@@ -328,8 +328,28 @@ function M.setup(core)
     grid.scrimWhite       = 0.00
     grid.scrimAlpha       = 0.55
     grid.scrimAlphaTyped  = 0.00
+    -- ✒️ 6.438.0 — THE LINES ARE FAINTER THAN THE LETTERS, AND THAT IS A
+    -- RULE RATHER THAN A NUMBER I LIKED. LL, 2026-11-14: "Make the mouse
+    -- grid box lines fainter, the letters are more important."
+    -- 🔎 HE IS DESCRIBING A TIE. The lines drew at alpha 0.55 and the
+    -- labels at the accent's own 0.96 — but a one-point hairline running
+    -- the full height of the screen covers far more of it than a
+    -- two-character label does, so the thing with the LOWER alpha was
+    -- winning the screen on area alone. That is 6.429.0's finding in the
+    -- other direction: occlusion is area, not opacity.
+    -- 📏 SO THE LINES GET THE SMALLER SHARE OF BOTH. 0.22 over this
+    -- module's own 0.55 black scrim leaves them visible as STRUCTURE —
+    -- you can still see where a cell ends — without competing with the
+    -- glyph you are actually reading. The floor is that they must stay
+    -- visible at all: a grid with no cell edges is a wall of letters
+    -- with no geometry, which is a different complaint he has already
+    -- made once (6.429.0).
+    -- 🧪 AND THE CHECK ASSERTS THE RULE AGAINST THE SHIPPED DEFAULTS,
+    -- never a value the suite pinned — 6.429.0 shipped a regression past
+    -- 614 green checks because every section pinned its own numbers
+    -- first. `grid.lineAlpha = 0.55` puts the old weight back.
     grid.lineWhite   = 0.80
-    grid.lineAlpha   = 0.55
+    grid.lineAlpha   = 0.22
     grid.lineWidth   = 1.0
 
     -- 🔠 6.65.0 — LABEL SIZE IS NOW A FLOOR PLUS A FIT, not one number.
