@@ -435,6 +435,23 @@ check("…and a human sub line (date · size)",
 -- budget agree, and the check would prove nothing).
 do
     local U = _G.unifiedSearch
+    -- 🚨 THE SHIPPED VALUE FIRST, BEFORE ANYTHING IS PINNED. The sweep
+    -- found that putting maxPer.shots back to 30 survived every check
+    -- below, because every one of them sets its own value first — which
+    -- is 6.429.0's finding word for word, in a different file: a suite
+    -- that pins its own configuration proves nothing about the one that
+    -- ships (6.273.0). Asserted as a RULE, not as the literal 300
+    -- (6.248.0): the number that bounds the LIST must be far larger than
+    -- the one that bounds DECODES, or it is still bounding decodes —
+    -- which is the whole defect — and it must not be the odd one out in
+    -- a table where every other store is in the hundreds.
+    check("📸 the SHIPPED shots cap bounds the list, not the decodes — it is "
+          .. "many times the thumbnail budget",
+          U.maxPer.shots >= U.thumbMax * 4,
+          U.maxPer.shots .. " rows vs " .. U.thumbMax .. " decodes")
+    check("📸 …and it is in the same class as every other store, which 30 "
+          .. "never was (clip 400, web 300, images 150, note 120)",
+          U.maxPer.shots >= 100, U.maxPer.shots)
     local savedThumb, savedMax = U.thumbMax, U.maxPer.shots
     U.thumbMax = 1
     U.gather()

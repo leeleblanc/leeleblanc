@@ -926,6 +926,17 @@ do
         .. "which is what LL's switcher, players, calendar and cheat sheet "
         .. "were all being starved of",
         _G.routeEscape() == "low" and lowRan == 1, lowRan)
+  -- 🚨 AND THE THIRD PRESS IS WHERE THE SKIP HAS TO END. The sweep found
+  -- this: with ONE claimant, clearing the mark inside the skip branch is
+  -- unkillable, because the no-claimant exit clears it too. With TWO, a
+  -- lower panel becomes `best`, that exit never runs, and a skip that
+  -- does not clear itself is a claimant banned for the session — a belt
+  -- that costs the very thing it was built to protect. Two presses agree
+  -- either way; three is the fixture where they must differ (6.230.0),
+  -- and the line was not the finding, the missing check was (6.273.0).
+  check("🚨 …and the press AFTER that reaches the skipped claimant again, "
+        .. "so the belt is one press and never a ban",
+        _G.routeEscape() == "stuck" and lowRan == 1, lowRan)
 
   -- The report has to be able to SAY all of this, or it is a fix with no
   -- instrument and the next one of these is invisible again.

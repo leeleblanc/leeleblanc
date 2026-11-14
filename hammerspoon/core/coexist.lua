@@ -937,7 +937,15 @@ function _G.routeEscape(caller)
             -- skipped Escape is the whole cost, and the NEXT press reaches
             -- that claimant again.
             if ok and live and _G.escapeStuck == c.name then
-                _G.escapeStuck = nil
+                -- 🗑 A `_G.escapeStuck = nil` SAT HERE AND WAS TAKEN OUT
+                -- AGAIN (6.199.0, tenth time), and the sweep is what
+                -- said so. Every path out of this press reassigns the
+                -- mark anyway: either another claimant takes the Esc and
+                -- the line after the handler records ITS answer, or
+                -- nobody does and the `if not best` exit clears it. So
+                -- no mutation could fail the line, which is the test of
+                -- whether it was doing anything. What EARNS its place is
+                -- the check that the skip lasts exactly one press.
                 _G.escapeStuckSkips = (_G.escapeStuckSkips or 0) + 1
                 -- 📏 THE NAME, AND NO CLOCK. test_integration LIFTS this
                 -- block out of the source and runs it in a bare env

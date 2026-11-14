@@ -1,6 +1,6 @@
 # MANIFEST — what this release carries, one row per runtime file
-# version: 6.430.0
-# 94 file(s), 5003683 bytes
+# version: 6.434.0
+# 94 file(s), 5030409 bytes
 #
 # Read by modules/install_check.lua: _G.installCheck() stats each path
 # below, relative to ~/.hammerspoon, and names every file that disagrees.
@@ -11,17 +11,17 @@
 # ENTRY for this version, which is a better question than its length) ·
 # snippets/bundled.lua (generated, and rebuildable on his own Mac) · the
 # docs, tests/ and the other tools (not loaded or started by the config).
-init.lua	181894
+init.lua	181116
 core/boot_cost.lua	18672
 core/boot_report.lua	11351
 core/capabilities.lua	38851
 core/changelog_csv.lua	2651
 core/cheatsheet.lua	109926
-core/coexist.lua	64759
+core/coexist.lua	69698
 core/console.lua	13649
 core/diagnostics.lua	20763
 core/double_tap.lua	20818
-core/hyper_key.lua	58159
+core/hyper_key.lua	61986
 core/key_trail.lua	7913
 core/lag.lua	67304
 core/notices.lua	44763
@@ -39,7 +39,7 @@ modules/battery_saver.lua	18453
 modules/begone.lua	16025
 modules/bluetooth.lua	19424
 modules/bulk_rename.lua	34085
-modules/capture_pad.lua	77421
+modules/capture_pad.lua	78347
 modules/chrome_history.lua	63124
 modules/clipboard_history.lua	73839
 modules/command_history.lua	10712
@@ -62,21 +62,21 @@ modules/key_caster.lua	39831
 modules/mac_panel.lua	20953
 modules/master_log.lua	21539
 modules/menu_search.lua	27857
-modules/menubar_items.lua	22297
+modules/menubar_items.lua	23180
 modules/mini_calendar.lua	44207
 modules/mouse_follows.lua	36369
 modules/mouse_grid.lua	141344
 modules/music_player.lua	145019
 modules/net_tools.lua	54371
 modules/net_watch.lua	24090
-modules/note_pad.lua	39972
+modules/note_pad.lua	40898
 modules/numpad_layer.lua	44786
 modules/ocr_engine.lua	88787
 modules/onedrive_check.lua	79898
 modules/pomodoro.lua	57328
 modules/power_tools.lua	122481
 modules/quick_append.lua	18589
-modules/recent_docs.lua	61536
+modules/recent_docs.lua	62462
 modules/right_click.lua	26236
 modules/scratch_pad.lua	169686
 modules/screen_veil.lua	26691
@@ -88,12 +88,12 @@ modules/settings_panes.lua	57821
 modules/stall_guard.lua	24712
 modules/tab_search.lua	21675
 modules/task_creator.lua	58999
-modules/task_form.lua	36182
+modules/task_form.lua	37108
 modules/text_case.lua	17189
 modules/text_expander.lua	145296
 modules/timer.lua	51105
 modules/ui_style.lua	13120
-modules/unified_search.lua	122043
+modules/unified_search.lua	131435
 modules/universal_actions.lua	36244
 modules/update_tracker.lua	35418
 modules/url_cleaner.lua	25912
@@ -102,6 +102,6 @@ modules/video_player.lua	164734
 modules/window_arranger.lua	18495
 modules/window_move.lua	40328
 modules/window_return.lua	21896
-modules/window_switcher.lua	74820
+modules/window_switcher.lua	79579
 modules/write_ledger.lua	38144
 tools/hs-stall-guard.sh	7294
