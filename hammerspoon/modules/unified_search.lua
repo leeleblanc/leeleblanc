@@ -120,7 +120,22 @@ function M.setup(core)
     uni.preview = 240        -- characters of each row shown / searched
     uni.pageCap = 60         -- rows the page lists at once ("+N more" after)
     uni.groupCap = 8         -- rows per source in the nothing-typed view
-    uni.maxPer  = { clip = 400, cmd = 400, shots = 30, note = 120,
+    -- 📸 6.431.0 — `shots` was 30 and every other source is 120–400.
+    -- LL: "Why do I only have 33 screenshots when I use @shots?" Because
+    -- 30 of them were listed; the other three rows were incidental matches
+    -- from other stores. He has 488 captures.
+    -- 🔑 AND 30 WAS BOUNDING THE WRONG THING. The comment it was written
+    -- under says so: "capped at maxPer.shots" appears under *thumbnails*,
+    -- because every shots row asks uni.thumbFor() and a thumbnail is a
+    -- full PNG decode on the main thread (6.187.0 priced that, and a
+    -- OneDrive-evicted file decodes by downloading it). So the number was
+    -- a DECODE budget wearing a row cap's clothes — and the source right
+    -- next door, @images, already keeps those two apart: it lists
+    -- maxPer.images rows and decodes only uni.thumbMax of them. srcShots
+    -- does the same now, so the rows are a list and the budget is a
+    -- budget. GENERAL: when one number bounds two costs, the cheaper one
+    -- is the one being starved.
+    uni.maxPer  = { clip = 400, cmd = 400, shots = 300, note = 120,
                     asana = 200, ocr = 200, doc = 200, file = 200, pad = 60,
                     web = 300, scratch = 200, vault = 300, images = 150,
                     logs = 300, draft = 300 }
@@ -385,15 +400,30 @@ function M.setup(core)
         if not (shots and type(shots.list) == "function") then return end
         local ok, l = pcall(shots.list)
         if not (ok and type(l) == "table") then return end
+        -- DECODES, not rows (6.431.0, srcImages' rule since 6.187.0): the
+        -- newest `uni.thumbMax` rows get a picture and the rest are rows
+        -- without one. A row with no thumbnail still carries its name, its
+        -- date, its size and its path, which is everything ⏎ and ⌘⏎ use.
+        local drawn = 0
         for i = 1, math.min(#l, uni.maxPer.shots) do
             local e = l[i]
+            local thumb
+            if drawn < uni.thumbMax then
+                thumb = uni.thumbFor(e)
+                -- Counted whether or not a URI came back: the COST was
+                -- paid either way, and that is what the budget is about.
+                drawn = drawn + 1
+            end
             add{ tag = "shots", icon = "📸", src = "Screenshot",
                  text = e.name or "",
                  sub  = os.date("%b %d %H:%M", e.mtime or 0)
                         .. " · " .. prettySize(e.size),
                  full = e.name or "", path = e.path,
-                 kind = "image", img = uni.thumbFor(e) }
+                 kind = "image", img = thumb }
         end
+        uni.shotThumbs = drawn
+        uni.shotRows   = math.min(#l, uni.maxPer.shots)
+        uni.shotsOnDisk = #l
     end
 
     local function srcNotes(add)
@@ -1036,6 +1066,24 @@ function M.setup(core)
         taskFormReport      = "⇪T — the form's size, its fields and the last task it created",
         monoReport          = "the screen veil's mono and invert",
         windowReturnReport  = "window return — switched OFF on your word, and the layouts it still holds",
+        -- 🔎 6.431.0 — THE PROBES THE EXTRAS SWEEP STRUCTURALLY CANNOT SEE.
+        -- That sweep (below) walks _G for names ending in "Report", which
+        -- is why a report added next year appears here on the day it
+        -- ships. A diagnostic called `…Probe` or `…CheckNow` ends in
+        -- neither, so it was invisible to this list however long it had
+        -- existed — four of them, every one read-only, every one asked for
+        -- by name in a verify block at some point.
+        -- 🚨 AND THREE MORE ARE DELIBERATELY NOT HERE: ⏎ on a row RUNS the
+        -- thing, so `_G.vaultPurgeTrash` (it erases notes), `_G.hyperSelfTest`
+        -- and `_G.hyperWakeProbeRun` (they act on the keyboard) stay out. A
+        -- list whose ⏎ runs things may only hold things that read
+        -- (6.335.0's rule about a purge control beside a restore control).
+        -- `_G.settingsProbe` and `_G.urlCleanTest` take an ARGUMENT, so a
+        -- row that pressed them with none would be a row that misfires.
+        begoneProbe         = "the begone sweep — what it would close, and what it refuses to",
+        padProbe            = "the numpad layer — which keys it holds and which are free",
+        oneDriveProbe       = "OneDrive — what this Mac answers about a file that is really here",
+        healthCheckNow      = "tool health — re-reads every watched store's last write, now",
     }
 
     -- 📋 6.427.0 — the rows. The LIST comes from `_G`; the table above
@@ -1375,6 +1423,11 @@ var visible = [], sel = 0, total = 0;
 // or 'tags' (source tags, in the @ directory). One variable rather than
 // a second list, so ↑↓ and ⏎ stay one code path for both views.
 var mode = 'rows';
+// 6.431.0 — the source an exact @tag pinned on the last rebuild, or null.
+// It decides the count line as well as the rows: "97 reports" and "101
+// matches across every store" are different facts, and only one of them
+// is what you asked for.
+var pin = null;
 // 👁 6.204.0 — which hand moved the highlight last. It decides ONE thing,
 // the "🖱 under the pointer" tag in the pane's header — a label, never a
 // row (6.202.0's rule: the highlight is the answer for both hands).
@@ -1472,6 +1525,49 @@ function unknownTag(toks){
   }
   return null;
 }
+// 📌 6.431.0 — AN EXACT @tag PINS THE VIEW TO THAT ONE SOURCE, and
+// every row of it is drawn. LL, of @report: "Give me the 41 reports I
+// can run in the list instead of saying type to filter."
+//
+// 🔎 WHY 41 WENT MISSING: the page draws at most CAP rows
+// (uni.pageCap, 60) and said "…and N more — keep typing to narrow" for
+// the rest. 6.298.0 put the tag in every row's haystack so a PARTIAL
+// @word still searches, which is right — and it also means @report is
+// just another search term, subject to a cap chosen for searches across
+// every store at once.
+//
+// 🔑 AND NARROWING IS NOT AN ANSWER HERE, which is the half that makes
+// this a defect rather than a number: every report has a different
+// name, so narrowing requires already knowing which one you want — and
+// finding that out is the entire job of the list. That is 6.298.0's own
+// rule one layer down: a directory you must narrow before you can read
+// it is not a directory.
+//
+// 📏 THE BOUND IS STILL THERE, it is just the honest one: every source
+// is capped at gather time by uni.maxPer, so "all of this store" can
+// never be more rows than that — the page is not being handed an
+// unbounded list. The CAP stays for a free-text search, where a single
+// letter really can match thousands.
+//
+// An exact tag only: '@o' must go on searching @ocr the way it always
+// has, so a prefix is NOT a pin.
+function pinnedTag(toks){
+  for (var i = 0; i < toks.length; i++) {
+    if (toks[i].charAt(0) !== '@') continue;
+    var name = toks[i].slice(1);
+    for (var s = 0; s < SRCS.length; s++)
+      if (String(SRCS[s].tag) === name) return name;
+  }
+  return null;
+}
+// The tokens left once the pin is taken out — they still filter INSIDE
+// the pinned store, so "@report draft" works exactly as it reads.
+function withoutTag(toks, tag){
+  var out = [];
+  for (var i = 0; i < toks.length; i++)
+    if (toks[i] !== '@' + tag) out.push(toks[i]);
+  return out;
+}
 // The directory itself. EVERY source, including the empty ones: "@pad
 // holds nothing today" and "there is no @pad" are opposite facts
 // (6.196.1), and hiding the empty ones would make them read the same.
@@ -1535,10 +1631,13 @@ function rebuild(){
       total += SRCS[s].n;
     }
   } else {
+    pin = pinnedTag(toks);
+    var ftoks = pin ? withoutTag(toks, pin) : toks;
     for (var j = 0; j < ROWS.length; j++) {
-      if (!matches(ROWS[j], toks)) continue;
+      if (pin && ROWS[j].tag !== pin) continue;
+      if (!matches(ROWS[j], ftoks)) continue;
       total++;
-      if (visible.length < CAP) {
+      if (pin || visible.length < CAP) {
         html += rowHtml(ROWS[j], visible.length);
         visible.push(ROWS[j].id);
       }
@@ -1559,7 +1658,10 @@ function rebuild(){
   count.textContent = (mode === 'tags')
     ? (SRCS.length + ' sources — ⏎ on one to search it, or keep typing')
     : (toks.length
-       ? (total + ' match' + (total === 1 ? '' : 'es') + ' across every store')
+       ? (pin
+          ? (total + ' in @' + pin + (total ? ' — every one of them, listed'
+                                           : ' — nothing in that store matches'))
+          : (total + ' match' + (total === 1 ? '' : 'es') + ' across every store'))
        : (ROWS.length + ' items indexed — newest of each store below'));
   showPane();
 }
@@ -2109,6 +2211,23 @@ if (q.focus) q.focus();
             L[#L + 1] = "   ⚠️ the row list holds " .. #uni.rows
                         .. " — it disagrees with the per-store counts"
         end
+        -- 📏 6.431.0 — THE CAPS, SAID OUT LOUD. "Why do I only have 33
+        -- screenshots" could only be answered by reading the source,
+        -- because the numbers that decide how much of a store you can
+        -- see were nowhere in the report that describes the store.
+        L[#L + 1] = "   caps   : an exact @tag lists that whole store · a"
+                    .. " free-text search draws " .. tostring(uni.pageCap)
+                    .. " rows at once"
+        L[#L + 1] = "   📸 shots : " .. tostring(uni.shotsOnDisk or 0)
+                    .. " in the folder · " .. tostring(uni.shotRows or 0)
+                    .. " listed (cap " .. tostring(uni.maxPer.shots) .. ") · "
+                    .. tostring(uni.shotThumbs or 0) .. " thumbnail(s) decoded"
+                    .. " (budget " .. tostring(uni.thumbMax) .. ")"
+        if (uni.shotsOnDisk or 0) > (uni.shotRows or 0) then
+            L[#L + 1] = "             ↳ " .. ((uni.shotsOnDisk or 0) - (uni.shotRows or 0))
+                        .. " older capture(s) are on disk and NOT in the box —"
+                        .. " settings = { unified_search = { maxPer = … } } or ⇪⇧5"
+        end
         L[#L + 1] = "   built  : " .. (uni.lastGather
             and (os.date("%H:%M:%S", uni.lastGather) .. " ("
                  .. (os.time() - uni.lastGather) .. "s ago)")
@@ -2256,7 +2375,20 @@ if (q.focus) q.focus();
         uni.webview = view
         pcall(function() view:windowTitle("Unified Search") end)
         pcall(function() view:allowTextEntry(true) end)
-        pcall(function() view:closeOnEscape(true) end)
+        -- 🚨 6.432.0 — `closeOnEscape(false)`, not true. WebKit's own
+        -- handler closes the WINDOW behind Lua's back, leaving this
+        -- module's handle assigned: the toggle then hides a window that
+        -- is not there, and the escape claim stays live for the rest of
+        -- the session — which starves every lower-priority panel of Esc
+        -- and, from 6.432.0, would eat Escape in every app. 6.286.0 found
+        -- this in the screenshot editor and swept only that file.
+        -- 📏 MEASURED BEFORE IT WAS REMOVED: this page already sends
+        -- {a:'close'} on Escape, and so do the other four that carried
+        -- this line. So it was never THE closer — it was a second one
+        -- that races the page's own handler and wins silently. Nothing
+        -- is lost: with focus, the page closes through Lua; without it,
+        -- the escape router does (core/hyper_key.lua).
+        pcall(function() view:closeOnEscape(false) end)
         pcall(function() view:level(hs.drawing.windowLevels.floating) end)
         pcall(function()
             view:behaviorAsLabels({ "canJoinAllSpaces", "fullScreenAuxiliary" })
@@ -2346,6 +2478,28 @@ if (q.focus) q.focus();
 
     -- ⎋ 6.93.0 — in the escape router, so the cheat sheet closes AFTER
     -- this panel instead of vanishing underneath it.
+    -- 🚨 6.432.0 — AND THE CLAIM ASKS THE WORLD, not just the handle.
+    -- His own `_G.escapeReport()` read `unified 55 🟢 wants esc now` with
+    -- nothing on screen: `closeOnEscape(true)` had let WebKit close the
+    -- window and `uni.webview` stayed assigned, so this claim was live
+    -- for the rest of the session — which is what starved the switcher,
+    -- both players, the calendar and the cheat sheet of Esc. That line is
+    -- gone, which makes the handle truthful again: nothing else closes
+    -- one of these windows without going through uni.hide().
+    --
+    -- 🚫 AND A LIVENESS BELT WAS WRITTEN HERE AND TAKEN OUT AGAIN. Asking
+    -- `uni.webview:hswindow()` reads like the obvious second opinion and
+    -- fails in the WRONG DIRECTION: this config has already recorded,
+    -- twice and in two files, that hswindow() "answers nothing" on some
+    -- builds for a window that is perfectly fine (editor_picker.lua:651,
+    -- ocr_engine.lua:1446). A belt built on it would report this claim
+    -- dead while the panel was on screen, and then Escape would not close
+    -- it at all — a guard that fails on correct code, switched off inside
+    -- a week (6.269.0). 6.395.0's rule decides it: an instrument that has
+    -- never positively said "gone" is UNINFORMATIVE, never a refusal. The
+    -- belt that IS safe is in the router, where it is a fact about
+    -- BEHAVIOUR (a handler that ran and did not stand down) rather than a
+    -- platform answer — see `_G.routeEscape` in core/coexist.lua.
     if _G.claimEscape then
         _G.claimEscape("unified", nil,
             function() return uni.webview ~= nil end,

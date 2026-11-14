@@ -3300,6 +3300,68 @@ do
 end
 
 -- =====================================================================
+-- ⎋ 6.432.0 — NOTHING ASKS WEBKIT TO CLOSE A WINDOW LUA IS TRACKING
+-- =====================================================================
+-- `view:closeOnEscape(true)` hands Escape to WebKit's own handler, which
+-- closes the WINDOW and tells Lua nothing. The module's handle stays
+-- assigned, so its toggle hides a window that is not there and its
+-- escape claim stays live for the rest of the session — LL's own
+-- `_G.escapeReport()` caught `unified` in exactly that state, which is
+-- what starved the switcher, both players, the calendar and the cheat
+-- sheet of Esc, all of them below it.
+--
+-- 🚨 6.286.0 FOUND THIS IN THE SCREENSHOT EDITOR AND SWEPT ONE FILE.
+-- Five panels still carried the line forty-six releases later —
+-- note_pad, recent_docs, unified_search, task_form, capture_pad — which
+-- is 6.305.0 for the fifth time: a rule written about one caller is not
+-- a rule until every caller has been asked. A sentry needs no asking.
+--
+-- 📏 MEASURED, which is what makes removing it free rather than a
+-- trade: all five of those pages already send {a:'close'} on Escape, so
+-- the line was never THE closer — it was a second one that races the
+-- page's own handler and wins silently. The check below asserts that
+-- half too, or "nobody passes true" would pass just as well over a
+-- panel that has no way to close itself at all.
+do
+    local bad, noEsc, scanned = {}, {}, 0
+    local p = io.popen('ls "' .. HS .. '"/modules/*.lua "' .. HS
+                       .. '"/core/*.lua 2>/dev/null')
+    if p then
+        for path in p:lines() do
+            local src  = slurpFile(path)
+            local base = path:match("([^/]+)$")
+            scanned = scanned + 1
+            if not src or #src == 0 then
+                bad[#bad + 1] = base .. " → COULD NOT BE READ"
+            else
+                -- Comments stripped: every one of the five carries a note
+                -- quoting the line it no longer calls (6.262.0).
+                local code = src:gsub("%-%-[^\n]*", "")
+                if code:find("closeOnEscape%s*%(%s*true%s*%)") then
+                    bad[#bad + 1] = base
+                end
+                -- …and a file that asks for closeOnEscape at all is a file
+                -- with a window to close, so its page must handle Escape
+                -- itself.
+                if code:find("closeOnEscape") and not code:find("'Escape'")
+                   and not code:find('"Escape"') then
+                    noEsc[#noEsc + 1] = base
+                end
+            end
+        end
+        p:close()
+    end
+    check("⎋ every module and core file was read", scanned > 60,
+          scanned .. " file(s)")
+    check("🚨 no panel asks WebKit to close a window Lua is tracking "
+          .. "(closeOnEscape(true)) — the class 6.286.0 closed in one file",
+          #bad == 0, table.concat(bad, " · "))
+    check("…and every panel that sets closeOnEscape at all handles Escape in "
+          .. "its own page, so taking WebKit's handler away costs nothing",
+          #noEsc == 0, table.concat(noEsc, " · "))
+end
+
+-- =====================================================================
 -- 🚨 6.308.0 — A MODULE HAS EXACTLY ONE M.warm, AND setup() NEVER
 -- ASSIGNS IT
 -- =====================================================================

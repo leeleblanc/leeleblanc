@@ -40,6 +40,15 @@ _G.clipboardCache = {
   { date = "Aug 15 10:00", text = "alpha receipt from the cafe" },
   { date = "Aug 14 09:00", text = "beta memo about nothing" },
   { date = "Aug 13 08:00", text = "<script>alert(1)</script> gamma" },
+  -- 📌 6.431.0 — AN INCIDENTAL MATCH, and the fixture that makes the pin
+  -- provable. 6.298.0 puts every row's own @tag in its haystack so a
+  -- PARTIAL @word still searches, which also means a row in ANOTHER
+  -- store that happens to contain the text "@shots" matches a search for
+  -- it. That is why his screenshot read "101 matches across every store"
+  -- for ninety-odd reports. Without a row like this one, "a pin shows
+  -- only that store" and "a pin shows everything that matches" agree,
+  -- and the check proves nothing (6.230.0).
+  { date = "Aug 12 07:00", text = "remind me to tidy @shots one day" },
 }
 _G.screenshots = {
   list = function()

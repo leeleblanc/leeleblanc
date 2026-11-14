@@ -920,7 +920,39 @@ function _G.routeEscape(caller)
     for _, c in ipairs(_G.escapeClaims) do
         if c.name ~= caller and (mine == nil or (c.priority or 0) > mine) then
             local ok, live = pcall(c.active)
-            if ok and live and (not best or c.priority > best.priority) then
+            -- 🚨 6.432.0 — A CLAIMANT THAT RAN AND DID NOT STAND DOWN IS
+            -- SKIPPED ONCE. Its handler was called on the last press and
+            -- its active() STILL says it wants Esc, which is not the same
+            -- fact as "a panel is open": it is a handler that closed
+            -- nothing. Left alone, one such claim takes every Escape for
+            -- the rest of the session — LL's own `_G.escapeReport()`
+            -- caught `unified` in exactly that state — and from 6.432.0 a
+            -- bare Escape is routed in EVERY app, so the cost of not
+            -- noticing is the key itself rather than one panel.
+            -- 🔑 IT IS A FACT ABOUT BEHAVIOUR, which is what makes it safe
+            -- where a platform answer would not be (6.395.0 — an
+            -- instrument that has never positively said "gone" is
+            -- uninformative, never a refusal). Nothing is guessed about
+            -- the window; only the handler is observed. One wrongly
+            -- skipped Escape is the whole cost, and the NEXT press reaches
+            -- that claimant again.
+            if ok and live and _G.escapeStuck == c.name then
+                _G.escapeStuck = nil
+                _G.escapeStuckSkips = (_G.escapeStuckSkips or 0) + 1
+                -- 📏 THE NAME, AND NO CLOCK. test_integration LIFTS this
+                -- block out of the source and runs it in a bare env
+                -- holding only what the router is allowed to use
+                -- (6.314.0's rule, and the price of testing the SHIPPED
+                -- text rather than a copy of it): `os` is not in it, so
+                -- an os.date here is a suite that dies on load. The
+                -- report has the count and the name, which is what
+                -- decides anything.
+                _G.escapeStuckLast = c.name
+                print("⎋ escape router: " .. c.name .. " handled the last Esc "
+                      .. "and still says it wants one — skipped this press, so "
+                      .. "one stuck claim cannot eat Escape everywhere. "
+                      .. "_G.escapeReport() has the detail.")
+            elseif ok and live and (not best or c.priority > best.priority) then
                 best = c
             elseif not ok then
                 print("⎋ escape router: " .. c.name .. " could not say whether "
@@ -928,7 +960,7 @@ function _G.routeEscape(caller)
             end
         end
     end
-    if not best then return nil end
+    if not best then _G.escapeStuck = nil return nil end
     local ok, err = pcall(best.handle)
     if not ok then
         print("⎋ escape router: " .. best.name .. " failed to handle Esc — "
@@ -940,6 +972,14 @@ function _G.routeEscape(caller)
         return nil          -- fall through: the caller still gets its Esc
     end
     if _G.diag then _G.diag.say("escape", best.name .. " took Esc from " .. tostring(caller)) end
+    -- 6.432.0 — ask the SAME question again now the handler has run. A
+    -- panel that closed itself answers false here; one that did not is
+    -- remembered BY NAME and skipped on the next press (above). Recorded
+    -- rather than acted on immediately: a handler is allowed one turn to
+    -- take its window down, and a panel that needs a beat (an animation,
+    -- a page that must be asked) is not a stuck claim.
+    local okAfter, stillLive = pcall(best.active)
+    _G.escapeStuck = (okAfter and stillLive) and best.name or nil
     return best.name
 end
 
@@ -1041,6 +1081,31 @@ function _G.escapeReport()
                                   .. "the sheet regardless",
                                   tostring(cs.escInsist),
                                   tostring(cs.escInsistWindow))
+    end
+    -- 6.432.0 — THE TWO FACTS A 🟢 ROW ABOVE CANNOT TELL APART, and the
+    -- reason this report could not name LL's bug on its own: "a panel is
+    -- open" and "a handler ran and closed nothing" print the same green
+    -- dot. These lines say which.
+    L[#L + 1] = "   stuck   : " .. (_G.escapeStuck
+        and ("⚠️ " .. tostring(_G.escapeStuck) .. " handled the last Esc and "
+             .. "STILL wants one — it will be skipped on the next press")
+        or "none — the last claimant to handle an Esc stood down afterwards")
+    L[#L + 1] = "   skips   : " .. tostring(_G.escapeStuckSkips or 0)
+        .. " press(es) skipped a stuck claimant"
+        .. (_G.escapeStuckLast and ("  ·  last: " .. tostring(_G.escapeStuckLast))
+            or "")
+    -- 🌍 Where a bare Escape is heard from. Before 6.432.0 this was the
+    -- dispatcher's door, so on a Mac with a working Carbon layer it was
+    -- not heard at all and a panel that had lost focus could not be
+    -- closed with the key it tells you to use.
+    L[#L + 1] = "   global  : " .. (_G.escapeGlobal == false
+        and "OFF — only a panel that HAS the keyboard can be closed with Esc"
+        or ("on — a bare Escape is routed from the ⇪ tap in any app · "
+            .. tostring(_G.escapeTapTook or 0) .. " taken · "
+            .. tostring(_G.escapeTapPassed or 0) .. " passed through"))
+    if _G.hyperKeyTap == nil then
+        L[#L + 1] = "             ↳ ⚠️ THE ⇪ EVENT TAP IS NOT RUNNING, so nothing "
+                    .. "hears a bare Escape outside a panel that has focus"
     end
     print(table.concat(L, "\n"))
     return #claims

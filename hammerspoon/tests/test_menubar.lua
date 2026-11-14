@@ -248,16 +248,22 @@ APPS = {
     mkApp("Dropbox",   { { desc = "Syncing 3 files" } }),
     mkApp("1Password", { { desc = nil } }),
     mkApp("Zoom",      { { desc = "Meeting" }, { desc = "Mute" } }),
-    mkApp("Hammerspoon", { { desc = "should be skipped" } }),
+    mkApp("Hammerspoon", { { desc = "🩺 tool health" } }),
 }
 boot()
 items = MB.scan(true)
 check("every app's items are found, including an app with two",
-      #items == 4, #items and #items)
-check("Hammerspoon's own item is skipped — listing yourself is noise",
+      #items == 5, #items and #items)
+-- 🚨 6.434.0 — THIS CHECK ASSERTED THE OPPOSITE, in its own words:
+-- "Hammerspoon's own item is skipped — listing yourself is noise". It was
+-- a judgement, not a rule, and LL has overruled it by going looking for
+-- those items. It asks the rule now: our own items are reachable like
+-- anybody else's.
+check("🔎 Hammerspoon's own item is LISTED — it has something behind it to "
+      .. "click, which is what separates it from an Apple agent",
       (function()
-    for _, e in ipairs(items) do if e.app == "Hammerspoon" then return false end end
-    return true
+    for _, e in ipairs(items) do if e.app == "Hammerspoon" then return true end end
+    return false
 end)())
 -- Indexed defensively: a mutation that makes the scan return NOTHING —
 -- an over-broad skip filter is exactly that shape — would abort the run
@@ -321,6 +327,56 @@ check("MenuBarAgent is skipped BY NAME too, not only by its path — the "
 end)())
 check("Ice survives, including installed under $HOME rather than "
       .. "/Applications", listed("Ice"))
+
+-- =====================================================================
+-- 🔎 6.434.0 — HAMMERSPOON IS LISTED, on LL's own question
+-- =====================================================================
+-- "Why don't I see Hammerspoon as menu bar item I can search?" Because
+-- `mb.skipApps["Hammerspoon"]` hid it, by name, since the list was
+-- written. Three of our own items are real and clickable — 🩺 health,
+-- the mini calendar, and the pause indicator — so the one person who
+-- went looking for them paid the whole cost of hiding them.
+--
+-- 🚨 BOTH DIRECTIONS, OR THE REMOVAL IS NOT PROVEN (6.346.0's rule, in
+-- reverse: that release took a NAME out of a list and found the suite
+-- could only ever prove the positive). The negative half is that the
+-- list still works for everything else, or "Hammerspoon is listed" would
+-- also pass with the whole skip list deleted.
+do
+  APPS = {
+    mkApp("Hammerspoon", { { desc = "🩺 tool health" },
+                           { desc = "the mini calendar" } },
+          nil, "/Applications/Hammerspoon.app"),
+    mkApp("Control Center", { { desc = "clock, wifi, battery" } },
+          nil, "/System/Library/CoreServices/ControlCenter.app"),
+  }
+  boot()
+  local it = MB.scan(true)
+  local hs_, cc = 0, 0
+  for _, e in ipairs(it) do
+    if e.app == "Hammerspoon"    then hs_ = hs_ + 1 end
+    if e.app == "Control Center" then cc  = cc  + 1 end
+  end
+  check("🔎 Hammerspoon's own menu-bar items are in the picker — both of "
+        .. "them, each as its own row", hs_ == 2, hs_ .. " row(s)")
+  check("…and the skip list still works for everything else, so this is a "
+        .. "name taken out rather than a filter switched off", cc == 0)
+  check("…and nothing else crept in with them", #it == 2, #it)
+end
+APPS = {
+    mkApp("MenuBarAgent",  { { desc = "the menu bar itself" } },
+          nil, "/System/Library/CoreServices/MenuBarAgent.app"),
+    mkApp("Control Center", { { desc = "clock, wifi, battery" } },
+          nil, "/System/Library/CoreServices/ControlCenter.app"),
+    mkApp("SomeFutureAgent", { { desc = "not on any list I wrote" } },
+          nil, "/System/Library/CoreServices/SomeFutureAgent.app"),
+    mkApp("1Password",     { { desc = "vault locked" } },
+          nil, "/Applications/1Password.app"),
+    mkApp("Ice",           { { desc = "hidden items" } },
+          nil, "/Users/lee/Applications/Ice.app"),
+}
+boot()
+items = MB.scan(true)
 check("...so the list is the two real apps and nothing else",
       #items == 2, #items)
 check("an app that cannot answer app:path() is KEPT, not dropped — an "
@@ -362,7 +418,7 @@ end)())
 out("   -- the picker --\n")
 boot() ; HYPER["|m"]()
 check("⇪M opens a chooser", #CHOOSERS == 1 and CHOOSERS[1].shown)
-check("...listing every item", #CHOOSERS[1].rows == 4, #CHOOSERS[1].rows)
+check("...listing every item", #CHOOSERS[1].rows == 5, #CHOOSERS[1].rows)
 -- Guarded for the same reason as the sort check above: an over-broad skip
 -- filter empties the list, and a bare index here turns a clean failure
 -- into an aborted run that blames the wrong line.

@@ -306,9 +306,30 @@ do
     check("a FILE in the folder's place is a real listing failure, and says so", p2 == nil and type(w2) == "string" and w2:find("cannot list", 1, true))
     os.remove(ROOT .. "/.storm")
     local tap = readAll(HS .. "/core/hyper_key.lua") or ""
-    check("the tap calls _G.hyperStormKey on keyDown under ⇪, inside its own pcall, before the dispatch decision",
-          tap:find("if _G.hyperActive and _G.hyperStormKey and t == hs.eventtap.event.types.keyDown then\n            pcall(_G.hyperStormKey, code, ev)", 1, true) ~= nil
-              and tap:find("pcall(_G.hyperStormKey, code, ev)\n        end\n        if not _G.hyperDispatchEngaged then return false end", 1, true) ~= nil)
+    -- 🚨 6.432.0 — THIS SENTRY ASSERTED AN ADJACENCY WHERE IT MEANT AN
+    -- ORDER. Its second half required `pcall(_G.hyperStormKey, …)` to be
+    -- followed IMMEDIATELY by the dispatcher gate, so it went red the
+    -- moment a bare Escape was routed in between — with nothing to say
+    -- about the rule it exists for, which is that every key typed under
+    -- ⇪ is counted BEFORE any decision about what to do with it.
+    -- 6.248.0, in a sentry: assert the rule, never the literal.
+    local stormAt = tap:find("pcall(_G.hyperStormKey, code, ev)", 1, true)
+    check("the tap calls _G.hyperStormKey on keyDown under ⇪, inside its own pcall",
+          tap:find("if _G.hyperActive and _G.hyperStormKey and t == hs.eventtap.event.types.keyDown then\n            pcall(_G.hyperStormKey, code, ev)", 1, true) ~= nil)
+    check("…and it is counted BEFORE any dispatch decision — a stray letter "
+          .. "that opens a key-eating tool must not hide the rest of his "
+          .. "typing from the guard",
+          stormAt ~= nil and (function()
+              for _, later in ipairs({ "_G.hyperDispatchEngaged",
+                                       "_G.hyperTapDispatch",
+                                       "_G.globalTapDispatch",
+                                       "_G.escapeTapDispatch" }) do
+                  local at = tap:find(later, stormAt, true)
+                  -- every one of them must appear, and all of them after.
+                  if not at or at <= stormAt then return false end
+              end
+              return true
+          end)())
 end
 
 -- ---------------------------------------------------------------------

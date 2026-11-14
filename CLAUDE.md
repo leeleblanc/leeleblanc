@@ -440,6 +440,130 @@ work Mac.
      ("find the field that separates them BEFORE saying either out
      loud") broken in the direction that costs him the most.
 
+- ⎋ A POLICY REACHED THROUGH A FALLBACK'S DOOR ONLY EXISTS WHERE THE
+  FALLBACK IS NEEDED (6.432.0, core/hyper_key.lua — LL: "Escape does not
+  drop the Unified Search History window if I move off of it").
+  🔎 A bare Escape was routed to the escape router from inside
+  `_G.globalTapDispatch`, which the ⇪ tap reaches only `if
+  _G.hyperDispatchEngaged` — true ONLY on a Mac whose Carbon hotkey layer
+  is measurably dead. On a healthy Mac NOTHING heard a bare Escape, so a
+  floating panel that had lost key focus could not be closed with it: the
+  key went to the frontmost app, and the panel's page never saw it either
+  (a page gets keys only while its window is key).
+  🔑 THE ESCAPE ROUTER IS THIS CONFIG'S WHOLE ANSWER to "who owns Esc" —
+  fifteen panels register with it — and it was wired to a dispatcher that
+  exists to cover a dead Carbon layer. Before hanging behaviour off an
+  engaged-only path, ask whether it is about the ENGINE or about the
+  CONFIG. `_G.escapeTapDispatch` is the one owner now, called before the
+  gate; globalTapDispatch turns Escape away rather than handling it, so
+  there is one copy (6.231.0).
+  🚨 AND IT COULD NOT SHIP WITHOUT THE STALE-HANDLE FIX (6.417.0's rule).
+  His own `_G.escapeReport()` read `unified 55 🟢 wants esc now` with no
+  panel on screen: `view:closeOnEscape(true)` lets WebKit close the
+  WINDOW behind Lua's back, so the handle stayed assigned and the claim
+  stayed live for the session — which alone starved the switcher (40),
+  both players (33, 32), the calendar (30) and the cheat sheet (0). With
+  a global route, one stale claim eats Escape in EVERY app.
+  📏 THE CLASS WAS FIVE FILES WIDE. 6.286.0 found that line in the
+  screenshot editor and swept one file; note_pad, recent_docs,
+  unified_search, task_form and capture_pad still carried it
+  forty-six releases later — 6.305.0 for the fifth time. A gate sentry
+  refuses it now, comments stripped (6.262.0).
+  📏 MEASURED BEFORE IT WAS REMOVED, which is what makes it free: all
+  five of those pages ALREADY send {a:'close'} on Escape, so the line was
+  never THE closer — it was a second one that races the page's own
+  handler and wins silently. The sentry asserts that half too, or
+  "nobody passes true" would pass over a panel with no way out at all.
+  🛟 THE BELT IS IN THE ROUTER AND IS A FACT ABOUT BEHAVIOUR: a claimant
+  whose handler ran and whose active() STILL wants Esc is remembered by
+  name and skipped on the NEXT press. "A panel is open" and "a handler
+  closed nothing" print the same green dot and only one is a fault. It
+  costs at most one Escape.
+  🚫 AND A LIVENESS BELT WAS WRITTEN AND TAKEN OUT AGAIN: asking
+  `webview:hswindow()` fails in the WRONG DIRECTION — this config has
+  recorded twice, in two files (editor_picker.lua:651,
+  ocr_engine.lua:1446), that it "answers nothing" on some builds for a
+  window that is fine. A guard that fails on correct code is switched off
+  inside a week (6.269.0), and 6.395.0 decides it: an instrument that has
+  never positively said "gone" is UNINFORMATIVE, never a refusal.
+  📏 COST, NAMED: while a panel of ours is up, a bare Escape pressed in
+  another app closes the panel. `_G.escapeGlobal = false` is the way back.
+  🧪 THE FIXTURE IS THE ORDINARY MAC. Every Escape check in
+  test_hyper_key ran in `world{ carbon = false }` — the one class of Mac
+  where the old code worked — so the checks that bite are the same
+  section with carbon = true (6.230.0).
+  📏 AND THE LIFTED BLOCK CONSTRAINS THE FIX: test_integration runs
+  routeEscape in a bare env holding only what the router may use
+  (6.314.0), and `os` is not in it. The stuck claimant is recorded by
+  NAME with no clock; the report carries the count.
+
+- 🪟 FIVE FACTS ARRIVING AS ONE BIT (6.433.0, modules/window_switcher.lua
+  — LL: "Why don't I see Hammerspoon in Alt+Tab anymore?").
+  🔎 The listing asked our own process for its windows, kept the one
+  titled exactly "Hammerspoon Console", and recorded `consoleSeen` — one
+  boolean. So the console being CLOSED (ordinary), a build with no
+  hs.processInfo, an applicationForPID that answered nothing, an
+  allWindows() that answered an EMPTY LIST, and an allWindows() that
+  answered windows none of which carried that title all printed the same
+  "not seen yet this session". The fourth is what 6.152.0 named as the
+  first suspect for exactly this symptom — `me:allWindows()` on a
+  Dock-less ACCESSORY app, which this config has been since 6.66.2.
+  🚨 AND THE FIFTH IS A NAME SENTRY MATCHING A LITERAL NOBODY HERE OWNS
+  (6.236.0, fifth time): that title is Hammerspoon's string, and the day
+  it moves, the only window ⌥Tab can list stops being listed, silently.
+  🔑 SO IT ASKS THE QUESTION HE ASKED — which windows does THIS PROCESS
+  own? Every one is a card under its own real title; the `console` flag,
+  whose only job is sending a pick through hs.openConsole, belongs to the
+  one whose title matches. A rename then costs the flag, which nobody can
+  see, rather than the card. GENERAL: when a report's state is a
+  BOOLEAN, count how many different worlds produce the false — if more
+  than one of them is a fault, it is not a boolean.
+  📏 Still our process only, by pid: no cross-app AX, and never
+  hs.console.hswindow() (6.160.3 — a second full sweep, 2.6s). The suite
+  makes that call throw so a regression cannot pass quietly.
+  🧪 AND A CHECK ASSERTED THE OLD BEHAVIOUR BY NAME — "only the window
+  TITLED as the console — not every Hammerspoon window" (6.248.0). It
+  asks the rule now: every own window is a card, and the title decides
+  the FLAG alone.
+
+- 📌 A DIRECTORY YOU MUST NARROW BEFORE YOU CAN READ IT IS NOT A
+  DIRECTORY (6.431.0, modules/unified_search.lua — LL: "Give me the 41
+  reports I can run in the list instead of saying type to filter").
+  🔎 The page draws `uni.pageCap` (60) rows and says "…and N more — keep
+  typing to narrow". For @report that is 97 names, every one different,
+  so narrowing requires already knowing which one you want — and finding
+  that out is the whole job of the list. 6.298.0's rule one layer down.
+  🔑 AN EXACT @tag PINS THE VIEW TO THAT SOURCE and draws all of it.
+  6.298.0 put each row's tag in its haystack so a PARTIAL @word still
+  searches (which is why "@o" searches @ocr, and why his "@report" also
+  matched four rows elsewhere that merely mention it); an EXACT tag is
+  unambiguous — he named the store. The remaining words still filter
+  inside it. The bound did not go away: every source is capped at gather
+  time by `uni.maxPer`, so "all of this store" is already a number.
+  📸 AND WHEN ONE NUMBER BOUNDS TWO COSTS, THE CHEAPER ONE IS BEING
+  STARVED. `maxPer.shots` was 30 against 120–400 everywhere else, and the
+  comment it sits under is about THUMBNAILS: every shots row called
+  `uni.thumbFor()`, and a thumbnail is a full PNG decode on the main
+  thread — on a OneDrive-evicted file, a download (6.187.0 priced it;
+  6.152.x is what it costs when nobody does). So it was a decode budget
+  wearing a row cap's clothes, while the source NEXT DOOR already kept
+  them apart: @images lists maxPer.images rows and decodes thumbMax of
+  them. srcShots does the same now. GENERAL: when a cap looks mean beside
+  its neighbours, read what its own comment says it is for.
+  🔎 AND AN EXTRAS SWEEP KEYED ON A NAME SHAPE CANNOT SEE ANOTHER SHAPE.
+  @report's sweep walks `_G` for names ending in "Report" — which is what
+  makes a report added next year appear on the day it ships — so a probe
+  called `…Probe` or `…CheckNow` was invisible to the one list that
+  exists to name every diagnostic, however long it had existed. Four are
+  named by hand now; three that ACT (`vaultPurgeTrash`, `hyperSelfTest`,
+  `hyperWakeProbeRun`) are deliberately out and the suite asserts their
+  absence — a list whose ⏎ runs things may only hold things that read
+  (6.335.0).
+  🧪 THE FIXTURE THAT MAKES THE PIN PROVABLE is a clipboard row whose
+  text contains "@shots": without it, "a pin shows only that store" and
+  "a pin shows everything matching" agree (6.230.0). The decode budget is
+  driven to ONE for the same reason.
+
 - ✂️ FOUR BOXES WHERE THERE WAS ONE, AND HIS TWO SENTENCES WERE ONE
   NUMBER (6.428.0, modules/mouse_grid.lua — LL: "Split all boxes into
   fours again. Overall, the boxes are too big and not useful enough at
@@ -7779,6 +7903,11 @@ that must be READ before a new cause is named.
 
 | symptom, in his words | where it lives | releases | passes | tag |
 |---|---|---|---|---|
+| "Escape does not drop the Unified Search History window if I move off of it" | core/hyper_key.lua · the escape route lived behind the dead-Carbon dispatcher's gate, and five panels let WebKit close a window behind Lua's back | 6.432.0 | 1 | ask |
+| "Why don't I see Hammerspoon in Alt+Tab anymore?" | modules/window_switcher.lua · one title matched, one bit recorded, five facts | 6.433.0 | 1 (an instrument as much as a fix) | ask |
+| "Why don't I see Hammerspoon as menu bar item I can search?" | modules/menubar_items.lua · hidden by name since the list was written | 6.434.0 | 1 | not a defect — a judgement he overruled |
+| "Give me the 41 reports I can run in the list" · "Why do I only have 33 screenshots when I use @shots?" | modules/unified_search.lua · a page cap of 60, and a row cap that was really a thumbnail budget | 6.431.0 | 1 | ask |
+| "Hyper+k works great! Win!" | modules/url_cleaner.lua — the per-host rules and the three states | 6.430.0 | 1 | ✨ **WIN, 2026-11-13** |
 | "Running URL cleaner and it said this was clean. That doesn't seem to be the case?" | modules/url_cleaner.lua · it removed 0 of 7 and called that clean — the blocklist is global and none of Credit Karma's names is on it | 6.430.0 | 1 | ask |
 | "I can't see past the boxes. I'd say start the boxes bigger using less letters?" | modules/mouse_grid.lua · 6.428.0 shipped a 3-letter label over 4,096 cells and quartered them, which its own comment forbade | 6.429.0 | 1 | ask |
 | "Split all boxes into fours again … the boxes are too big and not useful enough at that size" · "the same translucent yellow as the Timer card" | modules/mouse_grid.lua · 26² = 676 cells is ~45pt against a 28–40pt button | 6.176.0 · 6.181.0 · 6.184.0 · 6.192.0 · 6.252.0 · 6.360.0 · 6.373.0 · 6.428.0 | 8 | ask — and 6.360.0 scored "The grid is so much better" |
@@ -7962,7 +8091,11 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
-| 6.430.0 | 🔗 "Already clean" was the wrong word — 0 of 7 removed on a Credit Karma link, reported as success; plus per-host rules | pending |
+| 6.434.0 | 🔎 Hammerspoon is in its own menu-bar picker — it was hidden by name | pending |
+| 6.433.0 | 🪟 Every window this process owns is an ⌥Tab card, and the report says which of five things it found | pending |
+| 6.432.0 | ⎋ Escape drops a panel you have moved off — the route only existed on a Mac with a dead Carbon layer | pending |
+| 6.431.0 | 📌 An exact @tag lists the whole store — 97 reports instead of 60, 300 screenshots instead of 30 | pending |
+| 6.430.0 | 🔗 "Already clean" was the wrong word — 0 of 7 removed on a Credit Karma link, reported as success; plus per-host rules | **WIN** — LL, 2026-11-13: "Hyper+k works great! Win! Nice job." |
 | 6.429.0 | 📐 Bigger boxes, two letters — 6.428.0 spent the label its own comment forbade, and nothing drove the shipped defaults | pending |
 | 6.428.0 | ✂️ Four boxes where there was one, in the Timer's yellow — and an installer whose version check could not fail | LOSS — LL, with a screenshot: "I can't see past the boxes. I'd say start the boxes bigger using less letters?" It shipped `labelLength = 3` over 4,096 cells, quartered, which is 6.176.0 exactly → fix 6.429.0 |
 | 6.427.0 | 📋 @report — every report this config can print, and what each one answers | pending |
@@ -8132,7 +8265,7 @@ as the fix when a loss lands.
 | 6.263.0 | ✏️ no box in any page this config draws asks macOS to spell-check it — its correction panel threw an uncaught exception inside one of our webviews and aborted the process (his own `.ips`) | pending |
 | 6.262.0 | 🚨 ⇪⇧U no longer starts a task from inside another task's callback — the 6.196.1 use-after-free, twice, on the key he named | pending — and his two `.ips` files say it is NOT his crash: both are uncaught ObjC exceptions in Apple's code on macOS 27 beta (the menu-bar status-item scene; macOS's correction bubble in one of our webviews), with no Lua frame anywhere. The fix is real and stays; it is not the answer to what he saw |
 
-Running total: 18 wins · 10 losses · 1 blocked — count the rows; from
+Running total: 19 wins · 10 losses · 1 blocked — count the rows; from
 6.215.0 on except the fifteen wins and eight losses named in the table
 above. (The enumeration that used to sit here stopped at 6.239.0 and was
 seventeen releases stale, which is a scoreboard that cannot be read;
@@ -9707,6 +9840,163 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.434.0 verify with LL — 🔧 THE FOUR YOU NAMED (KNOWN GROUND) — this
+  block covers 6.431.0, 6.432.0, 6.433.0 AND 6.434.0: they shipped in one
+  archive, in four different files, and share one test plan.
+  📏 FILED UNDER THE NEWEST ON PURPOSE: tools/build-test-plan.lua reads
+  one version per heading, so a batch goes under its newest and names the
+  others in its own section headings (6.423.0's note).
+  🔑 FOUR RELEASES IN FOUR FILES, so a break still names its version by
+  which thing fails: a truncated @report or a short @shots is 6.431.0
+  (unified_search) · Escape not closing a panel is 6.432.0 (hyper_key +
+  coexist + five panels) · no Hammerspoon in ⌥Tab is 6.433.0
+  (window_switcher) · none in ⇪M is 6.434.0 (menubar_items).
+
+  ── 1. 📌 ALL THE REPORTS, LISTED (6.431.0) ─────────────────────────
+  1a. Press ⇪D and type `@report` — exactly that, no other word.
+      EXPECT: every report, scrollable, and NO "…and 41 more — keep
+      typing to narrow" at the bottom.
+      **A FAIL is the "…and N more" line.** That is the bug.
+  1b. Read the line under the search box.
+      EXPECT: **"97 in @report — every one of them, listed"**, not "101
+      matches across every store". Those are different facts and only one
+      of them is what you asked for.
+      RETURN: that line. The number is the one thing I cannot see.
+  1c. Scroll to the bottom and count roughly. Then press ↑ from the top —
+      the highlight walks the whole list.
+  1d. Press ⏎ on any row. EXPECT: it runs, and the answer is in the
+      Console. ⌘⏎ copies the command instead.
+  1e. Now type `@report draft`. EXPECT: it NARROWS to the draft keeper's
+      rows. The other words still filter inside a pinned store.
+  1f. Type `@o` (just those two characters).
+      EXPECT: it still SEARCHES @ocr the way it always has — a prefix is
+      not a pin. If `@o` ever starts listing one whole store, tell me.
+  1g. 🔎 FOUR NEW ROWS, which no name ending in "Report" could ever have
+      found: `_G.begoneProbe()`, `_G.padProbe()`, `_G.oneDriveProbe()`
+      and `_G.healthCheckNow()`. Search `@report probe` to see them.
+      RETURN: anything else you expected to find in that list and did
+      not — that is the one gap I cannot measure from here.
+
+  ── 2. 📸 THE SCREENSHOTS (6.431.0) ─────────────────────────────────
+  2a. ⇪D, type `@shots`.
+      EXPECT: hundreds of rows, not 33.
+      **A FAIL is a number near 30.**
+  2b. Scroll down past the first two dozen.
+      EXPECT: the rows keep going, and the ones further down have NO
+      thumbnail. That is deliberate and it is the whole fix: a thumbnail
+      is a full PNG decode on the main thread, and on a OneDrive-evicted
+      file that means downloading it first — the thing that froze your
+      Mac for 72 seconds on 2026-10-12. So the budget is on DECODES, not
+      on rows. A row with no picture still has its name, its date, its
+      size and its path, and ⏎ and ⌘⏎ work on it exactly the same.
+  2c. Console: `_G.unifiedSearchReport()` — there are two new lines:
+        caps   : an exact @tag lists that whole store · a free-text
+                 search draws 60 rows at once
+        📸 shots : 488 in the folder · 300 listed (cap 300) · 24
+                 thumbnail(s) decoded (budget 24)
+      **PASTE THOSE.** The first number is your folder; if a line under
+      them says N older captures are on disk and not in the box, that is
+      honest rather than a fault — and it says so.
+  2d. 🚨 THE ONE THAT MATTERS MORE THAN THE COUNT: use ⇪D normally for a
+      day. Opening it must not feel slower, and the Mac must not stutter
+      when it opens. If it does, that is this release and I want to know
+      at once — `maxPer.shots` is a number I can move.
+
+  ── 3. ⎋ ESCAPE DROPS A PANEL YOU HAVE MOVED OFF (6.432.0) ──────────
+  3a. Press ⇪D. Now click into Chrome, or anywhere else, so the search
+      panel is no longer the window you are typing in.
+  3b. Press **Escape**.
+      EXPECT: the panel closes.
+      **A FAIL is the panel staying up** — that is your report exactly.
+  3c. Do the same with ⇪V, ⇪space and ⇪Y.
+  3d. 🚨 THE COST, NAMED, so it is not a surprise: while one of our
+      panels really is on screen, a bare Escape pressed in ANOTHER app
+      now closes the panel instead of reaching that app. That is what you
+      asked for. With NO panel of ours open, Escape belongs to your app
+      exactly as before — check that: press Escape in Chrome with nothing
+      of ours up and it must behave normally.
+      If the trade is wrong, `settings` is not needed —
+      `_G.escapeGlobal = false` in the Console puts 6.430.0 back for the
+      session, and say so and I will change the default.
+  3e. Console: `_G.escapeReport()`.
+      EXPECT the `unified` row to read **· idle** with nothing open.
+      **The row you pasted last time read `unified 55 🟢 wants esc now`
+      with no panel on screen** — that is the bug, and it was starving
+      everything below it of Escape: the window switcher, both players,
+      the calendar and the cheat sheet.
+      EXPECT two new lines at the bottom:
+        stuck   : none — the last claimant to handle an Esc stood down
+        global  : on — a bare Escape is routed from the ⇪ tap in any app
+      RETURN that block.
+  3f. If `stuck` ever names something, paste it: that is a panel whose
+      handler ran and closed nothing, and it will be skipped on the next
+      press so it cannot eat Escape everywhere.
+
+  ── 4. 🪟 HAMMERSPOON IN ⌥TAB (6.433.0) ─────────────────────────────
+  4a. Open the Hammerspoon Console. Press **⌥Tab** on that desktop.
+      EXPECT: a Hammerspoon card.
+  4b. Switch to another desktop and press ⌥Tab.
+      EXPECT: it is still there, captioned "remembered".
+  4c. Console: `_G.switcherReport()`.
+      EXPECT a new **`ours :`** line naming the windows it really saw —
+      something like `1 window(s) answered: Hammerspoon Console`.
+      **PASTE IT.** That line is the release: before it, five different
+      facts printed the same "not seen yet this session", and one of them
+      (allWindows() answering an EMPTY LIST on a Dock-less app) is the
+      first suspect 6.152.0 named for exactly your symptom.
+  4d. If `ours :` says **EMPTY LIST**, that is the answer and it is a
+      different fix — paste it and stop there.
+  4e. Open Hammerspoon's Preferences and press ⌥Tab.
+      EXPECT: that window is a card too, under its own name. It never was
+      before — only a window titled exactly "Hammerspoon Console" could
+      be listed, which is a string Hammerspoon owns and we do not.
+
+  ── 5. 🔎 HAMMERSPOON IN THE MENU-BAR PICKER (6.434.0) ───────────────
+  5a. Press **⇪M**.
+      EXPECT: **Hammerspoon** in the list, with its own items under it —
+      🩺 tool health, the mini calendar, and the pause indicator if the
+      config is paused.
+      **A FAIL is Hammerspoon still missing.**
+  5b. Press ⏎ on one. EXPECT: it opens, like anybody else's.
+  5c. EXPECT: Control Center, MenuBarAgent and the other Apple agents are
+      still NOT in the list. This is a name taken out, not a filter
+      switched off — if the list suddenly has twenty system rows in it,
+      that is the opposite failure and I want to know.
+  5d. Console: `_G.menuBarReport()`.
+      EXPECT Hammerspoon among the nine you pasted before.
+
+  ── 6. MUST STILL WORK — this batch touched the ⇪ tap, the escape
+  ──    router and five panels, so this half matters more than 1–5 ───
+  6a. A spread of keys: ⇪T, ⇪D, ⇪N, ⇪3, ⇪X, ⇪4, ⇪space, ⇪V, ⇪/, ⇪⇧S.
+  6b. ⇪⇧Esc pauses the config and ⇪⇧Esc resumes it. ⌃⌥⌘⇧Esc still
+      releases everything.
+  6c. Escape closes ⇪/ the cheat sheet, the mouse grid (⇪X), the music
+      card (⇪⇧.), the Mug player (⇪⇧,) and the calendar (⇪⇧0) — one press
+      each. Those are the panels that were being starved.
+  6d. ⇪N and ⇪3: type in a tab, Escape, reopen — your words are there.
+      ⌘Z in a note still undoes.
+  6e. ⇪T: open the task form, press Escape, reopen — the draft is kept.
+  6f. ⇪I (recent documents) and ⇪⇧W: open, Escape, reopen.
+  6g. Type normally in Chrome and Word for a while. No missed keys, no
+      lag. If typing ever feels heavier on this build, stop and tell me:
+      this release added one branch to the tap that sees every keystroke.
+  6h. Boot: All green, 79 modules, 112 ⇪ shortcuts.
+  6i. `_G.installCheck()` — the manifest should match.
+
+  ❓ QUESTIONS — ANSWERS WANTED, NOTHING TO RUN
+  Q1. **Is the Escape trade right?** Step 3d. A bare Escape now closes an
+      open panel of ours even when you are typing in another app. You
+      asked for it; it is still a change to a key you use in every app,
+      and it is one word to reverse.
+  Q2. **Is 300 the right number of screenshots in @shots?** You have 488.
+      All of them is one line; the cost is that every ⇪D open walks the
+      whole folder. Say "all of them" and it is 500.
+  Q3. **Which other reports should @report name?** Step 1g. It holds 97
+      plus the four probes. Three that ACT are deliberately out.
+  Q4. **The work MacBook's name** — `scutil --get ComputerName`. Still
+      the one thing that gives that Mac a profile of its own instead of
+      the fallback.
+
 - 6.430.0 verify with LL — 🔗 WHAT THE CLEANER LEFT (KNOWN GROUND)
   WHAT CHANGED: ⇪K stops saying "Already clean" about a link it simply
   did not recognise, and Credit Karma's tracking is now stripped.

@@ -669,7 +669,20 @@ function M.setup(core)
         -- allowTextEntry sets canBecomeKeyWindow — without it the pad
         -- draws perfectly and swallows every keystroke.
         pcall(function() view:allowTextEntry(true) end)
-        pcall(function() view:closeOnEscape(true) end)
+        -- 🚨 6.432.0 — `closeOnEscape(false)`, not true. WebKit's own
+        -- handler closes the WINDOW behind Lua's back, leaving this
+        -- module's handle assigned: the toggle then hides a window that
+        -- is not there, and the escape claim stays live for the rest of
+        -- the session — which starves every lower-priority panel of Esc
+        -- and, from 6.432.0, would eat Escape in every app. 6.286.0 found
+        -- this in the screenshot editor and swept only that file.
+        -- 📏 MEASURED BEFORE IT WAS REMOVED: this page already sends
+        -- {a:'close'} on Escape, and so do the other four that carried
+        -- this line. So it was never THE closer — it was a second one
+        -- that races the page's own handler and wins silently. Nothing
+        -- is lost: with focus, the page closes through Lua; without it,
+        -- the escape router does (core/hyper_key.lua).
+        pcall(function() view:closeOnEscape(false) end)
         pcall(function() view:level(hs.drawing.windowLevels.floating) end)
         -- Level is z-order WITHIN a Space; whether the pad may appear over
         -- a full-screen app is collection behaviour, a different axis.

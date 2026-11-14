@@ -1,4 +1,4 @@
-# TESTING — how to score release 6.430.0
+# TESTING — how to score release 6.434.0
 
 You install ONE archive and it carries several releases. Below are the
 steps for each release this archive is new for, newest first. Run the
@@ -26,6 +26,167 @@ else is a LOSS and I fix it before building further. You are the only
 scorer; I never mark my own.
 
 ---
+
+## 6.434.0
+
+6.434.0 verify with LL — 🔧 THE FOUR YOU NAMED (KNOWN GROUND) — this
+block covers 6.431.0, 6.432.0, 6.433.0 AND 6.434.0: they shipped in one
+archive, in four different files, and share one test plan.
+📏 FILED UNDER THE NEWEST ON PURPOSE: tools/build-test-plan.lua reads
+one version per heading, so a batch goes under its newest and names the
+others in its own section headings (6.423.0's note).
+🔑 FOUR RELEASES IN FOUR FILES, so a break still names its version by
+which thing fails: a truncated @report or a short @shots is 6.431.0
+(unified_search) · Escape not closing a panel is 6.432.0 (hyper_key +
+coexist + five panels) · no Hammerspoon in ⌥Tab is 6.433.0
+(window_switcher) · none in ⇪M is 6.434.0 (menubar_items).
+
+── 1. 📌 ALL THE REPORTS, LISTED (6.431.0) ─────────────────────────
+1a. Press ⇪D and type `@report` — exactly that, no other word.
+    EXPECT: every report, scrollable, and NO "…and 41 more — keep
+    typing to narrow" at the bottom.
+    **A FAIL is the "…and N more" line.** That is the bug.
+1b. Read the line under the search box.
+    EXPECT: **"97 in @report — every one of them, listed"**, not "101
+    matches across every store". Those are different facts and only one
+    of them is what you asked for.
+    RETURN: that line. The number is the one thing I cannot see.
+1c. Scroll to the bottom and count roughly. Then press ↑ from the top —
+    the highlight walks the whole list.
+1d. Press ⏎ on any row. EXPECT: it runs, and the answer is in the
+    Console. ⌘⏎ copies the command instead.
+1e. Now type `@report draft`. EXPECT: it NARROWS to the draft keeper's
+    rows. The other words still filter inside a pinned store.
+1f. Type `@o` (just those two characters).
+    EXPECT: it still SEARCHES @ocr the way it always has — a prefix is
+    not a pin. If `@o` ever starts listing one whole store, tell me.
+1g. 🔎 FOUR NEW ROWS, which no name ending in "Report" could ever have
+    found: `_G.begoneProbe()`, `_G.padProbe()`, `_G.oneDriveProbe()`
+    and `_G.healthCheckNow()`. Search `@report probe` to see them.
+    RETURN: anything else you expected to find in that list and did
+    not — that is the one gap I cannot measure from here.
+
+── 2. 📸 THE SCREENSHOTS (6.431.0) ─────────────────────────────────
+2a. ⇪D, type `@shots`.
+    EXPECT: hundreds of rows, not 33.
+    **A FAIL is a number near 30.**
+2b. Scroll down past the first two dozen.
+    EXPECT: the rows keep going, and the ones further down have NO
+    thumbnail. That is deliberate and it is the whole fix: a thumbnail
+    is a full PNG decode on the main thread, and on a OneDrive-evicted
+    file that means downloading it first — the thing that froze your
+    Mac for 72 seconds on 2026-10-12. So the budget is on DECODES, not
+    on rows. A row with no picture still has its name, its date, its
+    size and its path, and ⏎ and ⌘⏎ work on it exactly the same.
+2c. Console: `_G.unifiedSearchReport()` — there are two new lines:
+      caps   : an exact @tag lists that whole store · a free-text
+               search draws 60 rows at once
+      📸 shots : 488 in the folder · 300 listed (cap 300) · 24
+               thumbnail(s) decoded (budget 24)
+    **PASTE THOSE.** The first number is your folder; if a line under
+    them says N older captures are on disk and not in the box, that is
+    honest rather than a fault — and it says so.
+2d. 🚨 THE ONE THAT MATTERS MORE THAN THE COUNT: use ⇪D normally for a
+    day. Opening it must not feel slower, and the Mac must not stutter
+    when it opens. If it does, that is this release and I want to know
+    at once — `maxPer.shots` is a number I can move.
+
+── 3. ⎋ ESCAPE DROPS A PANEL YOU HAVE MOVED OFF (6.432.0) ──────────
+3a. Press ⇪D. Now click into Chrome, or anywhere else, so the search
+    panel is no longer the window you are typing in.
+3b. Press **Escape**.
+    EXPECT: the panel closes.
+    **A FAIL is the panel staying up** — that is your report exactly.
+3c. Do the same with ⇪V, ⇪space and ⇪Y.
+3d. 🚨 THE COST, NAMED, so it is not a surprise: while one of our
+    panels really is on screen, a bare Escape pressed in ANOTHER app
+    now closes the panel instead of reaching that app. That is what you
+    asked for. With NO panel of ours open, Escape belongs to your app
+    exactly as before — check that: press Escape in Chrome with nothing
+    of ours up and it must behave normally.
+    If the trade is wrong, `settings` is not needed —
+    `_G.escapeGlobal = false` in the Console puts 6.430.0 back for the
+    session, and say so and I will change the default.
+3e. Console: `_G.escapeReport()`.
+    EXPECT the `unified` row to read **· idle** with nothing open.
+    **The row you pasted last time read `unified 55 🟢 wants esc now`
+    with no panel on screen** — that is the bug, and it was starving
+    everything below it of Escape: the window switcher, both players,
+    the calendar and the cheat sheet.
+    EXPECT two new lines at the bottom:
+      stuck   : none — the last claimant to handle an Esc stood down
+      global  : on — a bare Escape is routed from the ⇪ tap in any app
+    RETURN that block.
+3f. If `stuck` ever names something, paste it: that is a panel whose
+    handler ran and closed nothing, and it will be skipped on the next
+    press so it cannot eat Escape everywhere.
+
+── 4. 🪟 HAMMERSPOON IN ⌥TAB (6.433.0) ─────────────────────────────
+4a. Open the Hammerspoon Console. Press **⌥Tab** on that desktop.
+    EXPECT: a Hammerspoon card.
+4b. Switch to another desktop and press ⌥Tab.
+    EXPECT: it is still there, captioned "remembered".
+4c. Console: `_G.switcherReport()`.
+    EXPECT a new **`ours :`** line naming the windows it really saw —
+    something like `1 window(s) answered: Hammerspoon Console`.
+    **PASTE IT.** That line is the release: before it, five different
+    facts printed the same "not seen yet this session", and one of them
+    (allWindows() answering an EMPTY LIST on a Dock-less app) is the
+    first suspect 6.152.0 named for exactly your symptom.
+4d. If `ours :` says **EMPTY LIST**, that is the answer and it is a
+    different fix — paste it and stop there.
+4e. Open Hammerspoon's Preferences and press ⌥Tab.
+    EXPECT: that window is a card too, under its own name. It never was
+    before — only a window titled exactly "Hammerspoon Console" could
+    be listed, which is a string Hammerspoon owns and we do not.
+
+── 5. 🔎 HAMMERSPOON IN THE MENU-BAR PICKER (6.434.0) ───────────────
+5a. Press **⇪M**.
+    EXPECT: **Hammerspoon** in the list, with its own items under it —
+    🩺 tool health, the mini calendar, and the pause indicator if the
+    config is paused.
+    **A FAIL is Hammerspoon still missing.**
+5b. Press ⏎ on one. EXPECT: it opens, like anybody else's.
+5c. EXPECT: Control Center, MenuBarAgent and the other Apple agents are
+    still NOT in the list. This is a name taken out, not a filter
+    switched off — if the list suddenly has twenty system rows in it,
+    that is the opposite failure and I want to know.
+5d. Console: `_G.menuBarReport()`.
+    EXPECT Hammerspoon among the nine you pasted before.
+
+── 6. MUST STILL WORK — this batch touched the ⇪ tap, the escape
+──    router and five panels, so this half matters more than 1–5 ───
+6a. A spread of keys: ⇪T, ⇪D, ⇪N, ⇪3, ⇪X, ⇪4, ⇪space, ⇪V, ⇪/, ⇪⇧S.
+6b. ⇪⇧Esc pauses the config and ⇪⇧Esc resumes it. ⌃⌥⌘⇧Esc still
+    releases everything.
+6c. Escape closes ⇪/ the cheat sheet, the mouse grid (⇪X), the music
+    card (⇪⇧.), the Mug player (⇪⇧,) and the calendar (⇪⇧0) — one press
+    each. Those are the panels that were being starved.
+6d. ⇪N and ⇪3: type in a tab, Escape, reopen — your words are there.
+    ⌘Z in a note still undoes.
+6e. ⇪T: open the task form, press Escape, reopen — the draft is kept.
+6f. ⇪I (recent documents) and ⇪⇧W: open, Escape, reopen.
+6g. Type normally in Chrome and Word for a while. No missed keys, no
+    lag. If typing ever feels heavier on this build, stop and tell me:
+    this release added one branch to the tap that sees every keystroke.
+6h. Boot: All green, 79 modules, 112 ⇪ shortcuts.
+6i. `_G.installCheck()` — the manifest should match.
+
+❓ QUESTIONS — ANSWERS WANTED, NOTHING TO RUN
+Q1. **Is the Escape trade right?** Step 3d. A bare Escape now closes an
+    open panel of ours even when you are typing in another app. You
+    asked for it; it is still a change to a key you use in every app,
+    and it is one word to reverse.
+Q2. **Is 300 the right number of screenshots in @shots?** You have 488.
+    All of them is one line; the cost is that every ⇪D open walks the
+    whole folder. Say "all of them" and it is 500.
+Q3. **Which other reports should @report name?** Step 1g. It holds 97
+    plus the four probes. Three that ACT are deliberately out.
+Q4. **The work MacBook's name** — `scutil --get ComputerName`. Still
+    the one thing that gives that Mac a profile of its own instead of
+    the fallback.
+
+
 
 ## 6.430.0
 
@@ -306,167 +467,6 @@ Q3. **Is the yellow readable on YOUR screens?** It is the Timer's
 Q4. **The work MacBook's name** — `scutil --get ComputerName`. Still
     owed from 6.418.0, and it is the one thing that gives that Mac a
     profile of its own instead of the fallback.
-
-
-
-## 6.427.0
-
-6.427.0 verify with LL — 📋 EVERY REPORT, THE WHITE BOX, THE WHOLE
-DRAFT (KNOWN GROUND) — this block covers 6.424.0, 6.425.0, 6.426.0 AND
-6.427.0: they shipped in one archive and share one test plan.
-📏 FILED UNDER THE NEWEST ON PURPOSE: tools/build-test-plan.lua reads
-one version per heading, so a batch goes under its newest and names
-the others in its own section headings.
-
-🚑 BEFORE ANYTHING ELSE — THE WHITE BOX ON YOUR SCREEN RIGHT NOW.
-Any one of these clears it, in the order I would try them:
-  1. **⌃⌥⌘⇧Esc** — the panic chord. On 6.424.0 it closes the editor;
-     on the build you are running it will not, so go to 2.
-  2. Console: `_G.screenshotEditor.close()`
-  3. Console: `hs.reload()`
-Then install 6.427.0, which is what stops it happening again.
-
-── 1. 🪟 THE WHITE BOX (6.424.0) ───────────────────────────────────
-1a. ⇪4 a screenshot, then ⇪⇧1 to open the editor. Do it five or six
-    times, closing with Esc between.
-    EXPECT: it opens every time, with your shot in it.
-    **A FAIL is a white box, or a press that does nothing.**
-1b. If a press ever does nothing now, that is the release WORKING —
-    you should get an alert reading "macOS would not put the editor on
-    screen, so nothing was left behind — press ⇪⇧1 again". Press it
-    again; it opens.
-    RETURN: that alert's wording, if you ever see it.
-1c. Console: `_G.screenshotEditorReport()`.
-    RETURN: the whole block. There is a new `opens :` line — on a good
-    day it reads "N — macOS put every editor window on screen". If it
-    ever reads a ⚠️, that line names which of two faults it was
-    (macOS refusing, or a page that could not be built) and says
-    nothing was left on screen either way.
-1d. With the editor OPEN, press **⌃⌥⌘⇧Esc**.
-    EXPECT: the editor closes along with everything else, and the
-    panic alert lists "screenshot editor closed".
-    RETURN: that list.
-1e. Open the editor, draw an arrow, press ⌃⌥⌘⇧Esc, then ⇪⇧1 on the
-    SAME shot. EXPECT: your arrow is back. The chord asks the page for
-    your marks on the way out rather than throwing them away.
-
-── 2. 💾 THE WHOLE DRAFT (6.426.0) ─────────────────────────────────
-2a. Console: `_G.draftKeeperReport()`.
-    RETURN: the whole block. Two things are new — a `whole  :` line
-    naming the ceiling, and `already kept, unchanged` on the skipped
-    line.
-2b. Look at your two 23,603-character rows from this morning. They
-    will still say CUT, because they were written under the old
-    ceiling — that is honest, not a bug.
-2c. Now type (or paste) something long into a Chrome box — more than
-    ten thousand characters; a Console dump is ideal. Stop typing and
-    wait fifteen seconds.
-2d. `_G.draftKeeperReport()` again.
-    EXPECT: the new row's character count is the REAL length with no
-    "⚠️ CUT" after it.
-    RETURN: that row's line. **A CUT marker on anything under 120,000
-    characters is a FAIL.**
-2e. Press ⇪D, type `@draft`, ⏎ on that row, then ⌘V somewhere.
-    EXPECT: the WHOLE thing comes back, in order, with its newlines.
-    That is the release.
-2f. THE DUPLICATE. With that draft still in the box, click into
-    another tab or app, then click back into it and leave it alone for
-    fifteen seconds.
-    EXPECT: `_G.draftKeeperReport()` shows **no new row** and the
-    `already kept, unchanged` count has gone UP.
-    **A FAIL is a second identical row** — that is the bug you have
-    two of in today's file.
-2g. Now ADD a sentence to it and wait again.
-    EXPECT: a new row IS written. The guard is about unchanged text,
-    not about the field.
-    RETURN: whether 2f and 2g both behaved.
-
-── 3. 📋 @report (6.427.0) ─────────────────────────────────────────
-3a. Press ⇪D and type a single `@`.
-    EXPECT **16 sources** now, and **📋 @report** among them.
-3b. ⏎ on it. EXPECT a long list, each row a plain sentence saying what
-    that report answers, with `_G.somethingReport()` underneath it.
-3c. Type `@report draft` — it narrows. Put the highlight on the draft
-    keeper's row and read the pane on the right.
-3d. Press **⏎**.
-    EXPECT: the panel closes, an alert says "the answer is in the
-    Console", and the report is printed there.
-    RETURN: confirmation, and tell me whether having to open the
-    Console yourself is a nuisance (see Q3).
-3e. Press ⇪D, `@report`, highlight any row and press **⌘⏎**.
-    EXPECT: "📋 _G.xReport() copied" — the command on your clipboard
-    instead of running it.
-3f. Scroll the list for any **⚠️** rows.
-    RETURN: paste them. Two kinds, and both are findings:
-    · "_G.xReport() is NOT published this session" — that module did
-      not load, or I renamed something. Those rows deliberately do
-      NOT run.
-    · "no description written yet" — a report I have not described.
-      Those DO run.
-    On a healthy Mac I expect none of the first kind.
-3g. Read a dozen of the sentences.
-    RETURN: any that are WRONG about what that report does. That is
-    the one thing I cannot check from here, and a wrong sentence is
-    worse than none.
-
-── 4. 🔎 THE SEARCH THAT FOUND NOTHING (6.425.0) ───────────────────
-4a. ⇪3, press ⌘F and type `draftkeeper` — spelled with two Es in the
-    middle, which your screenshot did not have.
-    EXPECT: still no note, because this box searches NAMES, not the
-    words inside a note. The empty row now SAYS so: "no note NAMED
-    "draftkeeper" — this box searches names and headings, never the
-    words inside a note. Press ⌘⇧F to search inside every note."
-4b. Press **⌘⇧F** and type `draftkeeper`.
-    EXPECT: the note you were looking at, with the line it is on. ⏎
-    opens it there.
-    RETURN: whether it found it. **That is the answer to "cannot be
-    searched" — it could, by a key nothing had ever named.**
-4c. 📏 AND THE OTHER HALF, which no release fixes: your filter box in
-    the screenshot read **draftkepper**. The note says draftkeeper.
-    One letter. The row echoes what you typed now, so the two sit
-    side by side.
-
-── 5. MUST STILL WORK — this batch touched the editor, the panic
-──    chord, Hamsidian and ⇪D, so this half matters more than 1–4 ──
-5a. ⇪⇧1: the nine drawing tools, ⌘Z, ⌘⏎ save, Esc, and Esc-then-reopen
-    keeping your marks. ⌘O load a shot. ⌘-drag the title strip.
-5b. ⌃⌥⌘⇧Esc with nothing open: it still pauses Hammerspoon and says
-    how to come back. ⇪⇧Esc resumes.
-5c. ⇪3 and ⇪N: your notes and tabs, ⌘F, ↑↓, ⏎, ⌘N, the ✕ delete, and
-    **⌘Z inside a note after a scan lands** (that is 6.323.0 and this
-    batch touched that file).
-5d. ⇪D: @clip, @ocr, @shots, @vault, @logs all still search. ⏎ on a
-    @clip row still PASTES.
-5e. ⇪V, ⇪space, ⇪Y, ⇪⇧S all open.
-5f. Boot: All green, 79 modules, 111 ⇪ shortcuts.
-5g. `_G.installCheck()` — the manifest should match.
-    RETURN: anything in 5a–5g that behaves differently from today.
-
-❓ QUESTIONS — ANSWERS WANTED, NOTHING TO RUN
-Q1. **The mouse jumping in full screen is NOT fixed, and I want one
-    sentence before I touch it.** It is ⇪1, mouse-follows, doing
-    exactly what it was built to do: your Console shows it warping on
-    every app activation, and ⌥Tab into a full-screen app on another
-    desktop is an activation. Press **⇪1** to turn it off and see
-    whether that is the whole of it. Then tell me which you want —
-    (a) leave it off, (b) never jump onto a FULL-SCREEN window but
-    keep it elsewhere, or (c) never jump when the switch came from
-    ⌥Tab. I did not pick one because (b) and (c) each cost you the
-    jump in a case you may want it.
-Q2. **60 characters and 10 seconds** are still MY numbers for the
-    draft keeper — the floor a draft must pass, and the pause before
-    it is written. "Start to save as a sentence is typed" may mean
-    you want that pause shorter. Say a number; writing on every
-    keystroke into OneDrive is the thing that cost you drag-and-drop
-    in 6.228.0, so there is a real floor, but 10 s is not it.
-Q3. **Should ⏎ on an @report row bring the Console forward?** It
-    prints there and says so. Opening it would activate Hammerspoon
-    and take your focus for something you did not ask for (6.251.0's
-    named price), so I did not. One word and it does.
-Q4. **Are any of the @report sentences wrong?** Step 3g. Ninety-seven
-    of them are my words for your tools.
-Q5. **The work MacBook's name** — `scutil --get ComputerName`. Still
-    owed, and it is what gives that Mac a profile of its own.
 
 
 

@@ -858,5 +858,95 @@ do
   reset()
 end
 
+-- =====================================================================
+-- ⎋ 6.432.0 — A CLAIMANT THAT RAN AND DID NOT STAND DOWN
+-- =====================================================================
+-- LL's own `_G.escapeReport()`, pasted from the Console with no panel on
+-- screen: `unified 55 🟢 wants esc now`. `closeOnEscape(true)` had let
+-- WebKit close that window behind Lua's back, so the handle stayed
+-- assigned and the claim stayed live for the whole session — which
+-- starved the window switcher, both players, the calendar and the cheat
+-- sheet of Esc, every one of them sitting below 55.
+--
+-- 🚨 AND FROM 6.432.0 A BARE ESCAPE IS ROUTED IN EVERY APP, so the cost
+-- of a stuck claim is no longer one panel: it is the key. This is the
+-- belt that makes that release safe, and it is a fact about BEHAVIOUR
+-- (a handler ran and closed nothing) rather than a platform answer —
+-- which is what makes it safe where asking `hswindow()` would not be
+-- (6.395.0; the note in unified_search.lua says why that belt was
+-- written and taken out again).
+do
+  local function freshClaims()
+    _G.escapeClaims = {}
+    _G.escapeStuck, _G.escapeStuckSkips, _G.escapeStuckLast = nil, 0, nil
+  end
+
+  -- A panel that really closes itself: ordinary, and must never be skipped.
+  freshClaims()
+  local open, handled = true, 0
+  _G.claimEscape("good", 50, function() return open end,
+                 function() handled = handled + 1; open = false end)
+  check("⎋ a claimant that closes itself takes the Esc",
+        _G.routeEscape() == "good" and handled == 1)
+  check("…and is NOT remembered as stuck, because it stood down",
+        _G.escapeStuck == nil)
+  open = true
+  check("…so the very next press reaches it again",
+        _G.routeEscape() == "good" and handled == 2)
+
+  -- The one his report caught: a handler that closes nothing.
+  freshClaims()
+  local ran = 0
+  _G.claimEscape("stuck", 55, function() return true end,
+                 function() ran = ran + 1 end)
+  check("🚨 a handler that closes NOTHING still takes the first Esc — it is "
+        .. "allowed one turn to take its window down",
+        _G.routeEscape() == "stuck" and ran == 1)
+  check("…and is remembered by name, which is the fact a 🟢 row cannot "
+        .. "carry: 'a panel is open' and 'a handler closed nothing' print "
+        .. "the same green dot", _G.escapeStuck == "stuck")
+  check("🚨 …so the NEXT press is not eaten by it — one stuck claim cannot "
+        .. "take Escape everywhere for the rest of the session",
+        _G.routeEscape() == nil and ran == 1, ran)
+  check("…and the skip is counted and named, so the report can say which",
+        (_G.escapeStuckSkips or 0) == 1 and _G.escapeStuckLast == "stuck",
+        tostring(_G.escapeStuckLast))
+  check("📏 …and it is ONE press, not a ban: the claimant is reached again "
+        .. "after that, because the belt costs at most a single Escape",
+        _G.routeEscape() == "stuck" and ran == 2, ran)
+
+  -- The case that matters most: a stuck claim must not hide a LOWER one.
+  freshClaims()
+  local lowRan = 0
+  _G.claimEscape("stuck", 55, function() return true end, function() end)
+  _G.claimEscape("low",   30, function() return true end,
+                 function() lowRan = lowRan + 1 end)
+  _G.routeEscape()                     -- the stuck one takes the first press
+  check("🚨 …and on the next press the panel UNDERNEATH it gets its Esc — "
+        .. "which is what LL's switcher, players, calendar and cheat sheet "
+        .. "were all being starved of",
+        _G.routeEscape() == "low" and lowRan == 1, lowRan)
+
+  -- The report has to be able to SAY all of this, or it is a fix with no
+  -- instrument and the next one of these is invisible again.
+  freshClaims()
+  _G.claimEscape("stuck", 55, function() return true end, function() end)
+  _G.routeEscape()
+  local rep = ""
+  do
+    local realPrint = print
+    print = function(s) rep = rep .. tostring(s) end   -- luacheck: ignore
+    pcall(_G.escapeReport)
+    print = realPrint                                  -- luacheck: ignore
+  end
+  check("🔎 the report NAMES the stuck claimant",
+        rep:find("stuck", 1, true) ~= nil
+        and rep:find("STILL wants one", 1, true) ~= nil, rep)
+  check("🔎 …and says where a bare Escape is heard from at all, which is "
+        .. "the line that would have named this in one press",
+        rep:find("global", 1, true) ~= nil, rep)
+  freshClaims()
+end
+
 print(("\n%s  %d passed, %d failed"):format(FAIL == 0 and "✅" or "❌", PASS, FAIL))
 os.exit(FAIL == 0 and 0 or 1)

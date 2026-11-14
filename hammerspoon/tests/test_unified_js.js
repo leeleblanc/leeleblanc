@@ -99,8 +99,8 @@ console.log("── Unified Search: page JavaScript, executed ──");
   // report row. The numbers moved and the rule did not, which is
   // 6.248.0: these say "the fixture's stores are all here, counted",
   // against what the dump actually built rather than a number typed in.
-  check("eleven rows across six stores — the five fixture stores and @report",
-        env.call("ROWS.length") === 11, env.call("ROWS.length"));
+  check("twelve rows across six stores — the five fixture stores and @report",
+        env.call("ROWS.length") === 12, env.call("ROWS.length"));
   check("sources carry their counts",
         env.call("SRCS.filter(function(s){return s.n>0}).length") === 6);
   // 🔎 TWO report rows, and the second one is the design working in
@@ -127,9 +127,9 @@ console.log("── Unified Search: page JavaScript, executed ──");
   check("every non-empty store gets a section header",
         (env.list.innerHTML.match(/class="sec"/g) || []).length === 6,
         env.list.innerHTML.slice(0, 120));
-  check("…named and counted", env.list.innerHTML.indexOf("Clipboard — 3") !== -1);
+  check("…named and counted", env.list.innerHTML.indexOf("Clipboard — 4") !== -1);
   check("the count line says what is indexed",
-        env.count.textContent.indexOf("11 items indexed") === 0,
+        env.count.textContent.indexOf("12 items indexed") === 0,
         env.count.textContent);
   check("thumbnails render at panel size",
         env.list.innerHTML.indexOf('<img class="th" src="data:image') !== -1);
@@ -172,6 +172,54 @@ console.log("── Unified Search: page JavaScript, executed ──");
         env.call("visible.length") === 2
         && env.list.innerHTML.indexOf("and 3 more") !== -1,
         env.list.innerHTML.slice(-160));
+
+  // ===================================================================
+  // 📌 6.431.0 — AN EXACT @tag LISTS THE WHOLE STORE
+  // ===================================================================
+  // LL, of @report: "Give me the 41 reports I can run in the list
+  // instead of saying type to filter." The page drew CAP rows and said
+  // "…and 41 more — keep typing to narrow" for the rest, and narrowing
+  // is not an answer when every row has a different name and finding
+  // that out is the whole job of the list.
+  //
+  // CAP is still 2 here, deliberately: the pin has to beat it, or the
+  // check is passing because the fixture is small (6.230.0).
+  env.type("@clip");
+  check("📌 an exact @tag draws EVERY row of that store, past the cap",
+        env.call("visible.length") === 4
+        && env.list.innerHTML.indexOf("more — keep typing") === -1,
+        env.call("visible.length"));
+  check("…and the count line says so, rather than counting the whole box",
+        env.count.textContent.indexOf("4 in @clip") === 0,
+        env.count.textContent);
+
+  // The row that makes the pin provable: a CLIPBOARD row whose text
+  // contains "@shots". Before 6.431.0 it was part of a search for
+  // @shots, because the tag rides in every row's haystack (6.298.0) —
+  // which is why his screenshot read "101 matches across every store"
+  // over ninety-odd reports.
+  env.type("@shots");
+  check("📌 …and ONLY that store: a row elsewhere that merely mentions "
+        + "the tag is not what @shots means",
+        env.call("visible.length") === 2
+        && env.call("visible.map(function(i){return ROWS.filter("
+                    + "function(r){return r.id===i})[0].tag}).join()")
+           === "shots,shots",
+        env.call("visible.length"));
+
+  // …and the remaining words still filter INSIDE the pinned store, so
+  // "@report draft" reads exactly as it looks.
+  env.type("@clip receipt");
+  check("📌 …while the other words still narrow within it",
+        env.call("visible.length") === 1, env.call("visible.length"));
+
+  // A PREFIX is not a pin: "@o" has searched @ocr since 6.298.0 and a
+  // directory on every @-prefix would take a working search away.
+  env.type("@cli");
+  check("📌 a PREFIX is still a search, never a pin — @o must go on "
+        + "searching @ocr the way it always has",
+        env.call("pin") === null, env.call("pin"));
+  env.call("CAP = 60");
 }
 
 // =====================================================================

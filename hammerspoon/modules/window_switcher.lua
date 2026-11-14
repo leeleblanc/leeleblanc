@@ -234,20 +234,90 @@ function M.setup(core)
     -- function finds has to go into the memory below, and a memory entry
     -- without its application cannot be pruned when the app dies.
     function altTab.consoleWindow()
-        local pid
-        pcall(function() pid = hs.processInfo and hs.processInfo.processID end)
-        if not pid then return nil end
-        local me
-        pcall(function() me = hs.application.applicationForPID(pid) end)
-        if not me then return nil end
-        local wins
-        pcall(function() wins = me:allWindows() end)
-        for _, w in ipairs(type(wins) == "table" and wins or {}) do
-            local t
-            pcall(function() t = w:title() end)
-            if t == altTab.consoleTitle then return w, me end
+        local wins = altTab.ownWindows()
+        for _, e in ipairs(wins) do
+            if e.console then return e.win, e.app end
         end
         return nil
+    end
+
+    -- =================================================================
+    -- 🪟 EVERY WINDOW THIS PROCESS OWNS, NOT ONE TITLE (6.433.0)
+    -- =================================================================
+    -- LL: "Why don't I see Hammerspoon in Alt+Tab anymore?"
+    --
+    -- 🔎 WHAT COULD ANSWER THAT BEFORE THIS RELEASE: nothing. The old
+    -- function walked our own windows looking for the one titled exactly
+    -- "Hammerspoon Console" and returned nil otherwise, and `consoleSeen`
+    -- recorded one bit. So FIVE different facts arrived here as the same
+    -- false: the console is closed (ordinary, and the right answer), this
+    -- build has no hs.processInfo, applicationForPID answered nothing,
+    -- allWindows() answered an EMPTY LIST (6.152.0 named that as the
+    -- first suspect on a Dock-less accessory app, which this config has
+    -- been since 6.66.2), or allWindows() answered windows and not one of
+    -- them carried that title. The report printed "not seen yet this
+    -- session" for all five.
+    --
+    -- 🚨 AND THE LAST OF THE FIVE IS A NAME SENTRY MATCHING A LITERAL
+    -- NOBODY HERE OWNS (6.236.0, fifth time). "Hammerspoon Console" is
+    -- Hammerspoon's string, not ours; it moves when Hammerspoon moves,
+    -- and on the day it does, the only window of ours that ⌥Tab can list
+    -- stops being listed — silently, with a report that says the console
+    -- is closed.
+    --
+    -- 🔑 SO IT ASKS THE QUESTION HE ASKED: which windows does THIS PROCESS
+    -- own? Every one of them becomes a card, under its own real title,
+    -- and the `console` flag — which is only used to decide whether
+    -- choosing it goes through hs.openConsole — is the one whose title
+    -- matches. A rename then costs the flag, which costs nothing anybody
+    -- can see, instead of costing the card.
+    -- 📏 It is still OUR process only, asked by pid: one app, no
+    -- cross-app AX, never hs.console.hswindow() (6.160.3 — that is
+    -- hs.window.get, which is a second full sweep and cost 2.6s).
+    altTab.ownWhy = "not asked yet this session"
+    function altTab.ownWindows()
+        local out = {}
+        local pid
+        pcall(function() pid = hs.processInfo and hs.processInfo.processID end)
+        if not pid then
+            altTab.ownWhy = "this build has no hs.processInfo, so our own "
+                            .. "windows cannot be asked for by pid"
+            return out
+        end
+        local me
+        pcall(function() me = hs.application.applicationForPID(pid) end)
+        if not me then
+            altTab.ownWhy = "hs.application.applicationForPID(" .. tostring(pid)
+                            .. ") answered nothing — macOS would not hand over "
+                            .. "our own application object"
+            return out
+        end
+        local wins
+        pcall(function() wins = me:allWindows() end)
+        if type(wins) ~= "table" then
+            altTab.ownWhy = "allWindows() answered nothing at all (not a list)"
+            return out
+        end
+        if #wins == 0 then
+            -- The 6.152.0 suspect, and now it SAYS so rather than reading
+            -- as a closed console.
+            altTab.ownWhy = "allWindows() answered an EMPTY LIST — either no "
+                            .. "Hammerspoon window is open, or this Dock-less "
+                            .. "accessory app is not reporting its own windows"
+            return out
+        end
+        local titles = {}
+        for _, w in ipairs(wins) do
+            local t
+            pcall(function() t = w:title() end)
+            t = (type(t) == "string" and t ~= "") and t or "Hammerspoon"
+            titles[#titles + 1] = t
+            out[#out + 1] = { win = w, app = me, title = t,
+                              console = (t == altTab.consoleTitle) or nil }
+        end
+        altTab.ownTitles = titles
+        altTab.ownWhy = #out .. " window(s) answered: " .. table.concat(titles, " · ")
+        return out
     end
 
     -- 🧠 6.283.0 — THE ONE DOOR INTO THE MEMORY, and the whole release is
@@ -437,23 +507,30 @@ function M.setup(core)
         -- phase 2 to serve. The entry is flagged `console` so choosing it
         -- can go through hs.openConsole (see raise()).
         altTab.consoleSeen = false
+        altTab.ownListed   = 0
         pcall(function()
-            local cw, me = altTab.consoleWindow()
-            if not cw then return end
-            local okId, id = pcall(function() return cw:id() end)
-            if not (okId and id) then return end
-            altTab.remember(id, cw, me, "Hammerspoon",
-                            hs.timer.secondsSinceEpoch(), true)
-            altTab.consoleSeen = true
-            if seenWin[id] then return end
-            if not altTab.includeMinimized then
-                local okMin, min = pcall(function() return cw:isMinimized() end)
-                if okMin and min then return end
+            for _, e in ipairs(altTab.ownWindows()) do
+                local okId, id = pcall(function() return e.win:id() end)
+                if okId and id then
+                    altTab.remember(id, e.win, e.app, "Hammerspoon",
+                                    hs.timer.secondsSinceEpoch(), e.console)
+                    if e.console then altTab.consoleSeen = true end
+                    local skip = seenWin[id]
+                    if not skip and not altTab.includeMinimized then
+                        local okMin, min = pcall(function() return e.win:isMinimized() end)
+                        if okMin and min then skip = true end
+                    end
+                    if not skip then
+                        seenWin[id] = true
+                        seq = seq + 1
+                        altTab.ownListed = altTab.ownListed + 1
+                        table.insert(entries, { win = e.win, id = id,
+                                                rank = zorder[id], seq = seq,
+                                                console = e.console,
+                                                appName = "Hammerspoon" })
+                    end
+                end
             end
-            seenWin[id] = true
-            seq = seq + 1
-            table.insert(entries, { win = cw, id = id, rank = zorder[id], seq = seq,
-                                    console = true, appName = "Hammerspoon" })
         end)
         phase("console")
 
@@ -1407,6 +1484,17 @@ function M.setup(core)
                  .. " Console and press ⌥Tab once on that desktop; from then on"
                  .. " it is remembered. (A reload starts the memory fresh.)")
         end
+        -- 🚨 6.433.0 — AND WHY, which is the line that was missing. Five
+        -- different facts used to arrive at the row above as the same
+        -- "not seen", and only one of them (a closed console) is
+        -- ordinary. This says which, in macOS's own terms.
+        line("   ours   : " .. tostring(altTab.ownWindows and altTab.ownWhy
+                                        or "not asked"))
+        line("   listed : " .. tostring(altTab.ownListed or 0)
+             .. " window(s) of our own on the last press"
+             .. " — every window this process owns is a card, under its own"
+             .. " title; the console flag only decides that choosing it goes"
+             .. " through hs.openConsole")
         line("   ↳ choosing a console card calls hs.openConsole, so it works"
              .. " whether the console is on another desktop or closed ("
              .. altTab.consoleOpens .. " time(s) this session)")

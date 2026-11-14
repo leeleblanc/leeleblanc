@@ -1125,6 +1125,78 @@ do
 end
 
 -- =====================================================================
+-- ⎋ 6.432.0 — AND ON A MAC WHERE CARBON WORKS, which is his
+-- =====================================================================
+-- LL: "Escape does not drop the Unified Search History window if I move
+-- off of it."
+--
+-- 🔎 EVERY CHECK ABOVE RUNS IN `world{ carbon = false }` — a Mac whose
+-- Carbon hotkey layer is measurably dead, where `hyperDispatchEngaged`
+-- is true and the tap callback therefore reaches globalTapDispatch,
+-- where the Escape branch lived. On a HEALTHY Mac that gate is shut, so
+-- nothing anywhere heard a bare Escape and a panel that had lost key
+-- focus could not be closed with it — its page only gets keys while its
+-- window is key, and the key went to whatever app was frontmost.
+--
+-- 🔑 THE CHECK THAT BITES IS THE SAME SECTION WITH carbon = true. Every
+-- one of these fails against 6.430.0, and none of the ones above does:
+-- that difference is the whole release (6.230.0 — pick the input where
+-- the right and the wrong implementation must differ).
+do
+  local w = world{ carbon = true, tapKeys = true }
+  local fired = {}
+  w.SB.hs.hotkey.bind({ "ctrl", "alt", "cmd" }, "L",
+      function() fired[#fired + 1] = "L" end)
+  loadHyperKey(w)
+  bindShortcuts(w)
+  runTimers(w)
+  timePasses(w)
+  local tap = w.taps[1]
+  check("🚨 the dispatcher is NOT engaged here — this is the ordinary Mac",
+        w.SB._G.hyperDispatchEngaged ~= true)
+
+  local closed = 0
+  w.SB.routeEscape = function() closed = closed + 1; return "unified" end
+  check("🚨 …and a bare Escape still reaches the panel that claims it, so a "
+     .. "panel which has lost the keyboard can be closed with the key it "
+     .. "tells you to use",
+        tap.fn(w.mkEvent({}, "escape", true)) == true and closed == 1, closed)
+
+  closed = 0
+  w.SB.routeEscape = function() closed = closed + 1; return nil end
+  check("…and when no panel wants it, the app keeps its Escape — the cost of "
+     .. "this release is bounded by a claim being live",
+        tap.fn(w.mkEvent({}, "escape", true)) == false and closed == 1, closed)
+
+  fired = {}
+  check("🚨 …and the ⌃⌥⌘ chords are STILL not dispatched here, which is "
+     .. "what makes this an Escape change and not the dispatcher engaging "
+     .. "on a Mac that does not need it",
+        tap.fn(w.mkEvent({ "ctrl", "alt", "cmd" }, "l", true)) == false
+        and #fired == 0, fired[1])
+
+  w.SB.routeEscape = function() error("router is broken", 0) end
+  check("🛟 a router that throws costs the Escape, never the keyboard",
+        tap.fn(w.mkEvent({}, "escape", true)) == false)
+
+  w.SB.routeEscape = function() return "unified" end
+  check("⇧Escape is not the panel Escape here either",
+        tap.fn(w.mkEvent({ "shift" }, "escape", true)) == false)
+  check("…and a key UP is not a press",
+        tap.fn(w.mkEvent({}, "escape", false)) == false)
+
+  -- 📏 THE SWITCH IS REAL, and it is the way back to 6.430.0's
+  -- behaviour for somebody who would rather keep Escape in every app.
+  w.SB._G.escapeGlobal = false
+  closed = 0
+  w.SB.routeEscape = function() closed = closed + 1; return "unified" end
+  check("📏 escapeGlobal = false puts the old behaviour back exactly — the "
+     .. "router is not even asked",
+        tap.fn(w.mkEvent({}, "escape", true)) == false and closed == 0, closed)
+  w.SB._G.escapeGlobal = true
+end
+
+-- =====================================================================
 section("13. THE FORWARDED CHORD IS STAMPED BEFORE IT IS SENT")
 -- =====================================================================
 do

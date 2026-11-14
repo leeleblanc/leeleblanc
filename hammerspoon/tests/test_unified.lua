@@ -413,6 +413,68 @@ check("screenshots carry kind=image, a path and a thumbnail",
 check("…and a human sub line (date · size)",
       (byTag.shots[1].sub or ""):find("MB") ~= nil
       and (byTag.shots[2].sub or ""):find("KB") ~= nil, byTag.shots[1].sub)
+
+-- =====================================================================
+-- 📸 6.431.0 — @shots BOUNDS DECODES, NOT ROWS
+-- =====================================================================
+-- LL: "Why do I only have 33 screenshots when I use @shots?" Because 30
+-- were listed — maxPer.shots — and the other three rows were incidental
+-- matches from other stores. He has 488 captures in that folder.
+--
+-- 🔑 AND 30 WAS BOUNDING THE WRONG COST. The comment it was written
+-- under is about THUMBNAILS: every shots row asked uni.thumbFor(), and
+-- a thumbnail is a full PNG decode on the main thread — which on a
+-- OneDrive-evicted file means downloading it first (6.187.0 priced
+-- exactly that, and 6.152.x is what it costs when nobody does). So the
+-- number was a decode budget wearing a row cap's clothes, and the
+-- source next door already keeps the two apart: @images lists
+-- maxPer.images rows and decodes only uni.thumbMax of them.
+--
+-- The fixture has two shots; the budget is driven to ONE so the two
+-- halves must differ (6.230.0 — at thumbMax >= 2 a row cap and a decode
+-- budget agree, and the check would prove nothing).
+do
+    local U = _G.unifiedSearch
+    local savedThumb, savedMax = U.thumbMax, U.maxPer.shots
+    U.thumbMax = 1
+    U.gather()
+    local shots = {}
+    for _, r in ipairs(U.rows) do
+        if r.tag == "shots" then shots[#shots + 1] = r end
+    end
+    check("📸 both captures are LISTED when only one may be decoded",
+          #shots == 2, #shots)
+    check("📸 …and exactly one carries a picture — the budget is spent on "
+          .. "DECODES, which is the cost, not on rows, which are free",
+          (shots[1].img or ""):find("^data:image") ~= nil
+          and shots[2].img == nil,
+          tostring(shots[2].img))
+    check("…and the row with no picture still carries everything ⏎ and ⌘⏎ "
+          .. "need — its name, its date, its size and its path",
+          shots[2].path == "/od/shots/receipt scan.png"
+          and (shots[2].sub or ""):find("KB") ~= nil
+          and (shots[2].text or "") ~= "")
+    check("🔎 …and the report says both numbers, which is what makes "
+          .. "\"why only 33?\" answerable without reading the source",
+          U.shotRows == 2 and U.shotThumbs == 1 and U.shotsOnDisk == 2,
+          tostring(U.shotRows) .. "/" .. tostring(U.shotThumbs))
+
+    -- The row cap still exists; it is simply not 30 any more, and it is
+    -- the thing that bounds how much of the FOLDER reaches the page.
+    U.maxPer.shots = 1
+    U.gather()
+    local one = 0
+    for _, r in ipairs(U.rows) do if r.tag == "shots" then one = one + 1 end end
+    check("📏 maxPer.shots still bounds the LIST — the page is never handed "
+          .. "an unbounded folder, which is what lets a pinned @tag draw "
+          .. "all of it", one == 1, one)
+    check("…and the report NAMES what the cap left out, rather than leaving "
+          .. "a short list to be discovered",
+          U.shotsOnDisk == 2 and U.shotRows == 1)
+
+    U.thumbMax, U.maxPer.shots = savedThumb, savedMax
+    U.gather()
+end
 check("notes split on the ── stamp ── lines, newest first",
       byTag.note[1].full == "newest note about receipts"
       and byTag.note[2].full == "first note line\nsecond line",
@@ -1868,6 +1930,32 @@ do
           src9 ~= nil and type(src9.what) == "string" and #src9.what > 20,
           src9 and src9.what)
 
+    -- 🔎 6.431.0 — THE DIAGNOSTICS THE EXTRAS SWEEP CANNOT SEE. That
+    -- sweep walks _G for names ending in "Report", which is what makes a
+    -- report added next year appear here on the day it ships. A probe
+    -- called `…Probe` or `…CheckNow` ends in neither, so however long it
+    -- had existed it was invisible to the one list that exists to name
+    -- every diagnostic. Four of them, every one read-only.
+    for _, name in ipairs({ "begoneProbe", "padProbe", "oneDriveProbe",
+                            "healthCheckNow" }) do
+        check("§9 🔎 @report names _G." .. name .. "(), which no name ending "
+              .. "in 'Report' could ever have found",
+              type(U.reportDocs[name]) == "string"
+              and #U.reportDocs[name] > 10, U.reportDocs[name])
+    end
+    -- 🚨 AND THE OTHER HALF, which is the one that matters: ⏎ on a row
+    -- RUNS it. A list whose Enter key runs things may only ever hold
+    -- things that READ (6.335.0 — a purge control one pixel from a
+    -- restore control is the wrong button to add). These three are
+    -- published, diagnostics-shaped, and deliberately absent.
+    for _, name in ipairs({ "vaultPurgeTrash",      -- erases notes
+                            "hyperSelfTest",        -- acts on the keyboard
+                            "hyperWakeProbeRun" }) do
+        check("§9 🚨 …and _G." .. name .. "() is NOT in it — it acts, and "
+              .. "⏎ on a row runs what it names",
+              U.reportDocs[name] == nil)
+    end
+
     -- 🚨 NOTHING PUBLISHED: every documented report is a ⚠️ row, and NOT
     -- ONE of them is runnable. A list that offered to run a report that
     -- does not exist would be worse than no list (6.276.0).
@@ -1985,7 +2073,7 @@ do
           and (ALERTS[#ALERTS] or ""):find("not published", 1, true) ~= nil,
           tostring(PB))
 
-    check("§9 ran all of its checks", (pass + fail) - n9 == 14,
+    check("§9 ran all of its checks", (pass + fail) - n9 == 21,
           (pass + fail) - n9)
 end
 

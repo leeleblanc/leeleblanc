@@ -1105,16 +1105,70 @@ end)())
 check("🚨 …found by asking OUR OWN process (by pid), not a cross-app sweep",
       #PID_ASKED >= 1 and PID_ASKED[#PID_ASKED] == 4242 and COUNT.all == allBefore,
       tostring(PID_ASKED[#PID_ASKED]) .. " / allWindows calls +" .. (COUNT.all - allBefore))
-check("…and only the window TITLED as the console — not every Hammerspoon window",
-      (function()
+-- 🚨 6.433.0 — THIS CHECK USED TO ASSERT THE OPPOSITE, by name: "only
+-- the window TITLED as the console — not every Hammerspoon window". That
+-- was right while the console was the only window of ours worth a card,
+-- and it is what LL's "Why don't I see Hammerspoon in Alt+Tab anymore?"
+-- costs: a Preferences window, or a console macOS has renamed, is a
+-- Hammerspoon window that ⌥Tab refuses to list. 6.248.0's rule — assert
+-- the RULE, never the literal — so it asks the rule: every window this
+-- PROCESS owns is a card, and the console FLAG is the only thing the
+-- title decides.
+check("🚨 every window this process owns is a card — the Preferences "
+      .. "window too, not only the one titled as the console", (function()
+    local seen = {}
     for _, e in ipairs(AT.listWindows()) do
-        if e.win and e.win:id() == 997 then return false end
+        if e.win then seen[e.win:id()] = true end
     end
-    return true
+    return seen[999] and seen[997]
 end)())
-check("altTab.consoleWindow() is the one way in, and it names the title it matches",
+check("…and the console FLAG is on the titled one alone, because it is only "
+      .. "ever used to send a pick through hs.openConsole", (function()
+    local flagged, plain
+    for _, e in ipairs(AT.listWindows()) do
+        if e.win and e.win:id() == 999 then flagged = e.console end
+        if e.win and e.win:id() == 997 then plain   = e.console end
+    end
+    return flagged == true and not plain
+end)())
+check("altTab.consoleWindow() still answers for the titled window, so every "
+      .. "caller of it is unchanged",
       type(AT.consoleWindow) == "function" and AT.consoleWindow() == CONSOLE
       and AT.consoleTitle == "Hammerspoon Console")
+
+-- 🔎 6.433.0 — AND THE FIVE FACTS THAT USED TO ARRIVE AS ONE false.
+-- `consoleSeen` recorded a bit, so "the console is closed" (ordinary) and
+-- "allWindows() answered an empty list" (6.152.0's accessory-app suspect,
+-- and this config has had no Dock icon since 6.66.2) printed the same
+-- line. Each of these drives one of them and asks for its own sentence.
+do
+  local realFor = hs.application.applicationForPID
+  local realPI  = hs.processInfo
+
+  hs.processInfo = nil
+  AT.ownWindows()
+  check("🔎 no hs.processInfo is SAID, not reported as a closed console",
+        (AT.ownWhy or ""):find("processInfo") ~= nil, AT.ownWhy)
+
+  hs.processInfo = { processID = 4242 }
+  hs.application.applicationForPID = function() return nil end
+  AT.ownWindows()
+  check("🔎 macOS refusing our own application object is its own sentence",
+        (AT.ownWhy or ""):find("answered nothing") ~= nil, AT.ownWhy)
+
+  hs.application.applicationForPID = function() return mkapp("Hammerspoon", {}, 0) end
+  AT.ownWindows()
+  check("🔎 an EMPTY allWindows() names the accessory-app suspect rather "
+        .. "than reading as a console that is simply closed",
+        (AT.ownWhy or ""):find("EMPTY LIST") ~= nil, AT.ownWhy)
+
+  hs.application.applicationForPID = realFor
+  local got = AT.ownWindows()
+  check("…and on a healthy Mac it names the titles it really saw",
+        #got == 2 and (AT.ownWhy or ""):find("Hammerspoon Console") ~= nil
+        and (AT.ownWhy or ""):find("Preferences") ~= nil, AT.ownWhy)
+  hs.processInfo = realPI
+end
 
 out("\n  14a. 🧠 6.283.0 — and it is REMEMBERED, so another desktop keeps it\n")
 -- LL, twice: "Still can't see Hammerspoon window using Alt+tab … unless I
@@ -1286,8 +1340,8 @@ do
       local fn = code:match("function altTab%.remember.-\nend")
       return fn ~= nil and fn:find("altTab%.known%[") ~= nil
   end)())
-  check("🚨 SOURCE: the console block goes through it", (function()
-      local blk = code:match("local cw, me = altTab%.consoleWindow%(%).-phase%(\"console\"%)")
+  check("🚨 SOURCE: the own-windows block goes through it", (function()
+      local blk = code:match("altTab%.consoleSeen = false.-phase%(\"console\"%)")
       return blk ~= nil and blk:find("altTab%.remember%(") ~= nil
   end)())
 end

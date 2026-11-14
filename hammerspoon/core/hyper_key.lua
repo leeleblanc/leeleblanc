@@ -580,6 +580,70 @@ function _G.chordAudit()
     return risky, checked
 end
 
+-- =====================================================================
+-- ⏋ A BARE ESCAPE IS ROUTED WHATEVER THE DISPATCHER IS DOING (6.432.0)
+-- =====================================================================
+-- LL: "Escape does not drop the Unified Search History window if I move
+-- off of it." He is right, and the mechanism is structural rather than
+-- a bug in that panel.
+--
+-- 🔎 THIS BRANCH USED TO LIVE INSIDE `_G.globalTapDispatch`, which the
+-- tap callback reaches only `if _G.hyperDispatchEngaged` — and that is
+-- true ONLY on a Mac whose Carbon hotkey layer is measurably dead
+-- (hyperVerifyOnRealPress sets it, and the alarm says "⇪ IS RUNNING
+-- WITHOUT CARBON"). So on a HEALTHY Mac — his Air, where Carbon works
+-- and the boot line reads "All green" — nothing anywhere heard a bare
+-- Escape. A floating panel that has lost key focus could not be closed
+-- by Escape at all: the key went to whatever app was frontmost, and the
+-- panel's own page never saw it either, because the page only gets keys
+-- while its window is key.
+--
+-- 🔑 GENERAL, AND IT IS THE ONE TO CARRY: A POLICY REACHED THROUGH A
+-- FALLBACK'S DOOR IS A POLICY THAT ONLY EXISTS WHERE THE FALLBACK IS
+-- NEEDED. The escape router is this config's answer to "who owns Esc" —
+-- fifteen panels register with it — and it was wired to a dispatcher
+-- that exists to cover a dead Carbon layer. Before hanging behaviour off
+-- an engaged-only path, ask whether the behaviour is about the ENGINE
+-- or about the CONFIG; this one was about the config, and it was
+-- reachable on the one class of Mac that needs the engine least.
+--
+-- 🚨 AND IT SHIPS WITH THE STALE-HANDLE FIX OR NOT AT ALL (6.417.0's
+-- rule): a claimant whose active() is wrongly live would now eat Escape
+-- in EVERY app for the rest of the session, which is strictly worse than
+-- the panel it fixes. His own `_G.escapeReport()` showed exactly that
+-- state — `unified 55 🟢 wants esc now` with no panel on screen — because
+-- `closeOnEscape(true)` let WebKit close the window behind Lua's back.
+-- Five panels carried that line; they do not now.
+--
+-- 📏 THE COST, NAMED: while one of our panels really is on screen, a
+-- bare Escape pressed in ANOTHER app closes the panel instead of
+-- reaching that app. That is what he asked for. It is bounded by the
+-- claim being live, which is now a fact about a window rather than a
+-- handle, and `_G.escapeGlobal = false` returns the old behaviour.
+_G.escapeGlobal = true
+
+-- ONE function, two callers (6.231.0): the tap callback asks it before
+-- the dispatcher gate, and nothing else owns an Escape branch — two
+-- copies is how they come to disagree about which modifiers count.
+function _G.escapeTapDispatch(ev, t, code)
+    if not _G.escapeGlobal then return false end
+    if t ~= hs.eventtap.event.types.keyDown then return false end
+    local name = hs.keycodes.map[code]
+    if name ~= "escape" then return false end
+    local f = ev:getFlags() or {}
+    if f.cmd or f.shift or f.ctrl or f.alt then return false end
+    -- 🛟 A router that throws costs the Escape, never the keyboard.
+    local ok, taker = pcall(function()
+        return _G.routeEscape and _G.routeEscape() or nil
+    end)
+    if ok and taker then
+        _G.escapeTapTook = (_G.escapeTapTook or 0) + 1
+        return true
+    end
+    _G.escapeTapPassed = (_G.escapeTapPassed or 0) + 1
+    return false
+end
+
 function _G.globalTapDispatch(ev, t, code)
     if _G.typingInjection and _G.typingInjection()
        and not _G.hyperSelfTestInFlight then
@@ -590,12 +654,11 @@ function _G.globalTapDispatch(ev, t, code)
     if not name then return false end
     local f = ev:getFlags() or {}
 
+    -- ⏋ Escape is `escapeTapDispatch`'s, and it has already run by the
+    -- time this function is reached. Turned away here rather than
+    -- handled, so there is exactly one owner.
     if name == "escape" and not (f.cmd or f.shift or f.ctrl or f.alt) then
-        if t ~= hs.eventtap.event.types.keyDown then return false end
-        local ok, taker = pcall(function()
-            return _G.routeEscape and _G.routeEscape() or nil
-        end)
-        return (ok and taker) and true or false
+        return false
     end
 
     local mods = {}
@@ -669,8 +732,16 @@ local function hyperTapCallback(ev)
         if _G.hyperActive and _G.hyperStormKey and t == hs.eventtap.event.types.keyDown then
             pcall(_G.hyperStormKey, code, ev)
         end
+        if _G.hyperActive then
+            if not _G.hyperDispatchEngaged then return false end
+            return _G.hyperTapDispatch(ev, t, code)
+        end
+        -- ⏋ 6.432.0 — BEFORE the dispatcher gate, deliberately. ⇪Esc is a
+        -- bound shortcut and belongs to hyperTapDispatch above; a BARE
+        -- Escape is the config's own policy and must not depend on
+        -- whether this Mac needed the dispatcher at all.
+        if _G.escapeTapDispatch(ev, t, code) then return true end
         if not _G.hyperDispatchEngaged then return false end
-        if _G.hyperActive then return _G.hyperTapDispatch(ev, t, code) end
         return _G.globalTapDispatch(ev, t, code)
     end)
     if ok then return err == true end

@@ -4,67 +4,57 @@
 -- =====================================================================
 -- 11-13-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.430.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.434.0
 -- =====================================================================
 
--- NEW IN 6.430.0 — 🔗 "ALREADY CLEAN" WAS THE WRONG WORD
---   (modules/url_cleaner.lua). LL ran ⇪K on a Credit Karma email link
---   and was told it was clean: "That doesn't seem to be the case?"
---   📏 IT WAS NOT. 851 characters, SEVEN parameters — trackingId,
---   notificationId, notificationAuthFactorId, notificationType,
---   categories, channel, and a `ctPayload` that decodes (gzip, base64)
---   to an analytics beacon carrying system_eventCode, content_screen,
---   content_section, dataHash and a timestamp. The cleaner removed 0 of
---   7, which is CORRECT — it only drops names it knows, and that rule is
---   why it has never broken a link — and then reported it as success.
---   🔑 THE DEFECT IS THE WORD, NOT THE BLOCKLIST. "I removed nothing"
---   and "I recognised none of these seven" are different facts and the
---   alert collapsed them (6.196.1), in the one tool whose whole job is
---   saying whether a link is safe to paste. Three states now: no
---   parameters at all · N left and none recognised, NAMED · N removed.
---   It is a report, not a ⚠️ — most links carry a load-bearing ?id= or
---   ?q=, and a warning on every one is a tool he switches off (6.269.0).
---   🚨 AND NOT ONE OF THOSE SEVEN IS SAFE TO ADD GLOBALLY: a courier
---   uses ?trackingId=, a deep link uses ?notificationId=, and an AUTH
---   FACTOR may be what makes the link work. So `cleaner.dropForHost`
---   decides PER SITE, where the decision can be made honestly. Seeded
---   with creditkarma.com; his link now cleans 851 chars → 40.
---   🔎 The host pattern is matched against "." .. host, so it covers the
---   apex and every subdomain and refuses a LOOKALIKE — ".notcreditkarma
---   .com" does not match "%.creditkarma%.com$" (6.236.0, on a host).
+-- NEW IN 6.434.0 — 🔎 HAMMERSPOON IS IN ITS OWN MENU-BAR PICKER
+--   (modules/menubar_items.lua). LL: "Why don't I see Hammerspoon as
+--   menu bar item I can search?" Because this module hid it, by name,
+--   with the reason "our own 🩺 and calendar items" — a judgement taken
+--   when they read as clutter, and he has just overruled it by going
+--   looking for them. Three are real and clickable: 🩺 health_monitor,
+--   the mini calendar, and the pause indicator power_tools puts up.
+--   🔑 GENERAL: a list that hides the thing somebody is hunting for is a
+--   list that lies to them, and the whole cost of hiding is paid by the
+--   one person who went looking (6.361.0 — a tool you cannot find is the
+--   same thing as a tool that is not there). Every other name on that
+--   list is an Apple background agent with nothing behind it to click;
+--   ours has something behind it to click, which is the difference.
+--   🧪 AND THE SUITE ASSERTED THE OPPOSITE IN ITS OWN WORDS — "listing
+--   yourself is noise" (6.248.0). It asks the rule now, in BOTH
+--   directions (6.346.0): our items are listed, AND the skip list still
+--   turns Control Center away, or "Hammerspoon is listed" would pass
+--   just as well over a filter somebody had switched off entirely.
 
--- NEW IN 6.429.0 — 📐 BIGGER BOXES, TWO LETTERS: THE LABEL PUT BACK
---   (modules/mouse_grid.lua). LL, with a screenshot of a wall of
---   three-letter codes: "I can't see past the boxes. I'd say start the
---   boxes bigger using less letters?"
---   🚨 HE IS RIGHT AND 6.428.0 IS MINE. That release shipped
---   `labelLength = 3` over `maxCells = 4096` and divided every cell
---   2 × 2 on top — which is 6.176.0 reproduced exactly ("HOLY SHIT! The
---   grid is insane. Way too small.") plus a quartering. Its own comment
---   four lines above said a two-character label was the whole point and
---   quoted that verdict back. THE PROSE AND THE CODE DISAGREED ON
---   ADJACENT LINES, which is 6.349.0 · 6.363.0, and I read the comment.
---   📏 RESTORED: two letters, 676 cells, nothing divided before he types.
---   Precision is the a/s/d/f refinement he already scored as fine — one
---   press halves the box, two quarters it — so the geometry still pays
---   and the typing is not spent. That is what 6.428.0 CLAIMED to do.
---   🔎 AND THE PLATES WERE THE OCCLUSION HE NAMED: each label sits on a
---   dark plate so the yellow clears 4.5:1 over a white app (6.372.0).
---   They hug the glyphs now — 41% of a cell, MEASURED, against a wall of
---   them before — and `labelBackplates = false` removes them entirely.
---   🧪 THE GATE COULD NOT SEE ANY OF IT, because every section pins its
---   own values before it runs, so nothing drove the shipped defaults
---   (6.273.0). §6429 asserts the RULE off the captured defaults — a
---   landing costs at most two keystrokes, no cell is divided before a
---   keystroke, the drawn count stays within the 676 he scored — drives
---   that configuration end to end, and fails if the prose ever again
---   claims a label length the code does not ship.
+-- NEW IN 6.433.0 — 🪟 EVERY WINDOW THIS PROCESS OWNS IS AN ⌥TAB CARD
+--   (modules/window_switcher.lua). LL: "Why don't I see Hammerspoon in
+--   Alt+Tab anymore?"
+--   🔎 AND NOTHING COULD ANSWER THAT. The listing walked our own windows
+--   for the one titled exactly "Hammerspoon Console" and recorded ONE
+--   BIT, so five different facts arrived as the same false: the console
+--   is closed (ordinary), this build has no hs.processInfo,
+--   applicationForPID answered nothing, allWindows() answered an EMPTY
+--   LIST (6.152.0 named that as the first suspect on a Dock-less
+--   accessory app, which this config has been since 6.66.2), or it
+--   answered windows and none carried that title. The report printed
+--   "not seen yet this session" for all five.
+--   🚨 AND THAT TITLE IS A LITERAL NOBODY HERE OWNS (6.236.0, fifth
+--   time): it is Hammerspoon's string, and on the day it moves the only
+--   window ⌥Tab can list stops being listed, silently.
+--   🔑 SO IT ASKS THE QUESTION HE ASKED — which windows does THIS
+--   PROCESS own? Every one is a card under its own real title, and the
+--   `console` flag (which only decides that choosing it goes through
+--   hs.openConsole) is the one whose title matches. A rename then costs
+--   the flag, which nobody can see, instead of costing the card.
+--   📏 Still our process only, by pid: one app, no cross-app AX, never
+--   hs.console.hswindow() (6.160.3 — a second full sweep, 2.6s).
+--   🔎 `_G.switcherReport()` NAMES which of the five it found.
 
--- (6.428.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.432.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 cut the inline count to
 --  TWO; a gate check proves every entry here is also in CHANGELOG.md.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.430.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.434.0
 -- =====================================================================
 -- The catalogue that used to sit here moved to GUIDE.md ("What each
 -- tool does") in 6.180.0 — 259 lines of prose inside the orchestrator.
@@ -153,7 +143,7 @@ function _G.consoleRuleSay(what)
     return true
 end
 
-_G.configVersion = "6.430.0"
+_G.configVersion = "6.434.0"
 _G.consoleRuleSay("▶ BOOT")
 
 local function safeRequire(mod)

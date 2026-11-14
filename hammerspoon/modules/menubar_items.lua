@@ -106,8 +106,20 @@ function M.setup(core)
     --
     -- To bring one back, delete its line. To hide something else, add it
     -- by the exact name the picker shows in its left column.
+    -- 🔎 6.434.0 — HAMMERSPOON IS NOT HIDDEN FROM ITS OWN PICKER ANY MORE.
+    -- LL: "Why don't I see Hammerspoon as menu bar item I can search?"
+    -- Because this list hid it, by name, with the reason "our own 🩺 and
+    -- calendar items" — a decision taken when they read as clutter, and
+    -- he has just re-asked it by going looking for them. Three are real
+    -- and reachable: 🩺 health_monitor, the mini calendar, and the pause
+    -- indicator power_tools puts up while the config is paused.
+    -- 🔑 GENERAL: a list that hides the thing somebody is hunting for is
+    -- a list that lies to them, and the whole cost of hiding is paid by
+    -- the one person who went looking (6.361.0 — a tool you cannot find
+    -- is the same thing as a tool that is not there). Every other name
+    -- below is an Apple background agent with nothing behind it to click;
+    -- ours has something behind it to click, which is the difference.
     mb.skipApps    = {
-        ["Hammerspoon"]         = true,  -- our own 🩺 and calendar items
         -- 🎯 THE ONE LL ACTUALLY SAW, named from his own screenshot:
         --      MenuBarAgent
         --      3.5% CPU @ /System/Library/CoreServices/MenuBarAgent.app/…
