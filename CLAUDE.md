@@ -7781,6 +7781,28 @@ THE METHOD, when something breaks after a stacked zip:
    quietly rewritten, so the record shows the call was made and changed.
    · 6.421.0 · 6.422.0 · 6.423.0 — 9313323 (code, suites and ceremony in
    one commit; the archive for them is 6.427.0's, below).
+   · 6.431.0 · 6.432.0 · 6.433.0 · 6.434.0 — 3170ade (the code, the
+   suites and the whole ceremony) · e8c8127 (the sweep's own two
+   findings) · **1eeb950 is the archive, and 1eeb950 is the SHA every
+   link to it must carry** — a branch-pinned link dies the moment the
+   next release deletes the file, which is why 6.356.0–6.358.0 never
+   reached his Downloads (6.360.0).
+   🔑 FOUR RELEASES IN FOUR FILES on purpose, so a break still names its
+   version by which thing fails: a truncated @report or a short @shots is
+   6.431.0 (unified_search) · Escape not closing a panel you have moved
+   off is 6.432.0 (hyper_key + coexist + five panels) · no Hammerspoon in
+   ⌥Tab is 6.433.0 (window_switcher) · none in ⇪M is 6.434.0
+   (menubar_items).
+   📏 AND 6.432.0 IS THE ONE THAT TOUCHES EVERYTHING, which is worth
+   knowing before bisecting: it adds one branch to the ⇪ tap that sees
+   every keystroke, and takes `closeOnEscape(true)` out of five panels.
+   If ANY panel stops closing, or typing ever feels heavier, that is this
+   release — `_G.escapeGlobal = false` is the switch, and
+   `_G.escapeReport()`'s new `global :` and `stuck :` lines are the
+   evidence. 18 mutations, 16 killed and the control survived on the
+   first sweep; both survivors were missing checks and one of them was a
+   line doing nothing (6.199.0, tenth time), restore sha256-verified
+   after every one.
    · 6.430.0 — 611a80b (the code, the suites and the ceremony in one
    commit; **611a80b is the SHA every link to this archive must carry**
    — a branch-pinned link dies the moment the next release deletes the
