@@ -1266,7 +1266,20 @@ local function showPopup(chooser, atPoint)
         _G.lastPopupPlacement = nil
         shown = pcall(function() chooser:show() end)
     end
-    if shown then return true end
+    if shown then
+        -- 🔖 6.441.0 — the stall guard's breadcrumb is told that a
+        -- picker is now on screen. The ⇪ mark is cleared the instant a
+        -- shortcut RETURNS, and a shortcut that opens a picker returns
+        -- at once — so the picker's whole life, and everything typed
+        -- into it, used to be invisible to the heartbeat. Only
+        -- type/pcall/_G here: the gate lifts this function into a bare
+        -- environment (6.314.0). After the show, never before: a
+        -- refused picker must leave no record (6.306.0).
+        if type(_G.inFlightPanel) == "function" then
+            pcall(_G.inFlightPanel, true)
+        end
+        return true
+    end
     -- 🚨 THE RECORD MUST NOT OUTLIVE THE PICKER (6.306.0): window_move's
     -- ⌘-drag and the preview pane read lastPopupPlacement to find a live
     -- box, so a refused show that left it set hands them one that never

@@ -220,6 +220,33 @@ end
 
 local HOME = "/Users/lee"
 local CSV  = os.tmpname()
+-- 6.440.0 — the stub temp folder has to EXIST, because the archive copy
+-- really is written into it by the model below.
+os.execute("mkdir -p /tmp/test-tmp")
+
+-- 🔬 6.440.0 — /bin/cp IS MODELLED, NOT WAVED THROUGH. loadCsv no longer
+-- reads the archive itself: it asks a task to copy it to the temp folder
+-- and parses that copy. A stub that fired the callback without copying
+-- would let a loadCsv that parses nothing at all pass every check below
+-- (6.290.0, and this suite has been bitten by a gentle stub before). So
+-- this does what cp does. The callback is fired BY HAND, like every
+-- other task here, because hs.task is asynchronous and a stub that
+-- answered inside :start() would be gentler than macOS.
+local function runCopy(code)
+    local t = TASKS[#TASKS]
+    if not t or t.cmd ~= "/bin/cp" then return nil, t end
+    code = code or 0
+    if code == 0 then
+        local src = io.open(t.args[1], "r")
+        if src then
+            local data = src:read("*a") ; src:close()
+            local dst = io.open(t.args[2], "w")
+            if dst then dst:write(data) ; dst:close() end
+        end
+    end
+    t.cb(code, "", code == 0 and "" or "cp: no such file or directory")
+    return t
+end
 local CORE = {
     hostTag = "Test-Mac",
     homeDir = HOME,
@@ -540,6 +567,11 @@ chrome.entries = {}
 -- 6.152.1 — loadCsv is sliced and answers through a callback; a small
 -- file still completes synchronously, which this relies on
 local loaded ; chrome.loadCsv(function(n) loaded = n end)
+local cpT = runCopy(0)
+check("☁️ 6.440.0 — loadCsv COPIES the archive out of process, never reading it here",
+      cpT ~= nil and cpT.args and cpT.args[1] == CSV
+      and tostring(cpT.args[2] or ""):find("hs%-chrome%-archive") ~= nil,
+      cpT and (tostring(cpT.cmd) .. " " .. tostring(cpT.args and cpT.args[2])))
 check("loadCsv reads back what the export saved", loaded == before, loaded)
 check("the comma'd title survives the round trip",
       chrome.entries[2] and chrome.entries[2].title == "Comma, and -quote- title",
@@ -850,8 +882,9 @@ out("8) warm, the report, and a Mac with no Chrome at all\n")
 -- =======================================================================
 local tasksB4 = #TASKS
 mod.warm()
+runCopy(0)
 check("warm reads last session's CSV back first", #chrome.entries > 0)
-check("…then refreshes in the background", #TASKS == tasksB4 + 1)
+check("…then refreshes in the background", #TASKS == tasksB4 + 2)
 TASKS[#TASKS].cb(0, corpusFeed(), "")
 
 printed = {}
@@ -926,6 +959,215 @@ check("_G.chromeHistory is published for the @web source",
       _G.chromeHistory == chrome)
 
 -- =====================================================================
+-- =======================================================================
+out("\n10) ☁️ 6.440.0 — the archive read left the main thread\n")
+-- =======================================================================
+-- 🧊 LL, 2026-11-14, with a 75-second freeze and the stall guard's own
+-- line: "We had a major stall searching Chrome history." The PARSE has
+-- been sliced since 6.152.1 and the READ never was — one unsliced,
+-- untimed `f:lines()` over a 4.5 MB file that lives in <OneDrive>/Logs,
+-- and reading a dehydrated cloud placeholder HYDRATES it (6.281.0),
+-- which blocks until the download lands (6.357.0 measured it; his Mac
+-- was frozen by exactly that on 2026-10-12).
+local okR, errR = pcall(function()
+local beforeR = pass + fail
+chrome.entries = {}
+DEGRADED = {}
+
+-- 🔑 THE FIXTURE THAT BITES, and it is the whole section: the temp COPY
+-- is given DIFFERENT rows from the archive. A loadCsv that still read
+-- the source would agree with one that reads the copy on any identical
+-- pair, so this is the only input where right and wrong must differ
+-- (6.230.0).
+local SRC = os.tmpname()
+do
+    local f = io.open(SRC, "w")
+    f:write("date,time,title,url,visits,profile\n")
+    f:write("2026-01-01,09:00,From the SOURCE,https://source.example/,1,Default\n")
+    f:close()
+end
+local realCsv = chrome.csvFile
+chrome.csvFile = SRC
+local gotA ; chrome.loadCsv(function(n) gotA = n end)
+local tA = TASKS[#TASKS]
+check("the read asks /bin/cp, and the archive is its FIRST argument",
+      tA and tA.cmd == "/bin/cp" and tA.args[1] == SRC, tA and tA.cmd)
+check("…and the copy lands in the temp folder, never beside the archive",
+      tA and tostring(tA.args[2]):find("^/tmp/test%-tmp/hs%-chrome%-archive%-")
+      ~= nil, tA and tA.args[2])
+check("…and the task was STARTED (a task nobody starts never answers)",
+      tA and tA.started == true)
+check("…and nothing has been parsed yet — the main thread is still free",
+      gotA == nil and #chrome.entries == 0, gotA)
+-- what cp really produced is what gets parsed: write the copy BY HAND
+-- with different rows, then fire the exit.
+do
+    local f = io.open(tA.args[2], "w")
+    f:write("date,time,title,url,visits,profile\n")
+    f:write("2026-01-01,09:00,From the COPY,https://copy.example/,1,Default\n")
+    f:close()
+end
+tA.cb(0, "", "")
+check("the rows come from the COPY, not from the archive itself",
+      gotA == 1 and chrome.entries[1]
+      and chrome.entries[1].url == "https://copy.example/",
+      chrome.entries[1] and chrome.entries[1].url)
+check("…and the read is recorded as out of process",
+      chrome.lastRead and chrome.lastRead.how == "task",
+      chrome.lastRead and chrome.lastRead.how)
+check("…with the archive's real size in bytes, not a guess",
+      (chrome.lastRead.bytes or 0) > 0, chrome.lastRead.bytes)
+check("…and the temp copy is removed afterwards",
+      io.open(tA.args[2], "r") == nil)
+check("🤫 …and a read that cannot block says NOTHING on screen",
+      #DEGRADED == 0, DEGRADED[1])
+
+-- 🗳 A FAILED COPY NEVER FALLS BACK TO READING IN PLACE. That fallback
+-- reads as careful and is the one branch that puts the freeze back: a
+-- copy that failed is most often a hydration that has not landed, which
+-- is precisely the read to refuse (6.319.0).
+chrome.entries = { "a previous session's rows" }
+local gotB ; chrome.loadCsv(function(n) gotB = n end)
+local tB = TASKS[#TASKS]
+tB.cb(1, "", "cp: cannot open")
+check("a REFUSED copy answers 0 rather than reading the archive here",
+      gotB == 0, gotB)
+check("…and says cp's own exit code, not a guess",
+      chrome.lastRead and chrome.lastRead.how == "failed"
+      and tostring(chrome.lastRead.why):find("exited 1") ~= nil,
+      chrome.lastRead and chrome.lastRead.why)
+check("…and leaves the rows that were already loaded alone",
+      #chrome.entries == 1, #chrome.entries)
+check("…and counts it apart from a read that happened",
+      chrome.readsFailed == 1, chrome.readsFailed)
+
+-- 🛟 THE BELT, and what it must NOT do: a copy that never answers is a
+-- download that has not landed, so it is abandoned and SAID — never
+-- retried on the main thread.
+local gotC ; chrome.loadCsv(function(n) gotC = n end)
+local tC  = TASKS[#TASKS]
+local kC  = WATCHDOGS[#WATCHDOGS]
+check("the belt is armed before the copy is started (6.246.0)",
+      kC ~= nil and kC.secs == chrome.readTimeout, kC and kC.secs)
+kC.fn()
+check("…it terminates the copy", tC.dead == true)
+check("…answers 0 rather than reading the archive in place", gotC == 0, gotC)
+check("…and names the cloud in words he can act on",
+      tostring(chrome.lastRead.why):find("cloud") ~= nil,
+      chrome.lastRead.why)
+-- ONE DOOR, ONCE: the terminated copy's own exit lands a moment later.
+local rowsAfter, failsAfter = #chrome.entries, chrome.readsFailed
+tC.cb(15, "", "")
+check("…and the late exit of a copy already given up on changes nothing",
+      #chrome.entries == rowsAfter and chrome.readsFailed == failsAfter,
+      chrome.readsFailed)
+
+-- A newer read owns the data: the older one must not install over it.
+local gotD ; chrome.loadCsv(function(n) gotD = n end)
+local tD = TASKS[#TASKS]
+chrome.entries = {}
+local gotE ; chrome.loadCsv(function(n) gotE = n end)
+local tE = TASKS[#TASKS]
+do
+    local f = io.open(tD.args[2], "w")
+    f:write("date,time,title,url,visits,profile\n")
+    f:write("2026-01-01,09:00,stale,https://stale.example/,1,Default\n")
+    f:close()
+end
+tD.cb(0, "", "")
+check("a superseded read never installs its rows", #chrome.entries == 0,
+      #chrome.entries)
+do
+    local f = io.open(tE.args[2], "w")
+    f:write("date,time,title,url,visits,profile\n")
+    f:write("2026-01-01,09:00,fresh,https://fresh.example/,1,Default\n")
+    f:close()
+end
+tE.cb(0, "", "")
+check("…and the newer one does",
+      chrome.entries[1] and chrome.entries[1].url == "https://fresh.example/",
+      chrome.entries[1] and chrome.entries[1].url)
+
+-- 🖥 A Mac with no hs.task at all reads in place — and SAYS so, every
+-- time. The cost is named rather than silent, which is the whole
+-- difference between this release and the build that froze.
+local realTask = hs.task
+hs.task = nil
+chrome.entries = {}
+local gotF ; chrome.loadCsv(function(n) gotF = n end)
+check("with no hs.task the archive is read in place rather than not at all",
+      gotF == 1 and chrome.entries[1]
+      and chrome.entries[1].url == "https://source.example/",
+      gotF)
+check("…and the read is recorded as a MAIN-THREAD read",
+      chrome.lastRead.how == "main", chrome.lastRead.how)
+check("…naming why it had to be",
+      tostring(chrome.lastRead.why):find("cannot run a task") ~= nil,
+      chrome.lastRead.why)
+check("…and counted apart from the out-of-process reads",
+      chrome.readsHere == 1, chrome.readsHere)
+check("🤫 …and a FAST main-thread read still says nothing on screen",
+      #DEGRADED == 0, DEGRADED[1])
+
+-- 🔔 …and a SLOW one takes the door, naming the milliseconds and the
+-- path. Only a main-thread read can cost him the Mac, so only a
+-- main-thread read has a budget.
+local realClock = hs.timer.secondsSinceEpoch
+local ticks = 0
+hs.timer.secondsSinceEpoch = function()
+    NOW = NOW + 0.0001
+    ticks = ticks + 1
+    if ticks == 2 then NOW = NOW + 1 end   -- the read "took" a second
+    return NOW
+end
+DEGRADED = {}
+chrome.entries = {}
+chrome.loadCsv(function() end)
+hs.timer.secondsSinceEpoch = realClock
+check("🔔 a slow main-thread read takes the degrade door",
+      #DEGRADED == 1, #DEGRADED)
+check("…naming the milliseconds AND the file (6.430.0)",
+      DEGRADED[1] ~= nil
+      and DEGRADED[1]:find("ms on the main thread") ~= nil
+      and DEGRADED[1]:find(SRC, 1, true) ~= nil,
+      DEGRADED[1])
+hs.task = realTask
+
+-- 🔎 FIVE STATES, and the two in the middle are the point: both end
+-- with rows installed and only one of them could ever freeze the Mac.
+check("readWords: never read yet",
+      chrome.readWords(nil):find("has not been read") ~= nil)
+check("readWords: out of process says the main thread never touched it",
+      chrome.readWords({ how = "task", bytes = 4096, ms = 12 })
+          :find("never touched") ~= nil)
+check("readWords: a main-thread read is a ⚠️, not a fact like the others",
+      chrome.readWords({ how = "main", bytes = 4096, ms = 900, why = "no task" })
+          :find("⚠️") == 1)
+check("readWords: no file is NOT the same sentence as a refused read",
+      chrome.readWords({ how = "none", why = "never written" })
+      ~= chrome.readWords({ how = "failed", why = "never written" }))
+check("readWords: a refused read says so",
+      chrome.readWords({ how = "failed", why = "cp exited 1" })
+          :find("NOT read") ~= nil)
+
+-- 📋 and the report carries it, with the ⚠️ reaching the verdict list
+chrome.lastRead = { how = "main", bytes = 4096, ms = 900, why = "no task here" }
+local repR = chrome.report()
+check("the report has an archive-read line", repR:find("archive read:") ~= nil)
+check("…and a main-thread read reaches the numbered problems",
+      repR:find("read on the main thread") ~= nil, repR:sub(1, 200))
+
+chrome.csvFile = realCsv
+chrome.entries = {}
+os.remove(SRC)
+check("🚨 …and this section asserted every check it was written to make",
+      (pass + fail) - beforeR >= 27, (pass + fail) - beforeR)
+end)
+if not okR then
+    check("🚨 the 6.440.0 section ran to the end without throwing", false,
+          tostring(errR))
+end
+
 out("\n9) 6.245.0 — a keystroke stopped sorting the whole archive\n")
 -- =====================================================================
 -- LL: "Searching Chrome history with hyper+y caused a lock up when I

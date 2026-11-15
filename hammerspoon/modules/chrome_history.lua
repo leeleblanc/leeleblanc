@@ -170,6 +170,13 @@ function M.setup(core)
     -- parsing or CSV-writing may run before yielding to the event loop.
     -- See runSliced below for the beachball this number exists for.
     chrome.sliceBudget = 0.04     -- seconds of main thread per slice
+    -- ☁️ 6.440.0 — THE ARCHIVE READ'S OWN TWO NUMBERS. readTimeout
+    -- bounds the out-of-process copy (a OneDrive hydration that never
+    -- lands must not leave ⇪Y waiting for ever); slowReadMs is the
+    -- budget past which a MAIN-THREAD read takes the 🔔 door. Only a
+    -- main-thread read can freeze this Mac, so only it has a budget.
+    chrome.readTimeout = 60       -- seconds before a stuck copy is abandoned
+    chrome.slowReadMs  = 400      -- a main-thread archive read past this says so
     -- ----------------------------------------------------------------------
 
     local function say(m)  if _G.diag then _G.diag.say("chrome", m)  end end
@@ -185,6 +192,12 @@ function M.setup(core)
     chrome.lastMs    = nil
     chrome.pumpTimer = nil    -- HELD: a sliced ingest's parked continuation (6.152.1)
     chrome.lastIngest = nil   -- { rows, turns, secs } of the last sliced parse
+    chrome.readTask   = nil   -- HELD: the out-of-process archive copy (6.440.0)
+    chrome.readKiller = nil   -- HELD, its OWN slot — one belt per leg (6.304.0)
+    chrome.lastRead   = nil   -- { how, bytes, ms, why } of the last archive read
+    chrome.readsOut    = 0    -- read out of process — the main thread never saw it
+    chrome.readsHere   = 0    -- read ON the main thread, and why it had to be
+    chrome.readsFailed = 0    -- the copy refused or never answered
 
     local function epoch()
         local ok, t = pcall(function() return hs.timer.secondsSinceEpoch() end)
@@ -538,15 +551,114 @@ printf 'finished cleanly\n' >> "$pf"
     -- seconds after every boot. done(n) fires when the entries are
     -- installed; loadedAt is deliberately NOT stamped here (the caller
     -- decides how stale a last-session save is).
-    function chrome.loadCsv(done)
-        local f = io.open(chrome.csvFile, "r")
+    --
+    -- ☁️ 6.440.0 — AND THE READ ITSELF LEFT THE MAIN THREAD. The PARSE
+    -- has been sliced since 6.152.1 and the READ never was: one
+    -- unsliced, untimed `f:lines()` over the whole archive — 4.5 MB on
+    -- LL's Air — and that file lives in `<OneDrive>/Logs`. 6.281.0
+    -- found that READING a dehydrated cloud placeholder HYDRATES it,
+    -- 6.357.0 measured what that costs, and his own Mac has been frozen
+    -- by exactly that once already (2026-10-12, 72 s, killed by the
+    -- stall guard). This is the same shape in a second module, and it
+    -- was the one piece of main-thread work in this file with no clock
+    -- on it at all.
+    --
+    -- 🔬 THE PIPE IS CLOSED AND THIS FILE IS WHERE IT WAS WRITTEN DOWN.
+    -- The obvious fix — `/bin/cat` through an hs.task — is the thing
+    -- 6.152.0 already paid for: a task's stdout pipe is read only at
+    -- exit and DEADLOCKS on the first 64 KB (the note at SCRIPT). So
+    -- the read takes the route the export already proved instead: a
+    -- task COPIES the archive to the temp folder, and the main thread
+    -- reads that LOCAL copy — which cannot be a placeholder, so it
+    -- cannot block. 6.354.0's rule paying for itself: a platform fact
+    -- that CLOSES an option is worth as much as one that opens it.
+    --
+    -- 🗳 AND A FAILED COPY NEVER FALLS BACK TO READING IN PLACE. That
+    -- fallback reads as careful and is the one branch that reintroduces
+    -- the freeze: a copy that timed out is most likely a hydration that
+    -- has not landed, which is precisely the read to refuse. The cost
+    -- of refusing is ⇪Y having no last-session rows for a few seconds
+    -- until the export behind it lands; the cost of reading is a dead
+    -- Mac (6.319.0 — a default is chosen against the damage its own
+    -- feature can do).
+    local readSeq = 0
+
+    -- PURE: the temp folder, in ONE place. The export computed this
+    -- inline; two copies of a path rule is how they come to disagree
+    -- about the trailing slash (6.231.0).
+    function chrome.tmpDir()
+        local tmp = "/tmp"
+        pcall(function()
+            local t = hs.fs and hs.fs.temporaryDirectory and hs.fs.temporaryDirectory()
+            if type(t) == "string" and t ~= "" then tmp = t:gsub("/$", "") end
+        end)
+        return tmp
+    end
+
+    -- PURE: the report's sentence for the last archive read. FIVE
+    -- states, and the two in the middle are the point — both end with
+    -- entries installed and only one of them could ever freeze the Mac
+    -- (6.196.1). "not read yet" is never one of the others.
+    function chrome.readWords(r)
+        if type(r) ~= "table" or not r.how then
+            return "the archive has not been read this session"
+        end
+        local kb = math.floor((tonumber(r.bytes) or 0) / 1024)
+        local ms = math.floor(tonumber(r.ms) or 0)
+        if r.how == "task" then
+            return string.format("%d KB copied out of process, then parsed in %d ms"
+                                 .. " — the main thread never touched the archive",
+                                 kb, ms)
+        elseif r.how == "main" then
+            return string.format("⚠️ %d KB read ON THE MAIN THREAD in %d ms — %s",
+                                 kb, ms, tostring(r.why or "no reason recorded"))
+        elseif r.how == "none" then
+            return "no archive on disk yet — "
+                   .. tostring(r.why or "it has never been written")
+        end
+        return "⚠️ the archive was NOT read — "
+               .. tostring(r.why or "no reason recorded")
+    end
+
+    -- The parse, unchanged from 6.152.1 and still sliced. What moved is
+    -- WHERE the bytes come from: `path` is a local temp copy when the
+    -- task route worked, and the archive itself only on a Mac with no
+    -- hs.task at all.
+    local function parseArchive(path, how, why, done)
+        local t0 = epoch()
+        local size = 0
+        pcall(function()
+            local a = hs.fs and hs.fs.attributes and hs.fs.attributes(path)
+            if type(a) == "table" then size = tonumber(a.size) or 0 end
+        end)
+        local f = io.open(path, "r")
         if not f then
+            chrome.lastRead = { how = "none", bytes = 0, ms = 0,
+                                why = why or "the file is not there" }
             if done then done(0) end
             return
         end
         local rows = {}
         for line in f:lines() do rows[#rows + 1] = line end
         f:close()
+        local ms = (epoch() - t0) * 1000
+        chrome.lastRead = { how = how, bytes = size, ms = ms, why = why }
+        if how == "task" then chrome.readsOut = chrome.readsOut + 1
+        else                  chrome.readsHere = chrome.readsHere + 1 end
+        -- 🔔 Only a main-thread read can cost him the Mac, so only a
+        -- main-thread read takes the door — and it names the milliseconds
+        -- AND the path, because a message that does not name the file is
+        -- one he cannot act on (6.430.0).
+        if how ~= "task" and ms > (chrome.slowReadMs or 400) then
+            local w = string.format("reading the %d KB archive took %.0f ms on the"
+                                    .. " main thread — %s",
+                                    math.floor(size / 1024), ms, tostring(path))
+            if type(core.degrade) == "function" then
+                pcall(core.degrade, "Chrome history", w)
+            else
+                warn(w)
+            end
+        end
         local entries, i = {}, 1        -- rows[1] is the header
         -- 6.154.0 — rows older than the window are left behind here,
         -- so lowering chrome.days actually shortens the archive
@@ -583,6 +695,84 @@ printf 'finished cleanly\n' >> "$pf"
             return nil
         end)
     end
+    chrome.parseArchive = parseArchive
+
+    function chrome.loadCsv(done)
+        local src = chrome.csvFile
+        -- A Mac with no hs.task cannot copy anything, and refusing to
+        -- read at all there would mean ⇪Y never had an archive on it.
+        -- So it reads in place — and SAYS so, every time, in the report
+        -- and in the door when it is slow. A cost that is named is a
+        -- cost; a cost that is silent is the bug this release is about.
+        if not (hs.task and hs.task.new) then
+            return parseArchive(src, "main",
+                "this Mac cannot run a task, so the archive was read in place",
+                done)
+        end
+        readSeq = readSeq + 1
+        local seq = readSeq
+        local tmp = chrome.tmpDir() .. "/hs-chrome-archive-" .. tostring(seq) .. ".csv"
+        local answered = false
+        -- ONE door out, once (6.299.0): the copy's exit and the killer
+        -- both land here and the first one wins.
+        local function finished(ok, why)
+            if answered then return end
+            answered = true
+            if chrome.readKiller then
+                pcall(function() chrome.readKiller:stop() end)
+                chrome.readKiller = nil
+            end
+            chrome.readTask = nil
+            -- superseded: a newer read owns chrome.entries (runSliced's
+            -- own rule, one level up)
+            if seq ~= readSeq then pcall(os.remove, tmp) return end
+            if ok then
+                parseArchive(tmp, "task", why, function(n)
+                    pcall(os.remove, tmp)
+                    if done then done(n) end
+                end)
+            else
+                pcall(os.remove, tmp)
+                chrome.readsFailed = chrome.readsFailed + 1
+                chrome.lastRead = { how = "failed", bytes = 0, ms = 0, why = why }
+                if done then done(0) end
+            end
+        end
+        local okNew, t = pcall(function()
+            return hs.task.new("/bin/cp", function(code, _, serr)
+                if code == 0 then
+                    finished(true, "copied out of process")
+                else
+                    finished(false, "/bin/cp exited " .. tostring(code)
+                             .. (tostring(serr or ""):match("%S")
+                                 and (" — " .. tostring(serr):gsub("%s+$", ""):sub(1, 120))
+                                 or ""))
+                end
+            end, { src, tmp })
+        end)
+        if not (okNew and t) then
+            finished(false, "this Mac would not create the copy task")
+            return
+        end
+        chrome.readTask = t     -- held: an unreferenced task is collected mid-run
+        -- 🛟 ARMED BEFORE THE ASK (6.246.0), in its own slot (6.304.0).
+        local okK, k = pcall(hs.timer.doAfter, chrome.readTimeout or 60, function()
+            if chrome.readTask then
+                pcall(function() chrome.readTask:terminate() end)
+            end
+            finished(false, string.format("the copy did not answer in %ds — the"
+                                          .. " archive is most likely still being"
+                                          .. " fetched from the cloud, so it was"
+                                          .. " NOT read here",
+                                          math.floor(chrome.readTimeout or 60)))
+        end)
+        if okK and k then chrome.readKiller = k end
+        local started = false
+        pcall(function() started = t:start() end)
+        if not started then
+            finished(false, "this Mac refused to start the copy")
+        end
+    end
 
     function chrome.export(andThen)
         if chrome.exporting then return false end
@@ -593,11 +783,8 @@ printf 'finished cleanly\n' >> "$pf"
             if andThen then andThen(false, 0) end
             return false
         end
-        local tmp = "/tmp"
-        pcall(function()
-            local t = hs.fs.temporaryDirectory()
-            if type(t) == "string" and t ~= "" then tmp = t:gsub("/$", "") end
-        end)
+        -- 6.440.0 — ONE copy of the temp-folder rule, asked here too
+        local tmp = chrome.tmpDir()
         -- Where the script's `pf` lands — the Lua side computes the same
         -- path so the watchdog and the report can read it back.
         chrome.progressPath = tmp .. "/hs-chrome-progress.txt"
@@ -1177,6 +1364,21 @@ printf 'finished cleanly\n' >> "$pf"
                                   chrome.lastIngest.rows, chrome.lastIngest.turns,
                                   chrome.lastIngest.turns == 1 and "" or "s",
                                   chrome.lastIngest.secs * 1000))
+        end
+        -- ☁️ 6.440.0 — HOW THE ARCHIVE WAS READ, which is the line that
+        -- separates a read that cannot freeze this Mac from one that can.
+        outLine("   archive read: " .. chrome.readWords(chrome.lastRead))
+        if (chrome.readsHere or 0) > 0 or (chrome.readsFailed or 0) > 0 then
+            outLine(string.format("        %d out of process · %d on the main"
+                                  .. " thread · %d could not be copied",
+                                  chrome.readsOut or 0, chrome.readsHere or 0,
+                                  chrome.readsFailed or 0))
+        end
+        if chrome.lastRead and chrome.lastRead.how == "main" then
+            problems[#problems + 1] =
+                "the archive was read on the main thread — that is the read that "
+                .. "can freeze this Mac when the file is in the cloud; the report "
+                .. "line above says why the copy could not be used"
         end
         -- 6.148.0 — the flight recorder's last word. "finished cleanly"
         -- after a healthy run; after a kill, the step the run died in —

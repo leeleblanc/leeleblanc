@@ -111,6 +111,11 @@ function M.setup(core)
         script        = configDir and (configDir .. "/tools/hs-stall-guard.sh") or nil,
         settingsKey   = "stallGuard.seenEpoch",
         logTail       = 8192,   -- bytes of the log read at boot, never the whole file
+        -- 🔖 6.441.0 — how long a picker that was opened stays worth
+        -- naming in the pulse. A picker opened an hour ago says nothing
+        -- about a stall now; one opened forty seconds ago is the single
+        -- most useful fact the breadcrumb can carry (see sg.flightNow).
+        panelSecs     = 300,
         beats         = 0,
         beatFails     = 0,
         lastBeat      = nil,    -- epoch of the last successful write
@@ -122,6 +127,8 @@ function M.setup(core)
         announced     = {},     -- lines said this boot, for the report
         announceWhy   = nil,
         quitWritten   = false,
+        openPanel     = nil,    -- { what, who, at } of the last picker opened
+        panels        = 0,      -- how many were opened this session
     }
     M.config = sg
     _G.stallGuard = sg
@@ -132,6 +139,24 @@ function M.setup(core)
     -- before every ⇪ shortcut, and a mark that costs anything is a mark
     -- that makes the thing it measures worse (6.228.0).
     _G.inFlightMark = function(what, who) return sg.mark(what, who) end
+
+    -- 🔖 6.441.0 — THE SECOND DOOR, and it exists because the first one
+    -- told LL nothing on the night it mattered. His 75-second stall
+    -- logged `in flight: nothing was marked`, and 6.330.0's own note
+    -- read that as "the thread stopped somewhere that is not a ⇪
+    -- shortcut, which halves the search". IT DOES NOT. The mark is
+    -- stamped around the shortcut's pressed function and cleared the
+    -- instant it RETURNS — and a shortcut that opens a picker returns
+    -- immediately, so the picker's whole life, and every keystroke
+    -- typed into it, is unmarked. ⇪Y was never exonerated; it was
+    -- invisible, along with every other panel key in this config.
+    --
+    -- 🚨 AND IT NEVER CLAIMS THE PICKER IS STILL OPEN. There is no one
+    -- hook a chooser closes through — Esc, a pick, a hide and a
+    -- supersede are four — and a handle that outlives its window is
+    -- 6.352.0 exactly. So this records a FACT with a clock on it (a
+    -- picker was opened, N seconds ago) and the wording says only that.
+    _G.inFlightPanel = function(open) return sg.panel(open) end
 
     -- ---- the folder --------------------------------------------------------
     function sg.ensureDir()
@@ -185,6 +210,39 @@ function M.setup(core)
         return true
     end
 
+    -- Called from core.showPopup the moment a picker really is on screen
+    -- (never before: a refused show must not leave a record, 6.306.0).
+    -- Whatever is marked right now is the shortcut that opened it.
+    function sg.panel(open)
+        if not open then sg.openPanel = nil ; return true end
+        local f = sg.inFlight
+        sg.panels = sg.panels + 1
+        sg.openPanel = { what = (type(f) == "table" and f.what) or "a picker",
+                         who  = (type(f) == "table" and f.who) or "?",
+                         at   = os.time() }
+        return true
+    end
+
+    -- PURE: which of the two facts the pulse should carry. THREE answers
+    -- and they are three different things (6.196.1): a shortcut is
+    -- running · nothing is running but a picker was opened recently ·
+    -- nothing at all. The middle one is new, and it is the one that was
+    -- missing the night the archive read froze his Mac.
+    function sg.flightNow(now, flight, panel, within)
+        if type(flight) == "table" and flight.what then return flight end
+        if type(panel) ~= "table" or not panel.what then return nil end
+        local n   = tonumber(now) or 0
+        local at  = tonumber(panel.at) or 0
+        local age = n - at
+        -- Older than the window, or a clock that went backwards: say
+        -- nothing rather than point at something unrelated.
+        if age < 0 or age > (tonumber(within) or 300) then return nil end
+        return { what = panel.what .. " — its picker was opened "
+                        .. tostring(math.floor(age))
+                        .. "s ago; nothing was running",
+                 who = panel.who, at = at }
+    end
+
     -- PURE: the line the pulse carries. Separated from the writing so
     -- the gate proves the shape with no disk, and so the script's
     -- parser and this can be checked against one string.
@@ -216,7 +274,10 @@ function M.setup(core)
         -- thing standing between him and a 73-second lock-up. IT
         -- DEGRADES, IT NEVER BREAKS: a label that cannot be built is a
         -- bare epoch, which is what the pulse was before this release.
-        local okL, line = pcall(sg.beatLine, os.time(), sg.inFlight)
+        local okF, flight = pcall(sg.flightNow, os.time(), sg.inFlight,
+                                  sg.openPanel, sg.panelSecs)
+        if not okF then flight = sg.inFlight end
+        local okL, line = pcall(sg.beatLine, os.time(), flight)
         if not okL or type(line) ~= "string" then
             line = tostring(os.time())
             sg.beatLineFails = (sg.beatLineFails or 0) + 1

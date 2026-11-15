@@ -1575,6 +1575,15 @@ local ALLOWED_BINARIES = {
   -- 6.119.0 — ⇪⇧; lists and ends processes. Two ps calls joined on pid,
   -- because comm and args both contain spaces and one call leaves no
   -- separator a pattern can find.
+  -- ☁️ 6.440.0 — ⇪Y's archive is COPIED to the temp folder and the local
+  -- copy is parsed, because the archive itself lives in <OneDrive>/Logs
+  -- and reading a cloud placeholder on the main thread hydrates it and
+  -- blocks (6.281.0 · 6.357.0 · LL's 75-second freeze). `cat` through
+  -- the task's stdout pipe is NOT the answer: that pipe deadlocks on
+  -- the first 64 KB, which is what 6.152.0 already paid for.
+  ["/bin/cp"]                = "⇪Y copies its archive out of the cloud folder "
+                            .. "so the main thread never reads a placeholder "
+                            .. "(ships with macOS)",
   ["/bin/ps"]                = "⇪⇧; the process list, twice (ships with macOS)",
   ["/bin/kill"]              = "⇪⇧; ends one — four names refused outright, "
                             .. "under ⌥ as well (ships with macOS)",

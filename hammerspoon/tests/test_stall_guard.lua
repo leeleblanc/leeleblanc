@@ -685,6 +685,109 @@ do
 end
 
 -- =====================================================================
+out("\n🔖 6.441.0 — AND A PICKER'S WHOLE LIFE WAS INVISIBLE TO IT\n")
+-- =====================================================================
+-- 🧊 LL, 2026-11-14: a 75-second freeze while searching Chrome history,
+-- and the guard's own line read `in flight: nothing was marked`.
+-- 6.330.0's note read that as "the thread stopped somewhere that is not
+-- a ⇪ shortcut, which halves the search". IT DOES NOT. The mark is
+-- cleared the instant the pressed function RETURNS, and ⇪Y's pressed
+-- function shows a picker and returns — so every keystroke typed into
+-- that picker runs with nothing marked. ⇪Y was never ruled out; it was
+-- unseeable, and so is every other panel key in this config.
+do
+    local before = pass + fail
+    local dir = ROOT .. "/panel"
+    os.execute('mkdir -p "' .. dir .. '"')
+    local sg = boot(dir, { noWarm = true })
+
+    -- ---- PURE: which of the two facts the pulse carries -----------------
+    local marked = { what = "shift+y", who = "chromeHistory", at = 1699999990 }
+    local panel  = { what = "|y",      who = "chromeHistory", at = 1699999960 }
+
+    check("🔖 a shortcut that IS running still wins — the picker is the "
+          .. "fallback, never a replacement",
+          sg.flightNow(1700000000, marked, panel, 300) == marked)
+    local f = sg.flightNow(1700000000, nil, panel, 300)
+    check("🔖 with nothing marked, a picker opened recently IS the answer",
+          type(f) == "table" and f.what:find("|y", 1, true) ~= nil, f and f.what)
+    check("🚨 …and it says a picker was OPENED, never that it is still up — "
+          .. "there is no one hook a chooser closes through (6.352.0)",
+          f.what:find("was opened") ~= nil
+          and f.what:find("nothing was running") ~= nil, f.what)
+    check("⏱ …with the age in it, which is the whole reason it is useful",
+          f.what:find("40s ago", 1, true) ~= nil, f.what)
+    check("🔖 nothing marked and no picker is still nothing",
+          sg.flightNow(1700000000, nil, nil, 300) == nil)
+    -- 🚨 THE BOUND, and it is what keeps the line meaningful: a picker
+    -- opened an hour ago says nothing about a stall now, and pointing at
+    -- it would be worse than saying nothing (6.430.0).
+    check("⏱ a picker older than the window is NOT named",
+          sg.flightNow(1700000000, nil,
+                       { what = "|y", who = "x", at = 1699999000 }, 300) == nil)
+    check("🕒 …and a clock that went BACKWARDS names nothing either",
+          sg.flightNow(1699999000, nil, panel, 300) == nil)
+
+    -- ---- the door, and what it records ----------------------------------
+    check("🚪 _G.inFlightPanel is published beside _G.inFlightMark",
+          type(_G.inFlightPanel) == "function")
+    sg.inFlight, sg.openPanel, sg.panels = nil, nil, 0
+    sg.mark("|y", "chromeHistory")
+    _G.inFlightPanel(true)
+    check("🔖 the picker takes the name of whatever was marked when it opened",
+          sg.openPanel and sg.openPanel.what == "|y"
+          and sg.openPanel.who == "chromeHistory", sg.openPanel and sg.openPanel.what)
+    check("🔢 …and is counted", sg.panels == 1)
+    sg.mark(nil)
+    check("🚨 …and the record SURVIVES the mark being cleared — that is the "
+          .. "defect: the shortcut returns the moment the picker is up",
+          sg.openPanel ~= nil and sg.inFlight == nil)
+
+    -- ---- it really rides on the pulse ------------------------------------
+    sg.beat()
+    local w = readAll(dir .. "/.stall-guard/heartbeat")
+    check("🔖 the PULSE carries the picker when nothing else is marked",
+          w and w:find("|y", 1, true) ~= nil, tostring(w))
+    check("🚨 …and the EPOCH is still the first field, which is all the "
+          .. "shell script parses",
+          w and tonumber((w:match("^([^\t]+)"))) ~= nil, tostring(w))
+    sg.panel(false)
+    sg.beat()
+    local w2 = readAll(dir .. "/.stall-guard/heartbeat")
+    check("🔖 …and stops once the picker record is cleared",
+          w2 and w2:find("|y", 1, true) == nil, tostring(w2))
+
+    -- 🛟 THE LABEL CAN NEVER COST THE PULSE (6.330.0's own rule): a
+    -- flightNow that throws must leave a bare epoch, not a dead guard.
+    local realFN = sg.flightNow
+    sg.flightNow = function() error("on purpose") end
+    sg.beat()
+    local w3 = readAll(dir .. "/.stall-guard/heartbeat")
+    sg.flightNow = realFN
+    check("🛟 a flightNow that THROWS still leaves a parseable beat",
+          w3 and tonumber((w3:match("^([^\t]+)"))) ~= nil, tostring(w3))
+
+    -- 🔒 SOURCE: the door is taken at the ONE place every picker opens
+    -- through, and only AFTER the show has answered — a refused picker
+    -- must leave no record at all (6.306.0).
+    local ini = readAll(HS .. "/init.lua") or ""
+    check("🔒 SOURCE: the sentry read init.lua", #ini > 10000, #ini)
+    local tail = ini:match("(shown = pcall%(function%(%) chooser:show%(%) end%).-return false\nend)")
+    check("🔒 SOURCE: showPopup tells the breadcrumb a picker is up",
+          tail ~= nil and tail:find("_G.inFlightPanel", 1, true) ~= nil,
+          tail and tail:sub(1, 120))
+    check("🔒 SOURCE: …INSIDE the shown branch, so a REFUSED picker records "
+          .. "nothing (6.306.0)",
+          tail ~= nil
+          and tail:find("_G.inFlightPanel", 1, true)
+              < tail:find("lastPopupPlacement = nil", tail:find("if shown then", 1, true) or 1, true),
+          tail and tostring(tail:find("_G.inFlightPanel", 1, true)))
+
+    local ran = (pass + fail) - before
+    check("§6.441.0 ran all of its checks (" .. ran .. " of 17)", ran >= 17, ran)
+end
+
+-- =====================================================================
 print = realPrint
 out(string.format("\n%d passed, %d failed\n", pass, fail))
 for _, f in ipairs(failures) do out("  ❌ " .. f .. "\n") end
