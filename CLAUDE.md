@@ -7998,6 +7998,22 @@ THE METHOD, when something breaks after a stacked zip:
    quietly rewritten, so the record shows the call was made and changed.
    · 6.421.0 · 6.422.0 · 6.423.0 — 9313323 (code, suites and ceremony in
    one commit; the archive for them is 6.427.0's, below).
+   · 6.440.0 · 6.441.0 — b506076 (the code and the suites) · ead9038
+   (the ceremony and the sweep's own three findings) · **dd52ae9 is the
+   archive, and dd52ae9 is the SHA every link to it must carry** — a
+   branch-pinned link dies the moment the next release deletes the file,
+   which is why 6.356.0–6.358.0 never reached his Downloads (6.360.0).
+   🔑 TWO RELEASES IN TWO FILES on purpose, so a break names its version
+   by which thing fails: ⇪Y slow, empty or silent is 6.440.0
+   (modules/chrome_history.lua) · a picker misbehaving is 6.441.0
+   (modules/stall_guard.lua + init.lua's showPopup).
+   📏 AND 6.441.0 IS THE ONE THAT TOUCHES EVERY PICKER, which is worth
+   knowing before bisecting: it adds three lines to `showPopup`, the one
+   door all thirty-three pickers open through. If ANY picker stops
+   opening, or opens in the wrong place, that is this release and
+   `_G.popupShowReport()` is the evidence. 21 mutations, 17 killed on the
+   first pass and 20 of 20 after, the no-op control survived, tree
+   sha256-verified after every one.
    · 6.435.0 · 6.436.0 · 6.437.0 · 6.438.0 · 6.439.0 — 1498771 (the
    code and the suites) · 797760c (the ceremony and the sweep's own three
    findings) · **5220c85 is the archive, and 5220c85 is the SHA every
