@@ -110,6 +110,12 @@ end
 -- CLAUDE.md lives at the REPO root, one level above the config. It is
 -- deliberately not in the package; only these blocks are.
 local memory = readAll(HS .. "/../CLAUDE.md") or readAll("CLAUDE.md") or ""
+-- 2026-11-15: CLAUDE.md was cut to a short summary and the verify blocks
+-- moved, verbatim, to docs/archive-notes.md. Both are read, so a block is
+-- found wherever it lives; neither existing is still the refusal below.
+memory = memory .. "\n" .. (readAll(HS .. "/../docs/archive-notes.md")
+                            or readAll("docs/archive-notes.md") or "")
+if not memory:find("%S") then memory = "" end
 if memory == "" then
     io.stderr:write("build-test-plan: cannot read CLAUDE.md — no test plan written\n")
     os.exit(1)
