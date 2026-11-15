@@ -1,5 +1,5 @@
 ========================================================================
-RESOLVED FEATURE REQUESTS — Hammerspoon config 6.439.0
+RESOLVED FEATURE REQUESTS — Hammerspoon config 6.441.0
 Every feature and how to use it. Generated from the modules' own
 cheat sheets (the rows ⇪/ draws), so it is never out of date.
 ⇪ = Caps Lock held (the hyper key). ⇪⇧X = Caps Lock + Shift + X.
@@ -930,6 +930,8 @@ In the Console, _G.<tool>Report() prints any tool's own report.
 
 📜 RELEASE INDEX — newest first, one line per release (the full story of each is in CHANGELOG.md)
 ------------------------------------------------------------------------
+  6.441.0  🔖 AND A PICKER'S WHOLE LIFE WAS INVISIBLE TO THE
+  6.440.0  ☁️ ⇪Y'S ARCHIVE IS READ OUT OF PROCESS
   6.439.0  🗂 ONE osascript PER BROWSER, SO A SLOW ONE IS NAMED
   6.438.0  ✒️ THE GRID LINES ARE FAINTER THAN THE LETTERS
   6.437.0  ⏱ THE 4-SECOND POLL STOPS ASKING EVERY APP ITS NAME

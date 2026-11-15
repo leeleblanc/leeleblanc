@@ -760,12 +760,20 @@ do
     -- 🛟 THE LABEL CAN NEVER COST THE PULSE (6.330.0's own rule): a
     -- flightNow that throws must leave a bare epoch, not a dead guard.
     local realFN = sg.flightNow
+    sg.mark("shift+4", "screenshots")
     sg.flightNow = function() error("on purpose") end
     sg.beat()
     local w3 = readAll(dir .. "/.stall-guard/heartbeat")
     sg.flightNow = realFN
     check("🛟 a flightNow that THROWS still leaves a parseable beat",
           w3 and tonumber((w3:match("^([^\t]+)"))) ~= nil, tostring(w3))
+    -- 🚨 AND IT FALLS BACK TO THE MARK, not to nothing. A new instrument
+    -- that goes wrong must cost its own line and NEVER the one the guard
+    -- already had — the shortcut in flight is the older, load-bearing
+    -- fact and this release must not be able to lose it.
+    check("🛟 …carrying the MARK it already had, not an empty label",
+          w3 and w3:find("shift+4", 1, true) ~= nil, tostring(w3))
+    sg.mark(nil)
 
     -- 🔒 SOURCE: the door is taken at the ONE place every picker opens
     -- through, and only AFTER the show has answered — a refused picker
@@ -773,9 +781,17 @@ do
     local ini = readAll(HS .. "/init.lua") or ""
     check("🔒 SOURCE: the sentry read init.lua", #ini > 10000, #ini)
     local tail = ini:match("(shown = pcall%(function%(%) chooser:show%(%) end%).-return false\nend)")
-    check("🔒 SOURCE: showPopup tells the breadcrumb a picker is up",
-          tail ~= nil and tail:find("_G.inFlightPanel", 1, true) ~= nil,
-          tail and tail:sub(1, 120))
+    -- 🚨 THE SENTRY ASKS FOR THE GUARD, NOT THE NAME. A `if false then`
+    -- around the call leaves the name sitting right there, so a sentry
+    -- that greps for `_G.inFlightPanel` alone passes over a breadcrumb
+    -- nobody drops — the mutation sweep's own finding (6.236.0's
+    -- boundary rule, in a different costume).
+    check("🔒 SOURCE: showPopup tells the breadcrumb a picker is up, behind "
+          .. "the nil-guard the bare environment requires",
+          tail ~= nil
+          and tail:find('type(_G.inFlightPanel) == "function"', 1, true) ~= nil
+          and tail:find("pcall(_G.inFlightPanel, true)", 1, true) ~= nil,
+          tail and tail:sub(1, 160))
     check("🔒 SOURCE: …INSIDE the shown branch, so a REFUSED picker records "
           .. "nothing (6.306.0)",
           tail ~= nil
@@ -784,7 +800,7 @@ do
           tail and tostring(tail:find("_G.inFlightPanel", 1, true)))
 
     local ran = (pass + fail) - before
-    check("§6.441.0 ran all of its checks (" .. ran .. " of 17)", ran >= 17, ran)
+    check("§6.441.0 ran all of its checks (" .. ran .. " of 19)", ran >= 19, ran)
 end
 
 -- =====================================================================

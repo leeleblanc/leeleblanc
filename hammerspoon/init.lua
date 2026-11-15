@@ -4,62 +4,64 @@
 -- =====================================================================
 -- 11-14-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.439.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.441.0
 -- =====================================================================
 
--- NEW IN 6.439.0 — 🗂 ONE osascript PER BROWSER, SO A SLOW ONE IS
---   NAMED (modules/tab_search.lua). LL: "Chrome tab scan fails. Not
---   sure what you mean but fix please."
---   🔎 AND HIS SCREENSHOT CHANGED THE DIAGNOSIS. This file's own note
---   said the next step was to check Automation; his System Settings pane
---   shows Hammerspoon with Finder, Calendar, System Events, Chrome,
---   Outlook and VLC all switched ON. So the grant is there, which leaves
---   `osascript exited 15` as what it literally is — SIGTERM, from OUR
---   OWN six-second kill. The script was not refused. It was still
---   working when we shot it.
---   🚨 AND THE OLD SHAPE COULD NOT SAY WHICH BROWSER. All of them went
---   into ONE osascript under ONE budget, so a browser with two hundred
---   tabs — each `URL of t` is an Apple Event round trip — spent the
---   whole six seconds and every other browser was killed with it, then
---   reported as "No browser answered" and blamed on a prompt granted
---   years ago. A message that names the wrong cause is worse than none
---   (6.430.0's "Already clean", one module along). Four outcomes now:
---   answered with tabs · answered with none · exited non-zero and said
---   why · never answered — each with its browser and its milliseconds.
---   🔑 AND WHICH BROWSERS ARE RUNNING IS A LUA QUESTION. The script's
---   first line asked System Events for the process list: an Apple Event
---   to a THIRD app, with its own Automation grant and its own launch,
---   before a single tab could be read. Hammerspoon already knows, free.
---   🚨 THE ROWS ARE SORTED, and that is a hazard this release
---   INTRODUCED rather than found: four browsers answer in whatever order
---   they finish, and ⌘1–⌘9 name a POSITION — so a row that moves
---   between presses is a jump to the wrong tab.
+-- NEW IN 6.441.0 — 🔖 AND A PICKER'S WHOLE LIFE WAS INVISIBLE TO THE
+--   BREADCRUMB (modules/stall_guard.lua + §1.5's showPopup). The same
+--   75-second stall logged `in flight: nothing was marked`, and
+--   6.330.0's own note read that as "the thread stopped somewhere that
+--   is NOT a ⇪ shortcut, which halves the search".
+--   🚨 IT DOES NOT. The mark is stamped around a shortcut's pressed
+--   function and cleared the instant it RETURNS — and a shortcut that
+--   opens a picker returns at once. So the picker's whole life, and
+--   every keystroke typed into it, ran unmarked. ⇪Y was never ruled
+--   out; it was unseeable, along with every other panel key here. A
+--   breadcrumb that ends when the handler returns cannot see a panel.
+--   🔑 showPopup is the ONE door every picker opens through, so it
+--   tells the guard — AFTER the show has answered, because a refused
+--   picker must leave no record (6.306.0).
+--   🚨 AND IT NEVER CLAIMS THE PICKER IS STILL UP. There is no single
+--   hook a chooser closes through — Esc, a pick, a hide and a supersede
+--   are four — and a handle that outlives its window is 6.352.0
+--   exactly. So it records a FACT WITH A CLOCK ON IT (a picker was
+--   opened, N seconds ago), says only that, and is bounded: one opened
+--   an hour ago is not pointed at.
 
--- NEW IN 6.438.0 — ✒️ THE GRID LINES ARE FAINTER THAN THE LETTERS
---   (modules/mouse_grid.lua). LL: "Make the mouse grid box lines
---   fainter, the letters are more important."
---   🔎 HE IS DESCRIBING A TIE. The lines drew at alpha 0.55 and the
---   labels at the accent's own 0.96 — but a one-point hairline running
---   the full height of the screen covers far more of it than a
---   two-character label does, so the thing with the LOWER alpha was
---   winning the screen on area alone. That is 6.429.0's finding read
---   backwards: occlusion is AREA, not opacity.
---   📏 0.22 over this module's own 0.55 black scrim leaves them visible
---   as STRUCTURE — you can still see where a cell ends — without
---   competing with the glyph you are reading. `lineAlpha = 0.55` is the
---   way back.
---   🧪 AND THE CHECK ASSERTS THE RULE AGAINST THE SHIPPED DEFAULTS, as
---   a RELATION rather than the number: 6.429.0 shipped a regression past
---   614 green checks because every section pinned its own values first.
---   Proven in BOTH directions — it fails at 0.55 (the tie) and at 0.05
---   (invisible), because a grid with no visible cell edges is a wall of
---   letters with no geometry, which is a complaint he has made once.
+-- NEW IN 6.440.0 — ☁️ ⇪Y'S ARCHIVE IS READ OUT OF PROCESS
+--   (modules/chrome_history.lua). LL, with a 75-second freeze and the
+--   stall guard's own relaunch line: "We had a major stall searching
+--   Chrome history."
+--   🔎 THE PARSE HAS BEEN SLICED SINCE 6.152.1 AND THE READ NEVER WAS:
+--   one unsliced, untimed `f:lines()` over the whole archive — 4.5 MB
+--   on his Air — and that file lives in <OneDrive>/Logs. Reading a
+--   dehydrated cloud placeholder HYDRATES it (6.281.0) and blocks until
+--   the download lands (6.357.0 measured it; his Mac was frozen by
+--   exactly that on 2026-10-12). It was also the one piece of
+--   main-thread work in that file with no clock on it at all.
+--   🔬 AND `cat` THROUGH THE TASK'S STDOUT IS THE THING THIS FILE
+--   ALREADY PAID FOR: that pipe is read only at exit and DEADLOCKS on
+--   the first 64 KB (6.152.0, the note at SCRIPT). So the read takes
+--   the route the export proved — a task COPIES the archive to the temp
+--   folder and the main thread parses that LOCAL copy, which cannot be
+--   a placeholder. 6.354.0: a platform fact that CLOSES an option is
+--   worth as much as one that opens it, and only if it is written down
+--   where the next release will read it.
+--   🗳 A FAILED OR TIMED-OUT COPY NEVER FALLS BACK TO READING IN PLACE.
+--   That fallback reads as careful and is the one branch that puts the
+--   freeze back: a copy that did not answer is most likely a hydration
+--   that has not landed, which is precisely the read to refuse
+--   (6.319.0). The cost is ⇪Y having no last-session rows for a few
+--   seconds until the export behind it lands.
+--   📏 The only main-thread read left is a Mac with no hs.task at all,
+--   and it SAYS so — in the report, and past a budget through the 🔔
+--   door naming the milliseconds AND the path (6.430.0).
 
--- (6.437.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.439.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 cut the inline count to
 --  TWO; a gate check proves every entry here is also in CHANGELOG.md.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.439.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.441.0
 -- =====================================================================
 -- The catalogue that used to sit here moved to GUIDE.md ("What each
 -- tool does") in 6.180.0 — 259 lines of prose inside the orchestrator.
@@ -148,7 +150,7 @@ function _G.consoleRuleSay(what)
     return true
 end
 
-_G.configVersion = "6.439.0"
+_G.configVersion = "6.441.0"
 _G.consoleRuleSay("▶ BOOT")
 
 local function safeRequire(mod)

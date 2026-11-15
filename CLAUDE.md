@@ -440,6 +440,75 @@ work Mac.
      ("find the field that separates them BEFORE saying either out
      loud") broken in the direction that costs him the most.
 
+- ☁️ THE PARSE WAS SLICED AND THE READ NEVER WAS — AND THE READ IS THE
+  HALF THAT CAN BLOCK (6.440.0, modules/chrome_history.lua — LL, with a
+  75-second freeze and the stall guard's own relaunch line: "We had a
+  major stall searching Chrome history").
+  🔎 6.152.1 CUT THE PARSE INTO TIME-BUDGETED SLICES and left
+  `for line in f:lines()` reading the whole archive in one go — 4.5 MB,
+  13,167 rows, on the main thread, out of `<OneDrive>/Logs`. 6.281.0
+  found that reading a dehydrated placeholder HYDRATES it and 6.357.0
+  measured what that costs; his Mac was frozen by exactly that on
+  2026-10-12. Every other number in that module's report was healthy
+  because this was the one piece of main-thread work in it with no clock
+  on it at all.
+  🔑 GENERAL, and it is the half to carry: WHEN A COST IS CUT INTO
+  SLICES, ASK WHICH PART WAS ACTUALLY MEASURED. A release that budgets
+  the CPU half of an operation reads as "this is now bounded" and leaves
+  the I/O half — which is the only half that can block for a minute —
+  untouched and untimed. The slicing is honest; the CLAIM it creates is
+  what is wrong.
+  🔬 AND `cat` THROUGH A TASK'S STDOUT IS CLOSED, in this file, by this
+  file: that pipe is read only at exit and DEADLOCKS on the first 64 KB
+  (6.152.0's "hung at: querying" kills). So the read takes the route the
+  export already proved — a task COPIES the archive to the temp folder
+  and the main thread parses that LOCAL copy. 6.354.0 paying for itself
+  in the module that wrote it.
+  🗳 AND A FAILED COPY NEVER FALLS BACK TO READING IN PLACE. That
+  fallback reads as careful and is the single branch that puts the
+  freeze back: a copy that did not answer is most often a hydration that
+  has not landed, which is precisely the read to refuse (6.319.0). The
+  cost of refusing is a few seconds without last-session rows; the cost
+  of reading is a dead Mac.
+  📏 The only main-thread read left is a Mac with no hs.task, and it
+  SAYS so — five states in `chrome.readWords`, an `archive read:` line,
+  a numbered problem, and past a budget the 🔔 door naming the
+  milliseconds AND the path (6.430.0).
+
+- 🔖 A BREADCRUMB THAT ENDS WHEN THE HANDLER RETURNS CANNOT SEE A
+  PANEL'S OWN LIFETIME (6.441.0, modules/stall_guard.lua + init.lua's
+  showPopup — the same stall, logged as `in flight: nothing was
+  marked`).
+  🚨 AND 6.330.0's OWN NOTE READ THAT SILENCE AS EVIDENCE: "(none) means
+  the thread stopped somewhere that is not a ⇪ shortcut, which halves
+  the search." It does not. `_G.inFlightMark` is stamped around a
+  shortcut's pressed function and cleared the instant it RETURNS — and a
+  shortcut whose whole job is to OPEN a picker returns at once, while
+  the picker stays up for as long as he uses it. So ⇪Y's search, and
+  every keystroke typed into any of the thirty-three pickers here, ran
+  unmarked. The suspect was not ruled out; it was unseeable.
+  🔑 GENERAL: an instrument scoped to a CALLBACK measures the callback,
+  not the feature — and a handler that opens something is the case where
+  those two differ most. Before reading an instrument's silence as a
+  fact, ask what its window actually is.
+  🚪 showPopup is the ONE door every picker opens through (a sentry has
+  required it since 6.160.1), so that is where the guard is told —
+  AFTER the show has answered, because a refused picker must leave no
+  record (6.306.0).
+  🚨 AND IT NEVER CLAIMS THE PICKER IS STILL UP. Four different things
+  close a chooser and none of them is a hook, so a "panel is open" flag
+  is 6.352.0's stale field waiting to happen. It records a FACT WITH A
+  CLOCK ON IT — a picker was opened, N seconds ago — says only that, and
+  is BOUNDED, because pointing at one opened an hour ago is worse than
+  saying nothing (6.430.0).
+  🧪 AND THE SWEEP FOUND THE SENTRY TOO WEAK TO EARN ITS PLACE: `if
+  false then` around the call leaves the name in the source, so a sentry
+  grepping for `_G.inFlightPanel` alone passed over a breadcrumb nobody
+  drops. It asks for the nil-guard AND the call now — 6.236.0's boundary
+  rule in a new costume. It also found that a flightNow which THROWS
+  must fall back to the MARK and not to nothing: a new instrument going
+  wrong may cost its own line and never the one the guard already had.
+
 - 🪪 A PLACEHOLDER UNDER A COMMENT TELLING SOMEBODY TO REPLACE IT IS A
   VALUE NOBODY EVER REPLACED (6.435.0, init.lua §0.3 + a new module — LL:
   "Work Macbook name: MLC409N-153212"). `_G.moduleProfiles` carried the key
@@ -8093,6 +8162,8 @@ that must be READ before a new cause is named.
 
 | symptom, in his words | where it lives | releases | passes | tag |
 |---|---|---|---|---|
+| "We had a major stall searching Chrome history" · 75 s, and `in flight: nothing was marked` | modules/chrome_history.lua · the archive read was never sliced, and it lives in OneDrive | 6.440.0 | 1 | ask |
+| an instrument that said nothing about the thing it was built for | modules/stall_guard.lua · the mark is cleared when a shortcut RETURNS, so a picker's whole life is unmarked | 6.330.0 · 6.441.0 | 2 | ask |
 | "Work Macbook name: MLC409N-153212" · a Mac that has never had a profile of its own | init.lua §0.3 + modules/machine_scan.lua · the profile key was a name I invented under a comment telling him to replace it | 6.418.0 · 6.435.0 | 2 | ask |
 | `secure: not known` in every report since 6.196.0 · "Yes, the three above" | core/capabilities.lua · the broad `ioreg -l` leg WAS the normal path, every 60 s | 6.196.0 · 6.304.0 · 6.436.0 | 3 | ask |
 | 242 of 260 timer fires over budget, 13 ms each | modules/focus_mode.lua · enumerating every running app four times a minute on the main thread | 6.437.0 | 1 | ask |
@@ -8286,6 +8357,8 @@ as the fix when a loss lands.
 | 6.259.0 | 🎯 the dialog home is OFF on his word — nothing watches, nothing moves, nothing announces itself, and one settings line brings it back | pending |
 | 6.260.0 | 📐 a live 1280 × 720 while you drag — white on 90%-opaque black, on the one selector this config owns (there was no readout to restyle; those numbers were macOS's) | pending |
 | 6.261.0 | 🗑 the dialog home is deleted, not switched off — the module, its suite, its ⇪/ card and its two globals are gone on his word | pending |
+| 6.441.0 | 🔖 A picker that is open is named in the heartbeat — "nothing was marked" never meant ⇪Y was innocent | pending |
+| 6.440.0 | ☁️ ⇪Y's archive is copied out of the cloud folder and parsed locally — the main thread never reads a placeholder | pending |
 | 6.439.0 | 🗂 ⇪⇧' asks each browser separately, so one slow browser no longer kills the scan | pending |
 | 6.438.0 | ✒️ The grid's cell lines are fainter so the letters read first | pending |
 | 6.437.0 | 🕰 ⇪Q stops enumerating every app four times a minute | pending |
@@ -10040,6 +10113,115 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.441.0 verify with LL — ☁️ THE STALL, AND WHAT THE GUARD COULD NOT
+  SAY (KNOWN GROUND) — this block covers 6.440.0 AND 6.441.0: they
+  shipped in one archive, in different files, and share one test plan.
+  WHAT CHANGED: ⇪Y no longer reads its 4.5 MB archive on the main
+  thread, and the stall guard can now name a picker that was open.
+  🔎 WHAT IT WAS, and your sentence was right. Your report prints the
+  archive's path: `/Users/…/OneDrive-Personal/Logs/chrome_history-….csv`,
+  4,541 KB. The PARSE of that file has been cut into slices since
+  6.152.1 so it never holds the Mac — and the READ never was. One
+  unsliced, untimed pass over the whole thing, on the thread your
+  keyboard waits on, from a OneDrive folder. Reading a file OneDrive has
+  taken the bytes back from makes macOS download it first, and the read
+  waits for that: it is the same mechanism that froze this Mac for 72
+  seconds on 2026-10-12 (Black Hawk Down), in a second tool.
+  🚨 AND I CANNOT PROVE IT WAS THIS STALL, so I am not going to say it
+  was. What I can say is that it was the only piece of work in that
+  module with no clock on it, it is a known freeze mechanism, and it is
+  now impossible. The next one will name itself.
+
+  A. THE HEADLINE — one command, and it should be boring.
+  A1. Install and reload. Wait about ten seconds, then Console:
+      `_G.chromeHistoryReport()`.
+      EXPECT a NEW line near the timings:
+        archive read: 4541 KB copied out of process, then parsed in
+                      180 ms — the main thread never touched the archive
+      **PASTE THAT LINE.** It is the release.
+      **A FAIL is a line beginning ⚠️ … read ON THE MAIN THREAD** — that
+      is the old behaviour, and the rest of the line says why it had to
+      happen.
+  A2. Press ⇪Y. EXPECT your pages, as always, searchable.
+  A3. Type into it — several letters, quickly, the way you were when it
+      stalled. EXPECT no hesitation.
+  A4. Read the `search :` and `clock :` lines in the report afterwards.
+      EXPECT real numbers rather than "nothing typed yet". If a
+      keystroke ever crosses 150 ms you get an alert naming the
+      milliseconds — paste it; that is a different fault and 6.245.0's
+      instrument catching it.
+
+  B. THE ONE THAT MATTERS MORE THAN A — it must not have cost you the
+     archive.
+  B1. Reload Hammerspoon and press ⇪Y within a few seconds.
+      EXPECT your pages are there — the last session's archive, loaded
+      while the fresh export runs behind it. That is what this read is
+      FOR, and the whole risk of this release is that it now loads
+      nothing.
+  B2. `_G.chromeHistoryReport()` and read the page count at the top.
+      EXPECT roughly the number you had before (13,167 on your last
+      report). **A count of 0 with the file clearly on disk is a FAIL**
+      and I want the whole report.
+  B3. ⇪⇧Y to force a fresh export. EXPECT "🕘 Reading Chrome history…"
+      and then "N pages saved". ⏎ on a row still opens it in Chrome,
+      ⌥⏎ in Safari, ⌘⏎ copies.
+
+  C. THE REFUSAL, if you ever meet it.
+  C1. If the copy fails or does not answer, ⇪Y simply has no
+      last-session rows for a few seconds until the export lands — and
+      the report says which: `⚠️ the archive was NOT read — the copy did
+      not answer in 60s — the archive is most likely still being fetched
+      from the cloud`.
+      Paste that if you see it. It is deliberate: falling back to
+      reading the file here is the one thing that puts the freeze back.
+
+  D. THE BREADCRUMB — this is 6.441.0, and you will only see it if it
+     happens again.
+  D1. Nothing to press. If Hammerspoon hangs and the guard relaunches
+      it, the next boot announces it as before — but the line can now
+      read `in flight: ⇪y chrome history — its picker was opened 48s
+      ago; nothing was running` instead of `nothing was marked`.
+  D2. **PASTE THE WHOLE ANNOUNCEMENT if it ever happens.** That clause
+      is the fact nobody could recover before: the mark is cleared the
+      instant a shortcut RETURNS, and ⇪Y's shortcut opens a picker and
+      returns at once — so your search, and every keystroke in it, used
+      to be invisible to the guard. "Nothing was marked" never meant ⇪Y
+      was innocent. It meant the guard could not see it.
+  D3. Console: `_G.stallGuardReport()`. The `in flt :` line still reads
+      "nothing in flight" on a quiet Mac — that is health.
+
+  E. MUST STILL WORK — 6.441.0 touched the one function every picker in
+     this config opens through, so this half matters more than A.
+  E1. A spread of pickers: ⇪V, ⇪D, ⇪space, ⇪Y, ⇪., ⇪⇧S, ⇪T, ⇪M, ⇪⇧'.
+      EXPECT every one opens, on the monitor you are working on, in the
+      place you last dragged it to.
+  E2. ⌘-drag a picker somewhere, close it, open it again: it reopens
+      where you put it.
+  E3. ⌃⌥⌘ + an arrow nudges an open picker; ⌃⌥⌘R clears the nudge.
+  E4. Esc closes a picker. The preview pane beside ⇪⇧V still follows the
+      rows.
+  E5. ⌘⌘ still opens the clipboard; ⌥⌥ still opens the menus.
+  E6. Boot: All green, 80 modules, 112 ⇪ shortcuts.
+  E7. `_G.installCheck()` — every runtime file present at its size.
+
+  ❓ QUESTIONS — ANSWERS WANTED, NOTHING TO RUN
+  Q1. **The `archive read:` line from step A1.** It is the first time
+      that cost has ever been measured on your Mac, and it decides
+      whether anything more is owed here.
+  Q2. **Did ⇪Y feel different?** Specifically in the first ten seconds
+      after a reload, which is when the archive is read.
+  Q3. **Should the archive move out of OneDrive altogether?** It is
+      per-Mac, rebuilt from your local Chrome every six hours, and
+      nothing on the other Mac reads it — so it is 4.5 MB uploading to
+      the cloud for no reader. I did NOT move it: it would drop out of
+      `_G.saved()` and out of the master log's index, and those are
+      yours to trade, not mine. One word and it is a small release.
+  Q4. **Is anything else on your Mac freezing?** The 75 seconds is the
+      third stall of almost exactly the same length (72 s, 73 s, 75 s),
+      and a duration that repeats that closely smells like a timeout
+      rather than a random hang. If it happens again, the guard's log
+      plus `_G.chromeHistoryReport()` is the pair I need.
+
 - 6.439.0 verify with LL — 🪪 THE WORK MAC, THE KEYBOARD PROBE AND THE
   SLOW TIMER — this block covers 6.435.0, 6.436.0, 6.437.0, 6.438.0 AND
   6.439.0: they shipped in one archive, in five different files, and

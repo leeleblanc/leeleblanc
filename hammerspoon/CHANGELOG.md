@@ -5,6 +5,103 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.441.0 — 🔖 AND A PICKER'S WHOLE LIFE WAS INVISIBLE TO THE
+  BREADCRUMB (modules/stall_guard.lua + init.lua §1.5's showPopup).
+  The same 75-second stall that froze his Mac logged `in flight:
+  nothing was marked`, and 6.330.0's own note in this file read that
+  as "the thread stopped somewhere that is NOT a ⇪ shortcut, which
+  halves the search".
+  🚨 IT DOES NOT, AND READING IT THAT WAY EXONERATED THE SUSPECT.
+  `_G.inFlightMark` is stamped around a shortcut's pressed function
+  and cleared the instant that function RETURNS — and a shortcut
+  that opens a picker returns at once, while the picker it opened
+  stays up for as long as he uses it. So ⇪Y's search, and every
+  keystroke typed into any of the thirty-three pickers in this
+  config, ran with nothing marked. The breadcrumb was never silent
+  about a mystery; it was silent about the thing it was built for.
+  🔑 THE RULE, and it generalises past this config: A BREADCRUMB
+  THAT ENDS WHEN THE HANDLER RETURNS CANNOT SEE A PANEL'S OWN
+  LIFETIME. Any instrument scoped to a callback measures the
+  callback, not the feature — and a handler whose whole job is to
+  OPEN something is the case where those two differ most.
+  🚪 showPopup is the one door every picker opens through (a sentry
+  has required it since 6.160.1), so that is where the guard is
+  told — AFTER the show has answered, never before, because a
+  refused picker must leave no record at all (6.306.0).
+  🚨 AND IT NEVER CLAIMS THE PICKER IS STILL OPEN. There is no
+  single hook a chooser closes through — Esc, a pick, a hide and a
+  supersede are four — and a handle that outlives its window is
+  6.352.0 exactly. So it records a FACT WITH A CLOCK ON IT (a picker
+  was opened, N seconds ago), the wording says only that, and
+  `sg.panelSecs` bounds it: a picker opened an hour ago says nothing
+  about a stall now, and pointing at it would be worse than saying
+  nothing (6.430.0).
+  🔎 `sg.flightNow` is PURE with THREE answers (6.196.1): a shortcut
+  is running · nothing is running but a picker was opened recently ·
+  nothing at all. A running shortcut always wins — the picker is the
+  fallback and never a replacement — and the sweep's own finding was
+  that a flightNow which THROWS must fall back to the MARK rather
+  than to nothing: a new instrument going wrong may cost its own
+  line and never the one the guard already had.
+  🧪 The mutation sweep found the source sentry too weak to earn its
+  place: `if false then` around the call leaves the name sitting
+  right there, so a sentry grepping for `_G.inFlightPanel` alone
+  passed over a breadcrumb nobody drops. It asks for the nil-guard
+  AND the call now (6.236.0's boundary rule in a new costume).
+
+NEW IN 6.440.0 — ☁️ ⇪Y'S ARCHIVE IS READ OUT OF PROCESS
+  (modules/chrome_history.lua). LL, 2026-11-14, with a screenshot of
+  the stall guard's own relaunch line and a 75-second freeze: "We
+  had a major stall searching Chrome history. Please fix."
+  🔎 THE PARSE HAS BEEN SLICED SINCE 6.152.1 AND THE READ NEVER WAS.
+  `chrome.loadCsv` opened the archive and ran one unsliced, untimed
+  `for line in f:lines()` over the whole of it — 4.5 MB on his Air,
+  13,167 rows — on the main thread. And that file lives in
+  `<OneDrive>/Logs`: his own report prints the path. 6.281.0 found
+  that READING a dehydrated cloud placeholder HYDRATES it, 6.357.0
+  measured what that costs, and his Mac was frozen by exactly that
+  on 2026-10-12 for 72 seconds. This is the same mechanism in a
+  second module — and it was the ONE piece of main-thread work in
+  that file with no clock on it at all, which is why every other
+  number in the report looked healthy.
+  🔬 AND THE OBVIOUS FIX IS THE ONE THIS FILE ALREADY PAID FOR.
+  `/bin/cat` through an hs.task's stdout cannot work: that pipe is
+  read only at exit and DEADLOCKS on the first 64 KB — the "hung at:
+  querying" kills of 6.152.0, written down in this module's own
+  header. So the read takes the route the export already proved: a
+  task COPIES the archive into the temp folder and the main thread
+  parses that LOCAL copy, which cannot be a placeholder and so
+  cannot block. 6.354.0's rule paying for itself in the file that
+  wrote it — a platform fact that CLOSES an option is worth as much
+  as one that opens it, and only if it is recorded where the next
+  release will read it.
+  🗳 A FAILED OR TIMED-OUT COPY NEVER FALLS BACK TO READING IN
+  PLACE. That fallback reads as careful and is the single branch
+  that puts the freeze back: a copy that did not answer is most
+  often a hydration that has not landed, which is precisely the read
+  to refuse. A default is chosen against the damage its own feature
+  can do (6.319.0) — the damage of reading is a dead Mac, and the
+  cost of refusing is ⇪Y having no last-session rows for a few
+  seconds until the export behind it lands.
+  🛟 The copy's belt is armed BEFORE the task is started (6.246.0),
+  held in its own named slot (6.304.0), and every way the read can
+  end goes through ONE door, once (6.299.0) — so a terminated copy's
+  own late exit changes nothing.
+  📏 THE ONLY MAIN-THREAD READ LEFT is a Mac with no hs.task at all,
+  where refusing would mean ⇪Y never had an archive. It reads in
+  place there and SAYS so: `chrome.readWords` is PURE with five
+  states, the report carries an `archive read:` line, a main-thread
+  read reaches the numbered problems, and past `slowReadMs` it takes
+  the 🔔 door naming the milliseconds AND the path — because a
+  message that does not name the file is one he cannot act on
+  (6.430.0).
+  🔬 AND THE STUB HAD TO MODEL `cp` BEFORE ANY OF IT WAS TESTABLE: a
+  task stub that fires its callback without copying would let a
+  loadCsv that parses nothing at all pass every check (6.290.0). The
+  fixture that bites gives the temp copy DIFFERENT rows from the
+  archive — the only input where reading the source and reading the
+  copy must differ (6.230.0).
+
 NEW IN 6.439.0 — 🗂 ONE osascript PER BROWSER, SO A SLOW ONE IS NAMED
                (modules/tab_search.lua)
 

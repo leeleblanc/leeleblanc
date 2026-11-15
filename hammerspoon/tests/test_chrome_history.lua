@@ -1160,8 +1160,24 @@ check("…and a main-thread read reaches the numbered problems",
 chrome.csvFile = realCsv
 chrome.entries = {}
 os.remove(SRC)
+-- 🔒 SOURCE: the belt is HELD in its own named slot. No functional check
+-- can see this — a stub hs.timer is collected by nobody, so a doAfter
+-- whose return is thrown away behaves identically in the suite and is
+-- collected mid-flight on a real Mac (6.196.1, asserted against the
+-- source for exactly that reason).
+local SRCFILE = (function()
+    local f = io.open(HS .. "/modules/chrome_history.lua", "r")
+    if not f then return "" end
+    local t = f:read("*a") ; f:close() ; return t
+end)()
+check("🔒 SOURCE: the sentry read the module", #SRCFILE > 20000, #SRCFILE)
+check("🔒 SOURCE: the copy's belt is held in chrome.readKiller, its own slot",
+      SRCFILE:find("chrome.readKiller = k", 1, true) ~= nil)
+check("🔒 SOURCE: …and the copy task is held too",
+      SRCFILE:find("chrome.readTask = t", 1, true) ~= nil)
+
 check("🚨 …and this section asserted every check it was written to make",
-      (pass + fail) - beforeR >= 27, (pass + fail) - beforeR)
+      (pass + fail) - beforeR >= 30, (pass + fail) - beforeR)
 end)
 if not okR then
     check("🚨 the 6.440.0 section ran to the end without throwing", false,

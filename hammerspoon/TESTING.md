@@ -1,4 +1,4 @@
-# TESTING — how to score release 6.439.0
+# TESTING — how to score release 6.441.0
 
 You install ONE archive and it carries several releases. Below are the
 steps for each release this archive is new for, newest first. Run the
@@ -26,6 +26,119 @@ else is a LOSS and I fix it before building further. You are the only
 scorer; I never mark my own.
 
 ---
+
+## 6.441.0
+
+6.441.0 verify with LL — ☁️ THE STALL, AND WHAT THE GUARD COULD NOT
+SAY (KNOWN GROUND) — this block covers 6.440.0 AND 6.441.0: they
+shipped in one archive, in different files, and share one test plan.
+WHAT CHANGED: ⇪Y no longer reads its 4.5 MB archive on the main
+thread, and the stall guard can now name a picker that was open.
+🔎 WHAT IT WAS, and your sentence was right. Your report prints the
+archive's path: `/Users/…/OneDrive-Personal/Logs/chrome_history-….csv`,
+4,541 KB. The PARSE of that file has been cut into slices since
+6.152.1 so it never holds the Mac — and the READ never was. One
+unsliced, untimed pass over the whole thing, on the thread your
+keyboard waits on, from a OneDrive folder. Reading a file OneDrive has
+taken the bytes back from makes macOS download it first, and the read
+waits for that: it is the same mechanism that froze this Mac for 72
+seconds on 2026-10-12 (Black Hawk Down), in a second tool.
+🚨 AND I CANNOT PROVE IT WAS THIS STALL, so I am not going to say it
+was. What I can say is that it was the only piece of work in that
+module with no clock on it, it is a known freeze mechanism, and it is
+now impossible. The next one will name itself.
+
+A. THE HEADLINE — one command, and it should be boring.
+A1. Install and reload. Wait about ten seconds, then Console:
+    `_G.chromeHistoryReport()`.
+    EXPECT a NEW line near the timings:
+      archive read: 4541 KB copied out of process, then parsed in
+                    180 ms — the main thread never touched the archive
+    **PASTE THAT LINE.** It is the release.
+    **A FAIL is a line beginning ⚠️ … read ON THE MAIN THREAD** — that
+    is the old behaviour, and the rest of the line says why it had to
+    happen.
+A2. Press ⇪Y. EXPECT your pages, as always, searchable.
+A3. Type into it — several letters, quickly, the way you were when it
+    stalled. EXPECT no hesitation.
+A4. Read the `search :` and `clock :` lines in the report afterwards.
+    EXPECT real numbers rather than "nothing typed yet". If a
+    keystroke ever crosses 150 ms you get an alert naming the
+    milliseconds — paste it; that is a different fault and 6.245.0's
+    instrument catching it.
+
+B. THE ONE THAT MATTERS MORE THAN A — it must not have cost you the
+   archive.
+B1. Reload Hammerspoon and press ⇪Y within a few seconds.
+    EXPECT your pages are there — the last session's archive, loaded
+    while the fresh export runs behind it. That is what this read is
+    FOR, and the whole risk of this release is that it now loads
+    nothing.
+B2. `_G.chromeHistoryReport()` and read the page count at the top.
+    EXPECT roughly the number you had before (13,167 on your last
+    report). **A count of 0 with the file clearly on disk is a FAIL**
+    and I want the whole report.
+B3. ⇪⇧Y to force a fresh export. EXPECT "🕘 Reading Chrome history…"
+    and then "N pages saved". ⏎ on a row still opens it in Chrome,
+    ⌥⏎ in Safari, ⌘⏎ copies.
+
+C. THE REFUSAL, if you ever meet it.
+C1. If the copy fails or does not answer, ⇪Y simply has no
+    last-session rows for a few seconds until the export lands — and
+    the report says which: `⚠️ the archive was NOT read — the copy did
+    not answer in 60s — the archive is most likely still being fetched
+    from the cloud`.
+    Paste that if you see it. It is deliberate: falling back to
+    reading the file here is the one thing that puts the freeze back.
+
+D. THE BREADCRUMB — this is 6.441.0, and you will only see it if it
+   happens again.
+D1. Nothing to press. If Hammerspoon hangs and the guard relaunches
+    it, the next boot announces it as before — but the line can now
+    read `in flight: ⇪y chrome history — its picker was opened 48s
+    ago; nothing was running` instead of `nothing was marked`.
+D2. **PASTE THE WHOLE ANNOUNCEMENT if it ever happens.** That clause
+    is the fact nobody could recover before: the mark is cleared the
+    instant a shortcut RETURNS, and ⇪Y's shortcut opens a picker and
+    returns at once — so your search, and every keystroke in it, used
+    to be invisible to the guard. "Nothing was marked" never meant ⇪Y
+    was innocent. It meant the guard could not see it.
+D3. Console: `_G.stallGuardReport()`. The `in flt :` line still reads
+    "nothing in flight" on a quiet Mac — that is health.
+
+E. MUST STILL WORK — 6.441.0 touched the one function every picker in
+   this config opens through, so this half matters more than A.
+E1. A spread of pickers: ⇪V, ⇪D, ⇪space, ⇪Y, ⇪., ⇪⇧S, ⇪T, ⇪M, ⇪⇧'.
+    EXPECT every one opens, on the monitor you are working on, in the
+    place you last dragged it to.
+E2. ⌘-drag a picker somewhere, close it, open it again: it reopens
+    where you put it.
+E3. ⌃⌥⌘ + an arrow nudges an open picker; ⌃⌥⌘R clears the nudge.
+E4. Esc closes a picker. The preview pane beside ⇪⇧V still follows the
+    rows.
+E5. ⌘⌘ still opens the clipboard; ⌥⌥ still opens the menus.
+E6. Boot: All green, 80 modules, 112 ⇪ shortcuts.
+E7. `_G.installCheck()` — every runtime file present at its size.
+
+❓ QUESTIONS — ANSWERS WANTED, NOTHING TO RUN
+Q1. **The `archive read:` line from step A1.** It is the first time
+    that cost has ever been measured on your Mac, and it decides
+    whether anything more is owed here.
+Q2. **Did ⇪Y feel different?** Specifically in the first ten seconds
+    after a reload, which is when the archive is read.
+Q3. **Should the archive move out of OneDrive altogether?** It is
+    per-Mac, rebuilt from your local Chrome every six hours, and
+    nothing on the other Mac reads it — so it is 4.5 MB uploading to
+    the cloud for no reader. I did NOT move it: it would drop out of
+    `_G.saved()` and out of the master log's index, and those are
+    yours to trade, not mine. One word and it is a small release.
+Q4. **Is anything else on your Mac freezing?** The 75 seconds is the
+    third stall of almost exactly the same length (72 s, 73 s, 75 s),
+    and a duration that repeats that closely smells like a timeout
+    rather than a random hang. If it happens again, the guard's log
+    plus `_G.chromeHistoryReport()` is the pair I need.
+
+
 
 ## 6.439.0
 
@@ -404,98 +517,6 @@ Q1. **Which other senders do this to you?** Each is one line in
     inbox.
 Q2. **Is the new message the right length?** It names up to four
     parameters and then "…". Too chatty for something you press often?
-
-
-
-## 6.429.0
-
-6.429.0 verify with LL — 📐 BIGGER BOXES, TWO LETTERS (KNOWN GROUND)
-WHAT CHANGED: the grid is back to TWO letters, the boxes are four times
-the area they were, and nothing is divided before you type. The a/s/d/f
-quartering you said is fine does the precision.
-🚨 AND 6.428.0 WAS MINE. It shipped a three-letter label over 4,096
-cells and divided every one of those 2 × 2 on top — which is 6.176.0
-reproduced exactly, the build you called "insane. Way too small." Its
-own comment four lines above that line said a two-character label was
-the entire point and quoted your verdict back at me. The prose and the
-code disagreed on adjacent lines and I read the prose.
-
-A. THE HEADLINE — twenty seconds.
-A1. Press **⇪X**. EXPECT: the codes are **two letters**, not three, and
-    the boxes are noticeably bigger — about four times the area of what
-    you photographed.
-    **A FAIL is three-letter codes.**
-A2. 🔎 THE ONE YOU REPORTED: can you SEE THROUGH the grid now? You
-    should be able to read the window underneath between the labels.
-    That is the whole release and it is the thing I cannot judge from
-    here.
-A3. Type the two letters. EXPECT: the pointer lands, one keystroke
-    sooner than last week.
-A4. The letters are still the Timer's yellow — you said that is right
-    and nothing about the colour changed.
-
-B. PRECISION IS STILL THERE, and this is the half that makes A safe.
-B1. ⇪X, type two letters to land. EXPECT: the yellow box divided into
-    four with a letter in each quarter.
-B2. Press **a** (top-left), **s**, **d**, **f**. EXPECT: each keeps
-    that quarter and divides again. Two presses puts you on a small
-    button.
-B3. Press **⌫**. EXPECT: it steps back up one.
-B4. Keep going until it refuses. EXPECT: it SAYS why — there is a 16 pt
-    floor, because a box below that is not something you can aim with.
-B5. **COUNT THE KEYSTROKES** on something small — a Finder toolbar
-    button. Two letters plus one or two quarters. **Return that number.**
-    Last week it was three letters plus quarters for the same target.
-
-C. THE PLATES — the dark patch behind each label.
-C1. Look at one closely. EXPECT: it hugs the letters rather than
-    filling the cell. It covers 41% of a cell, measured.
-C2. 📏 IT IS THERE FOR A REASON AND I DID NOT TRADE IT AWAY: without it
-    this yellow measures 1.00:1 over a white window — invisible. The
-    obvious fix was to make the plate more transparent, and at 0.55 the
-    contrast drops to 3.25:1, under the 4.5 the suite requires. So the
-    occlusion came out of SIZE and CELL COUNT instead.
-C3. If the plates still bother you: `settings = { mouse_grid =
-    { labelBackplates = false } }` removes them entirely, and the
-    letters sit on the dim wash alone. Say the word and I will change
-    the default rather than leave you a line to type.
-
-D. MUST STILL WORK — this is a full-screen overlay that eats keys, so
-   this half matters more than A.
-D1. ⇪X then ⎋, six times briskly. EXPECT: opens and closes every time.
-    **An overlay left on screen with nothing closing it is the serious
-    failure** — ⌃⌥⌘⇧X is the panic key and I want to know at once.
-D2. ⇪X, land, then the **arrow keys**: 8 pt a press, 1 pt with ⇧ held,
-    and a HELD arrow crawls steadily rather than taking off (6.360.0).
-D3. ⇪⇧X — same grid, clicks the moment you finish typing.
-D4. ⇪⇧L — the pointer rings. Separate tool, untouched.
-D5. While the grid is up, ⌘Q and ⌘Tab still work.
-D6. Both screens: the Air's panel and the LG.
-
-E. PASTE BACK, PASS OR FAIL.
-E1. Console: `_G.mouseGridReport()`. Three lines:
-    · `cells :` — the REAL cell size in points. I have been reasoning
-      about that number from arithmetic and want it from your display.
-    · `layout:` — should say no pre-draw division.
-    · `split :` — a s d f, four parts, and where the keys came from.
-E2. If the grid ever DECLINES to open with a sentence about the labels
-    being too small, paste it. That is the refusal working — the
-    overlay stays off your screen rather than taking the keyboard
-    behind letters you cannot read.
-
-❓ QUESTIONS — ANSWERS WANTED, NOTHING TO RUN
-Q1. **Is 676 the right starting size, or do you want fewer still?**
-    This is the density you scored "The grid is so much better" in
-    6.360.0, with quartering added on top. Fewer letters makes the
-    boxes bigger again and costs nothing in typing — `alphabet =
-    "asdfghjklqwertyui"` is 289 cells, half as dense again. One line,
-    and I would rather ship your answer than leave you the line.
-Q2. **Do the plates need to go?** Step C. They buy readability over
-    white windows and they are the only thing still drawn over your
-    screen.
-Q3. **The work MacBook's name** — `scutil --get ComputerName`, whenever
-    you next have it. Still the one thing that gives that Mac a profile
-    of its own instead of the fallback.
 
 
 
