@@ -218,6 +218,7 @@ local M = {
             { "snap",     "Off by default: land in the chosen cell without querying app controls. Optional Accessibility snapping remains available" },
             { "⌫",        "Undo one letter while typing" },
             { "⎋",        "Cancel — the pointer does not move" },
+            { "⏎",        "Land where the pointer ALREADY is — the box at the crosshairs (6.444.0)" },
             { "-- after it lands --", "" },
             { "space",    "Left click · ⇧space right click · 2 double click" },
             { "↑↓←→",     "Nudge 8pt a press — HOLD it and it repeats at that same 8pt, like an arrow in a text box (the old climb to 64pt is gone, 6.360.0) · with ⇧ nudge 1pt for a tight target" },
@@ -299,6 +300,13 @@ function M.setup(core)
     -- That was his to judge, and he judged it.
     grid.alphabet    = "abcdefghijklmnopqrstuvwxyz"
     grid.labelLength = 2
+    -- 🎯 6.444.0 — A BOX AT THE CROSSHAIRS. LL: "Can we play a box at the
+    -- crosshairs? This seems like an optimal position as I have to
+    -- arrow/move to this spot a lot." ⏎ lands on it.
+    grid.pointerBox  = true
+    grid.pointerKey  = "return"
+    grid.pointerWhite = 1.0        -- the outline, so it reads as not-a-cell
+    grid.pointerAlpha = 0.95
     grid.subdivisions = 1       -- 1 = no pre-draw division; precision is a/s/d/f
     grid.maxCells = 4096        -- bounded canvas/label work across all displays
     -- ✏️ How slow a geometry build has to be before the Console says so
@@ -595,6 +603,69 @@ function M.setup(core)
         return t
     end
 
+    -- 🎯 6.444.0 — A BOX AT THE CROSSHAIRS, AND ⏎ LANDS ON IT.
+    -- LL: "Can we play a box at the crosshairs? This seems like an optimal
+    -- position as I have to arrow/move to this spot a lot."
+    --
+    -- 🔑 IT IS NOT A CELL OF THE LATTICE, deliberately. Every label in the
+    -- lattice is `labelLength` characters and every letter is some label's
+    -- prefix, so a reserved LETTER would have to be taken out of the
+    -- alphabet — which costs 26 × 26 cells to buy one. A key that is not a
+    -- letter costs nothing and cannot collide: ⏎, which is free in pick
+    -- mode and already means "take this" in landed mode.
+    --
+    -- 🔑 THE POINT IS THE POINTER, ALWAYS; only the BOX is clamped into the
+    -- screen. "Land where I already am" is the whole ask, so a pointer two
+    -- pixels from an edge must still land on ITSELF rather than on the
+    -- middle of a box that was pushed inwards to be drawn.
+    --
+    -- PURE, so the gate drives every edge with no screen and no pointer:
+    -- answers the cell AND why, never nil alone (6.196.1).
+    function grid.pointerCell(frame, px, py, cw, ch)
+        if type(frame) ~= "table" then return nil, "no screen frame" end
+        local fx, fy = tonumber(frame.x) or 0, tonumber(frame.y) or 0
+        local fw, fh = tonumber(frame.w) or 0, tonumber(frame.h) or 0
+        px, py = tonumber(px), tonumber(py)
+        cw, ch = tonumber(cw) or 0, tonumber(ch) or 0
+        if fw <= 0 or fh <= 0 then return nil, "the screen has no size" end
+        if not (px and py) then
+            return nil, "this Mac would not say where the pointer is"
+        end
+        if px < fx or px > fx + fw or py < fy or py > fy + fh then
+            return nil, "the pointer is on another screen"
+        end
+        -- a box bigger than the screen it is drawn on is not a box
+        local w = math.max(1, math.min(cw, fw))
+        local h = math.max(1, math.min(ch, fh))
+        local bx = math.min(math.max(px - w / 2, fx), fx + fw - w)
+        local by = math.min(math.max(py - h / 2, fy), fy + fh - h)
+        return { ax = px, ay = py, rw = w, rh = h, bx = bx, by = by,
+                 pointer = true }
+    end
+
+    -- The box for the screen `p` holds, in that canvas's own coordinates,
+    -- or nothing at all. One reader of the rule above, so the box that is
+    -- DRAWN and the point ⏎ LANDS ON cannot drift (6.231.0).
+    local function pointerBoxOn(p)
+        if not grid.pointerBox then return nil end
+        local s = grid.state
+        if not (s and s.pointer) then return nil end
+        local c = grid.pointerCell(p.frame, s.pointer.x, s.pointer.y,
+                                   p.cellW, p.cellH)
+        if not c then return nil end
+        return c
+    end
+    local function pointerElements(p)
+        local c = pointerBoxOn(p)
+        if not c then return {} end
+        local stroke = { white = grid.pointerWhite, alpha = grid.pointerAlpha }
+        return { { type = "rectangle", action = "stroke",
+                   strokeColor = stroke,
+                   strokeWidth = math.max(1, (tonumber(grid.lineWidth) or 1) * 2),
+                   frame = { x = c.bx - p.frame.x, y = c.by - p.frame.y,
+                             w = c.rw, h = c.rh } } }
+    end
+
     local function labelFor(index, chars)
         local n, out = #chars, {}
         for place = grid.labelLength, 1, -1 do
@@ -844,6 +915,11 @@ function M.setup(core)
                 strokeColor = stroke, strokeWidth = grid.lineWidth,
                 coordinates = { { x = 0, y = y }, { x = p.frame.w, y = y } } }
         end
+        -- 🎯 6.444.0 — on THIS layer rather than the label one, because
+        -- this layer is drawn once and the labels are rebuilt on every
+        -- keystroke: the box at the crosshairs does not change while you
+        -- type, and ⏎ goes on meaning it.
+        for _, e in ipairs(pointerElements(p)) do els[#els + 1] = e end
         return els
     end
 
@@ -1131,10 +1207,17 @@ function M.setup(core)
         M.cheatsheet.entries[4] = { "snap", grid.snapToControls == true
             and "Optional app-control snapping is ON; it can move the pointer to a control centre"
             or "OFF: coordinate targeting, without app-control Accessibility hit-tests" }
-        M.cheatsheet.entries[10] = { tostring(grid.labelLength) .. " letters", (tonumber(grid.subdivisions) or 1) > 1
+        M.cheatsheet.entries[11] = { tostring(grid.labelLength) .. " letters", (tonumber(grid.subdivisions) or 1) > 1
             and ("Initial cells are divided " .. tostring(grid.subdivisions) .. " × " .. tostring(grid.subdivisions) .. " before drawing")
             or ("Type " .. tostring(grid.labelLength) .. ", then " .. (select(1, grid.refineSpec())) .. " to quarter what you landed in") }
-        M.cheatsheet.entries[11] = { keys or "unavailable", parts == 4
+        -- 🎯 6.444.0 — a bound key printed on no card is a feature he
+        -- cannot find (6.294.0), and a card promising one that is switched
+        -- off is worse (6.181.0) — so the row says which.
+        M.cheatsheet.entries[7] = { grid.pointerBox and "⏎" or "— ",
+            grid.pointerBox
+            and "Land where the pointer ALREADY is — the box at the crosshairs"
+            or  "The box at the crosshairs is off (grid.pointerBox)" }
+        M.cheatsheet.entries[12] = { keys or "unavailable", parts == 4
             and "Four quarters: top-left, top-right, bottom-left, bottom-right; repeat to refine"
             or "Two halves along the longer side; repeat to refine" }
     end
@@ -1862,10 +1945,14 @@ function M.setup(core)
     -- element with no key-value pairs and hs.canvas throws on it), and a
     -- transparent fill is the cheapest honest way to say "nothing here".
     local function scrimOnly(p, typed)
-        return { { type = "rectangle", action = "fill",
+        local els = { { type = "rectangle", action = "fill",
                    fillColor = { white = grid.scrimWhite,
                                  alpha = (grid.scrimFor(typed or 1)) },
                    frame = { x = 0, y = 0, w = p.frame.w, h = p.frame.h } } }
+        -- the lattice is gone once you have typed, and ⏎ is not: the box
+        -- stays, or the key would be live with nothing on screen saying so
+        for _, e in ipairs(pointerElements(p)) do els[#els + 1] = e end
+        return els
     end
 
     local function redraw()
@@ -1938,6 +2025,19 @@ function M.setup(core)
                 warn("matched '" .. s.typed .. "' but no cell carried it")
                 return
             end
+            return grid.landOnCell(cell)
+        end
+        redraw()
+    end
+
+    -- 🎯 6.444.0 — ONE LANDING, TWO CALLERS (6.231.0): the two letters you
+    -- typed, and ⏎ on the box at the crosshairs. A second copy of the
+    -- snap, the click-on-arrival and the handover into landed mode is how
+    -- the two come to disagree about what landing means.
+    function grid.landOnCell(cell)
+        local s = grid.state
+        if not (s and cell) then return end
+        do
             local point = { x = cell.ax, y = cell.ay }
             -- 🎯 6.154.0 — THE OVERLAY COMES DOWN BEFORE THE HIT-TEST, or
             -- "what is under this point?" is answered by our own scrim.
@@ -1962,7 +2062,25 @@ function M.setup(core)
             end
             return
         end
-        redraw()
+    end
+
+    -- ⏎ 6.444.0 — LAND WHERE THE POINTER ALREADY IS. The box is drawn
+    -- from the same rule this reads, so the key cannot be live over a
+    -- screen that has no box on it (6.181.0).
+    function grid.landOnPointer()
+        local s = grid.state
+        if not (s and s.phase == "pick") then return false end
+        for _, p in ipairs(grid.cache.screens) do
+            -- the SAME function the box is drawn from, so the key cannot
+            -- be live over a screen that has no box on it (6.231.0)
+            local c = pointerBoxOn(p)
+            if c then
+                grid.pointerLands = (tonumber(grid.pointerLands) or 0) + 1
+                grid.landOnCell(c)
+                return true
+            end
+        end
+        return false
     end
 
     function grid.backspace()
@@ -2009,7 +2127,25 @@ function M.setup(core)
         -- either of the last two fails, hide() undoes all three. Setting
         -- state last would mean a throw halfway through left canvases up
         -- that grid.hide() did not yet believe existed.
+        -- 🎯 6.444.0 — WHERE THE POINTER IS, read ONCE as the grid opens.
+        -- Nothing moves it while the grid is up, so asking again later
+        -- would be the same answer at a cost; and a Mac that will not say
+        -- simply has no box, which pointerCell reports in words rather
+        -- than by drawing nothing and leaving ⏎ live (6.196.1).
+        -- 🧪 read WHATEVER the switch says, so the switch has exactly ONE
+        -- reader (pointerBoxOn). Guarding it here as well made that one
+        -- unkillable — with the pointer unread there was nothing for it to
+        -- turn away, so deleting it changed nothing and no check could
+        -- see it (6.199.0, and the sweep is what said so).
+        local pt
+        local okP, mp = pcall(function() return hs.mouse.absolutePosition() end)
+        if okP and type(mp) == "table" and tonumber(mp.x) and tonumber(mp.y) then
+            pt = { x = tonumber(mp.x), y = tonumber(mp.y) }
+        else
+            grid.pointerWhy = "this Mac would not say where the pointer is"
+        end
         grid.state = { phase = "pick", typed = "", matches = nil,
+                       pointer = pt,
                        clickOnArrival = clickOnArrival == true }
 
         local okDraw, drawErr = pcall(function()
@@ -2100,6 +2236,34 @@ function M.setup(core)
             out[#out + 1] = string.format(
                 "   ❌ %d cells have NO label and are unreachable — widen "
                 .. "grid.alphabet or raise grid.labelLength", cache.truncated)
+        end
+        -- 🎯 6.444.0 — THREE STATES, and the third is the one that matters:
+        -- a box that is switched ON and could not be placed is not the
+        -- same fact as one that is switched off, and a key that is live
+        -- over a screen with nothing drawn on it is 6.181.0.
+        if not grid.pointerBox then
+            out[#out + 1] = "   ⏎ box   : off (grid.pointerBox) — ⏎ lands on nothing"
+        else
+            local st, where = grid.state, nil
+            if st and st.pointer then
+                for _, p in ipairs(cache.screens) do
+                    local c = grid.pointerCell(p.frame, st.pointer.x, st.pointer.y,
+                                               p.cellW, p.cellH)
+                    if c then where = string.format("%.0f, %.0f", c.ax, c.ay) break end
+                end
+            end
+            if where then
+                out[#out + 1] = "   ⏎ box   : drawn at " .. where
+                    .. " — ⏎ lands where the pointer already is"
+            elseif st then
+                out[#out + 1] = "   ⏎ box   : ⚠️ ON and NOT drawn — "
+                    .. tostring(grid.pointerWhy or "the pointer is on no screen this grid covers")
+            else
+                out[#out + 1] = "   ⏎ box   : on — drawn at the pointer when the grid opens"
+            end
+            out[#out + 1] = string.format(
+                "             %d landing(s) on it this session",
+                tonumber(grid.pointerLands) or 0)
         end
         out[#out + 1] = "   clicking: " .. (axAvailable()
             and "✅ Accessibility granted"
@@ -2244,6 +2408,12 @@ function M.setup(core)
     -- they explained. A key that says "⌥+arrow halves the cell after you
     -- land in one" is worse than an unbound key once ⌥+arrow does not
     -- halve anything.
+    -- ⏎ 6.444.0 — the box at the crosshairs. Bound in the PICK modal
+    -- only; in landed mode ⏎ already clicks, and that is unchanged.
+    grid.pickModal:bind({}, tostring(grid.pointerKey or "return"), function()
+        local ok, err = pcall(grid.landOnPointer)
+        if not ok then grid.hide("error"); warn("landOnPointer: " .. tostring(err)) end
+    end)
     grid.pickModal:bind({}, "escape", function() grid.hide("escape") end)
     grid.pickModal:bind({}, "delete", function()
         local ok, err = pcall(grid.backspace)

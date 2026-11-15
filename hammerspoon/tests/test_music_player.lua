@@ -3538,6 +3538,141 @@ do
     check("§6.326.0 ran all of its checks (" .. ran .. " of 12)", ran >= 12, ran)
 end
 
+-- =====================================================================
+-- 🎚 6.443.0 — DRAG A TRACK TO WHERE YOU WANT IT
+-- =====================================================================
+-- LL: "Give me the ability to drag/drop song order in my play queue and
+-- rearrange my list of songs."
+do
+    local before = pass + fail
+
+    -- ---- the rule, driven directly -----------------------------------
+    check("🎚 the row that moved lands where it was dropped",
+          mp.movedTo(2, 2, 5) == 5, mp.movedTo(2, 2, 5))
+    check("🎚 a row BETWEEN the two, moving down, shifts up by one",
+          mp.movedTo(3, 2, 5) == 2 and mp.movedTo(5, 2, 5) == 4,
+          mp.movedTo(3, 2, 5) .. "/" .. mp.movedTo(5, 2, 5))
+    check("🎚 …and moving up, shifts down by one",
+          mp.movedTo(3, 5, 2) == 4 and mp.movedTo(2, 5, 2) == 3,
+          mp.movedTo(3, 5, 2) .. "/" .. mp.movedTo(2, 5, 2))
+    check("🎚 a row OUTSIDE the pair is untouched — which is what leaves a "
+          .. "history cursor, counted past the end of the queue, alone",
+          mp.movedTo(1, 2, 5) == 1 and mp.movedTo(9, 2, 5) == 9,
+          mp.movedTo(1, 2, 5) .. "/" .. mp.movedTo(9, 2, 5))
+    check("🎚 a move to where it already is changes nothing",
+          mp.movedTo(4, 3, 3) == 4 and mp.movedTo(3, 3, 3) == 3)
+    check("🎚 and nonsense is answered with the row it was given, never a "
+          .. "number out of nowhere",
+          mp.movedTo(0, 1, 2) == 0 and mp.movedTo(3, 0, 2) == 3
+          and mp.movedTo(3, 1, nil) == 3)
+
+    -- ---- end to end: WHAT IS PLAYING MUST NOT CHANGE ------------------
+    -- 🚨 THE FIXTURE THAT BITES IS A TRACK DRAGGED PAST THE PLAYING ONE
+    -- (6.230.0): move one that is already after it and every position
+    -- the playing track could have is the same number, so a check
+    -- written on that input passes with the mapping deleted.
+    reset()
+    mp.queue = {
+        { path = "/m/a.mp3", title = "A" }, { path = "/m/b.mp3", title = "B" },
+        { path = "/m/c.mp3", title = "C" }, { path = "/m/d.mp3", title = "D" },
+    }
+    mp.index, mp.sel, mp.selList = 2, 2, "queue"   -- B is playing
+    check("🎚 the drag moves the track",
+          mp.moveTrack(4, 1) == true
+          and mp.queue[1].title == "D" and mp.queue[2].title == "A"
+          and mp.queue[3].title == "B" and mp.queue[4].title == "C",
+          (mp.queue[1] or {}).title .. (mp.queue[2] or {}).title
+          .. (mp.queue[3] or {}).title .. (mp.queue[4] or {}).title)
+    check("🔑 …and WHAT IS PLAYING IS STILL PLAYING — the index followed the "
+          .. "FILE it was on, not the number it had (6.272.0)",
+          mp.index == 3 and mp.queue[mp.index].title == "B",
+          mp.index .. " = " .. tostring((mp.queue[mp.index] or {}).title))
+    check("🔑 …and so did the cursor",
+          mp.sel == 3, mp.sel)
+
+    -- the other direction
+    reset()
+    mp.queue = {
+        { path = "/m/a.mp3", title = "A" }, { path = "/m/b.mp3", title = "B" },
+        { path = "/m/c.mp3", title = "C" }, { path = "/m/d.mp3", title = "D" },
+    }
+    mp.index, mp.sel, mp.selList = 3, 3, "queue"   -- C is playing
+    mp.moveTrack(1, 4)
+    check("🔑 dragging a track DOWN past the playing one moves it up by one, "
+          .. "and the sound is on the same file",
+          mp.index == 2 and mp.queue[mp.index].title == "C",
+          mp.index .. " = " .. tostring((mp.queue[mp.index] or {}).title))
+
+    -- the track IN THE HAND is the playing one
+    reset()
+    mp.queue = {
+        { path = "/m/a.mp3", title = "A" }, { path = "/m/b.mp3", title = "B" },
+        { path = "/m/c.mp3", title = "C" },
+    }
+    mp.index, mp.sel, mp.selList = 1, 1, "queue"
+    mp.moveTrack(1, 3)
+    check("🔑 dragging the PLAYING track itself keeps it playing, at its new "
+          .. "place", mp.index == 3 and mp.queue[3].title == "A",
+          mp.index .. " = " .. tostring((mp.queue[mp.index] or {}).title))
+
+    -- 📏 a history cursor is counted past the end of the queue, so a
+    -- reorder must leave it exactly where it was
+    reset()
+    mp.queue = { { path = "/m/a.mp3", title = "A" },
+                 { path = "/m/b.mp3", title = "B" },
+                 { path = "/m/c.mp3", title = "C" } }
+    mp.index, mp.sel, mp.selList = 0, 2, "hist"
+    mp.moveTrack(1, 3)
+    check("📏 a cursor that is in the HISTORY is left alone by a queue "
+          .. "reorder", mp.sel == 2 and mp.selList == "hist", mp.sel)
+
+    -- ---- the refusals say why ----------------------------------------
+    reset()
+    mp.queue = { { path = "/m/a.mp3", title = "A" } }
+    local ok, why = mp.moveTrack(1, 1)
+    check("🎚 one track cannot be reordered, and it SAYS so rather than "
+          .. "reading as a drag that did not take (6.320.0)",
+          ok == false and type(why) == "string" and why ~= "", tostring(why))
+    reset()
+    mp.queue = { { path = "/m/a.mp3", title = "A" },
+                 { path = "/m/b.mp3", title = "B" } }
+    ok, why = mp.moveTrack(9, 1)
+    check("🎚 …and so does a row that is not there",
+          ok == false and type(why) == "string", tostring(why))
+    ok = mp.moveTrack(2, 2)
+    check("🎚 …and a track dropped back where it was", ok == false)
+
+    -- 📏 A DROP PAST EITHER END LANDS AT THAT END. The gesture that means
+    -- "put it last" IS a drag to the bottom, so refusing it would read as
+    -- a drag that did nothing.
+    reset()
+    mp.queue = { { path = "/m/a.mp3", title = "A" },
+                 { path = "/m/b.mp3", title = "B" },
+                 { path = "/m/c.mp3", title = "C" } }
+    mp.index = 0
+    check("📏 a drop past the END lands last, rather than being refused",
+          mp.moveTrack(1, 99) == true and mp.queue[3].title == "A",
+          (mp.queue[3] or {}).title)
+    check("📏 …and a drop above the top lands first",
+          mp.moveTrack(3, -5) == true and mp.queue[1].title == "A",
+          (mp.queue[1] or {}).title)
+
+    -- ---- the page's message reaches it --------------------------------
+    reset()
+    mp.queue = { { path = "/m/a.mp3", title = "A" },
+                 { path = "/m/b.mp3", title = "B" },
+                 { path = "/m/c.mp3", title = "C" } }
+    mp.index = 0
+    mp.show()
+    post({ a = "move", from = 1, to = 3 })
+    check("🎚 the page's own message moves it — the door the drag arrives "
+          .. "through", mp.queue[3].title == "A",
+          (mp.queue[3] or {}).title)
+
+    local ran = (pass + fail) - before
+    check("§6.443.0 ran all of its checks (" .. ran .. " of 17)", ran >= 17, ran)
+end
+
 if fail > 0 then
     out("FAILURES:\n")
 

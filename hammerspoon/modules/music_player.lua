@@ -984,6 +984,63 @@ function M.setup(core)
     -- it is in, and a highlight on a row that is gone is the same defect
     -- as no highlight at all.
 
+    -- 🎚 6.443.0 — DRAG A TRACK TO WHERE YOU WANT IT.
+    -- LL: "Give me the ability to drag/drop song order in my play queue
+    -- and rearrange my Jug Player list of songs."
+    --
+    -- 🔑 WHAT IS PLAYING MUST NOT CHANGE, and that is the whole of the
+    -- difficulty rather than the moving. `mp.index` is a POSITION, so a
+    -- track dragged past the playing one silently changes what "the
+    -- playing track" means: the sound goes on, the card lights a
+    -- different row, and ⏭ steps from somewhere he did not put it.
+    -- 6.272.0 wrote this rule for the ✕ — by path, never by index — and
+    -- here the LIST is the thing moving, so the positions are mapped
+    -- through one pure function instead of each caller re-deriving it.
+    --
+    -- PURE: where does the row that WAS at `i` end up when `from` moves
+    -- to `to`? The cursor and the playing track ask the SAME question,
+    -- so the two cannot drift about what a move means (6.231.0).
+    function mp.movedTo(i, from, to)
+        i    = math.floor(tonumber(i)    or 0)
+        from = math.floor(tonumber(from) or 0)
+        to   = math.floor(tonumber(to)   or 0)
+        if i < 1 or from < 1 or to < 1 or from == to then return i end
+        if i == from then return to end
+        -- a row BETWEEN the two ends shifts by one, towards where the
+        -- gap opened; everything outside the pair is untouched, which is
+        -- what leaves a history cursor (counted past the queue) alone
+        if from < to then
+            if i > from and i <= to then return i - 1 end
+        else
+            if i >= to and i < from then return i + 1 end
+        end
+        return i
+    end
+
+    -- Answers true, or false AND WHY: a refusal that says nothing reads
+    -- as a drag that did not take (6.320.0).
+    function mp.moveTrack(from, to)
+        local n = #mp.queue
+        from = math.floor(tonumber(from) or 0)
+        to   = math.floor(tonumber(to)   or 0)
+        if n < 2 then return false, "there is nothing to reorder" end
+        if from < 1 or from > n then return false, "no track at that position" end
+        -- 📏 A DROP PAST EITHER END LANDS AT THAT END rather than being
+        -- refused: the gesture that means "put it last" IS a drag to the
+        -- bottom, and a refusal there reads as a drag that did nothing.
+        if to < 1 then to = 1 elseif to > n then to = n end
+        if from == to then return false, "it is already there" end
+        local row = table.remove(mp.queue, from)
+        table.insert(mp.queue, to, row)
+        -- the playing track and the cursor both follow the FILE they
+        -- were on, never the number they had
+        if mp.index > 0 then mp.index = mp.movedTo(mp.index, from, to) end
+        if mp.selList == "queue" then mp.sel = mp.movedTo(mp.sel, from, to) end
+        mp.moves = (mp.moves or 0) + 1
+        saveSoon() ; mp.render()
+        return true
+    end
+
     function mp.removeAt(i)
         i = math.floor(tonumber(i) or 0)
         if i < 1 or i > #mp.queue then return false end
@@ -1176,6 +1233,11 @@ button.armed { background:#25406b; border-color:#3b5f96; }
 .row:hover { background:#1e2027; }
 .row.sel { background:#25406b; }
 .row.cur .nm { color:#8fc0ff; font-weight:600; }
+/* 🎚 6.443.0 — the row IN THE HAND is dimmed, the row it would LAND ON
+   carries a line, so the question "where will this go" is answered
+   before the button comes up rather than by looking at the list after. */
+.row.lift { opacity:0.45; }
+.row.drop { box-shadow: inset 0 2px 0 0 #74a8ff; }
 .num { color:#6e7079; width:20px; text-align:right; flex:none; }
 .nm { overflow:hidden; text-overflow:ellipsis; }
 /* 🗑 6.272.0 — the forget cross. It is always in the DOM (a control that
@@ -1239,6 +1301,13 @@ function draw(s){
                hsel: s.hsel || 0,
                mode: s.mode || 'off', playing: !!s.playing,
                refused: s.refused || [] };
+  /* 🚨 6.443.0 — THE CARD STANDS STILL WHILE A ROW IS IN THE HAND. The
+     clock redraws this list twice a second, and a list that renumbers
+     under the pointer drops the wrong track — 6.186.0's rule, which is
+     why every other edit here is by PATH. The state above is kept, so
+     the card is correct the instant the drag ends (qend draws it); a
+     second of a still clock is the whole cost. */
+  if (qdrag && qmoved) return;
   var L = [], r;
   for (var i = 0; i < S.rows.length; i++) {
     r = S.rows[i];
@@ -1309,14 +1378,97 @@ hd.addEventListener('mousedown', function(ev){
   hd.classList.add('dragging');
   say({a:'dragStart'});
 });
-document.addEventListener('mouseup', function(){ hd.classList.remove('dragging'); });
+document.addEventListener('mouseup', function(){
+  hd.classList.remove('dragging');
+  /* 🎚 6.443.0 — ONE handler for "the button came up". A second
+     document-level mouseup would work in a browser and is a coin toss in
+     anything that keeps one listener per event, so the reorder ends here
+     rather than beside it (6.231.0). */
+  qend();
+});
 
+/* 🎚 6.443.0 — DRAG A QUEUE ROW TO WHERE YOU WANT IT, AND A DRAG IS NOT
+   A CLICK. LL: "Give me the ability to drag/drop song order in my play
+   queue and rearrange my list of songs. Clicking on a song
+   shouldn't make it play if another song is playing when I click the
+   mouse and hold to drag."
+   🔑 THE TWO ARE TOLD APART ON THE RELEASE, which is the only moment they
+   differ — 6.207.0's rule in the screenshot editor, in a list instead. A
+   press that never moves is still a click and still plays the track.
+   🚨 AND THE DROP TARGET IS THE ROW UNDER THE POINTER, read from the
+   event, never worked out from pixel geometry: the page is told which
+   row it is over by the DOM, and a second copy of that arithmetic is one
+   more thing to get wrong when the card is scrolled.
+   📏 HISTORY ROWS ARE NOT DRAGGABLE, deliberately: the history is what
+   PLAYED, in the order it played, so a hand-sorted one would be a record
+   of nothing. */
+var qdrag = null, qmoved = false;
+function qrowOf(e){
+  var r = (e && e.target && e.target.closest) ? e.target.closest('[data-i]') : null;
+  return r ? +r.getAttribute('data-i') : 0;
+}
+function qmark(){
+  var host = el('list');
+  if (!host || !host.querySelectorAll) return;
+  var rows = host.querySelectorAll('[data-i]'), i, v, c;
+  for (i = 0; i < rows.length; i++){
+    v = +rows[i].getAttribute('data-i');
+    c = (rows[i].className || '').replace(/\s*(drop|lift)\b/g, '');
+    if (qdrag && qmoved && v === qdrag.to)   c += ' drop';
+    if (qdrag && qmoved && v === qdrag.from) c += ' lift';
+    rows[i].className = c;
+  }
+}
+function qend(){
+  var d = qdrag; qdrag = null;
+  if (!d){ return; }
+  qmark();
+  /* a press that never moved is a click, and the click handler plays it */
+  if (!qmoved) return;
+  if (d.to && d.to !== d.from) say({a:'move', from: d.from, to: d.to});
+  /* the card has been standing still since the drag began (see draw) —
+     put the stored state on screen now, whether or not anything moved */
+  draw();
+}
+el('list').addEventListener('mousedown', function(e){
+  if (e.button) return;
+  qdrag = null; qmoved = false;
+  /* the ✕ owns its own press, and a history row is not draggable */
+  if (e.target && e.target.closest && e.target.closest('[data-x]')) return;
+  var from = qrowOf(e);
+  if (!from) return;
+  qdrag = { from: from, to: from, x: e.clientX, y: e.clientY };
+});
+document.addEventListener('mousemove', function(e){
+  if (!qdrag) return;
+  /* the button is not down any anymore, so the release landed somewhere
+     this page never hears about — end the drag HERE, exactly as a mouseup
+     would (6.222.0's rule, in a list) */
+  if (typeof e.buttons === 'number' && e.buttons === 0){ qend(); return; }
+  if (!qmoved){
+    /* a press that wobbles a pixel is still a press: nothing lifts until
+       the hand has really moved, or every click would be a drag */
+    if (Math.abs((e.clientY || 0) - qdrag.y) < 4
+        && Math.abs((e.clientX || 0) - qdrag.x) < 4) return;
+    qmoved = true;
+  }
+  var over = qrowOf(e);
+  /* a drag that leaves the rows keeps the last row it was over, so
+     letting go beside the list drops where the line is rather than
+     nowhere */
+  if (over) qdrag.to = over;
+  qmark();
+});
 el('prev').addEventListener('click', function(){ say({a:'prev'}); });
 el('next').addEventListener('click', function(){ say({a:'next'}); });
 el('play').addEventListener('click', function(){ say({a:'play'}); });
 el('rep').addEventListener('click',  function(){ say({a:'repeat'}); });
 el('clr').addEventListener('click',  function(){ say({a:'clear'}); });
 el('list').addEventListener('click', function(e){
+  /* 🎚 6.443.0 — a drag is NOT a click. The flag is consumed here and
+     cleared on the next press, so a release that lands outside the card
+     cannot leave it set and swallow the next real click. */
+  if (qmoved){ qmoved = false; return; }
   /* 🗑 6.272.0 — the ✕ is asked BEFORE the row, and it returns. The ✕
      lives INSIDE the row, so a shared handler that tested the row first
      would play the track on its way to forgetting it. And the message
@@ -1498,6 +1650,10 @@ say({a:'ready'});
         end
         if a == "remove" then
             mp.removeAt(tonumber(b.i))
+            return
+        end
+        if a == "move" then
+            mp.moveTrack(b.from, b.to)
             return
         end
         if a == "forget" then

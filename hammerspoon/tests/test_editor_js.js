@@ -102,8 +102,19 @@ function makeEnv(shownW, size) {
     getContext: () => cvCtx,
     toDataURL: (fmt) => (fmt === "image/jpeg" ? "data:image/jpeg;base64,RENDERED"
                                               : "data:image/png;base64,RENDERED"),
-    getBoundingClientRect: () => ({ left: 0, top: 0, width: shownW || CW,
-                                   height: (shownW || CW) * (CH / CW) }),
+    // 🔬 6.442.0 — THE WINDOW FOLLOWS THE CANVAS, as it does on a Mac.
+    // This returned the size the canvas was BORN at, for ever — so a page
+    // that grew its canvas (⌘O's room, 6.442.0's fit) went on being told
+    // it was drawn in the old rectangle, and every screen→canvas
+    // conversion after it was scaled by a ratio no Mac produces. Lua
+    // resizes the window to the canvas (ed.resizeToCanvas), so an
+    // UNSCALED view is 1:1 with it. A section that asked for a `shownW`
+    // asked for a deliberately scaled view and keeps it — that is the
+    // 4:1 case, and it is the one this stub was written for.
+    // 6.414.0 found the same shape in the pixel buffer's row stride: a
+    // stub's DERIVED geometry is part of its fidelity.
+    getBoundingClientRect: () => ({ left: 0, top: 0, width: shownW || cvW,
+                                   height: (shownW || cvW) * (cvH / cvW) }),
     addEventListener: () => {},
   };
   const ov = {
@@ -1517,6 +1528,197 @@ check("✏️ …and the box he types in is a TEXTAREA, or ⏎ could never make 
         env.tin.style.display === "block"
         && env.sent.filter((m) => m.a === "crop").length === 0,
         env.tin.style.display + "/" + JSON.stringify(env.sent));
+}
+
+// =====================================================================
+// 6.442.0 — a LINE moves, a grip is always reachable, the canvas grows
+// =====================================================================
+// LL: "I can't drag and drop lines I have drawn. I need to be able to
+// move those… if an item that I add goes off the screen, the editable
+// canvas should grow to fit it… when a long text box is added resizing
+// handles disappear off screen and I have to move the textbox until I
+// can see the resize nod."
+{
+  const env = load(undefined, { w: 400, h: 300 });
+  const drag = (x1, y1, x2, y2) => {
+    env.listeners.ov.mousedown(mouse(x1, y1));
+    env.listeners.window.mousemove(mouse(x2, y2));
+    env.listeners.window.mouseup(mouse(x2, y2));
+  };
+  // 🧪 6.186.0 — READ A FIELD, NEVER INDEX A NIL. With the line-move bug
+  // back, the move pushes no undo row at all, so ⌘Z pops the line's own
+  // creation and notes[0] is gone — and a check that reads it straight
+  // KILLS the run instead of failing, which in a gate that reads the
+  // tail looks like a pass.
+  const nf = (i, k) => env.call(`(notes[${i}] || {}).${k}`);
+
+  // ---- the headline: a LINE moves ------------------------------------
+  // 🚨 THE FIXTURE THAT BITES IS A LINE, not an arrow (6.230.0): the
+  // branch that was wrong read `n.kind === 'arrow'`, so an arrow moved
+  // correctly all along and only a line was dead. A check written on an
+  // arrow passes with the defect in.
+  env.listeners.window.keydown(key({ key: "l" }));
+  drag(40, 40, 140, 90);
+  check("a line is drawn end to end",
+        env.call("notes.length") === 1 && nf(0, "kind") === "line");
+  env.call("sel = notes[0]");
+  drag(90, 65, 120, 85);                       // grab its MIDDLE, +30/+20
+  check("🖌 6.442.0 — DRAGGING A LINE MOVES IT, both ends together",
+        nf(0, "x1") === 70 && nf(0, "y1") === 60
+        && nf(0, "x2") === 170 && nf(0, "y2") === 110,
+        nf(0, "x1") + "," + nf(0, "y1") + " → "
+        + nf(0, "x2") + "," + nf(0, "y2"));
+  check("…and it did NOT grow an x/y it does not own, which is what the"
+        + " old branch wrote onto it instead of moving it",
+        nf(0, "x") === undefined
+        && nf(0, "y") === undefined,
+        env.call("JSON.stringify(notes[0] || null)"));
+  env.listeners.window.keydown(key({ metaKey: true, key: "z" }));
+  check("…undoably", nf(0, "x1") === 40 && nf(0, "y1") === 40);
+
+  // the half that already worked must still
+  env.call("notes.length = 0; sel = null; undoStack.length = 0;");
+  env.listeners.window.keydown(key({ key: "a" }));
+  drag(40, 40, 140, 90);
+  env.call("sel = notes[0]");
+  drag(90, 65, 120, 85);
+  check("…and an ARROW still moves, which is the half that was never broken",
+        nf(0, "kind") === "arrow"
+        && nf(0, "x1") === 70 && nf(0, "x2") === 170,
+        nf(0, "x1") + "/" + nf(0, "x2"));
+
+  // ---- fitWant, driven directly -------------------------------------
+  const want = (w, h, boxes, max, pad) =>
+    env.call(`JSON.stringify(fitWant(${w}, ${h}, ${JSON.stringify(boxes)}, ${max}, ${pad}))`);
+  check("🖼 a mark inside the canvas asks for nothing",
+        want(400, 300, [{ x: 10, y: 10, w: 50, h: 20 }], 12000, 10) === "null");
+  check("🖼 a mark running past the RIGHT grows the width to its full extent"
+        + " — never to the extent less the tolerance, or the mark the canvas"
+        + " was resized for would still be outside it",
+        want(400, 300, [{ x: 380, y: 10, w: 60, h: 20 }], 12000, 10)
+        === JSON.stringify({ w: 440, h: 300 }),
+        want(400, 300, [{ x: 380, y: 10, w: 60, h: 20 }], 12000, 10));
+  check("🖼 …and past the BOTTOM grows the height",
+        want(400, 300, [{ x: 10, y: 290, w: 20, h: 40 }], 12000, 10)
+        === JSON.stringify({ w: 400, h: 330 }));
+  check("📐 a mark off the LEFT or the TOP asks for NOTHING — growing there"
+        + " would move the picture under every other mark (6.258.0)",
+        want(400, 300, [{ x: -200, y: -200, w: 20, h: 20 }], 12000, 10) === "null");
+  check("📏 a mark that pokes past by less than the tolerance is still"
+        + " visible and still has a grip, so it asks for no room",
+        want(400, 300, [{ x: 390, y: 10, w: 18, h: 20 }], 12000, 10) === "null",
+        want(400, 300, [{ x: 390, y: 10, w: 18, h: 20 }], 12000, 10));
+  check("📏 …and one past by MORE than it does",
+        want(400, 300, [{ x: 390, y: 10, w: 30, h: 20 }], 12000, 10)
+        === JSON.stringify({ w: 420, h: 300 }));
+  check("📏 the ceiling clamps a mark flung off the edge",
+        want(400, 300, [{ x: 10, y: 10, w: 99000, h: 20 }], 1000, 10)
+        === JSON.stringify({ w: 1000, h: 300 }));
+  // 🚨 a clamp that shrinks is the destructive half wearing a bound's name
+  check("📏 …and a ceiling BELOW the canvas never shrinks it",
+        want(400, 300, [{ x: 10, y: 10, w: 99000, h: 20 }], 100, 10) === "null",
+        want(400, 300, [{ x: 10, y: 10, w: 99000, h: 20 }], 100, 10));
+  check("🖼 a box carrying a field it does not own is SKIPPED, not read as NaN",
+        want(400, 300, [{ x: 10, y: 10 }, { x: 380, y: 10, w: 60, h: 20 }], 12000, 10)
+        === JSON.stringify({ w: 440, h: 300 }));
+  check("🖼 no marks at all asks for nothing",
+        want(400, 300, [], 12000, 10) === "null");
+
+  // ---- fitCanvas, end to end, and ONE ⌘Z ------------------------------
+  env.call("notes.length = 0; sel = null; undoStack.length = 0;");
+  env.sent.length = 0;
+  env.listeners.window.keydown(key({ key: "o" }));      // oval
+  drag(300, 100, 380, 160);
+  env.call("sel = notes[0]");
+  drag(340, 130, 500, 130);                              // shove it off the right
+  check("🖼 6.442.0 — THE CANVAS GREW to fit a mark dragged past its edge",
+        env.call("cv.width") > 400 && env.call("cv.height") === 300,
+        env.call("cv.width") + "×" + env.call("cv.height"));
+  check("🖼 …and it told Lua to resize the window to it",
+        env.sent.some((m) => m.a === "size" && m.fit === true
+                             && m.w === env.call("cv.width")),
+        JSON.stringify(env.sent.filter((m) => m.a === "size")));
+  const grownW = env.call("cv.width");
+  env.listeners.window.keydown(key({ metaKey: true, key: "z" }));
+  check("🔁 ONE ⌘Z takes the move AND the room it asked for — an action that"
+        + " owes two presses is one nobody remembers at the moment they"
+        + " need it (6.258.0)",
+        env.call("cv.width") === 400 && nf(0, "x") === 300,
+        env.call("cv.width") + " / x=" + nf(0, "x"));
+  check("…and the undo row it rode on carried no stored pixels, because a"
+        + " fit only ever ADDS blank space and moves nothing",
+        grownW > 400);
+
+  // 🚨 a crop rectangle describes the shot that is there; it never asks
+  // for more of it, or ⏎ would crop to a canvas the crop itself grew
+  env.call("notes.length = 0; sel = null; undoStack.length = 0;"
+           + " cv.width = 400; cv.height = 300;");
+  env.call("notes.push({ kind: 'crop', x: 10, y: 10, w: 900, h: 20 });"
+           + " var _f = fitCanvas();");
+  check("✂️ a crop rectangle never asks the canvas for room",
+        env.call("cv.width") === 400, env.call("cv.width"));
+
+  // ---- the grip is always reachable -----------------------------------
+  env.call("notes.length = 0; sel = null; undoStack.length = 0;");
+  env.call("notes.push({ kind: 'text', x: 360, y: 150, size: 14, text: 'a long one', w: 300 });"
+           + " sel = notes[0];");
+  const hp = JSON.parse(env.call("JSON.stringify(handlePt(notes[0]))"));
+  check("🖌 6.442.0 — a grip that would sit off the canvas is CLAMPED back"
+        + " inside it, because a handle nobody can click is a handle that"
+        + " does not exist",
+        hp.x < 400 && hp.x > 0, JSON.stringify(hp));
+  const hit = env.call(`JSON.stringify(hitAt({ x: ${hp.x}, y: ${hp.y} }))`);
+  check("…and the hit test finds the SIZE handle there — one function, two"
+        + " readers, or the dot is drawn where the target is not (6.231.0)",
+        JSON.parse(hit) && JSON.parse(hit).part === "size", hit);
+  // ADDITIVE (6.299.0): a mark whose corner is on screen keeps the grip
+  // it already had, because for it the two points are the same point
+  env.call("notes.length = 0; sel = null;");
+  env.call("notes.push({ kind: 'oval', x: 20, y: 20, w: 80, h: 60 }); sel = notes[0];");
+  const inHp = JSON.parse(env.call("JSON.stringify(handlePt(notes[0]))"));
+  check("🖌 …and a mark already inside the canvas is untouched by the clamp",
+        inHp.x === 100 && inHp.y === 80, JSON.stringify(inHp));
+
+  // ---- every mark can be taken off again -------------------------------
+  // LL: "check all the items I can add to the canvas. I should be able to
+  // remove all those items." Every KIND, one at a time, by the key.
+  const kinds = [
+    "{ kind: 'text', x: 20, y: 20, size: 14, text: 'x' }",
+    "{ kind: 'arrow', x1: 20, y1: 20, x2: 90, y2: 70 }",
+    "{ kind: 'line', x1: 20, y1: 20, x2: 90, y2: 70 }",
+    "{ kind: 'oval', x: 20, y: 20, w: 60, h: 40 }",
+    "{ kind: 'hl', x: 20, y: 20, w: 60, h: 40 }",
+    "{ kind: 'spot', x: 20, y: 20, w: 60, h: 40 }",
+    "{ kind: 'crop', x: 20, y: 20, w: 60, h: 40 }",
+    "{ kind: 'count', x: 40, y: 40, n: 1 }",
+    "{ kind: 'mag', x: 60, y: 60, r: 20 }",
+    "{ kind: 'img', src: 'data:image/png;base64,PASTED', x: 20, y: 20, w: 60, h: 40 }",
+  ];
+  let allGone = true, stuck = "";
+  for (const k of kinds) {
+    env.call("notes.length = 0; sel = null; undoStack.length = 0;"
+             + " cv.width = 400; cv.height = 300;");
+    env.call(`notes.push(${k}); sel = notes[0];`);
+    env.listeners.window.keydown(key({ key: "Backspace" }));
+    if (env.call("notes.length") !== 0) { allGone = false; stuck += k + " "; }
+    else {
+      env.listeners.window.keydown(key({ metaKey: true, key: "z" }));
+      if (env.call("notes.length") !== 1) { allGone = false; stuck += "undo:" + k + " "; }
+    }
+  }
+  check("🗑 EVERY kind of mark can be taken off with ⌫ and put back with ⌘Z"
+        + " — ten kinds, one at a time", allGone, stuck || "none stuck");
+  // …and each of them is REACHABLE, or ⌫ has nothing to act on
+  let allHit = true, missed = "";
+  for (const k of kinds) {
+    env.call("notes.length = 0; sel = null; cv.width = 400; cv.height = 300;");
+    env.call(`notes.push(${k});`);
+    const b = JSON.parse(env.call("JSON.stringify(noteBox(notes[0]))"));
+    const h = env.call(`JSON.stringify(hitAt({ x: ${b.x + b.w / 2}, y: ${b.y + b.h / 2} }))`);
+    if (h === "null") { allHit = false; missed += k.slice(9, 20) + " "; }
+  }
+  check("🗑 …and every one of them is HIT at the middle of its own box, or"
+        + " ⌫ would have nothing selected to act on", allHit, missed || "none missed");
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

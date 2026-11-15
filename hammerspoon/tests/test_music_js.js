@@ -585,6 +585,142 @@ console.log("── Music player: page JavaScript, executed ──");
 }
 
 // =====================================================================
+// =====================================================================
+// 🎚 6.443.0 — DRAG A QUEUE ROW, AND A DRAG IS NOT A CLICK
+// =====================================================================
+// LL: "Give me the ability to drag/drop song order in my play queue…
+// Clicking on a song shouldn't make it play if another song is playing
+// when I click the mouse and hold to drag."
+{
+  const env = load();
+  env.draw(ROWS);
+  // the same selector-aware closest() 6.272.0 built, with the pointer
+  // facts a drag needs hung on it
+  const ev = (attrs, x, y, buttons) => ({
+    button: 0, clientX: x, clientY: y,
+    buttons: (buttons === undefined ? 1 : buttons),
+    target: { closest: (sel) => {
+      const wanted = String(sel).split(",").map((t) => t.trim().replace(/^\[|\]$/g, ""));
+      if (!attrs || !wanted.some((k) => k in attrs)) return null;
+      return { getAttribute: (k) => (k in attrs ? attrs[k] : null) };
+    } } });
+  const down = (a, x, y) => env.listeners.el["list:mousedown"](ev(a, x, y));
+  const move = (a, x, y, b) => env.listeners.document["mousemove"](ev(a, x, y, b));
+  const up   = () => env.listeners.document["mouseup"]({});
+  const click = (a) => env.listeners.el["list:click"](ev(a, 0, 0));
+
+  // ---- a press that never moves is still a click ---------------------
+  env.sent.length = 0;
+  down({ "data-i": "2" }, 10, 10);
+  up();
+  click({ "data-i": "2" });
+  check("🎚 a press that never moves is still a CLICK, and still plays the"
+        + " track — the two are told apart on the release",
+        at(env, 0).a === "pick" && at(env, 0).i === 2,
+        JSON.stringify(env.sent));
+
+  // ---- a drag reorders, and does NOT play ----------------------------
+  env.sent.length = 0;
+  down({ "data-i": "1" }, 10, 10);
+  move({ "data-i": "3" }, 10, 60);
+  up();
+  check("🎚 6.443.0 — DRAGGING A ROW ASKS LUA TO MOVE IT",
+        env.sent.length === 1 && at(env, 0).a === "move"
+        && at(env, 0).from === 1 && at(env, 0).to === 3,
+        JSON.stringify(env.sent));
+  click({ "data-i": "1" });
+  check("🚨 …and the click that follows the release does NOT play it,"
+        + " which is the half he reported",
+        env.sent.length === 1, JSON.stringify(env.sent));
+  // the flag is CONSUMED, so the very next ordinary click still works
+  env.sent.length = 0;
+  click({ "data-i": "4" });
+  check("🚨 …and the NEXT click plays again — the flag is consumed, never"
+        + " left set to swallow a real click",
+        at(env, 0).a === "pick" && at(env, 0).i === 4,
+        JSON.stringify(env.sent));
+
+  // ---- a wobble is not a drag ----------------------------------------
+  env.sent.length = 0;
+  down({ "data-i": "2" }, 10, 10);
+  move({ "data-i": "3" }, 11, 12);      // two pixels: a steady hand
+  up();
+  click({ "data-i": "2" });
+  check("🎚 a press that wobbles a pixel is still a press — nothing is"
+        + " moved and the track still plays",
+        env.sent.length === 1 && at(env, 0).a === "pick",
+        JSON.stringify(env.sent));
+
+  // ---- a drag that leaves the rows keeps the last row it was over ----
+  env.sent.length = 0;
+  down({ "data-i": "1" }, 10, 10);
+  move({ "data-i": "4" }, 10, 80);
+  move(null, 10, 400);                  // off the end of the list
+  up();
+  check("🎚 a drag that leaves the rows drops on the LAST row it was over,"
+        + " rather than nowhere",
+        at(env, 0).a === "move" && at(env, 0).to === 4,
+        JSON.stringify(env.sent));
+
+  // ---- a release this page never hears about still ends the drag -----
+  env.sent.length = 0;
+  down({ "data-i": "1" }, 10, 10);
+  move({ "data-i": "3" }, 10, 60);
+  move({ "data-i": "3" }, 10, 61, 0);   // the button is not down any more
+  check("🎚 a release that landed somewhere this page never hears about"
+        + " still ends the drag, exactly as a mouseup would (6.222.0)",
+        at(env, 0).a === "move" && at(env, 0).to === 3,
+        JSON.stringify(env.sent));
+  env.sent.length = 0; up();
+  check("…and the mouseup after it does nothing twice",
+        env.sent.length === 0, JSON.stringify(env.sent));
+
+  // ---- dropping a row on itself asks for nothing ---------------------
+  env.sent.length = 0;
+  down({ "data-i": "2" }, 10, 10);
+  move({ "data-i": "2" }, 10, 60);
+  up();
+  check("🎚 a row dragged back onto itself asks Lua for nothing",
+        env.sent.length === 0, JSON.stringify(env.sent));
+
+  // ---- the ✕ and the history are untouched ---------------------------
+  env.sent.length = 0;
+  down({ "data-x": "0", "data-h": "0" }, 10, 10);
+  move({ "data-h": "1" }, 10, 60);
+  up();
+  check("🗑 the ✕ owns its own press — a drag never starts on it, so the"
+        + " row it sits inside cannot be reordered out from under it",
+        env.sent.length === 0, JSON.stringify(env.sent));
+  env.sent.length = 0;
+  down({ "data-h": "0" }, 10, 10);
+  move({ "data-h": "2" }, 10, 60);
+  up();
+  check("📏 a HISTORY row is not draggable — the history is what played,"
+        + " in the order it played, so a hand-sorted one records nothing",
+        env.sent.length === 0, JSON.stringify(env.sent));
+  env.sent.length = 0;
+  click({ "data-x": "0", "data-h": "0" });
+  check("🗑 …and the ✕ still forgets the track it sits on",
+        at(env, 0).a === "forget", JSON.stringify(env.sent));
+
+  // ---- the card stands still while a row is in the hand --------------
+  // 🚨 the clock redraws this list twice a second; a list that renumbers
+  // under the pointer drops the wrong track (6.186.0)
+  env.sent.length = 0;
+  down({ "data-i": "1" }, 10, 10);
+  move({ "data-i": "3" }, 10, 60);
+  const before = env.byId.list.innerHTML;
+  env.draw(JSON.stringify({ rows: [{ i: 1, n: "ONLY ONE LEFT" }], hist: [],
+                            sel: 1, mode: "off", playing: true }));
+  check("🚨 6.443.0 — the card does NOT redraw while a row is in the hand",
+        env.byId.list.innerHTML === before, "redrew mid-drag");
+  up();
+  check("…and it is drawn the instant the drag ends, so the state kept"
+        + " during it is on screen rather than lost",
+        env.byId.list.innerHTML !== before && /ONLY ONE LEFT/.test(env.byId.list.innerHTML),
+        env.byId.list.innerHTML.slice(0, 60));
+}
+
 if (fail > 0) {
   console.log("FAILURES:");
   for (const f of failures) console.log("  ❌ " + f);

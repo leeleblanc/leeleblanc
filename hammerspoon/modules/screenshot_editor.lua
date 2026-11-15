@@ -187,6 +187,13 @@ function M.setup(core)
     -- commits. ONE rectangle at a time on purpose: two crops is a rule
     -- he would have to remember, and the second one's meaning (of the
     -- first result, or of the original?) has no obvious answer.
+    -- 🖼 6.442.0 — how far the canvas may grow to fit a mark that runs
+    -- past it. A mark flung off the edge would otherwise ask for a canvas
+    -- the size of the drag, so the want is clamped here; past it the
+    -- handle is still reachable, because it is drawn and hit clamped
+    -- inside the canvas whatever the canvas is.
+    ed.fitGrow    = true        -- grow the canvas to fit a mark past its edge
+    ed.fitMax     = 12000       -- the ceiling on each side, image pixels
     ed.cropMin    = 32          -- the floor on each side, image pixels
     ed.cropDim    = 0.72        -- how dark the part that would go is drawn
     ed.kept = nil    -- { path, img, notes } — never written to disk, never
@@ -408,6 +415,8 @@ function M.setup(core)
   var MAGZOOM = ]] .. tostring(tonumber(ed.magZoom) or 2) .. [[;
   var VEIL = ]] .. tostring(tonumber(ed.veilAlpha) or 0.55) .. [[;
   var CROPDIM = ]] .. tostring(tonumber(ed.cropDim) or 0.72) .. [[;
+  var FITGROW = ]] .. tostring(ed.fitGrow ~= false) .. [[;
+  var FITMAX  = ]] .. tostring(math.floor(tonumber(ed.fitMax) or 12000)) .. [[;
   var DELAYSECS = ]] .. tostring(delaySecs) .. [[;
 
   function say(m){ window.webkit.messageHandlers.shotEditor.postMessage(m || {}); }
@@ -521,6 +530,28 @@ function M.setup(core)
     var b = noteBox(n);
     return Math.max(4, Math.min(r, Math.min(b.w, b.h) * 0.45));
   }
+  // 🖌 6.442.0 — A HANDLE THAT IS OFF THE CANVAS IS A HANDLE THAT DOES
+  // NOT EXIST. LL: "when a long text box is added resizing handles
+  // disappear off screen and I have to move the textbox until I can see
+  // the resize nod." fitCanvas grows the canvas to the right and the
+  // bottom, which covers the case he named — but a mark dragged off the
+  // LEFT or the TOP cannot be answered that way, because growing there
+  // would move the picture under every other mark (6.258.0's rule), and
+  // a canvas at the FITMAX ceiling cannot grow at all. So the grip is
+  // DRAWN and HIT at a point clamped inside the canvas, whatever the
+  // canvas is: the two halves cover each other rather than each covering
+  // most of it. ONE function, two readers (6.231.0) — a dot drawn where
+  // the target is not is the bug this is fixing, one layer up.
+  function handlePt(n){
+    var b = noteBox(n), hr = handleRFor(n);
+    var x = b.x + b.w, y = b.y + b.h;
+    if (!cv) return { x: x, y: y };
+    // a canvas narrower than two radii has no room to clamp into, and
+    // inverting the bounds would park the grip in the middle of nothing
+    if (cv.width  > hr * 2) x = Math.max(hr, Math.min(cv.width  - hr, x));
+    if (cv.height > hr * 2) y = Math.max(hr, Math.min(cv.height - hr, y));
+    return { x: x, y: y };
+  }
 
   function pushUndo(u){
     undoStack.push(u);
@@ -581,9 +612,10 @@ function M.setup(core)
       var i = notes.indexOf(u.note);
       if (i >= 0) notes.splice(i, 1);
       if (sel === u.note) sel = null;
+      undoFit(u);
     }
     else if (u.op === 'del') notes.splice(Math.min(u.index, notes.length), 0, u.note);
-    else if (u.op === 'set'){ for (var k in u.before) u.note[k] = u.before[k]; }
+    else if (u.op === 'set'){ for (var k in u.before) u.note[k] = u.before[k]; undoFit(u); }
     redraw();
   }
 
@@ -842,6 +874,93 @@ function M.setup(core)
       }
     }
   }
+  // 🖼 6.442.0 — THE CANVAS GROWS TO FIT A MARK THAT RUNS PAST IT.
+  // LL: "if an item that I add goes off the screen, the editable canvas
+  // should grow to fit it."
+  // 📐 RIGHT AND BOTTOM ONLY, and that is 6.258.0's rule rather than a
+  // corner cut: every mark is stored in CANVAS coordinates, so the origin
+  // staying at 0,0 is the only thing that stops a grow dragging every
+  // other mark off the thing it points at. Growing to the LEFT or the TOP
+  // would move the picture under all of them — which is the case handlePt
+  // answers instead, by clamping the grip rather than moving the shot.
+  // 📏 AND IT NEVER SHRINKS. A ⌫ that took the widest mark away would
+  // otherwise destroy the pixels of a canvas that had been grown, and
+  // that is the one failure in this module with no way back.
+  // PURE, so the gate drives every edge with no canvas: the sizes and the
+  // boxes are arguments and the answer is a size or nothing at all.
+  // `pad` is the TOLERANCE, and it earns its place rather than softening
+  // the rule: a mark that pokes past the edge by less than the width of
+  // its own grip is still visible and still has a grip, so resizing the
+  // canvas for it would add a blank strip under every text note placed
+  // near the bottom of a shot and buy nothing. Past that, the mark really
+  // is off the picture.
+  function fitWant(w, h, boxes, max, pad){
+    w = Math.round(Number(w) || 0); h = Math.round(Number(h) || 0);
+    max = Math.round(Number(max) || 0);
+    pad = Math.max(0, Math.round(Number(pad) || 0));
+    if (!(w > 0) || !(h > 0) || !boxes || !boxes.length) return null;
+    var nw = w, nh = h, i, b, r, bo;
+    for (i = 0; i < boxes.length; i++){
+      b = boxes[i];
+      if (!b) continue;
+      r  = Math.ceil(Number(b.x) + Number(b.w));
+      bo = Math.ceil(Number(b.y) + Number(b.h));
+      // a box with a field it does not own reads NaN, and NaN > nw is
+      // false — so it is skipped rather than poisoning the answer
+      // 🔑 the tolerance decides WHETHER to grow; the grow is then to the
+      // mark's FULL extent, never to the extent less the tolerance — a
+      // mark the canvas was resized for must end up inside it
+      if (isFinite(r)  && r  > w + pad && r  > nw) nw = r;
+      if (isFinite(bo) && bo > h + pad && bo > nh) nh = bo;
+    }
+    // the ceiling may never ask for LESS than the canvas already is: a
+    // clamp that shrinks is the destructive half wearing a bound's name
+    if (max > 0){ nw = Math.min(nw, Math.max(w, max));
+                  nh = Math.min(nh, Math.max(h, max)); }
+    if (nw <= w && nh <= h) return null;
+    return { w: Math.max(w, nw), h: Math.max(h, nh) };
+  }
+  // Returns the OLD size when it grew, so the caller's undo row carries it
+  // and ONE ⌘Z takes the mark and the room it asked for (6.258.0's
+  // promise: one action never owes two presses).
+  function fitCanvas(){
+    if (!FITGROW || !cv || !ctx) return null;
+    var boxes = [], i;
+    for (i = 0; i < notes.length; i++){
+      // a crop rectangle describes the shot that is there; it never asks
+      // for more of it
+      if (notes[i].kind === 'crop') continue;
+      boxes.push(noteBox(notes[i]));
+    }
+    var want = fitWant(cv.width, cv.height, boxes, FITMAX, handleR());
+    if (!want) return null;
+    var old = { w: cv.width, h: cv.height };
+    var keep = ctx.getImageData(0, 0, cv.width, cv.height);
+    cv.width = want.w; cv.height = want.h;
+    if (ov){ ov.width = want.w; ov.height = want.h; }
+    ctx.fillStyle = '#202127';
+    ctx.fillRect(0, 0, want.w, want.h);
+    ctx.putImageData(keep, 0, 0);
+    sayCanvas(true);
+    return old;
+  }
+  // 🖼 the room a fit added, given back on the SAME press as the mark that
+  // asked for it. IT CARRIES NO PIXELS, and that is sound rather than
+  // thrifty: a fit only ever adds blank space to the right and the bottom
+  // and moves nothing, so the old picture IS the top-left corner of the
+  // bigger one. A crop's undo must carry the pixels because a crop
+  // destroys them; this one must not, because a whole 4K canvas stored on
+  // every ordinary drag is a cost paid for a case that cannot happen.
+  function undoFit(u){
+    if (!u || !u.fit || !cv || !ctx) return;
+    var w = u.fit.w, h = u.fit.h;
+    if (!(w > 0) || !(h > 0) || w > cv.width || h > cv.height) return;
+    var keep = ctx.getImageData(0, 0, w, h);
+    cv.width = w; cv.height = h;
+    if (ov){ ov.width = w; ov.height = h; }
+    ctx.putImageData(keep, 0, 0);
+    sayCanvas(true);
+  }
   // The page ASKS and Lua decides — one copy of the rule, in the place the
   // gate can drive it (6.258.0's shape). With no rectangle it still asks,
   // so the refusal is Lua's one sentence rather than a silent button.
@@ -1009,7 +1128,7 @@ function M.setup(core)
         };
         if (n.kind === 'arrow' || n.kind === 'line'){ dot(n.x1, n.y1); dot(n.x2, n.y2); }
         else if (n.kind === 'mag'){ dot(n.x + n.r, n.y); }               // the radius handle
-        else if (n.kind !== 'count'){ dot(bb.x + bb.w, bb.y + bb.h); }   // the resize corner (text, oval, highlight, spotlight, image)
+        else if (n.kind !== 'count'){ var hp = handlePt(n); dot(hp.x, hp.y); }   // the resize corner (text, oval, highlight, spotlight, image) — clamped into the canvas (6.442.0)
       }
     }
     g.restore();
@@ -1057,7 +1176,14 @@ function M.setup(core)
         var b = noteBox(n);
         // 6.188.0 — the SIZE handle, bottom-right, checked before the box
         // so a small note is still resizable rather than only movable
-        if (distPt(p.x, p.y, b.x + b.w, b.y + b.h) <= handleRFor(n))
+        // 6.442.0 — EITHER the true corner or the point it is DRAWN at,
+        // which is clamped into the canvas. ADDITIVE on purpose (6.299.0):
+        // the two are the SAME point whenever the corner is on screen, so
+        // this takes nothing away from a mark that already had a grip —
+        // it only adds one where the corner is somewhere nobody can click.
+        var hr2 = handleRFor(n), hp = handlePt(n);
+        if (distPt(p.x, p.y, b.x + b.w, b.y + b.h) <= hr2
+            || distPt(p.x, p.y, hp.x, hp.y) <= hr2)
           return { note: n, part: 'size' };
         // …and the box itself is grown to the handle radius, so a one-word
         // label on a 4K shot is a target rather than a dare
@@ -1118,8 +1244,12 @@ function M.setup(core)
         if (i >= 0){ pushUndo({ op: 'del', note: editingNote, index: i }); notes.splice(i, 1); }
         if (sel === editingNote) sel = null;
       } else if (v !== editingNote.text){
-        pushUndo({ op: 'set', note: editingNote, before: { text: editingNote.text } });
+        var oldText = editingNote.text;
         editingNote.text = v;
+        // 6.442.0 — the words are in before the room is measured: a line
+        // added to a box is what makes it run past the edge
+        pushUndo({ op: 'set', note: editingNote, before: { text: oldText },
+                   fit: fitCanvas() });
       }
     } else if (v !== '' && pendingPt){
       // 6.287.0 — a NEW note is born with a width, so the corner handle
@@ -1130,7 +1260,7 @@ function M.setup(core)
       nn.w = Math.max(ns, Math.round(textW(octx || ctx, nn)));
       var n = nn;
       notes.push(n); sel = n;
-      pushUndo({ op: 'add', note: n });
+      pushUndo({ op: 'add', note: n, fit: fitCanvas() });
     }
     editingNote = null; pendingPt = null;
     redraw();
@@ -1291,7 +1421,17 @@ function M.setup(core)
       if (drag.clickEdit && !drag.moved) return;
       if (drag.mode === 'move'){
         var dx = p.x - drag.sx, dy = p.y - drag.sy;
-        if (n.kind === 'arrow'){
+        // 🖌 6.442.0 — A MARK WITH TWO ENDS MOVES BY BOTH OF THEM, and the
+        // test is what the mark HAS rather than which of two names it is.
+        // LL: "I can't drag and drop lines I have drawn." This branch
+        // said `n.kind === 'arrow'` and a LINE is not an arrow, so every
+        // line fell into the else and had `x` and `y` — fields a line does
+        // not own — written onto it: hit, selected, dragged, and never
+        // moved a pixel. hitAt, noteBox, drawNote and the endpoint drag
+        // all name the pair; this one branch named half of it (6.236.0).
+        // `x1` is the same question shiftNotes already asks, so the two
+        // cannot drift about what a two-ended mark is.
+        if (typeof drag.before.x1 === 'number'){
           n.x1 = drag.before.x1 + dx; n.y1 = drag.before.y1 + dy;
           n.x2 = drag.before.x2 + dx; n.y2 = drag.before.y2 + dy;
         } else { n.x = drag.before.x + dx; n.y = drag.before.y + dy; }
@@ -1368,11 +1508,17 @@ function M.setup(core)
         if (tiny){
           notes.splice(notes.indexOf(n), 1);   // a click, not a shape
           if (sel === n) sel = null;
-        } else pushUndo({ op: 'add', note: n });
+        } else pushUndo({ op: 'add', note: n, fit: fitCanvas() });
       } else {
         var changed = false, k;
         for (k in d.before){ if (d.before[k] !== n[k]){ changed = true; break; } }
-        if (changed) pushUndo({ op: 'set', note: n, before: d.before });
+        // 🖼 6.442.0 — the room is asked for HERE, on the drag's own undo
+        // row, and never per mouse event: a canvas resized forty times
+        // across one drag is 6.247.0's rebuild at its worst. A grow with
+        // nothing else changed still earns a row, or ⌘Z leaves the room
+        // behind with no way to give it back.
+        var grew = fitCanvas();
+        if (changed || grew) pushUndo({ op: 'set', note: n, before: d.before, fit: grew });
         // 6.207.0 — a click, not a drag, on a text box with the Text tool:
         // open the words for editing right here
         if (d.clickEdit && !d.moved && !changed){ redraw(); startText(n); return; }

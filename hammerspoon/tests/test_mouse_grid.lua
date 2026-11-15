@@ -1100,12 +1100,27 @@ check("each keystroke shrinks the redraw — 714 -> 162 -> 18",
       full .. " -> " .. one .. " -> " .. two)
 grid.hide("t"); checkInv("cleanup")
 
+-- 🎯 6.444.0 — THE LATTICE IS THE SCRIM, THE DIVIDERS, AND AT MOST ONE
+-- BOX AT THE CROSSHAIRS. The rule these checks exist for is "not one
+-- rectangle per CELL" — one box is not that, and 676 of them would be.
+-- Counted the way the MODULE counts it rather than as a literal, so
+-- moving the knob cannot make a correct grid fail (6.248.0).
+local function pointerBoxes(p)
+    local st = grid.state
+    if not (grid.pointerBox and st and st.pointer) then return 0 end
+    return grid.pointerCell(p.frame, st.pointer.x, st.pointer.y,
+                            p.cellW, p.cellH) and 1 or 0
+end
+local function latticeCount(p)
+    return 1 + (p.cols - 1) + (p.rows - 1) + pointerBoxes(p)
+end
+
 out("   -- 6.65.0: the amber highlight and the vanishing lattice --\n")
 grid.show(false)
 check("with nothing typed the lattice is fully drawn — scrim plus one "
       .. "line per divider, not one rectangle per cell", (function()
     local p = grid.cache.screens[1]
-    return #p.gridCanvas.elements == 1 + (p.cols - 1) + (p.rows - 1)
+    return #p.gridCanvas.elements == latticeCount(p)
 end)(), #grid.cache.screens[1].gridCanvas.elements)
 check("with nothing typed NO cell is highlighted — boxing all of them is "
       .. "not a highlight, it is a second lattice", (function()
@@ -1117,7 +1132,8 @@ end)())
 pickKey("a")
 check("one keystroke and the grid lines are GONE — the survivors stand "
       .. "alone on the scrim",
-      #grid.cache.screens[1].gridCanvas.elements == 1,
+      #grid.cache.screens[1].gridCanvas.elements
+          == 1 + pointerBoxes(grid.cache.screens[1]),
       #grid.cache.screens[1].gridCanvas.elements)
 check("dropping the lattice costs ONE element regardless of how many "
       .. "cells were discarded — it gets cheaper as the grid narrows",
@@ -1163,17 +1179,19 @@ grid.show(false)
 check("🚨 the NEXT show restores the lattice — a cached canvas must never "
       .. "open showing the last session's final frame", (function()
     local p = grid.cache.screens[1]
-    return #p.gridCanvas.elements == 1 + (p.cols - 1) + (p.rows - 1)
+    return #p.gridCanvas.elements == latticeCount(p)
 end)(), #grid.cache.screens[1].gridCanvas.elements)
 -- Backspacing out returns you to the full grid in the same session.
 pickKey("a")
 check("typing drops the lattice again in the same session",
-      #grid.cache.screens[1].gridCanvas.elements == 1)
+      #grid.cache.screens[1].gridCanvas.elements
+          == 1 + pointerBoxes(grid.cache.screens[1]),
+      #grid.cache.screens[1].gridCanvas.elements)
 grid.backspace()
 check("backspacing to nothing brings the lattice BACK, rather than "
       .. "leaving you on a bare scrim with every cell selectable", (function()
     local p = grid.cache.screens[1]
-    return #p.gridCanvas.elements == 1 + (p.cols - 1) + (p.rows - 1)
+    return #p.gridCanvas.elements == latticeCount(p)
 end)(), #grid.cache.screens[1].gridCanvas.elements)
 grid.hide("t"); checkInv("cleanup")
 
@@ -1210,7 +1228,7 @@ grid.show(false)
 check("the grid canvas is the scrim plus one line per divider, not one "
       .. "rectangle per cell", (function()
     local p = grid.cache.screens[1]
-    return #p.gridCanvas.elements == 1 + (p.cols - 1) + (p.rows - 1)
+    return #p.gridCanvas.elements == latticeCount(p)
 end)(), #grid.cache.screens[1].gridCanvas.elements)
 check("the overlay draws ABOVE the menu bar — at overlay level the top "
       .. "25pt hides behind it and menu-bar items become unreachable",
@@ -3848,13 +3866,32 @@ do
         okTimer and tc and color.red==tc.red and color.green==tc.green and color.blue==tc.blue and color.alpha==tc.alpha)
     _G.uiStyle=nil
     mod=fresh(ONE);mod.warm()
+    -- 🧪 6.444.0 — THE ROW IS FOUND, NEVER COUNTED TO. These pinned
+    -- entries[9] and entries[11], so inserting a row anywhere above them
+    -- failed a check about a rule that had not moved — 6.248.0, in the
+    -- suite for the module that wrote it down.
+    local function rowSaying(cs, needle)
+        for _, e in ipairs(cs.entries or {}) do
+            if tostring(e[2] or ""):find(needle, 1, true) then return e end
+        end
+        return nil
+    end
+    local function keyRow(cs, needle)
+        for _, e in ipairs(cs.entries or {}) do
+            if tostring(e[1] or "") == needle then return e end
+        end
+        return nil
+    end
     check("6428: cheat sheet follows the configured label length, not a literal",
         mod.cheatsheet.title:find(tostring(grid.labelLength).." letters",1,true)
-        and mod.cheatsheet.entries[9][2]:find("Nudge",1,true)
-        and mod.cheatsheet.entries[11][1]=="asdf")
+        and rowSaying(mod.cheatsheet,"Nudge") ~= nil
+        and keyRow(mod.cheatsheet,"asdf") ~= nil,
+        tostring(mod.cheatsheet.title))
     grid.labelLength=2;grid.refineParts=2;grid.halveKeys="jk";mod.warm()
     check("6428: cheat sheet follows configured label length and actual keys",
-        mod.cheatsheet.title:find("2 letters",1,true) and mod.cheatsheet.entries[11][1]=="jk")
+        mod.cheatsheet.title:find("2 letters",1,true)
+        and keyRow(mod.cheatsheet,"jk") ~= nil,
+        tostring(mod.cheatsheet.title))
     grid.hide("test")
     PIN_ALPHABET,PIN_LABELLEN,PIN_SUBDIVISIONS,PIN_REFINEPARTS,PIN_LABEL_PLATES,PIN_SNAP=keepA,keepL,keepS,keepR,keepP,keepSnap
     _G.uiStyle=nil;_G.hyperDispatchEngaged=false
@@ -3977,6 +4014,154 @@ do
 end
 
 -- =====================================================================
+-- =====================================================================
+-- §6444 A BOX AT THE CROSSHAIRS, AND ⏎ LANDS ON IT
+-- =====================================================================
+-- LL: "Mouse grid: Can we play a box at the crosshairs? This seems like
+-- an optimal position as I have to arrow/move to this spot a lot?"
+do
+    local before = pass + fail
+    local F = { x = 0, y = 0, w = 1000, h = 800 }
+
+    -- ---- the rule, driven directly -----------------------------------
+    local c = grid.pointerCell(F, 500, 400, 40, 30)
+    check("🎯 the box is cell-sized and CENTRED on the pointer",
+          c and c.rw == 40 and c.rh == 30 and c.bx == 480 and c.by == 385,
+          c and (c.bx .. "," .. c.by .. " " .. c.rw .. "x" .. c.rh))
+    check("🔑 …and the POINT is the pointer itself, which is the whole ask",
+          c and c.ax == 500 and c.ay == 400, c and (c.ax .. "," .. c.ay))
+
+    -- 🚨 THE FIXTURE THAT BITES IS A POINTER AT A CORNER (6.230.0): in
+    -- the middle of a screen a clamped box and an unclamped one are the
+    -- same rectangle, so a check written there passes with the clamp
+    -- deleted AND with the point moved.
+    c = grid.pointerCell(F, 2, 3, 40, 30)
+    check("🔑 a pointer at a corner keeps its POINT — it lands on itself, "
+          .. "not on the middle of a box pushed inwards to be drawn",
+          c and c.ax == 2 and c.ay == 3, c and (c.ax .. "," .. c.ay))
+    check("🎯 …while the BOX is clamped onto the screen, so it can be seen",
+          c and c.bx == 0 and c.by == 0, c and (c.bx .. "," .. c.by))
+    c = grid.pointerCell(F, 999, 799, 40, 30)
+    check("🎯 …and at the far corner too",
+          c and c.bx == 960 and c.by == 770 and c.ax == 999 and c.ay == 799,
+          c and (c.bx .. "," .. c.by))
+
+    -- the refusals, each in words (6.196.1)
+    local why
+    c, why = grid.pointerCell(F, 2000, 400, 40, 30)
+    check("🎯 a pointer on ANOTHER screen gets no box here, and says so",
+          c == nil and type(why) == "string" and why ~= "", tostring(why))
+    c, why = grid.pointerCell(F, nil, nil, 40, 30)
+    check("🎯 a Mac that would not say where the pointer is gets no box, "
+          .. "and says THAT rather than drawing one at 0,0",
+          c == nil and type(why) == "string" and why:find("pointer", 1, true),
+          tostring(why))
+    c = grid.pointerCell(F, 500, 400, 9000, 9000)
+    check("🎯 a box bigger than its screen is not a box",
+          c and c.rw == 1000 and c.rh == 800, c and (c.rw .. "x" .. c.rh))
+    check("🎯 nonsense gets nothing", grid.pointerCell(nil, 1, 1, 1, 1) == nil)
+
+    -- ---- it is DRAWN, and ⏎ lands on it -------------------------------
+    grid.hide("t")
+    hs.mouse.absolutePosition({ x = 500, y = 400 })
+    grid.show(false)
+    local p = grid.cache.screens[1]
+    local boxes = 0
+    for _, e in ipairs(p.gridCanvas.elements) do
+        if e.type == "rectangle" and e.action == "stroke" then boxes = boxes + 1 end
+    end
+    check("🎯 6.444.0 — ONE box is drawn at the crosshairs, and exactly one",
+          boxes == 1, boxes)
+    -- 🔒 and it is still there once you have typed, or ⏎ would be live
+    -- over a screen with nothing on it saying so (6.181.0)
+    pickKey("a")
+    boxes = 0
+    for _, e in ipairs(p.gridCanvas.elements) do
+        if e.type == "rectangle" and e.action == "stroke" then boxes = boxes + 1 end
+    end
+    check("🔒 …and it survives the lattice being dropped on the first "
+          .. "keystroke, because ⏎ still means it", boxes == 1, boxes)
+    grid.backspace()
+
+    MOUSE_AT = { x = 0, y = 0 }
+    local landed = grid.landOnPointer()
+    check("⏎ 6.444.0 — LANDS WHERE THE POINTER ALREADY WAS", landed == true)
+    check("⏎ …on the pointer's own point, to the pixel",
+          MOUSE_AT.x == 500 and MOUSE_AT.y == 400,
+          MOUSE_AT.x .. "," .. MOUSE_AT.y)
+    grid.hide("t")
+
+    -- ⏎ is bound in the PICK modal and NOT in the landed one, where it
+    -- already clicks (6.231.0 — two meanings on one key in one mode is
+    -- how they come to disagree)
+    check("⏎ is bound in pick mode", grid.pickModal.binds["|return"] ~= nil)
+    check("⏎ in LANDED mode still clicks, which it has since 6.192.0",
+          grid.landModal.binds["|return"] ~= nil)
+
+    -- ---- the switch is real, and the card says which ------------------
+    grid.pointerBox = false
+    grid.hide("t")
+    hs.mouse.absolutePosition({ x = 500, y = 400 })
+    grid.show(false)
+    p = grid.cache.screens[1]
+    boxes = 0
+    for _, e in ipairs(p.gridCanvas.elements) do
+        if e.type == "rectangle" and e.action == "stroke" then boxes = boxes + 1 end
+    end
+    check("🔌 switched off, NO box is drawn — off is off, not made and hidden",
+          boxes == 0, boxes)
+    MOUSE_AT = { x = 0, y = 0 }
+    check("🔌 …and ⏎ lands on nothing rather than on 0,0",
+          grid.landOnPointer() == false
+          and MOUSE_AT.x == 0 and MOUSE_AT.y == 0,
+          MOUSE_AT.x .. "," .. MOUSE_AT.y)
+    grid.hide("t")
+    -- 🧪 the card belongs to whichever module instance `grid` is bound to
+    -- right now (earlier sections reload it), so it is read from THAT one
+    -- rather than from the handle this file opened with
+    local cmod = loadModule()
+    grid.pointerBox = false
+    grid.refreshCheatsheet()
+    local offRow
+    for _, e in ipairs(cmod.cheatsheet.entries or {}) do
+        if tostring(e[2] or ""):find("crosshairs", 1, true) then offRow = e end
+    end
+    check("📋 the card says it is OFF rather than promising a key that "
+          .. "does nothing (6.181.0)",
+          offRow and tostring(offRow[2]):find("off", 1, true) ~= nil,
+          offRow and tostring(offRow[2]))
+    grid.pointerBox = true
+    grid.refreshCheatsheet()
+    offRow = nil
+    for _, e in ipairs(cmod.cheatsheet.entries or {}) do
+        if tostring(e[2] or ""):find("crosshairs", 1, true) then offRow = e end
+    end
+    check("📋 …and names ⏎ when it is on",
+          offRow and offRow[1] == "⏎", offRow and tostring(offRow[1]))
+
+    -- 🔎 the report has three states, and the third is the one that matters
+    hs.mouse.absolutePosition({ x = 500, y = 400 })
+    grid.show(false)
+    printed = {}
+    _G.mouseGridReport()
+    local r = table.concat(printed, "\n")
+    check("🔎 the report says where the box is", r:find("⏎ box", 1, true)
+          and r:find("lands where the pointer already is", 1, true), r:sub(1, 80))
+    grid.hide("t")
+    grid.pointerBox = false
+    printed = {}
+    _G.mouseGridReport()
+    r = table.concat(printed, "\n")
+    check("🔎 …and that it is off, rather than being silent about a key "
+          .. "that does nothing", r:find("off (grid.pointerBox)", 1, true) ~= nil,
+          r:sub(1, 80))
+    grid.pointerBox = true
+
+    local ran = (pass + fail) - before
+    check("§6444 ran all of its checks (" .. ran .. " of 18)", ran >= 18, ran)
+    grid.hide("t")
+end
+
 realPrint(table.concat(printed, "\n"))
 out("\n")
 if fail > 0 then
